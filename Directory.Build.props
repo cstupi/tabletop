@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    The project is built from two operating systems: Godot runs on the Windows host, while
+    tooling and CLI builds run in WSL. A shared obj/ directory breaks that, because restore
+    writes absolute, OS-specific paths into project.assets.json — so give each OS its own.
+    $(OS) is "Windows_NT" or "Unix".
+  -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>obj\$(OS)\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+</Project>

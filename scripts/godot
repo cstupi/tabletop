@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Launch the Windows-host Godot editor against this project, which lives in WSL.
+# Set GODOT_EXE to override the editor location.
+set -euo pipefail
+
+if [[ -z "${GODOT_EXE:-}" ]]; then
+    candidates=(/mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_*/Godot_v*_mono_win64/Godot_v*_mono_win64.exe)
+    GODOT_EXE="${candidates[0]}"
+fi
+
+if [[ ! -f "$GODOT_EXE" ]]; then
+    echo "Godot not found. Install the Godot .NET build on the Windows host, or set GODOT_EXE." >&2
+    exit 1
+fi
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$GODOT_EXE" --path "$(wslpath -w "$project_root")" "$@"
