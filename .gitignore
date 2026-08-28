@@ -29,9 +29,14 @@ obj/
 .vscode/
 .idea/
 
-# Exported builds
-/build/
-/export/
+# Exported builds (Godot exports land under client/, so these are not root-anchored)
+build/
+export/
+
+# Secrets — Stytch project secrets, DB credentials. Never committed.
+.env
+.env.*
+!.env.example
 
 # OS noise
 .DS_Store

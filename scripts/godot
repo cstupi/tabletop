@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch the Windows-host Godot editor against this project, which lives in WSL.
+# Launch the Windows-host Godot editor against the Godot project in client/, which lives in WSL.
 # Set GODOT_EXE to override the editor location.
 set -euo pipefail
 
@@ -13,5 +13,5 @@ if [[ ! -f "$GODOT_EXE" ]]; then
     exit 1
 fi
 
-project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../client" && pwd)"
 exec "$GODOT_EXE" --path "$(wslpath -w "$project_root")" "$@"

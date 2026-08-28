@@ -1,6 +1,9 @@
 # CLAUDE.md
 
-Godot 4.7 / C# project, currently at scaffold stage.
+Virtual tabletop for One Page Rules and Warhammer 40,000: a Godot 4.7 / C# client and
+.NET servers. Currently at scaffold stage — only the client exists.
+
+`docs/architecture.md` records the design decisions and why they were made.
 
 Each module is planned separately before it is built. Do not scaffold ahead of a plan — no
 speculative folders, interfaces, or placeholder systems for work that has not been designed
@@ -21,19 +24,43 @@ reaches the project over `\\wsl.localhost\Ubuntu-20.04\home\cstupi\src\tabletop`
 ## Commands
 
 ```bash
-dotnet build                 # compile; output goes to .godot/mono/temp/bin/
+dotnet build                 # compile; output goes to client/.godot/mono/temp/bin/
 ./scripts/godot -e           # open the editor on the Windows host
 ./scripts/godot              # run
 ```
 
-Godot's import step wipes `.godot/mono/temp/bin/`, so build *after* an import, not before,
-or the assembly is missing and every script fails with "class could not be found".
+Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
+before, or the assembly is missing and every script fails with "class could not be found".
 
 ## Layout
 
-- `Tabletop.csproj` / `Tabletop.sln` — game assembly, `net10.0`, root namespace `Tabletop`
-- `src/` — all C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
-- `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
+Three kinds of top-level directory:
+
+- **Deliverables** — `client/`, `server/`. These ship.
+- **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
+- **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
+  stays out of `client/`, because everything under the Godot project root is project
+  content that the editor scans and lists.
+
+- `client/` — the Godot game client, and the only project with a Godot dependency.
+  - `Tabletop.csproj` / root namespace `Tabletop`, `net10.0`
+  - `src/` — all client C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
+  - `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
+- `server/game/` — live game sessions, rules engine, event log. WebSocket. Empty.
+- `server/management/` — ASP.NET Core CRUD API: accounts, collections, assets. Empty.
+- `web/` — Svelte SPA for accounts and army management. Does not exist yet.
+- `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
+
+The rules engine is **not** in `libs/` — it lives only in `server/game/`. The client is a
+renderer plus a geometry engine, and there is no offline mode: running the game means
+running a server.
+- `Tabletop.sln` — at the repo root, spanning every project; `Directory.Build.props` and
+  `global.json` sit beside it and are found by MSBuild walking up from each project.
+
+Because the client project lives in `client/`, its `**/*.cs` glob cannot reach sibling
+projects — that is why it moved out of the repo root.
+
+`server/` and `libs/` are empty on purpose. Each module is designed before it is built.
 
 ## Conventions
 
