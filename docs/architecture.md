@@ -248,28 +248,30 @@ A mesh carries **zero game semantics**. It does not know what it represents, wha
 or what army it is in. It is a file a user points at things.
 
 ```
-Blob      hash, bytes in S3                     deduped across all users
+Blob      hash, bytes in S3                     deduped within one user's library
 Asset     account_id, blob_hash, name, kind     the library item
-          + scale, orientation, base_size       physical facts about the miniature
-Binding   army_id, target_ref, asset_id         what it represents, here
+          + scale, orientation, modelled base   physical facts about the miniature
 ```
 
-Two layers, not three: **what the model physically is**, and **what it is standing in for right
-now**. There is no per-army asset row and no FK from `Asset` to any army — armies reach *out* to
-assets, so deleting an army touches nothing in the library.
+Two records in the library, and the reference to one of them is a field on the model slot
+inside an army — see [the asset library](superpowers/specs/2026-08-28-asset-library-design.md).
+There is no per-army asset row and no FK from `Asset` to any army: armies reach *out* to
+assets, so deleting an army touches nothing in the library, and deleting an asset degrades
+appearance without affecting play.
 
-**Scale, orientation and base size live on the Asset** because they are facts about the
-miniature, not about a game. A sculpt is built at a size, and there are only so many base sizes.
-A space marine is a space marine in every army — what varies is the stat block it stands in for,
-and someone may well proxy it for a different race entirely. That variation is the binding's
-job, and nothing validates that a mesh "matches" what it represents.
+**Dedup is per user, not global.** Nobody shares storage with anybody. Sharing a model,
+when it arrives, copies it into the recipient's library, so cross-user reference counting
+never has to exist.
 
-Consequence: an imported list may say a unit is on 32mm while the bound mesh is on 40mm. **The
-asset's base size wins for geometry**, because it is physically true; the mismatch is surfaced
-as a warning. Same stance as base overlap and broken coherency — flag, never gate.
+**Scale, orientation and the base it was modelled on live on the Asset** because they are
+facts about the sculpt, not about a game. A space marine is a space marine in every army —
+what varies is the stat block it stands in for, and someone may well proxy it for a
+different race entirely. Nothing validates that a mesh "matches" what it represents.
 
-Bindings must **survive re-import**, so they key on a stable reference inside the army data,
-never on a row id that is recreated when a list is re-imported.
+The **modelled base is a suggestion axis, not the hitbox.** The base used for geometry is
+set per model slot, defaulting to the ruleset's value — see
+[the army](superpowers/specs/2026-08-28-army-design.md). What the asset records is the base
+the sculpt was built on, which is how the library offers meshes that fit a slot.
 
 `kind` makes the library generic beyond miniatures. Terrain pieces use the same upload, the same
 dedup, and the same library — only their profile differs, carrying collision volumes instead of
