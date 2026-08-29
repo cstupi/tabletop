@@ -179,27 +179,63 @@ Carried from the design docs:
 - Whether the client ever needs to edit an army rather than only pick one.
 - Loopback or device code for getting a browser session into the client.
 
-## Next
+## Next — pick up here
 
 Eight modules are designed: the table, game flow, resolution, the army, the asset library,
-accounts, the setup content, and the web app. **The design phase is complete.** Every noun has
-a home, and every deliverable has a job.
+accounts, the setup content, and the web app. Every noun has a home and every deliverable has
+a job, and `docs/data-model.md` draws all of it.
 
-What is left is not another module. The remaining questions are about expression — how any of
-this is written in C#, what persists where, what the wire format is — which is exactly what
-every session so far deferred on purpose.
+**The current phase is putting real definition on the placeholder types in that diagram.**
+Its attribute types were written to keep it honest about what exists, not to be precise —
+`stats stats`, `list abilities`, `ref list_entry`, `profile profile`. Those are the fields that
+would be nebulous at execution time, and they are the work now. This comes *before* tables and
+columns, and well before designing consumers, so gaps surface while they are still cheap.
 
-So the next decision is whether the model has stopped moving. It survived eight sessions, and
-the last four each corrected the ones before — including this one, which reversed the session
-immediately preceding it on login. That rate is the evidence, in either direction.
+### What is underdefined
 
-If it has stopped: the mode changes, and the first step is **tables and columns** — turning
-`docs/data-model.md` from entities into a schema. That has to come before designing the
-consumers, so that anything the model is missing surfaces while it is still cheap.
+| Entity | Field | What is undefined |
+| --- | --- | --- |
+| `ARMY` | `game_system`, `source` | Which ruleset, in what form; what "imported from Army Forge" records |
+| `UNIT` | `list_entry` | An Army Forge id, a name, or not needed at all |
+| `UNIT` | `abilities`, `upgrades` | Catalog ids with parameters, or resolved values |
+| `UNIT`, `MODELSLOT` | `stats` | A named store — but of what. OPR quality is `4+`; 40k has `6"` and `D6` |
+| `MODELSLOT` | `loadout` | Weapons carry their own stat blocks |
+| `MODELSLOT` | `base`, `height` | Round or oval and a size, in mm, while the world is in inches |
+| `ASSET` | `kind`, `profile` | Three kinds, three different shapes |
+| `ASSET` | `scale`, `orientation` | Never defined what they are measured against |
+| `TERRAINPLACEMENT` | `volume_overrides`, `declaration_overrides` | What a volume is; what a declaration is |
+| `MARKERPLACEMENT` | `position`, `facing`, `size` | Vectors and angles, unspecified |
+| `DEPLOYMENTREGION` | `builtin_shape` | The inventory itself |
+| `GAME` | `status`, `scheduler_shape`, `enforcement` | Three enumerations, no values named |
+| `ARMYSNAPSHOT` | everything | Has only an id. What a snapshot contains was never said |
+| `RULEPACK` | `content_hash` | Whether it is a row at all — packs ship with the build |
+| `GAMEEVENT` | `kind`, `payload` | The event catalog. **Out of scope** — that is `Tabletop.Protocol`, a contract rather than a value type |
 
-After that, `docs/workstreams/` gets rewritten against the real model instead of the 08-24
-guesses, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
-`Tabletop.Protocol`, `Tabletop.Content`, and the join token.
+### Three sessions, in this order
+
+1. **Geometry values** — base shape and height, position, facing, transform, collision volumes,
+   terrain declarations, the built-in region shapes. Feeds `Tabletop.Geometry`. **Take this
+   first**: self-contained, no dependency on the rules, and `Tabletop.Geometry` is the earliest
+   buildable thing in the build order — step 2, headless tests, zero dependencies.
+2. **Identity and enumerations** — asset kind and profile, marker kind, game status, scheduler
+   shape, enforcement dial, and whether `RULEPACK` is a row.
+3. **Content values** — stats, abilities, upgrades, loadout, `list_entry`, `game_system`, and
+   what an `ARMYSNAPSHOT` holds. Feeds `Tabletop.Content`. **Last**, because it leans hardest on
+   the rule pack schema, which is the least settled thing in the project.
+
+### After that
+
+Tables and columns, turning `docs/data-model.md` into a schema. Then `docs/workstreams/` gets
+rewritten against the real model instead of the 08-24 guesses, and the contracts list becomes
+worth freezing — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join
+token.
+
+### Is the model still moving?
+
+Worth re-asking before freezing anything. It survived eight sessions, and the last four each
+corrected the ones before — including the web app session, which reversed the session
+immediately preceding it on login. The nouns stopped moving after the army; what kept moving
+was *where things live*.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
