@@ -30,23 +30,25 @@ Stytch answers exactly one question: **is this session valid, and whose is it.**
 `external_id` holds the account's GUID, and that is the entire link between the two
 systems. No Stytch identifier is stored anywhere in our schema.
 
-**The flow runs through management.** The client posts to our endpoints; management calls
-Stytch; our session token comes back. The client never holds a Stytch public token and
-never calls Stytch directly.
+**The flow runs through management.** Whatever is logging in posts to our endpoints;
+management calls Stytch; our session token comes back. Nothing outside management holds a
+Stytch secret, and no Stytch identifier is stored in our schema.
 
-All of Stytch's methods are supported — email OTP, magic link, password, OAuth. Email OTP
-and password are plain API calls with no browser in them. Magic link and OAuth are
-click-through by nature, so the client opens the system browser or a webview and catches
-the redirect.
+All of Stytch's methods are supported — email OTP, magic link, password, OAuth. OTP and
+password are Basic-auth endpoints that cannot be called from a browser, so they run in
+management regardless. OAuth and magic links need a page to redirect back to.
+
+*Revised 2026-08-29 by [the web app](2026-08-29-web-app-design.md): **login lives in the
+browser**, and the client acquires a session from it. This section originally put login in the
+client on the reasoning that no browser existed to host it.*
 
 **Replacing Stytch is a change inside one module.** That is the constraint the routing
 exists to satisfy, and it is why the vendor is not allowed to appear in the client, in the
 schema, or in any other module. The one place confinement is nominal rather than literal
 is an OAuth consent page, which has Stytch in the URL bar. That costs nothing.
 
-This supersedes `architecture.md`, which said the browser owns login and the game client
-acquires a token from that session. That was written when the web app was going to be the
-front door. It is not.
+`architecture.md`'s original position — the browser owns login, the client acquires a token
+from that session — stands after all.
 
 **Playing requires an account.** There are no guests: you need an owned army to bring, and
 there is no offline mode.
@@ -133,8 +135,9 @@ viewer possible later, and it is what account deletion has to reach into.
 
 ## Deliberately not decided
 
-- The web app: whether it exists, and what it does if it does. Browsing and joining games
-  live in the game client.
+- ~~The web app: whether it exists.~~ Settled by
+  [the web app](2026-08-29-web-app-design.md): it exists, it owns preparation, and the client
+  owns play. Browsing and joining games stay in the client.
 - What an account looks like to another account, beyond a name.
 - Per-account defaults.
 - The game record's own fields beyond status and participants — table, mission, rule pack

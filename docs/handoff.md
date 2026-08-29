@@ -17,6 +17,7 @@ scaffold — all of the work so far is design.
 | 2026-08-28 | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
 | 2026-08-29 | [Accounts, and everything outside the game](superpowers/specs/2026-08-29-accounts-design.md) |
 | 2026-08-29 | [The table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
+| 2026-08-29 | [The web app, and the line between preparation and play](superpowers/specs/2026-08-29-web-app-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -121,6 +122,22 @@ It also corrected the asset library and accounts: **a library is private for dis
 access.** Game participants download the assets that game uses; nothing is copied and no record is
 created, so the "sharing copies into the recipient's library" rule is gone.
 
+**The web app** — it exists, and the line is **preparation versus play**. The browser owns army
+import and editing, mesh binding, base shapes, asset upload and the library, the account, and
+login. The client owns creating a game, picking an army, the game browser, joining, the setup
+phase and play. The client does not edit armies.
+
+That reverses the previous session on login: the browser owns it and the client acquires a
+session, which restores `architecture.md`'s original position. Confinement is unaffected —
+Stytch's OTP and password endpoints require the project secret and cannot be called from a
+browser, so they run in management either way, while OAuth and magic links need a page to
+redirect back to, which is what the web app supplies. Getting the session into the client is
+loopback or a device code, both deferred.
+
+An embedded webview serving one shared UI was considered and rejected: it does not remove a UI
+stack, it adds a bridge to one — a browser engine bundled into the client plus a second renderer
+inside it for mesh preview.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -128,12 +145,10 @@ conditions.
 
 ## What is not designed
 
-**The web app** — and whether it exists at all is now itself open, since login, the game
-browser and joining all moved into the client. What remains for it is army import and asset
-upload, which are still better in a browser.
+Nothing, at this altitude. Every noun has a home and every deliverable has a job.
 
-That is the whole of what is undesigned. Missions turned out not to be a module — they are
-content in a book, and automating them is a later feature rather than a missing noun.
+Missions turned out not to be a module — they are content in a book, and automating them is a
+later feature rather than a missing noun.
 
 ## Open questions
 
@@ -156,23 +171,26 @@ Carried from the design docs:
   terrain becomes event-driven state on top of the setup snapshot.
 - Whether the closed terrain declaration set is complete.
 - What happens when a saved layout's board size does not match the table it is loaded onto.
+- Whether the client ever needs to edit an army rather than only pick one.
+- Loopback or device code for getting a browser session into the client.
 
 ## Next
 
-Seven modules are designed: the table, game flow, resolution, the army, the asset library,
-accounts, and the setup content. **The data model is complete.**
+Eight modules are designed: the table, game flow, resolution, the army, the asset library,
+accounts, the setup content, and the web app. **The design phase is complete.** Every noun has
+a home, and every deliverable has a job.
 
-What is left is not another noun. The remaining questions are about expression — how any of
+What is left is not another module. The remaining questions are about expression — how any of
 this is written in C#, what persists where, what the wire format is — which is exactly what
-every session so far has deferred on purpose.
+every session so far deferred on purpose.
 
-So the next decision is whether the model has stopped moving. It has now survived seven
-sessions, the last three of which each corrected the ones before. If the answer is yes, the
-mode changes: `docs/workstreams/` gets rewritten against the real model instead of the 08-24
-guesses, and the contracts list becomes worth freezing.
+So the next decision is whether the model has stopped moving. It survived eight sessions, and
+the last four each corrected the ones before — including this one, which reversed the session
+immediately preceding it on login. That rate is the evidence, in either direction.
 
-The web app is the one loose end, and it is smaller than it was: login, the game browser and
-joining moved into the client, leaving army import and asset upload.
+If it has stopped: the mode changes. `docs/workstreams/` gets rewritten against the real model
+instead of the 08-24 guesses, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
+`Tabletop.Protocol`, `Tabletop.Content`, and the join token.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design

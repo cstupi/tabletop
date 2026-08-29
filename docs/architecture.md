@@ -15,8 +15,9 @@ Four things ship, and they have different target platforms:
 | Management API | `server/management/` | Linux (Fargate) |
 | Web app | `web/` | Static (Svelte SPA) |
 
-The web app is the least certain of the four — see [accounts](superpowers/specs/2026-08-29-accounts-design.md),
-which puts login and the game browser in the client and leaves the web app's existence open.
+The web app exists and owns **preparation** — armies, assets, account, and login. The client
+owns **play**, plus the game browser and joining. See
+[the web app](superpowers/specs/2026-08-29-web-app-design.md).
 
 Everything except the client is headlessly testable. Everything except the client is
 Godot-free.
@@ -331,8 +332,8 @@ deferred, because the two differ in transport, state, and deploy risk.
 | Ruleset registry | Content-addressed rule packs |
 | Games | Game records, teams, participants, the public game browser |
 
-Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. The game
-client talks to it over HTTP, and it is the only thing that talks to Stytch.
+Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. Both the
+web app and the game client talk to it over HTTP, and it is the only thing that talks to Stytch.
 
 There is no `Collections` module and no collection entity. The word was never given a meaning
 and is dropped.
@@ -342,10 +343,10 @@ and is dropped.
 Live games in memory, plus the append-only event log. **The only module holding live state.**
 It needs graceful shutdown that drains to the event log, and it is what constrains deploys.
 
-Authentication does not run through Stytch here. The client logs in against management, then
-creates or joins a game through an ordinary endpoint that returns a **join token**; the game
-server validates that token. Reconnect matters — a four-player game runs hours, and the event
-log makes resuming a solved problem.
+Authentication does not run through Stytch here. The user logs in through the web app, the
+client acquires a session from it, and creating or joining a game is an ordinary management
+endpoint returning a **join token** that the game server validates. Reconnect matters — a
+four-player game runs hours, and the event log makes resuming a solved problem.
 
 ### Transport
 
@@ -409,10 +410,10 @@ This falls out of the thin client rather than needing to be designed in later.
 
 ## Web frontend
 
-**Unsettled.** [Accounts](superpowers/specs/2026-08-29-accounts-design.md) puts login,
-the game browser, and joining in the game client, and leaves whether a web app exists at all
-undecided. What follows is the older reasoning, kept because the upload and authoring arguments
-still stand on their own.
+Settled by [the web app](superpowers/specs/2026-08-29-web-app-design.md): it exists, and the
+line is **preparation versus play**. The browser owns armies, assets, the account and login; the
+client owns the game browser, joining, setup and play. The client does not edit armies — it
+creates a game and picks one.
 
 Account and army management are a **Svelte SPA**, not part of the game client. Users manage
 shared, persistent things in a browser: identity, armies imported from Army Forge, art bindings,
@@ -422,10 +423,10 @@ This removes real work from the hard-to-iterate side — the Godot client needs 
 UI, no upload UI, and no login form — and makes the HTTP API a genuine API surface rather than an
 internal detail of one client.
 
-- **Auth does not need a browser.** Superseded by
-  [accounts](superpowers/specs/2026-08-29-accounts-design.md): login runs through management, so
-  the client posts credentials to our API rather than Stytch's, and only OAuth and magic links
-  open a browser at all.
+- **Auth is easier in a browser.** Stytch's prebuilt components are web components, and OAuth
+  and magic links both need a page to redirect back to. OTP and password are Basic-auth
+  endpoints that run in management either way. The browser owns login and the client acquires a
+  session from it — by loopback or device code, both deferred.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot,
   and mesh processing stays server-side.
 - **Collision volume authoring splits.** Base sizes are a preset dropdown (25/32/40mm round, oval
