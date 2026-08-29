@@ -107,13 +107,12 @@ Carried from the two design docs:
 
 ## Next
 
-Four modules are designed. What remains undesigned is **management, assets, and the web
-app** — accounts, the asset library and its upload path, and the SPA over both. All still
-at the 08-24 sketch stage, and all further from the table than anything designed so far.
+Four modules are designed. Still to design, at the same altitude: **the asset library**
+(what an asset record is beyond the mesh, how assets are organised and found),
+**accounts and collections**, and **the web app**.
 
-Worth considering instead: the four design docs now describe a coherent model, and none of
-it has been tested against a real game being played. A read-through for contradictions
-between them may be worth more than a fifth module.
+Everything so far has been the data model for what happens on a table. What remains is the
+data model for what a user owns around it.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
