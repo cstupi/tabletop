@@ -1,108 +1,112 @@
-# Handoff — 2026-08-24
+# Handoff — 2026-08-28
 
-Where the project stands at the end of the first planning session, and what to pick up next.
+Where the project stands, and what to pick up next.
 
-## Nothing is committed
+## State
 
-The entire session's work is sitting in the working tree, unstaged. `git status` shows the
-restructure as renames (so history follows), plus modified docs and new directories.
+Tree is clean; everything is committed. No code has been written beyond the Godot
+scaffold. Three planning sessions have happened.
 
-Committing is the first thing to do tomorrow, unless you want to review it first.
-
-## What happened this session
-
-Two things: the repo was restructured, and several load-bearing architecture decisions were
-reversed. The reversals matter more.
-
-### Repo restructure (done, verified)
-
-The Godot project moved from the repo root into `client/`. Verified: headless Godot import
-exits 0, `dotnet build` from the root succeeds, assembly lands at
-`client/.godot/mono/temp/bin/Debug/Tabletop.dll`, per-OS `obj/` split still resolves.
-
-```
-client/            Godot game client — the only Godot dependency
-server/game/       live sessions, rules engine, event log   (empty)
-server/management/ ASP.NET Core CRUD API                    (empty)
-libs/              Geometry, Protocol, Content              (empty)
-docs/  scripts/    repo-level support
-```
-
-Godot did **not** demand a solution beside `project.godot`, so `Tabletop.sln` stays at the root
-and `dotnet/project/solution_directory` was not needed.
-
-`web/` and `tools/` do not exist yet; they are created by their workstreams.
-
-### Decisions reversed from the original architecture
-
-| Was | Now |
+| When | Produced |
 | --- | --- |
-| Rules engine shared, runs on client and server | **Thin client.** Rules live only in `server/game/` |
-| One `Tabletop.Server` with module folders | **Two servers**, split on CRUD vs live sessions |
-| In-process authority gives local hotseat free | **No offline mode.** The client always connects |
-| Self-hosted, filesystem blob store | **AWS**: Fargate, RDS, S3 |
-| Networking deliberately late (step 7) | **Step 3.** It is the only transport |
-| Assets → art profiles → army loadouts | **Two layers**: Asset (physical) + Binding (representational) |
-| Server converts uploaded meshes | **glTF only.** Conversion is an offline tool |
+| 2026-08-24 | Repo restructure, `docs/architecture.md`, seven workstream prompt sketches |
+| 2026-08-27 | [Table domain model](superpowers/specs/2026-08-27-table-domain-model-design.md) |
+| 2026-08-28 | [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) |
 
-All of this is written into `docs/architecture.md`. That document is now correct and is the
-shared context every workstream session reads.
+## The mode — read this before proposing anything
 
-### Two things I got wrong mid-session, now corrected
+**We are still ideating. Do not write buildable specs and do not freeze contracts.**
 
-- I claimed `Tabletop.Geometry` needed bit-exact cross-platform determinism. It does not — the
-  server is authoritative, so client geometry is a **prediction for responsiveness only**, and
-  divergence cannot compound. Corrected in the doc and in workstream 02.
-- I described a Stytch redirect URL as "production". There is no production environment; both
-  redirect URLs are in the **test** project.
+The 08-24 session produced workstream prompts and a "contracts to freeze before parallel
+work" list. Those were premature and are on hold. Freezing an interface is only worth
+doing when the model behind it has stopped moving, and it has not.
 
-## Workstream prompts
+The mode the last two sessions established, and the one to continue in: **decide meaning,
+defer expression.** Both design docs deliberately refuse to say how anything is expressed
+in C#, how it persists, or what the wire format is. That is not an omission to fix later
+by adding detail — it is what makes them cheap to change.
 
-`docs/workstreams/README.md` is the master index and carries the rules every session follows:
-read order, exclusive path ownership, branch naming `ws/<nn>-<slug>`, contracts frozen, decisions
-recorded back into the workstream file, evidence required for completion claims.
+**The workstream prompts in `docs/workstreams/` are sketches. None should be run as
+written.** They predate both design sessions and describe a data model that no longer
+matches. `01-contracts` in particular was flagged as the weakest and most blocking, and
+the correct response to that is not to strengthen it yet.
 
-**Ready:** 01 contracts, 02 geometry, 03 management identity, 04 game server skeleton,
-05 client shell, 09 management collections, 11 mesh prep tool.
+## What is designed
 
-**Not scoped, marked do-not-start:** 06 vertical slice, 07 scheduler + OPR, 08 resolution
-pipelines, 10 management assets.
+**`docs/architecture.md`** — settled, and the shared context every session reads. Thin
+client with rules only on the server, two servers split on CRUD vs live sessions, no
+offline mode, AWS, command/event spine, undo by replay, enumeration rather than
+validation, rules as data with a closed schema and open catalog, rule packs pinned per
+game.
 
-Genuinely startable with nothing frozen first: **01**, **03**, **11**.
+**Table domain model** — the nouns. Armies as immutable user-owned snapshots bundling
+list and mesh assignments; placement per model, never per unit; distance and line of
+sight against base-and-height cylinders, never the visual mesh; terrain declaring named
+effects the game system interprets; stats as a named store rather than typed fields. Plus
+the one wire decision the table forced: live drag positions broadcast but never logged,
+the log carrying debounced start and stop positions so replay lands on a settled state.
 
-## Open — pick up here
+**Game flow** — the verbs. Teams as the only thing the scheduler sees, with armies
+attached to players but activation authority team-wide. A unit records named actions
+separately from conditions, because the two have different lifetimes; activation is
+therefore a ruleset's reading of the action record, not a data concept. Both scheduler
+shapes get built — player-turn and alternating activation. The graveyard generalises to a
+shelf holding undeployed models, casualties, and reserves alike. Setup configuration
+(pack, scheduler, table, teams, enforcement dial) is settled before the game loads.
 
-**01-contracts is the weakest prompt and blocks the most.** It currently says "design an API
-surface" without specifying what goes in it, which means 04 and 05 would build against different
-guesses. The conclusion reached but not yet written up:
+Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
+invariant and every property is editable from a menu through the same write path
+automation uses; and **players count their own points**, so there are no victory
+conditions.
 
-- `Tabletop.Geometry` — fully specifiable now, no game concepts in it
-- `Tabletop.Content` — specifiable now, stats are a *named* store, never typed OPR fields
-- `Tabletop.Protocol` — **cannot** be fully frozen. Freeze the *envelope* (game_id, actor, kind,
-  payload, override flag, sequence, caused_by); let the command set grow per vertical slice.
-  `DeclareShoot` cannot be designed before resolution pipelines exist.
+## What is not designed
 
-**Not scoped yet, in the order originally agreed:** game server beyond the skeleton, then army
-management detail, then the client. Workstreams 06–08 and 10 need scoping before they can run.
+Resolution — dice, wounds, modifier stacking, the shooting and melee pipelines. This is
+the largest remaining piece and it sits inside an activation, so game flow had to come
+first.
 
-**Parked, not blocking:** who instantiates a game session when a lobby room starts. Management
-phase 1 has no lobby and the game server skeleton stubs session creation, so neither waits.
+Army import and mesh binding — Army Forge import, how a list freezes into a snapshot, and
+binding granularity. Independent of everything above; it touches no game.
 
-**Unresolved smaller items:**
+Management, assets, and the web app. Untouched since the 08-24 sketches.
 
-- Binding granularity — unit-level, model-level, or unit default with per-model override. Third
-  option recommended, not decided.
-- `Layout` and `Mission` — Layout is drawn as a user-owned table, but a mission may be rule-pack
+## Open questions
+
+Carried from the two design docs:
+
+- Game lifecycle: created, in progress, abandoned, finished, and what a disconnect means.
+- Whether setup configuration can change once a game is loaded. Pinning answers it for the
+  rule pack; the rest is undecided.
+- What state a model returns in when a mechanic brings it back off the shelf. A rules
+  question, but the model has to support the answer.
+- Whether an objective's game data is generic or system-specific.
+- Binding granularity — unit-level, model-level, or unit default with per-model override.
+  Third option recommended, not decided.
+- `Layout` and `Mission` — Layout is a user-owned table, but a mission may be rule-pack
   data rather than a row. Depends whether users author missions.
 - Triangle-count guardrail at upload — agreed in principle, threshold not chosen.
+- Who instantiates a game session when a lobby room starts. Not blocking anything.
+
+## Next
+
+**Resolution** is the natural next module, for the same reason game flow followed the
+table: it is the thing every remaining decision waits on. **Army import and binding** is
+the alternative — smaller, more mechanical, and genuinely independent, so it can run any
+time.
+
+One consequence worth carrying forward: `architecture.md` holds pipeline step order,
+scheduler policy, and dice conventions in C# until a second ruleset exists to design
+against. Building both schedulers puts that second example at the scheduler seam
+immediately, so of the three, that is the first where "should this move to data" becomes
+answerable.
 
 ## Environment notes
 
-Stytch MCP is authenticated and works. Project `TabletopWar`, vertical `CONSUMER`, test project
-`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. The user updated the test environment's
-redirect config during the session, so re-read it rather than trusting values quoted in older
-messages.
+Stytch MCP is authenticated and works. Project `TabletopWar`, vertical `CONSUMER`, test
+project `project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. There is no production
+environment — both redirect URLs are in the test project. The redirect config was edited
+during the 08-24 session, so re-read it rather than trusting older quoted values.
 
-The available MCP tools are project-configuration only — redirect URLs, SDK config, tokens,
-email templates. There are no user-management tools, so anything about the Consumer user schema
-has to come from the docs.
+The available MCP tools are project-configuration only — redirect URLs, SDK config,
+tokens, email templates. There are no user-management tools, so anything about the
+Consumer user schema has to come from the docs.
