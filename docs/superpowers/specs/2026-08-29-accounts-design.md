@@ -56,9 +56,12 @@ there is no offline mode.
 Armies, assets and their blobs, folders, layouts, and the games it takes part in.
 
 **Single owner throughout, and no graph.** There are no friends, no handles, no following,
-no sharing, and no way to browse another user's library. Two accounts meet in a game and
-nowhere else. Everything designed so far already assumed this — an army holds its own copy
-of every value, an asset is deduped per user, and sharing was always described as copying.
+and no way to browse or search another user's library. Two accounts meet in a game and nowhere
+else.
+
+**Private for discovery, not for access.** The participants in a game download the assets that
+game uses and render them locally. That is a download, not a share: no record is created on
+either side, nothing enters anybody's library, and per-user dedup is untouched.
 
 A relationship graph is a later addition. Nothing here is shaped to prevent one, and
 nothing here needs one.

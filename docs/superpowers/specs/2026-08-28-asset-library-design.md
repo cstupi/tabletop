@@ -35,10 +35,12 @@ Asset   owner, blob, name, kind                 the library item
 corrected. Nobody shares storage with anybody else, so deleting an asset never has to
 check whether another account still points at the bytes.
 
-**Sharing, when it arrives, copies.** A model shared with another user lands in their
-library as their own asset over their own blob. This is the same principle as the army
-holding its own copy of every value — the recipient owns what they received, and nothing
-reaches back into the sender's library.
+**The library is private for discovery, not for access.** *Corrected 2026-08-29; this section
+originally said that sharing copies a model into the recipient's library.* Nobody can browse or
+search another account's assets. But the participants in a game download the assets that game
+uses and render them locally, and that creates no record on either side — it is a download, not
+a share, and nothing enters anybody's library. Per-user dedup is unaffected, because there is
+still nothing pointing across accounts.
 
 ## Binding is not a third record
 
@@ -82,10 +84,15 @@ nothing else in the system reads them, and an asset in no folder is fine.
 This is the answer to a user with five hundred meshes finding one, together with the
 modelled base as a filter.
 
+## The terrain profile
+
+Designed later, in [the table and its setup content](2026-08-29-setup-content-design.md): a
+terrain asset carries collision volumes and their declarations, which a placement may override.
+That is the second profile `kind` was introduced for.
+
 ## Deliberately not decided
 
 - Upload mechanics: how bytes arrive, how progress is reported, how failures retry.
-- Whether folders are shared or copied when a model is shared.
 - Search beyond folders and modelled base.
 - What `scale` and `orientation` are measured against, and whether the mesh prep tool
   writes them or the user does.

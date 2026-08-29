@@ -16,6 +16,7 @@ scaffold — all of the work so far is design.
 | 2026-08-28 | [The army](superpowers/specs/2026-08-28-army-design.md) |
 | 2026-08-28 | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
 | 2026-08-29 | [Accounts, and everything outside the game](superpowers/specs/2026-08-29-accounts-design.md) |
+| 2026-08-29 | [The table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -102,6 +103,24 @@ flag, not a terminal state, because restarting an ended game is the same replay.
 That last point removed a would-be lifecycle state, and the join token added a contract that
 `architecture.md` had explicitly said would not exist.
 
+**The table and its setup content** — the board, what stands on it before play, and what a
+saved arrangement is. The table is a rectangle: width, length, texture, no shape and no boundary
+volume. Deployment zones are a built-in shape plus a team. **The setup phase is not logged** —
+only its result is, and that record *is* the event log's initial state, which makes terrain and
+objectives locked after setup with no flag to check. A Layout is that same record owned by a user
+rather than a game, so there is one shape rather than two. Objectives and tokens collapse into one
+marker with a `kind`. Terrain volumes and declarations live on the asset and may be overridden per
+placement, with a closed set the engine reads — blocks LoS, cover, difficult, dangerous — and free
+text for everything else.
+
+There is **no `Mission` record.** `architecture.md` had defined one as deployment zones,
+objectives, victory conditions, round count and team count, which is not what a mission is:
+missions are published content in OPR and Warhammer and players read them out of a book.
+
+It also corrected the asset library and accounts: **a library is private for discovery, not for
+access.** Game participants download the assets that game uses; nothing is copied and no record is
+created, so the "sharing copies into the recipient's library" rule is gone.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -113,21 +132,18 @@ conditions.
 browser and joining all moved into the client. What remains for it is army import and asset
 upload, which are still better in a browser.
 
-**Missions and objectives.** Not previously called out as a gap, but the open questions have
-accumulated around it: what a mission is, whether it is a row or rule-pack data, and what an
-objective's game data looks like.
+That is the whole of what is undesigned. Missions turned out not to be a module — they are
+content in a book, and automating them is a later feature rather than a missing noun.
 
 ## Open questions
 
 Carried from the design docs:
 
 - Whether setup configuration can change once a game is loaded. Pinning answers it for the
-  rule pack; the rest is undecided.
+  rule pack and the setup snapshot answers it for board size and texture; the scheduler shape,
+  the teams and the enforcement dial are undecided.
 - What state a model returns in when a mechanic brings it back off the shelf. A rules
   question, but the model has to support the answer.
-- Whether an objective's game data is generic or system-specific.
-- `Layout` and `Mission` — Layout is a user-owned table, but a mission may be rule-pack
-  data rather than a row. Depends whether users author missions.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
@@ -136,20 +152,27 @@ Carried from the design docs:
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - What is in a join token and how long it lives. It is now a contract between the two servers.
 - Whether a game already playing can be joined, or only one still in its lobby.
+- Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
+  terrain becomes event-driven state on top of the setup snapshot.
+- Whether the closed terrain declaration set is complete.
+- What happens when a saved layout's board size does not match the table it is loaded onto.
 
 ## Next
 
-Six modules are designed: the table, game flow, resolution, the army, the asset library, and
-accounts.
+Seven modules are designed: the table, game flow, resolution, the army, the asset library,
+accounts, and the setup content. **The data model is complete.**
 
-Between them they cover what happens on a table, the two things a user brings to it, and the
-account those hang off. **The gap left is the game's own setup content** — table, layout,
-mission, objectives, and whether a mission is a user row or rule-pack data. Game flow settled
-that setup configuration is chosen before load and named its pieces; nothing has designed the
-pieces.
+What is left is not another noun. The remaining questions are about expression — how any of
+this is written in C#, what persists where, what the wire format is — which is exactly what
+every session so far has deferred on purpose.
 
-That is the module to take next, and the web app after it — by which point there will be
-enough decided to know whether the web app has a job left.
+So the next decision is whether the model has stopped moving. It has now survived seven
+sessions, the last three of which each corrected the ones before. If the answer is yes, the
+mode changes: `docs/workstreams/` gets rewritten against the real model instead of the 08-24
+guesses, and the contracts list becomes worth freezing.
+
+The web app is the one loose end, and it is smaller than it was: login, the game browser and
+joining moved into the client, leaving army import and asset upload.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design

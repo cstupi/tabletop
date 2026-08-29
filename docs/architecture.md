@@ -202,40 +202,52 @@ client is Windows and the server is Linux. Divergence cannot compound, because t
 no authoritative state to diverge *into*. That constraint belongs to lockstep architectures,
 which this deliberately is not.
 
-## Table, layout, mission
+## Table and layout
 
-Three separate concepts, because conflating them makes player-count variants of a mission
-require duplicated maps.
+Superseded in part by [the table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md),
+which designs these as data.
 
-- **Table** — dimensions, shape, and play-area boundary as a volume. Named presets (40k
-  60×44, OPR 72×48, skirmish 30×22, 4-player square 72×72) plus arbitrary custom sizes. Never
-  a constant.
-- **Layout** — terrain pieces with transforms. Physical only, no rules.
-- **Mission** — deployment zones, objectives, victory conditions, round count, team count.
+- **Table** — width and length in inches, and a texture. A rectangle: the "shape" and
+  "play-area boundary as a volume" this document originally called for do not exist, and the
+  four-player square is a rectangle like any other. Named presets (40k 60×44, OPR 72×48,
+  skirmish 30×22, 4-player 72×72) plus arbitrary custom sizes. Never a constant.
+- **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
+  placements, deployment regions. Physical only, no rules.
+- **Mission** — **not a record.** This document defined one as deployment zones, objectives,
+  victory conditions, round count and team count, which is not what a mission is. Missions are
+  published content in OPR and Warhammer, players read them out of a book, and game flow had
+  already removed victory conditions from the model.
 
-A terrain piece is a mesh plus collision volumes plus rule tags (blocks LoS, cover type,
-difficult, climbable, height) — the same asset pipeline as models.
+Deployment zones are a built-in shape plus the team it belongs to.
+
+A terrain piece is a mesh plus collision volumes plus declarations. The engine reads a closed
+set of those — blocks LoS, cover, difficult, dangerous — and carries the rest as free text
+nobody interprets. Same asset pipeline as models.
 
 ### Terrain placement is a game phase, not an editor
 
-Terrain lives in game state, so placing a piece is an ordinary **Command** in a setup phase.
-There is no separate map editor application and no second persistence path. The setup sequence
-is: table size → terrain placement → deployment → rounds, all driven by the same scheduler.
+Terrain is placed in a setup phase rather than in a separate map editor application, and there
+is no second persistence path. The setup sequence is: table size → terrain placement →
+deployment → rounds.
 
-This collapses several would-be features into things that already work:
+**The setup phase is not logged.** This reverses what this document originally claimed. It made
+placement a stream of ordinary Commands so that a predefined map would be "a batch of placement
+events," undo during placement would fall out of undo-by-replay, and alternating placement
+would come free from team-scoped input windows. Setup does not need replay; it needs a settled
+result. Only the state at the end of the phase is recorded, and that record is the event log's
+initial state.
 
-- A **predefined map is a batch of placement events**; loading a layout replays them into a new
-  game. Saving works in reverse — export current placements as a layout at any point.
-- **Undo during placement** comes free from undo-by-replay, rather than needing a bespoke
-  editor undo stack.
-- **Alternating terrain placement between players** is already covered by team-scoped input
-  windows.
-- **Destructible or moveable terrain** later needs no new machinery.
+What that buys instead: **terrain and objectives are locked after setup** with no flag and no
+check, because nothing in the log can reach them. Nobody nudges a ruin while reaching across the
+board.
+
+- A **predefined map is a saved snapshot**, not a batch of events; loading one seeds a setup
+  phase. Saving works in reverse — the thing a game ends setup with and the thing a user saves
+  are one record.
+- **Destructible or moveable terrain** later is additive: terrain events on top of the same
+  snapshot, replay still starting from it.
 
 Symmetry mirroring is the feature that makes fair multi-player tables practical.
-
-Because terrain placement exercises commands, geometry, and surface settling together — across
-the real client/server boundary — it is the first full vertical slice.
 
 ## Content and assets
 
@@ -262,9 +274,9 @@ There is no per-army asset row and no FK from `Asset` to any army: armies reach 
 assets, so deleting an army touches nothing in the library, and deleting an asset degrades
 appearance without affecting play.
 
-**Dedup is per user, not global.** Nobody shares storage with anybody. Sharing a model,
-when it arrives, copies it into the recipient's library, so cross-user reference counting
-never has to exist.
+**Dedup is per user, not global.** Nobody shares storage with anybody, so cross-user reference
+counting never has to exist. This is unaffected by game participants downloading each other's
+assets, because that creates no library record on either side — it is a download, not a share.
 
 **Scale, orientation and the base it was modelled on live on the Asset** because they are
 facts about the sculpt, not about a game. A space marine is a space marine in every army —
@@ -284,8 +296,9 @@ a base size.
 
 Uploads are per-user, persistent across games, and load at runtime via `GLTFDocument` — never
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
-served through the management API. A library is private to one account and there is no
-sharing between accounts at all — see [accounts](superpowers/specs/2026-08-29-accounts-design.md).
+served through the management API. **A library is private for discovery, not for access**: nobody
+can browse or search another account's assets, but participants in a game download the assets that
+game uses, straight from wherever they live. Nothing enters anyone else's library.
 
 **Upload accepts glTF/GLB and rejects STL.** The miniature ecosystem distributes STL, which
 Godot cannot load and which is 50–100× too dense for realtime — a print-ready 32mm mini is
@@ -552,8 +565,8 @@ log. Starting, reconnecting, and crash recovery are one path.
 3. **Management API and web app** — Stytch auth, signup, accounts. No game concepts at all.
 4. **Game server skeleton** — WebSocket, session lifecycle, event log, command dispatch.
 5. **Client shell** — camera, table, model dragging, measuring, ghosts. Geometry only, no server.
-6. **Setup phase** — table sizing and terrain placement as commands, end to end. The first
-   vertical slice, and the first exercise of commands, geometry, and settling across the wire.
+6. **Setup phase** — table sizing and terrain placement, ending in a snapshot. Not commands;
+   see [setup content](superpowers/specs/2026-08-29-setup-content-design.md).
 7. **Scheduler and OPR skeleton** — deployment, rounds, team-alternating activation, moves.
 8. **Resolution pipelines** — dice, the modifier system, shooting and melee.
 9. **Army management** — Army Forge import, art binding.
