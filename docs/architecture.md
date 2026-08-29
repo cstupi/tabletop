@@ -184,8 +184,10 @@ mechanism as assets — hashed and pinned in the game record.
 Full 3D math in inches (one world unit = one inch), including settling a model onto the surface
 it lands on by raycasting down through terrain volumes.
 
-Line of sight uses **simplified collision volumes** (boxes, cylinders, convex hulls), never the
-visual mesh. This keeps determinism and headless tests, and deliberately lets an uploaded model
+Line of sight uses **simplified collision volumes**, never the visual mesh.
+[Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) narrows those to
+extruded prisms — a circular or rectangular footprint with a bottom and a top. **Convex hulls
+are dropped**, so every test is a 2D shape intersection plus a vertical range. This keeps determinism and headless tests, and deliberately lets an uploaded model
 carry visual flair outside its hitbox. The Godot layer is purely a renderer; it is never asked a
 question the rules depend on.
 
@@ -222,8 +224,10 @@ which designs these as data.
 Deployment zones are a built-in shape plus the team it belongs to.
 
 A terrain piece is a mesh plus collision volumes plus declarations. The engine reads a closed
-set of those — blocks LoS, cover, difficult, dangerous — and carries the rest as free text
-nobody interprets. Same asset pipeline as models.
+set of six — impassable, blocks LoS, see in and out, cover, difficult, dangerous — and carries
+the rest as free text nobody interprets. Those six are OPR's own terrain types, read from the
+rulebook; `climbable`, which this document previously listed, is not among them. Same asset
+pipeline as models.
 
 ### Terrain placement is a game phase, not an editor
 
@@ -429,9 +433,11 @@ internal detail of one client.
   session from it — by loopback or device code, both deferred.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot,
   and mesh processing stays server-side.
-- **Collision volume authoring splits.** Base sizes are a preset dropdown (25/32/40mm round, oval
-  sizes) covering effectively every model, so the web handles them. Terrain volumes need real 3D
-  manipulation and are authored in the in-game editor, which exists anyway.
+- **Collision volume authoring is the web's too.** Base sizes are a preset dropdown (25/32/40mm
+  round, oval sizes) covering effectively every model. Terrain volumes were held back for the
+  in-game editor because they "need real 3D manipulation" — that was true of convex hulls, which
+  are gone. A footprint and two heights is a top-down task over a model preview, so both live in
+  the browser.
 
 ### A web game client stays possible
 

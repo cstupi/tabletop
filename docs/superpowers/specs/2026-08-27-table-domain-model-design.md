@@ -65,8 +65,13 @@ so players can see where they may deploy, hidden once play moves past that phase
 Regions belong to the table. They are not things standing on it: they have shape but no
 mesh, and nothing rests on them.
 
-**Placement** — position, facing, and what it is resting on. Held by anything currently on
-the table, and the only thing the geometry ever needs to be handed.
+**Placement** — position and facing. Held by anything currently on the table, and the only
+thing the geometry ever needs to be handed.
+
+*Corrected 2026-08-29:* this also listed "what it is resting on."
+[Geometry values](2026-08-29-geometry-values-design.md) drops it — settling derives the surface
+whenever it is needed, and terrain is locked after setup, so nothing a model stands on ever
+moves.
 
 **Unit in play** — points at its army unit, holds its models and whatever unit-level state
 changes during a game.
@@ -106,9 +111,15 @@ an outstretched wing cannot be shot at. This is cheap, predictable, and unarguab
 means the mesh prep tool never has to produce collision geometry.
 
 **Terrain declares what it does; the game system interprets it.** A piece carries named
-declarations on its volumes — gives cover, slow to cross, blocks sight past three inches.
-Terrain does not know what a forest is. This is what lets a user build a piece nobody
-anticipated, and lets a second wargame read the same declarations differently.
+declarations on its volumes — gives cover, slow to cross, blocks line of sight. Terrain does
+not know what a forest is. This is what lets a user build a piece nobody anticipated, and lets
+a second wargame read the same declarations differently.
+
+*Corrected 2026-08-29:* this passage originally offered "blocks sight past three inches" as an
+example declaration. **That is not a rule in either OPR game** — it was invented here, and then
+repeated in later sessions as though it were established. See
+[geometry values](2026-08-29-geometry-values-design.md) for the six declarations actually read
+out of the rulebook.
 
 *Terminology note:* these are tags in the domain sense — names with meaning attached. No
 particular language construct is implied.
@@ -134,8 +145,8 @@ real table, where you routinely shift an opponent's model to reach past it. Acco
 comes from a visible log rather than from a gate in the way of ordinary play.
 
 **Containment is computed, never stored.** Whether a model is standing in a forest is a
-question the geometry answers when asked. Only position and what it is resting on are
-recorded.
+question the geometry answers when asked. Only position and facing are recorded, and what a
+model rests on is derived the same way.
 
 **Having a placement does not imply obeying terrain.** A miniature settles onto terrain and
 is affected by it. An objective sits where it is put and ignores terrain entirely — no

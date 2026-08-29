@@ -2,10 +2,14 @@
 
 Every entity the eight design sessions produced, and how they relate.
 
-**Conceptual, not a schema.** No tables, no columns, no types, no indices. Persistence
-layout was deferred deliberately in three separate specs, and this document keeps that
-line: it says what exists and what points at what. Attribute names below are the fields
-the designs actually named, nothing more.
+**Conceptual, not a schema.** No tables, no columns, no indices. Persistence layout was
+deferred deliberately in three separate specs, and this document keeps that line: it says what
+exists and what points at what.
+
+The geometric fields carry real types, defined in
+[geometry values](superpowers/specs/2026-08-29-geometry-values-design.md). The rest are still
+placeholders — `stats`, `list`, `ref`, `profile` — awaiting the identity and content sessions.
+`units` means world units, which are inches.
 
 Where this and a design doc disagree, the design doc is authoritative — this is a view
 over them, not a source.
@@ -39,6 +43,8 @@ erDiagram
     TABLESTATE ||--o{ DEPLOYMENTREGION : holds
     TABLESTATE }o..o| ASSET : "texture, or a built-in"
     TERRAINPLACEMENT }o--|| ASSET : mesh
+    ASSET ||--o{ VOLUME : "terrain profile"
+    TERRAINPLACEMENT ||--o{ VOLUME : overrides
     MARKERPLACEMENT }o..o| ASSET : "visual, or a built-in"
     DEPLOYMENTREGION }o--|| TEAM : "assigned to"
 
@@ -63,16 +69,27 @@ erDiagram
         string what_it_is
         stats stats
         list loadout
-        shape base
-        inches height
+        enum base_shape
+        units base_dims
+        units height
     }
     ASSET {
         uuid id
         string name
         kind kind
-        scale scale
-        orientation orientation
+        float scale
+        rotation orientation
         profile profile
+    }
+    VOLUME {
+        enum kind
+        enum footprint
+        units offset
+        degrees yaw
+        units bottom
+        units top
+        flags declarations
+        string notes
     }
     BLOB {
         hash hash
@@ -111,19 +128,20 @@ erDiagram
         inches length
     }
     TERRAINPLACEMENT {
-        transform transform
-        list volume_overrides
-        list declaration_overrides
+        units position
+        degrees yaw
+        float scale
     }
     MARKERPLACEMENT {
         kind kind
-        position position
-        facing facing
-        size size
+        units position
+        degrees yaw
+        units diameter
         string label
     }
     DEPLOYMENTREGION {
-        id builtin_shape
+        id style
+        list polygons
     }
 ```
 
@@ -153,8 +171,20 @@ the thing a game ends setup with and the thing a user saves are the same record.
 **`ARMYSNAPSHOT` has no edge back to `ARMY`** on purpose. It is a copy taken when the game
 loaded, with no live link, so editing a saved army cannot reach into a match in progress.
 
-**`DEPLOYMENTREGION` points at a built-in shape id**, not at geometry of its own. Custom
+**`DEPLOYMENTREGION` names a built-in style**, which resolves to a **set** of polygons — one
+of OPR's standard styles gives each team two diagonally opposite corners. Measurements are
+anchored to table features rather than absolute, so a style works at any board size. Custom
 shapes are a later expansion.
+
+**`VOLUME` is an extruded prism** — a circular or rectangular footprint with a bottom and a
+top. Convex hulls are gone, so every geometry test is a 2D shape intersection plus a vertical
+range. Volumes belong to the terrain asset and are computed from its bounding box at upload,
+so they are never absent; a placement may override them. `kind` is `solid` or `area`, and
+`declarations` is a closed set of six: impassable, blocks LoS, see in and out, cover,
+difficult, dangerous.
+
+**Models are yaw only and always upright**, so a placement is position and yaw. What a model
+rests on is derived by settling, never stored.
 
 ## What is deliberately not here
 
@@ -185,4 +215,5 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `ARMY`, `UNIT`, `MODELSLOT` | [The army](superpowers/specs/2026-08-28-army-design.md), [table domain model](superpowers/specs/2026-08-27-table-domain-model-design.md) |
 | `ASSET`, `BLOB`, `FOLDER` | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
 | `TABLESTATE` and everything under it | [Setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
+| `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
 | `GAMEEVENT`, `RULEPACK`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |

@@ -18,6 +18,8 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | [Accounts, and everything outside the game](superpowers/specs/2026-08-29-accounts-design.md) |
 | 2026-08-29 | [The table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
 | 2026-08-29 | [The web app, and the line between preparation and play](superpowers/specs/2026-08-29-web-app-design.md) |
+| 2026-08-29 | `docs/data-model.md` — the entity diagram |
+| 2026-08-29 | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) — first of the three definition sessions |
 
 ## The mode — read this before proposing anything
 
@@ -200,12 +202,12 @@ columns, and well before designing consumers, so gaps surface while they are sti
 | `UNIT` | `abilities`, `upgrades` | Catalog ids with parameters, or resolved values |
 | `UNIT`, `MODELSLOT` | `stats` | A named store — but of what. OPR quality is `4+`; 40k has `6"` and `D6` |
 | `MODELSLOT` | `loadout` | Weapons carry their own stat blocks |
-| `MODELSLOT` | `base`, `height` | Round or oval and a size, in mm, while the world is in inches |
+| ~~`MODELSLOT`~~ | ~~`base`, `height`~~ | Done — geometry values |
 | `ASSET` | `kind`, `profile` | Three kinds, three different shapes |
-| `ASSET` | `scale`, `orientation` | Never defined what they are measured against |
-| `TERRAINPLACEMENT` | `volume_overrides`, `declaration_overrides` | What a volume is; what a declaration is |
-| `MARKERPLACEMENT` | `position`, `facing`, `size` | Vectors and angles, unspecified |
-| `DEPLOYMENTREGION` | `builtin_shape` | The inventory itself |
+| ~~`ASSET`~~ | ~~`scale`, `orientation`~~ | Done — geometry values |
+| ~~`TERRAINPLACEMENT`~~ | ~~volumes, declarations~~ | Done — geometry values |
+| ~~`MARKERPLACEMENT`~~ | ~~`position`, `facing`, `size`~~ | Done — geometry values |
+| ~~`DEPLOYMENTREGION`~~ | ~~`builtin_shape`~~ | Done — geometry values. The default set's contents are still to choose |
 | `GAME` | `status`, `scheduler_shape`, `enforcement` | Three enumerations, no values named |
 | `ARMYSNAPSHOT` | everything | Has only an id. What a snapshot contains was never said |
 | `RULEPACK` | `content_hash` | Whether it is a row at all — packs ship with the build |
@@ -213,10 +215,10 @@ columns, and well before designing consumers, so gaps surface while they are sti
 
 ### Three sessions, in this order
 
-1. **Geometry values** — base shape and height, position, facing, transform, collision volumes,
-   terrain declarations, the built-in region shapes. Feeds `Tabletop.Geometry`. **Take this
-   first**: self-contained, no dependency on the rules, and `Tabletop.Geometry` is the earliest
-   buildable thing in the build order — step 2, headless tests, zero dependencies.
+1. ~~**Geometry values**~~ — **done**, 2026-08-29. Bases are a shape plus dimensions in world
+   units; models are yaw-only and upright; collision volumes are extruded prisms with convex
+   hulls dropped; six declarations read out of the OPR rulebook; deployment styles are anchored
+   polygon sets.
 2. **Identity and enumerations** — asset kind and profile, marker kind, game status, scheduler
    shape, enforcement dial, and whether `RULEPACK` is a row.
 3. **Content values** — stats, abilities, upgrades, loadout, `list_entry`, `game_system`, and
@@ -229,6 +231,20 @@ Tables and columns, turning `docs/data-model.md` into a schema. Then `docs/works
 rewritten against the real model instead of the 08-24 guesses, and the contracts list becomes
 worth freezing — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join
 token.
+
+### The rulebooks
+
+`/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf` and
+`Age_of_Fantasy_-_Advanced_Rules_v3_5_0.pdf` on the Windows host. **Consult them rather than
+guessing** — the geometry session invented a terrain rule that does not exist and repeated it
+across three documents before it was caught.
+
+No `pdftotext`, no `poppler-utils`, and headless Chrome cannot launch (missing `libnspr4`).
+What works: `pypdf` in a venv for text, and `pypdf` plus Pillow to pull diagrams out as images,
+since the zone dimensions live in pictures rather than the text layer.
+
+**Age of Fantasy's terrain section is word-for-word identical to Grimdark Future's**, so it is
+not a second example despite being a second game.
 
 ### Is the model still moving?
 
