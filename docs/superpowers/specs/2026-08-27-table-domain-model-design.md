@@ -16,23 +16,27 @@ decision the table forces.
 
 Two halves, and the line between them is ownership.
 
-**A user owns armies.** An army is built once and frozen. It is not part of any game and
-outlives every game played with it.
+**A user owns armies.** An army is self-contained and belongs to no game. It outlives
+every game played with it, and the user may edit it whenever they like.
 
-**A game owns a table.** The table holds things, and those things point back at the frozen
-army for anything that does not change.
+**A game owns a table.** The table holds things, and those things point back at the army
+it loaded for anything that does not change.
 
 ### Owned by a user, persisted
 
 **Asset** — an uploaded mesh, glTF only. Geometry and nothing else.
 
-**Army** — an **immutable snapshot**: a name, a game system, the source it was imported
-from, and its units. It bundles the list *and* the model-to-mesh assignments into one
-frozen thing. Changing an army means copying it to a new one.
+**Army** — a name, a game system, the source it was imported from, and its units. It
+bundles the list *and* the model-to-mesh assignments into one thing that stands alone.
 
-Immutability is the load-bearing choice here. It removes an entire class of problem: a
-list edited between games cannot change what a game in progress is playing with, a
-re-import cannot silently rewrite history, and provenance never has to be reconstructed.
+**Self-containment is the load-bearing choice here** — not immutability, which an earlier
+draft of this document overstated. An army holds its own copy of every value rather than
+referring out to the source it came from. Army Forge going away, a list being edited, or an
+asset being deleted cannot reach into it. A game that loads an army takes what it needs at
+that moment, so editing the army afterwards does not disturb a game in progress.
+
+The user may edit an army at any time. See
+[the army](2026-08-28-army-design.md) for how that works.
 
 **Unit** (inside an army) — a name, the link back to its list entry, the stats, abilities
 and upgrades that belong to the whole squad, and an ordered set of model slots.
@@ -76,6 +80,10 @@ A model is not defined by being on the table. A placement is something it has ri
 **Graveyard** — one per player, holding models removed from play. Models come back out of
 it; some mechanics return casualties, and the model that returns is the same model.
 
+*Superseded:* [game flow](2026-08-28-game-flow-design.md) generalises this to a **shelf**
+that also holds undeployed models and reserves, with the difference carried as a
+condition.
+
 **Terrain piece** — a placement, its volumes, and what those volumes declare.
 
 **Token** — a placement, a mesh, a label. Placed and moved like anything else, seen by
@@ -111,9 +119,9 @@ thing on the table is one of those. What a model *is* stays separate from what i
 and everything stays recomputable.
 
 **The list is the join, at unit level.** A unit in play points at its army unit; a model in
-play points at its model slot. Because the army is frozen, the slot already holds resolved
-stats and loadout — a model in play never copies them and never needs a second reference
-back to the list. Casualties do not break the link.
+play points at its model slot. Because the army holds its own resolved values, the slot
+already carries stats and loadout — a model in play never copies them and never needs a
+second reference back to the list. Casualties do not break the link.
 
 **Nothing arbitrary goes on the table.** Everything present traces to game state — models
 deployed from an army, terrain placed during setup, objectives from the mission. But
