@@ -12,6 +12,7 @@ scaffold. Three planning sessions have happened.
 | 2026-08-24 | Repo restructure, `docs/architecture.md`, seven workstream prompt sketches |
 | 2026-08-27 | [Table domain model](superpowers/specs/2026-08-27-table-domain-model-design.md) |
 | 2026-08-28 | [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) |
+| 2026-08-28 | [Resolution](superpowers/specs/2026-08-28-resolution-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -54,16 +55,21 @@ shapes get built — player-turn and alternating activation. The graveyard gener
 shelf holding undeployed models, casualties, and reserves alike. Setup configuration
 (pack, scheduler, table, teams, enforcement dial) is settled before the game loads.
 
+**Resolution** — what happens inside an action. Two orthogonal settings: whether the
+client animates the steps, and whether the pipeline waits between them. Waiting allows
+interrupts, which makes a half-resolved pipeline durable state in the log rather than a
+function call. Modifiers and abilities split on *when*, not what: a modifier is numeric
+plus or minus applied before the roll, an ability reads the result and changes its
+meaning. Restricting modifiers to arithmetic makes them commute, which removes the
+explicit priority scheme `architecture.md` called for. Players get reroll and hand-added
+modifiers, and those are the same operations abilities use.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
 conditions.
 
 ## What is not designed
-
-Resolution — dice, wounds, modifier stacking, the shooting and melee pipelines. This is
-the largest remaining piece and it sits inside an activation, so game flow had to come
-first.
 
 Army import and mesh binding — Army Forge import, how a list freezes into a snapshot, and
 binding granularity. Independent of everything above; it touches no game.
@@ -86,13 +92,18 @@ Carried from the two design docs:
   data rather than a row. Depends whether users author missions.
 - Triangle-count guardrail at upload — agreed in principle, threshold not chosen.
 - Who instantiates a game session when a lobby room starts. Not blocking anything.
+- Conflicts between two abilities reading the same result — whether both apply or one
+  wins. Deferred deliberately: every example is specific to one ruleset.
+- What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
 
 ## Next
 
-**Resolution** is the natural next module, for the same reason game flow followed the
-table: it is the thing every remaining decision waits on. **Army import and binding** is
-the alternative — smaller, more mechanical, and genuinely independent, so it can run any
-time.
+**Army import and binding** is the obvious next module — Army Forge import, how a list
+freezes into a snapshot, and binding granularity. It touches no game, so it depends on
+none of the three docs above.
+
+After that the undesigned areas are management, assets, and the web app, all still at the
+08-24 sketch stage.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
