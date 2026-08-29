@@ -5,7 +5,7 @@ Where the project stands, and what to pick up next.
 ## State
 
 Tree is clean; everything is committed. No code has been written beyond the Godot
-scaffold. Three planning sessions have happened.
+scaffold — all of the work so far is design.
 
 | When | Produced |
 | --- | --- |
@@ -14,6 +14,7 @@ scaffold. Three planning sessions have happened.
 | 2026-08-28 | [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) |
 | 2026-08-28 | [Resolution](superpowers/specs/2026-08-28-resolution-design.md) |
 | 2026-08-28 | [The army](superpowers/specs/2026-08-28-army-design.md) |
+| 2026-08-28 | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -29,13 +30,18 @@ in C#, how it persists, or what the wire format is. That is not an omission to f
 by adding detail — it is what makes them cheap to change.
 
 **The workstream prompts in `docs/workstreams/` are sketches. None should be run as
-written.** They predate both design sessions and describe a data model that no longer
+written.** They predate every design session below and describe a data model that no longer
 matches. `01-contracts` in particular was flagged as the weakest and most blocking, and
 the correct response to that is not to strengthen it yet.
 
 ## What is designed
 
-**`docs/architecture.md`** — settled, and the shared context every session reads. Thin
+**`docs/architecture.md`** — the shared context every session reads. Mostly settled, but
+**not above correction**: the design sessions have already fixed three things in its asset
+section and its claim that armies are immutable. Where it disagrees with a design doc, the
+design doc is newer.
+
+It records: Thin
 client with rules only on the server, two servers split on CRUD vs live sessions, no
 offline mode, AWS, command/event spine, undo by replay, enumeration rather than
 validation, rules as data with a closed schema and open catalog, rule packs pinned per
@@ -76,6 +82,12 @@ per slot, defaulting to the ruleset's values.
 This also corrected the table model, which had called an army an immutable snapshot and
 said changing one meant copying it. That was an overstatement and is fixed in place.
 
+**The asset library** — two records, Blob and Asset, with dedup per user rather than
+global; sharing copies into the recipient's library. Binding is not a third record, just a
+field on the model slot. An asset records the base its sculpt was built on, which is a way
+to find meshes that fit a slot, while the slot's own base is the hitbox. Folders nest and
+an asset can be in several.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -98,21 +110,23 @@ Carried from the two design docs:
 - Whether an objective's game data is generic or system-specific.
 - `Layout` and `Mission` — Layout is a user-owned table, but a mission may be rule-pack
   data rather than a row. Depends whether users author missions.
-- Triangle-count guardrail at upload — agreed in principle, threshold not chosen.
 - Who instantiates a game session when a lobby room starts. Not blocking anything.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
-- What a slot shows when its asset is missing. Presentation only, but needs an answer.
+- What a slot draws when its asset is missing. `architecture.md` says a proxy from the
+  collision volume, but a miniature's would have to come from base and height instead.
+- The triangle-count threshold at upload. Agreed in principle, never chosen.
 
 ## Next
 
-Four modules are designed. Still to design, at the same altitude: **the asset library**
-(what an asset record is beyond the mesh, how assets are organised and found),
-**accounts and collections**, and **the web app**.
+Five modules are designed: the table, game flow, resolution, the army, the asset library.
 
-Everything so far has been the data model for what happens on a table. What remains is the
-data model for what a user owns around it.
+Still to design, at the same altitude: **accounts** — what a user is, what they own, and
+what a collection is over armies and assets — and **the web app** over it.
+
+Everything designed so far is the data model for what happens on a table, plus the two
+things a user brings to it. What remains is the account those hang off.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
