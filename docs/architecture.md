@@ -466,24 +466,11 @@ that versioning it separately would create drift for no benefit.
 The organising line: **management owns everything *about* a game; the game server owns what
 *happened* in it.** One shared `game_id`, two schemas, no joins across the boundary.
 
-```
-Account ──┬─< Army ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─▶ Asset ──── Blob
-          ├─< Asset                              │
-          ├─< Folder                             │
-          ├─< Layout                             │
-          └─< Participant                        │
-                  │                              │
-Game ──< Team ──< Participant >── ArmySnapshot ──┘
-  │                                (frozen copy of an Army)
-  └── RulePack (pinned by content hash)
-```
+**[`docs/data-model.md`](data-model.md) holds the entity diagram** — every entity from every
+design session and how they relate. It supersedes the sketch that used to sit here.
 
-Everything above is in the management schema. The game schema holds exactly one thing:
-`GameEvent (game_id, seq, kind, payload)`.
-
-The dashed edge is a **soft reference**: a model slot inside an army names an asset, there is no
-join row, and the target may be gone. There is no `Binding` entity — see
-[the asset library](superpowers/specs/2026-08-28-asset-library-design.md).
+Everything in it is in the management schema except one entity. The game schema holds exactly
+one thing: `GameEvent (game_id, seq, kind, payload)`.
 
 `Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
 account deletes every game it was in.

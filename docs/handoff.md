@@ -39,6 +39,11 @@ the correct response to that is not to strengthen it yet.
 
 ## What is designed
 
+**`docs/data-model.md`** — every entity from every session and how they relate, as a mermaid
+ER diagram. Conceptual only: no tables, columns, types or indices. It replaced the ASCII sketch
+that used to sit in `architecture.md`, and it is a view over the design docs rather than a
+source — where they disagree, the design doc wins.
+
 **`docs/architecture.md`** — the shared context every session reads. Mostly settled, but
 **not above correction**: the design sessions have now corrected its asset section, its claim
 that armies are immutable, its login story, its `Binding` row, its collections module, and its
@@ -188,8 +193,12 @@ So the next decision is whether the model has stopped moving. It survived eight 
 the last four each corrected the ones before — including this one, which reversed the session
 immediately preceding it on login. That rate is the evidence, in either direction.
 
-If it has stopped: the mode changes. `docs/workstreams/` gets rewritten against the real model
-instead of the 08-24 guesses, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
+If it has stopped: the mode changes, and the first step is **tables and columns** — turning
+`docs/data-model.md` from entities into a schema. That has to come before designing the
+consumers, so that anything the model is missing surfaces while it is still cheap.
+
+After that, `docs/workstreams/` gets rewritten against the real model instead of the 08-24
+guesses, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
 `Tabletop.Protocol`, `Tabletop.Content`, and the join token.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
