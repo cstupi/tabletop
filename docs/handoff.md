@@ -1,4 +1,4 @@
-# Handoff — 2026-08-28
+# Handoff — 2026-08-29
 
 Where the project stands, and what to pick up next.
 
@@ -15,6 +15,7 @@ scaffold — all of the work so far is design.
 | 2026-08-28 | [Resolution](superpowers/specs/2026-08-28-resolution-design.md) |
 | 2026-08-28 | [The army](superpowers/specs/2026-08-28-army-design.md) |
 | 2026-08-28 | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
+| 2026-08-29 | [Accounts, and everything outside the game](superpowers/specs/2026-08-29-accounts-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -24,8 +25,8 @@ The 08-24 session produced workstream prompts and a "contracts to freeze before 
 work" list. Those were premature and are on hold. Freezing an interface is only worth
 doing when the model behind it has stopped moving, and it has not.
 
-The mode the last two sessions established, and the one to continue in: **decide meaning,
-defer expression.** Both design docs deliberately refuse to say how anything is expressed
+The mode every design session so far has kept, and the one to continue in: **decide meaning,
+defer expression.** The design docs deliberately refuse to say how anything is expressed
 in C#, how it persists, or what the wire format is. That is not an omission to fix later
 by adding detail — it is what makes them cheap to change.
 
@@ -37,9 +38,10 @@ the correct response to that is not to strengthen it yet.
 ## What is designed
 
 **`docs/architecture.md`** — the shared context every session reads. Mostly settled, but
-**not above correction**: the design sessions have already fixed three things in its asset
-section and its claim that armies are immutable. Where it disagrees with a design doc, the
-design doc is newer.
+**not above correction**: the design sessions have now corrected its asset section, its claim
+that armies are immutable, its login story, its `Binding` row, its collections module, and its
+claim that auth needed no agreed contract. Where it disagrees with a design doc, the design doc
+is newer.
 
 It records: Thin
 client with rules only on the server, two servers split on CRUD vs live sessions, no
@@ -88,6 +90,18 @@ field on the model slot. An asset records the base its sculpt was built on, whic
 to find meshes that fit a slot, while the slot's own base is the hitbox. Folders nest and
 an asset can be in several.
 
+**Accounts** — and with them everything outside the live game. An account is two fields, id
+and name; Stytch answers only "is this session valid, and whose," runs *through* management
+rather than from the client, and is replaceable without a client release. No graph — no friends,
+no handles, no sharing — so two accounts meet in a game and nowhere else, found through a public
+game browser in the client. Deletion is total: an account's content and every game it played in
+are destroyed. Creating a game is an endpoint returning a join token; the game server hydrates
+when a client arrives, so starting, reconnecting and crash recovery are one path. Ending is a
+flag, not a terminal state, because restarting an ended game is the same replay.
+
+That last point removed a would-be lifecycle state, and the join token added a contract that
+`architecture.md` had explicitly said would not exist.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -95,14 +109,18 @@ conditions.
 
 ## What is not designed
 
-Management, assets, and the web app. Untouched since the 08-24 sketches. This is now the
-whole of what is undesigned.
+**The web app** — and whether it exists at all is now itself open, since login, the game
+browser and joining all moved into the client. What remains for it is army import and asset
+upload, which are still better in a browser.
+
+**Missions and objectives.** Not previously called out as a gap, but the open questions have
+accumulated around it: what a mission is, whether it is a row or rule-pack data, and what an
+objective's game data looks like.
 
 ## Open questions
 
-Carried from the two design docs:
+Carried from the design docs:
 
-- Game lifecycle: created, in progress, abandoned, finished, and what a disconnect means.
 - Whether setup configuration can change once a game is loaded. Pinning answers it for the
   rule pack; the rest is undecided.
 - What state a model returns in when a mechanic brings it back off the shelf. A rules
@@ -110,23 +128,28 @@ Carried from the two design docs:
 - Whether an objective's game data is generic or system-specific.
 - `Layout` and `Mission` — Layout is a user-owned table, but a mission may be rule-pack
   data rather than a row. Depends whether users author missions.
-- Who instantiates a game session when a lobby room starts. Not blocking anything.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
 - What a slot draws when its asset is missing. `architecture.md` says a proxy from the
   collision volume, but a miniature's would have to come from base and height instead.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
+- What is in a join token and how long it lives. It is now a contract between the two servers.
+- Whether a game already playing can be joined, or only one still in its lobby.
 
 ## Next
 
-Five modules are designed: the table, game flow, resolution, the army, the asset library.
+Six modules are designed: the table, game flow, resolution, the army, the asset library, and
+accounts.
 
-Still to design, at the same altitude: **accounts** — what a user is, what they own, and
-what a collection is over armies and assets — and **the web app** over it.
+Between them they cover what happens on a table, the two things a user brings to it, and the
+account those hang off. **The gap left is the game's own setup content** — table, layout,
+mission, objectives, and whether a mission is a user row or rule-pack data. Game flow settled
+that setup configuration is chosen before load and named its pieces; nothing has designed the
+pieces.
 
-Everything designed so far is the data model for what happens on a table, plus the two
-things a user brings to it. What remains is the account those hang off.
+That is the module to take next, and the web app after it — by which point there will be
+enough decided to know whether the web app has a job left.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
