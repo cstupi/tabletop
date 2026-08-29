@@ -15,6 +15,9 @@ Four things ship, and they have different target platforms:
 | Management API | `server/management/` | Linux (Fargate) |
 | Web app | `web/` | Static (Svelte SPA) |
 
+The web app is the least certain of the four — see [accounts](superpowers/specs/2026-08-29-accounts-design.md),
+which puts login and the game browser in the client and leaves the web app's existence open.
+
 Everything except the client is headlessly testable. Everything except the client is
 Godot-free.
 
@@ -222,7 +225,7 @@ is: table size → terrain placement → deployment → rounds, all driven by th
 This collapses several would-be features into things that already work:
 
 - A **predefined map is a batch of placement events**; loading a layout replays them into a new
-  game. Saving works in reverse — export current placements to a collection at any point.
+  game. Saving works in reverse — export current placements as a layout at any point.
 - **Undo during placement** comes free from undo-by-replay, rather than needing a bespoke
   editor undo stack.
 - **Alternating terrain placement between players** is already covered by team-scoped input
@@ -281,8 +284,8 @@ a base size.
 
 Uploads are per-user, persistent across games, and load at runtime via `GLTFDocument` — never
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
-served through the management API. Collections are private; sharing happens by bringing
-something into a game.
+served through the management API. A library is private to one account and there is no
+sharing between accounts at all — see [accounts](superpowers/specs/2026-08-29-accounts-design.md).
 
 **Upload accepts glTF/GLB and rejects STL.** The miniature ecosystem distributes STL, which
 Godot cannot load and which is 50–100× too dense for realtime — a print-ready 32mm mini is
@@ -309,23 +312,27 @@ deferred, because the two differ in transport, state, and deploy risk.
 
 | Module | State |
 | --- | --- |
-| Identity | Stytch sessions, tokens |
-| Collections | Armies, art bindings, layouts (Postgres) |
+| Identity | Accounts, sessions; the only module that knows Stytch exists |
+| Content | Armies, layouts, the asset library and its folders (Postgres) |
 | Asset store | Content-addressed blobs (S3) |
 | Ruleset registry | Content-addressed rule packs |
-| Lobby | Rooms, team assignment, invites |
+| Games | Game records, teams, participants, the public game browser |
 
-Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. This is
-what the Svelte web app talks to, and it is the only thing that talks to Stytch.
+Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. The game
+client talks to it over HTTP, and it is the only thing that talks to Stytch.
+
+There is no `Collections` module and no collection entity. The word was never given a meaning
+and is dropped.
 
 ### `server/game/` — WebSocket
 
 Live games in memory, plus the append-only event log. **The only module holding live state.**
 It needs graceful shutdown that drains to the event log, and it is what constrains deploys.
 
-Authentication is via Stytch: the browser owns login, and the game client acquires a token from
-that session which the game server validates. Reconnect matters — a four-player game runs hours,
-and the event log makes resuming a solved problem.
+Authentication does not run through Stytch here. The client logs in against management, then
+creates or joins a game through an ordinary endpoint that returns a **join token**; the game
+server validates that token. Reconnect matters — a four-player game runs hours, and the event
+log makes resuming a solved problem.
 
 ### Transport
 
@@ -389,6 +396,11 @@ This falls out of the thin client rather than needing to be designed in later.
 
 ## Web frontend
 
+**Unsettled.** [Accounts](superpowers/specs/2026-08-29-accounts-design.md) puts login,
+the game browser, and joining in the game client, and leaves whether a web app exists at all
+undecided. What follows is the older reasoning, kept because the upload and authoring arguments
+still stand on their own.
+
 Account and army management are a **Svelte SPA**, not part of the game client. Users manage
 shared, persistent things in a browser: identity, armies imported from Army Forge, art bindings,
 and asset uploads.
@@ -397,8 +409,10 @@ This removes real work from the hard-to-iterate side — the Godot client needs 
 UI, no upload UI, and no login form — and makes the HTTP API a genuine API surface rather than an
 internal detail of one client.
 
-- **Auth is easier in a browser.** Stytch in a web app is routine; Stytch inside Godot is fiddly.
-  The browser owns login and the game client acquires a token from that session.
+- **Auth does not need a browser.** Superseded by
+  [accounts](superpowers/specs/2026-08-29-accounts-design.md): login runs through management, so
+  the client posts credentials to our API rather than Stytch's, and only OAuth and magic links
+  open a browser at all.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot,
   and mesh processing stays server-side.
 - **Collision volume authoring splits.** Base sizes are a preset dropdown (25/32/40mm round, oval
@@ -439,12 +453,13 @@ The organising line: **management owns everything *about* a game; the game serve
 *happened* in it.** One shared `game_id`, two schemas, no joins across the boundary.
 
 ```
-Account ──┬─< Army ─────< Binding >────── Asset ──── Blob
-          ├─< Asset                                    │
-          ├─< Layout                                   │
-          └─< Participant                              │
-                  │                                    │
-Game ──< Team ──< Participant >── ArmySnapshot ────────┘
+Account ──┬─< Army ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─▶ Asset ──── Blob
+          ├─< Asset                              │
+          ├─< Folder                             │
+          ├─< Layout                             │
+          └─< Participant                        │
+                  │                              │
+Game ──< Team ──< Participant >── ArmySnapshot ──┘
   │                                (frozen copy of an Army)
   └── RulePack (pinned by content hash)
 ```
@@ -452,9 +467,17 @@ Game ──< Team ──< Participant >── ArmySnapshot ───────
 Everything above is in the management schema. The game schema holds exactly one thing:
 `GameEvent (game_id, seq, kind, payload)`.
 
-**A game *is* a lobby.** Not `Room` plus `Game`. One entity with a status —
-`lobby → setup → playing → finished` — because a room is just a game that has not started. Two
-entities would mean a handoff, a copy, and two sources of truth for who is playing.
+The dashed edge is a **soft reference**: a model slot inside an army names an asset, there is no
+join row, and the target may be gone. There is no `Binding` entity — see
+[the asset library](superpowers/specs/2026-08-28-asset-library-design.md).
+
+`Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
+account deletes every game it was in.
+
+**A game *is* a lobby.** Not `Room` plus `Game`. One entity with a status, because a room is just
+a game that has not started. Two entities would mean a handoff, a copy, and two sources of truth
+for who is playing. **Ended is a flag, not a terminal state** — restarting an ended game is the
+same hydrate-from-the-log operation as recovering a crashed task.
 
 **The game server has no CRUD surface.** It reads game metadata once at session hydration and
 writes only events. That is what keeps management restartable at will and confines deploy risk
@@ -510,14 +533,17 @@ until they are settled.
 | `Tabletop.Geometry` API surface | client, game server |
 | `Tabletop.Protocol` command and event schema | client, game server |
 | `Tabletop.Content` army snapshot types | client, both servers |
+| Join token format | management, game server |
 
-Auth is **not** on this list. Stytch is the token authority for everything: the client carries a
-Stytch session, both servers validate against Stytch, and management-to-game-server calls use
-Stytch M2M. There is no bespoke token format to agree on.
+Auth **is** on this list now, and the first version of this document was wrong to say it was
+not. It argued that Stytch was the token authority for both servers, so there was no bespoke
+format to agree on. Confining Stytch to management reverses that: management issues the tokens,
+so the **join token** is a contract between the two servers even though neither ever calls the
+other. There are no management-to-game-server calls, and therefore no M2M.
 
-Open, but not blocking: **who instantiates a game session when a lobby room starts.** Management
-phase 1 has no lobby in it, and a game server skeleton can create sessions from a stub, so
-neither stream waits on this.
+**Who instantiates a game session is settled: nobody does.** A client presents a join token to
+the game server, and if no session for that game is in memory the server hydrates it from the
+log. Starting, reconnecting, and crash recovery are one path.
 
 ## Build order
 
