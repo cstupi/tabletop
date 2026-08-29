@@ -13,6 +13,7 @@ scaffold. Three planning sessions have happened.
 | 2026-08-27 | [Table domain model](superpowers/specs/2026-08-27-table-domain-model-design.md) |
 | 2026-08-28 | [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) |
 | 2026-08-28 | [Resolution](superpowers/specs/2026-08-28-resolution-design.md) |
+| 2026-08-28 | [The army](superpowers/specs/2026-08-28-army-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -64,6 +65,17 @@ meaning. Restricting modifiers to arithmetic makes them commute, which removes t
 explicit priority scheme `architecture.md` called for. Players get reroll and hand-added
 modifiers, and those are the same operations abilities use.
 
+**The army** — the first module touching no game. The load-bearing property is
+self-containment, not immutability: an army holds its own copy of every value, so Army
+Forge, the source list, and the asset library cannot reach into it. Users edit their own
+armies freely; a game is safe because it took what it needed when it loaded, so no
+versioning or pinning is needed. Assets are a soft reference — the army holds the hitbox,
+the mesh is only appearance, so deleting an asset is not blocked. Base shape and height are
+per slot, defaulting to the ruleset's values.
+
+This also corrected the table model, which had called an army an immutable snapshot and
+said changing one meant copying it. That was an overstatement and is fixed in place.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -71,10 +83,8 @@ conditions.
 
 ## What is not designed
 
-Army import and mesh binding — Army Forge import, how a list freezes into a snapshot, and
-binding granularity. Independent of everything above; it touches no game.
-
-Management, assets, and the web app. Untouched since the 08-24 sketches.
+Management, assets, and the web app. Untouched since the 08-24 sketches. This is now the
+whole of what is undesigned.
 
 ## Open questions
 
@@ -86,8 +96,6 @@ Carried from the two design docs:
 - What state a model returns in when a mechanic brings it back off the shelf. A rules
   question, but the model has to support the answer.
 - Whether an objective's game data is generic or system-specific.
-- Binding granularity — unit-level, model-level, or unit default with per-model override.
-  Third option recommended, not decided.
 - `Layout` and `Mission` — Layout is a user-owned table, but a mission may be rule-pack
   data rather than a row. Depends whether users author missions.
 - Triangle-count guardrail at upload — agreed in principle, threshold not chosen.
@@ -95,15 +103,17 @@ Carried from the two design docs:
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
+- What a slot shows when its asset is missing. Presentation only, but needs an answer.
 
 ## Next
 
-**Army import and binding** is the obvious next module — Army Forge import, how a list
-freezes into a snapshot, and binding granularity. It touches no game, so it depends on
-none of the three docs above.
+Four modules are designed. What remains undesigned is **management, assets, and the web
+app** — accounts, the asset library and its upload path, and the SPA over both. All still
+at the 08-24 sketch stage, and all further from the table than anything designed so far.
 
-After that the undesigned areas are management, assets, and the web app, all still at the
-08-24 sketch stage.
+Worth considering instead: the four design docs now describe a coherent model, and none of
+it has been tested against a real game being played. A read-through for contradictions
+between them may be worth more than a fifth module.
 
 One consequence worth carrying forward: `architecture.md` holds pipeline step order,
 scheduler policy, and dice conventions in C# until a second ruleset exists to design
