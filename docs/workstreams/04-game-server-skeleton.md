@@ -19,7 +19,7 @@ rules behind it.
 
 An ASP.NET Core app in `server/game/`, `net10.0`, no Godot reference, that:
 
-- Accepts a WebSocket connection carrying a Stytch session token
+- Accepts a WebSocket connection carrying a session token and a game id
 - Hosts a game session in memory
 - Dispatches Commands to a validator, emits ordered Events
 - Appends every event to Postgres
@@ -36,16 +36,27 @@ and do not replay from sequence 0 on every command.
 **Event log schema.** `(game_id, seq, kind, payload jsonb)` with a unique constraint on
 `(game_id, seq)`. `jsonb` means adding an event type is not a migration.
 
-**Database.** Same Postgres instance as the management service, **separate schema**. The event
-log and the accounts tables never join. One database to run locally; clear ownership.
+**Database.** Same Postgres instance as the management service, **separate schema for the event
+log**. That schema is this service's alone. It also reads management's tables — `session`,
+`participant`, and the game's own row — **read-only, never writing there**. One database to run
+locally; a management migration can therefore break this service.
 
 **Transport.** Raw WebSocket carrying Protocol messages. Godot's `MultiplayerAPI`, `[Rpc]`, and
 `MultiplayerSynchronizer` are not used — they assume Godot on both ends and node-tree
 replication, which is the wrong model for discrete board state.
 
-**Auth.** Stytch is the token authority. The client presents a Stytch session token on connect;
-validate it against Stytch. There is no bespoke token format. Authorization — is it this team's
-window, is that unit theirs — is a session concern here, not a rules concern, and not in `libs/`.
+**Auth.** **Stytch is never reached from here.** Management is the only service that talks to
+it, and management issues our own opaque session tokens; this service does not hold Stytch
+credentials and does not call it.
+
+The client opens its socket with a session token and a game id. Hash the token, look it up in
+`session` for an account id, then check for a `participant` row joining that account to that
+game. Both are reads against management's schema.
+
+**There is no bespoke token format and no join token.** One was designed and dropped on 08-30 —
+a game has an id, the session token says who you are, and `participant` records who is allowed
+in. Authorization — is it this team's window, is that unit theirs — is a session concern here,
+not a rules concern, and not in `libs/`.
 
 **Sequence numbers are the contract.** Every event carries one. Ordering is total per game.
 Undo is replay to sequence N, so events must be sufficient to reconstruct state without
@@ -86,8 +97,9 @@ consume those contracts, you do not change them.
 
 ## Done when
 
-1. A test client connects over WebSocket with a valid Stytch token and is accepted; an invalid
-   token is rejected.
+1. A test client connects over WebSocket with a valid session token, for a game it is a
+   participant in, and is accepted. An expired or unknown token is rejected, and so is a valid
+   token for a game the account has not joined.
 2. A command produces an event, the event is in Postgres, and the sequence number is correct.
 3. Killing and restarting the process rebuilds session state from the log — proven by a test.
 4. A client reconnecting mid-session catches up correctly — proven by a test.
