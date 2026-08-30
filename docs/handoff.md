@@ -44,6 +44,12 @@ the correct response to that is not to strengthen it yet.
 
 ## What is designed
 
+**`docs/schema.md`** — the physical Postgres schema: twenty-four tables, columns and
+constraints, with the decisions behind them. Normalised rather than document-based, because
+`jsonb` is the magic-string move at the storage layer and would stop the database enforcing
+exactly the structure every session insisted on. `jsonb` survives in two columns only —
+the event payload, and the frozen army snapshot, which must *not* be reasoned about.
+
 **`docs/data-model.md`** — every entity from every session and how they relate, as a mermaid
 ER diagram. Conceptual only: no tables, columns, types or indices. It replaced the ASCII sketch
 that used to sit in `architecture.md`, and it is a view over the design docs rather than a
@@ -255,26 +261,36 @@ Three findings worth carrying:
   usage (`Limited`), melee strike order (`Counter`), interrupt (`Caster`). A property may be in
   both places — `Aircraft` has data effects *and* a hook.
 
-### After that
+### Done: tables and columns
 
-Tables and columns, turning `docs/data-model.md` into a schema. Then `docs/workstreams/` gets
-rewritten against the real model instead of the 08-24 guesses, and the contracts list becomes
-worth freezing — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join
-token.
+`docs/schema.md`. Twenty-four tables. Three things it surfaced that the conceptual model had
+not:
 
-### The rulebooks
+- **Stats are rows, not columns**, forced by stats being declared per ruleset. A key-value
+  child table at each of the three levels. The one unavoidable smell, and it follows from a
+  decision that is right.
+- **A deployment zone names a `team_ordinal`, not a team.** A saved layout has zones but no
+  game, so no team rows exist to point at.
+- **Deleting an account cannot be a foreign key.** Deleting every game it played in cascades
+  *upward* — participant to team to game — and then into the other schema's event log. It is a
+  deliberate multi-step operation in the delete path.
 
-`/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf` and
-`Age_of_Fantasy_-_Advanced_Rules_v3_5_0.pdf` on the Windows host. **Consult them rather than
-guessing** — the geometry session invented a terrain rule that does not exist and repeated it
-across three documents before it was caught.
+### Next
 
-No `pdftotext`, no `poppler-utils`, and headless Chrome cannot launch (missing `libnspr4`).
-What works: `pypdf` in a venv for text, and `pypdf` plus Pillow to pull diagrams out as images,
-since the zone dimensions live in pictures rather than the text layer.
+**Presence.** Cursors, pings and who is connected. The first thing the design sessions **missed
+rather than deferred** — `architecture.md` says the workload has "no tick loop", and that is
+true of simulation but false of the relay a virtual tabletop needs. Players point at things.
+The table domain model already broadcasts live drag positions and never logs them; presence is
+the same channel carrying cursors and pings, and nothing about it persists.
 
-**Age of Fantasy's terrain section is word-for-word identical to Grimdark Future's**, so it is
-not a second example despite being a second game.
+After that: `docs/workstreams/` still describes the 08-24 model and is stale in every
+particular, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
+`Tabletop.Protocol`, `Tabletop.Content`, and the join token.
+
+One open question from the schema is a genuine gap rather than a detail: **how the game server
+reads a game's metadata.** It has no CRUD surface and writes only events, but it must read the
+game row once at hydration. Either it reads the management schema read-only, or the join token
+carries what it needs.
 
 ### Is the model still moving?
 

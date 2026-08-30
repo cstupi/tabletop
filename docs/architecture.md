@@ -537,8 +537,10 @@ event spine has been broken.
 
 ## Persistence
 
-Postgres on RDS. Accounts, assets, art profiles, armies, and layouts are ordinary relational
-tables. The game event log is append-only — `(game_id, seq, kind, payload jsonb)` with a unique
+Postgres on RDS, and **[`docs/schema.md`](schema.md) holds the tables**. Accounts, assets,
+armies, layouts and the whole army tree are ordinary relational tables — normalised rather than
+documents, so the closed sets and typed values the design argued for are constraints the
+database enforces. The game event log is append-only — `(game_id, seq, kind, payload jsonb)` with a unique
 constraint on `(game_id, seq)`; `jsonb` means adding an event type is not a migration.
 
 Blobs (meshes, textures) do not live in Postgres. They go in S3, content-addressed by hash, with

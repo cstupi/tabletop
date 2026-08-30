@@ -12,7 +12,8 @@ placeholders — `stats`, `list`, `ref`, `profile` — awaiting the identity and
 `units` means world units, which are inches.
 
 Where this and a design doc disagree, the design doc is authoritative — this is a view
-over them, not a source.
+over them, not a source. [`docs/schema.md`](schema.md) is the physical expression of the same
+model: tables, columns and constraints.
 
 ```mermaid
 erDiagram
