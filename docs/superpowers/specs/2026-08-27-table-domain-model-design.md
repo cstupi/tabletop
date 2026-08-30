@@ -38,8 +38,12 @@ that moment, so editing the army afterwards does not disturb a game in progress.
 The user may edit an army at any time. See
 [the army](2026-08-28-army-design.md) for how that works.
 
-**Unit** (inside an army) — a name, the link back to its list entry, the stats, abilities
-and upgrades that belong to the whole squad, and an ordered set of model slots.
+**Unit** (inside an army) — a name, the stats and properties that belong to the whole squad,
+and an ordered set of model slots.
+
+*Corrected 2026-08-29 by [content values](2026-08-29-content-values-design.md):* this also
+listed "the link back to its list entry" and "upgrades". Both are gone — an upgrade's effect is
+already applied by import time, and nothing reads a source identifier.
 
 Squad-wide properties live here and are not copied onto each model.
 

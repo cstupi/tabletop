@@ -107,15 +107,24 @@ disagreed the stored one would be wrong.
 
 Upgrades are import-time input, not stored state.
 
-## `list_entry` stays
+## `list_entry` is dropped
 
-**An opaque identifier from the source, never interpreted, only compared.**
+It was the identifier of the entry in the source list that a unit came from. Nothing reads
+it, and the argument for keeping it did not survive being stated plainly:
 
-[The army](2026-08-28-army-design.md) deferred how a copy matches old slots to a changed
-list — by entry id, by name, or by position — on the grounds that it is a heuristic in the
-copy operation and changes nothing about what is stored. A stable identifier from Army Forge
-is what makes the good version of that heuristic possible, so it is worth keeping even
-though nothing reads it today.
+- The only consumer would be the heuristic that matches old slots to a changed list, and
+  [the army](2026-08-28-army-design.md) **deferred** that deliberately.
+- Whether Army Forge even exports a stable per-unit identifier is **unverified**. If it does
+  not, the field is empty and matching falls back to name or position anyway — which that
+  session already listed as the alternatives.
+
+So it is a field stored on speculation, for undesigned work, from a payload nobody has
+looked at. `CLAUDE.md` says not to scaffold ahead of a plan.
+
+The one argument against dropping it is that a value not captured at import cannot be
+recovered later. It does not win: armies are re-importable from their source, and there will
+be few of them before the matching heuristic is designed. If the import turns out to carry a
+stable identifier and the heuristic wants one, adding the field then is trivial.
 
 ## The army's own two fields
 
@@ -138,7 +147,8 @@ army cannot reach into a match in progress because the match is holding its own 
 - The effect grammar for the four families. Next session.
 - Whether a stat kind ever needs a unit of measure beyond inches.
 - What a dice expression looks like, beyond existing as a kind.
-- How the copy operation matches old slots to a changed list.
+- How the copy operation matches old slots to a changed list, and whether it needs an
+  identifier from the source after all.
 - The Army Forge import format itself.
 
 ## Still open

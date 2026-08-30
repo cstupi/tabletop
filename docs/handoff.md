@@ -200,7 +200,7 @@ columns, and well before designing consumers, so gaps surface while they are sti
 | Entity | Field | What is undefined |
 | --- | --- | --- |
 | ~~`ARMY`~~ | ~~`game_system`, `source`~~ | Done — content values. `game_system` is the `GameRules` id |
-| ~~`UNIT`~~ | ~~`list_entry`~~ | Done — kept, as an opaque id never interpreted |
+| ~~`UNIT`~~ | ~~`list_entry`~~ | Done — **dropped**. Nothing reads it, and its only candidate reader was deferred work |
 | ~~`UNIT`~~ | ~~`abilities`, `upgrades`~~ | Done — `upgrades` dropped entirely; properties are entries with parameters |
 | ~~`UNIT`, `MODELSLOT`~~ | ~~`stats`~~ | Done — typed and declared at three levels |
 | ~~`MODELSLOT`~~ | ~~`loadout`~~ | Done — a weapon on the slot, with its own stats and properties |
@@ -228,8 +228,8 @@ columns, and well before designing consumers, so gaps surface while they are sti
 3. **Content values**, 2026-08-29. Stats are **typed** — target number, distance, count, dice
    expression — and declared at unit, model and weapon level. A weapon lives on the model slot,
    resolved in place, with no shared definition. `upgrades` is dropped: an upgrade's effect is
-   already applied by import time. `list_entry` stays as an opaque id. `ARMYSNAPSHOT` is a deep
-   copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
+   already applied by import time. `list_entry` is dropped — nothing reads it. `ARMYSNAPSHOT` is a
+   deep copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
    as data**.
 
 ### Next: the effect grammar

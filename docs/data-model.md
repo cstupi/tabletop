@@ -61,7 +61,6 @@ erDiagram
     }
     UNIT {
         string name
-        id list_entry
         stats stats
         list unit_properties
     }
@@ -200,8 +199,9 @@ expression. `stats` above is a set of declared-stat-to-value pairs, not a free-f
 two Heavy Rifles in two armies are two copies, because an army holds its own copy of every
 value. A melee weapon has no range at all rather than a range of zero.
 
-**`upgrades` is gone.** An upgrade's job is to change a unit's equipment and rules, and by
-import time that has already happened — keeping the field would mean two sources for one fact.
+**`upgrades` and `list_entry` are both gone.** An upgrade's effect is already applied by import
+time, so storing it would be two sources for one fact. A source identifier had no reader at all
+— the only candidate was a heuristic that was deliberately deferred.
 
 **A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
 disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
