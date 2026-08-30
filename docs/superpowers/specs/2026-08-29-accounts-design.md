@@ -155,3 +155,7 @@ viewer possible later, and it is what account deletion has to reach into.
   A game in progress is joinable because joining is only a `participant` row plus a socket, and
   the arriving client hydrates from the log like any reconnect. An ended game is listed for the
   same reason `ended` is reversible: picking one back up is the identical operation.
+
+  **Clients connect at `lobby`**, not at `setup`, and may rejoin at any point afterwards. There
+  is one path in — hydrate from the log and serve — whether it is a first join, a rejoin, a
+  reconnect or a crashed task coming back.

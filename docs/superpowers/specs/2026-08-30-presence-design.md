@@ -160,11 +160,11 @@ Hidden pre-measuring is a different game from the one being simulated.
 
 ## Still open
 
-- **Whether presence exists before play does** — whether a lobby shows who is in it. The
-  dependency this had on what the game browser lists is gone;
-  [accounts](2026-08-29-accounts-design.md) now lists every status and joining a game in
-  progress is allowed. What remains is narrower: whether a client opens its socket to the game
-  server while the game is still `lobby`, or only once it reaches `setup`. Presence exists
-  exactly as early as that socket does.
+- ~~Whether presence exists before play does.~~ **Settled on 08-30: clients connect at
+  `lobby`,** so a lobby shows who is in it. Presence exists exactly as early as the socket
+  does, and that is from the first status onward.
+
+  **Rejoining is allowed at any point**, which is the same path as reconnecting and as
+  recovering a crashed task: hydrate from the log and serve.
 - ~~Whether selection distinguishes a unit from the models in it.~~ **Settled on 08-30**: it
   does. A unit id with a list of models inside it, empty meaning all of them.

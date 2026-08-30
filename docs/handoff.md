@@ -211,7 +211,10 @@ Carried from the design docs:
   shape and the teams are undecided.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
-- Whether a waiting pipeline can be abandoned, and what happens to the half-applied result.
+- Whether a paused action can be abandoned, and what happens to a half-applied result. **Not
+  answerable yet**: `architecture.md` names resolution "pipelines" but no step list for any
+  action has ever been written, and the resolution session excluded them deliberately. This
+  waits on OPR's actual shooting and melee sequences.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
@@ -221,9 +224,6 @@ Carried from the design docs:
 - What happens when a saved layout's board size does not match the table it is loaded onto.
 - Whether the client ever needs to edit an army rather than only pick one.
 - Loopback or device code for getting a browser session into the client.
-- Whether a client connects to the game server during `lobby` or only at `setup`. Presence
-  exists exactly as early as that socket does, so this decides whether a lobby shows who is
-  in it.
 
 ## Next — pick up here
 
