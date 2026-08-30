@@ -21,6 +21,7 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | `docs/data-model.md` — the entity diagram |
 | 2026-08-29 | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) — first of the three definition sessions |
 | 2026-08-29 | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) — second |
+| 2026-08-29 | [Content values](superpowers/specs/2026-08-29-content-values-design.md) — third |
 
 ## The mode — read this before proposing anything
 
@@ -198,11 +199,11 @@ columns, and well before designing consumers, so gaps surface while they are sti
 
 | Entity | Field | What is undefined |
 | --- | --- | --- |
-| `ARMY` | `game_system`, `source` | Which ruleset, in what form; what "imported from Army Forge" records |
-| `UNIT` | `list_entry` | An Army Forge id, a name, or not needed at all |
-| `UNIT` | `abilities`, `upgrades` | Catalog ids with parameters, or resolved values |
-| `UNIT`, `MODELSLOT` | `stats` | A named store — but of what. OPR quality is `4+`; 40k has `6"` and `D6` |
-| `MODELSLOT` | `loadout` | Weapons carry their own stat blocks |
+| ~~`ARMY`~~ | ~~`game_system`, `source`~~ | Done — content values. `game_system` is the `GameRules` id |
+| ~~`UNIT`~~ | ~~`list_entry`~~ | Done — kept, as an opaque id never interpreted |
+| ~~`UNIT`~~ | ~~`abilities`, `upgrades`~~ | Done — `upgrades` dropped entirely; properties are entries with parameters |
+| ~~`UNIT`, `MODELSLOT`~~ | ~~`stats`~~ | Done — typed and declared at three levels |
+| ~~`MODELSLOT`~~ | ~~`loadout`~~ | Done — a weapon on the slot, with its own stats and properties |
 | ~~`MODELSLOT`~~ | ~~`base`, `height`~~ | Done — geometry values |
 | ~~`ASSET`~~ | ~~`kind`, `profile`~~ | Done — identity and enumerations. The texture profile is empty |
 | ~~`ASSET`~~ | ~~`scale`, `orientation`~~ | Done — geometry values |
@@ -210,36 +211,44 @@ columns, and well before designing consumers, so gaps surface while they are sti
 | ~~`MARKERPLACEMENT`~~ | ~~`position`, `facing`, `size`~~ | Done — geometry values |
 | ~~`DEPLOYMENTREGION`~~ | ~~`builtin_shape`~~ | Done — geometry values. The default set's contents are still to choose |
 | ~~`GAME`~~ | ~~`status`, `scheduler_shape`, `enforcement`~~ | Done — identity and enumerations. Enforcement turned out to be a boolean |
-| `ARMYSNAPSHOT` | everything | Has only an id. What a snapshot contains was never said |
+| ~~`ARMYSNAPSHOT`~~ | ~~everything~~ | Done — a deep copy, no edge back, no partial fields |
 | ~~`RULEPACK`~~ | — | Done — gone. A game names a `GameRules` and pins a `Properties` hash; no entity, no registry |
 | `GAMEEVENT` | `kind`, `payload` | The event catalog. **Out of scope** — that is `Tabletop.Protocol`, a contract rather than a value type |
 
-### Three sessions, in this order
+### The three definition sessions — all done
 
-1. ~~**Geometry values**~~ — **done**, 2026-08-29. Bases are a shape plus dimensions in world
-   units; models are yaw-only and upright; collision volumes are extruded prisms with convex
-   hulls dropped; six declarations read out of the OPR rulebook; deployment styles are anchored
-   polygon sets.
-2. ~~**Identity and enumerations**~~ — **done**, 2026-08-29. `RULEPACK` is gone: a ruleset is
-   **`GameRules`** (per-ruleset C#) plus **`Properties`** (pinned data). `Properties` holds stat
-   definitions and three **disjoint** catalogs — `UnitProperty`, `ModelProperty`,
-   `WeaponProperty` — sharing a base, and a name belongs to exactly one kind. Enforcement is a
-   boolean. Every enumeration has named values.
-3. **Content values** — stats, abilities, upgrades, loadout, `list_entry`, `game_system`, and
-   what an `ARMYSNAPSHOT` holds. Feeds `Tabletop.Content`. **This is all that remains.**
+1. **Geometry values**, 2026-08-29. Bases are a shape plus dimensions in world units; models
+   are yaw-only and upright; collision volumes are extruded prisms with convex hulls dropped;
+   six declarations read out of the OPR rulebook; deployment styles are anchored polygon sets.
+2. **Identity and enumerations**, 2026-08-29. `RULEPACK` is gone: a ruleset is **`GameRules`**
+   (per-ruleset C#) plus **`Properties`** (pinned data). `Properties` holds stat definitions
+   and three **disjoint** property sets — `UnitProperty`, `ModelProperty`, `WeaponProperty` —
+   and a name belongs to exactly one. Enforcement is a boolean. Every enumeration has named
+   values.
+3. **Content values**, 2026-08-29. Stats are **typed** — target number, distance, count, dice
+   expression — and declared at unit, model and weapon level. A weapon lives on the model slot,
+   resolved in place, with no shared definition. `upgrades` is dropped: an upgrade's effect is
+   already applied by import time. `list_entry` stays as an opaque id. `ARMYSNAPSHOT` is a deep
+   copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
+   as data**.
 
-   Two things from the last session shape it. **The standing principle is predefined
-   properties, not magic strings** — so `stats` as an arbitrary named store is the shape to get
-   rid of, and the likely answer is that `Properties` *declares* the stat names, closed within a
-   ruleset even though they differ between rulesets. And **the rulebooks are the input**: OPR's
-   special rules section is a finite, known vocabulary (`AP(X)`, `Blast(X)`, `Caster(X)`,
-   `Impact(X)`, `Tough(X)`, `Stealth`, `Strider`, `Scout`, `Ambush`, …) to design the parameter
-   shape against rather than guessing at one.
+### Next: the effect grammar
 
-   One question already surfaced: `architecture.md` lists "unit and weapon definitions" as pack
-   data, but armies are imported from Army Forge and hold their own copy of every value. If the
-   army is self-contained, a catalog of unit definitions may be redundant — `Properties` may
-   only need stat definitions, the three property catalogs, and modifier declarations.
+**The one thing the definition sessions opened rather than closed.** Property entries carry
+their effect as data, and the vocabulary for that was left undefined. Sorting all of Grimdark
+Future's properties by what they do gives four families:
+
+| Family | Examples |
+| --- | --- |
+| Numeric modifiers to a roll | `AP(X)`, `Stealth`, `Entrenched`, `Indirect`, `Lance`, `Slow`, `Fast`, `Reliable`, `Sniper` |
+| Reroll and result reinterpretation | `Poison`, `Regeneration`, `Rending`, `Furious`, `Relentless`, `Fearless` |
+| Extra dice and multiplication | `Impact(X)`, `Blast(X)`, `Deadly(X)`, `Counter` |
+| Turn structure and deployment | `Ambush`, `Scout`, `Flying`, `Immobile`, `Aircraft`, `Hero`, `Limited`, `Caster(X)` |
+
+Each family needs a shape, and all four have to line up with the resolution pipeline. **Worth
+knowing before starting: the resolution session's model — "a modifier is a numeric plus or
+minus applied before the roll" — covers only the first family**, roughly a third of one
+ruleset's properties.
 
 ### After that
 

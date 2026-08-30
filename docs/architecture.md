@@ -49,7 +49,7 @@ the two must agree exactly. Protocol is shared by definition. Content is shared 
 client renders an army it fetched over HTTP, and both servers store and interpret the same
 army data.
 
-The rules engine — pipelines, scheduler, the property catalogs, modifier system — is
+The rules engine — pipelines, scheduler, the property sets, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.
 
 ## Command / Event spine
@@ -139,14 +139,13 @@ surface.
 Packs are loaded and interpreted **only by the game server**. The client never sees a rule
 pack; it receives the consequences of one.
 
-- **Rules as data** — stat blocks, unit and weapon definitions, ability catalog, modifier
-  declarations.
+- **Rules as data** — `Properties`: typed stat definitions and the three property sets.
 - **Rules as engine** — the pipeline interpreter that executes that data.
 
-### Closed schema, open catalog
+### Closed schema, extensible content
 
-The *shape* of a pack is validated and unknown keys are errors; the *ability catalog* is data
-that extends freely. Adding a rule means adding a catalog entry and referencing it by id.
+The *shape* of `Properties` is validated and unknown keys are errors; the property sets extend
+freely. Adding a rule means adding an entry and referencing it by id.
 
 The rejected alternative is an open property bag where the engine reads keys it recognises: it
 authors just as fast but a mistyped key silently does nothing. With a closed schema, typos fail
@@ -159,9 +158,12 @@ The unit stat block cannot be a fixed C# type. OPR uses Quality/Defense/Tough; W
 M/T/Sv/W/Ld/OC with weapons carrying BS/A/S/AP/D; skirmish games differ again. A `Quality`
 property in the engine would hardcode OPR into it.
 
-So stats are named and defined by the pack. The ergonomic cost — `unit.Stat("quality")` rather
-than `unit.Quality` — is paid back by having ruleset-specific C# modules supply typed accessors
-over the generic store.
+So stats are named and defined by `Properties`, and **typed**: each declaration carries a kind
+from a closed set — target number, distance, count, dice expression — so `4+` and `6"` are never
+confused and `D6` has somewhere to live. See
+[content values](superpowers/specs/2026-08-29-content-values-design.md). The ergonomic cost of a
+named store rather than `unit.Quality` is paid back by ruleset-specific C# supplying typed
+accessors over it.
 
 ### Where data stops, for now
 
@@ -169,8 +171,9 @@ over the generic store.
 have names — see
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
 
-- **`Properties`, JSON** — stat definitions, and three disjoint catalogs: `UnitProperty`,
-  `ModelProperty`, `WeaponProperty`. Sharing a base, differing in where they attach.
+- **`Properties`, JSON** — stat definitions, and three disjoint property sets:
+  `UnitProperty`, `ModelProperty`, `WeaponProperty`. Sharing a base, differing in where they
+  attach. Stats are typed and declared per level; property entries carry their effect as data.
 - **`GameRules`, C# behind an interface** — turn structure, action definitions, pipeline step
   order, scheduler policy, dice conventions.
 

@@ -9,7 +9,7 @@ stats, loadout, `list_entry`, `game_system`, and what an army snapshot holds —
 The governing principle for this session, stated during it: **predefined properties, not
 magic strings.** Closed sets are far easier to reason about and far simpler to enforce, and
 a mistyped key that silently does nothing is the failure mode being avoided. This is
-`architecture.md`'s closed-schema-open-catalog instinct applied to every enumeration in the
+`architecture.md`'s closed-schema instinct applied to every enumeration in the
 model.
 
 ## A ruleset is two things, and neither is called "rules pack"
@@ -22,13 +22,13 @@ to talk about.
 pipeline order, scheduler policy, dice conventions. Ships with the build, sits behind an
 interface, selected per game.
 
-**`Properties`** — the per-ruleset **data**. Stat definitions and the property catalogs.
+**`Properties`** — the per-ruleset **data**. Stat definitions and the property sets.
 JSON, authored in-repo, content-addressed, pinned per game.
 
 This is `architecture.md`'s existing line — *what is edited every day is JSON; what is
 edited once per ruleset stays C#* — with names that distinguish the halves.
 
-The generic interpreter that runs a `Properties` catalog through a `GameRules`
+The generic interpreter that runs a `Properties` set through a `GameRules`
 implementation **needs no name**. It has no identity and nothing references it; it is just
 code. Three concepts collapse to two names.
 
@@ -47,7 +47,7 @@ registry table. The pin mechanism is unchanged, so it is additive. `architecture
 the goal is "not end users uploading rules" — that is true of the current phase and is not
 the long-term intent.
 
-## `Properties` holds three disjoint catalogs
+## `Properties` holds three disjoint property sets
 
 Not one bag with a scope tag. **Three distinct kinds**, sharing a base but differing in
 function, application, and where they attach:
@@ -64,7 +64,7 @@ copied onto models, which the table domain model already decided; a `ModelProper
 sergeant differ from the eight plain models beside him; a `WeaponProperty` travels with a
 weapon in a model's loadout.
 
-**A name belongs to exactly one kind.** If names could appear in two catalogs the
+**A name belongs to exactly one kind.** If names could appear in two sets the
 distinction softens back into the bag.
 
 ### The Stealth case

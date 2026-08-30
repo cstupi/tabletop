@@ -26,6 +26,7 @@ erDiagram
     ARMY ||--|{ UNIT : contains
     UNIT ||--|{ MODELSLOT : contains
     MODELSLOT }o..o| ASSET : "appearance, soft"
+    MODELSLOT ||--o{ WEAPON : loadout
 
     ASSET }o--|| BLOB : "bytes"
     FOLDER ||--o{ FOLDER : nests
@@ -60,18 +61,22 @@ erDiagram
     }
     UNIT {
         string name
-        ref list_entry
+        id list_entry
         stats stats
-        list abilities
-        list upgrades
+        list unit_properties
     }
     MODELSLOT {
         string what_it_is
         stats stats
-        list loadout
+        list model_properties
         enum base_shape
         units base_dims
         units height
+    }
+    WEAPON {
+        string name
+        stats stats
+        list weapon_properties
     }
     ASSET {
         uuid id
@@ -187,6 +192,17 @@ difficult, dangerous.
 **Models are yaw only and always upright**, so a placement is position and yaw. What a model
 rests on is derived by settling, never stored.
 
+**Stats are typed and declared at three levels** — unit, model and weapon — mirroring the three
+property kinds. A stat declaration carries a kind: target number, distance, count, or dice
+expression. `stats` above is a set of declared-stat-to-value pairs, not a free-form bag.
+
+**A weapon lives on the model slot**, resolved in place. There is no shared weapon definition:
+two Heavy Rifles in two armies are two copies, because an army holds its own copy of every
+value. A melee weapon has no range at all rather than a range of zero.
+
+**`upgrades` is gone.** An upgrade's job is to change a unit's equipment and rules, and by
+import time that has already happened — keeping the field would mean two sources for one fact.
+
 **A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
 disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
@@ -228,3 +244,4 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
 | `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
 | `PROPERTIES`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
+| `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
