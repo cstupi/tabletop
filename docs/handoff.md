@@ -88,7 +88,9 @@ modifiers, and those are the same operations abilities use.
 self-containment, not immutability: an army holds its own copy of every value, so Army
 Forge, the source list, and the asset library cannot reach into it. Users edit their own
 armies freely; a game is safe because it took what it needed when it loaded, so no
-versioning or pinning is needed. Assets are a soft reference — the army holds the hitbox,
+versioning or pinning is needed. **Armies are not long-lived objects to maintain** — a changed
+list means a re-import, which loses per-slot bindings and is accepted, so there is no copy
+operation and no reconciliation. Assets are a soft reference — the army holds the hitbox,
 the mesh is only appearance, so deleting an asset is not blocked. Base shape and height are
 per slot, defaulting to the ruleset's values.
 
@@ -228,8 +230,8 @@ columns, and well before designing consumers, so gaps surface while they are sti
 3. **Content values**, 2026-08-29. Stats are **typed** — target number, distance, count, dice
    expression — and declared at unit, model and weapon level. A weapon lives on the model slot,
    resolved in place, with no shared definition. `upgrades` is dropped: an upgrade's effect is
-   already applied by import time. `list_entry` is dropped — nothing reads it. `ARMYSNAPSHOT` is a
-   deep copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
+   already applied by import time. `list_entry` is dropped — nothing reads it, and the flow that
+   might have is gone too. `ARMYSNAPSHOT` is a deep copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
    as data**.
 
 ### Next: the effect grammar

@@ -47,9 +47,15 @@ still nothing pointing across accounts.
 `architecture.md` had a third row, `Binding {army_id, target_ref, asset_id}`, existing so
 that bindings would survive a list being re-imported.
 
-**That reason is gone.** [The army](2026-08-28-army-design.md) updates a list by copying
-the army into the editor and applying the new list to the copy, so bindings survive by
-construction rather than by keying on a stable reference.
+**That reason is gone**, though not for the reason first given here. This section originally
+said [the army](2026-08-28-army-design.md) updates a list by copying the army and applying the
+new list to the copy, so bindings survived by construction. *Revised 2026-08-29:* there is no
+copy operation. A changed list means a **re-import**, and a re-import **does not preserve
+bindings** — armies are cheap to rebuild rather than objects to maintain.
+
+So `Binding` still is not a record, because nothing is trying to preserve a binding across a
+re-import any more. The original justification was to survive exactly that, and the requirement
+itself has been dropped.
 
 So the asset reference is a field on the model slot, and the library has two records
 rather than three. The same document also printed a three-row table under the sentence

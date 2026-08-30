@@ -77,20 +77,24 @@ So **deleting an asset is not blocked** and does not need to be. There is no ref
 integrity problem to solve, because the reference was never carrying anything the rules
 depend on.
 
-## Editing against a new list
+## A changed list means a re-import
 
-When a list changes in Army Forge, the user **copies an existing army into the editor** and
-applies the new list to the copy. Bindings and bases survive because it is literally the
-same army being edited, rather than a fresh import that has to reconstruct a match.
+*Revised 2026-08-29.* This section originally had the user **copy an army into the editor and
+apply the new list to the copy**, so that bindings and bases survived by construction.
 
-Freezing is not a concept here; there is nothing to freeze. The editor works on the army,
-and saving keeps it.
+**Armies are not long-lived objects that have to be maintained.** When a list changes in Army
+Forge, import it again. There is no copy operation, no reconciliation, and no matching of old
+slots to new entries.
+
+The cost is real and accepted: **a re-import loses per-slot bindings and base overrides.** Unit
+defaults are quick to set again; individually-placed sculpts are not. That is the trade — an
+army is cheap to rebuild, and list changes are rare enough not to build machinery for.
+
+Freezing is not a concept here; there is nothing to freeze. The user still edits their own army
+whenever they like. What is gone is the flow for updating one against a changed list.
 
 ## Deliberately not decided
 
-- **How a copy matches old slots to a changed list** — by entry id, by name, by position.
-  This is a heuristic in the copy operation and changes nothing about what is stored, so
-  choosing now would be premature.
 - Import mechanics: how a list is fetched, authenticated, or paged.
 - The asset library: how assets are organised, found, or uploaded.
 - Whether armies can be shared between users.
