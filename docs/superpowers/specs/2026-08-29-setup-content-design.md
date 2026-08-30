@@ -137,9 +137,11 @@ group decide this forest is impassable today.
 Declarations split in two, which is `architecture.md`'s closed-schema-open-catalog instinct
 applied to terrain:
 
-- **A closed set the engine reads** — blocks line of sight, cover, difficult, dangerous.
-  These are the ones that change how the game resolves, so adding to the set is a code
-  change, deliberately.
+- **A closed set the engine reads** — impassable, blocks line of sight, see in and out, cover,
+  difficult, dangerous. These are the ones that change how the game resolves, so adding to the
+  set is a code change, deliberately. This session named four;
+  [geometry values](2026-08-29-geometry-values-design.md) added `impassable` and `see in and
+  out` against the rulebook, and six is the current set.
 - **Open notes it does not read** — free text a player hovers to see. Terrain health, house
   rules, anything nobody anticipated. Never interpreted, never validated, never acted on.
 
@@ -159,5 +161,6 @@ interprets it. Terrain still does not know what a forest is.
 - **Whether terrain can be unlocked mid-game.** The lock is structural rather than a flag,
   so unlocking is not a permission change — it is the point at which terrain becomes
   event-driven state.
-- Whether the closed declaration set is complete. Blocks line of sight, cover, difficult
-  and dangerous are the ones named; a second ruleset is what will test it.
+- Whether the closed declaration set is complete. Six are named, after
+  [geometry values](2026-08-29-geometry-values-design.md) added two to this session's four;
+  a second ruleset is what will test it.

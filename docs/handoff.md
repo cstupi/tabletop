@@ -146,8 +146,9 @@ only its result is, and that record *is* the event log's initial state, which ma
 objectives locked after setup with no flag to check. A Layout is that same record owned by a user
 rather than a game, so there is one shape rather than two. Objectives and tokens collapse into one
 marker with a `kind`. Terrain volumes and declarations live on the asset and may be overridden per
-placement, with a closed set the engine reads — blocks LoS, cover, difficult, dangerous — and free
-text for everything else.
+placement, with a closed set the engine reads and free text for everything else. That set is
+**six**: impassable, blocks LoS, see in and out, cover, difficult, dangerous. This session named
+four and geometry values added two more from the rulebook.
 
 There is **no `Mission` record.** `architecture.md` had defined one as deployment zones,
 objectives, victory conditions, round count and team count, which is not what a mission is:

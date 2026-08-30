@@ -1,15 +1,16 @@
 # Data model
 
-Every entity the eight design sessions produced, and how they relate.
+Every entity the design sessions produced, and how they relate.
 
 **Conceptual, not a schema.** No tables, no columns, no indices. Persistence layout was
 deferred deliberately in three separate specs, and this document keeps that line: it says what
 exists and what points at what.
 
-The geometric fields carry real types, defined in
-[geometry values](superpowers/specs/2026-08-29-geometry-values-design.md). The rest are still
-placeholders — `stats`, `list`, `ref`, `profile` — awaiting the identity and content sessions.
-`units` means world units, which are inches.
+Every field carries a real type. The geometric ones are defined in
+[geometry values](superpowers/specs/2026-08-29-geometry-values-design.md), the rest in
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
+and [content values](superpowers/specs/2026-08-29-content-values-design.md). `units` means
+world units, which are inches; `stats` is a set of declared-stat-to-value pairs.
 
 Where this and a design doc disagree, the design doc is authoritative — this is a view
 over them, not a source. [`docs/schema.md`](schema.md) is the physical expression of the same
@@ -48,7 +49,7 @@ erDiagram
     ASSET ||--o{ VOLUME : "terrain profile"
     TERRAINPLACEMENT ||--o{ VOLUME : overrides
     MARKERPLACEMENT }o..o| ASSET : "visual, or a built-in"
-    DEPLOYMENTREGION }o--|| TEAM : "assigned to"
+    DEPLOYMENTREGION }o..o| TEAM : "by ordinal, not id"
 
     ACCOUNT {
         uuid id
@@ -61,11 +62,13 @@ erDiagram
         string source
     }
     UNIT {
+        int ordinal
         string name
         stats stats
         list unit_properties
     }
     MODELSLOT {
+        int ordinal
         string what_it_is
         stats stats
         list model_properties
@@ -107,12 +110,14 @@ erDiagram
     GAME {
         uuid id
         enum status
+        timestamp created_at
         id game_rules
         enum scheduler_shape
         bool warns
     }
     TEAM {
         uuid id
+        int ordinal
     }
     PARTICIPANT {
         uuid id
@@ -130,6 +135,7 @@ erDiagram
         json payload
     }
     TABLESTATE {
+        string name
         inches width
         inches length
     }
@@ -147,14 +153,14 @@ erDiagram
     }
     DEPLOYMENTREGION {
         id style
-        list polygons
+        int team_ordinal
     }
 ```
 
 ## Reading it
 
 **Solid lines are hard references. Dotted lines are soft ones** — the target may be gone
-and nothing breaks. Every dotted line points at `ASSET`, which is the one rule the whole
+and nothing breaks. Every dotted line but one points at `ASSET`, which is the one rule the whole
 model is built around: **the rules never touch a mesh.** An army holds the hitbox, an asset
 is only ever appearance, so deleting one degrades a slot to a proxy and is never blocked.
 
@@ -180,7 +186,13 @@ loaded, with no live link, so editing a saved army cannot reach into a match in 
 **`DEPLOYMENTREGION` names a built-in style**, which resolves to a **set** of polygons — one
 of OPR's standard styles gives each team two diagonally opposite corners. Measurements are
 anchored to table features rather than absolute, so a style works at any board size. Custom
-shapes are a later expansion.
+shapes are a later expansion. **The polygons are not stored**: a built-in is not a row, so
+holding both the style and what it resolves to would be two sources for one fact.
+
+**It points at a team by ordinal, not by id** — the one soft edge that is not an asset. A
+`TABLESTATE` saved by an account as a layout has no game, so there are no teams for it to
+reference; the ordinal says *first team's zone* and binds to a real team only when a game
+loads that layout.
 
 **`VOLUME` is an extruded prism** — a circular or rectangular footprint with a bottom and a
 top. Convex hulls are gone, so every geometry test is a 2D shape intersection plus a vertical
@@ -192,6 +204,11 @@ difficult, dangerous.
 **Models are yaw only and always upright**, so a placement is position and yaw. What a model
 rests on is derived by settling, never stored.
 
+**A stored position is three-dimensional.** Terrain and markers carry x, y and z, because both
+are put where the user puts them — a marker ignores terrain entirely, and terrain does not
+settle onto anything. A model's height is the only one derived rather than stored, and models
+are not persisted at all.
+
 **Stats are typed and declared at three levels** — unit, model and weapon — mirroring the three
 property kinds. A stat declaration carries a kind: target number, distance, count, or dice
 expression. `stats` above is a set of declared-stat-to-value pairs, not a free-form bag.
@@ -200,9 +217,24 @@ expression. `stats` above is a set of declared-stat-to-value pairs, not a free-f
 two Heavy Rifles in two armies are two copies, because an army holds its own copy of every
 value. A melee weapon has no range at all rather than a range of zero.
 
+**Nothing carries a count.** Ten models are ten `MODELSLOT` rows and `2x Heavy Rifle` is two
+`WEAPON` rows. Placement is per model, so a slot has to exist per model regardless; a count
+would be a second way to say the same thing and would have to be expanded before anything could
+be placed. Import does that expansion once, at the boundary.
+
+**`ARMY.game_system` is the `GameRules` identifier** — the same vocabulary as
+`GAME.game_rules`, not a second one. Nothing reads it to interpret an army, which is
+self-contained; its only reader compares it against the game's at army-pick time. With one
+ruleset that comparison is a no-op, so the field is **dormant until a second `GameRules`
+exists**. It is kept because import knows it for free and no later pass could recover it.
+
 **`upgrades` and `list_entry` are both gone.** An upgrade's effect is already applied by import
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
+
+**`PROPERTIES` is drawn as an entity but is not a table.** A game stores the content hash and
+nothing else; there is no registry to join to. It appears here because it is a thing the model
+names, not a thing the database holds — the same reason built-ins have no entity.
 
 **A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
 disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
@@ -225,6 +257,12 @@ That is also why terrain is locked after setup with no flag and no check: terrai
 `TABLESTATE`, and nothing in the log can reach it. Making terrain destructible later is
 additive — terrain events on top of the same snapshot.
 
+**Presence is not here.** Cursors, pings, measurements, selection and live drag positions are
+relayed between clients and never written, so they are values in
+[`Tabletop.Protocol`](superpowers/specs/2026-08-30-presence-design.md) rather than entities.
+Who is connected is not stored either: a presence value exists while a socket is open, and
+`PARTICIPANT` is the roster underneath it.
+
 **Built-ins are not rows.** Predefined board textures and deployment zone shapes ship with
 the client. Nobody owns them, nothing is copied into an account, and they need no entity.
 
@@ -246,3 +284,4 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
 | `PROPERTIES`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
+| Property effects, the twelve kinds | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |

@@ -348,6 +348,7 @@ dedup a property of the schema rather than a rule in code.
 - Whether the two schemas are two Postgres schemas in one database or two databases.
 - Indexes beyond primary and foreign keys. None are needed at this scale, but the game
   browser's listing query is the first candidate.
-- Presence — cursors, pings, live drag positions — is absent from the model entirely, not just
-  from this schema. It persists nothing, so nothing here changes, but it has never been
-  designed.
+- ~~Presence has never been designed.~~ **Settled** by
+  [presence](superpowers/specs/2026-08-30-presence-design.md), which changes nothing here:
+  cursors, pings, measurements, selection and live placements are relayed and never written,
+  so presence has no table and no column.
