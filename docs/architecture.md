@@ -401,10 +401,11 @@ and is dropped.
 Live games in memory, plus the append-only event log. **The only module holding live state.**
 It needs graceful shutdown that drains to the event log, and it is what constrains deploys.
 
-Authentication does not run through Stytch here. The user logs in through the web app, the
-client acquires a session from it, and creating or joining a game is an ordinary management
-endpoint returning a **join token** that the game server validates. Reconnect matters — a
-four-player game runs hours, and the event log makes resuming a solved problem.
+Authentication does not run through Stytch here. The user logs in through the web app and the
+client acquires a session from it; creating or joining a game is an ordinary management
+endpoint, and the client then opens its socket with **that same session token and a game id**.
+The game server resolves the token to an account and checks for a `participant` row. Reconnect
+matters — a four-player game runs hours, and the event log makes resuming a solved problem.
 
 ### Transport
 
@@ -632,17 +633,19 @@ until they are settled.
 | `Tabletop.Geometry` API surface | client, game server |
 | `Tabletop.Protocol` command, event and presence schema | client, game server |
 | `Tabletop.Content` army snapshot types | client, both servers |
-| Join token format | management, game server |
 
-Auth **is** on this list now, and the first version of this document was wrong to say it was
-not. It argued that Stytch was the token authority for both servers, so there was no bespoke
-format to agree on. Confining Stytch to management reverses that: management issues the tokens,
-so the **join token** is a contract between the two servers even though neither ever calls the
-other. There are no management-to-game-server calls, and therefore no M2M.
+**Auth is not on this list, and the first version of this document was right about that** —
+though not for the reason it gave. It argued Stytch was the token authority for both servers,
+so there was no bespoke format to agree on. Confining Stytch to management looked like it
+reversed that, and [accounts](superpowers/specs/2026-08-29-accounts-design.md) added a join
+token as a fourth contract on those grounds. That token was dropped on 08-30: a game has an id,
+the session token says who you are, and the `participant` row records who is allowed in, so
+there was no format left to agree. There are no management-to-game-server calls, and therefore
+no M2M.
 
-**Who instantiates a game session is settled: nobody does.** A client presents a join token to
-the game server, and if no session for that game is in memory the server hydrates it from the
-log. Starting, reconnecting, and crash recovery are one path.
+**Who instantiates a game session is settled: nobody does.** A client opens a socket naming a
+game, and if no session for that game is in memory the server hydrates it from the log.
+Starting, reconnecting, and crash recovery are one path.
 
 ## Build order
 

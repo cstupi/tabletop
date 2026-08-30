@@ -55,16 +55,21 @@ services**.
 
 ```
 session      token_hash pk · account_id · expires_at · created_at
-join_token   token_hash pk · game_id · account_id · expires_at
 ```
 
 **Hashes, not tokens.** A database leak is then not a session leak.
 
-These are two tables `docs/schema.md` did not have, added by this session.
+This is one table `docs/schema.md` did not have, added by this session.
 
-A **session token** authorises every management call. A **join token** is what the client
-presents to the game server over its WebSocket; the game server looks it up, finds the game
-id, and reads the game's row directly.
+A **session token** authorises every management call, and it is the only token there is. The
+client opens its socket to the game server with that token and a game id; the game server
+resolves the token to an account, checks for a `participant` row in that game, and reads the
+game's row directly.
+
+**A second token for joining was designed here and later dropped.** It carried a game id, an
+account id and an expiry, all to state a fact `participant` already records — joining a game
+*is* the row. Its expiry was also a live failure: a four-player game runs hours, so a token
+issued at the lobby could lapse before a player who dropped at hour three tried to reconnect.
 
 ## Asset bytes never pass through the API
 
@@ -177,9 +182,9 @@ PATCH  /v1/layouts/{id}
 DELETE /v1/layouts/{id}
 
 GET    /v1/games                              the public browser, keyset
-POST   /v1/games                              → join token
+POST   /v1/games                              → game id
 GET    /v1/games/{id}
-POST   /v1/games/{id}/join                    → join token
+POST   /v1/games/{id}/join                    → creates the participant row
 POST   /v1/games/{id}/leave
 POST   /v1/games/{id}/end
 DELETE /v1/games/{id}
@@ -205,7 +210,7 @@ small enough to return whole.
 - Error shapes and status code conventions.
 - Rate limiting.
 - Whether `PATCH` on an army takes a whole document or a patch.
-- Session and join token lifetimes.
+- Session token lifetime.
 - Whether the manifest is re-issued on reconnect or the client re-requests it.
 
 ## Still open

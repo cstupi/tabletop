@@ -55,7 +55,7 @@ Two things still hold:
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: twenty-seven tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: twenty-six tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —
@@ -128,12 +128,16 @@ and name; Stytch answers only "is this session valid, and whose," runs *through*
 rather than from the client, and is replaceable without a client release. No graph — no friends,
 no handles, no sharing — so two accounts meet in a game and nowhere else, found through a public
 game browser in the client. Deletion is total: an account's content and every game it played in
-are destroyed. Creating a game is an endpoint returning a join token; the game server hydrates
-when a client arrives, so starting, reconnecting and crash recovery are one path. Ending is a
-flag, not a terminal state, because restarting an ended game is the same replay.
+are destroyed. Creating a game is a plain endpoint; the client then opens its socket with its
+session token and the game id, and the game server hydrates when it arrives, so starting,
+reconnecting and crash recovery are one path. Ending is a flag, not a terminal state, because
+restarting an ended game is the same replay.
 
-That last point removed a would-be lifecycle state, and the join token added a contract that
-`architecture.md` had explicitly said would not exist.
+That last point removed a would-be lifecycle state. The session also invented a **join token**
+for the client-to-game-server handoff, which was **dropped on 08-30** — a game has an id, the
+session token says who you are, and the `participant` row records who is allowed in. The token
+restated all three and added an expiry that could lapse mid-game, stranding a player who
+dropped at hour three. It is gone from the schema, the API and the contracts list.
 
 **The table and its setup content** — the board, what stands on it before play, and what a
 saved arrangement is. The table is a rectangle: width, length, texture, no shape and no boundary
@@ -212,7 +216,6 @@ Carried from the design docs:
 - What a slot draws when its asset is missing. A proxy — but terrain has collision volumes to
   draw from and a miniature has only its base and height.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
-- What is in a join token and how long it lives. It is now a contract between the two servers.
 - Whether a game already playing can be joined, or only one still in its lobby.
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
   terrain becomes event-driven state on top of the setup snapshot.
@@ -229,15 +232,19 @@ Carried from the design docs:
 
 ### 1. Freeze the contracts
 
-`Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join token format. The
-build order in `architecture.md` makes these step 1, and steps 2 and 3 run in parallel
-immediately after.
+`Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content` — three, not four. The build order
+in `architecture.md` makes these step 1, and steps 2 and 3 run in parallel immediately after.
 
-**Nothing is waiting on design any more.** Presence was what `Tabletop.Protocol` still lacked,
-and closing it means the protocol has all three of its parts: commands, events, and the
-ephemeral relay. The join token is the one contract with an open question against it — what is
-in it and how long it lives — and it has to be answered here rather than deferred, because both
-servers are built against it.
+**Nothing is waiting on design.** Presence was what `Tabletop.Protocol` still lacked, and
+closing it means the protocol has all three of its parts: commands, events, and the ephemeral
+relay. Dropping the join token removed the fourth contract and the last open question against
+any of them.
+
+What this step produces is three `csproj` files added to `Tabletop.sln`, holding records and
+enums with no method bodies. `dotnet build` from the repo root is what proves it. One thing to
+decide while writing them: whether `Tabletop.Protocol` may reference the other two, or all
+three stay independent — it changes whether a command carries a `Placement` or its own copy of
+position and yaw.
 
 ### 2. Rewrite `docs/workstreams/`
 

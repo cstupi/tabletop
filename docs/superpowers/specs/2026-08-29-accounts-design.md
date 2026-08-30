@@ -102,19 +102,21 @@ not started.
 Passwords on games and friend-joining are later, and they change who is allowed in rather
 than what a game is.
 
-**Creating and joining are plain endpoints.** A user hits management, which creates the
-game and returns a **join token**. The client presents that token to the game server over
-its WebSocket. If no session for that game is in memory, the game server hydrates it and
-starts serving.
+**Creating and joining are plain endpoints.** A user hits management, which creates the game
+and the `participant` row that puts them in it. The client then opens its WebSocket to the game
+server with its session token and the game id. If no session for that game is in memory, the
+game server hydrates it and starts serving.
 
 No M2M call is involved and management never learns which task holds which game. This
 settles the question `architecture.md` left open about who instantiates a session, and it
 settles it by having nobody do it: the session comes into being because a client arrived.
 
-It also creates a contract that did not exist before. `architecture.md` argued auth needed no
-agreed format because Stytch was the authority for both servers; confining Stytch to management
-means management issues the tokens, so **the join token is a seam between the two servers** —
-the one thing they share without ever calling each other.
+**This session invented a join token for that handoff, and it was dropped on 08-30.** The
+argument for it was that confining Stytch to management makes management the token issuer, so
+a bespoke token became a seam between two servers that never call each other. What that missed
+is that the seam needed no new token: a game has an id, a session says who you are, and
+`participant` already records who is allowed in. The token restated all three and added an
+expiry that could lapse mid-game.
 
 ## Ending is a flag, not a state
 
@@ -146,7 +148,5 @@ viewer possible later, and it is what account deletion has to reach into.
 
 ## Still open
 
-- **What is in a join token and how long it lives.** It is now a contract between the two
-  servers, so it has to be agreed before either is built against the other.
 - **Whether a game already playing can be joined**, or only one still in its lobby. The
   browser lists open games; nothing yet says what open means.
