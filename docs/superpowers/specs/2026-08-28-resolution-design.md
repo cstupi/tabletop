@@ -62,6 +62,19 @@ collide with another pack's.
 The genuinely hard interactions do not disappear; they move to abilities reading results,
 where they are fewer and where the pipeline step gives them a natural place to sit.
 
+**Corrected 2026-08-29 by [the effect grammar](2026-08-29-effect-grammar-design.md).** This
+section went further and said commutativity *removes* the explicit priority scheme. It does
+not. Reading every special rule in the Grimdark Future rulebook gives twelve kinds of effect,
+and **commutativity holds for exactly one of them** — the numeric modifier. Some properties
+suppress other properties, some alter another property's parameter, and the rulebook orders
+several by hand: `Deadly` is *"resolved first"*, `Blast` applies *"after resolving other
+special rules"*. `architecture.md` was right, ordering is explicit, and it is a field on the
+effect.
+
+The wider point stands as a caution rather than a conclusion: **this section's model of an
+effect — a numeric plus or minus applied before the roll — covers one of twelve kinds.** It was
+designed against a hypothetical, before any ruleset had been read.
+
 ## Players roll their own dice, and can change them
 
 The engine resolving an action does not make it the engine's action. Two affordances,

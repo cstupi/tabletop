@@ -114,7 +114,15 @@ hit rolls → defense rolls → apply wounds → morale). Abilities declarativel
 step with a condition and contribute a modifier, or replace the step.
 
 The hard part is stacking and ordering — replacement vs additive effects, caps, floors.
-Modifier priority must be explicit rather than relying on registration order.
+Modifier priority must be explicit rather than relying on registration order. **This survived
+being challenged**: the resolution session argued that restricting modifiers to arithmetic made
+them commute and removed the need, and
+[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) found that holds
+for one of twelve effect kinds. Ordering is a field on the effect.
+
+An ability is not only a modifier. Twelve kinds cover Grimdark Future, four of which act on
+*other properties* — granting, suppressing, or altering a parameter — so resolving an
+interaction is two passes: settle which properties and parameters are live, then apply them.
 
 ## Turn scheduling
 

@@ -22,6 +22,7 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) — first of the three definition sessions |
 | 2026-08-29 | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) — second |
 | 2026-08-29 | [Content values](superpowers/specs/2026-08-29-content-values-design.md) — third |
+| 2026-08-29 | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -234,23 +235,25 @@ columns, and well before designing consumers, so gaps surface while they are sti
    might have is gone too. `ARMYSNAPSHOT` is a deep copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
    as data**.
 
-### Next: the effect grammar
+### The effect grammar — done, 2026-08-29
 
-**The one thing the definition sessions opened rather than closed.** Property entries carry
-their effect as data, and the vocabulary for that was left undefined. Sorting all of Grimdark
-Future's properties by what they do gives four families:
+An entry is a name, kind, at most one integer parameter, an aggregation, and a list of effects
+that **may be empty**. An effect is a subject (`self` or `opponent`), a **flat conjunction** of
+predicates from eight closed kinds, an ordering field, and one of **twelve effect kinds**.
+`Roll` nests an effect per success.
 
-| Family | Examples |
-| --- | --- |
-| Numeric modifiers to a roll | `AP(X)`, `Stealth`, `Entrenched`, `Indirect`, `Lance`, `Slow`, `Fast`, `Reliable`, `Sniper` |
-| Reroll and result reinterpretation | `Poison`, `Regeneration`, `Rending`, `Furious`, `Relentless`, `Fearless` |
-| Extra dice and multiplication | `Impact(X)`, `Blast(X)`, `Deadly(X)`, `Counter` |
-| Turn structure and deployment | `Ambush`, `Scout`, `Flying`, `Immobile`, `Aircraft`, `Hero`, `Limited`, `Caster(X)` |
+Three findings worth carrying:
 
-Each family needs a shape, and all four have to line up with the resolution pipeline. **Worth
-knowing before starting: the resolution session's model — "a modifier is a numeric plus or
-minus applied before the roll" — covers only the first family**, roughly a third of one
-ruleset's properties.
+- **Four of the twelve act on other properties** — grant, suppress, modify a parameter,
+  suppress modifiers. So resolving an interaction is **two passes**: settle which properties
+  and parameters are live, then apply.
+- **Explicit ordering comes back.** The resolution session removed it on the grounds that
+  arithmetic modifiers commute; that holds for one kind of twelve, and the rulebook orders
+  `Deadly` and `Blast` by hand. Corrected in place there.
+- **`GameRules` handles a set of properties by name**, grouped by where the check happens:
+  deployment (`Ambush`, `Scout`), movement (`Flying`, `Strider`), action legality (`Immobile`),
+  usage (`Limited`), melee strike order (`Counter`), interrupt (`Caster`). A property may be in
+  both places — `Aircraft` has data effects *and* a hook.
 
 ### After that
 
