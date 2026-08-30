@@ -57,8 +57,10 @@ ER diagram. Conceptual only: no tables, columns, types or indices. It replaced t
 that used to sit in `architecture.md`, and it is a view over the design docs rather than a
 source — where they disagree, the design doc wins.
 
-**`docs/architecture.md`** — the shared context every session reads. Mostly settled, but
-**not above correction**: the design sessions have now corrected its asset section, its claim
+**`docs/architecture.md`** — the shared context every session reads, and **the least examined
+document in the project**. Corrected roughly twenty times, always incidentally. An audit is the
+next task. Treat any statement in it that no design doc has touched as a first-pass assertion
+rather than a decision. It is **not above correction**: the design sessions have now corrected its asset section, its claim
 that armies are immutable, its login story, its `Binding` row, its collections module, and its
 claim that auth needed no agreed contract. Where it disagrees with a design doc, the design doc
 is newer.
@@ -296,15 +298,46 @@ the two mechanics earlier sessions had deferred.
   the schema's open question. A read is not a join, so the boundary holds — but the two
   services now share a database.
 
-### Next
+### Next: audit `architecture.md`
+
+**`architecture.md` is the most-cited document in the project and the least examined.** Every
+session reads it and quotes it. Fourteen sessions have corrected it roughly twenty times, but
+always *incidentally* — because a session happened to collide with a claim. Nothing has ever
+gone through it statement by statement asking whether each is still true and whether its
+stated reason holds.
+
+The evidence that this is overdue is the list of things found by accident: the mission
+definition, the table as a boundary volume, convex hulls, global blob dedup, the `Binding` row,
+the browser owning login, the ruleset registry, ordering removed and then restored, pinning
+treated as solved when it covers only half.
+
+And a worked example of the failure mode, traced this session. `architecture.md` says:
+
+> **The game server has no CRUD surface.** It reads game metadata once at session hydration and
+> writes only events. That is what keeps management restartable at will and confines deploy risk
+> to one service.
+
+It comes from `6bbc66e`, the 08-27 first planning session, whose own commit message says the
+notes are "early and not settled" and that "the data models have not been worked through."
+**Neither consequence follows from the claim.** Management is restartable because it holds no
+live state; deploy risk is confined to the game server because it holds live WebSocket
+sessions. Strip the justification and what remains is "the game server's interface is commands
+and events" — true, stated elsewhere, and not a principle. It was nonetheless treated as a
+constraint for fourteen sessions.
+
+**The audit is a pass over every statement**, asking: is it still true after fourteen sessions;
+does its stated reason actually support it; and was it a decision or a first-pass assertion
+that nobody has revisited.
+
+### After the audit
 
 **Presence.** Cursors, pings and who is connected. The first thing the design sessions **missed
-rather than deferred** — `architecture.md` says the workload has "no tick loop", true of
-simulation and false of the relay a virtual tabletop needs. Players point at things. The table
-domain model already broadcasts live drag positions and never logs them; presence is the same
-channel carrying cursors and pings, and nothing about it persists.
+rather than deferred** — `architecture.md` says the workload has "no tick loop", which is true
+of simulation and false of the relay a virtual tabletop needs. Players point at things. The
+table domain model already broadcasts live drag positions and never logs them; presence is the
+same channel carrying cursors and pings, and nothing about it persists.
 
-After that: `docs/workstreams/` still describes the 08-24 model and is stale in every
+Then `docs/workstreams/`, which still describes the 08-24 model and is stale in every
 particular, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
 `Tabletop.Protocol`, `Tabletop.Content`, and the join token.
 
