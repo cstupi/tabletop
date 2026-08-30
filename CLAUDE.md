@@ -4,6 +4,11 @@ Virtual tabletop for One Page Rules and Warhammer 40,000: a Godot 4.7 / C# clien
 .NET servers. Currently at scaffold stage — only the client exists.
 
 `docs/architecture.md` records the design decisions and why they were made.
+`docs/data-model.md` is the entity diagram, `docs/schema.md` the Postgres tables, and
+`docs/superpowers/specs/` the per-module design sessions. `docs/handoff.md` says where things
+stand and what to pick up.
+
+Where `architecture.md` and a design doc disagree, **the design doc is newer**.
 
 Each module is planned separately before it is built. Do not scaffold ahead of a plan — no
 speculative folders, interfaces, or placeholder systems for work that has not been designed
@@ -36,7 +41,8 @@ before, or the assembly is missing and every script fails with "class could not 
 
 Three kinds of top-level directory:
 
-- **Deliverables** — `client/`, `server/`. These ship.
+- **Deliverables** — `client/`, `server/`, `web/`, `tools/`. These ship. `tools/` is easy to
+  overlook because it is not a service, but the mesh prep tool is run by users.
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
 - **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
@@ -47,8 +53,12 @@ Three kinds of top-level directory:
   - `src/` — all client C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
   - `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
 - `server/game/` — live game sessions, rules engine, event log. WebSocket. Empty.
-- `server/management/` — ASP.NET Core CRUD API: accounts, collections, assets. Empty.
-- `web/` — Svelte SPA for accounts and army management. Does not exist yet.
+- `server/management/` — ASP.NET Core CRUD API: accounts, armies, assets, layouts, games.
+  Empty.
+- `web/` — Svelte SPA. Owns *preparation*: armies, assets, the account, and login. Does not
+  exist yet.
+- `tools/mesh-prep/` — offline STL to GLB conversion and decimation, run by users before
+  uploading. Does not exist yet.
 - `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
 
 The rules engine is **not** in `libs/` — it lives only in `server/game/`. The client is a
@@ -60,7 +70,8 @@ running a server.
 Because the client project lives in `client/`, its `**/*.cs` glob cannot reach sibling
 projects — that is why it moved out of the repo root.
 
-`server/` and `libs/` are empty on purpose. Each module is designed before it is built.
+`server/`, `web/`, `tools/` and `libs/` are empty or absent on purpose. Each module is designed
+before it is built.
 
 ## Conventions
 

@@ -6,7 +6,7 @@ built.
 
 ## Deliverables
 
-Four things ship, and they have different target platforms:
+Five things ship, and they have different target platforms:
 
 | Deliverable | Directory | Platform |
 | --- | --- | --- |
@@ -14,6 +14,11 @@ Four things ship, and they have different target platforms:
 | Game server | `server/game/` | Linux (Fargate) |
 | Management API | `server/management/` | Linux (Fargate) |
 | Web app | `web/` | Static (Svelte SPA) |
+| Mesh prep tool | `tools/mesh-prep/` | The user's machine |
+
+The mesh prep tool is easy to forget because it is not a service, but it **ships to users** —
+conversion left the product on the understanding that they run this instead. It is undesigned;
+`docs/workstreams/11-mesh-prep-tool.md` is a sketch.
 
 The web app exists and owns **preparation** — armies, assets, account, and login. The client
 owns **play**, plus the game browser and joining. See
@@ -511,8 +516,9 @@ iteration loop. Different deployment artifacts from one source tree is normal.
 client/                  Godot game client (the only Godot dependency)
 server/game/             live sessions, rules engine, event log
 server/management/       ASP.NET Core CRUD API
-libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
 web/                     Svelte SPA
+tools/mesh-prep/         offline STL to GLB conversion, run by the user
+libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
 docs/  scripts/          repo-level support
 ```
 
