@@ -298,7 +298,29 @@ the two mechanics earlier sessions had deferred.
   the schema's open question. A read is not a join, so the boundary holds — but the two
   services now share a database.
 
-### Next: audit `architecture.md`
+### Done: the `architecture.md` audit
+
+2026-08-29. First pass statement by statement rather than incidentally. Fixed what was wrong —
+"no tick loop", "no CRUD surface" and its two non-following consequences, `ArmySnapshot` as an
+entity, "terrain multipliers", the dead "art profile"/"art binding" terms, "mesh processing
+stays server-side", deployment zones as a shape plus a team, a proxy drawn from a collision
+volume a miniature does not have, and the claim that end users authoring rules is not the goal.
+Repaired three run-on paragraphs and a dangling antecedent left by this session's own edits.
+
+Deleted six first-pass assertions that no session had ever touched and none of which was a
+decision: undo replaying from "a checkpoint", a dev-mode pack file watcher, symmetry mirroring
+as "the feature that makes fair multi-player tables practical", enemies resolving through "a
+per-pair relationship query", abilities being able to "replace the step", and the two
+justifications for per-player filtered event streams. The filtering mechanism is kept; secret
+objectives do not exist because there are no victory conditions, and hidden deployment is a
+`GameRules` hook.
+
+**One question it opened:** whether the client ever fetches an army over HTTP. That was the
+stated reason `Tabletop.Content` is shared with the client, and it may be false — the client
+picks an army and the game server hydrates from the database, so the army it renders may arrive
+over the WebSocket.
+
+### Superseded: audit `architecture.md`
 
 **`architecture.md` is the most-cited document in the project and the least examined.** Every
 session reads it and quotes it. Fourteen sessions have corrected it roughly twenty times, but

@@ -45,9 +45,14 @@ Three libraries in `libs/`, and nothing else:
 | `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
-the two must agree exactly. Protocol is shared by definition. Content is shared because the
-client renders an army it fetched over HTTP, and both servers store and interpret the same
-army data.
+the two must agree exactly. Protocol is shared by definition. Content is shared because both
+servers store and interpret the same army data.
+
+**Open:** whether the client ever fetches an army over HTTP. This document originally gave that
+as the reason `Tabletop.Content` is shared with the client. The client picks an army when
+creating a game and the game server hydrates from the database, so the army the client renders
+may arrive over the WebSocket instead — in which case the client needs these types for a
+different reason, and may need no HTTP army path at all.
 
 The rules engine — pipelines, scheduler, the property sets, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.
@@ -105,15 +110,17 @@ rather than fair play.
 ## Undo
 
 A first-class primitive, because friendly play means out-of-order or mistaken actions are
-normal. Undo is **replay to sequence N from the initial state or a checkpoint**, not inverse
-events. Because RNG state is part of game state, rewinding and redoing the same action
+normal. Undo is **replay to sequence N from the initial state**, not inverse events. The initial state
+is the setup snapshot — the record the setup phase ends with — so there is nothing else to
+replay from and no separate checkpoint mechanism. Because RNG state is part of game state, rewinding and redoing the same action
 reproduces the same dice — so undo cannot be used to fish for rolls.
 
 ## Abilities
 
 Resolution is a set of named ordered **pipelines** (shooting: declare target → range/LoS →
-hit rolls → defense rolls → apply wounds → morale). Abilities declaratively subscribe to a
-step with a condition and contribute a modifier, or replace the step.
+hit rolls → defense rolls → apply wounds → morale). Properties declaratively attach to a step
+with a condition and contribute an effect — one of the twelve kinds in
+[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md).
 
 The hard part is stacking and ordering — replacement vs additive effects, caps, floors.
 Modifier priority must be explicit rather than relying on registration order. **This survived
@@ -163,8 +170,8 @@ freely. Adding a rule means adding an entry and referencing it by id.
 
 The rejected alternative is an open property bag where the engine reads keys it recognises: it
 authors just as fast but a mistyped key silently does nothing. With a closed schema, typos fail
-loudly. Packs are validated against JSON Schema in tests, so a malformed pack fails
-`dotnet test` rather than a game, and a dev-mode file watcher reloads packs without a restart.
+loudly. `Properties` is validated against JSON Schema in tests, so a malformed file fails
+`dotnet test` rather than a game.
 
 ### Stat blocks are named stats
 
@@ -285,8 +292,6 @@ board.
   are one record.
 - **Destructible or moveable terrain** later is additive: terrain events on top of the same
   snapshot, replay still starting from it.
-
-Symmetry mirroring is the feature that makes fair multi-player tables practical.
 
 ## Content and assets
 
@@ -458,9 +463,13 @@ Three distinct kinds of checking, and they live in different places:
 3. **Authorization** — is it this team's window, is that unit theirs, do they own that army.
    Server only, and a session and identity concern rather than a rules one.
 
-Because the client does not hold the full rules state, the server can send **per-player filtered
-event streams** whenever hidden information matters — secret objectives, hidden deployment.
-This falls out of the thin client rather than needing to be designed in later.
+Because the client does not hold the full rules state, the server *can* send **per-player
+filtered event streams** if hidden information ever matters. The mechanism falls out of the thin
+client rather than needing to be designed in later.
+
+Its original two justifications are both gone: there are no victory conditions, so secret
+objectives do not exist, and hidden deployment is `Ambush`, a `GameRules` hook. Nothing in the
+product needs filtering today.
 
 ## Web frontend
 
@@ -647,5 +656,6 @@ parallel immediately after step 1. Steps 4 and 5 run in parallel once the contra
 Networking is no longer deferred — it is the only transport, so it is exercised from step 6
 onward rather than bolted on late.
 
-The first playable seats two, but nothing in the code says "two": players are a list, teams
-are a separate concept, and every "enemy" resolves through a per-pair relationship query.
+The first playable seats two, but nothing in the code says "two": players are a list and teams
+are a separate concept, so a free-for-all is N teams of one and differs only in the order over
+teams.
