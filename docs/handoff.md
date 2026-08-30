@@ -165,10 +165,6 @@ Carried from the design docs:
 - Whether setup configuration can change once a game is loaded. Pinning answers it for
   `Properties`, and the setup snapshot answers it for board size and texture; the scheduler
   shape and the teams are undecided.
-- **Pinning covers only the data half.** `Properties` is content-addressed and pinned;
-  `GameRules` is C# shipped with the build, so a pipeline order changing between deploys can
-  make an old game replay differently. Either pin a build version and refuse to replay across
-  it, or accept the divergence and say so. `architecture.md` treated pinning as solved.
 - What state a model returns in when a mechanic brings it back off the shelf. A rules
   question, but the model has to support the answer.
 - Conflicts between two abilities reading the same result — whether both apply or one

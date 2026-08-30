@@ -507,9 +507,12 @@ match.
 the exact ruleset that produced the log. There is no `RulePack` entity and no registry table —
 see [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
 
-**Pinning covers only the data half, and that is unresolved.** `GameRules` is C# shipped with
-the build, so a pipeline order changing between deploys can still make an old game replay
-differently. Content-addressing solves this for `Properties` and not for `GameRules`.
+**Pinning covers only the data half, and that is accepted.** `GameRules` is C# shipped with the
+build, so a pipeline order changing between deploys can make an old game replay differently.
+Content-addressing solves this for `Properties` and not for `GameRules`. Pinning a build version
+would make every deploy a wall old games cannot cross, which is worse than a rare divergence in
+a friendly-play tabletop. Undo within a session is unaffected — the engine cannot change while a
+session is live.
 
 **Identifiers are UUIDv7 throughout — no integer ids anywhere.** Generated in application code
 (`Guid.CreateVersion7()`), stored as Postgres `uuid`. v7 rather than v4 because its leading 48

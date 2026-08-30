@@ -139,13 +139,26 @@ data" becomes answerable.
 - The upload, validation and registry surface for user-authored `Properties`.
 - Whether `majority` needs a tie rule.
 
+## Only `Properties` is pinned, and that is accepted
+
+Undo is replay, and replay needs the rules that produced the log. `Properties` is
+content-addressed and pinned. **`GameRules` is not** — it is C# shipped with the build, so it
+changes whenever the build does.
+
+`architecture.md` treated pinning as solved by content-addressing. It is solved for the data
+half only. The decision is to **accept the divergence rather than pin a build version**:
+`GameRules` is not expected to change meaningfully in the evaluation engine, and replaying
+across versions is not a scenario worth engineering for.
+
+The exposure is narrower than it first looks. Undo within a session is unaffected, because the
+engine cannot change while a session is live. The only case is **restarting an ended game after
+a `GameRules` deploy**, which is possible because ended is a flag rather than a terminal state.
+That game may replay differently. It is a friendly-play tabletop with no victory conditions,
+and nothing rides on it.
+
+The alternative — pinning a build version and refusing to replay across it — would turn every
+deploy into a wall old games cannot cross, which is a worse outcome than a rare divergence.
+
 ## Still open
 
-- **Pinning only covers the data half.** Undo is replay, and replay needs the exact rules
-  that produced the log — but `GameRules` is C# that ships with the build and changes
-  between deploys. A `Properties` hash does not protect a saved game from a pipeline order
-  changing underneath it. `architecture.md` treats pinning as solved by content-addressing;
-  it is solved for `Properties` and unsolved for `GameRules`. Either pin a build or engine
-  version alongside the hash and refuse to replay across it, or accept the divergence and
-  say so.
 - Whether a `UnitProperty` ever needs an aggregation of its own.
