@@ -42,7 +42,7 @@ Three libraries in `libs/`, and nothing else:
 | --- | --- | --- |
 | `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
 | `Tabletop.Protocol` | client, game server | Commands, events, wire format |
-| `Tabletop.Content` | client, both servers | Army, unit, weapon, art profile types |
+| `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
 the two must agree exactly. Protocol is shared by definition. Content is shared because the
@@ -71,8 +71,10 @@ round trip. It does this without owning the rules, by distinguishing two kinds o
 - **Discrete actions** (legal targets, available abilities) — the server sends the legal set
   when the team's input window opens. Prefetched, so there is no latency at click time.
 - **Continuous actions** — movement is *anywhere* within an allowance, not an enumerable
-  list. The server sends **parameters**, not an answer: move allowance, terrain multipliers,
-  impassable volume ids. `Tabletop.Geometry` renders the region from those parameters.
+  list. The server sends **parameters**, not an answer: move allowance, terrain effects, and the
+  ids of volumes that cannot be crossed. `Tabletop.Geometry` renders the region from those
+  parameters. *"Terrain multipliers" was an invention* — OPR's difficult terrain caps a unit's
+  whole move at 6" rather than scaling it, so the parameter is whatever `GameRules` computes.
 
 The second is the important one. It is why the client needs geometry and only geometry: the
 server describes the constraint, the client draws its consequence.
@@ -138,11 +140,15 @@ No engine code branches on ruleset identity; the scheduler is the firewall.
 
 ## Rules as data
 
-The goal is **extensibility and multi-ruleset support**, not end users uploading rules. JSON is
-chosen because it iterates faster than C# — adding a custom rule is a data edit, and supporting
-a game beyond OPR is a new pack rather than new engine code. Since packs are authored in-repo
-and ship with the build, there is no upload endpoint, no sandbox, and no consent or moderation
-surface.
+The goal is **extensibility and multi-ruleset support**. JSON is chosen because it iterates
+faster than C# — adding a custom rule is a data edit, and supporting a game beyond OPR is new
+data rather than new engine code.
+
+**In-repo now, user-authored eventually.** This document originally said the goal was "not end
+users uploading rules"; that is true of the current phase and not the intent. The order matters
+because OPR's rulebook gives a finite, known vocabulary to design against. While `Properties` is
+authored in-repo and ships with the build there is no upload endpoint, no sandbox and no
+moderation surface; when users can author it, that is additive.
 
 Packs are loaded and interpreted **only by the game server**. The client never sees a rule
 pack; it receives the consequences of one.
@@ -188,10 +194,13 @@ have names — see
 Neither is called a "rule pack", and the generic interpreter that runs one through the other
 needs no name at all.
 
-Generalising those three before a second ruleset exists means designing an abstraction for games
-not yet understood. They are where the pressure will show when a second ruleset lands, and that
-is the moment to move them to data — with a real second example to design against. This follows
-the OPR-first-then-generalise decision.
+Generalising `GameRules` before a second ruleset exists means designing an abstraction for games
+not yet understood. Turn structure, pipeline order, scheduler policy and dice conventions are
+where the pressure will show when one lands, and that is the moment to move them to data — with
+a real second example to design against. This follows the OPR-first-then-generalise decision.
+
+Age of Fantasy is **not** that second example: its terrain rules are word for word identical to
+Grimdark Future's, and it is the same engine. Warhammer is the test.
 
 ### Pinning
 
@@ -208,9 +217,11 @@ it lands on by raycasting down through terrain volumes.
 Line of sight uses **simplified collision volumes**, never the visual mesh.
 [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) narrows those to
 extruded prisms — a circular or rectangular footprint with a bottom and a top. **Convex hulls
-are dropped**, so every test is a 2D shape intersection plus a vertical range. This keeps determinism and headless tests, and deliberately lets an uploaded model
-carry visual flair outside its hitbox. The Godot layer is purely a renderer; it is never asked a
-question the rules depend on.
+are dropped**, so every test is a 2D shape intersection plus a vertical range.
+
+This keeps determinism and headless tests, and deliberately lets an uploaded model carry visual
+flair outside its hitbox. The Godot layer is purely a renderer; it is never asked a question the
+rules depend on.
 
 Distances are measured edge-to-edge between bases, not centre-to-centre.
 
@@ -242,7 +253,9 @@ which designs these as data.
   published content in OPR and Warhammer, players read them out of a book, and game flow had
   already removed victory conditions from the model.
 
-Deployment zones are a built-in shape plus the team it belongs to.
+A deployment zone names a **built-in style**, which resolves to a *set* of polygons with
+measurements anchored to table features. It names a **team ordinal**, not a team, because a
+saved layout has zones but no game to have teams in.
 
 A terrain piece is a mesh plus collision volumes plus declarations. The engine reads a closed
 set of six — impassable, blocks LoS, see in and out, cover, difficult, dangerous — and carries
@@ -318,7 +331,7 @@ the mesh was made for, which is how the library offers meshes that fit a slot.
 dedup, and the same library — only their profile differs, carrying collision volumes instead of
 a base size.
 
-### glTF only; conversion is not in the product
+### GLB only; conversion is not in the product
 
 Uploads are per-user, persistent across games, and load at runtime via `GLTFDocument` — never
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
@@ -329,21 +342,27 @@ game uses, straight from wherever they live. Nothing enters anyone else's librar
 **Upload accepts GLB and rejects STL.** Narrowed from "glTF/GLB" by
 [the management API](superpowers/specs/2026-08-29-management-api-design.md): a `.gltf` with
 external buffers is several files with relative references, which breaks single-object
-presigned upload. GLB is the same format in one file and is Blender's default export. The miniature ecosystem distributes STL, which
-Godot cannot load and which is 50–100× too dense for realtime — a print-ready 32mm mini is
-routinely 500k–2M triangles. Converting it server-side would mean a job queue, a worker, an
+presigned upload. GLB is the same format in one file and is Blender's default export.
+
+The miniature ecosystem distributes STL, which Godot cannot load and which is 50–100× too dense
+for realtime — a print-ready 32mm mini is routinely 500k–2M triangles. Converting it server-side would mean a job queue, a worker, an
 async upload state machine, and a source/derived blob split.
 
 Instead, conversion is an **offline tool the user runs before uploading** (`tools/mesh-prep/`).
 The product gains a validation rule and loses an entire subsystem.
 
-The residual risk is that nothing stops a user uploading an undecimated glTF straight out of
-Blender, which then lands on every client in the game. A triangle-count check at upload is the
-only guardrail once the pipeline is out of the product.
+The residual risk is that nothing stops a user uploading an undecimated GLB straight out of
+Blender, which then lands on every client in the game. A triangle-count check is the only
+guardrail once the pipeline is out of the product, and it runs as a **ranged read of the GLB's
+JSON header** on upload confirmation — see
+[the management API](superpowers/specs/2026-08-29-management-api-design.md). It warns; it does
+not block.
 
-**A missing or undownloadable mesh must degrade to a proxy shape drawn from the collision
-volume, with the game fully playable.** Free, given the rules never touch the mesh — but only
-if built that way from the start.
+**A missing or undownloadable mesh must degrade to a proxy shape, with the game fully playable.**
+Free, given the rules never touch the mesh — but only if built that way from the start.
+
+What the proxy is drawn from differs by kind, which this document originally missed: terrain has
+collision volumes to draw, a **miniature has only its base and height**. Still open.
 
 ## Two servers
 
@@ -389,8 +408,16 @@ Turn-based play means no prediction and no rollback netcode.
 the game server holds live WebSocket sessions and cannot be serverless — so making the
 management API serverless would mean maintaining two models for no gain.
 
-The workload is undemanding: turn-based, no tick loop, small state. The real constraints are
-statefulness, not throughput:
+The workload is undemanding: turn-based, small state, and **no simulation tick** — the server
+never advances state on a timer, only when a command arrives.
+
+**There is still a continuous relay.** Cursors, pings and live drag positions are broadcast
+between players at a fixed rate and never logged, because a virtual tabletop is largely people
+pointing at things. Four players at 20Hz is a few hundred messages a second, which is nothing —
+but it is not nothing per second, and this document previously said "no tick loop" without the
+distinction. Presence has never been designed.
+
+The real constraints are statefulness, not throughput:
 
 | Constraint | Resolution |
 | --- | --- |
@@ -443,8 +470,8 @@ client owns the game browser, joining, setup and play. The client does not edit 
 creates a game and picks one.
 
 Account and army management are a **Svelte SPA**, not part of the game client. Users manage
-shared, persistent things in a browser: identity, armies imported from Army Forge, art bindings,
-and asset uploads.
+their own persistent things in a browser: identity, armies imported from Army Forge, mesh
+binding per model slot, and asset uploads.
 
 This removes real work from the hard-to-iterate side — the Godot client needs no list-building
 UI, no upload UI, and no login form — and makes the HTTP API a genuine API surface rather than an
@@ -454,8 +481,9 @@ internal detail of one client.
   and magic links both need a page to redirect back to. OTP and password are Basic-auth
   endpoints that run in management either way. The browser owns login and the client acquires a
   session from it — by loopback or device code, both deferred.
-- **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot,
-  and mesh processing stays server-side.
+- **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot.
+  There is no server-side mesh processing to speak of: conversion is the offline prep tool, and
+  the only server-side step is a ranged read of the GLB header to count triangles.
 - **Collision volume authoring is the web's too.** Base sizes are a preset dropdown (25/32/40mm
   round, oval sizes) covering effectively every model. Terrain volumes were held back for the
   in-game editor because they "need real 3D manipulation" — that was true of convex hulls, which
@@ -495,6 +523,10 @@ that versioning it separately would create drift for no benefit.
 The organising line: **management owns everything *about* a game; the game server owns what
 *happened* in it.** One shared `game_id`, two schemas, no joins across the boundary.
 
+The game server **reads** management's schema at hydration — a read is not a join, so the line
+holds, but the two services do share a database and a management migration can break the game
+server.
+
 **[`docs/data-model.md`](data-model.md) holds the entity diagram** — every entity from every
 design session and how they relate. It supersedes the sketch that used to sit here.
 
@@ -509,13 +541,19 @@ a game that has not started. Two entities would mean a handoff, a copy, and two 
 for who is playing. **Ended is a flag, not a terminal state** — restarting an ended game is the
 same hydrate-from-the-log operation as recovering a crashed task.
 
-**The game server has no CRUD surface.** It reads game metadata once at session hydration and
-writes only events. That is what keeps management restartable at will and confines deploy risk
-to one service.
+**The game server's interface is commands and events.** It exposes no HTTP resources; it reads
+a game's row at hydration and writes only events.
 
-**`ArmySnapshot` is a separate entity from `Army`**, not a version column. Different lifecycle:
-written once at game start, never updated, so editing a saved list cannot reach into a live
-match.
+*Corrected 2026-08-29.* This previously read "the game server has no CRUD surface" and claimed
+that was "what keeps management restartable at will and confines deploy risk to one service."
+Neither follows. Management is restartable because it **holds no live state**; deploy risk is
+confined to the game server because it **holds live WebSocket sessions**. Both are true for
+reasons that have nothing to do with CRUD.
+
+**An army snapshot is a frozen copy, not a version column.** Written once at game load, never
+updated, so editing a saved army cannot reach into a live match. It is a `jsonb` column on
+`participant` rather than an entity — see [`docs/schema.md`](schema.md) — and it is opaque on
+purpose: normalised, a later migration would silently alter what a past game was played with.
 
 **A game names a `GameRules` and pins a `Properties` hash.** Undo is replay, and replay needs
 the exact ruleset that produced the log. There is no `RulePack` entity and no registry table —
@@ -543,7 +581,9 @@ event spine has been broken.
 Postgres on RDS, and **[`docs/schema.md`](schema.md) holds the tables**. Accounts, assets,
 armies, layouts and the whole army tree are ordinary relational tables — normalised rather than
 documents, so the closed sets and typed values the design argued for are constraints the
-database enforces. The game event log is append-only — `(game_id, seq, kind, payload jsonb)` with a unique
+database enforces.
+
+The game event log is append-only — `(game_id, seq, kind, payload jsonb)` with a unique
 constraint on `(game_id, seq)`; `jsonb` means adding an event type is not a migration.
 
 Blobs (meshes, textures) do not live in Postgres. They go in S3, content-addressed by hash, with
@@ -596,9 +636,10 @@ log. Starting, reconnecting, and crash recovery are one path.
    see [setup content](superpowers/specs/2026-08-29-setup-content-design.md).
 7. **Scheduler and OPR skeleton** — deployment, rounds, team-alternating activation, moves.
 8. **Resolution pipelines** — dice, the modifier system, shooting and melee.
-9. **Army management** — Army Forge import, art binding.
-10. **Assets** — S3, content-addressed upload through the web app.
-11. **Missions and objectives, LoS and cover refinement, replay viewer, AI.**
+9. **Army management** — Army Forge import, mesh binding per model slot.
+10. **Assets** — content-addressed upload direct to S3 by presigned URL, from the web app.
+11. **Objectives, LoS and cover refinement, replay viewer, AI.** Not missions — those are
+    content in a book, and automating them is a later feature rather than a module.
 
 Steps 2 and 3 have no dependency on anything and no overlap with each other, so they run in
 parallel immediately after step 1. Steps 4 and 5 run in parallel once the contracts exist.
