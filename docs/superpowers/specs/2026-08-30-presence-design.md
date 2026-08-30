@@ -160,8 +160,11 @@ Hidden pre-measuring is a different game from the one being simulated.
 
 ## Still open
 
-- **Whether presence exists before a game does.** The game browser lists open games, and
-  nothing yet says whether a lobby shows who is in it. That depends on whether a game
-  already playing can be joined, which [accounts](2026-08-29-accounts-design.md) left open.
+- **Whether presence exists before play does** — whether a lobby shows who is in it. The
+  dependency this had on what the game browser lists is gone;
+  [accounts](2026-08-29-accounts-design.md) now lists every status and joining a game in
+  progress is allowed. What remains is narrower: whether a client opens its socket to the game
+  server while the game is still `lobby`, or only once it reaches `setup`. Presence exists
+  exactly as early as that socket does.
 - ~~Whether selection distinguishes a unit from the models in it.~~ **Settled on 08-30**: it
   does. A unit id with a list of models inside it, empty meaning all of them.

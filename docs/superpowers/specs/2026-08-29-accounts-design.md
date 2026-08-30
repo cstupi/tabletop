@@ -148,5 +148,10 @@ viewer possible later, and it is what account deletion has to reach into.
 
 ## Still open
 
-- **Whether a game already playing can be joined**, or only one still in its lobby. The
-  browser lists open games; nothing yet says what open means.
+- ~~Whether a game already playing can be joined.~~ **Settled on 08-30: yes.** The game browser
+  lists **every** status — `lobby`, `setup`, `playing`, `ended` — and filtering is the user's,
+  not the server's. "Open games" was the wrong phrase; nothing is hidden by status.
+
+  A game in progress is joinable because joining is only a `participant` row plus a socket, and
+  the arriving client hydrates from the log like any reconnect. An ended game is listed for the
+  same reason `ended` is reversible: picking one back up is the identical operation.

@@ -107,6 +107,11 @@ That is the second profile `kind` was introduced for.
 
 - The triangle-count threshold at upload. Agreed in principle in `architecture.md` as the
   only guardrail once conversion left the product; the number has never been chosen.
-- What a slot draws when its asset is missing — `architecture.md` says a proxy shape from
-  the collision volume, but a miniature's proxy would have to come from the base and
-  height instead.
+- ~~What a slot draws when its asset is missing.~~ **Settled on 08-30: it draws its own
+  hitbox** — the slot's base shape extruded to its height, rendered semi-transparent green. A
+  circle base gives a cylinder, an oval or square its own prism.
+
+  This needs nothing the slot does not already hold, and it shows the shape the rules actually
+  use. A miniature has no collision volumes to fall back on, unlike terrain, and the base and
+  height are exactly what distance and line of sight are measured against — so the proxy is not
+  a stand-in for the mesh, it is the thing the mesh was always only decorating.

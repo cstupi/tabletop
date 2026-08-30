@@ -101,5 +101,6 @@ whenever they like. What is gone is the flow for updating one against a changed 
 
 ## Still open
 
-- What a slot shows when its asset is missing — a placeholder mesh, the base alone, or
-  something else. Only a presentation question, but it has to have an answer.
+- ~~What a slot shows when its asset is missing.~~ **Settled on 08-30**: its own hitbox, the
+  base shape extruded to the slot's height and drawn semi-transparent green. See
+  [the asset library](2026-08-28-asset-library-design.md).

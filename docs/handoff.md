@@ -212,11 +212,7 @@ Carried from the design docs:
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - Whether a waiting pipeline can be abandoned, and what happens to the half-applied result.
-- What a slot draws when its asset is missing. A proxy — but terrain has collision volumes to
-  draw from and a miniature has only its base and height.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
-- Which of `lobby | setup | playing` the game browser lists — that is all "open" means, and
-  it decides whether a game already playing can be joined.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
@@ -225,8 +221,9 @@ Carried from the design docs:
 - What happens when a saved layout's board size does not match the table it is loaded onto.
 - Whether the client ever needs to edit an army rather than only pick one.
 - Loopback or device code for getting a browser session into the client.
-- Whether presence exists before a game does — whether a lobby shows who is in it. Depends on
-  whether a game already playing can be joined.
+- Whether a client connects to the game server during `lobby` or only at `setup`. Presence
+  exists exactly as early as that socket does, so this decides whether a lobby shows who is
+  in it.
 
 ## Next — pick up here
 
