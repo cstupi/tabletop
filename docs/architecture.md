@@ -49,7 +49,7 @@ the two must agree exactly. Protocol is shared by definition. Content is shared 
 client renders an army it fetched over HTTP, and both servers store and interpret the same
 army data.
 
-The rules engine — pipelines, scheduler, ability catalog, modifier system, rule packs — is
+The rules engine — pipelines, scheduler, the property catalogs, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.
 
 ## Command / Event spine
@@ -83,7 +83,10 @@ busy and the mouse never feels laggy.
 
 ## Rules enforcement
 
-Hybrid, dialled per game. The server validates and warns rather than gating. A command may
+**A boolean, set per game: the server warns, or it says nothing.** It never blocks — see
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md),
+which found there is no third position that does not contradict the product. This document
+originally called it a dial. The server validates and warns rather than gating. A command may
 carry an override; overrides are **visible to opponents and recorded in the event log**, never
 silent. Model placement follows the same rule: free placement, with base overlap, terrain
 intersection, and broken coherency flagged rather than prevented.
@@ -162,10 +165,17 @@ over the generic store.
 
 ### Where data stops, for now
 
-**What is edited every day is JSON; what is edited once per ruleset stays C#.**
+**What is edited every day is JSON; what is edited once per ruleset stays C#.** The two halves
+have names — see
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
 
-- **JSON** — stat blocks, unit and weapon definitions, ability catalog, modifier declarations.
-- **C#, behind an interface** — pipeline step order, scheduler policy, dice conventions.
+- **`Properties`, JSON** — stat definitions, and three disjoint catalogs: `UnitProperty`,
+  `ModelProperty`, `WeaponProperty`. Sharing a base, differing in where they attach.
+- **`GameRules`, C# behind an interface** — turn structure, action definitions, pipeline step
+  order, scheduler policy, dice conventions.
+
+Neither is called a "rule pack", and the generic interpreter that runs one through the other
+needs no name at all.
 
 Generalising those three before a second ruleset exists means designing an abstraction for games
 not yet understood. They are where the pressure will show when a second ruleset lands, and that
@@ -174,7 +184,7 @@ the OPR-first-then-generalise decision.
 
 ### Pinning
 
-**Rule packs are content-addressed and pinned per game, snapshotted like armies.** Undo-by-replay
+**`Properties` are content-addressed and pinned per game, snapshotted like armies.** Undo-by-replay
 requires the exact ruleset that produced the event log; a pack changing mid-game or between
 sessions makes replay diverge and undo silently produce wrong state. Distribution uses the same
 mechanism as assets — hashed and pinned in the game record.
@@ -333,7 +343,6 @@ deferred, because the two differ in transport, state, and deploy risk.
 | Identity | Accounts, sessions; the only module that knows Stytch exists |
 | Content | Armies, layouts, the asset library and its folders (Postgres) |
 | Asset store | Content-addressed blobs (S3) |
-| Ruleset registry | Content-addressed rule packs |
 | Games | Game records, teams, participants, the public game browser |
 
 Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. Both the
@@ -494,8 +503,13 @@ to one service.
 written once at game start, never updated, so editing a saved list cannot reach into a live
 match.
 
-**`RulePack` is pinned by content hash on the `Game`.** Undo is replay, and replay needs the
-exact ruleset that produced the log.
+**A game names a `GameRules` and pins a `Properties` hash.** Undo is replay, and replay needs
+the exact ruleset that produced the log. There is no `RulePack` entity and no registry table —
+see [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
+
+**Pinning covers only the data half, and that is unresolved.** `GameRules` is C# shipped with
+the build, so a pipeline order changing between deploys can still make an old game replay
+differently. Content-addressing solves this for `Properties` and not for `GameRules`.
 
 **Identifiers are UUIDv7 throughout — no integer ids anywhere.** Generated in application code
 (`Guid.CreateVersion7()`), stored as Postgres `uuid`. v7 rather than v4 because its leading 48

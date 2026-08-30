@@ -20,6 +20,7 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | [The web app, and the line between preparation and play](superpowers/specs/2026-08-29-web-app-design.md) |
 | 2026-08-29 | `docs/data-model.md` — the entity diagram |
 | 2026-08-29 | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) — first of the three definition sessions |
+| 2026-08-29 | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) — second |
 
 ## The mode — read this before proposing anything
 
@@ -161,9 +162,13 @@ later feature rather than a missing noun.
 
 Carried from the design docs:
 
-- Whether setup configuration can change once a game is loaded. Pinning answers it for the
-  rule pack and the setup snapshot answers it for board size and texture; the scheduler shape,
-  the teams and the enforcement dial are undecided.
+- Whether setup configuration can change once a game is loaded. Pinning answers it for
+  `Properties`, and the setup snapshot answers it for board size and texture; the scheduler
+  shape and the teams are undecided.
+- **Pinning covers only the data half.** `Properties` is content-addressed and pinned;
+  `GameRules` is C# shipped with the build, so a pipeline order changing between deploys can
+  make an old game replay differently. Either pin a build version and refuse to replay across
+  it, or accept the divergence and say so. `architecture.md` treated pinning as solved.
 - What state a model returns in when a mechanic brings it back off the shelf. A rules
   question, but the model has to support the answer.
 - Conflicts between two abilities reading the same result — whether both apply or one
@@ -203,14 +208,14 @@ columns, and well before designing consumers, so gaps surface while they are sti
 | `UNIT`, `MODELSLOT` | `stats` | A named store — but of what. OPR quality is `4+`; 40k has `6"` and `D6` |
 | `MODELSLOT` | `loadout` | Weapons carry their own stat blocks |
 | ~~`MODELSLOT`~~ | ~~`base`, `height`~~ | Done — geometry values |
-| `ASSET` | `kind`, `profile` | Three kinds, three different shapes |
+| ~~`ASSET`~~ | ~~`kind`, `profile`~~ | Done — identity and enumerations. The texture profile is empty |
 | ~~`ASSET`~~ | ~~`scale`, `orientation`~~ | Done — geometry values |
 | ~~`TERRAINPLACEMENT`~~ | ~~volumes, declarations~~ | Done — geometry values |
 | ~~`MARKERPLACEMENT`~~ | ~~`position`, `facing`, `size`~~ | Done — geometry values |
 | ~~`DEPLOYMENTREGION`~~ | ~~`builtin_shape`~~ | Done — geometry values. The default set's contents are still to choose |
-| `GAME` | `status`, `scheduler_shape`, `enforcement` | Three enumerations, no values named |
+| ~~`GAME`~~ | ~~`status`, `scheduler_shape`, `enforcement`~~ | Done — identity and enumerations. Enforcement turned out to be a boolean |
 | `ARMYSNAPSHOT` | everything | Has only an id. What a snapshot contains was never said |
-| `RULEPACK` | `content_hash` | Whether it is a row at all — packs ship with the build |
+| ~~`RULEPACK`~~ | — | Done — gone. A game names a `GameRules` and pins a `Properties` hash; no entity, no registry |
 | `GAMEEVENT` | `kind`, `payload` | The event catalog. **Out of scope** — that is `Tabletop.Protocol`, a contract rather than a value type |
 
 ### Three sessions, in this order
@@ -219,11 +224,26 @@ columns, and well before designing consumers, so gaps surface while they are sti
    units; models are yaw-only and upright; collision volumes are extruded prisms with convex
    hulls dropped; six declarations read out of the OPR rulebook; deployment styles are anchored
    polygon sets.
-2. **Identity and enumerations** — asset kind and profile, marker kind, game status, scheduler
-   shape, enforcement dial, and whether `RULEPACK` is a row.
+2. ~~**Identity and enumerations**~~ — **done**, 2026-08-29. `RULEPACK` is gone: a ruleset is
+   **`GameRules`** (per-ruleset C#) plus **`Properties`** (pinned data). `Properties` holds stat
+   definitions and three **disjoint** catalogs — `UnitProperty`, `ModelProperty`,
+   `WeaponProperty` — sharing a base, and a name belongs to exactly one kind. Enforcement is a
+   boolean. Every enumeration has named values.
 3. **Content values** — stats, abilities, upgrades, loadout, `list_entry`, `game_system`, and
-   what an `ARMYSNAPSHOT` holds. Feeds `Tabletop.Content`. **Last**, because it leans hardest on
-   the rule pack schema, which is the least settled thing in the project.
+   what an `ARMYSNAPSHOT` holds. Feeds `Tabletop.Content`. **This is all that remains.**
+
+   Two things from the last session shape it. **The standing principle is predefined
+   properties, not magic strings** — so `stats` as an arbitrary named store is the shape to get
+   rid of, and the likely answer is that `Properties` *declares* the stat names, closed within a
+   ruleset even though they differ between rulesets. And **the rulebooks are the input**: OPR's
+   special rules section is a finite, known vocabulary (`AP(X)`, `Blast(X)`, `Caster(X)`,
+   `Impact(X)`, `Tough(X)`, `Stealth`, `Strider`, `Scout`, `Ambush`, …) to design the parameter
+   shape against rather than guessing at one.
+
+   One question already surfaced: `architecture.md` lists "unit and weapon definitions" as pack
+   data, but armies are imported from Army Forge and hold their own copy of every value. If the
+   army is self-contained, a catalog of unit definitions may be redundant — `Properties` may
+   only need stat definitions, the three property catalogs, and modifier declarations.
 
 ### After that
 

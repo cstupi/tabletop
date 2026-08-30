@@ -34,7 +34,7 @@ erDiagram
     GAME ||--|{ TEAM : has
     TEAM ||--|{ PARTICIPANT : has
     PARTICIPANT ||--o| ARMYSNAPSHOT : brings
-    GAME }o--|| RULEPACK : "pinned by hash"
+    GAME }o--|| PROPERTIES : "pinned by hash"
     GAME ||--o| TABLESTATE : "setup result"
     GAME ||--o{ GAMEEVENT : "append-only log"
 
@@ -76,7 +76,7 @@ erDiagram
     ASSET {
         uuid id
         string name
-        kind kind
+        enum kind
         float scale
         rotation orientation
         profile profile
@@ -101,9 +101,10 @@ erDiagram
     }
     GAME {
         uuid id
-        status status
-        scheduler scheduler_shape
-        dial enforcement
+        enum status
+        id game_rules
+        enum scheduler_shape
+        bool warns
     }
     TEAM {
         uuid id
@@ -114,7 +115,7 @@ erDiagram
     ARMYSNAPSHOT {
         uuid id
     }
-    RULEPACK {
+    PROPERTIES {
         hash content_hash
     }
     GAMEEVENT {
@@ -133,7 +134,7 @@ erDiagram
         float scale
     }
     MARKERPLACEMENT {
-        kind kind
+        enum kind
         units position
         degrees yaw
         units diameter
@@ -186,6 +187,15 @@ difficult, dangerous.
 **Models are yaw only and always upright**, so a placement is position and yaw. What a model
 rests on is derived by settling, never stored.
 
+**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
+disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
+names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
+data half is pinned, which is an open problem for replay. There is no `RulePack` entity and no
+registry table.
+
+**Every enumeration is a closed set**, never a free string — `status`, `kind`, `scheduler_shape`
+and the geometry enums all have named values in the design docs.
+
 ## What is deliberately not here
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
@@ -216,4 +226,5 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `ASSET`, `BLOB`, `FOLDER` | [The asset library](superpowers/specs/2026-08-28-asset-library-design.md) |
 | `TABLESTATE` and everything under it | [Setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
 | `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
-| `GAMEEVENT`, `RULEPACK`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
+| `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
+| `PROPERTIES`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
