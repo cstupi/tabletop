@@ -28,7 +28,7 @@ different race entirely is ordinary use, not an error case.
 ```
 Blob    hash, bytes in S3                       the file
 Asset   owner, blob, name, kind                 the library item
-        + scale, orientation, modelled base     facts about the sculpt
+        + scale, orientation, modelled base     facts about the mesh
 ```
 
 **Dedup is per user.** `architecture.md` deduped blobs across all users; that is
@@ -63,7 +63,7 @@ rather than three. The same document also printed a three-row table under the se
 
 ## The modelled base suggests; the slot's base is the hitbox
 
-An asset records **the base the sculpt was built on**. A slot records **the base used in
+An asset records **the base the mesh was made for**. A slot records **the base used in
 play**, set by the user and defaulting to the ruleset's value.
 
 `architecture.md` had one base size, on the asset, winning for geometry, with any mismatch
@@ -76,13 +76,13 @@ different jobs.
   meshes**: given a slot on a 32mm base, the library can offer the assets built for one.
 
 This turns what was an error to warn about into a way to search. A user whose orks are all
-based differently to the sculpt is doing something normal, and the system has no reason to
+based differently to the mesh is doing something normal, and the system has no reason to
 comment on it.
 
 ## Folders
 
 Users organise their own library. Folders **nest**, and **an asset can be in several of
-them** — an ork sculpt belongs in the orks folder and the winter-themed folder at once.
+them** — an ork mesh belongs in the orks folder and the winter-themed folder at once.
 
 They are logical groupings, not a filesystem. Nothing derives from where an asset sits,
 nothing else in the system reads them, and an asset in no folder is fine.

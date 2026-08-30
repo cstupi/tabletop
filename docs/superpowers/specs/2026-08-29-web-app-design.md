@@ -102,4 +102,4 @@ Both are deferred. Nothing in the model depends on which is chosen.
 ## Still open
 
 - Whether the client ever needs to edit an army rather than only pick one. A user who
-  notices a wrong sculpt while loading into a game currently has to go back to the browser.
+  notices the wrong mesh while loading into a game currently has to go back to the browser.

@@ -297,14 +297,14 @@ counting never has to exist. This is unaffected by game participants downloading
 assets, because that creates no library record on either side — it is a download, not a share.
 
 **Scale, orientation and the base it was modelled on live on the Asset** because they are
-facts about the sculpt, not about a game. A space marine is a space marine in every army —
+facts about the mesh, not about a game. A space marine is a space marine in every army —
 what varies is the stat block it stands in for, and someone may well proxy it for a
 different race entirely. Nothing validates that a mesh "matches" what it represents.
 
 The **modelled base is a suggestion axis, not the hitbox.** The base used for geometry is
 set per model slot, defaulting to the ruleset's value — see
 [the army](superpowers/specs/2026-08-28-army-design.md). What the asset records is the base
-the sculpt was built on, which is how the library offers meshes that fit a slot.
+the mesh was made for, which is how the library offers meshes that fit a slot.
 
 `kind` makes the library generic beyond miniatures. Terrain pieces use the same upload, the same
 dedup, and the same library — only their profile differs, carrying collision volumes instead of

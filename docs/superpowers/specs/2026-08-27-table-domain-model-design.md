@@ -52,9 +52,9 @@ base shape and height, and the asset that represents it.
 
 This is where two different sources meet. The **list** determines composition and loadout:
 ten models, one sergeant, one flamer, eight plain. That is fully deterministic and needs no
-input. The **user** determines appearance, one slot at a time, because ten Boyz are ten
-sculpts they painted individually and they want that one in that spot. Default is filling
-every slot with the same mesh; overriding individual slots is expected, not exceptional.
+input. The **user** determines appearance, one slot at a time, because the models in a unit
+are often made from different meshes. Default is filling every slot with the same mesh;
+overriding individual slots is expected, not exceptional.
 
 ### Belonging to a game
 

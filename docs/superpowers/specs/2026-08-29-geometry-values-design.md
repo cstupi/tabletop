@@ -210,9 +210,9 @@ problem. There is no need to decide today whether they are client content or pac
 The two corrections that make an arbitrary glTF usable:
 
 - **Scale** — a uniform multiplier bringing the mesh to true size in world units.
-- **Orientation** — a rotation making the sculpt stand upright and face forward.
+- **Orientation** — a rotation making the mesh stand upright and face forward.
 
-Both are applied at import, so the sculpt sits properly on its base. What they are measured
+Both are applied at import, so the mesh sits properly on its base. What they are measured
 against is the mesh's own axes versus the table's.
 
 ## Marker size

@@ -99,7 +99,7 @@ said changing one meant copying it. That was an overstatement and is fixed in pl
 
 **The asset library** — two records, Blob and Asset, with dedup per user rather than
 global; sharing copies into the recipient's library. Binding is not a third record, just a
-field on the model slot. An asset records the base its sculpt was built on, which is a way
+field on the model slot. An asset records the base its mesh was made for, which is a way
 to find meshes that fit a slot, while the slot's own base is the hitbox. Folders nest and
 an asset can be in several.
 

@@ -38,8 +38,8 @@ Two sources meet in an army, and they are not the same kind of thing.
 **The list determines composition and loadout.** Ten models, one sergeant, one flamer,
 eight plain. Fully deterministic, imported, and needing no input from the user.
 
-**The user determines everything about appearance and physical presence.** Which sculpt
-stands in which slot, and what base each one is on.
+**The user determines everything about appearance and physical presence.** Which mesh stands
+in which slot, and what base each one is on.
 
 The recurring shape, appearing here for the third time in this project: **the pack or the
 import supplies a default, the user overrides per slot.** It governs mesh binding, base
@@ -49,8 +49,8 @@ shape and height, and the setup configuration in
 ### Binding
 
 Per model slot. The default fills every slot in a unit with the same mesh; overriding
-individual slots is expected rather than exceptional, because ten Boyz are ten sculpts
-someone painted individually and they want that one in that spot.
+individual slots is expected rather than exceptional, because the models in a unit are often
+made from different meshes.
 
 This settles the binding-granularity question left open by the earlier planning notes —
 unit default with per-model override, which the table model had already described without
@@ -71,7 +71,7 @@ table model settled that, so a banner pole cannot block a shot.
 
 **The army holds the hitbox. The asset is only ever appearance.** That makes the reference
 to an asset soft: if a user deletes a mesh an old army points at, or replaces it with a
-different sculpt, the army stays playable and only looks different.
+different mesh, the army stays playable and only looks different.
 
 So **deleting an asset is not blocked** and does not need to be. There is no referential
 integrity problem to solve, because the reference was never carrying anything the rules
@@ -87,7 +87,7 @@ Forge, import it again. There is no copy operation, no reconciliation, and no ma
 slots to new entries.
 
 The cost is real and accepted: **a re-import loses per-slot bindings and base overrides.** Unit
-defaults are quick to set again; individually-placed sculpts are not. That is the trade — an
+defaults are quick to set again; per-slot meshes are not. That is the trade — an
 army is cheap to rebuild, and list changes are rare enough not to build machinery for.
 
 Freezing is not a concept here; there is nothing to freeze. The user still edits their own army

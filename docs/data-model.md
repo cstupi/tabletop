@@ -157,8 +157,8 @@ and nothing breaks. Every dotted line points at `ASSET`, which is the one rule t
 model is built around: **the rules never touch a mesh.** An army holds the hitbox, an asset
 is only ever appearance, so deleting one degrades a slot to a proxy and is never blocked.
 
-**`ASSET` has three profiles**, selected by `kind`. A miniature carries the base its sculpt
-was modelled on, which is a search axis rather than a hitbox. Terrain carries collision
+**`ASSET` has three profiles**, selected by `kind`. A miniature carries the base its mesh was
+made for, which is a search axis rather than a hitbox. Terrain carries collision
 volumes and their declarations. A texture is a flat image for the board's top face.
 
 **`BLOB` hangs off `ACCOUNT`, not off the system.** Dedup is per user. Two accounts

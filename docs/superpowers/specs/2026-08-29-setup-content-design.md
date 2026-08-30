@@ -127,7 +127,7 @@ decided.
 The asset library's second profile.
 
 **Volumes and their declarations live on the asset**, because they are facts about the
-sculpt in the same way scale, orientation and the modelled base are. They are authored once
+mesh in the same way scale, orientation and the modelled base are. They are authored once
 and reused in every game.
 
 **A placement may override them.** The pattern this project keeps arriving at — the asset
