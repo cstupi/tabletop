@@ -25,28 +25,36 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 | 2026-08-29 | `docs/schema.md` — the physical Postgres schema |
 | 2026-08-29 | [The management API](superpowers/specs/2026-08-29-management-api-design.md) |
+| 2026-08-29 | Audit of `docs/architecture.md`, and a layout correction |
+
+**Read in this order from cold:** this file, then `docs/architecture.md`, then
+`docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
+touching.
 
 ## The mode — read this before proposing anything
 
-**We are still ideating. Do not write buildable specs and do not freeze contracts.**
+**The ideation phase ended on 2026-08-29.** For twelve sessions the rule was *decide meaning,
+defer expression*: the design docs deliberately refused to say how anything is written in C#,
+how it persists, or what the wire format is, because that is what made them cheap to change.
 
-The 08-24 session produced workstream prompts and a "contracts to freeze before parallel
-work" list. Those were premature and are on hold. Freezing an interface is only worth
-doing when the model behind it has stopped moving, and it has not.
+That held until the model stopped moving. It then produced `docs/schema.md` and the management
+API in one day, both of which are expression, and neither forced a change to the meaning
+underneath. **That is the evidence the model has settled**, and it is why freezing contracts is
+now reasonable when it was not before.
 
-The mode every design session so far has kept, and the one to continue in: **decide meaning,
-defer expression.** The design docs deliberately refuse to say how anything is expressed
-in C#, how it persists, or what the wire format is. That is not an omission to fix later
-by adding detail — it is what makes them cheap to change.
+Two things still hold:
 
-**The workstream prompts in `docs/workstreams/` are sketches. None should be run as
-written.** They predate every design session below and describe a data model that no longer
-matches. `01-contracts` in particular was flagged as the weakest and most blocking, and
-the correct response to that is not to strengthen it yet.
+- **`docs/workstreams/` is stale.** Those prompts predate every design session and describe a
+  data model that no longer exists. **None should be run as written.** Rewriting them is a
+  queued task, not a background wish.
+- **Nothing in `architecture.md` is above correction.** It was written before any data model
+  existed, in a commit whose own message calls it early and unsettled, and it has been
+  corrected around thirty times since. It was audited statement by statement on 08-29; treat
+  anything a design doc has not touched with the same suspicion that audit applied.
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: twenty-four tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: twenty-seven tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —
@@ -167,8 +175,10 @@ conditions.
 
 ## What is not designed
 
-Nothing, at this altitude. Every noun has a home and every deliverable has a job.
+**Presence** — cursors, pings, and who is connected. The only known gap, and the one thing the
+design sessions missed rather than deferred. See *Next*.
 
+Otherwise nothing at this altitude: every noun has a home and every deliverable has a job.
 Missions turned out not to be a module — they are content in a book, and automating them is a
 later feature rather than a missing noun.
 
@@ -184,8 +194,8 @@ Carried from the design docs:
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
-- What a slot draws when its asset is missing. `architecture.md` says a proxy from the
-  collision volume, but a miniature's would have to come from base and height instead.
+- What a slot draws when its asset is missing. A proxy — but terrain has collision volumes to
+  draw from and a miniature has only its base and height.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - What is in a join token and how long it lives. It is now a contract between the two servers.
 - Whether a game already playing can be joined, or only one still in its lobby.
@@ -198,178 +208,54 @@ Carried from the design docs:
 
 ## Next — pick up here
 
-Eight modules are designed: the table, game flow, resolution, the army, the asset library,
-accounts, the setup content, and the web app. Every noun has a home and every deliverable has
-a job, and `docs/data-model.md` draws all of it.
+### 1. Presence
 
-**The current phase is putting real definition on the placeholder types in that diagram.**
-Its attribute types were written to keep it honest about what exists, not to be precise —
-`stats stats`, `list abilities`, `ref list_entry`, `profile profile`. Those are the fields that
-would be nebulous at execution time, and they are the work now. This comes *before* tables and
-columns, and well before designing consumers, so gaps surface while they are still cheap.
+**The one thing the design sessions missed rather than deferred**, and the only known gap in
+the model. Cursors, pings, and who is connected.
 
-### What is underdefined
+`architecture.md` said the workload has "no tick loop", which is true of simulation and false of
+the relay a virtual tabletop needs — a great deal of how people communicate at a table is
+pointing at things. That is now corrected there, but nothing has been designed.
 
-| Entity | Field | What is undefined |
-| --- | --- | --- |
-| ~~`ARMY`~~ | ~~`game_system`, `source`~~ | Done — content values. `game_system` is the `GameRules` id |
-| ~~`UNIT`~~ | ~~`list_entry`~~ | Done — **dropped**. Nothing reads it, and its only candidate reader was deferred work |
-| ~~`UNIT`~~ | ~~`abilities`, `upgrades`~~ | Done — `upgrades` dropped entirely; properties are entries with parameters |
-| ~~`UNIT`, `MODELSLOT`~~ | ~~`stats`~~ | Done — typed and declared at three levels |
-| ~~`MODELSLOT`~~ | ~~`loadout`~~ | Done — a weapon on the slot, with its own stats and properties |
-| ~~`MODELSLOT`~~ | ~~`base`, `height`~~ | Done — geometry values |
-| ~~`ASSET`~~ | ~~`kind`, `profile`~~ | Done — identity and enumerations. The texture profile is empty |
-| ~~`ASSET`~~ | ~~`scale`, `orientation`~~ | Done — geometry values |
-| ~~`TERRAINPLACEMENT`~~ | ~~volumes, declarations~~ | Done — geometry values |
-| ~~`MARKERPLACEMENT`~~ | ~~`position`, `facing`, `size`~~ | Done — geometry values |
-| ~~`DEPLOYMENTREGION`~~ | ~~`builtin_shape`~~ | Done — geometry values. The default set's contents are still to choose |
-| ~~`GAME`~~ | ~~`status`, `scheduler_shape`, `enforcement`~~ | Done — identity and enumerations. Enforcement turned out to be a boolean |
-| ~~`ARMYSNAPSHOT`~~ | ~~everything~~ | Done — a deep copy, no edge back, no partial fields |
-| ~~`RULEPACK`~~ | — | Done — gone. A game names a `GameRules` and pins a `Properties` hash; no entity, no registry |
-| `GAMEEVENT` | `kind`, `payload` | The event catalog. **Out of scope** — that is `Tabletop.Protocol`, a contract rather than a value type |
+What exists to build on: the table domain model already broadcasts **live drag positions** and
+never logs them. Presence is the same ephemeral channel carrying cursors and pings. **Nothing
+about it persists**, so `docs/schema.md` is unaffected — but it belongs in `Tabletop.Protocol`,
+which is on the contracts list, so it should be designed before that is frozen.
 
-### The three definition sessions — all done
+### 2. Rewrite `docs/workstreams/`
 
-1. **Geometry values**, 2026-08-29. Bases are a shape plus dimensions in world units; models
-   are yaw-only and upright; collision volumes are extruded prisms with convex hulls dropped;
-   six declarations read out of the OPR rulebook; deployment styles are anchored polygon sets.
-2. **Identity and enumerations**, 2026-08-29. `RULEPACK` is gone: a ruleset is **`GameRules`**
-   (per-ruleset C#) plus **`Properties`** (pinned data). `Properties` holds stat definitions
-   and three **disjoint** property sets — `UnitProperty`, `ModelProperty`, `WeaponProperty` —
-   and a name belongs to exactly one. Enforcement is a boolean. Every enumeration has named
-   values.
-3. **Content values**, 2026-08-29. Stats are **typed** — target number, distance, count, dice
-   expression — and declared at unit, model and weapon level. A weapon lives on the model slot,
-   resolved in place, with no shared definition. `upgrades` is dropped: an upgrade's effect is
-   already applied by import time. `list_entry` is dropped — nothing reads it, and the flow that
-   might have is gone too. `ARMYSNAPSHOT` is a deep copy. A property entry is name, kind, at most one integer parameter, and **an effect carried
-   as data**.
+Seven prompts from 08-24, all describing a model that no longer exists. They are the last
+artefacts in the repo that have never been brought forward.
 
-### The effect grammar — done, 2026-08-29
+### 3. Freeze the contracts
 
-An entry is a name, kind, at most one integer parameter, an aggregation, and a list of effects
-that **may be empty**. An effect is a subject (`self` or `opponent`), a **flat conjunction** of
-predicates from eight closed kinds, an ordering field, and one of **twelve effect kinds**.
-`Roll` nests an effect per success.
+`Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join token format. The
+build order in `architecture.md` makes these step 1, and steps 2 and 3 run in parallel
+immediately after.
 
-Three findings worth carrying:
+### Then: build
 
-- **Four of the twelve act on other properties** — grant, suppress, modify a parameter,
-  suppress modifiers. So resolving an interaction is **two passes**: settle which properties
-  and parameters are live, then apply.
-- **Explicit ordering comes back.** The resolution session removed it on the grounds that
-  arithmetic modifiers commute; that holds for one kind of twelve, and the rulebook orders
-  `Deadly` and `Blast` by hand. Corrected in place there.
-- **`GameRules` handles a set of properties by name**, grouped by where the check happens:
-  deployment (`Ambush`, `Scout`), movement (`Flying`, `Strider`), action legality (`Immobile`),
-  usage (`Limited`), melee strike order (`Counter`), interrupt (`Caster`). A property may be in
-  both places — `Aircraft` has data effects *and* a hook.
+Nothing has been written beyond the Godot scaffold. `architecture.md` holds the build order.
 
-### Done: tables and columns
+## Two things worth carrying into any session
 
-`docs/schema.md`. Twenty-four tables. Three things it surfaced that the conceptual model had
-not:
+**Consult the rulebooks; do not reason about the rules.** They are on the Windows host at
+`/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf` and
+`Age_of_Fantasy_-_Advanced_Rules_v3_5_0.pdf`. Reading them produced better answers than
+designing did, three times running — the terrain declaration set, the effect grammar's twelve
+kinds, and the discovery that OPR's statline is two stats with no movement value. Guessing
+produced "blocks sight past three inches", a rule in no ruleset, which then propagated through
+three documents as fact.
 
-- **Stats are rows, not columns**, forced by stats being declared per ruleset. A key-value
-  child table at each of the three levels. The one unavoidable smell, and it follows from a
-  decision that is right.
-- **A deployment zone names a `team_ordinal`, not a team.** A saved layout has zones but no
-  game, so no team rows exist to point at.
-- **Deleting an account cannot be a foreign key.** Deleting every game it played in cascades
-  *upward* — participant to team to game — and then into the other schema's event log. It is a
-  deliberate multi-step operation in the delete path.
+No `pdftotext` and no `poppler-utils`; headless Chrome cannot launch (missing `libnspr4`). What
+works: `pypdf` in a venv for text, and `pypdf` with Pillow to extract diagrams as images, since
+the deployment zone dimensions live in pictures rather than the text layer.
 
-### Done: the management API
-
-`docs/superpowers/specs/2026-08-29-management-api-design.md`. The full endpoint surface, and
-the two mechanics earlier sessions had deferred.
-
-- **Asset bytes never pass through the API.** Presigned S3 URLs both ways, because every
-  participant pulls every mesh in a game. The triangle-count check survives anyway: **a GLB's
-  first chunk is its JSON**, so a ranged read on `confirm` gives an exact count without the
-  binary. It warns rather than blocks, like everything else.
-- **GLB only**, narrowed from "glTF/GLB". External-buffer `.gltf` is several files with
-  relative references, which breaks single-object upload and the header read. Nothing is lost;
-  it is Blender's default export.
-- **Two opaque token tables**, `session` and `join_token`, added to the schema. Not JWTs:
-  instant revocation, which account deletion requires, and no key shared between services.
-- **Keyset pagination** — UUIDv7 is time-ordered, so the id is the cursor.
-- **The game server reads the game's row itself** after looking up the join token, which closes
-  the schema's open question. A read is not a join, so the boundary holds — but the two
-  services now share a database.
-
-### Done: the `architecture.md` audit
-
-2026-08-29. First pass statement by statement rather than incidentally. Fixed what was wrong —
-"no tick loop", "no CRUD surface" and its two non-following consequences, `ArmySnapshot` as an
-entity, "terrain multipliers", the dead "art profile"/"art binding" terms, "mesh processing
-stays server-side", deployment zones as a shape plus a team, a proxy drawn from a collision
-volume a miniature does not have, and the claim that end users authoring rules is not the goal.
-Repaired three run-on paragraphs and a dangling antecedent left by this session's own edits.
-
-Deleted six first-pass assertions that no session had ever touched and none of which was a
-decision: undo replaying from "a checkpoint", a dev-mode pack file watcher, symmetry mirroring
-as "the feature that makes fair multi-player tables practical", enemies resolving through "a
-per-pair relationship query", abilities being able to "replace the step", and the two
-justifications for per-player filtered event streams. The filtering mechanism is kept; secret
-objectives do not exist because there are no victory conditions, and hidden deployment is a
-`GameRules` hook.
-
-### Superseded: audit `architecture.md`
-
-**`architecture.md` is the most-cited document in the project and the least examined.** Every
-session reads it and quotes it. Fourteen sessions have corrected it roughly twenty times, but
-always *incidentally* — because a session happened to collide with a claim. Nothing has ever
-gone through it statement by statement asking whether each is still true and whether its
-stated reason holds.
-
-The evidence that this is overdue is the list of things found by accident: the mission
-definition, the table as a boundary volume, convex hulls, global blob dedup, the `Binding` row,
-the browser owning login, the ruleset registry, ordering removed and then restored, pinning
-treated as solved when it covers only half.
-
-And a worked example of the failure mode, traced this session. `architecture.md` says:
-
-> **The game server has no CRUD surface.** It reads game metadata once at session hydration and
-> writes only events. That is what keeps management restartable at will and confines deploy risk
-> to one service.
-
-It comes from `6bbc66e`, the 08-27 first planning session, whose own commit message says the
-notes are "early and not settled" and that "the data models have not been worked through."
-**Neither consequence follows from the claim.** Management is restartable because it holds no
-live state; deploy risk is confined to the game server because it holds live WebSocket
-sessions. Strip the justification and what remains is "the game server's interface is commands
-and events" — true, stated elsewhere, and not a principle. It was nonetheless treated as a
-constraint for fourteen sessions.
-
-**The audit is a pass over every statement**, asking: is it still true after fourteen sessions;
-does its stated reason actually support it; and was it a decision or a first-pass assertion
-that nobody has revisited.
-
-### After the audit
-
-**Presence.** Cursors, pings and who is connected. The first thing the design sessions **missed
-rather than deferred** — `architecture.md` says the workload has "no tick loop", which is true
-of simulation and false of the relay a virtual tabletop needs. Players point at things. The
-table domain model already broadcasts live drag positions and never logs them; presence is the
-same channel carrying cursors and pings, and nothing about it persists.
-
-Then `docs/workstreams/`, which still describes the 08-24 model and is stale in every
-particular, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
-`Tabletop.Protocol`, `Tabletop.Content`, and the join token.
-
-### Is the model still moving?
-
-Worth re-asking before freezing anything. It survived eight sessions, and the last four each
-corrected the ones before — including the web app session, which reversed the session
-immediately preceding it on login. The nouns stopped moving after the army; what kept moving
-was *where things live*.
-
-One consequence worth carrying forward: `architecture.md` holds pipeline step order,
-scheduler policy, and dice conventions in C# until a second ruleset exists to design
-against. Building both schedulers puts that second example at the scheduler seam
-immediately, so of the three, that is the first where "should this move to data" becomes
-answerable.
+**Age of Fantasy is not a second ruleset for testing generalisation.** Its terrain section is
+word for word identical to Grimdark Future's — same engine, same text. Warhammer is the real
+test, and several decisions are explicitly waiting on it: whether the six terrain declarations
+are complete, whether twelve effect kinds survive, and when `GameRules` should move from C# to
+data.
 
 ## Environment notes
 
