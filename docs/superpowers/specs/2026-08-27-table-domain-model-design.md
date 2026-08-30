@@ -190,9 +190,12 @@ Start position is recorded as well as stop because undo needs somewhere to go ba
 
 ## Still open
 
-- What a returning model's state is when a mechanic brings it back out of the graveyard.
-  That is a rules question, not a data one, but the model has to support whatever the answer
-  is.
+- ~~What a returning model's state is when a mechanic brings it back out of the graveyard.~~
+  **Settled** by [game flow](2026-08-28-game-flow-design.md), which generalised the graveyard to
+  a shelf: **why a model is on the shelf is a condition, not a property of the shelf.** Coming
+  off it means being given a placement, and the state it returns in is whatever conditions it
+  is carrying. Deployment, arriving from reserve and a mechanic returning a casualty are one
+  operation.
 - Who places terrain, and when. Terrain setup is a game phase; that phase has not been
   designed.
 - ~~Whether an objective's "game data" is generic or system-specific.~~ **Answered by

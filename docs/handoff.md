@@ -209,15 +209,14 @@ Carried from the design docs:
 - Whether setup configuration can change once a game is loaded. Pinning answers it for
   `Properties`, and the setup snapshot answers it for board size and texture; the scheduler
   shape and the teams are undecided.
-- What state a model returns in when a mechanic brings it back off the shelf. A rules
-  question, but the model has to support the answer.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - Whether a waiting pipeline can be abandoned, and what happens to the half-applied result.
 - What a slot draws when its asset is missing. A proxy — but terrain has collision volumes to
   draw from and a miniature has only its base and height.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
-- Whether a game already playing can be joined, or only one still in its lobby.
+- Which of `lobby | setup | playing` the game browser lists — that is all "open" means, and
+  it decides whether a game already playing can be joined.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which

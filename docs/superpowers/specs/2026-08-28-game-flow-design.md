@@ -182,7 +182,11 @@ for a checkpoint concept to protect against.
 
 ## Still open
 
-- Game lifecycle: created, in progress, abandoned, finished, and what a player
-  disconnecting means.
+- ~~Game lifecycle.~~ **Settled.** `GAME.status` is `lobby | setup | playing | ended`
+  ([identity and enumerations](2026-08-29-identity-and-enumerations-design.md)), and `ended` is
+  reversible rather than terminal, because restarting an ended game is the same hydrate-from-log
+  as recovering a crashed task. There is no `abandoned`. Disconnecting is answered too:
+  [accounts](2026-08-29-accounts-design.md) says **disconnecting is not leaving** — the
+  `participant` row stays and reconnecting rehydrates.
 - Whether any setup configuration can be changed once a game is loaded. Pinning the
   rule pack says no for that one; the rest is undecided.
