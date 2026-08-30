@@ -46,7 +46,7 @@ Three libraries in `libs/`, and nothing else:
 | Library | Shared by | Contents |
 | --- | --- | --- |
 | `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
-| `Tabletop.Protocol` | client, game server | Commands, events, wire format |
+| `Tabletop.Protocol` | client, game server | Commands, events, presence, wire format |
 | `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
@@ -86,8 +86,14 @@ The second is the important one. It is why the client needs geometry and only ge
 server describes the constraint, the client draws its consequence.
 
 **Measuring and planning are never commands.** Pre-measuring, range checks, and movement
-ghosts are pure geometry, computed locally, never sent anywhere — so waiting players stay
-busy and the mouse never feels laggy.
+ghosts are pure geometry, computed locally — so waiting players stay busy and the mouse never
+feels laggy.
+
+They are still **relayed**, which is not the same thing. This document originally said they
+were never sent anywhere; [presence](superpowers/specs/2026-08-30-presence-design.md) puts
+measurements and ghosts on the ephemeral channel, because a tape measure on a real table is
+visible to everyone at it. Nothing waits on them, nothing validates them, and nothing logs
+them.
 
 ## Rules enforcement
 
@@ -421,7 +427,8 @@ never advances state on a timer, only when a command arrives.
 between players at a fixed rate and never logged, because a virtual tabletop is largely people
 pointing at things. Four players at 20Hz is a few hundred messages a second, which is nothing —
 but it is not nothing per second, and this document previously said "no tick loop" without the
-distinction. Presence has never been designed.
+distinction. See [presence](superpowers/specs/2026-08-30-presence-design.md) for what the relay
+carries; none of it is persisted or logged.
 
 The real constraints are statefulness, not throughput:
 
@@ -449,8 +456,9 @@ rather than discovered late.
 
 ## Client and server responsibilities
 
-The client owns: camera, rendering, input, animation, local measuring, movement ghosts,
-affordance drawing, UI, and asset loading and caching.
+The client owns: camera, rendering, input, animation, measuring, movement ghosts,
+affordance drawing, UI, and asset loading and caching. Measuring and ghosts are computed
+client-side and broadcast to the other players, never logged.
 
 It never owns: dice, state transitions, turn order, wound allocation, or legality.
 
@@ -622,7 +630,7 @@ until they are settled.
 | Contract | Between |
 | --- | --- |
 | `Tabletop.Geometry` API surface | client, game server |
-| `Tabletop.Protocol` command and event schema | client, game server |
+| `Tabletop.Protocol` command, event and presence schema | client, game server |
 | `Tabletop.Content` army snapshot types | client, both servers |
 | Join token format | management, game server |
 

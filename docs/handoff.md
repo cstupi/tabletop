@@ -1,4 +1,4 @@
-# Handoff — 2026-08-29
+# Handoff — 2026-08-30
 
 Where the project stands, and what to pick up next.
 
@@ -26,6 +26,7 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | `docs/schema.md` — the physical Postgres schema |
 | 2026-08-29 | [The management API](superpowers/specs/2026-08-29-management-api-design.md) |
 | 2026-08-29 | Audit of `docs/architecture.md`, and a layout correction |
+| 2026-08-30 | [Presence](superpowers/specs/2026-08-30-presence-design.md) — the last gap |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -66,9 +67,9 @@ that used to sit in `architecture.md`, and it is a view over the design docs rat
 source — where they disagree, the design doc wins.
 
 **`docs/architecture.md`** — the shared context every session reads, and **the least examined
-document in the project**. Corrected roughly twenty times, always incidentally. An audit is the
-next task. Treat any statement in it that no design doc has touched as a first-pass assertion
-rather than a decision. It is **not above correction**: the design sessions have now corrected its asset section, its claim
+document in the project**. Corrected roughly twenty times, always incidentally, then audited
+statement by statement on 08-29. Treat any statement in it that no design doc has touched as a
+first-pass assertion rather than a decision. It is **not above correction**: the design sessions have now corrected its asset section, its claim
 that armies are immutable, its login story, its `Binding` row, its collections module, and its
 claim that auth needed no agreed contract. Where it disagrees with a design doc, the design doc
 is newer.
@@ -168,6 +169,21 @@ An embedded webview serving one shared UI was considered and rejected: it does n
 stack, it adds a bridge to one — a browser engine bundled into the client plus a second renderer
 inside it for mesh preview.
 
+**Presence** — what players see of each other between events, and the last gap. Nothing in it
+is persisted or logged: a presence value lives in memory while a socket is open, so `schema.md`
+is untouched and a reconnecting client rebuilds it from nothing. **Connectedness is not a
+field** — a value exists while a participant is connected, so who is connected is which values
+exist, with the persisted `PARTICIPANT` row as the roster underneath. One value per participant
+carries cursor (a world point plus the piece under it), selection, placements, and a
+measurement; a ping is a separate one-shot because presence is state and a ping is an instant.
+Drag and ghost collapse into one placement with a `kind`, held or proposed, since they differ
+only in what the viewer draws. There is no spectator identity: someone who wants to watch joins
+a third team and does not act.
+
+This overrode `architecture.md`'s claim that pre-measuring, range checks and movement ghosts
+are "never sent anywhere". They are relayed and still never commands — **relayed and logged are
+different things**, and that document predates the ephemeral channel that separates them.
+
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
@@ -175,10 +191,9 @@ conditions.
 
 ## What is not designed
 
-**Presence** — cursors, pings, and who is connected. The only known gap, and the one thing the
-design sessions missed rather than deferred. See *Next*.
+**Nothing at this altitude.** Presence was the last known gap, and it closed on 08-30. Every
+noun has a home and every deliverable has a job.
 
-Otherwise nothing at this altitude: every noun has a home and every deliverable has a job.
 Missions turned out not to be a module — they are content in a book, and automating them is a
 later feature rather than a missing noun.
 
@@ -205,33 +220,30 @@ Carried from the design docs:
 - What happens when a saved layout's board size does not match the table it is loaded onto.
 - Whether the client ever needs to edit an army rather than only pick one.
 - Loopback or device code for getting a browser session into the client.
+- Whether presence exists before a game does — whether a lobby shows who is in it. Depends on
+  whether a game already playing can be joined.
+- Whether selection distinguishes a unit from the models in it, or a list of model ids covers
+  both.
 
 ## Next — pick up here
 
-### 1. Presence
-
-**The one thing the design sessions missed rather than deferred**, and the only known gap in
-the model. Cursors, pings, and who is connected.
-
-`architecture.md` said the workload has "no tick loop", which is true of simulation and false of
-the relay a virtual tabletop needs — a great deal of how people communicate at a table is
-pointing at things. That is now corrected there, but nothing has been designed.
-
-What exists to build on: the table domain model already broadcasts **live drag positions** and
-never logs them. Presence is the same ephemeral channel carrying cursors and pings. **Nothing
-about it persists**, so `docs/schema.md` is unaffected — but it belongs in `Tabletop.Protocol`,
-which is on the contracts list, so it should be designed before that is frozen.
-
-### 2. Rewrite `docs/workstreams/`
-
-Seven prompts from 08-24, all describing a model that no longer exists. They are the last
-artefacts in the repo that have never been brought forward.
-
-### 3. Freeze the contracts
+### 1. Freeze the contracts
 
 `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`, and the join token format. The
 build order in `architecture.md` makes these step 1, and steps 2 and 3 run in parallel
 immediately after.
+
+**Nothing is waiting on design any more.** Presence was what `Tabletop.Protocol` still lacked,
+and closing it means the protocol has all three of its parts: commands, events, and the
+ephemeral relay. The join token is the one contract with an open question against it — what is
+in it and how long it lives — and it has to be answered here rather than deferred, because both
+servers are built against it.
+
+### 2. Rewrite `docs/workstreams/`
+
+Seven prompts from 08-24, all describing a model that no longer exists. They are the last
+artefacts in the repo that have never been brought forward. This can run before or after the
+contracts; nothing depends on it that is not already stale.
 
 ### Then: build
 
