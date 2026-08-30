@@ -45,14 +45,10 @@ Three libraries in `libs/`, and nothing else:
 | `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
-the two must agree exactly. Protocol is shared by definition. Content is shared because both
-servers store and interpret the same army data.
-
-**Open:** whether the client ever fetches an army over HTTP. This document originally gave that
-as the reason `Tabletop.Content` is shared with the client. The client picks an army when
-creating a game and the game server hydrates from the database, so the army the client renders
-may arrive over the WebSocket instead — in which case the client needs these types for a
-different reason, and may need no HTTP army path at all.
+the two must agree exactly. Protocol is shared by definition. Content is shared because the
+client renders armies and both servers store and interpret them. Whether an army reaches the
+client over HTTP or over the WebSocket is a transport detail and changes nothing about the
+types.
 
 The rules engine — pipelines, scheduler, the property sets, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.

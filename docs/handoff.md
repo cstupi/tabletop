@@ -315,11 +315,6 @@ justifications for per-player filtered event streams. The filtering mechanism is
 objectives do not exist because there are no victory conditions, and hidden deployment is a
 `GameRules` hook.
 
-**One question it opened:** whether the client ever fetches an army over HTTP. That was the
-stated reason `Tabletop.Content` is shared with the client, and it may be false — the client
-picks an army and the game server hydrates from the database, so the army it renders may arrive
-over the WebSocket.
-
 ### Superseded: audit `architecture.md`
 
 **`architecture.md` is the most-cited document in the project and the least examined.** Every
