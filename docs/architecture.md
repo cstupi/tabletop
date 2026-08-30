@@ -326,7 +326,10 @@ served through the management API. **A library is private for discovery, not for
 can browse or search another account's assets, but participants in a game download the assets that
 game uses, straight from wherever they live. Nothing enters anyone else's library.
 
-**Upload accepts glTF/GLB and rejects STL.** The miniature ecosystem distributes STL, which
+**Upload accepts GLB and rejects STL.** Narrowed from "glTF/GLB" by
+[the management API](superpowers/specs/2026-08-29-management-api-design.md): a `.gltf` with
+external buffers is several files with relative references, which breaks single-object
+presigned upload. GLB is the same format in one file and is Blender's default export. The miniature ecosystem distributes STL, which
 Godot cannot load and which is 50–100× too dense for realtime — a print-ready 32mm mini is
 routinely 500k–2M triangles. Converting it server-side would mean a job queue, a worker, an
 async upload state machine, and a source/derived blob split.

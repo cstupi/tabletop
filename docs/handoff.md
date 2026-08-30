@@ -23,6 +23,8 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) — second |
 | 2026-08-29 | [Content values](superpowers/specs/2026-08-29-content-values-design.md) — third |
 | 2026-08-29 | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
+| 2026-08-29 | `docs/schema.md` — the physical Postgres schema |
+| 2026-08-29 | [The management API](superpowers/specs/2026-08-29-management-api-design.md) |
 
 ## The mode — read this before proposing anything
 
@@ -275,22 +277,36 @@ not:
   *upward* — participant to team to game — and then into the other schema's event log. It is a
   deliberate multi-step operation in the delete path.
 
+### Done: the management API
+
+`docs/superpowers/specs/2026-08-29-management-api-design.md`. The full endpoint surface, and
+the two mechanics earlier sessions had deferred.
+
+- **Asset bytes never pass through the API.** Presigned S3 URLs both ways, because every
+  participant pulls every mesh in a game. The triangle-count check survives anyway: **a GLB's
+  first chunk is its JSON**, so a ranged read on `confirm` gives an exact count without the
+  binary. It warns rather than blocks, like everything else.
+- **GLB only**, narrowed from "glTF/GLB". External-buffer `.gltf` is several files with
+  relative references, which breaks single-object upload and the header read. Nothing is lost;
+  it is Blender's default export.
+- **Two opaque token tables**, `session` and `join_token`, added to the schema. Not JWTs:
+  instant revocation, which account deletion requires, and no key shared between services.
+- **Keyset pagination** — UUIDv7 is time-ordered, so the id is the cursor.
+- **The game server reads the game's row itself** after looking up the join token, which closes
+  the schema's open question. A read is not a join, so the boundary holds — but the two
+  services now share a database.
+
 ### Next
 
 **Presence.** Cursors, pings and who is connected. The first thing the design sessions **missed
-rather than deferred** — `architecture.md` says the workload has "no tick loop", and that is
-true of simulation but false of the relay a virtual tabletop needs. Players point at things.
-The table domain model already broadcasts live drag positions and never logs them; presence is
-the same channel carrying cursors and pings, and nothing about it persists.
+rather than deferred** — `architecture.md` says the workload has "no tick loop", true of
+simulation and false of the relay a virtual tabletop needs. Players point at things. The table
+domain model already broadcasts live drag positions and never logs them; presence is the same
+channel carrying cursors and pings, and nothing about it persists.
 
 After that: `docs/workstreams/` still describes the 08-24 model and is stale in every
 particular, and the contracts list becomes worth freezing — `Tabletop.Geometry`,
 `Tabletop.Protocol`, `Tabletop.Content`, and the join token.
-
-One open question from the schema is a genuine gap rather than a detail: **how the game server
-reads a game's metadata.** It has no CRUD surface and writes only events, but it must read the
-game row once at hydration. Either it reads the management schema read-only, or the join token
-carries what it needs.
 
 ### Is the model still moving?
 
