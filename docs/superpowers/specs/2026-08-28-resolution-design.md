@@ -115,7 +115,18 @@ point; making it impossible never was.
 
 ## Still open
 
-- What a roll records beyond its results — whether the modifiers that produced its
-  threshold are part of the event or reconstructed from the state at the time.
+- ~~What a roll records beyond its results.~~ **Settled on 08-30: the event carries its own
+  threshold and the modifiers that produced it**, rather than leaving them to be recomputed by
+  replaying state to that sequence number.
+
+  This looked like a storage question and is not. `GameRules` is C# shipped with the build and
+  **is not pinned** —
+  [identity and enumerations](2026-08-29-identity-and-enumerations-design.md) accepted that
+  deliberately. So a replay after a `GameRules` deploy can compute a different threshold than
+  the one the players actually rolled against, and a log that recomputes would then misreport a
+  roll that already happened. Carrying the threshold makes the event faithful to what occurred
+  rather than to what the current build would decide.
+
+  It also makes *why did that hit* answerable in a replay without re-running the engine.
 - Whether a waiting pipeline can be abandoned, and what happens to the half-applied
   result if so.

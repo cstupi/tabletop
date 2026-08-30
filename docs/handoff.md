@@ -213,11 +213,13 @@ Carried from the design docs:
   question, but the model has to support the answer.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
-- What a roll records beyond its results, and whether a waiting pipeline can be abandoned.
+- Whether a waiting pipeline can be abandoned, and what happens to the half-applied result.
 - What a slot draws when its asset is missing. A proxy — but terrain has collision volumes to
   draw from and a miniature has only its base and height.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - Whether a game already playing can be joined, or only one still in its lobby.
+- Whether an objective ever needs game data again. Setup content deleted the field because
+  scoring is manual; reopening it needs a reader.
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
   terrain becomes event-driven state on top of the setup snapshot.
 - Whether the closed terrain declaration set is complete.
@@ -226,8 +228,6 @@ Carried from the design docs:
 - Loopback or device code for getting a browser session into the client.
 - Whether presence exists before a game does — whether a lobby shows who is in it. Depends on
   whether a game already playing can be joined.
-- Whether selection distinguishes a unit from the models in it, or a list of model ids covers
-  both.
 
 ## Next — pick up here
 

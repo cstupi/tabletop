@@ -195,4 +195,12 @@ Start position is recorded as well as stop because undo needs somewhere to go ba
   is.
 - Who places terrain, and when. Terrain setup is a game phase; that phase has not been
   designed.
-- Whether an objective's "game data" is generic or system-specific.
+- ~~Whether an objective's "game data" is generic or system-specific.~~ **Answered by
+  deletion.** [Setup content](2026-08-29-setup-content-design.md) collapsed objectives and
+  tokens into one `Marker` with a `kind`, because scoring is manual — players count their own
+  points — so the field this session described as "whatever the game needs to score it" had
+  nothing in it. There is no game data on an objective to be generic or specific.
+
+  If it ever comes back, the stated direction is **generic options that conforming systems
+  define themselves against**, rather than a free-form per-system blob. Nothing reads such a
+  field today, and that is what would have to change first.
