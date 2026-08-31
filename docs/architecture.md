@@ -167,7 +167,7 @@ moderation surface; when users can author it, that is additive.
 Packs are loaded and interpreted **only by the game server**. The client never sees a rule
 pack; it receives the consequences of one.
 
-- **Rules as data** — `Properties`: typed stat definitions and the three property sets.
+- **Rules as data** — `Properties`: typed stat definitions and one catalog of named rules.
 - **Rules as engine** — the pipeline interpreter that executes that data.
 
 ### Closed schema, extensible content
@@ -199,9 +199,11 @@ accessors over it.
 have names — see
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
 
-- **`Properties`, JSON** — stat definitions, and three disjoint property sets:
-  `UnitProperty`, `ModelProperty`, `WeaponProperty`. Sharing a base, differing in where they
-  attach. Stats are typed and declared per level; property entries carry their effect as data.
+- **`Properties`** — stat definitions, and one catalog of named rules with four kinds:
+  `unit`, `model` and `weapon` — which differ in where they attach — plus `spell`, which attaches
+  to nothing and carries a token cost. Stats are typed and declared per level; every catalog
+  entry carries its effects as data. Stored normalised in Postgres, not as JSON; see
+  [`docs/schema.md`](schema.md).
 - **`GameRules`, C# behind an interface** — turn structure, action definitions, pipeline step
   order, scheduler policy, dice conventions.
 
@@ -261,7 +263,7 @@ which designs these as data.
   four-player square is a rectangle like any other. Named presets (40k 60×44, OPR 72×48,
   skirmish 30×22, 4-player 72×72) plus arbitrary custom sizes. Never a constant.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
-  placements, deployment regions. Physical only, no rules.
+  placements, deployment zones. Physical only, no rules.
 - **Mission** — **not a record.** This document defined one as deployment zones, objectives,
   victory conditions, round count and team count, which is not what a mission is. Missions are
   published content in OPR and Warhammer, players read them out of a book, and game flow had
@@ -577,8 +579,10 @@ updated, so editing a saved army cannot reach into a live match. It is a `jsonb`
 purpose: normalised, a later migration would silently alter what a past game was played with.
 
 **A game names a `GameRules` and pins a `Properties` hash.** Undo is replay, and replay needs
-the exact ruleset that produced the log. There is no `RulePack` entity and no registry table —
-see [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
+the exact ruleset that produced the log. There is no `RulePack` entity — see
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
+The `properties` table is the pinned set itself, keyed by the hash of its contents, not a
+registry that resolves packs by identity.
 
 **Pinning covers only the data half, and that is accepted.** `GameRules` is C# shipped with the
 build, so a pipeline order changing between deploys can make an old game replay differently.

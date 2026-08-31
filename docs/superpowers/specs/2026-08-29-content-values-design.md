@@ -34,8 +34,9 @@ damage of `D6` is a dice expression. An integer-only model cannot hold the last 
 and would have to be reopened the moment a second game system landed. The engine reads the
 kind, so a target number and a distance are never confused.
 
-**Stats are declared at three levels, mirroring the three property kinds** — unit, model,
-weapon. OPR puts Quality and Defense at unit level and Range and Attacks on weapons;
+**Stats are declared at three levels** — unit, model, weapon — matching the three property
+kinds this session knew about. A fourth catalog kind, `spell`, was added on 08-30; it has no
+stats, so the three levels are unchanged. OPR puts Quality and Defense at unit level and Range and Attacks on weapons;
 Warhammer puts most of its line at model level and gives weapons six of their own. Same
 mechanism, same closed declaration, three attachment points.
 
@@ -60,7 +61,7 @@ copies, because an army holds its own copy of every value and nothing may reach 
 
 ```
 name
-kind         unit | model | weapon
+kind         unit | model | weapon        (`spell` added 08-30)
 parameter    zero or one integer
 effect       data — see below
 aggregation  ModelProperty only: all | any | majority | none
@@ -145,8 +146,7 @@ army cannot reach into a match in progress because the match is holding its own 
 
 ## Still open
 
-- **Whether `Properties` needs anything beyond stat definitions and the three property
-  sets.** `architecture.md` also listed "unit and weapon definitions," but armies are
+- **Whether `Properties` needs anything beyond stat definitions and the rule catalog.** `architecture.md` also listed "unit and weapon definitions," but armies are
   imported self-contained, so a shared definition of a unit or a weapon has nothing to do.
   It is written here as not needed; a second game system is what would prove that wrong.
 - Whether a `UnitProperty` ever needs an aggregation of its own.

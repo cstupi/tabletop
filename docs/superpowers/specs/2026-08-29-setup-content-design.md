@@ -49,7 +49,7 @@ library.
 
 **Size cannot change after the setup phase.**
 
-## Deployment regions
+## Deployment zones
 
 A **built-in shape id, plus the team it belongs to.** Deployment zones are team-assigned
 geometry and nothing else.
@@ -67,7 +67,7 @@ phase, one record captures the result:
 width, length, texture
 terrain placements
 marker placements
-deployment regions
+deployment zones
 ```
 
 This supersedes `architecture.md`, which made terrain placement a stream of ordinary

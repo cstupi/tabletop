@@ -47,7 +47,7 @@ registry table. The pin mechanism is unchanged, so it is additive. `architecture
 the goal is "not end users uploading rules" — that is true of the current phase and is not
 the long-term intent.
 
-## `Properties` holds three disjoint property sets
+## `Properties` holds one catalog, and its kinds are disjoint
 
 Not one bag with a scope tag. **Three distinct kinds**, sharing a base but differing in
 function, application, and where they attach:
@@ -117,6 +117,29 @@ Volume.kind            solid | area          (geometry values)
 Volume.footprint       circle | rect         (geometry values)
 base shape             circle | oval | square (geometry values)
 ```
+
+**Added 2026-08-30, when `Properties` was given tables.** Every one of these was a closed set in
+a design doc's prose and a `text` column with nothing naming its contents:
+
+```
+CatalogEntry.kind        unit | model | weapon | spell
+StatDefinition.level     unit | model | weapon
+StatDefinition.kind      target number | distance | count | dice expression
+Effect.subject           self | opponent
+Effect.kind              the twelve       (the effect grammar)
+Effect.target_roll       hit | defense | morale | casting
+Effect.target_quantity   hits | wounds
+Effect.target_result     wound | morale_test
+Effect.target_modifier   cover | to_hit_penalties | range_penalties
+Effect.cap_kind          models_in_target_unit
+Condition.kind           the eight        (the effect grammar)
+Condition.comparison     eq | neq | gte | lte | gt | lt
+```
+
+`Effect.target_stat` and `Effect.target_entry` are **not** enumerations — they are foreign keys
+into the same `Properties` set, which is stronger. `neq` exists because `Impact(X)` applies
+*unless fatigued*; the rulebook has no *or* and no *not* in its structure, but one predicate
+still has to test a state's absence.
 
 **`ASSET` profiles are per kind, and one of them is empty:**
 

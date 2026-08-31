@@ -41,12 +41,12 @@ erDiagram
     WEAPON ||--o{ WEAPON_STAT : ""
     WEAPON ||--o{ WEAPON_PROPERTY : ""
 
-    TABLE_STATE ||--o{ TERRAIN : ""
+    TABLE_STATE ||--o{ TERRAIN_PLACEMENT : ""
     TABLE_STATE ||--o{ MARKER : ""
     TABLE_STATE ||--o{ DEPLOYMENT_ZONE : ""
     TABLE_STATE }o..o| ASSET : texture
-    TERRAIN }o--|| ASSET : mesh
-    TERRAIN ||--o{ TERRAIN_VOLUME : overrides
+    TERRAIN_PLACEMENT }o--|| ASSET : mesh
+    TERRAIN_PLACEMENT ||--o{ TERRAIN_VOLUME : overrides
     MARKER }o..o| ASSET : visual
 
     GAME ||--|{ TEAM : has
@@ -177,7 +177,7 @@ erDiagram
         text texture_builtin
         uuid texture_asset_id FK
     }
-    TERRAIN {
+    TERRAIN_PLACEMENT {
         uuid id PK
         uuid table_state_id FK
         uuid asset_id FK
@@ -189,7 +189,7 @@ erDiagram
     }
     TERRAIN_VOLUME {
         uuid id PK
-        uuid terrain_id FK
+        uuid terrain_placement_id FK
         text kind
         text footprint
         real dim_a
@@ -275,11 +275,16 @@ erDiagram
         text subject
         int ordinal
         text kind
-        text target
+        text target_roll
+        text target_stat FK
+        text target_entry FK
+        text target_quantity
+        text target_result
+        text target_modifier
         int amount
         bool amount_from_parameter
         int threshold
-        text cap
+        text cap_kind
         text replacement
     }
     EFFECT_CONDITION {
@@ -365,10 +370,28 @@ come later. The shape is what had to exist first.
 ### One `effect` table, not twelve
 
 The twelve kinds share most of their shape — a subject, an ordering, a thing being acted on,
-and usually one number. `entry_name` is the catalog entry it belongs to. `target` names the roll, stat, property or
-result; `amount` carries the
-number; `amount_from_parameter` says the number is the property's own `X`, which is what makes
-`Impact(X)` and `Blast(X)` one row rather than one per value of X.
+and usually one number. `entry_name` is the catalog entry it belongs to. `amount` carries the number, and
+`amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
+and `Blast(X)` one row rather than one row per value of X.
+
+**What an effect acts on is six different things, so it is six columns rather than one.** A
+single `target` string would have been a magic string with no defined contents — the database
+could not check it and nothing said what it may contain:
+
+| Column | Vocabulary | Used by |
+| --- | --- | --- |
+| `target_roll` | `hit \| defense \| morale \| casting` | Modify a roll, Force a reroll |
+| `target_stat` | **FK** to `stat_definition` in the same set | Modify a stat, Replace a stat |
+| `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
+| `target_quantity` | `hits \| wounds` | Multiply |
+| `target_result` | `wound \| morale_test` | Override a result |
+| `target_modifier` | `cover \| to_hit_penalties \| range_penalties` | Suppress modifiers |
+
+`Roll` and `Add a hit` act on nothing and leave all six null.
+
+The two foreign keys are the point. `Poison` suppresses `Regeneration`, and it must not be able
+to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
+must be a stat that set declares. As a string, neither could be checked.
 
 **`amount` is signed, and keeps its sign when the magnitude comes from the parameter.**
 `AP(X)` is *−X to Defense rolls* and `Fear(X)` is *+X wounds*: both take their size from `X`
@@ -379,8 +402,11 @@ Three columns exist for one kind each, which is the honest price of collapsing t
 
 - **`threshold`** — `Roll` only. `Impact(X)` is *X dice at 2+*, so it needs a count and a
   score, and the count is `amount`.
-- **`cap`** — `Blast(X)` only. *"Up to as many hits as models in the target unit"* is part of
-  the effect, per the effect grammar, not a separate rule.
+- **`cap_kind`** — `Blast(X)` only, and an enumeration rather than prose. *"Up to as many hits
+  as models in the target unit"* is part of the effect, per the effect grammar, not a separate
+  rule — but written as text the engine could not read it. Grimdark Future has exactly one cap,
+  `models_in_target_unit`; a second ruleset needing another adds a value, which is a code
+  change like every other closed set here.
 - **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*.
 
 Per-kind `CHECK` constraints keep the nullable columns honest: a `Multiply` row with a
@@ -421,10 +447,10 @@ inspection. Four that between them exercise every unusual column:
 
 | Rule | Rows |
 | --- | --- |
-| `AP(X)` | one effect: `subject=opponent`, `kind=modify_roll`, `target=defense`, `amount=-1`, `amount_from_parameter`. No conditions. |
-| `Stealth` | `catalog_entry.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
+| `AP(X)` | one effect: `subject=opponent`, `kind=modify_roll`, `target_roll=defense`, `amount=-1`, `amount_from_parameter`. No conditions. |
+| `Stealth` | `catalog_entry.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target_roll=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
 | `Impact(X)` | one effect: `kind=roll`, `amount_from_parameter`, `threshold=2`, with a **child** effect `kind=add_hit`, `amount=1`. Conditions: action taken is charge, actor state `neq` fatigued. |
-| `Poison` | **two** effects on one property — `force_reroll` on the opponent's defense, conditioned on a raw roll result of 6; and `suppress_property` with `target=Regeneration`, unconditional. |
+| `Poison` | **two** effects on one property — `force_reroll` with `target_roll=defense` on the opponent, conditioned on a raw roll result of 6; and `suppress_property` with `target_entry=Regeneration`, unconditional. |
 
 `Poison` is the case that proves conditions belong to the effect and not to the property, and
 `Impact(X)` is the one that proves nesting is needed rather than a thirteenth kind.

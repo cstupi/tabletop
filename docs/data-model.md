@@ -47,14 +47,14 @@ erDiagram
     GAME ||--o{ GAMEEVENT : "append-only log"
 
     TABLESTATE ||--o{ TERRAINPLACEMENT : holds
-    TABLESTATE ||--o{ MARKERPLACEMENT : holds
-    TABLESTATE ||--o{ DEPLOYMENTREGION : holds
+    TABLESTATE ||--o{ MARKER : holds
+    TABLESTATE ||--o{ DEPLOYMENTZONE : holds
     TABLESTATE }o..o| ASSET : "texture, or a built-in"
     TERRAINPLACEMENT }o--|| ASSET : mesh
     ASSET ||--o{ VOLUME : "terrain profile"
     TERRAINPLACEMENT ||--o{ VOLUME : overrides
-    MARKERPLACEMENT }o..o| ASSET : "visual, or a built-in"
-    DEPLOYMENTREGION }o..o| TEAM : "by ordinal, not id"
+    MARKER }o..o| ASSET : "visual, or a built-in"
+    DEPLOYMENTZONE }o..o| TEAM : "by ordinal, not id"
 
     ACCOUNT {
         uuid id
@@ -153,11 +153,11 @@ erDiagram
         enum subject
         int ordinal
         enum kind
-        string target
+        enum target
         int amount
         bool amount_from_parameter
         int threshold
-        string cap
+        enum cap_kind
         string replacement
     }
     EFFECTCONDITION {
@@ -183,14 +183,14 @@ erDiagram
         degrees yaw
         float scale
     }
-    MARKERPLACEMENT {
+    MARKER {
         enum kind
         units position
         degrees yaw
         units diameter
         string label
     }
-    DEPLOYMENTREGION {
+    DEPLOYMENTZONE {
         id style
         int team_ordinal
     }
@@ -222,7 +222,7 @@ the thing a game ends setup with and the thing a user saves are the same record.
 **`ARMYSNAPSHOT` has no edge back to `ARMY`** on purpose. It is a copy taken when the game
 loaded, with no live link, so editing a saved army cannot reach into a match in progress.
 
-**`DEPLOYMENTREGION` names a built-in style**, which resolves to a **set** of polygons — one
+**`DEPLOYMENTZONE` names a built-in style**, which resolves to a **set** of polygons — one
 of OPR's standard styles gives each team two diagonally opposite corners. Measurements are
 anchored to table features rather than absolute, so a style works at any board size. Custom
 shapes are a later expansion. **The polygons are not stored**: a built-in is not a row, so
@@ -271,10 +271,14 @@ exists**. It is kept because import knows it for free and no later pass could re
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
 
-**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
-disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
+**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus one
+catalog of named rules. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
-data half is pinned, which is an open problem for replay. There is no `RulePack` entity.
+data half is pinned, which is an open problem for replay.
+
+**There is no `RulePack` entity**, and `PROPERTIES` is not one. It is the pinned set itself,
+addressed by the hash of its contents; its `name` and `game_rules` exist so a set can be shown
+and matched to the C# that reads it, not so packs can be registered and resolved by identity.
 
 **The data half has a shape, and it is `PROPERTIES` and everything under it.** A stat
 declaration says a stat exists at a level and what kind of value it holds. A catalog entry is
@@ -297,8 +301,14 @@ carries an explicit `ordinal` — the rulebook orders several by hand.
 `Counter` carry no effect data at all; they are names `GameRules` checks for at hooks it owns —
 deployment, movement, action legality, usage, and melee strike order.
 
-**Every enumeration is a closed set**, never a free string — `status`, `kind`, `scheduler_shape`
-and the geometry enums all have named values in the design docs.
+**Every enumeration is a closed set**, never a free string. `status`, `kind`,
+`scheduler_shape`, the geometry enums, and everything `PROPERTIES` introduced —
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
+lists all of them with their values.
+
+The two exceptions on `EFFECT` are stronger rather than weaker: what a `Grant` or `Suppress`
+names, and what a `Replace a stat` names, are **references into the same `PROPERTIES` set** —
+`Poison` cannot suppress a rule that set does not define.
 
 ## What is deliberately not here
 

@@ -14,7 +14,7 @@ after.
 
 ```
 name
-kind          unit | model | weapon
+kind          unit | model | weapon        (`spell` added 08-30; it takes a cost, not a parameter)
 parameter     zero or one integer
 aggregation   ModelProperty only: all | any | majority | none
 effects       a list, which may be empty
