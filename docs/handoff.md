@@ -55,7 +55,7 @@ Two things still hold:
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: thirty-two tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: thirty-one tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —
@@ -135,13 +135,13 @@ rather than from the client, and is replaceable without a client release. No gra
 no handles, no sharing — so two accounts meet in a game and nowhere else, found through a public
 game browser in the client. Deletion is total: an account's content and every game it played in
 are destroyed. Creating a game is a plain endpoint; the client then opens its socket with its
-session token and the game id, and the game server hydrates when it arrives, so starting,
+Stytch session JWT and the game id, and the game server hydrates when it arrives, so starting,
 reconnecting and crash recovery are one path. Ending is a flag, not a terminal state, because
 restarting an ended game is the same replay.
 
 That last point removed a would-be lifecycle state. The session also invented a **join token**
 for the client-to-game-server handoff, which was **dropped on 08-30** — a game has an id, the
-session token says who you are, and the `participant` row records who is allowed in. The token
+JWT says who you are, and the `participant` row records who is allowed in. The token
 restated all three and added an expiry that could lapse mid-game, stranding a player who
 dropped at hour three. It is gone from the schema, the API and the contracts list.
 

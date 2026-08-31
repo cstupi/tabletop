@@ -86,8 +86,9 @@ Both are deferred. Nothing in the model depends on which is chosen.
 - **The game browser and joining stay in the client.** Games are public, listed in the
   client — all as [accounts](2026-08-29-accounts-design.md) has it.
 - **`Account` is still id and name.** No new fields.
-- **Management is still the only thing that talks to Stytch**, and still issues our own
-  session tokens.
+- **Management is still the only thing that talks to Stytch.** It no longer issues a token of
+  its own — the Stytch session JWT carries our account UUID and both services verify it
+  locally.
 - **The asset library, the army, and the setup content are unchanged.** This decides where
   their screens live, not what they are.
 

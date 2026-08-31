@@ -9,7 +9,6 @@ Where the two disagree, the conceptual model is the intent and this is the expre
 
 ```mermaid
 erDiagram
-    ACCOUNT ||--o{ SESSION : "logged in"
 
     PROPERTIES ||--|{ STAT_DEFINITION : declares
     PROPERTIES ||--|{ PROPERTY_DEFINITION : catalogs
@@ -58,12 +57,6 @@ erDiagram
     ACCOUNT {
         uuid id PK
         text name
-    }
-    SESSION {
-        text token_hash PK
-        uuid account_id FK
-        timestamptz expires_at
-        timestamptz created_at
     }
     BLOB {
         uuid owner_id PK
@@ -479,8 +472,8 @@ dedup a property of the schema rather than a rule in code.
 
 - ~~How the game server reads game metadata.~~ **Settled** by
   [the management API](superpowers/specs/2026-08-29-management-api-design.md): the client
-  opens its socket with a session token and a game id, and the game server **reads the game's
-  row directly**. A read is not a join, so `architecture.md`'s boundary holds — but the two
+  opens its socket with a Stytch session JWT and a game id, and the game server **reads the
+  game's row directly**. A read is not a join, so `architecture.md`'s boundary holds — but the two
   services now share a database, so a management migration can break the game server.
 - Whether the two schemas are two Postgres schemas in one database or two databases.
 - Indexes beyond primary and foreign keys. None are needed at this scale, but the game

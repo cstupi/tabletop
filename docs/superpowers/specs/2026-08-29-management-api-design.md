@@ -46,30 +46,39 @@ OTP and password are Basic-auth Stytch endpoints requiring the project secret, s
 server-side regardless. OAuth and magic links need a page to come back to, which the web app
 supplies.
 
-### Two tokens, both opaque
+### We issue no tokens of our own
 
-Neither is a JWT. Management hits the database on essentially every request already, and
-[the game server now reads the database too](../../schema.md). Opaque tokens give **instant
-revocation**, which account deletion requires, and mean **no signing key shared between two
-services**.
+**Stytch's session JWT is the only credential, and it carries our account UUID.** Stytch's
+`external_id` already holds `Account.id` — [accounts](2026-08-29-accounts-design.md) made that
+the entire link between the two systems — so the claim a service needs is in the token it is
+handed.
 
-```
-session      token_hash pk · account_id · expires_at · created_at
-```
+Both services verify it **locally, against Stytch's public JWKS**. No call to Stytch on the
+request path, no shared signing key, and no session row to look up.
 
-**Hashes, not tokens.** A database leak is then not a session leak.
+**This session originally designed two opaque token tables, and both are gone.** The join token
+went on 08-30; `session` went with it, and the argument that had justified it did not survive
+examination:
 
-This is one table `docs/schema.md` did not have, added by this session.
+- *"Opaque tokens keep the vendor out of the client."* They do not need to. Our UUID is the
+  identifier on both sides, so swapping auth vendors changes what issues the token, not what the
+  token means.
+- *"The game server cannot call Stytch to validate."* It does not. Signature verification is
+  local, against published public keys.
+- *"Instant revocation is required by account deletion."* Short expiry covers it — a JWT good
+  for five minutes, refreshed every minute, locks a deleted account out within five. That is
+  acceptable, and it was never worth a table.
+- *"No signing key shared between two services."* There is none. JWKS is asymmetric: Stytch
+  signs, both services verify with a public key.
 
-A **session token** authorises every management call, and it is the only token there is. The
-client opens its socket to the game server with that token and a game id; the game server
-resolves the token to an account, checks for a `participant` row in that game, and reads the
-game's row directly.
-
-**A second token for joining was designed here and later dropped.** It carried a game id, an
-account id and an expiry, all to state a fact `participant` already records — joining a game
+**A join token was designed here too, and dropped for its own reasons.** It carried a game id,
+an account id and an expiry, all to state a fact `participant` already records — joining a game
 *is* the row. Its expiry was also a live failure: a four-player game runs hours, so a token
 issued at the lobby could lapse before a player who dropped at hour three tried to reconnect.
+
+**What must be confirmed before building:** that a Stytch Consumer session JWT can be made to
+carry `external_id`, or a custom claim holding it. If it cannot, the game server needs a lookup
+after all and this decision is back open.
 
 ## Asset bytes never pass through the API
 
@@ -210,7 +219,7 @@ small enough to return whole.
 - Error shapes and status code conventions.
 - Rate limiting.
 - Whether `PATCH` on an army takes a whole document or a patch.
-- Session token lifetime.
+- The JWT lifetime and refresh interval. Five minutes and one minute are the working figures.
 - Whether the manifest is re-issued on reconnect or the client re-requests it.
 
 ## Still open

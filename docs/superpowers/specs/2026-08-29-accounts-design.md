@@ -31,8 +31,13 @@ Stytch answers exactly one question: **is this session valid, and whose is it.**
 systems. No Stytch identifier is stored anywhere in our schema.
 
 **The flow runs through management.** Whatever is logging in posts to our endpoints;
-management calls Stytch; our session token comes back. Nothing outside management holds a
-Stytch secret, and no Stytch identifier is stored in our schema.
+management calls Stytch; a **Stytch session JWT carrying our account UUID** comes back. Nothing
+outside management holds a Stytch secret, and no Stytch identifier is stored in our schema —
+`external_id` is our GUID, so the token names the account in our own terms.
+
+*Revised 2026-08-30.* This session had management issue an opaque token of its own, stored in a
+`session` table. That table is gone: both services verify the JWT locally against Stytch's
+public JWKS, so nothing needs to be looked up and nothing calls Stytch on the request path.
 
 All of Stytch's methods are supported — email OTP, magic link, password, OAuth. OTP and
 password are Basic-auth endpoints that cannot be called from a browser, so they run in
@@ -104,7 +109,7 @@ than what a game is.
 
 **Creating and joining are plain endpoints.** A user hits management, which creates the game
 and the `participant` row that puts them in it. The client then opens its WebSocket to the game
-server with its session token and the game id. If no session for that game is in memory, the
+server with that JWT and the game id. If no session for that game is in memory, the
 game server hydrates it and starts serving.
 
 No M2M call is involved and management never learns which task holds which game. This

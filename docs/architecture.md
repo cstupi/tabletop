@@ -403,8 +403,9 @@ It needs graceful shutdown that drains to the event log, and it is what constrai
 
 Authentication does not run through Stytch here. The user logs in through the web app and the
 client acquires a session from it; creating or joining a game is an ordinary management
-endpoint, and the client then opens its socket with **that same session token and a game id**.
-The game server resolves the token to an account and checks for a `participant` row. Reconnect
+endpoint, and the client then opens its socket with **that same session JWT and a game id**.
+The game server verifies the signature locally against Stytch's public JWKS, reads our account
+UUID from the claim, and checks for a `participant` row. Reconnect
 matters — a four-player game runs hours, and the event log makes resuming a solved problem.
 
 ### Transport
@@ -639,8 +640,8 @@ though not for the reason it gave. It argued Stytch was the token authority for 
 so there was no bespoke format to agree on. Confining Stytch to management looked like it
 reversed that, and [accounts](superpowers/specs/2026-08-29-accounts-design.md) added a join
 token as a fourth contract on those grounds. That token was dropped on 08-30: a game has an id,
-the session token says who you are, and the `participant` row records who is allowed in, so
-there was no format left to agree. There are no management-to-game-server calls, and therefore
+the session JWT says who you are, and the `participant` row records who is allowed in, so
+there was no format left to agree. We issue no token of our own at all. There are no management-to-game-server calls, and therefore
 no M2M.
 
 **Who instantiates a game session is settled: nobody does.** A client opens a socket naming a
