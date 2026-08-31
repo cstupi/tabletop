@@ -55,11 +55,17 @@ Two things still hold:
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: twenty-six tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: thirty-two tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —
 the event payload, and the frozen army snapshot, which must *not* be reasoned about.
+
+Six of those tables are `Properties`, added on 08-30: the pinned data half of a ruleset, which
+`game.properties_hash` had been pointing at with nothing on the other end. Stat declarations,
+the property catalog, and each property's effects and their conditions — the shape
+[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) derived from the
+Grimdark Future rulebook, given tables and checked back against that book.
 
 **`docs/data-model.md`** — every entity from every session and how they relate, as a mermaid
 ER diagram. Conceptual only: no tables, columns, types or indices. It replaced the ASCII sketch

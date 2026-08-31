@@ -38,6 +38,11 @@ erDiagram
     TEAM ||--|{ PARTICIPANT : has
     PARTICIPANT ||--o| ARMYSNAPSHOT : brings
     GAME }o--|| PROPERTIES : "pinned by hash"
+    PROPERTIES ||--|{ STATDEFINITION : declares
+    PROPERTIES ||--|{ PROPERTYDEFINITION : catalogs
+    PROPERTYDEFINITION ||--o{ EFFECT : does
+    EFFECT ||--o{ EFFECT : "nests, per success"
+    EFFECT ||--o{ EFFECTCONDITION : "all must hold"
     GAME ||--o| TABLESTATE : "setup result"
     GAME ||--o{ GAMEEVENT : "append-only log"
 
@@ -127,6 +132,38 @@ erDiagram
     }
     PROPERTIES {
         hash content_hash
+        string name
+        id game_rules
+    }
+    STATDEFINITION {
+        enum level
+        string name
+        enum kind
+    }
+    PROPERTYDEFINITION {
+        string name
+        enum kind
+        bool takes_parameter
+        enum aggregation
+        string rule_text
+    }
+    EFFECT {
+        enum subject
+        int ordinal
+        enum kind
+        string target
+        int amount
+        bool amount_from_parameter
+        int threshold
+        string cap
+        string replacement
+    }
+    EFFECTCONDITION {
+        enum kind
+        enum subject
+        enum comparison
+        int number
+        list values
     }
     GAMEEVENT {
         uuid game_id
@@ -232,15 +269,25 @@ exists**. It is kept because import knows it for free and no later pass could re
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
 
-**`PROPERTIES` is drawn as an entity but is not a table.** A game stores the content hash and
-nothing else; there is no registry to join to. It appears here because it is a thing the model
-names, not a thing the database holds — the same reason built-ins have no entity.
-
 **A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus three
 disjoint catalogs, `UnitProperty`, `ModelProperty` and `WeaponProperty`. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
-data half is pinned, which is an open problem for replay. There is no `RulePack` entity and no
-registry table.
+data half is pinned, which is an open problem for replay. There is no `RulePack` entity.
+
+**The data half has a shape, and it is `PROPERTIES` and everything under it.** A stat
+declaration says a stat exists at a level and what kind of value it holds. A property
+definition is one named special rule — its kind, whether it takes a parameter, how it
+aggregates across a unit, and the rulebook wording players see. Its effects say what it does,
+and its effects' conditions say when.
+
+**An effect can act on another property**, which is what makes resolution two passes rather
+than one: `Poison` suppresses `Regeneration` and `Lance` changes what `AP` contributes, so
+which properties are live has to settle before any effect applies. That is also why an effect
+carries an explicit `ordinal` — the rulebook orders several by hand.
+
+**A property with no effects is not a mistake.** `Ambush`, `Scout`, `Immobile`, `Limited` and
+`Counter` carry no effect data at all; they are names `GameRules` checks for at hooks it owns —
+deployment, movement, action legality, usage, and melee strike order.
 
 **Every enumeration is a closed set**, never a free string — `status`, `kind`, `scheduler_shape`
 and the geometry enums all have named values in the design docs.
@@ -282,6 +329,6 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `TABLESTATE` and everything under it | [Setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
 | `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
 | `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
-| `PROPERTIES`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
+| `PROPERTIES`, `STATDEFINITION`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
+| `PROPERTYDEFINITION`, `EFFECT`, `EFFECTCONDITION` | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
-| Property effects, the twelve kinds | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |

@@ -10,6 +10,14 @@ Where the two disagree, the conceptual model is the intent and this is the expre
 ```mermaid
 erDiagram
     ACCOUNT ||--o{ SESSION : "logged in"
+
+    PROPERTIES ||--|{ STAT_DEFINITION : declares
+    PROPERTIES ||--|{ PROPERTY_DEFINITION : catalogs
+    PROPERTY_DEFINITION ||--o{ EFFECT : does
+    EFFECT ||--o{ EFFECT : "nests, per success"
+    EFFECT ||--o{ EFFECT_CONDITION : "all must hold"
+    EFFECT_CONDITION ||--|{ CONDITION_VALUE : ""
+    GAME }o--|| PROPERTIES : "pinned by hash"
     ACCOUNT ||--o{ BLOB : owns
     ACCOUNT ||--o{ ASSET : owns
     ACCOUNT ||--o{ FOLDER : owns
@@ -245,6 +253,52 @@ erDiagram
         uuid account_id FK
         jsonb army_snapshot
     }
+    PROPERTIES {
+        text content_hash PK
+        text name
+        text game_rules
+    }
+    STAT_DEFINITION {
+        text properties_hash PK
+        text level PK
+        text name PK
+        text kind
+    }
+    PROPERTY_DEFINITION {
+        text properties_hash PK
+        text name PK
+        text kind
+        bool takes_parameter
+        text aggregation
+        text rule_text
+    }
+    EFFECT {
+        uuid id PK
+        text properties_hash FK
+        text property_name FK
+        uuid parent_effect_id FK
+        text subject
+        int ordinal
+        text kind
+        text target
+        int amount
+        bool amount_from_parameter
+        int threshold
+        text cap
+        text replacement
+    }
+    EFFECT_CONDITION {
+        uuid id PK
+        uuid effect_id FK
+        text kind
+        text subject
+        text comparison
+        int number
+    }
+    CONDITION_VALUE {
+        uuid condition_id PK
+        text value PK
+    }
     GAME_EVENT {
         uuid game_id PK
         bigint seq PK
@@ -270,6 +324,89 @@ moving.
 So the army is four tables plus six for stats and properties, and every constraint the design
 argued for is a constraint the database holds: `base_shape` is checked, a weapon cannot exist
 without a slot, the six terrain declarations are columns rather than strings in an array.
+
+### `Properties` is six tables, not a document
+
+The schema pinned `game.properties_hash` and stored nothing to resolve it against. **The data
+half of a ruleset had no home** — stat declarations and the three property catalogs were
+designed in [content values](superpowers/specs/2026-08-29-content-values-design.md) and
+[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) and never given
+tables. These are those tables.
+
+A content-addressed document was the alternative, and it is what `blob` already does for asset
+bytes. It was rejected for the reason this section opens with: the effect grammar is **closed**
+— twelve effect kinds, eight predicate kinds, four stat kinds — so it is exactly the structure
+a database can enforce, and putting it in `jsonb` would be the magic-string move at the one
+place the enforcement is cheapest.
+
+The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
+hash, because the set is spread across six tables rather than being a run of bytes.
+
+### One `effect` table, not twelve
+
+The twelve kinds share most of their shape — a subject, an ordering, a thing being acted on,
+and usually one number. `target` names the roll, stat, property or result; `amount` carries the
+number; `amount_from_parameter` says the number is the property's own `X`, which is what makes
+`Impact(X)` and `Blast(X)` one row rather than one per value of X.
+
+**`amount` is signed, and keeps its sign when the magnitude comes from the parameter.**
+`AP(X)` is *−X to Defense rolls* and `Fear(X)` is *+X wounds*: both take their size from `X`
+and differ only in direction. So `amount` holds `-1` or `+1` when
+`amount_from_parameter` is set, and the effective value is that sign applied to `X`.
+
+Three columns exist for one kind each, which is the honest price of collapsing twelve into one:
+
+- **`threshold`** — `Roll` only. `Impact(X)` is *X dice at 2+*, so it needs a count and a
+  score, and the count is `amount`.
+- **`cap`** — `Blast(X)` only. *"Up to as many hits as models in the target unit"* is part of
+  the effect, per the effect grammar, not a separate rule.
+- **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*.
+
+Per-kind `CHECK` constraints keep the nullable columns honest: a `Multiply` row with a
+`threshold` is rejected.
+
+**`parent_effect_id` is how `Roll` nests.** *X dice at 2+, each success adds a hit* is a `Roll`
+with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
+self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
+
+**`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
+first"*, `Blast` applies *"after resolving other special rules"* — and four of the twelve kinds
+act on other properties rather than on game state, which does not commute.
+
+### A condition is a row, and its values are rows
+
+`effect_condition` carries the predicate kind, its subject, and a comparison — `Stealth` is
+*range, no subject, greater than, 9*. Relational predicates take no subject, so `subject` is
+nullable by design rather than by accident.
+
+**`comparison` includes `neq`**, because `Impact(X)` is *unless fatigued*. The effect grammar
+found no *or* and no *not* in the rulebook's properties, and that holds for the structure —
+there is no expression tree — but a single predicate still has to be able to test a state's
+absence.
+
+Values live in `condition_value` rather than in a column because **one predicate can name a
+set**. `Slow` applies *when using Advance*; `Fast` applies to *Rush/Charge*, which the effect
+grammar found is set membership over action types and not an `or`. One row is a single value,
+several rows are a set, and there is no boolean expression tree anywhere — the rulebook has no
+*or* and no *not* in its properties.
+
+Conditions hang off the effect, never off the property. `Indirect` is why: its three effects
+have different conditions, one of them conditional and two unconditional.
+
+### Worked against the book
+
+The shape was checked by writing real Grimdark Future rules into these columns rather than by
+inspection. Four that between them exercise every unusual column:
+
+| Rule | Rows |
+| --- | --- |
+| `AP(X)` | one effect: `subject=opponent`, `kind=modify_roll`, `target=defense`, `amount=-1`, `amount_from_parameter`. No conditions. |
+| `Stealth` | `property_definition.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
+| `Impact(X)` | one effect: `kind=roll`, `amount_from_parameter`, `threshold=2`, with a **child** effect `kind=add_hit`, `amount=1`. Conditions: action taken is charge, actor state `neq` fatigued. |
+| `Poison` | **two** effects on one property — `force_reroll` on the opponent's defense, conditioned on a raw roll result of 6; and `suppress_property` with `target=Regeneration`, unconditional. |
+
+`Poison` is the case that proves conditions belong to the effect and not to the property, and
+`Impact(X)` is the one that proves nesting is needed rather than a thirteenth kind.
 
 ### Stats are rows because stats are declared
 
