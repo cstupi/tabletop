@@ -11,8 +11,8 @@ Where the two disagree, the conceptual model is the intent and this is the expre
 erDiagram
 
     PROPERTIES ||--|{ STAT_DEFINITION : declares
-    PROPERTIES ||--|{ PROPERTY_DEFINITION : catalogs
-    PROPERTY_DEFINITION ||--o{ EFFECT : does
+    PROPERTIES ||--|{ CATALOG_ENTRY : catalogs
+    CATALOG_ENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECT_CONDITION : "all must hold"
     EFFECT_CONDITION ||--|{ CONDITION_VALUE : ""
@@ -257,18 +257,20 @@ erDiagram
         text name PK
         text kind
     }
-    PROPERTY_DEFINITION {
+    CATALOG_ENTRY {
         text properties_hash PK
         text name PK
         text kind
         bool takes_parameter
         text aggregation
+        int cost
+        text faction
         text rule_text
     }
     EFFECT {
         uuid id PK
         text properties_hash FK
-        text property_name FK
+        text entry_name FK
         uuid parent_effect_id FK
         text subject
         int ordinal
@@ -335,10 +337,36 @@ place the enforcement is cheapest.
 The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
 hash, because the set is spread across six tables rather than being a run of bytes.
 
+### The catalog holds four kinds, and one of them is a spell
+
+`catalog_entry` is every named rule in a ruleset, and `kind` says what sort:
+`unit | model | weapon | spell`. The first three are the property kinds
+[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
+set out — attachment points, with a name belonging to exactly one of them.
+
+**A spell is the fourth, and it is not a property**, which is why this table is not called
+`property_definition`. A property is attached to something and travels with an army; a spell is
+cast, belongs to a faction's book, and is picked at the moment of casting.
+
+Everything else it needs already exists. A spell's effect is one of the twelve kinds, and
+*"target enemy unit within 12″"* is the range predicate the eight conditions already cover. What
+it has that no property has is a **cost**, which is why `cost` is on the entry —
+`Caster(X)` grants X spell tokens a round and casting spends as many tokens as the spell's
+value.
+
+`faction` groups spells by army book, and is null for the other three kinds. **It is not
+enforced.** The rulebook says a caster's spells come from their own faction, and this records
+which book a spell came from so the UI can group them — nothing in this project stops a player
+choosing wrongly, for the same reason players count their own points.
+
+Spell content lives in the per-faction army books rather than the core rulebook, so the rows
+come later. The shape is what had to exist first.
+
 ### One `effect` table, not twelve
 
 The twelve kinds share most of their shape — a subject, an ordering, a thing being acted on,
-and usually one number. `target` names the roll, stat, property or result; `amount` carries the
+and usually one number. `entry_name` is the catalog entry it belongs to. `target` names the roll, stat, property or
+result; `amount` carries the
 number; `amount_from_parameter` says the number is the property's own `X`, which is what makes
 `Impact(X)` and `Blast(X)` one row rather than one per value of X.
 
@@ -394,7 +422,7 @@ inspection. Four that between them exercise every unusual column:
 | Rule | Rows |
 | --- | --- |
 | `AP(X)` | one effect: `subject=opponent`, `kind=modify_roll`, `target=defense`, `amount=-1`, `amount_from_parameter`. No conditions. |
-| `Stealth` | `property_definition.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
+| `Stealth` | `catalog_entry.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
 | `Impact(X)` | one effect: `kind=roll`, `amount_from_parameter`, `threshold=2`, with a **child** effect `kind=add_hit`, `amount=1`. Conditions: action taken is charge, actor state `neq` fatigued. |
 | `Poison` | **two** effects on one property — `force_reroll` on the opponent's defense, conditioned on a raw roll result of 6; and `suppress_property` with `target=Regeneration`, unconditional. |
 

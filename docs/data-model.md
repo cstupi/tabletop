@@ -39,8 +39,8 @@ erDiagram
     PARTICIPANT ||--o| ARMYSNAPSHOT : brings
     GAME }o--|| PROPERTIES : "pinned by hash"
     PROPERTIES ||--|{ STATDEFINITION : declares
-    PROPERTIES ||--|{ PROPERTYDEFINITION : catalogs
-    PROPERTYDEFINITION ||--o{ EFFECT : does
+    PROPERTIES ||--|{ CATALOGENTRY : catalogs
+    CATALOGENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECTCONDITION : "all must hold"
     GAME ||--o| TABLESTATE : "setup result"
@@ -140,11 +140,13 @@ erDiagram
         string name
         enum kind
     }
-    PROPERTYDEFINITION {
+    CATALOGENTRY {
         string name
         enum kind
         bool takes_parameter
         enum aggregation
+        int cost
+        string faction
         string rule_text
     }
     EFFECT {
@@ -275,10 +277,16 @@ names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, di
 data half is pinned, which is an open problem for replay. There is no `RulePack` entity.
 
 **The data half has a shape, and it is `PROPERTIES` and everything under it.** A stat
-declaration says a stat exists at a level and what kind of value it holds. A property
-definition is one named special rule — its kind, whether it takes a parameter, how it
-aggregates across a unit, and the rulebook wording players see. Its effects say what it does,
-and its effects' conditions say when.
+declaration says a stat exists at a level and what kind of value it holds. A catalog entry is
+one named rule — its kind, whether it takes a parameter, how it aggregates across a unit, and
+the rulebook wording players see. Its effects say what it does, and its effects' conditions say
+when.
+
+**The catalog holds four kinds: `unit`, `model`, `weapon` and `spell`.** The first three are
+attachment points, and a name belongs to exactly one. **A spell is not a property** — it is not
+attached to anything and does not travel with an army; it is cast, and it costs spell tokens,
+which is the one field no property has. Its effects and conditions are the same vocabulary
+everything else uses.
 
 **An effect can act on another property**, which is what makes resolution two passes rather
 than one: `Poison` suppresses `Regeneration` and `Lance` changes what `AP` contributes, so
@@ -331,5 +339,5 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
 | `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
 | `PROPERTIES`, `STATDEFINITION`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
-| `PROPERTYDEFINITION`, `EFFECT`, `EFFECTCONDITION` | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
+| `CATALOGENTRY`, `EFFECT`, `EFFECTCONDITION` | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |

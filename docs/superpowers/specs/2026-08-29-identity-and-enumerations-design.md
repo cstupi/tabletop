@@ -58,6 +58,12 @@ ModelProperty    per model             Tough(X)
 WeaponProperty   per weapon            AP(X), Blast(X), Rending, Reliable
 ```
 
+**A fourth kind was added on 08-30: `spell`.** These three are *attachment points* — where a
+property sits and what it travels with. A spell attaches to nothing: it is cast, it belongs to a
+faction's army book, and it costs spell tokens, which is a field no property has. It shares the
+effect vocabulary and nothing else, so it sits beside them in the catalog rather than inside
+one of them. The rule below still holds across all four.
+
 A single bag would be as hard to reason about as the magic strings this session exists to
 avoid. The three attach in different places — a `UnitProperty` lives on `UNIT` and is never
 copied onto models, which the table domain model already decided; a `ModelProperty` lets a
