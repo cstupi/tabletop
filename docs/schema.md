@@ -135,7 +135,7 @@ erDiagram
         uuid id PK
         uuid unit_id FK
         int ordinal
-        text what_it_is
+        text name
         text base_shape
         real base_a
         real base_b

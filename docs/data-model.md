@@ -74,7 +74,7 @@ erDiagram
     }
     MODELSLOT {
         int ordinal
-        string what_it_is
+        string name
         stats stats
         list model_properties
         enum base_shape
