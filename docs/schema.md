@@ -332,7 +332,7 @@ So the army is four tables plus six for stats and properties, and every constrai
 argued for is a constraint the database holds: `base_shape` is checked, a weapon cannot exist
 without a slot, the six terrain declarations are columns rather than strings in an array.
 
-### `Properties` is six tables, not a document
+### `Properties` is seven tables, not a document
 
 The schema pinned `game.properties_hash` and stored nothing to resolve it against. **The data
 half of a ruleset had no home** — stat declarations and the three property catalogs were
@@ -347,7 +347,7 @@ a database can enforce, and putting it in `jsonb` would be the magic-string move
 place the enforcement is cheapest.
 
 The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
-hash, because the set is spread across six tables rather than being a run of bytes.
+hash, because the set is spread across seven tables rather than being a run of bytes.
 
 ### An action is a row, because an effect can target it
 
