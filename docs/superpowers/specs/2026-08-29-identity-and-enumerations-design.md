@@ -136,7 +136,11 @@ Condition.kind           the eight        (the effect grammar)
 Condition.comparison     eq | neq | gte | lte | gt | lt
 ```
 
-`Effect.target_stat` and `Effect.target_entry` are **not** enumerations — they are foreign keys
+Actions are named per ruleset rather than enumerated — `Hold`, `Advance`, `Rush`, `Charge` in
+Grimdark Future — because a ruleset with an action nobody anticipated needs content, not a code
+change.
+
+`Effect.target_stat`, `Effect.target_entry` and `Effect.target_action` are **not** enumerations — they are foreign keys
 into the same `Properties` set, which is stronger. `neq` exists because `Impact(X)` applies
 *unless fatigued*; the rulebook has no *or* and no *not* in its structure, but one predicate
 still has to test a state's absence.

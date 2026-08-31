@@ -55,7 +55,7 @@ Two things still hold:
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: thirty-one tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: thirty-two tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —

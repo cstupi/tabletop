@@ -12,6 +12,7 @@ erDiagram
 
     PROPERTIES ||--|{ STAT_DEFINITION : declares
     PROPERTIES ||--|{ CATALOG_ENTRY : catalogs
+    PROPERTIES ||--|{ ACTION : names
     CATALOG_ENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECT_CONDITION : "all must hold"
@@ -251,6 +252,11 @@ erDiagram
         text name
         text game_rules
     }
+    ACTION {
+        text properties_hash PK
+        text name PK
+        real distance
+    }
     STAT_DEFINITION {
         text properties_hash PK
         text level PK
@@ -278,6 +284,7 @@ erDiagram
         text target_roll
         text target_stat FK
         text target_entry FK
+        text target_action FK
         text target_quantity
         text target_result
         text target_modifier
@@ -342,6 +349,34 @@ place the enforcement is cheapest.
 The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
 hash, because the set is spread across six tables rather than being a run of bytes.
 
+### An action is a row, because an effect can target it
+
+`Properties` names the actions a ruleset has, and each carries **one number: a distance**.
+Grimdark Future's are `Hold` at 0", `Advance` at 6", and `Rush` and `Charge` at 12".
+
+The reason this is a table and not a hard-coded list is `Fast` and `Slow`:
+
+> `Fast` — *models move +2" when using Advance and +4" when using Rush/Charge.*
+
+[Content values](superpowers/specs/2026-08-29-content-values-design.md) found that **Grimdark
+Future has no movement stat at all** — a unit entry is Quality and Defense, and movement comes
+from the action. So the number `Fast` modifies belongs to the action, and without this table two
+of the rulebook's thirty-two special rules have nothing to point at.
+
+**That is also where the line falls between an action's data and its behaviour.** An action's
+distance is a row because an effect targets it. *"May shoot after this action"*, *"must reach
+base contact"*, and *"ends the activation"* are targeted by nothing, so they stay in
+`GameRules` with the rest of the turn structure. **What an effect can target must be data**;
+what only the engine reads need not be.
+
+Actions are named per ruleset, so a ruleset with an action nobody anticipated needs content
+rather than a code change — which is what
+[game flow](superpowers/specs/2026-08-28-game-flow-design.md) decided, now with somewhere to
+put it.
+
+**The record of what a unit has done is not this.** That is the action record, cleared at the
+round boundary, reconstructed from the event log and never a row.
+
 ### The catalog holds four kinds, and one of them is a spell
 
 `catalog_entry` is every named rule in a ruleset, and `kind` says what sort:
@@ -374,7 +409,7 @@ and usually one number. `entry_name` is the catalog entry it belongs to. `amount
 `amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
 and `Blast(X)` one row rather than one row per value of X.
 
-**What an effect acts on is six different things, so it is six columns rather than one.** A
+**What an effect acts on is seven different things, so it is seven columns rather than one.** A
 single `target` string would have been a magic string with no defined contents — the database
 could not check it and nothing said what it may contain:
 
@@ -382,14 +417,15 @@ could not check it and nothing said what it may contain:
 | --- | --- | --- |
 | `target_roll` | `hit \| defense \| morale \| casting` | Modify a roll, Force a reroll |
 | `target_stat` | **FK** to `stat_definition` in the same set | Modify a stat, Replace a stat |
+| `target_action` | **FK** to `action` in the same set | Modify a stat, where the stat is a move distance |
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
 | `target_quantity` | `hits \| wounds` | Multiply |
 | `target_result` | `wound \| morale_test` | Override a result |
 | `target_modifier` | `cover \| to_hit_penalties \| range_penalties` | Suppress modifiers |
 
-`Roll` and `Add a hit` act on nothing and leave all six null.
+`Roll` and `Add a hit` act on nothing and leave all seven null.
 
-The two foreign keys are the point. `Poison` suppresses `Regeneration`, and it must not be able
+The three foreign keys are the point. `Poison` suppresses `Regeneration`, and it must not be able
 to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
 must be a stat that set declares. As a string, neither could be checked.
 

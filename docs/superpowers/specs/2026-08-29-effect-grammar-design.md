@@ -200,3 +200,7 @@ stat replacement conditioned on other models remaining.
 - **Whether twelve kinds survive a genuinely different ruleset.** They were derived from one,
   and Age of Fantasy shares the engine. Warhammer is the test.
 - Whether effects ever need to nest more than one level.
+- **Percentages.** `amount` is an integer, and the optional *Action Boosting* rules are written
+  as proportions — `Rush` boosted *"may move by up to +50%"*, `Hold` boosted gets *"+50% range"*.
+  Nothing in the core rules needs this and nothing in the twelve kinds expresses it. It is a
+  thirteenth kind, or a flavour on kind 1, whenever that optional module is built.

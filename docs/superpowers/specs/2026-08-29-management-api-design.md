@@ -76,9 +76,9 @@ an account id and an expiry, all to state a fact `participant` already records â
 *is* the row. Its expiry was also a live failure: a four-player game runs hours, so a token
 issued at the lobby could lapse before a player who dropped at hour three tried to reconnect.
 
-**What must be confirmed before building:** that a Stytch Consumer session JWT can be made to
-carry `external_id`, or a custom claim holding it. If it cannot, the game server needs a lookup
-after all and this decision is back open.
+**Confirmed 2026-08-30:** a Stytch session JWT can carry `external_id`, and if it ever cannot,
+it is added as a custom claim. Either way the account UUID rides in the token and no lookup is
+needed.
 
 ## Asset bytes never pass through the API
 

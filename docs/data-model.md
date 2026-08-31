@@ -40,6 +40,7 @@ erDiagram
     GAME }o--|| PROPERTIES : "pinned by hash"
     PROPERTIES ||--|{ STATDEFINITION : declares
     PROPERTIES ||--|{ CATALOGENTRY : catalogs
+    PROPERTIES ||--|{ ACTION : names
     CATALOGENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECTCONDITION : "all must hold"
@@ -134,6 +135,10 @@ erDiagram
         hash content_hash
         string name
         id game_rules
+    }
+    ACTION {
+        string name
+        units distance
     }
     STATDEFINITION {
         enum level
@@ -286,6 +291,13 @@ one named rule — its kind, whether it takes a parameter, how it aggregates acr
 the rulebook wording players see. Its effects say what it does, and its effects' conditions say
 when.
 
+**An action is a row and carries one number, a distance.** Grimdark Future has no movement
+stat — a unit is Quality and Defense, and movement comes from the action taken. So `Fast` and
+`Slow` modify the action's distance, and an effect has to be able to point at it. That is the
+line between an action's data and its behaviour: **what an effect can target is data**, and
+what only the engine reads — may it shoot, must it reach contact, does it end the activation —
+stays in `GAME.game_rules`.
+
 **The catalog holds four kinds: `unit`, `model`, `weapon` and `spell`.** The first three are
 attachment points, and a name belongs to exactly one. **A spell is not a property** — it is not
 attached to anything and does not travel with an army; it is cast, and it costs spell tokens,
@@ -313,8 +325,9 @@ names, and what a `Replace a stat` names, are **references into the same `PROPER
 ## What is deliberately not here
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
-conditions, the shelf, what a model is inside, whose activation it is, the score — none of it is
-a row. It is
+conditions, the shelf, what a model is inside, the action record, whose activation it is, the
+score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
+events. It is
 reconstructed in memory by replaying `GAMEEVENT` from `TABLESTATE`, which is the log's
 initial state. A table growing a "current position" column means the event spine has been
 broken.
@@ -348,6 +361,6 @@ the client. Nobody owns them, nothing is copied into an account, and they need n
 | `TABLESTATE` and everything under it | [Setup content](superpowers/specs/2026-08-29-setup-content-design.md) |
 | `VOLUME`, and every geometric field | [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) |
 | `GAMEEVENT`, `ARMYSNAPSHOT` | [`architecture.md`](architecture.md) |
-| `PROPERTIES`, `STATDEFINITION`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
+| `PROPERTIES`, `STATDEFINITION`, `ACTION`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
 | `CATALOGENTRY`, `EFFECT`, `EFFECTCONDITION` | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
