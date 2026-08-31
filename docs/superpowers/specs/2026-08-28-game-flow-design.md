@@ -69,8 +69,45 @@ This collapses three mechanisms into one. Deployment, arriving from reserve, and
 mechanic returning a casualty are all the same operation: take a model off the shelf
 and give it a placement. The reverse is equally uniform.
 
-A model is therefore always in exactly one of two places, and moving between them is a
-single kind of event.
+A model is therefore always in exactly one place, and moving between them is a single kind of
+event.
+
+## Inside a container
+
+**Added 2026-08-30, from the Grimdark Future rulebook.** This session said a model is in one of
+**two** places, table or shelf. It is three: a model may be **inside a container**.
+
+A container is **a model or a piece of terrain** — `Transport(X)` holds models inside a
+model, and a solid building holds them inside terrain. The two rules are near enough the same
+text to be one concept: enter or exit with any move action, never both in one activation, exit
+within 6", and when the container is destroyed the occupants take a dangerous terrain test, are
+Shaken, and are placed within 6".
+
+**It is a location, not a condition.** Conditions are named states a unit *is*; this one has to
+name *what it is inside*, and it decides where the model is — an occupant has no table position
+of its own, moves when the container moves, and disembarks relative to it. Making it a
+condition would put a reference in a store built for names.
+
+**It is not the shelf**, even though an occupant has no placement. The shelf is off-table and
+its occupants are out of play; a transported model is very much in play, and the shelf has no
+link to a container that could kill or displace it.
+
+Several things fall out rather than needing rules. An occupant has no position, so it has no
+line of sight in or out — which is what the rulebook says. The container moves and nothing
+about its occupants updates. Disembarking is the operation that already exists: give a model a
+placement.
+
+**Capacity is not enforced.** `Transport(X)` carries its number as a property parameter because
+every property may, but nothing checks it, and a building's capacity — which the rulebook
+leaves to the players, *"you have to decide how many models can be inside by yourself"* — is not
+recorded at all. This is the same position as scoring: players count their own points, and
+nothing recorded here is an invariant.
+
+**Buildings can hold models but cannot yet be shot.** The rulebook gives a solid building
+`Defense 2+` and a `Tough(X)` the players set, and lets it be targeted and destroyed. That needs
+terrain to carry stats and to become event-driven state on top of the setup snapshot, which
+[setup content](2026-08-29-setup-content-design.md) says would be additive. It is deliberately
+not done here.
 
 ## Flow
 

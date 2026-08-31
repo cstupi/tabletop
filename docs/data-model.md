@@ -295,7 +295,8 @@ and the geometry enums all have named values in the design docs.
 ## What is deliberately not here
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
-conditions, the shelf, whose activation it is, the score — none of it is a row. It is
+conditions, the shelf, what a model is inside, whose activation it is, the score — none of it is
+a row. It is
 reconstructed in memory by replaying `GAMEEVENT` from `TABLESTATE`, which is the log's
 initial state. A table growing a "current position" column means the event spine has been
 broken.
