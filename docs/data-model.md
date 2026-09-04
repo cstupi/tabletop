@@ -41,6 +41,7 @@ erDiagram
     PROPERTIES ||--|{ STATDEFINITION : declares
     PROPERTIES ||--|{ CATALOGENTRY : catalogs
     PROPERTIES ||--|{ ACTION : names
+    PROPERTIES ||--|{ ROLL : names
     CATALOGENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECTCONDITION : "all must hold"
@@ -139,6 +140,9 @@ erDiagram
     ACTION {
         string name
         units distance
+    }
+    ROLL {
+        string name
     }
     STATDEFINITION {
         enum level
@@ -297,6 +301,12 @@ stat — a unit is Quality and Defense, and movement comes from the action taken
 line between an action's data and its behaviour: **what an effect can target is data**, and
 what only the engine reads — may it shoot, must it reach contact, does it end the activation —
 stays in `GAME.game_rules`.
+
+**A roll is a row for the same reason.** Added 2026-09-03 by
+[action sequences](superpowers/specs/2026-09-03-action-sequences-design.md): a ruleset names
+its rolls — Grimdark Future's are hit, defense, morale and casting — because effects point at
+them, and 40k's wound and save rolls must be content rather than a migration. The dice
+convention, threshold derivation and modifier cap are behaviour and stay in `GAME.game_rules`.
 
 **The catalog holds four kinds: `unit`, `model`, `weapon` and `spell`.** The first three are
 attachment points, and a name belongs to exactly one. **A spell is not a property** — it is not

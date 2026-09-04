@@ -124,9 +124,16 @@ reproduces the same dice — so undo cannot be used to fish for rolls.
 
 ## Abilities
 
-Resolution is a set of named ordered **pipelines** (shooting: declare target → range/LoS →
-hit rolls → defense rolls → apply wounds → morale). Properties declaratively attach to a step
-with a condition and contribute an effect — one of the twelve kinds in
+Resolution is a **stack of sequences**. **Corrected 2026-09-03 by
+[action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)**: the sketch this
+section used to carry (shooting: declare target → range/LoS → hit rolls → defense rolls →
+apply wounds → morale) put targeting and morale inside the pipeline, and both live outside —
+targeting is the action's Ask, morale fires from ruleset-owned triggers, and Grimdark Future's
+shooting and melee are one four-step attack sequence invoked from two contexts. A sequence is a
+list of C# steps run over a frame stack; a step completes, asks a team for input, pushes a
+nested sequence, or opens an interrupt window, and the stack is rebuilt from the log the way
+the action record is. Properties declaratively attach to a roll or step with a condition and
+contribute an effect — one of the twelve kinds in
 [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md).
 
 The hard part is stacking and ordering — replacement vs additive effects, caps, floors.

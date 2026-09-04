@@ -1,4 +1,4 @@
-# Handoff — 2026-08-30
+# Handoff — 2026-09-03
 
 Where the project stands, and what to pick up next.
 
@@ -26,11 +26,13 @@ scaffold — all of the work so far is design.
 | 2026-08-29 | `docs/schema.md` — the physical Postgres schema |
 | 2026-08-29 | [The management API](superpowers/specs/2026-08-29-management-api-design.md) |
 | 2026-08-29 | Audit of `docs/architecture.md`, and a layout correction |
-| 2026-08-30 | [Presence](superpowers/specs/2026-08-30-presence-design.md) — the last gap in the model |
+| 2026-08-30 | [Presence](superpowers/specs/2026-08-30-presence-design.md) |
 | 2026-08-30 | The join token dropped, then the `session` table with it — auth is Stytch's JWT |
 | 2026-08-30 | `Properties` given tables: the pinned data half of a ruleset had no home |
 | 2026-08-30 | Containment, spells and actions, all found by reading the rulebook |
 | 2026-08-30 | Review of the whole data layer, and the twelve findings it produced |
+| 2026-09-03 | [Action sequences](superpowers/specs/2026-09-03-action-sequences-design.md) — the interpreter and OPR's sequences, 40k read as the falsifier |
+| 2026-09-03 | Rolls given a row; `schema.md`, `data-model.md` and `architecture.md` corrected to match |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -38,43 +40,46 @@ touching.
 
 ## The mode — read this before proposing anything
 
-**The data layer is done, and it was reviewed on 08-30.** Ideation ended on 08-29; the day
-after was spent expressing the model and then auditing the expression. Nothing in the data
-layer is open.
+**The data layer is done, and it was reviewed on 08-30.** Nothing in the data layer is open.
 
-**Modules are planned next, one at a time, and each gets its own prompt.** Do not plan two at
-once and do not start writing code because a module looks small.
+**Design sessions continue, one module per prompt, until every module is designed. Then the
+whole design gets a review. Only after that review does anything move to implementation
+planning.** Ruled explicitly on 09-03. Do not write an implementation plan, do not scaffold,
+and do not start code because a module looks small or "isn't waiting on design" — the contracts
+included. Do not design two modules in one prompt.
 
 Four things govern how to work here, and three of them were learned the hard way:
 
 - **Read the rulebook; do not reason about the rules.** Every substantive gap found on 08-30
-  came from reading the Grimdark Future PDF — that actions carry the movement value and so
-  need a row, that `Transport` and buildings are the same containment rule, that spells are a
-  fourth kind of catalog entry. None was found by thinking about the model.
+  came from reading the Grimdark Future PDF, and 09-03 repeated the result: the mandatory-input
+  finding, the one-attack-sequence finding, and the rolls-as-rows correction all came from the
+  page, not the model. Guessing once produced "blocks sight past three inches", a rule in no
+  ruleset, which propagated through three documents as fact.
 - **Check whether a question is already answered before answering it.** Several "Still open"
-  bullets on 08-30 turned out to have been closed by later sessions and never struck out. The
-  join token was rediscovered as a blocker when `schema.md` had settled it the same afternoon.
-  **A later doc beats an earlier one, including an earlier doc's own open list.**
+  bullets on 08-30 turned out to have been closed by later sessions and never struck out.
+  **A later doc beats an earlier one, including an earlier doc's own open list.** When a
+  session closes another doc's open item, strike it there and then — 09-03 did.
 - **`docs/workstreams/` is stale.** Those prompts predate every design session and describe a
   data model that no longer exists. **None should be run as written.** Workstream 04's auth
   section was corrected on 08-30 because it was actively wrong; the rest was left alone.
 - **Nothing in `architecture.md` is above correction.** Written before any data model existed,
   corrected around thirty times, audited statement by statement on 08-29 and corrected again on
-  08-30. Treat anything no design doc has touched as a first-pass assertion.
+  08-30 and 09-03 (its resolution sketch). Treat anything no design doc has touched as a
+  first-pass assertion.
 
 ## What is designed
 
-**`docs/schema.md`** — the physical Postgres schema: thirty-two tables, columns and
+**`docs/schema.md`** — the physical Postgres schema: thirty-three tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
 `jsonb` is the magic-string move at the storage layer and would stop the database enforcing
 exactly the structure every session insisted on. `jsonb` survives in two columns only —
 the event payload, and the frozen army snapshot, which must *not* be reasoned about.
 
-Six of those tables are `Properties`, added on 08-30: the pinned data half of a ruleset, which
+Eight of those tables are `Properties`: the pinned data half of a ruleset, which
 `game.properties_hash` had been pointing at with nothing on the other end. Stat declarations,
-the property catalog, and each property's effects and their conditions — the shape
-[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) derived from the
-Grimdark Future rulebook, given tables and checked back against that book.
+actions, rolls, the catalog of named rules, and each entry's effects and their conditions — the
+shape [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) derived from
+the Grimdark Future rulebook, given tables and checked back against that book.
 
 **`docs/data-model.md`** — every entity from every session and how they relate, as a mermaid
 ER diagram. Conceptual only: no tables, columns, types or indices. It replaced the ASCII sketch
@@ -84,16 +89,15 @@ source — where they disagree, the design doc wins.
 **`docs/architecture.md`** — the shared context every session reads, and **the least examined
 document in the project**. Corrected roughly twenty times, always incidentally, then audited
 statement by statement on 08-29. Treat any statement in it that no design doc has touched as a
-first-pass assertion rather than a decision. It is **not above correction**: the design sessions have now corrected its asset section, its claim
-that armies are immutable, its login story, its `Binding` row, its collections module, and its
-claim that auth needed no agreed contract. Where it disagrees with a design doc, the design doc
-is newer.
+first-pass assertion rather than a decision. It is **not above correction**: the design
+sessions have now corrected its asset section, its claim that armies are immutable, its login
+story, its `Binding` row, its collections module, its claim that auth needed no agreed
+contract, and its resolution sketch. Where it disagrees with a design doc, the design doc is
+newer.
 
-It records: Thin
-client with rules only on the server, two servers split on CRUD vs live sessions, no
-offline mode, AWS, command/event spine, undo by replay, enumeration rather than
-validation, rules as data with a closed schema and open catalog, rule packs pinned per
-game.
+It records: Thin client with rules only on the server, two servers split on CRUD vs live
+sessions, no offline mode, AWS, command/event spine, undo by replay, enumeration rather than
+validation, rules as data with a closed schema and open catalog, rule packs pinned per game.
 
 **Table domain model** — the nouns. Armies as immutable user-owned snapshots bundling
 list and mesh assignments; placement per model, never per unit; distance and line of
@@ -110,14 +114,29 @@ shapes get built — player-turn and alternating activation. The graveyard gener
 shelf holding undeployed models, casualties, and reserves alike. Setup configuration
 (pack, scheduler, table, teams, enforcement dial) is settled before the game loads.
 
-**Resolution** — what happens inside an action. Two orthogonal settings: whether the
-client animates the steps, and whether the pipeline waits between them. Waiting allows
-interrupts, which makes a half-resolved pipeline durable state in the log rather than a
-function call. Modifiers and abilities split on *when*, not what: a modifier is numeric
-plus or minus applied before the roll, an ability reads the result and changes its
-meaning. Restricting modifiers to arithmetic makes them commute, which removes the
-explicit priority scheme `architecture.md` called for. Players get reroll and hand-added
-modifiers, and those are the same operations abilities use.
+**Resolution** — the shape of what happens inside an action. Two orthogonal settings: whether
+the client animates the steps, and whether the pipeline waits between them; a half-resolved
+pipeline is durable state in the log rather than a function call. Players get reroll and
+hand-added modifiers, and those are the same operations abilities use. Two of its conclusions
+were later corrected by reading real rulesets: commutativity holds for one of twelve effect
+kinds (effect grammar, 08-29), and waiting is not only a configuration — some input is
+mandatory (action sequences, 09-03).
+
+**Action sequences** — the machinery resolution left open, and OPR's sequences out of the
+rulebook. The interpreter is a **resolution stack**: frames rebuilt from the log like the
+action record, never stored; a step completes, **asks** a team for input against a
+server-computed legal set, **pushes** a nested sequence, or **opens a window** — an Ask about
+interrupting, offered to other teams or invoked by the actor (casting can checkpoint a move
+mid-path). One sealed-simultaneous window variant exists for casting's token bid. One roll
+primitive: the engine owns the seeded RNG, per-die raw and modified results, and the effect
+grammar's two passes in `ordinal` order; `GameRules` supplies each roll's dice convention,
+threshold derivation and modifier cap. Grimdark Future's shooting and melee are **one
+four-step attack sequence** invoked from two contexts, built on three shared sub-sequences
+(attack-sequence → resolve-hits → deal-wounds); morale fires from ruleset-owned triggers, never
+from inside the attack machinery. Abandonment settled: pop the frames, applied effects stay,
+logged with an actor. `Counter` before `Impact` was ruled; the 40k core rules were read as a
+falsifier and produced nine explicit constraints on what the interpreter must not contain.
+**Only OPR's `GameRules` gets built.**
 
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
@@ -189,7 +208,7 @@ An embedded webview serving one shared UI was considered and rejected: it does n
 stack, it adds a bridge to one — a browser engine bundled into the client plus a second renderer
 inside it for mesh preview.
 
-**Presence** — what players see of each other between events, and the last gap. Nothing in it
+**Presence** — what players see of each other between events. Nothing in it
 is persisted or logged: a presence value lives in memory while a socket is open, so `schema.md`
 is untouched and a reconnecting client rebuilds it from nothing. **Connectedness is not a
 field** — a value exists while a participant is connected, so who is connected is which values
@@ -205,16 +224,14 @@ are "never sent anywhere". They are relayed and still never commands — **relay
 different things**, and that document predates the ephemeral channel that separates them.
 
 **The ruleset's data half, and the rulebook it came from.** `Properties` had been pinned by a
-content hash with nothing on the other end; it now has seven tables. Stat declarations, one
+content hash with nothing on the other end; it now has eight tables. Stat declarations, one
 catalog of named rules whose kinds are `unit`, `model`, `weapon` and `spell`, each entry's
-effects, and each effect's conditions. A spell is not a property — it attaches to nothing and
-carries a token cost — which is why the catalog is not called `property_definition`.
-
-Actions are a row of a name and a distance, because **Grimdark Future has no movement stat**:
-movement comes from the action taken, and `Fast` and `Slow` modify it, so an effect has to be
-able to point at it. That gives the line between an action's data and its behaviour a rule
-rather than a judgement call — **what an effect can target must be data**, and what only the
-engine reads (may it shoot, must it reach base contact) stays in `GameRules`.
+effects and their conditions, plus the two tables that exist because **what an effect can
+target must be data**: actions (a name and a distance, because Grimdark Future has no movement
+stat and `Fast` needs something to point at) and, since 09-03, rolls (a name and nothing else,
+because `AP(X)` points at the Defense roll and 40k's wound and save rolls must be content
+rather than a migration). What only the engine reads — may it shoot, a roll's dice convention,
+its threshold derivation, its modifier cap — stays in `GameRules`.
 
 **Containment.** A model is in one of three places: a table placement, the shelf, or **inside a
 container**. `Transport(X)` holds models inside a model and a solid building holds them inside
@@ -236,19 +253,22 @@ conditions.
 
 ## What is not designed
 
-**Nothing in the data layer.** Presence was the last known gap, it closed on 08-30, and a
-review that day found and fixed twelve more problems without finding a thirteenth. Every noun
-has a home and every deliverable has a job.
+**Nothing in the data layer**, and no longer the resolution machinery — action sequences
+closed on 09-03. What still needs a design session:
 
-Missions turned out not to be a module — they are content in a book, and automating them is a
-later feature rather than a missing noun.
+- **The scheduler.** [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) designed the
+  action record and teams; action sequences added a second question for it — who goes first
+  when several teams want to react in one window. Both scheduler shapes get built.
+- **The setup phase.** Its output record is designed; who places terrain and when is not.
+- **The client shell.**
+- **The mesh prep tool** — `architecture.md` says outright it is undesigned.
+- **Deployment.**
+- **The effect grammar follow-up** — small: real spells (Alien Hives, via the Army Forge API)
+  exposed two gaps, a grant with a duration (*"gets X once"*) and multi-target selection
+  (*"pick up to two friendly units within 12""*). Neither blocks anything except authoring
+  spell rows.
 
-**Everything below the data layer is unplanned**, and that is the work. In `architecture.md`'s
-build order: the action sequences (shooting and melee, step by step out of the rulebook), the
-scheduler, the setup phase, the client shell, the mesh prep tool, and deployment. `GameRules`
-is C# and stays C# until a second ruleset exists.
-
-**Two things from the rulebook were deliberately left out**, both recorded where they belong:
+**Three things from the rulebook were deliberately left out**, recorded where they belong:
 
 - **Buildings as targets.** A solid building has `Defense 2+` and a player-set `Tough(X)` and
   can be destroyed. That needs terrain to carry stats and to become event-driven state on top
@@ -256,6 +276,8 @@ is C# and stays C# until a second ruleset exists.
 - **Action boosting.** The optional rules are written as percentages — boosted `Rush` moves
   *"+50%"* — and `amount` is an integer. None of the twelve effect kinds expresses a
   proportion.
+- **Advanced Casting.** Three optional modules — spell books, the psychic pool, living
+  spells (GF pages 31–32). Core casting and the token economy are designed; these are not.
 
 ## Open questions
 
@@ -266,10 +288,12 @@ Carried from the design docs:
   shape and the teams are undecided.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
-- Whether a paused action can be abandoned, and what happens to a half-applied result. **Not
-  answerable yet**: `architecture.md` names resolution "pipelines" but no step list for any
-  action has ever been written, and the resolution session excluded them deliberately. This
-  waits on OPR's actual shooting and melee sequences.
+- The two `GameRules` interpretations action sequences flagged rather than guessed: whether
+  *"one try per spell"* scopes to the activation or the round, and whether a later weapon
+  group's attacks are recomputed after an earlier group's casualties. (`Counter` before
+  `Impact` was ruled on 09-03.)
+- Whether a muted window kind is per player or per team; whether `step_completed` payloads
+  need a schema per step kind.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
@@ -282,71 +306,50 @@ Carried from the design docs:
 - Whether a thirteenth effect kind, or a flavour on kind 1, carries proportions. Only the
   optional boosting rules need it.
 - Whether `GameRules` ever becomes data. Not before a second ruleset exists, per
-  `architecture.md`; Warhammer is what would force it.
+  `architecture.md`; Warhammer is what would force it — and the nine interface constraints in
+  [action sequences](superpowers/specs/2026-09-03-action-sequences-design.md) are the start of
+  that generalisation, derived from reading 40k's core rules rather than imagining them.
 
-**Do not treat this list as live without checking.** Several entries were closed by later
-sessions and left standing until 08-30. Each design doc's own *Still open* section is the
-authority, and a later doc beats an earlier one.
+**Do not treat this list as live without checking.** Each design doc's own *Still open* section
+is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Plan modules, one prompt each.** The data layer is done and reviewed; what is not designed is
-everything the modules do with it. This was agreed explicitly on 08-30: rules execution is
-separate planning, and no code gets written because a module looks small.
+**Design the remaining modules, one prompt each: the scheduler, the setup phase, the client
+shell, the mesh prep tool, deployment, and the small effect grammar follow-up.** The scheduler
+is the natural next session — action sequences left it a named seam (reaction ordering in
+windows) on top of the question game flow left it (what is legal in a window).
 
-### The order that is already argued for
+**Then review the whole design**, the way the data layer was reviewed on 08-30 — across
+documents, looking for the contradictions and stale open lists that single sessions leave.
 
-`architecture.md` holds the build order and it still stands. What each step needs before it can
-be planned:
-
-1. **Contracts** — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Three, not
-   four: the join token was dropped on 08-30. Nothing is waiting on design. The one thing to
-   settle while writing them is whether `Tabletop.Protocol` may reference the other two, which
-   decides whether a command carries a `Placement` or its own copy of position and yaw.
-2. **Geometry** — volumes, distance, line of sight, settling. Fully specified by
-   [geometry values](superpowers/specs/2026-08-29-geometry-values-design.md). Headless, no
-   dependencies, and the first place a test project is worth having.
-3. **Management API and web app** — fully specified by
-   [the management API](superpowers/specs/2026-08-29-management-api-design.md) and
-   [the web app](superpowers/specs/2026-08-29-web-app-design.md).
-
-### The ones that need design before they can be built
-
-- **The action sequences.** Shooting and melee, step by step, out of the rulebook. This is what
-  `architecture.md` calls a "pipeline" and it has never been written down — the resolution
-  session excluded step lists deliberately. It blocks the abandonment question, the effect
-  grammar's `order` field, and the whole resolution machinery.
-- **The scheduler.** [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) designed the
-  action record and teams and left *how the scheduler decides what is legal in a window*
-  undecided. Both shapes get built.
-- **The setup phase.** Its output record is designed; who places terrain and when is not.
-- **The client shell**, the **mesh prep tool** — `architecture.md:20` says outright it is
-  undesigned — and **deployment**.
-
-### Rewrite `docs/workstreams/`
-
-Seven prompts from 08-24 describing a model that no longer exists. Workstream 04's auth section
-was corrected on 08-30 because it was actively wrong; nothing else was touched. They are the
-last artefacts in the repo never brought forward, and they are worth rewriting **after** the
-contracts exist, so the prompts can name real types rather than describe them.
+**Only after that review do implementation plans start.** Ruled on 09-03. That includes the
+contracts (`Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`) and everything
+`architecture.md`'s build order says is "not waiting on design" — nothing is exempt from the
+review gate. `docs/workstreams/` gets rewritten after the contracts exist, so the prompts can
+name real types rather than describe them.
 
 ## Two things worth carrying into any session
 
-**Consult the rulebooks; do not reason about the rules.** They are on the Windows host at
-`/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf` and
-`Age_of_Fantasy_-_Advanced_Rules_v3_5_0.pdf`. Reading them produced better answers than
-designing did, six times running — the terrain declaration set, the effect grammar's twelve
-kinds, the discovery that OPR's statline is two stats with no movement value, and then on 08-30
-that actions must be rows, that `Transport` and buildings are one containment rule, and that
-spells are a fourth catalog kind. Guessing produced "blocks sight past three inches", a rule in
-no ruleset, which then propagated through three documents as fact.
+**Consult the rulebooks; do not reason about the rules.** Reading them has produced better
+answers than designing did, seven sessions running — most recently the whole of action
+sequences. Sources:
+
+- Grimdark Future v3.4.1 and Age of Fantasy v3.5.0, PDFs on the Windows host at
+  `/mnt/c/Users/clays/Downloads/`.
+- Warhammer 40,000 10th edition core rules, readable at
+  <https://wahapedia.ru/wh40k10ed/the-rules/core-rules/> via WebFetch; core Stratagem timings
+  turn up through search on the same site.
+- Per-faction spells via the Army Forge API:
+  `https://army-forge.onepagerules.com/api/army-books?filters=official&gameSystemSlug=grimdark-future`
+  lists books with `uid`s; `.../api/army-books/{uid}?gameSystem=2` returns a `spells` array.
 
 No `pdftotext` and no `poppler-utils`; headless Chrome cannot launch (missing `libnspr4`). What
-works: `pypdf` in a venv for text, and `pypdf` with Pillow to extract diagrams as images, since
-the deployment zone dimensions live in pictures rather than the text layer.
+works: `pypdf` in a venv (already at `./venv`) for text, and `pypdf` with Pillow to extract
+diagrams as images, since the deployment zone dimensions live in pictures rather than the text
+layer.
 
 ```bash
-python3 -m venv venv && ./venv/bin/pip install pypdf
 ./venv/bin/python -c "
 from pypdf import PdfReader
 r = PdfReader('/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf')
@@ -355,24 +358,22 @@ print(r.pages[12].extract_text())"        # 68 pages; special rules are 13-14
 
 Useful page numbers in Grimdark Future v3.4.1: **7** actions and their distances, **8-10**
 shooting, charging and melee, **11-12** terrain, **13-14** every special rule, **16** placement
-styles, **20** buildings, **21-23** deployment styles, **24-28** missions, **29-30** extra
-actions and boosting.
-
-Army books, which hold the per-faction spell lists, are at
-<https://army-forge.onepagerules.com/army-books/grimdark-future>.
+styles, **18** army terrain, **20** buildings, **21-23** deployment styles, **24-28** missions,
+**29-34** extra actions, boosting, advanced casting and hero upgrades.
 
 **Age of Fantasy is not a second ruleset for testing generalisation.** Its terrain section is
 word for word identical to Grimdark Future's — same engine, same text. Warhammer is the real
-test, and several decisions are explicitly waiting on it: whether the six terrain declarations
-are complete, whether twelve effect kinds survive, and when `GameRules` should move from C# to
-data.
+test: 40k's core rules have now been read once (action sequences), and the standing questions —
+whether the six terrain declarations are complete, whether twelve effect kinds survive, when
+`GameRules` moves to data — still wait on designing against it for real.
 
 ## Where to look at the model
 
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
 zoomable, generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a
 source** — it goes stale the moment either document changes, and it is regenerated by pulling
-the mermaid block out of each and republishing to the same URL.
+the mermaid block out of each and republishing to the same URL. Regenerated 09-03 after the
+`roll` table landed.
 
 ## Environment notes
 
