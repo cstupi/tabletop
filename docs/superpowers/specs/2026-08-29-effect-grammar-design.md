@@ -191,9 +191,15 @@ stat replacement conditioned on other models remaining.
 ## Deliberately not decided
 
 - How `order` is expressed — a number, a phase name, or a relation to another effect.
-- Whether `Caster`'s token economy needs anything in `Properties` beyond its parameter.
+- ~~Whether `Caster`'s token economy needs anything in `Properties` beyond its parameter.~~
+  **Settled on 09-03 by [action sequences](2026-09-03-action-sequences-design.md): nothing.**
+  Tokens are an ordinary editable counter in game state, granted by a `GameRules` hook at the
+  round boundary.
 - What a stat's dice expression looks like, still.
-- How the two passes are implemented.
+- ~~How the two passes are implemented.~~ **Settled on 09-03: the generic engine runs both
+  passes at each roll or step, in `ordinal` order, consulting the pinned `Properties` data —
+  `GameRules` never enumerates abilities**
+  ([action sequences](2026-09-03-action-sequences-design.md)).
 
 ## Still open
 

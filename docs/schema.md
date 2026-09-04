@@ -13,6 +13,7 @@ erDiagram
     PROPERTIES ||--|{ STAT_DEFINITION : declares
     PROPERTIES ||--|{ CATALOG_ENTRY : catalogs
     PROPERTIES ||--|{ ACTION : names
+    PROPERTIES ||--|{ ROLL : names
     CATALOG_ENTRY ||--o{ EFFECT : does
     EFFECT ||--o{ EFFECT : "nests, per success"
     EFFECT ||--o{ EFFECT_CONDITION : "all must hold"
@@ -257,6 +258,10 @@ erDiagram
         text name PK
         real distance
     }
+    ROLL {
+        text properties_hash PK
+        text name PK
+    }
     STAT_DEFINITION {
         text properties_hash PK
         text level PK
@@ -281,7 +286,7 @@ erDiagram
         text subject
         int ordinal
         text kind
-        text target_roll
+        text target_roll FK
         text target_stat FK
         text target_entry FK
         text target_action FK
@@ -332,7 +337,7 @@ So the army is four tables plus six for stats and properties, and every constrai
 argued for is a constraint the database holds: `base_shape` is checked, a weapon cannot exist
 without a slot, the six terrain declarations are columns rather than strings in an array.
 
-### `Properties` is seven tables, not a document
+### `Properties` is eight tables, not a document
 
 The schema pinned `game.properties_hash` and stored nothing to resolve it against. **The data
 half of a ruleset had no home** — stat declarations and the three property catalogs were
@@ -347,7 +352,7 @@ a database can enforce, and putting it in `jsonb` would be the magic-string move
 place the enforcement is cheapest.
 
 The cost is real and accepted: pinning by content hash now needs a canonical serialisation to
-hash, because the set is spread across seven tables rather than being a run of bytes.
+hash, because the set is spread across eight tables rather than being a run of bytes.
 
 ### An action is a row, because an effect can target it
 
@@ -376,6 +381,18 @@ put it.
 
 **The record of what a unit has done is not this.** That is the action record, cleared at the
 round boundary, reconstructed from the event log and never a row.
+
+### A roll is a row, for the action's reason
+
+**Added 2026-09-03 by [action sequences](superpowers/specs/2026-09-03-action-sequences-design.md).**
+`effect.target_roll` was a `text` check constraint of four OPR values — `hit | defense |
+morale | casting` — so a ruleset with a wound or save roll would have needed a migration. That
+contradicts the section above: rolls are the other thing effects target, and what an effect can
+target must be data.
+
+`roll` is a set's named rolls and nothing else. The dice convention, the threshold derivation
+and the modifier cap stay in `GameRules`, exactly as an action's *"may shoot after"* does —
+the row exists because an effect points at it.
 
 ### The catalog holds four kinds, and one of them is a spell
 
@@ -415,7 +432,7 @@ could not check it and nothing said what it may contain:
 
 | Column | Vocabulary | Used by |
 | --- | --- | --- |
-| `target_roll` | `hit \| defense \| morale \| casting` | Modify a roll, Force a reroll |
+| `target_roll` | **FK** to `roll` in the same set | Modify a roll, Force a reroll |
 | `target_stat` | **FK** to `stat_definition` in the same set | Modify a stat, Replace a stat |
 | `target_action` | **FK** to `action` in the same set | Modify a stat, where the stat is a move distance |
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |

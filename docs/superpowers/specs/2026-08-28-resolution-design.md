@@ -128,5 +128,9 @@ point; making it impossible never was.
   rather than to what the current build would decide.
 
   It also makes *why did that hit* answerable in a replay without re-running the engine.
-- Whether a waiting pipeline can be abandoned, and what happens to the half-applied
-  result if so.
+- ~~Whether a waiting pipeline can be abandoned, and what happens to the half-applied
+  result if so.~~ **Settled on 09-03 by
+  [action sequences](2026-09-03-action-sequences-design.md): abandoning is a logged command
+  that pops the frame; applied effects stay applied, unapplied steps never happen.** No
+  rollback — nothing is an invariant, and players fix what they dislike from the menu or undo
+  past the whole sequence by replay.
