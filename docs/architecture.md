@@ -512,10 +512,11 @@ This removes real work from the hard-to-iterate side — the Godot client needs 
 UI, no upload UI, and no login form — and makes the HTTP API a genuine API surface rather than an
 internal detail of one client.
 
-- **Auth is easier in a browser.** Stytch's prebuilt components are web components, and OAuth
-  and magic links both need a page to redirect back to. OTP and password are Basic-auth
-  endpoints that run in management either way. The browser owns login and the client acquires a
-  session from it — by loopback or device code, both deferred.
+- ~~**Auth is easier in a browser.**~~ **Corrected 2026-09-04.** There is no OAuth and no magic
+  link ([the client shell](superpowers/specs/2026-09-04-client-shell-design.md)), so no login
+  method needs a page to redirect to. Password and email one-time code run through management,
+  and both the web app and the client have their own login form. Nothing crosses from the
+  browser to the client.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot.
   There is no server-side mesh processing to speak of: conversion is the offline prep tool, and
   the only server-side step is a ranged read of the GLB header to count triangles.
@@ -671,7 +672,10 @@ Starting, reconnecting, and crash recovery are one path.
 2. **Geometry** — volumes, distance, LoS, surface settling. Headless tests, zero dependencies.
 3. **Management API and web app** — Stytch auth, signup, accounts. No game concepts at all.
 4. **Game server skeleton** — WebSocket, session lifecycle, event log, command dispatch.
-5. **Client shell** — camera, table, model dragging, measuring, ghosts. Geometry only, no server.
+5. **Client shell** — login, home, one game screen over a session object; the projection, the
+   table view, Asks, log and menu. See
+   [the client shell](superpowers/specs/2026-09-04-client-shell-design.md); the earlier
+   "geometry only, no server" sandbox was build ordering, not the design.
 6. **Setup phase** — table sizing and terrain placement, ending in a snapshot. Not commands;
    see [setup content](superpowers/specs/2026-08-29-setup-content-design.md).
 7. **Scheduler and OPR skeleton** — deployment, rounds, team-alternating activation, moves.

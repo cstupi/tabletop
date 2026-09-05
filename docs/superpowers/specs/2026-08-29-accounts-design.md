@@ -47,6 +47,11 @@ management regardless. OAuth and magic links need a page to redirect back to.
 browser**, and the client acquires a session from it. This section originally put login in the
 client on the reasoning that no browser existed to host it.*
 
+*Revised again 2026-09-04 by [the client shell](2026-09-04-client-shell-design.md): no social
+login and no magic links, so the two remaining methods — password and email one-time code —
+run through management and **the client has its own login screen**. This section's original
+routing stands after all; only the redirect-based methods are gone.*
+
 **Replacing Stytch is a change inside one module.** That is the constraint the routing
 exists to satisfy, and it is why the vendor is not allowed to appear in the client, in the
 schema, or in any other module. The one place confinement is nominal rather than literal

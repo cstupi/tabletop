@@ -45,6 +45,11 @@ a different thing and stays on the table as one of the mechanisms below.
 
 ## Login is the web app's
 
+*Corrected 2026-09-04 by [the client shell](2026-09-04-client-shell-design.md): **there is no
+social login and no magic link**, so nothing below that exists to serve a redirect survives. Login
+is email plus password, or email plus a one-time code, through management. The web app has that
+form and **the client has its own**; neither needs the other. Loopback and device code are gone.*
+
 **Reversed from [accounts](2026-08-29-accounts-design.md)**, which put login in the client
 and routed OTP and password through management, on the reasoning that no browser existed to
 host it. One does now, and it is where a user starts — you cannot play without an army, and
@@ -94,8 +99,10 @@ Both are deferred. Nothing in the model depends on which is chosen.
 
 ## Deliberately not decided
 
-- Which of loopback or device code is used.
-- Whether the client keeps a login of its own as a fallback when no browser is available.
+- ~~Which of loopback or device code is used.~~ **Settled 2026-09-04**: neither. No redirect
+  method exists, so nothing has to cross from the browser to the client.
+- ~~Whether the client keeps a login of its own as a fallback when no browser is available.~~
+  **Settled 2026-09-04**: the client has its own login screen, and it is not a fallback.
 - The web app's own screens, routing, and framework details beyond it being a Svelte SPA.
 - How a glTF preview is embedded — `<model-viewer>`, three.js, or otherwise.
 

@@ -35,6 +35,7 @@ scaffold — all of the work so far is design.
 | 2026-09-03 | Rolls given a row; `schema.md`, `data-model.md` and `architecture.md` corrected to match |
 | 2026-09-04 | [The scheduler](superpowers/specs/2026-09-04-scheduler-design.md) — both shapes, the turn as an Ask, deployment and the round boundary; three earlier open items closed |
 | 2026-09-04 | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) — free-for-all editing, the draft is the row, terrain generators and built-in terrain, the creator's two transitions; joining at any status restored |
+| 2026-09-04 | [The client shell](superpowers/specs/2026-09-04-client-shell-design.md) — three screens over a session object, the projection, the table view, Asks, log and menu; no social login, so loopback and device code are gone |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -179,6 +180,23 @@ declarations was already designed end to end (asset library, geometry values) an
 **Joining is allowed at any status**, restoring accounts' settled rule over the scheduler's
 one-day-old contradiction: a late joiner brings no army and is what a spectator is.
 
+**The client shell** — the Godot client's frame. **Three screens over one session object**: login,
+home (the game list and create game), and one game screen for lobby, setup, playing and ended,
+since all four are one socket and one hydrate path. The session object owns the management
+client, the socket, **the projection** and presence. The projection is built by applying every
+event with a rules-free applier in `Tabletop.Protocol` — events carry every state change they
+made, so applying is copying — and undo is local first, reconnect is connect, and the server
+always wins. The table view draws every piece as its hitbox first with the mesh decorating it;
+assets load at runtime through `GLTFDocument` into a content-addressed disk cache; geometry is
+the shared library and **Godot physics is not in the scene**. Dragging streams `held` presence
+and drops one move command; **moving shows its distance** as a ruler per model with the remaining
+allowance, drawn for other participants from presence against the start they already hold. One
+Ask panel renders whatever is addressed to the player's team, with per-player mutes, sealed bids
+and confirm gates in the same place. The log panel is undo-to-here; the right-click menu is
+where every property is editable, with no admin mode. **No social login**: email plus password
+or email one-time code through management, and the client has its own login screen, which
+removed loopback and device code and corrected the web app, accounts and architecture docs.
+
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
 Forge, the source list, and the asset library cannot reach into it. Users edit their own
@@ -294,10 +312,9 @@ conditions.
 
 ## What is not designed
 
-**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler and the
-setup phase (09-04). What still needs a design session:
+**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler, the
+setup phase and the client shell (09-04). What still needs a design session:
 
-- **The client shell.**
 - **The mesh prep tool** — `architecture.md` says outright it is undesigned.
 - **Deployment**, meaning the infrastructure — ECS Fargate, RDS, S3 in `architecture.md`. Not
   unit deployment, which the scheduler designed.
@@ -335,7 +352,6 @@ Carried from the design docs:
   terrain becomes event-driven state on top of the setup snapshot.
 - Whether the closed terrain declaration set is complete.
 - Whether the client ever needs to edit an army rather than only pick one.
-- Loopback or device code for getting a browser session into the client.
 - Whether a thirteenth effect kind, or a flavour on kind 1, carries proportions. Only the
   optional boosting rules need it.
 - Whether `GameRules` ever becomes data. Not before a second ruleset exists, per
@@ -348,10 +364,9 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Design the remaining modules, one prompt each: the client shell, the mesh prep tool,
-deployment, and the small effect grammar follow-up.** The client shell is the natural next
-session — every server-side behaviour it has to render now exists: Asks from the scheduler and the
-interpreter, presence, setup edits, the lobby's two creator transitions, the game browser.
+**Design the remaining modules, one prompt each: the mesh prep tool, deployment, and the small
+effect grammar follow-up.** The mesh prep tool is the natural next session — `architecture.md`
+says outright it is undesigned, and `docs/workstreams/11-mesh-prep-tool.md` is the only sketch.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.
