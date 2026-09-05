@@ -5,8 +5,8 @@ Virtual tabletop for One Page Rules and Warhammer 40,000: a Godot 4.7 / C# clien
 
 `docs/architecture.md` records the design decisions and why they were made.
 `docs/data-model.md` is the entity diagram, `docs/schema.md` the Postgres tables, and
-`docs/superpowers/specs/` the per-module design sessions. `docs/handoff.md` says where things
-stand and what to pick up.
+`docs/superpowers/specs/` the per-module design sessions — every module is designed as of
+2026-09-04. `docs/handoff.md` says where things stand and what to pick up.
 
 Where `architecture.md` and a design doc disagree, **the design doc is newer**.
 

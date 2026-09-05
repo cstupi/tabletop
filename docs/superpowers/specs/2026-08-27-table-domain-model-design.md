@@ -112,7 +112,7 @@ location.
 never centre to centre. Line of sight is settled against the cylinder that the base and
 height describe. The visual mesh is never tested — a banner pole cannot block a shot, and
 an outstretched wing cannot be shot at. This is cheap, predictable, and unarguable, and it
-means the mesh prep tool never has to produce collision geometry.
+means mesh conversion never has to produce collision geometry.
 
 **Terrain declares what it does; the game system interprets it.** A piece carries named
 declarations on its volumes — gives cover, slow to cross, blocks line of sight. Terrain does
@@ -196,8 +196,9 @@ Start position is recorded as well as stop because undo needs somewhere to go ba
   off it means being given a placement, and the state it returns in is whatever conditions it
   is carrying. Deployment, arriving from reserve and a mechanic returning a casualty are one
   operation.
-- Who places terrain, and when. Terrain setup is a game phase; that phase has not been
-  designed.
+- ~~Who places terrain, and when. Terrain setup is a game phase; that phase has not been
+  designed.~~ **Settled 2026-09-04** by [the setup phase](2026-09-04-setup-phase-design.md):
+  anyone, at any time during setup, free for all; the rulebook's alternation is social.
 - ~~Whether an objective's "game data" is generic or system-specific.~~ **Answered by
   deletion.** [Setup content](2026-08-29-setup-content-design.md) collapsed objectives and
   tokens into one `Marker` with a `kind`, because scoring is manual — players count their own

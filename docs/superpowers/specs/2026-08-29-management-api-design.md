@@ -127,7 +127,8 @@ when the same asset is served to another player's client mid-game.
 
 Nothing is lost. GLB is the same format in one file — same scene graph, same materials — and
 it is Blender's default glTF export. Users converting an STL already pass through
-`tools/mesh-prep/`, which emits GLB so they never encounter the question. The only real cost
+[mesh conversion](2026-09-04-mesh-conversion-design.md) in the browser, which emits GLB so they
+never encounter the question. The only real cost
 is that a texture shared across many models is embedded once per file, and dedup is per user
 anyway.
 

@@ -5,7 +5,8 @@ Where the project stands, and what to pick up next.
 ## State
 
 Tree is clean; everything is committed. No code has been written beyond the Godot
-scaffold — all of the work so far is design.
+scaffold — all of the work so far is design. **Every module is designed.** The next prompt is
+the whole-design review.
 
 | When | Produced |
 | --- | --- |
@@ -46,34 +47,37 @@ touching.
 
 ## The mode — read this before proposing anything
 
-**The data layer is done, and it was reviewed on 08-30.** Nothing in the data layer is open.
-
-**Design sessions continue, one module per prompt, until every module is designed. Then the
-whole design gets a review. Only after that review does anything move to implementation
-planning.** Ruled explicitly on 09-03. Do not write an implementation plan, do not scaffold,
-and do not start code because a module looks small or "isn't waiting on design" — the contracts
-included. Do not design two modules in one prompt.
+**The design phase is complete, and the review has not happened.** Ruled on 09-03: all designs,
+then a review of the whole, then implementation planning. Do not write an implementation plan,
+do not scaffold, and do not start code — the contracts included. The review is the next prompt
+and the only thing that unlocks the rest. Hosting is designed after the review, by a ruling on
+09-04: local development first, Docker at most.
 
 Four things govern how to work here, and three of them were learned the hard way:
 
 - **Read the rulebook; do not reason about the rules.** Every substantive gap found on 08-30
-  came from reading the Grimdark Future PDF, and 09-03 repeated the result: the mandatory-input
-  finding, the one-attack-sequence finding, and the rolls-as-rows correction all came from the
-  page, not the model. Guessing once produced "blocks sight past three inches", a rule in no
-  ruleset, which propagated through three documents as fact.
+  came from reading the Grimdark Future PDF; 09-03 and 09-04 repeated the result five sessions
+  running. Guessing once produced "blocks sight past three inches", a rule in no ruleset, which
+  propagated through three documents as fact.
 - **Check whether a question is already answered before answering it.** Several "Still open"
   bullets on 08-30 turned out to have been closed by later sessions and never struck out.
   **A later doc beats an earlier one, including an earlier doc's own open list.** When a
-  session closes another doc's open item, strike it there and then — 09-03 did.
+  session closes another doc's open item, strike it there and then. Every open list was swept
+  on 09-04 and the strikes are current as of this file.
 - **`docs/workstreams/` is stale.** Those prompts predate every design session and describe a
-  data model that no longer exists. **None should be run as written.** Workstream 04's auth
-  section was corrected on 08-30 because it was actively wrong; the rest was left alone.
+  data model that no longer exists. **None should be run as written.** 05 (client shell) and 11
+  (mesh prep tool) are now superseded outright by design docs; 04's auth section was corrected
+  on 08-30; the rest were left alone. They get rewritten after the contracts exist.
 - **Nothing in `architecture.md` is above correction.** Written before any data model existed,
-  corrected around thirty times, audited statement by statement on 08-29 and corrected again on
-  08-30 and 09-03 (its resolution sketch). Treat anything no design doc has touched as a
-  first-pass assertion.
+  corrected around forty times, audited statement by statement on 08-29 and corrected again on
+  08-30, 09-03 and 09-04. Treat anything no design doc has touched as a first-pass assertion.
 
 ## What is designed
+
+Twenty design documents in `docs/superpowers/specs/`, plus the three documents every session
+reads. Grouped by what they are about, not by date.
+
+### The data layer — done, reviewed 08-30
 
 **`docs/schema.md`** — the physical Postgres schema: thirty-three tables, columns and
 constraints, with the decisions behind them. Normalised rather than document-based, because
@@ -105,6 +109,31 @@ It records: Thin client with rules only on the server, two servers split on CRUD
 sessions, no offline mode, AWS, command/event spine, undo by replay, enumeration rather than
 validation, rules as data with a closed schema and open catalog, rule packs pinned per game.
 
+**The ruleset's data half, and the rulebook it came from.** `Properties` had been pinned by a
+content hash with nothing on the other end; it now has eight tables. Stat declarations, one
+catalog of named rules whose kinds are `unit`, `model`, `weapon` and `spell`, each entry's
+effects and their conditions, plus the two tables that exist because **what an effect can
+target must be data**: actions (a name and a distance, because Grimdark Future has no movement
+stat and `Fast` needs something to point at) and, since 09-03, rolls (a name and nothing else,
+because `AP(X)` points at the Defense roll and 40k's wound and save rolls must be content
+rather than a migration). What only the engine reads — may it shoot, a roll's dice convention,
+its threshold derivation, its modifier cap — stays in `GameRules`.
+
+**Containment.** A model is in one of three places: a table placement, the shelf, or **inside a
+container**. `Transport(X)` holds models inside a model and a solid building holds them inside
+terrain, and the two rules are near enough the same text to be one concept. It is a location
+rather than a condition, because it names *what a model is inside* and decides where it is.
+Nothing about it persists.
+
+**Auth is Stytch's session JWT and nothing of ours.** Two token tables were designed and both
+dropped: the join token, because a game has an id and `participant` records who is allowed in;
+then `session`, because the JWT carries our account UUID in `external_id` and both services
+verify it locally against Stytch's public JWKS. No call on the request path, no shared signing
+key, no row to look up. Revocation is a matter of minutes rather than instant, which is
+accepted.
+
+### The game
+
 **Table domain model** — the nouns. Armies as immutable user-owned snapshots bundling
 list and mesh assignments; placement per model, never per unit; distance and line of
 sight against base-and-height cylinders, never the visual mesh; terrain declaring named
@@ -119,6 +148,26 @@ therefore a ruleset's reading of the action record, not a data concept. Both sch
 shapes get built — player-turn and alternating activation. The graveyard generalises to a
 shelf holding undeployed models, casualties, and reserves alike. Setup configuration
 (pack, scheduler, table, teams, enforcement dial) is settled before the game loads.
+
+**The scheduler** — whose input is needed next, and what may they do with it. A generic engine
+component with two implementations behind one interface, selected by `game.scheduler_shape`;
+everything ruleset-specific is a hook `GameRules` supplies — who goes first each round, which
+units may activate (a reading of the action record), which actions they may take, the phase
+before round one, the round-boundary hooks, the phases inside a turn. Its state — round, order
+over teams, whose turn, who has finished — is **rebuilt from the log and never stored**, carried
+by four events: `round_started`, `turn_started`, `turn_ended`, `phase_started`. **The turn is
+an Ask** through the interpreter's own Ask type, with the activatable units and their actions as
+the legal set; the turn ends when the declared action's sequence finishes, and moving models by
+hand never ends one — that exists to arrange models inside a unit. A team with an empty legal
+set is skipped, which is how a spectator's team never sees a prompt. Deployment is the phase
+before round one, driven by the same scheduler after a logged roll-off; Scouts and Ambushers
+follow pages 13–14. **Reactions resolve in turn order starting after the actor**, replaceable by
+a hook; muted window kinds are per player; the scheduler shape and the armies in play are fixed
+once playing (this first said team membership, and the setup phase corrected it the same day). Page 49's team games and free-for-all were read: turn order is team-based, and
+free-for-all rolls off every round — a first-team policy, not a scheduler shape. Six constraints
+on the interface were derived from 40k's battle round, Fight phase and Reinforcements. The
+roll-off does not pick a table edge, and that deviation from page 6 is accepted and handed to the
+setup phase session — which then reconciled it with a zone swap.
 
 **Resolution** — the shape of what happens inside an action. Two orthogonal settings: whether
 the client animates the steps, and whether the pipeline waits between them; a half-resolved
@@ -144,72 +193,6 @@ logged with an actor. `Counter` before `Impact` was ruled; the 40k core rules we
 falsifier and produced nine explicit constraints on what the interpreter must not contain.
 **Only OPR's `GameRules` gets built.**
 
-**The scheduler** — whose input is needed next, and what may they do with it. A generic engine
-component with two implementations behind one interface, selected by `game.scheduler_shape`;
-everything ruleset-specific is a hook `GameRules` supplies — who goes first each round, which
-units may activate (a reading of the action record), which actions they may take, the phase
-before round one, the round-boundary hooks, the phases inside a turn. Its state — round, order
-over teams, whose turn, who has finished — is **rebuilt from the log and never stored**, carried
-by four events: `round_started`, `turn_started`, `turn_ended`, `phase_started`. **The turn is
-an Ask** through the interpreter's own Ask type, with the activatable units and their actions as
-the legal set; the turn ends when the declared action's sequence finishes, and moving models by
-hand never ends one — that exists to arrange models inside a unit. A team with an empty legal
-set is skipped, which is how a spectator's team never sees a prompt. Deployment is the phase
-before round one, driven by the same scheduler after a logged roll-off; Scouts and Ambushers
-follow pages 13–14. **Reactions resolve in turn order starting after the actor**, replaceable by
-a hook; muted window kinds are per player; the scheduler shape and the armies in play are fixed
-once playing (this first said team membership, and the setup phase corrected it the same day). Page 49's team games and free-for-all were read: turn order is team-based, and
-free-for-all rolls off every round — a first-team policy, not a scheduler shape. Six constraints
-on the interface were derived from 40k's battle round, Fight phase and Reinforcements. The
-roll-off does not pick a table edge, and that deviation from page 6 is accepted and handed to the
-setup phase session — which then reconciled it with a zone swap.
-
-**The setup phase** — who places what, and when, between the lobby and the first turn. **Editing is
-free for all**: any participant places, moves, removes or overrides anything, at the same time as
-anyone else, and the rulebook's roll-off-and-alternate placement styles are social, because setup
-is unlogged and any turn structure there would be a second, unlogged scheduler. Setup edits are a
-**third message kind** — applied, broadcast, persisted, never logged — and **the game's
-`table_state` row is the live draft**, written through by the game server after each broadcast,
-so a dead task recovers it by the one hydrate path; live drag is presence and the drop is the
-edit, so persistence sees one write per drop. **The creator starts and ends setup** and has no
-other standing, which added `game.created_by`. Zones are assigned to team ordinals by the zone
-style and **anyone may swap two teams' zones**, which is how the roll-off winner picks an edge.
-Loading a layout replaces the whole draft, size included, closing setup content's open item.
-**Terrain generators** are the rulebook's four planet tables (pages 17–18), run on the client as a
-batch of adds that land beside the table; they place **built-in terrain** that ships with the
-client like textures do, so `terrain_placement` names a built-in or an asset, and a user may swap
-the mesh while the piece keeps its volumes and declarations. Importing terrain and setting its six
-declarations was already designed end to end (asset library, geometry values) and is untouched.
-**Joining is allowed at any status**, restoring accounts' settled rule over the scheduler's
-one-day-old contradiction: a late joiner brings no army and is what a spectator is.
-
-**The client shell** — the Godot client's frame. **Three screens over one session object**: login,
-home (the game list and create game), and one game screen for lobby, setup, playing and ended,
-since all four are one socket and one hydrate path. The session object owns the management
-client, the socket, **the projection** and presence. The projection is built by applying every
-event with a rules-free applier in `Tabletop.Protocol` — events carry every state change they
-made, so applying is copying — and undo is local first, reconnect is connect, and the server
-always wins. The table view draws every piece as its hitbox first with the mesh decorating it;
-assets load at runtime through `GLTFDocument` into a content-addressed disk cache; geometry is
-the shared library and **Godot physics is not in the scene**. Dragging streams `held` presence
-and drops one move command; **moving shows its distance** as a ruler per model with the remaining
-allowance, drawn for other participants from presence against the start they already hold. One
-Ask panel renders whatever is addressed to the player's team, with per-player mutes, sealed bids
-and confirm gates in the same place. The log panel is undo-to-here; the right-click menu is
-where every property is editable, with no admin mode. **No social login**: email plus password
-or email one-time code through management, and the client has its own login screen, which
-removed loopback and device code and corrected the web app, accounts and architecture docs.
-
-**Mesh conversion** — formerly the mesh prep tool. **There is no tool.** STL conversion runs in the
-browser, as a step in the web app's upload flow: drop STLs, the page parses, merges, decimates
-with a WebAssembly simplifier, recomputes smooth normals, guesses millimetres and the up-axis,
-warns about pre-supported files and never removes supports, then shows the model standing on a
-ring of the modelled base for the user to confirm scale and facing before anything uploads.
-Budgets: 15,000 triangles for a miniature, 50,000 for terrain; the server's header read **warns
-above 100,000** and still never blocks. **The converter proposes scale and orientation and the
-user confirms**, closing the question the asset library and geometry values shared. `tools/`
-left the layout in `CLAUDE.md` and `architecture.md`, and the language exception went with it.
-
 **Spell effects** — the effect grammar follow-up. Forty-eight spells from eight army books were
 read through the Army Forge API, and **Army Forge's own generated spell structure** turned out to
 be the grammar: an assignment (side, grain, count, range) and an effect that is either *N hits
@@ -221,6 +204,23 @@ rebuilt from the log and editable from the menu; **four target columns** on the 
 which the casting Ask computes a set, each target getting the effect independently; and
 **faction rules as catalog entries**, correcting `schema.md`'s claim that `faction` is null off
 spells. Percentages stay open for boosting.
+
+**Presence** — what players see of each other between events. Nothing in it
+is persisted or logged: a presence value lives in memory while a socket is open, so `schema.md`
+is untouched and a reconnecting client rebuilds it from nothing. **Connectedness is not a
+field** — a value exists while a participant is connected, so who is connected is which values
+exist, with the persisted `PARTICIPANT` row as the roster underneath. One value per participant
+carries cursor (a world point plus the piece under it), selection, placements, and a
+measurement; a ping is a separate one-shot because presence is state and a ping is an instant.
+Drag and ghost collapse into one placement with a `kind`, held or proposed, since they differ
+only in what the viewer draws. There is no spectator identity: someone who wants to watch joins
+a third team and does not act.
+
+This overrode `architecture.md`'s claim that pre-measuring, range checks and movement ghosts
+are "never sent anywhere". They are relayed and still never commands — **relayed and logged are
+different things**, and that document predates the ephemeral channel that separates them.
+
+### Preparation
 
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
@@ -241,6 +241,16 @@ field on the model slot. An asset records the base its mesh was made for, which 
 to find meshes that fit a slot, while the slot's own base is the hitbox. Folders nest and
 an asset can be in several.
 
+**Mesh conversion** — formerly the mesh prep tool. **There is no tool.** STL conversion runs in the
+browser, as a step in the web app's upload flow: drop STLs, the page parses, merges, decimates
+with a WebAssembly simplifier, recomputes smooth normals, guesses millimetres and the up-axis,
+warns about pre-supported files and never removes supports, then shows the model standing on a
+ring of the modelled base for the user to confirm scale and facing before anything uploads.
+Budgets: 15,000 triangles for a miniature, 50,000 for terrain; the server's header read **warns
+above 100,000** and still never blocks. **The converter proposes scale and orientation and the
+user confirms**, closing the question the asset library and geometry values shared. `tools/`
+left the layout in `CLAUDE.md` and `architecture.md`, and the language exception went with it.
+
 **Accounts** — and with them everything outside the live game. An account is two fields, id
 and name; Stytch answers only "is this session valid, and whose," runs *through* management
 rather than from the client, and is replaceable without a client release. No graph — no friends,
@@ -256,6 +266,24 @@ for the client-to-game-server handoff, which was **dropped on 08-30** — a game
 JWT says who you are, and the `participant` row records who is allowed in. The token
 restated all three and added an expiry that could lapse mid-game, stranding a player who
 dropped at hour three. It is gone from the schema, the API and the contracts list.
+
+**The web app** — it exists, and the line is **preparation versus play**. The browser owns army
+import and editing, mesh binding, base shapes, asset upload and the library, the account, and
+login. The client owns creating a game, picking an army, the game browser, joining, the setup
+phase and play. The client does not edit armies.
+
+That reverses the previous session on login: the browser owns it and the client acquires a
+session, which restores `architecture.md`'s original position. Confinement is unaffected —
+Stytch's OTP and password endpoints require the project secret and cannot be called from a
+browser, so they run in management either way, while OAuth and magic links need a page to
+redirect back to, which is what the web app supplies. Getting the session into the client is
+loopback or a device code, both deferred.
+
+An embedded webview serving one shared UI was considered and rejected: it does not remove a UI
+stack, it adds a bridge to one — a browser engine bundled into the client plus a second renderer
+inside it for mesh preview.
+
+### The table before play
 
 **The table and its setup content** — the board, what stands on it before play, and what a
 saved arrangement is. The table is a rectangle: width, length, texture, no shape and no boundary
@@ -276,137 +304,112 @@ It also corrected the asset library and accounts: **a library is private for dis
 access.** Game participants download the assets that game uses; nothing is copied and no record is
 created, so the "sharing copies into the recipient's library" rule is gone.
 
-**The web app** — it exists, and the line is **preparation versus play**. The browser owns army
-import and editing, mesh binding, base shapes, asset upload and the library, the account, and
-login. The client owns creating a game, picking an army, the game browser, joining, the setup
-phase and play. The client does not edit armies.
+**The setup phase** — who places what, and when, between the lobby and the first turn. **Editing is
+free for all**: any participant places, moves, removes or overrides anything, at the same time as
+anyone else, and the rulebook's roll-off-and-alternate placement styles are social, because setup
+is unlogged and any turn structure there would be a second, unlogged scheduler. Setup edits are a
+**third message kind** — applied, broadcast, persisted, never logged — and **the game's
+`table_state` row is the live draft**, written through by the game server after each broadcast,
+so a dead task recovers it by the one hydrate path; live drag is presence and the drop is the
+edit, so persistence sees one write per drop. **The creator starts and ends setup** and has no
+other standing, which added `game.created_by`. Zones are assigned to team ordinals by the zone
+style and **anyone may swap two teams' zones**, which is how the roll-off winner picks an edge.
+Loading a layout replaces the whole draft, size included, closing setup content's open item.
+**Terrain generators** are the rulebook's four planet tables (pages 17–18), run on the client as a
+batch of adds that land beside the table; they place **built-in terrain** that ships with the
+client like textures do, so `terrain_placement` names a built-in or an asset, and a user may swap
+the mesh while the piece keeps its volumes and declarations. Importing terrain and setting its six
+declarations was already designed end to end (asset library, geometry values) and is untouched.
+**Joining is allowed at any status**, restoring accounts' settled rule over the scheduler's
+one-day-old contradiction: a late joiner brings no army and is what a spectator is.
 
-That reverses the previous session on login: the browser owns it and the client acquires a
-session, which restores `architecture.md`'s original position. Confinement is unaffected —
-Stytch's OTP and password endpoints require the project secret and cannot be called from a
-browser, so they run in management either way, while OAuth and magic links need a page to
-redirect back to, which is what the web app supplies. Getting the session into the client is
-loopback or a device code, both deferred.
+### The client
 
-An embedded webview serving one shared UI was considered and rejected: it does not remove a UI
-stack, it adds a bridge to one — a browser engine bundled into the client plus a second renderer
-inside it for mesh preview.
-
-**Presence** — what players see of each other between events. Nothing in it
-is persisted or logged: a presence value lives in memory while a socket is open, so `schema.md`
-is untouched and a reconnecting client rebuilds it from nothing. **Connectedness is not a
-field** — a value exists while a participant is connected, so who is connected is which values
-exist, with the persisted `PARTICIPANT` row as the roster underneath. One value per participant
-carries cursor (a world point plus the piece under it), selection, placements, and a
-measurement; a ping is a separate one-shot because presence is state and a ping is an instant.
-Drag and ghost collapse into one placement with a `kind`, held or proposed, since they differ
-only in what the viewer draws. There is no spectator identity: someone who wants to watch joins
-a third team and does not act.
-
-This overrode `architecture.md`'s claim that pre-measuring, range checks and movement ghosts
-are "never sent anywhere". They are relayed and still never commands — **relayed and logged are
-different things**, and that document predates the ephemeral channel that separates them.
-
-**The ruleset's data half, and the rulebook it came from.** `Properties` had been pinned by a
-content hash with nothing on the other end; it now has eight tables. Stat declarations, one
-catalog of named rules whose kinds are `unit`, `model`, `weapon` and `spell`, each entry's
-effects and their conditions, plus the two tables that exist because **what an effect can
-target must be data**: actions (a name and a distance, because Grimdark Future has no movement
-stat and `Fast` needs something to point at) and, since 09-03, rolls (a name and nothing else,
-because `AP(X)` points at the Defense roll and 40k's wound and save rolls must be content
-rather than a migration). What only the engine reads — may it shoot, a roll's dice convention,
-its threshold derivation, its modifier cap — stays in `GameRules`.
-
-**Containment.** A model is in one of three places: a table placement, the shelf, or **inside a
-container**. `Transport(X)` holds models inside a model and a solid building holds them inside
-terrain, and the two rules are near enough the same text to be one concept. It is a location
-rather than a condition, because it names *what a model is inside* and decides where it is.
-Nothing about it persists.
-
-**Auth is Stytch's session JWT and nothing of ours.** Two token tables were designed and both
-dropped: the join token, because a game has an id and `participant` records who is allowed in;
-then `session`, because the JWT carries our account UUID in `external_id` and both services
-verify it locally against Stytch's public JWKS. No call on the request path, no shared signing
-key, no row to look up. Revocation is a matter of minutes rather than instant, which is
-accepted.
+**The client shell** — the Godot client's frame. **Three screens over one session object**: login,
+home (the game list and create game), and one game screen for lobby, setup, playing and ended,
+since all four are one socket and one hydrate path. The session object owns the management
+client, the socket, **the projection** and presence. The projection is built by applying every
+event with a rules-free applier in `Tabletop.Protocol` — events carry every state change they
+made, so applying is copying — and undo is local first, reconnect is connect, and the server
+always wins. The table view draws every piece as its hitbox first with the mesh decorating it;
+assets load at runtime through `GLTFDocument` into a content-addressed disk cache; geometry is
+the shared library and **Godot physics is not in the scene**. Dragging streams `held` presence
+and drops one move command; **moving shows its distance** as a ruler per model with the remaining
+allowance, drawn for other participants from presence against the start they already hold. One
+Ask panel renders whatever is addressed to the player's team, with per-player mutes, sealed bids
+and confirm gates in the same place. The log panel is undo-to-here; the right-click menu is
+where every property is editable, with no admin mode. **No social login**: email plus password
+or email one-time code through management, and the client has its own login screen, which
+removed loopback and device code and corrected the web app, accounts and architecture docs.
 
 Two things govern the rest: **this is a tabletop simulator**, so nothing recorded is an
 invariant and every property is editable from a menu through the same write path
 automation uses; and **players count their own points**, so there are no victory
 conditions.
 
-## What is not designed
+## What is deferred
 
-**Every module is designed.** The data layer (reviewed 08-30), the resolution machinery
-(09-03), and on 09-04 the scheduler, the setup phase, the client shell, mesh conversion and spell
-effects. Hosting alone is deferred past the review by ruling. Left over, all recorded where they
-belong:
+Nothing is undesigned. Four things are deliberately left for later, each recorded where it
+belongs:
 
-- **Hosting** — ECS Fargate, RDS, S3 in `architecture.md`. **Deferred past the review, ruled
-  09-04**: local development first, Docker at most, and hosting is designed when there is
-  something to host. Not unit deployment, which the scheduler designed.
-
-**Three things from the rulebook were deliberately left out**, recorded where they belong:
-
-- **Buildings as targets.** A solid building has `Defense 2+` and a player-set `Tough(X)` and
-  can be destroyed. That needs terrain to carry stats and to become event-driven state on top
-  of the setup snapshot — additive, per setup content, and not done.
-- **Action boosting.** The optional rules are written as percentages — boosted `Rush` moves
-  *"+50%"* — and `amount` is an integer. None of the twelve effect kinds expresses a
+- **Hosting.** ECS Fargate, RDS, S3 in `architecture.md`, now marked as the sketch a later
+  session designs against. Ruled 09-04: after the review, when there is something to host.
+- **Buildings as targets** (GF page 20) and **army terrain** (page 19). Both are terrain
+  changing after the setup snapshot, which needs terrain to become event-driven state — additive
+  when it comes, per setup content and the setup phase.
+- **Action boosting** (page 30). Its rules are percentages and `amount` is an integer; the
+  Random playstyle would hang off `turn_started`. None of the twelve effect kinds expresses a
   proportion.
-- **Advanced Casting.** Three optional modules — spell books, the psychic pool, living
-  spells (GF pages 31–32). Core casting and the token economy are designed; these are not.
+- **Advanced Casting**'s three optional modules (pages 31–32), and the two further effect
+  durations the optional extra actions (page 29) would need.
 
 ## Open questions
 
-Carried from the design docs:
+Every design doc's own *Still open* section is the authority; this is the union, swept on
+09-04:
 
-- Conflicts between two abilities reading the same result — whether both apply or one
-  wins. Deferred deliberately: every example is specific to one ruleset.
+- Conflicts between two abilities reading the same result — whether both apply or one wins.
+  Deferred deliberately: every example is specific to one ruleset.
 - The two `GameRules` interpretations action sequences flagged rather than guessed: whether
   *"one try per spell"* scopes to the activation or the round, and whether a later weapon
-  group's attacks are recomputed after an earlier group's casualties. (`Counter` before
-  `Impact` was ruled on 09-03.)
+  group's attacks are recomputed after an earlier group's casualties.
 - Whether `step_completed` payloads need a schema per step kind.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
-- Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
-  terrain becomes event-driven state on top of the setup snapshot.
-- Whether the closed terrain declaration set is complete.
+- Whether terrain can be unlocked mid-game — the point at which terrain becomes event-driven
+  state on top of the setup snapshot.
 - Whether the client ever needs to edit an army rather than only pick one.
-- Whether a thirteenth effect kind, or a flavour on kind 1, carries proportions. Only the
-  optional boosting rules need it.
-- Whether `GameRules` ever becomes data. Not before a second ruleset exists, per
-  `architecture.md`; Warhammer is what would force it — and the nine interface constraints in
-  [action sequences](superpowers/specs/2026-09-03-action-sequences-design.md) are the start of
-  that generalisation, derived from reading 40k's core rules rather than imagining them.
-
-**Do not treat this list as live without checking.** Each design doc's own *Still open* section
-is the authority, and a later doc beats an earlier one.
+- Whether the two services sharing a database survives, and whether asset uploads need
+  multipart (management API).
+- Whether a `UnitProperty` ever needs an aggregation of its own (content values).
+- Whether a terrain footprint ever needs to be a polygon (geometry values).
+- **Everything that waits on a second ruleset**, which is Warhammer: whether the six terrain
+  declarations are complete, whether twelve effect kinds and eight predicates survive, whether
+  effects ever nest deeper than one level, and when `GameRules` moves to data. Fifteen interface
+  constraints — nine in action sequences, six in the scheduler — were derived from reading 40k's
+  core rules and are the start of that generalisation.
 
 ## Next — pick up here
 
-**The whole-design review.** Every module is designed; the next prompt is the review, across all
-nineteen design documents, `architecture.md`, `data-model.md` and `schema.md`, the way the data
-layer was reviewed on 08-30 — looking for contradictions between sessions, stale open lists a
-later doc already closed, and first-pass assertions in `architecture.md` no design doc has
-touched. Hosting is designed after it, and implementation planning starts only after it.
+**The whole-design review**, the way the data layer was reviewed on 08-30. Across all twenty
+design documents, `architecture.md`, `data-model.md` and `schema.md`, looking for:
 
-**Then review the whole design**, the way the data layer was reviewed on 08-30 — across
-documents, looking for the contradictions and stale open lists that single sessions leave.
+- contradictions between sessions — 09-04 found and fixed one the same day (joining at any
+  status versus team membership fixed), and there will be others;
+- first-pass assertions in `architecture.md` that no design doc has touched;
+- open lists and corrections that disagree with the doc that superseded them;
+- anything the twenty documents together imply that none of them says.
 
-**Only after that review do implementation plans start.** Ruled on 09-03. That includes the
-contracts (`Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`) and everything
-`architecture.md`'s build order says is "not waiting on design" — nothing is exempt from the
-review gate. `docs/workstreams/` gets rewritten after the contracts exist, so the prompts can
-name real types rather than describe them.
+Its findings get fixed in place, as the data layer's twelve were. **Only after that review do
+implementation plans start**, hosting is designed, and `docs/workstreams/` is rewritten so the
+prompts can name real types rather than describe them.
 
 ## Two things worth carrying into any session
 
 **Consult the rulebooks; do not reason about the rules.** Reading them has produced better
-answers than designing did, nine sessions running — most recently the scheduler, where page
-49's team-game and free-for-all rules settled turn order without a guess, and the setup phase,
-where pages 16–18 supplied the generators and the line about removing unplaceable terrain. Sources:
+answers than designing did, ten sessions running — most recently spell effects, where Army
+Forge's own generated spell structure turned out to be the grammar the session was looking for.
+Sources:
 
 - Grimdark Future v3.4.1 and Age of Fantasy v3.5.0, PDFs on the Windows host at
   `/mnt/c/Users/clays/Downloads/`.
@@ -429,15 +432,15 @@ r = PdfReader('/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf')
 print(r.pages[12].extract_text())"        # 68 pages; special rules are 13-14
 ```
 
-Useful page numbers in Grimdark Future v3.4.1: **7** actions and their distances, **8-10**
-shooting, charging and melee, **11-12** terrain, **13-14** every special rule, **16** placement
-styles, **18** army terrain, **20** buildings, **21-23** deployment styles, **24-28** missions,
-**16** terrain placement styles, **17-18** terrain generators, **19** army terrain, **29-34** extra
-actions, boosting, advanced casting and hero upgrades, **49** multiplayer games.
+Useful page numbers in Grimdark Future v3.4.1: **6** objectives and the deployment roll-off,
+**7** rounds, turns, activations and the action distances, **8-10** shooting, charging and melee,
+**11-12** terrain, **13-14** every special rule, **16** terrain placement styles, **17-18** terrain
+generators, **19** army terrain, **20** buildings, **21-23** deployment styles, **24-28** missions,
+**29-34** extra actions, boosting, advanced casting and hero upgrades, **49** multiplayer games.
 
 **Age of Fantasy is not a second ruleset for testing generalisation.** Its terrain section is
 word for word identical to Grimdark Future's — same engine, same text. Warhammer is the real
-test: 40k's core rules have now been read once (action sequences), and the standing questions —
+test: 40k's core rules have been read twice (action sequences, the scheduler), and the standing questions —
 whether the six terrain declarations are complete, whether twelve effect kinds survive, when
 `GameRules` moves to data — still wait on designing against it for real.
 
@@ -446,15 +449,16 @@ whether the six terrain declarations are complete, whether twelve effect kinds s
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
 zoomable, generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a
 source** — it goes stale the moment either document changes, and it is regenerated by pulling
-the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after `game.created_by`, `terrain_placement.builtin`, `effect.duration`
-and the spell target columns landed.
+the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after
+`game.created_by`, `terrain_placement.builtin`, `effect.duration` and the spell target columns
+landed.
 
 ## Environment notes
 
 Stytch MCP is authenticated and works. Project `TabletopWar`, vertical `CONSUMER`, test
 project `project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. There is no production
-environment — both redirect URLs are in the test project. The redirect config was edited
-during the 08-24 session, so re-read it rather than trusting older quoted values.
+environment. The redirect URLs configured on 08-24 served OAuth and magic links, neither of
+which exists any more (client shell, 09-04); they are harmless and unused.
 
 The available MCP tools are project-configuration only — redirect URLs, SDK config,
 tokens, email templates. There are no user-management tools, so anything about the

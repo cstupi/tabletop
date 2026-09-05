@@ -235,5 +235,6 @@ for a checkpoint concept to protect against.
 - ~~Whether any setup configuration can be changed once a game is loaded. Pinning the
   rule pack says no for that one; the rest is undecided.~~ **Settled 2026-09-04** by
   [the scheduler](2026-09-04-scheduler-design.md): nothing changes once playing. The pack is
-  pinned, the board is the setup snapshot, and the scheduler shape and team membership are
-  settled by the end of the lobby.
+  pinned, the board is the setup snapshot, and the scheduler shape and the armies in play are
+  fixed once playing (first written as "team membership", corrected the same day by
+  [the setup phase](2026-09-04-setup-phase-design.md): joining stays open at every status).

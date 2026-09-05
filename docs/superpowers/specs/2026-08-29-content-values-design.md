@@ -146,7 +146,8 @@ army cannot reach into a match in progress because the match is holding its own 
 
 ## Still open
 
-- **Whether `Properties` needs anything beyond stat definitions and the rule catalog.** `architecture.md` also listed "unit and weapon definitions," but armies are
-  imported self-contained, so a shared definition of a unit or a weapon has nothing to do.
-  It is written here as not needed; a second game system is what would prove that wrong.
+- ~~**Whether `Properties` needs anything beyond stat definitions and the rule catalog.**~~
+  **Settled 08-30 and 09-03**: it needs `action` and `roll` rows too, because what an effect can
+  target must be data ([schema](../../schema.md)). Unit and weapon definitions stay out — armies
+  are imported self-contained, so a shared definition has nothing to do.
 - Whether a `UnitProperty` ever needs an aggregation of its own.
