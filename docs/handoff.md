@@ -46,6 +46,42 @@ has been reviewed** (09-04). The next prompt is the first implementation plan.
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
 touching.
 
+## Resuming — 2026-09-05 or later
+
+**What happened on 09-04, in one paragraph.** Five design sessions — the scheduler, the setup
+phase, the client shell, mesh conversion, spell effects — each one prompt, each ending in a
+committed spec with the earlier docs corrected in place. Hosting was deferred by ruling: local
+development first, Docker at most. Then the whole-design review: five parallel reviewers,
+eighty-one findings, about fifty distinct, all fixed, five rulings taken to the user (enforcement
+three positions; `game.name`; `waits_between_steps` on the game and animate per player; the game
+server writes a game's rows before play; a participant has no team until they pick). Twelve
+commits; the last is the review.
+
+**The next prompt is the first implementation plan**, and it is the only thing the mode now
+permits before code. Its scope, settled in *Next* below: the three contracts as types with no
+implementations, the test project, and the local development setup. Write it with the
+`superpowers:writing-plans` skill, against the specs, into `docs/superpowers/plans/` (the
+directory does not exist yet). One plan per prompt, as with designs.
+
+**What a planning session must hold to:**
+
+- The specs are the requirements. Where a plan finds a spec wrong or silent, correct the spec
+  first, in place, with a dated note — the same rule the design sessions followed.
+- Nothing is scaffolded ahead of its plan. `server/`, `web/` and `libs/` are still empty on
+  purpose, and stay so until the plan that fills them is approved.
+- Headless first. `Tabletop.Geometry`, `Tabletop.Protocol` and the event applier are
+  Godot-free and get xUnit tests in a `net10.0` test project; the Godot client is last and is
+  tested by running it. Test-driven development applies to everything with logic.
+- The client is a renderer. If a plan puts a rules type, a physics body or a legality check in
+  `client/`, the plan is wrong.
+- Local only. Postgres in Docker; a local blob store standing in for S3; both servers in WSL;
+  the client on Windows over forwarded localhost. No AWS anywhere until hosting is designed.
+
+**Environment, checked 09-04:** WSL `dotnet` 10.0.400 on PATH; Docker 29.7 and Compose v5.4
+present in WSL; `./venv` has `pypdf` for the rulebook; Godot 4.7.2 Mono on the Windows host,
+opened with `./scripts/godot -e`. The Stytch test project is configured and its two redirect
+URLs are unused since social login went.
+
 ## The mode — read this before proposing anything
 
 **The design phase is complete and reviewed.** Ruled on 09-03: all designs, then a review of the
