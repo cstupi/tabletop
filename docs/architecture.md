@@ -14,11 +14,11 @@ Five things ship, and they have different target platforms:
 | Game server | `server/game/` | Linux (Fargate) |
 | Management API | `server/management/` | Linux (Fargate) |
 | Web app | `web/` | Static (Svelte SPA) |
-| Mesh prep tool | `tools/mesh-prep/` | The user's machine |
 
-The mesh prep tool is easy to forget because it is not a service, but it **ships to users** —
-conversion left the product on the understanding that they run this instead. It is undesigned;
-`docs/workstreams/11-mesh-prep-tool.md` is a sketch.
+There is no mesh prep tool. This document originally listed one at `tools/mesh-prep/`,
+shipping to users' machines; [mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md)
+moved STL conversion into the web app's upload flow, running in the browser, and the tool and
+its language exception went with it. `docs/workstreams/11-mesh-prep-tool.md` is a stale sketch.
 
 The web app exists and owns **preparation** — armies, assets, account, and login. The client
 owns **play**, plus the game browser and joining. See
@@ -375,8 +375,9 @@ The miniature ecosystem distributes STL, which Godot cannot load and which is 50
 for realtime — a print-ready 32mm mini is routinely 500k–2M triangles. Converting it server-side would mean a job queue, a worker, an
 async upload state machine, and a source/derived blob split.
 
-Instead, conversion is an **offline tool the user runs before uploading** (`tools/mesh-prep/`).
-The product gains a validation rule and loses an entire subsystem.
+Instead, conversion runs **in the browser, inside the web app's upload flow** — corrected
+2026-09-04 from "an offline tool the user runs before uploading." The product gains a validation
+rule and loses an entire subsystem either way; the browser version also loses the install.
 
 The residual risk is that nothing stops a user uploading an undecimated GLB straight out of
 Blender, which then lands on every client in the game. A triangle-count check is the only
@@ -518,7 +519,7 @@ internal detail of one client.
   and both the web app and the client have their own login form. Nothing crosses from the
   browser to the client.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot.
-  There is no server-side mesh processing to speak of: conversion is the offline prep tool, and
+  There is no server-side mesh processing to speak of: conversion runs in the browser, and
   the only server-side step is a ranged read of the GLB header to count triangles.
 - **Collision volume authoring is the web's too.** Base sizes are a preset dropdown (25/32/40mm
   round, oval sizes) covering effectively every model. Terrain volumes were held back for the
@@ -543,7 +544,6 @@ client/                  Godot game client (the only Godot dependency)
 server/game/             live sessions, rules engine, event log
 server/management/       ASP.NET Core CRUD API
 web/                     Svelte SPA
-tools/mesh-prep/         offline STL to GLB conversion, run by the user
 libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
 docs/  scripts/          repo-level support
 ```

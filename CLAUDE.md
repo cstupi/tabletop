@@ -41,8 +41,7 @@ before, or the assembly is missing and every script fails with "class could not 
 
 Three kinds of top-level directory:
 
-- **Deliverables** — `client/`, `server/`, `web/`, `tools/`. These ship. `tools/` is easy to
-  overlook because it is not a service, but the mesh prep tool is run by users.
+- **Deliverables** — `client/`, `server/`, `web/`. These ship.
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
 - **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
@@ -55,10 +54,8 @@ Three kinds of top-level directory:
 - `server/game/` — live game sessions, rules engine, event log. WebSocket. Empty.
 - `server/management/` — ASP.NET Core CRUD API: accounts, armies, assets, layouts, games.
   Empty.
-- `web/` — Svelte SPA. Owns *preparation*: armies, assets, the account, and login. Does not
-  exist yet.
-- `tools/mesh-prep/` — offline STL to GLB conversion and decimation, run by users before
-  uploading. Does not exist yet.
+- `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
+  browser, the account, and login. Does not exist yet.
 - `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
 
 The rules engine is **not** in `libs/` — it lives only in `server/game/`. The client is a
@@ -70,7 +67,7 @@ running a server.
 Because the client project lives in `client/`, its `**/*.cs` glob cannot reach sibling
 projects — that is why it moved out of the repo root.
 
-`server/`, `web/`, `tools/` and `libs/` are empty or absent on purpose. Each module is designed
+`server/`, `web/` and `libs/` are empty or absent on purpose. Each module is designed
 before it is built.
 
 ## Conventions

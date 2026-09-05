@@ -226,7 +226,9 @@ circles.
 - Reading volumes from glTF node names or `extras`.
 - The contents of the default deployment set, and how styles are organised per game.
 - Rectangular bases.
-- Whether scale and orientation are written by the mesh prep tool or by the user.
+- ~~Whether scale and orientation are written by the mesh prep tool or by the user.~~
+  **Settled 2026-09-04** by [mesh conversion](2026-09-04-mesh-conversion-design.md): proposed
+  by the converter, confirmed by the user in the preview.
 
 ## Still open
 

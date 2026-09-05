@@ -36,6 +36,7 @@ scaffold — all of the work so far is design.
 | 2026-09-04 | [The scheduler](superpowers/specs/2026-09-04-scheduler-design.md) — both shapes, the turn as an Ask, deployment and the round boundary; three earlier open items closed |
 | 2026-09-04 | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) — free-for-all editing, the draft is the row, terrain generators and built-in terrain, the creator's two transitions; joining at any status restored |
 | 2026-09-04 | [The client shell](superpowers/specs/2026-09-04-client-shell-design.md) — three screens over a session object, the projection, the table view, Asks, log and menu; no social login, so loopback and device code are gone |
+| 2026-09-04 | [Mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md) — STL to GLB runs in the browser inside the upload flow; the mesh prep tool is gone from the layout, `architecture.md` and `CLAUDE.md` |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -197,6 +198,16 @@ where every property is editable, with no admin mode. **No social login**: email
 or email one-time code through management, and the client has its own login screen, which
 removed loopback and device code and corrected the web app, accounts and architecture docs.
 
+**Mesh conversion** — formerly the mesh prep tool. **There is no tool.** STL conversion runs in the
+browser, as a step in the web app's upload flow: drop STLs, the page parses, merges, decimates
+with a WebAssembly simplifier, recomputes smooth normals, guesses millimetres and the up-axis,
+warns about pre-supported files and never removes supports, then shows the model standing on a
+ring of the modelled base for the user to confirm scale and facing before anything uploads.
+Budgets: 15,000 triangles for a miniature, 50,000 for terrain; the server's header read **warns
+above 100,000** and still never blocks. **The converter proposes scale and orientation and the
+user confirms**, closing the question the asset library and geometry values shared. `tools/`
+left the layout in `CLAUDE.md` and `architecture.md`, and the language exception went with it.
+
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
 Forge, the source list, and the asset library cannot reach into it. Users edit their own
@@ -313,9 +324,8 @@ conditions.
 ## What is not designed
 
 **Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler, the
-setup phase and the client shell (09-04). What still needs a design session:
+setup phase, the client shell and mesh conversion (09-04). What still needs a design session:
 
-- **The mesh prep tool** — `architecture.md` says outright it is undesigned.
 - **Deployment**, meaning the infrastructure — ECS Fargate, RDS, S3 in `architecture.md`. Not
   unit deployment, which the scheduler designed.
 - **The effect grammar follow-up** — small: real spells (Alien Hives, via the Army Forge API)
@@ -345,7 +355,6 @@ Carried from the design docs:
   group's attacks are recomputed after an earlier group's casualties. (`Counter` before
   `Impact` was ruled on 09-03.)
 - Whether `step_completed` payloads need a schema per step kind.
-- The triangle-count threshold at upload. Agreed in principle, never chosen.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
@@ -364,9 +373,8 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Design the remaining modules, one prompt each: the mesh prep tool, deployment, and the small
-effect grammar follow-up.** The mesh prep tool is the natural next session — `architecture.md`
-says outright it is undesigned, and `docs/workstreams/11-mesh-prep-tool.md` is the only sketch.
+**Design the remaining modules, one prompt each: deployment (the infrastructure — ECS Fargate,
+RDS, S3), and the small effect grammar follow-up.** Then the review.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.

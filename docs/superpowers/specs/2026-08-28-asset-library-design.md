@@ -100,13 +100,18 @@ That is the second profile `kind` was introduced for.
 
 - Upload mechanics: how bytes arrive, how progress is reported, how failures retry.
 - Search beyond folders and modelled base.
-- What `scale` and `orientation` are measured against, and whether the mesh prep tool
-  writes them or the user does.
+- ~~What `scale` and `orientation` are measured against, and whether the mesh prep tool
+  writes them or the user does.~~ **Settled 2026-09-04** by
+  [mesh conversion](2026-09-04-mesh-conversion-design.md): the converter proposes, the user
+  confirms in the preview, and the fields hold the confirmed value. Measured against the
+  table's axes, per geometry values.
 
 ## Still open
 
-- The triangle-count threshold at upload. Agreed in principle in `architecture.md` as the
-  only guardrail once conversion left the product; the number has never been chosen.
+- ~~The triangle-count threshold at upload. Agreed in principle in `architecture.md` as the
+  only guardrail once conversion left the product; the number has never been chosen.~~
+  **Settled 2026-09-04** by [mesh conversion](2026-09-04-mesh-conversion-design.md): warn above
+  100,000 triangles; the converter aims for 15,000 (miniature) and 50,000 (terrain).
 - ~~What a slot draws when its asset is missing.~~ **Settled on 08-30: it draws its own
   hitbox** — the slot's base shape extruded to its height, rendered semi-transparent green. A
   circle base gives a cylinder, an oval or square its own prism.
