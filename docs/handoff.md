@@ -326,8 +326,9 @@ conditions.
 **Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler, the
 setup phase, the client shell and mesh conversion (09-04). What still needs a design session:
 
-- **Deployment**, meaning the infrastructure — ECS Fargate, RDS, S3 in `architecture.md`. Not
-  unit deployment, which the scheduler designed.
+- **Hosting** — ECS Fargate, RDS, S3 in `architecture.md`. **Deferred past the review, ruled
+  09-04**: local development first, Docker at most, and hosting is designed when there is
+  something to host. Not unit deployment, which the scheduler designed.
 - **The effect grammar follow-up** — small: real spells (Alien Hives, via the Army Forge API)
   exposed two gaps, a grant with a duration (*"gets X once"*) and multi-target selection
   (*"pick up to two friendly units within 12""*). Neither blocks anything except authoring
@@ -373,8 +374,9 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Design the remaining modules, one prompt each: deployment (the infrastructure — ECS Fargate,
-RDS, S3), and the small effect grammar follow-up.** Then the review.
+**One design session remains before the review: the small effect grammar follow-up** — a grant
+with a duration and multi-target selection, from real Alien Hives spells. Then the review.
+Hosting is deliberately after it.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.

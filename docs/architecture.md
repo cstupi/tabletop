@@ -6,7 +6,7 @@ built.
 
 ## Deliverables
 
-Five things ship, and they have different target platforms:
+Four things ship, and they have different target platforms:
 
 | Deliverable | Directory | Platform |
 | --- | --- | --- |
@@ -433,6 +433,11 @@ ends and node-tree replication, which is the wrong model for discrete board stat
 Turn-based play means no prediction and no rollback netcode.
 
 ## Deployment
+
+**Deferred, ruled 2026-09-04.** Local development comes first and is the only environment; Docker
+is the most that gets introduced, and only for what needs it — Postgres, and S3 substituted by a
+local store. Hosting is designed after the whole-design review, when there is something to
+host. Everything below is the first-pass sketch it will be designed against.
 
 **ECS Fargate for both servers, RDS Postgres, S3 for blobs.** One deployment model, because
 the game server holds live WebSocket sessions and cannot be serverless — so making the
