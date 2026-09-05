@@ -45,7 +45,8 @@ a choice of board depth.
 The texture is flat on the top face. **Predefined textures ship with the client**, so they
 are not library assets, nobody owns them, and nothing is copied into anybody's account. A
 user who wants their own board art uploads it and it is an ordinary asset in their own
-library.
+library. *Since 2026-09-04, built-in terrain ships the same way, and a placement names a
+built-in or a library asset — see [the setup phase](2026-09-04-setup-phase-design.md).*
 
 **Size cannot change after the setup phase.**
 
@@ -151,7 +152,9 @@ interprets it. Terrain still does not know what a forest is.
 ## Deliberately not decided
 
 - Custom and adjustable deployment shapes.
-- What happens when a saved layout's board size does not match the table it is loaded onto.
+- ~~What happens when a saved layout's board size does not match the table it is loaded onto.~~
+  **Settled 2026-09-04** by [the setup phase](2026-09-04-setup-phase-design.md): the layout
+  wins. Loading it replaces the whole draft, size included.
 - How a texture's aspect ratio is reconciled with an arbitrary board size.
 - The inventories themselves: which built-in shapes, which built-in textures.
 - The setup UI, the terrain volume editor, and how a layout is exported.

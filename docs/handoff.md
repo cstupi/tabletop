@@ -34,6 +34,7 @@ scaffold — all of the work so far is design.
 | 2026-09-03 | [Action sequences](superpowers/specs/2026-09-03-action-sequences-design.md) — the interpreter and OPR's sequences, 40k read as the falsifier |
 | 2026-09-03 | Rolls given a row; `schema.md`, `data-model.md` and `architecture.md` corrected to match |
 | 2026-09-04 | [The scheduler](superpowers/specs/2026-09-04-scheduler-design.md) — both shapes, the turn as an Ask, deployment and the round boundary; three earlier open items closed |
+| 2026-09-04 | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) — free-for-all editing, the draft is the row, terrain generators and built-in terrain, the creator's two transitions; joining at any status restored |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -152,12 +153,31 @@ hand never ends one — that exists to arrange models inside a unit. A team with
 set is skipped, which is how a spectator's team never sees a prompt. Deployment is the phase
 before round one, driven by the same scheduler after a logged roll-off; Scouts and Ambushers
 follow pages 13–14. **Reactions resolve in turn order starting after the actor**, replaceable by
-a hook; muted window kinds are per player; the scheduler shape and team membership are fixed
-once playing. Page 49's team games and free-for-all were read: turn order is team-based, and
+a hook; muted window kinds are per player; the scheduler shape and the armies in play are fixed
+once playing (this first said team membership, and the setup phase corrected it the same day). Page 49's team games and free-for-all were read: turn order is team-based, and
 free-for-all rolls off every round — a first-team policy, not a scheduler shape. Six constraints
 on the interface were derived from 40k's battle round, Fight phase and Reinforcements. The
 roll-off does not pick a table edge, and that deviation from page 6 is accepted and handed to the
-setup phase session.
+setup phase session — which then reconciled it with a zone swap.
+
+**The setup phase** — who places what, and when, between the lobby and the first turn. **Editing is
+free for all**: any participant places, moves, removes or overrides anything, at the same time as
+anyone else, and the rulebook's roll-off-and-alternate placement styles are social, because setup
+is unlogged and any turn structure there would be a second, unlogged scheduler. Setup edits are a
+**third message kind** — applied, broadcast, persisted, never logged — and **the game's
+`table_state` row is the live draft**, written through by the game server after each broadcast,
+so a dead task recovers it by the one hydrate path; live drag is presence and the drop is the
+edit, so persistence sees one write per drop. **The creator starts and ends setup** and has no
+other standing, which added `game.created_by`. Zones are assigned to team ordinals by the zone
+style and **anyone may swap two teams' zones**, which is how the roll-off winner picks an edge.
+Loading a layout replaces the whole draft, size included, closing setup content's open item.
+**Terrain generators** are the rulebook's four planet tables (pages 17–18), run on the client as a
+batch of adds that land beside the table; they place **built-in terrain** that ships with the
+client like textures do, so `terrain_placement` names a built-in or an asset, and a user may swap
+the mesh while the piece keeps its volumes and declarations. Importing terrain and setting its six
+declarations was already designed end to end (asset library, geometry values) and is untouched.
+**Joining is allowed at any status**, restoring accounts' settled rule over the scheduler's
+one-day-old contradiction: a late joiner brings no army and is what a spectator is.
 
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
@@ -274,13 +294,9 @@ conditions.
 
 ## What is not designed
 
-**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler
-(09-04). What still needs a design session:
+**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler and the
+setup phase (09-04). What still needs a design session:
 
-- **The setup phase.** Its output record is designed; who places terrain and when is not. The
-  scheduler handed it one more question: zones are assigned to team ordinals during setup, but
-  the rulebook has the deployment roll-off winner pick an edge, so a zone swap during setup is
-  the likely convenience.
 - **The client shell.**
 - **The mesh prep tool** — `architecture.md` says outright it is undesigned.
 - **Deployment**, meaning the infrastructure — ECS Fargate, RDS, S3 in `architecture.md`. Not
@@ -318,7 +334,6 @@ Carried from the design docs:
 - Whether terrain can be unlocked mid-game. Not a permission change — it is the point at which
   terrain becomes event-driven state on top of the setup snapshot.
 - Whether the closed terrain declaration set is complete.
-- What happens when a saved layout's board size does not match the table it is loaded onto.
 - Whether the client ever needs to edit an army rather than only pick one.
 - Loopback or device code for getting a browser session into the client.
 - Whether a thirteenth effect kind, or a flavour on kind 1, carries proportions. Only the
@@ -333,11 +348,10 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Design the remaining modules, one prompt each: the setup phase, the client shell, the mesh
-prep tool, deployment, and the small effect grammar follow-up.** The setup phase is the natural
-next session — the scheduler handed it the zone-assignment question, and game flow's line that
-terrain placement is "driven by the same scheduler" was superseded by setup content's unlogged
-snapshot, so the setup phase needs its own account of who places what and when.
+**Design the remaining modules, one prompt each: the client shell, the mesh prep tool,
+deployment, and the small effect grammar follow-up.** The client shell is the natural next
+session — every server-side behaviour it has to render now exists: Asks from the scheduler and the
+interpreter, presence, setup edits, the lobby's two creator transitions, the game browser.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.
@@ -351,8 +365,9 @@ name real types rather than describe them.
 ## Two things worth carrying into any session
 
 **Consult the rulebooks; do not reason about the rules.** Reading them has produced better
-answers than designing did, eight sessions running — most recently the scheduler, where page
-49's team-game and free-for-all rules settled turn order without a guess. Sources:
+answers than designing did, nine sessions running — most recently the scheduler, where page
+49's team-game and free-for-all rules settled turn order without a guess, and the setup phase,
+where pages 16–18 supplied the generators and the line about removing unplaceable terrain. Sources:
 
 - Grimdark Future v3.4.1 and Age of Fantasy v3.5.0, PDFs on the Windows host at
   `/mnt/c/Users/clays/Downloads/`.
@@ -378,7 +393,8 @@ print(r.pages[12].extract_text())"        # 68 pages; special rules are 13-14
 Useful page numbers in Grimdark Future v3.4.1: **7** actions and their distances, **8-10**
 shooting, charging and melee, **11-12** terrain, **13-14** every special rule, **16** placement
 styles, **18** army terrain, **20** buildings, **21-23** deployment styles, **24-28** missions,
-**29-34** extra actions, boosting, advanced casting and hero upgrades, **49** multiplayer games.
+**16** terrain placement styles, **17-18** terrain generators, **19** army terrain, **29-34** extra
+actions, boosting, advanced casting and hero upgrades, **49** multiplayer games.
 
 **Age of Fantasy is not a second ruleset for testing generalisation.** Its terrain section is
 word for word identical to Grimdark Future's — same engine, same text. Warhammer is the real
@@ -391,8 +407,7 @@ whether the six terrain declarations are complete, whether twelve effect kinds s
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
 zoomable, generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a
 source** — it goes stale the moment either document changes, and it is regenerated by pulling
-the mermaid block out of each and republishing to the same URL. Regenerated 09-03 after the
-`roll` table landed.
+the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after `game.created_by` and `terrain_placement.builtin` landed.
 
 ## Environment notes
 

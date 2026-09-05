@@ -24,6 +24,7 @@ erDiagram
     ACCOUNT ||--o{ FOLDER : owns
     ACCOUNT ||--o{ TABLESTATE : "saves as a layout"
     ACCOUNT ||--o{ PARTICIPANT : "plays as"
+    ACCOUNT ||--o{ GAME : created
 
     ARMY ||--|{ UNIT : contains
     UNIT ||--|{ MODELSLOT : contains
@@ -52,7 +53,7 @@ erDiagram
     TABLESTATE ||--o{ MARKER : holds
     TABLESTATE ||--o{ DEPLOYMENTZONE : holds
     TABLESTATE }o..o| ASSET : "texture, or a built-in"
-    TERRAINPLACEMENT }o--|| ASSET : mesh
+    TERRAINPLACEMENT }o..o| ASSET : "mesh, or a built-in"
     ASSET ||--o{ VOLUME : "terrain profile"
     TERRAINPLACEMENT ||--o{ VOLUME : overrides
     MARKER }o..o| ASSET : "visual, or a built-in"
@@ -117,6 +118,7 @@ erDiagram
     GAME {
         uuid id
         enum status
+        id created_by
         timestamp created_at
         id game_rules
         enum scheduler_shape
@@ -188,6 +190,7 @@ erDiagram
         inches length
     }
     TERRAINPLACEMENT {
+        string builtin
         units position
         degrees yaw
         float scale
@@ -352,8 +355,11 @@ relayed between clients and never written, so they are values in
 Who is connected is not stored either: a presence value exists while a socket is open, and
 `PARTICIPANT` is the roster underneath it.
 
-**Built-ins are not rows.** Predefined board textures and deployment zone shapes ship with
-the client. Nobody owns them, nothing is copied into an account, and they need no entity.
+**Built-ins are not rows.** Predefined board textures, deployment zone shapes and, since
+[the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md), terrain pieces ship with
+the client. Nobody owns them, nothing is copied into an account, and they need no entity. A
+terrain placement therefore points at a built-in or an asset, and the line to `ASSET` is soft
+for the same reason the texture's is.
 
 **Stytch stores nothing here.** No Stytch identifier appears in the model; the only link is
 `external_id` on their side holding `ACCOUNT.id`.

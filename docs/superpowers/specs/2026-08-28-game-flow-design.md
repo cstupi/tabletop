@@ -144,8 +144,11 @@ Not built, but worth not designing out: **reactive systems** — Infinity-style 
 and interrupts — are a third shape, where a window opens for the team that is not
 active. The interface should not assume the next window belongs to the active team.
 
-Setup is not special. Table size, terrain placement, and deployment are phases like
-any other, driven by the same scheduler.
+~~Setup is not special. Table size, terrain placement, and deployment are phases like
+any other, driven by the same scheduler.~~ **Corrected 2026-09-04.** Deployment is a phase the
+scheduler drives ([the scheduler](2026-09-04-scheduler-design.md)). Table size and terrain are
+the setup phase, which is unlogged, free for all, and has no scheduler
+([the setup phase](2026-09-04-setup-phase-design.md)).
 
 ## Setup is configuration, before the game loads
 

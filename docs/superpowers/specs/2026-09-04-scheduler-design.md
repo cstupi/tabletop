@@ -214,8 +214,15 @@ assumption.
 ## Setup configuration is fixed once playing
 
 Closing game flow's open item. The rule pack is pinned; the board is the setup snapshot; and
-**the scheduler shape and the team membership are settled by the end of the lobby.** Rejoining
-works at any point, joining does not. A group that wants a different shape starts a new game.
+**the scheduler shape and the armies in play are fixed once playing.** A group that wants a
+different shape starts a new game.
+
+*Corrected 2026-09-04 by [the setup phase](2026-09-04-setup-phase-design.md), the same day.*
+This section first said team membership was fixed and joining closed at the lobby, which
+contradicted accounts' settled rule that a game is joinable at every status. Accounts holds:
+anyone may join an existing team at any time, brings no army after deployment, and is what
+presence calls a spectator. The scheduler is unaffected — a late joiner adds nothing to any
+legal set.
 
 ## Testing
 

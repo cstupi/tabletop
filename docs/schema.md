@@ -25,6 +25,7 @@ erDiagram
     ACCOUNT ||--o{ ARMY : owns
     ACCOUNT ||--o{ TABLE_STATE : "saved layouts"
     ACCOUNT ||--o{ PARTICIPANT : "plays as"
+    ACCOUNT ||--o{ GAME : created
 
     BLOB ||--o{ ASSET : bytes
     ASSET ||--o{ ASSET_VOLUME : "terrain profile"
@@ -47,7 +48,7 @@ erDiagram
     TABLE_STATE ||--o{ MARKER : ""
     TABLE_STATE ||--o{ DEPLOYMENT_ZONE : ""
     TABLE_STATE }o..o| ASSET : texture
-    TERRAIN_PLACEMENT }o--|| ASSET : mesh
+    TERRAIN_PLACEMENT }o..o| ASSET : "mesh, or a built-in"
     TERRAIN_PLACEMENT ||--o{ TERRAIN_VOLUME : overrides
     MARKER }o..o| ASSET : visual
 
@@ -182,6 +183,7 @@ erDiagram
     TERRAIN_PLACEMENT {
         uuid id PK
         uuid table_state_id FK
+        text builtin
         uuid asset_id FK
         real pos_x
         real pos_y
@@ -235,6 +237,7 @@ erDiagram
         text properties_hash
         text scheduler_shape
         bool warns
+        uuid created_by FK
         timestamptz created_at
     }
     TEAM {
@@ -548,6 +551,24 @@ setup result. Exactly one, enforced by a check constraint.
 Nullable foreign keys are a smell, and the alternative is two tables with identical columns,
 which is a worse one. [Setup content](superpowers/specs/2026-08-29-setup-content-design.md)
 decided these are **one shape with two owners**, and this is what that looks like.
+
+### A terrain placement names a built-in or an asset
+
+**Added 2026-09-04 by [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md).**
+Built-in terrain ships with the client, the way board textures and marker visuals do, and the
+terrain generators place it. So `terrain_placement` carries `builtin` beside a now-nullable
+`asset_id`, exactly one set, with the same check constraint `texture_builtin | texture_asset_id`
+and `visual_builtin | visual_asset_id` already use. The placement's own `terrain_volume` rows
+carry its footprint and declarations either way, which is what lets a user swap the mesh and
+keep the piece.
+
+### A game records its creator
+
+**Added 2026-09-04 by [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md).**
+`game.created_by` is the account that called `POST /v1/games`. It is read for two socket
+commands — start setup, end setup — and nothing else; the creator is not a host. Account
+deletion already destroys every game the account played in, so a deleted creator leaves no
+orphan.
 
 ### A deployment zone names a team ordinal, not a team
 
