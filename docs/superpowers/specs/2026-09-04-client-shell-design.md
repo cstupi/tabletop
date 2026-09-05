@@ -51,18 +51,23 @@ status change and fights the server's view that lobby, setup and play are one co
   JWT in memory and, if the player chooses, in the OS credential store so the next launch skips
   the screen.
 - **Home.** The game list from `GET /v1/games`, every status, filtered by the player. Create
-  game: name it, pick the pack, shape and enforcement setting, and pick one of the player's
-  armies from `GET /v1/armies`. Creating or joining leads to the same place.
+  game: name it (`game.name`, added 09-04), pick the pack from `GET /v1/properties`, the shape,
+  the enforcement setting and whether the pipeline waits between steps, and pick one of the
+  player's armies from `GET /v1/armies`. Creating or joining leads to the same place. Before
+  either, the client sends its version on every request and treats management's *update
+  required* response as a screen of its own.
 - **Game.** One screen for `lobby`, `setup`, `playing` and `ended`, because all four are one
   socket and one hydrate path. The status decides which tools are bound to the table and which
-  panels show; a status change is a change inside the screen. Leaving returns to Home and closes
-  the socket; the participant row stays, since disconnecting is not leaving.
+  panels show; a status change is a change inside the screen. The Home button **disconnects**:
+  it closes the socket and the participant row stays, since disconnecting is not leaving.
+  **Leaving** is a separate menu action that calls `POST /v1/games/{id}/leave` and removes the
+  row, per accounts.
 
 ## The connection and the projection
 
-On connect the client sends the JWT and the game id. The server answers with the setup
-snapshot — or the current draft, during setup — then the event log from the start, then live
-events as they happen.
+On connect the client sends the JWT and the game id. The server answers with the teams,
+participants and configuration; then, from `setup` on, the draft or the snapshot; then the event
+log from the start, then live events as they happen. At `lobby` there is no board yet.
 
 The client applies every event to a **projection**: placements, the shelf, containment,
 conditions, action records, wounds, spell tokens, scores, the scheduler's position, the
@@ -139,8 +144,9 @@ Every other participant's presence draws in their team's colour.
 One **Ask panel**, always in the same place, rendering whatever Ask is currently addressed to the
 player's team: activate, deploy, target, strike back, remove casualties, react or pass,
 confirm. The legal set from the server becomes the panel's choices and the table's highlights;
-nothing outside the set is offered, and at loose enforcement a menu edit is how a player steps
-outside it. Any team member may answer, and the panel shows who did. Asks addressed to other
+nothing outside the set is offered, and under `warn` or `silent` enforcement a menu edit is how
+a player steps outside it; under `strict` the server refuses an out-of-set answer and the panel
+says so. Any team member may answer, and the panel shows who did. Asks addressed to other
 teams show as a waiting indicator naming the team, never as controls.
 
 **Windows** render in the same panel as react or pass. A **mute list per player**, in local
@@ -166,8 +172,9 @@ confirmation dialog.** The log is the accountability.
 ## Animation
 
 The projection applies an event the moment it arrives. Whether the table then *plays it out* is
-the game's animate setting: dice rolling on the table and models falling, or the result simply
-appearing. Animation is a queue between the projection and the renderer and nothing else. It may
+**the player's own animate setting**, kept in local settings — ruled 09-04; it is presentation
+only, so it is not on the game row — dice rolling on the table and models falling, or the result
+simply appearing. Animation is a queue between the projection and the renderer and nothing else. It may
 lag the projection and it never delays an Ask — a player may answer while the dice are still
 rolling. Presence is never animated, only drawn.
 

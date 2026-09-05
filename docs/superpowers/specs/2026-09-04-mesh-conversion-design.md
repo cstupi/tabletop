@@ -86,8 +86,10 @@ workstream prompt. Everything the sketch wanted survives inside the web app.
 
 ## What it does not do
 
-- Terrain collision volumes. Those come from the bounding box at upload and the volume editor,
-  unchanged from geometry values.
+- Terrain collision volumes beyond the default. **The browser computes the bounding-box volume**
+  from the mesh it already holds — a converted STL or a dropped GLB alike — and writes it with
+  `PUT /v1/assets/{id}/volumes` at confirm, which is the author geometry values' "at upload"
+  never named. The volume editor is for when that default is wrong, unchanged.
 - Base size in play, which is the slot's, not the asset's.
 - Anything on the server. Management still sees a GLB and reads a header.
 

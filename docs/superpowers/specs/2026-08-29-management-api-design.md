@@ -27,24 +27,29 @@ user can be months behind.
 ## Authentication
 
 **Management is the only thing that talks to Stytch**, and the only thing that issues tokens.
-Settled by [accounts](2026-08-29-accounts-design.md) and revised by
-[the web app](2026-08-29-web-app-design.md): the browser owns login, and the client acquires
-a session from it.
+Settled by [accounts](2026-08-29-accounts-design.md), revised by
+[the web app](2026-08-29-web-app-design.md), and revised again 09-04 by
+[the client shell](2026-09-04-client-shell-design.md): **both the web app and the client log in
+here, with their own forms**, and there is no social login.
 
 ```
 POST   /v1/auth/otp                      send a code to an email address
 POST   /v1/auth/otp/verify               code → session
 POST   /v1/auth/password                 email and password → session
 POST   /v1/auth/password/reset
-POST   /v1/auth/magic-link
-GET    /v1/auth/oauth/{provider}/start   redirect out
-GET    /v1/auth/oauth/callback           → session
 DELETE /v1/auth/session                  log out
 ```
 
+~~`POST /v1/auth/magic-link`, `GET /v1/auth/oauth/{provider}/start`,
+`GET /v1/auth/oauth/callback`~~ — struck 09-04 with the methods they served.
+
 OTP and password are Basic-auth Stytch endpoints requiring the project secret, so they run
-server-side regardless. OAuth and magic links need a page to come back to, which the web app
-supplies.
+server-side regardless.
+
+**The version check** this document called "the mechanism that matters" is a request header:
+the client sends its version on every call, and management answers `426 Upgrade Required` when
+it is below the minimum the server accepts. No endpoint, one status code, and the client shell
+shows it as a screen. Placed 09-04.
 
 ### We issue no tokens of our own
 
@@ -112,10 +117,11 @@ count from a small read.
 No worker, no job queue, no streaming — the subsystem deliberately removed when conversion
 left the product stays removed.
 
-**The check warns; it does not block.** Consistent with the enforcement boolean from
-[identity and enumerations](2026-08-29-identity-and-enumerations-design.md): the server says
-this mesh is 800,000 triangles and will hurt everyone in the game, and the upload proceeds.
-Blocking would be the only hard gate in a product that otherwise has none.
+**The check warns; it does not block.** The server says this mesh is 800,000 triangles and
+will hurt everyone in the game, and the upload proceeds. The threshold is 100,000
+([mesh conversion](2026-09-04-mesh-conversion-design.md)). This is an upload check, unrelated to
+the game's enforcement setting, which gained a refusing position on 09-04; nothing about uploads
+refuses.
 
 ### GLB only
 
@@ -186,15 +192,17 @@ PATCH  /v1/armies/{id}                        bindings, bases
 DELETE /v1/armies/{id}
 
 GET    /v1/layouts
-POST   /v1/layouts
-GET    /v1/layouts/{id}
+POST   /v1/layouts                            the client saves a setup draft here
+GET    /v1/layouts/{id}                       and loads one from here (setup phase, 09-04)
 PATCH  /v1/layouts/{id}
 DELETE /v1/layouts/{id}
 
+GET    /v1/properties                         the pinned sets a game may choose: name, hash, game_rules (09-04)
+
 GET    /v1/games                              the public browser, keyset
-POST   /v1/games                              → game id
+POST   /v1/games                              name, properties_hash, scheduler_shape, enforcement, waits_between_steps → game id
 GET    /v1/games/{id}
-POST   /v1/games/{id}/join                    → creates the participant row
+POST   /v1/games/{id}/join                    → creates the participant row, on no team yet
 POST   /v1/games/{id}/leave
 POST   /v1/games/{id}/end
 DELETE /v1/games/{id}
@@ -225,8 +233,11 @@ small enough to return whole.
 
 ## Still open
 
-- **The two services now share a database.** The game server reads management's schema
-  read-only, so a management migration can break it. Small, and one-directional, but the game
-  server is not as isolated as "no CRUD surface" suggests.
+- **The two services now share a database.** The game server reads management's schema, and
+  since 09-04 **writes** a game's own rows while its status is `lobby` or `setup` — status,
+  teams, participants' team and army snapshot, the `table_state` draft — and is read-only from
+  `playing` on ([the setup phase](2026-09-04-setup-phase-design.md)). Teams, team picks and
+  configuration changes are lobby commands over the socket, not endpoints here. A management
+  migration can break the game server either way.
 - Whether asset uploads need multipart for large files, which presigned `PUT` does not cover
   on its own.

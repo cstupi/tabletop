@@ -62,7 +62,9 @@ overriding individual slots is expected, not exceptional.
 
 **Table** — dimensions in inches, and its regions.
 
-**Region** — a shape, whose it is, and what it is for: deployment zones, mission areas.
+**Region** — a shape, whose it is, and what it is for: deployment zones~~, mission areas~~
+(*mission areas have nothing behind them; there is no mission record —
+[setup content](2026-08-29-setup-content-design.md)*).
 Defined at game setup, with a sensible default. Drawn as visible lines during deployment
 so players can see where they may deploy, hidden once play moves past that phase.
 
@@ -99,7 +101,9 @@ condition.
 everyone, meaning whatever the players decide.
 
 **Objective** — a placement, a size, a visual, and whatever the game needs to score it.
-Its own kind of thing, not a token and not terrain.
+~~Its own kind of thing, not a token and not terrain.~~ *Corrected by
+[setup content](2026-08-29-setup-content-design.md): objectives and tokens are one marker with a
+`kind`, since scoring is manual and the field this line reserved is empty.*
 
 ## Decisions and why
 
@@ -149,7 +153,9 @@ real table, where you routinely shift an opponent's model to reach past it. Acco
 comes from a visible log rather than from a gate in the way of ordinary play.
 
 **Containment is computed, never stored.** Whether a model is standing in a forest is a
-question the geometry answers when asked. Only position and facing are recorded, and what a
+question the geometry answers when asked. (*Being inside a container — a transport or a
+building — is a different thing with the same word: a stored location since 08-30, see
+[game flow](2026-08-28-game-flow-design.md).*) Only position and facing are recorded, and what a
 model rests on is derived the same way.
 
 **Having a placement does not imply obeying terrain.** A miniature settles onto terrain and

@@ -55,7 +55,9 @@ from, the entry that granted it, the casting unit, and remaining uses (one).
   client's projection copies rather than derives.
 - **Rebuilt from the log, never a row**, like the other stores.
 - **Editable from the menu** — added or removed like any property, logged with an actor.
-- **Read by the two effect passes** alongside the unit's own properties. A granted
+- **Read by the two effect passes** alongside the unit's own properties, **and by `GameRules`'
+  name checks** — a granted `Hit & Run Fighter` is a hook-name rule with no effect rows, and the
+  hook that checks for it by name reads the grants store too. A granted
   `Regeneration` is settled and applied exactly as an innate one; *loses AP(1)* is a stored
   parameter-modify of −1 on `AP`; *friendly units get Rending in melee against* is a stored grant
   on the enemy unit whose subject is `opponent`, so any friendly unit interacting with it gets
@@ -69,8 +71,10 @@ snapshot's copy.
 ## Damage spells need nothing new
 
 *Takes 4 hits with AP(2)* is **kind 6, add hits, amount 4**, with a **child grant** of `AP`,
-amount 2, whose subject is the hits themselves — the nesting `Impact(X)` and `Rending` already
-use through `parent_effect_id`. The casting sequence pushes resolve-hits with those hits, as
+amount 2, subject `self` — the spell's hits are the caster's attack, and a grant nested under
+the hits applies to them, exactly as `Rending`'s nested `AP(4)` does. The nesting is
+`parent_effect_id`, as `Impact(X)` and `Rending` already use it. Kind 6 therefore takes an
+`amount` (default 1) — noted in the schema changes below. The casting sequence pushes resolve-hits with those hits, as
 action sequences had it.
 
 **Spell hits are rolled as a hit roll that cannot fail**: one die per hit, every result a hit.
@@ -110,6 +114,8 @@ rows themselves still arrive with the content import, not here.
 Flagged, and made in `schema.md` and `data-model.md`:
 
 - `effect.duration` — `interaction | once`, check constraint, default `interaction`.
+- `effect.amount` is meaningful for kind 6 (add hits), default 1; the per-kind check constraint
+  admits it.
 - `catalog_entry.target_side`, `target_grain`, `target_count`, `target_range` — spell kind only.
 - `catalog_entry.faction` — the comment, not the column.
 

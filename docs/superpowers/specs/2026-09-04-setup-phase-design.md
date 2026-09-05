@@ -31,11 +31,17 @@ outside the zones and over 9" apart.
 [Accounts](2026-08-29-accounts-design.md) settled on 08-30 that a game is joinable at every
 status, since joining is a `participant` row plus a socket. [The scheduler](2026-09-04-scheduler-design.md)
 said yesterday that team membership is fixed once playing. Both could not stand, and **accounts'
-reading holds.** Anyone may join an existing team at any time. What is fixed once playing is
-the scheduler shape and **which armies are in play**: a participant who joins after deployment
-brings no army, because deployment has passed, and that participant is exactly what
-[presence](2026-08-30-presence-design.md) called a spectator. The scheduler document is
-corrected in place.
+reading holds.** Anyone may join at any time. What is fixed once playing is the scheduler shape
+and **which armies are in play**: a participant who joins after deployment brings no army,
+because deployment has passed. The scheduler document is corrected in place.
+
+**A participant has no team until they pick one** — ruled 2026-09-04 in
+[the whole-design review](2026-09-04-whole-design-review.md). `participant.team_id` is nullable; `join` creates the
+row with no team, and the lobby's pick assigns one. Teams are created, and participants moved
+between them, by lobby commands over the socket, at any status. **A participant with no team is
+never addressed by an Ask**, and that is what a spectator is — cleaner than presence's "joins a
+third team", which is corrected there. During setup, zones re-derive from the zone style whenever
+the team list changes; a team created after `playing` has no zone and nothing to deploy.
 
 ## The lifecycle
 
@@ -44,11 +50,17 @@ to **the game's creator**, and both are ordinary socket commands the server acce
 the creator's participant:
 
 - **Lobby to setup.** In the lobby everyone present picks a team and an army, and the
-  configuration game flow listed — pack, scheduler shape, enforcement — is set. The creator
-  starts setup. Teams and armies stay editable during setup, since deployment has not happened.
-- **Setup to playing.** The creator ends setup. The draft becomes the snapshot by the status
-  flip, the log opens with it as initial state, and the scheduler begins deployment. This is
-  where the shape and the armies freeze.
+  configuration game flow listed — pack, scheduler shape, enforcement, wait-between-steps — set
+  on `POST /v1/games` may be changed. The creator starts setup, which creates the game's
+  `table_state` draft row. Teams and armies stay editable during setup, since deployment has not
+  happened.
+- **Setup to playing.** The creator ends setup. Off-slab terrain rows are deleted, each
+  participant's `army_snapshot` is written from their army as it stands, the draft becomes the
+  snapshot by the status flip, the log opens with it as initial state, and the scheduler begins
+  deployment. This is where the shape and the armies freeze.
+
+A client connecting at `lobby` receives the teams, participants and configuration and no board;
+the draft arrives with `setup`.
 
 **`game.created_by`** is added to the game row: an account reference set on `POST /v1/games`.
 It is read for these two transitions and nothing else. The creator is not a host — cannot kick,
@@ -78,7 +90,8 @@ turn structure here would have been a second, unlogged copy of the scheduler.
   its mesh
 - add, move, remove a marker
 - set the zone style; swap two teams' zones
-- load a layout; save the draft as a layout
+- replace the whole draft (how a layout is loaded; saving one is a management call from the
+  client, below)
 
 The server applies them in arrival order. Two people dragging the same piece is settled by
 whoever drops last, and each sees the other's drag through presence.
@@ -86,7 +99,16 @@ whoever drops last, and each sees the other's drag through presence.
 **A third message kind.** Commands are logged. Presence is relayed and discarded. Setup edits
 are **applied to the draft, broadcast, and persisted, but never logged.** The line presence drew
 between relayed and logged gains a middle term, and it exists only during `setup`: after the
-flip the server refuses them.
+flip the server refuses them. Lobby commands — create a team, pick a team, pick an army, change
+the configuration — are the same kind: written to the game's rows, broadcast, never logged.
+
+**The game server writes management's rows for this**, ruled 09-04 in
+[the whole-design review](2026-09-04-whole-design-review.md): `game.status`, `team`, `participant.team_id` and
+`army_snapshot`, and the game's `table_state` tree, while status is `lobby` or `setup`. From
+`playing` on it is read-only, as the management API always said. **Layouts stay management's**:
+the client saves a layout by `POST /v1/layouts` from its own copy of the draft, and loads one by
+`GET /v1/layouts/{id}` followed by a replace-draft edit, so no owner-side row is ever written by
+the game server.
 
 ## The draft is the row
 
@@ -166,13 +188,17 @@ cannot say, such as *dangerous when using Rush or Charge*.
 - **Running one is a batch of adds.** The client rolls — nothing in setup is logged, so no
   seeded RNG is owed — and sends one add-terrain edit per piece, so everyone sees the list
   arrive. The pieces land **beside the table, off the slab**, and players drag them on. A piece
-  still off the slab when setup ends is dropped from the snapshot, which is the rulebook's own
-  line: *"if it's impossible to place the terrain piece, simply remove it."*
+  still off the slab when setup ends is dropped from the snapshot — the end-setup command deletes
+  those rows before flipping the status — which is the rulebook's own line: *"if it's impossible
+  to place the terrain piece, simply remove it."*
 - **Swapping the mesh keeps the piece.** Anyone may swap a generated piece's built-in mesh for
   an asset from their library, or another built-in. **The placement keeps its volumes and
   declarations**, because the generator's declarations are the point and the mesh is
   appearance — the army's rule that the hitbox is the data and the mesh only decorates it.
-  A user who wants the new mesh's own volumes clears the overrides.
+  A user who wants the new mesh's own volumes clears the overrides. **For a built-in placement
+  the placement's volume rows are the volumes, not overrides**: there is no `asset_volume` row
+  to fall through to, so they are always written on add, and "clearing" re-copies the built-in's
+  shipped volumes from client content.
 - **The tables ship with the client**, beside the zone shapes and textures. The server never
   reads them, so the game server stays ruleset-blind in setup, and 40k simply has none.
 - A hand-placed built-in piece is a generated piece without the dice. It is the same add.

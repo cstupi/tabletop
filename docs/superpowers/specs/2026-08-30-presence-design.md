@@ -49,15 +49,20 @@ Presence   participant     id
            cursor          point + target       target is a piece id, or none
            selection       unit id + [model id]     empty list means the whole unit
            placements      [piece id, position, yaw, kind]     kind = held | proposed
+                           a piece id is any placeable: model, terrain placement, marker (09-04)
            measurement     point, point         or none
 ```
 
 **There is no spectator, so there is no second identity.** Games are public and anyone
-logged in may join, which means someone who wants to watch joins a third team and does not
-act — indistinguishable from a spectator without being a second kind of thing. Presence
-therefore keys on the participant, and every connection has one.
+logged in may join. ~~Someone who wants to watch joins a third team and does not act~~ —
+*corrected 2026-09-04 by [the whole-design review](2026-09-04-whole-design-review.md): a participant is on no team
+until they pick one, and a participant with no team is never addressed by an Ask. That is what
+a watcher is,* indistinguishable from a spectator without being a second kind of thing.
+Presence therefore keys on the participant, and every connection has one.
 
-**Selection is a unit, and optionally models within it.** The unit is the default grain
+**Selection is a unit, and optionally models within it** — or, during setup, a terrain
+placement or marker, since those are what is dragged then ([the setup
+phase](2026-09-04-setup-phase-design.md)). Scale has no live channel and applies on release. The unit is the default grain
 because that is what moving and rotating operate on; a modifier key narrows the selection to
 individual models. A flat list of piece ids could not express the difference between *this unit*
 and *these two models of it*, and the two mean different things to everyone watching.

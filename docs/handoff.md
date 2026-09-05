@@ -5,8 +5,8 @@ Where the project stands, and what to pick up next.
 ## State
 
 Tree is clean; everything is committed. No code has been written beyond the Godot
-scaffold — all of the work so far is design. **Every module is designed.** The next prompt is
-the whole-design review.
+scaffold — all of the work so far is design. **Every module is designed, and the whole design
+has been reviewed** (09-04). The next prompt is the first implementation plan.
 
 | When | Produced |
 | --- | --- |
@@ -40,6 +40,7 @@ the whole-design review.
 | 2026-09-04 | [Mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md) — STL to GLB runs in the browser inside the upload flow; the mesh prep tool is gone from the layout, `architecture.md` and `CLAUDE.md` |
 | 2026-09-04 | Hosting deferred past the review: local development first, Docker at most |
 | 2026-09-04 | [Spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) — forty-eight spells from eight army books read against the grammar; `duration`, a grants store, target selection, faction rules in the catalog |
+| 2026-09-04 | [The whole-design review](superpowers/specs/2026-09-04-whole-design-review.md) — five reviewers, eighty-one findings, about fifty distinct, all fixed in place; five rulings: enforcement is three positions, `game.name`, `waits_between_steps` on the game and animate per player, the game server writes a game's rows before play, a participant has no team until they pick |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -47,11 +48,12 @@ touching.
 
 ## The mode — read this before proposing anything
 
-**The design phase is complete, and the review has not happened.** Ruled on 09-03: all designs,
-then a review of the whole, then implementation planning. Do not write an implementation plan,
-do not scaffold, and do not start code — the contracts included. The review is the next prompt
-and the only thing that unlocks the rest. Hosting is designed after the review, by a ruling on
-09-04: local development first, Docker at most.
+**The design phase is complete and reviewed.** Ruled on 09-03: all designs, then a review of the
+whole, then implementation planning — and the review happened on 09-04. **Implementation planning
+is now open**, starting with the contracts (`Tabletop.Geometry`, `Tabletop.Protocol`,
+`Tabletop.Content`) and the local development setup: local first, Docker at most, per the 09-04
+hosting ruling. Hosting itself is still designed later, when there is something to host. Plans
+follow the specs; where a plan finds a spec wrong, the spec is corrected first.
 
 Four things govern how to work here, and three of them were learned the hard way:
 
@@ -69,13 +71,32 @@ Four things govern how to work here, and three of them were learned the hard way
   (mesh prep tool) are now superseded outright by design docs; 04's auth section was corrected
   on 08-30; the rest were left alone. They get rewritten after the contracts exist.
 - **Nothing in `architecture.md` is above correction.** Written before any data model existed,
-  corrected around forty times, audited statement by statement on 08-29 and corrected again on
-  08-30, 09-03 and 09-04. Treat anything no design doc has touched as a first-pass assertion.
+  corrected around sixty times, audited statement by statement on 08-29 and again in the review
+  of 09-04, which also named the handful of first-pass assertions no design doc has touched (in
+  [the review](superpowers/specs/2026-09-04-whole-design-review.md)).
 
 ## What is designed
 
 Twenty design documents in `docs/superpowers/specs/`, plus the three documents every session
 reads. Grouped by what they are about, not by date.
+
+### The whole design — reviewed 09-04
+
+**[The whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)** read every
+document against every other. Eighty-one findings, about fifty distinct, every one fixed in the
+document that was wrong. Five went to the user as rulings: **enforcement is `silent | warn |
+strict`** (the boolean reopened, the refusing position kept; the menu's edits are accepted under
+every setting); **`game.name`**; **`game.waits_between_steps`** with animation a per-player
+client setting; **the game server writes a game's own rows while it is in `lobby` or `setup`** —
+status, teams, participants' team and snapshot, the `table_state` draft — and is read-only from
+`playing` on, with layouts saved and loaded through management by the client; and **a
+participant has no team until they pick one**, `participant.team_id` nullable, and a participant
+with no team is never Asked, which is what a spectator is. Gaps it filled: the four OPR actions
+as sequences, a hook that clears fatigue, the scheduler calling the end-of-turn morale hook, a
+store for wounds-this-activation, tokens dropped in play as logged commands, name checks reading
+the grants store, the roll-off's null threshold, the browser computing the bounding-box volume,
+`GET /v1/properties`, the version check as a `426`, and the pass as a logged fact that stops a
+team being re-asked.
 
 ### The data layer — done, reviewed 08-30
 
@@ -213,8 +234,9 @@ exist, with the persisted `PARTICIPANT` row as the roster underneath. One value 
 carries cursor (a world point plus the piece under it), selection, placements, and a
 measurement; a ping is a separate one-shot because presence is state and a ping is an instant.
 Drag and ghost collapse into one placement with a `kind`, held or proposed, since they differ
-only in what the viewer draws. There is no spectator identity: someone who wants to watch joins
-a third team and does not act.
+only in what the viewer draws. There is no spectator identity: since the review of 09-04, a
+watcher is a participant who has picked no team and is therefore never Asked (this first read
+"joins a third team").
 
 This overrode `architecture.md`'s claim that pre-measuring, range checks and movement ghosts
 are "never sent anywhere". They are relayed and still never commands — **relayed and logged are
@@ -391,18 +413,20 @@ Every design doc's own *Still open* section is the authority; this is the union,
 
 ## Next — pick up here
 
-**The whole-design review**, the way the data layer was reviewed on 08-30. Across all twenty
-design documents, `architecture.md`, `data-model.md` and `schema.md`, looking for:
+**Implementation planning starts.** The review gate is passed. The order `architecture.md`'s
+build order gives still stands as a first-pass sketch: contracts first, then geometry and the
+management API with the web app in parallel, then the game server skeleton and the client shell.
+The first plan is the one everything else depends on:
 
-- contradictions between sessions — 09-04 found and fixed one the same day (joining at any
-  status versus team membership fixed), and there will be others;
-- first-pass assertions in `architecture.md` that no design doc has touched;
-- open lists and corrections that disagree with the doc that superseded them;
-- anything the twenty documents together imply that none of them says.
+1. **The contracts and the local development setup.** `Tabletop.Geometry`, `Tabletop.Protocol`
+   (commands, events, Asks, presence, setup edits, the rules-free event applier) and
+   `Tabletop.Content` as types with no implementations, plus the test project `CLAUDE.md`
+   defers until there is logic to test, plus Postgres in Docker and a local blob store standing
+   in for S3. One plan, one prompt, written with the writing-plans skill against the specs.
+2. Then geometry, and the management API with the web app, in parallel.
 
-Its findings get fixed in place, as the data layer's twelve were. **Only after that review do
-implementation plans start**, hosting is designed, and `docs/workstreams/` is rewritten so the
-prompts can name real types rather than describe them.
+`docs/workstreams/` is rewritten once the contracts exist, so the prompts can name real types.
+Hosting is designed when there is something to host.
 
 ## Two things worth carrying into any session
 
@@ -449,9 +473,8 @@ whether the six terrain declarations are complete, whether twelve effect kinds s
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
 zoomable, generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a
 source** — it goes stale the moment either document changes, and it is regenerated by pulling
-the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after
-`game.created_by`, `terrain_placement.builtin`, `effect.duration` and the spell target columns
-landed.
+the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after the
+whole-design review added `game.name`, `game.enforcement` and `game.waits_between_steps`.
 
 ## Environment notes
 

@@ -40,8 +40,9 @@ serving one shared UI in both places. It was rejected because it does not remove
 it adds a bridge to one: a browser engine bundled into a game client, plus a second renderer
 inside it for mesh preview, to avoid writing `Control` nodes.
 
-That verdict is narrow. A small OS-native webview used **only to catch an auth redirect** is
-a different thing and stays on the table as one of the mechanisms below.
+~~That verdict is narrow. A small OS-native webview used only to catch an auth redirect is a
+different thing and stays on the table as one of the mechanisms below.~~ Nothing redirects any
+more (09-04, below).
 
 ## Login is the web app's
 

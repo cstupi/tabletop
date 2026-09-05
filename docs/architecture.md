@@ -11,8 +11,8 @@ Four things ship, and they have different target platforms:
 | Deliverable | Directory | Platform |
 | --- | --- | --- |
 | Game client | `client/` | Windows (Godot export) |
-| Game server | `server/game/` | Linux (Fargate) |
-| Management API | `server/management/` | Linux (Fargate) |
+| Game server | `server/game/` | Linux (container) |
+| Management API | `server/management/` | Linux (container) |
 | Web app | `web/` | Static (Svelte SPA) |
 
 There is no mesh prep tool. This document originally listed one at `tools/mesh-prep/`,
@@ -20,9 +20,10 @@ shipping to users' machines; [mesh conversion](superpowers/specs/2026-09-04-mesh
 moved STL conversion into the web app's upload flow, running in the browser, and the tool and
 its language exception went with it. `docs/workstreams/11-mesh-prep-tool.md` is a stale sketch.
 
-The web app exists and owns **preparation** — armies, assets, account, and login. The client
-owns **play**, plus the game browser and joining. See
-[the web app](superpowers/specs/2026-08-29-web-app-design.md).
+The web app exists and owns **preparation** — armies, assets, the account, and its own login.
+The client owns **play**, plus the game list, joining, and its own login screen; both log in
+against management's two methods ([the client shell](superpowers/specs/2026-09-04-client-shell-design.md)).
+See [the web app](superpowers/specs/2026-08-29-web-app-design.md).
 
 Everything except the client is headlessly testable. Everything except the client is
 Godot-free.
@@ -46,7 +47,7 @@ Three libraries in `libs/`, and nothing else:
 | Library | Shared by | Contents |
 | --- | --- | --- |
 | `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
-| `Tabletop.Protocol` | client, game server | Commands, events, presence, wire format |
+| `Tabletop.Protocol` | client, game server | Commands, events, Asks, presence, setup edits, the rules-free event applier, wire format |
 | `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
@@ -60,14 +61,19 @@ The rules engine — pipelines, scheduler, the property sets, modifier system �
 
 ## Command / Event spine
 
-Players never mutate state. They submit **Commands** (intents: `MoveUnit`, `DeclareShoot`,
-`EndActivation`). The game server validates a command and emits ordered **Events** (facts:
-`ModelMoved`, `DiceRolled`, `WoundsApplied`). State changes only by applying events.
+Players never mutate state. They submit **Commands** (intents: `MoveUnit`, an Ask's answer,
+`Pass`). The game server validates a command and emits ordered **Events** (facts:
+`ModelMoved`, `StepCompleted`, `TurnStarted`). In play, state changes only by applying events.
+Before play — lobby and setup — the game server writes rows instead, and nothing is logged; see
+[the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md). *Examples corrected
+2026-09-04: there is no end-turn command (the turn ends when the declared action's sequence
+finishes), and a roll is not an event of its own.*
 
 One pattern serves as: the network protocol, undo, save/load, replay, the test harness, the
 client's animation queue, and the audit trail for explaining a result.
 
-RNG lives in server state as a seed. Every roll is an event.
+RNG lives in server state as a seed. Every roll is recorded in the step event that made it —
+threshold, modifiers, and each die's raw and modified result — never re-derived on replay.
 
 ## How the client stays responsive without the rules
 
@@ -97,21 +103,23 @@ them.
 
 ## Rules enforcement
 
-**A boolean, set per game: the server warns, or it says nothing.** It never blocks — see
-[identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md),
-which found there is no third position that does not contradict the product. This document
-originally called it a dial. The server validates and warns rather than gating. A command may
-carry an override; overrides are **visible to opponents and recorded in the event log**, never
-silent. Model placement follows the same rule: free placement, with base overlap, terrain
-intersection, and broken coherency flagged rather than prevented.
+**Three positions, set per game: `silent | warn | strict`.** Ruled 2026-09-04 in
+[the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md), reopening identity and enumerations'
+boolean: action sequences and the scheduler had both written a refusing mode, and the review
+chose to keep it rather than strike it. Under `silent` and `warn` the server accepts every
+command and every Ask answer, logging a warning under `warn` when one is outside the legal set.
+Under `strict` an out-of-set Ask answer or an illegal command is refused. **The menu's edits are
+accepted under every setting** — they are the override path, visible to opponents and recorded
+in the event log, never silent. Model placement follows the same rule: free placement, with base
+overlap, terrain intersection, and broken coherency flagged rather than prevented.
 
 The legality API is **enumeration, not validation** — `EnumerateLegalCommands()` rather than
 only `IsLegal(command)`. Validation falls out of enumeration but not the reverse, and
 enumeration is what the client needs anyway to render affordances. An AI opponent later gets
 its action space for free.
 
-A modified client submitting illegal commands simply has them rejected. Given enforcement is
-deliberately permissive with visible overrides, what authority protects is state coherence
+A modified client submitting illegal commands gets exactly what an honest one gets: refused
+under `strict`, accepted and flagged otherwise. What authority protects is state coherence
 rather than fair play.
 
 ## Undo
@@ -150,8 +158,8 @@ interaction is two passes: settle which properties and parameters are live, then
 ## Turn scheduling
 
 A **scheduler** answers "whose input is needed next, and what is legal in this window?".
-Windows are **scoped to a team, not a player** — teams alternate activations and any member of
-the active team may act. Coordination inside a team is social.
+Windows are **scoped to a team, not a player** — under the alternating shape teams alternate
+activations, and any member of the active team may act. Coordination inside a team is social.
 
 **Corrected 2026-09-04.** This section said the ruleset owns the scheduler. It does not: the
 scheduler is a generic engine component with two implementations selected per game, and
@@ -160,16 +168,22 @@ phases inside a turn, the round-boundary hooks. See
 [the scheduler](superpowers/specs/2026-09-04-scheduler-design.md).
 
 - 2 players = two teams of one.
-- Free-for-all = N teams of one, differing only in the order over teams.
-- Player-turn rulesets (Warhammer style) = a different scheduler, same interface.
+- Free-for-all = N teams of one, differing in the order over teams and in the first-team policy
+  (a roll-off every round, GF page 49).
+- Player-turn is the second scheduler shape behind the same interface, chosen per game rather
+  than per ruleset — OPR's `GameRules` runs under both.
 
 No engine code branches on ruleset identity; the scheduler is the firewall.
 
 ## Rules as data
 
-The goal is **extensibility and multi-ruleset support**. JSON is chosen because it iterates
-faster than C# — adding a custom rule is a data edit, and supporting a game beyond OPR is new
-data rather than new engine code.
+The goal is **extensibility and multi-ruleset support**. ~~JSON is chosen because it iterates
+faster than C#~~ — **corrected 2026-09-04**: the data half is rows in eight Postgres tables with
+check constraints, per [`docs/schema.md`](schema.md), not JSON files. The argument stands
+without the format: adding a custom rule is a data edit, and supporting a game beyond OPR is new
+data rather than new engine code. How authored content reaches those tables — in-repo files
+loaded as rows, or the Army Forge import [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md)
+left undesigned — is the one part of this section no design doc has touched.
 
 **In-repo now, user-authored eventually.** This document originally said the goal was "not end
 users uploading rules"; that is true of the current phase and not the intent. The order matters
@@ -185,13 +199,14 @@ pack; it receives the consequences of one.
 
 ### Closed schema, extensible content
 
-The *shape* of `Properties` is validated and unknown keys are errors; the property sets extend
-freely. Adding a rule means adding an entry and referencing it by id.
+The *shape* of `Properties` is closed and the content extends freely. Adding a rule means adding
+a catalog entry and the effect rows that say what it does.
 
 The rejected alternative is an open property bag where the engine reads keys it recognises: it
 authors just as fast but a mistyped key silently does nothing. With a closed schema, typos fail
-loudly. `Properties` is validated against JSON Schema in tests, so a malformed file fails
-`dotnet test` rather than a game.
+loudly. *Corrected 2026-09-04:* the closure is the database's — foreign keys into the same set
+and per-kind check constraints — not a JSON Schema in tests, which is what this section said
+when the data half was going to be files.
 
 ### Stat blocks are named stats
 
@@ -273,8 +288,9 @@ which designs these as data.
 
 - **Table** — width and length in inches, and a texture. A rectangle: the "shape" and
   "play-area boundary as a volume" this document originally called for do not exist, and the
-  four-player square is a rectangle like any other. Named presets (40k 60×44, OPR 72×48,
-  skirmish 30×22, 4-player 72×72) plus arbitrary custom sizes. Never a constant.
+  four-player square is a rectangle like any other. Arbitrary sizes; the named presets this
+  line used to list (40k 60×44, OPR 72×48, skirmish 30×22, 4-player 72×72) are a first-pass
+  suggestion for setup content's undecided inventory, not a decision. Never a constant.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
   placements, deployment zones. Physical only, no rules.
 - **Mission** — **not a record.** This document defined one as deployment zones, objectives,
@@ -295,8 +311,10 @@ pipeline as models.
 ### Terrain placement is a game phase, not an editor
 
 Terrain is placed in a setup phase rather than in a separate map editor application, and there
-is no second persistence path. The setup sequence is: table size → terrain placement →
-deployment → rounds.
+is no second persistence path. The sequence is: setup (size, terrain, markers, zones — unlogged,
+free for all, per [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)) → the
+status flip → deployment (logged, driven by the scheduler) → rounds. *Corrected 2026-09-04 from
+"table size → terrain placement → deployment → rounds".*
 
 **The setup phase is not logged.** This reverses what this document originally claimed. It made
 placement a stream of ordinary Commands so that a predefined map would be "a batch of placement
@@ -362,7 +380,8 @@ a base size.
 
 Uploads are per-user, persistent across games, and load at runtime via `GLTFDocument` — never
 through Godot's editor import step. Assets are content-addressed by hash, stored in S3, and
-served through the management API. **A library is private for discovery, not for access**: nobody
+served by presigned URL straight from S3 — management issues the URLs and the bytes never pass
+through it ([the management API](superpowers/specs/2026-08-29-management-api-design.md)). **A library is private for discovery, not for access**: nobody
 can browse or search another account's assets, but participants in a game download the assets that
 game uses, straight from wherever they live. Nothing enters anyone else's library.
 
@@ -390,7 +409,9 @@ not block.
 Free, given the rules never touch the mesh — but only if built that way from the start.
 
 What the proxy is drawn from differs by kind, which this document originally missed: terrain has
-collision volumes to draw, a **miniature has only its base and height**. Still open.
+collision volumes to draw, a **miniature has only its base and height**. Settled 08-30 in
+[the asset library](superpowers/specs/2026-08-28-asset-library-design.md): a slot draws its own
+hitbox, the base shape extruded to its height, semi-transparent.
 
 ## Two servers
 
@@ -401,7 +422,7 @@ deferred, because the two differ in transport, state, and deploy risk.
 
 | Module | State |
 | --- | --- |
-| Identity | Accounts, sessions; the only module that knows Stytch exists |
+| Identity | Accounts, and login by password or email code; the only module that knows Stytch exists. No session rows — the JWT is the session |
 | Content | Armies, layouts, the asset library and its folders (Postgres) |
 | Asset store | Content-addressed blobs (S3) |
 | Games | Game records, teams, participants, the public game browser |
@@ -417,20 +438,24 @@ and is dropped.
 Live games in memory, plus the append-only event log. **The only module holding live state.**
 It needs graceful shutdown that drains to the event log, and it is what constrains deploys.
 
-Authentication does not run through Stytch here. The user logs in through the web app and the
-client acquires a session from it; creating or joining a game is an ordinary management
-endpoint, and the client then opens its socket with **that same session JWT and a game id**.
+Authentication does not run through Stytch here. The client logs in against management from
+its own login screen; creating or joining a game is an ordinary management endpoint, and the
+client then opens its socket with **that same session JWT and a game id**.
 The game server verifies the signature locally against Stytch's public JWKS, reads our account
 UUID from the claim, and checks for a `participant` row. Reconnect
 matters — a four-player game runs hours, and the event log makes resuming a solved problem.
 
 ### Transport
 
-**WebSockets carrying Commands up and Events down.** Godot's high-level multiplayer
+**WebSockets carrying Commands up and Events down** — plus, on the same socket, Asks down,
+presence both ways and discarded, and during setup only the setup edits that write the draft
+([presence](superpowers/specs/2026-08-30-presence-design.md),
+[the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)). Godot's high-level multiplayer
 (`MultiplayerAPI`, `[Rpc]`, `MultiplayerSynchronizer`) is not used: it assumes Godot on both
 ends and node-tree replication, which is the wrong model for discrete board state.
 
-Turn-based play means no prediction and no rollback netcode.
+Turn-based play means no prediction of authoritative state and no rollback netcode. The
+client's geometry is a cosmetic prediction, overwritten by the event, per Geometry above.
 
 ## Deployment
 
@@ -500,23 +525,26 @@ filtered event streams** if hidden information ever matters. The mechanism falls
 client rather than needing to be designed in later.
 
 Its original two justifications are both gone: there are no victory conditions, so secret
-objectives do not exist, and hidden deployment is `Ambush`, a `GameRules` hook. Nothing in the
-product needs filtering today.
+objectives do not exist, and hidden deployment is `Ambush`, a `GameRules` hook. One thing does
+use it: casting's sealed token bid, where every eligible team answers concurrently and the
+answers are withheld until the window closes
+([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)).
 
 ## Web frontend
 
 Settled by [the web app](superpowers/specs/2026-08-29-web-app-design.md): it exists, and the
-line is **preparation versus play**. The browser owns armies, assets, the account and login; the
-client owns the game browser, joining, setup and play. The client does not edit armies — it
-creates a game and picks one.
+line is **preparation versus play**. The browser owns armies, assets and the account; the
+client owns the game list, joining, setup and play. Each has its own login screen against the
+same two management methods (corrected 2026-09-04; social login and its browser-to-client
+handoff are gone). The client does not edit armies — it creates a game and picks one.
 
 Account and army management are a **Svelte SPA**, not part of the game client. Users manage
 their own persistent things in a browser: identity, armies imported from Army Forge, mesh
 binding per model slot, and asset uploads.
 
 This removes real work from the hard-to-iterate side — the Godot client needs no list-building
-UI, no upload UI, and no login form — and makes the HTTP API a genuine API surface rather than an
-internal detail of one client.
+UI and no upload UI; its login is two fields — and makes the HTTP API a genuine API surface
+rather than an internal detail of one client.
 
 - ~~**Auth is easier in a browser.**~~ **Corrected 2026-09-04.** There is no OAuth and no magic
   link ([the client shell](superpowers/specs/2026-09-04-client-shell-design.md)), so no login
@@ -573,7 +601,10 @@ server.
 design session and how they relate. It supersedes the sketch that used to sit here.
 
 Everything in it is in the management schema except one entity. The game schema holds exactly
-one thing: `GameEvent (game_id, seq, kind, payload)`.
+one thing: `GameEvent (game_id, seq, kind, payload)`. The game server nonetheless **writes**
+management's rows for a game while its status is `lobby` or `setup` — status, teams, each
+participant's team and army snapshot, and the `table_state` draft — and is read-only from
+`playing` on. Ruled 2026-09-04 in [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md).
 
 `Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
 account deletes every game it was in.
@@ -583,8 +614,9 @@ a game that has not started. Two entities would mean a handoff, a copy, and two 
 for who is playing. **Ended is a flag, not a terminal state** — restarting an ended game is the
 same hydrate-from-the-log operation as recovering a crashed task.
 
-**The game server's interface is commands and events.** It exposes no HTTP resources; it reads
-a game's row at hydration and writes only events.
+**The game server's interface is commands and events.** It exposes no HTTP resources. From
+`playing` on it reads a game's rows at hydration and writes only events; before that it writes
+the game's own rows, as above.
 
 *Corrected 2026-08-29.* This previously read "the game server has no CRUD surface" and claimed
 that was "what keeps management restartable at will and confines deploy risk to one service."
@@ -592,8 +624,9 @@ Neither follows. Management is restartable because it **holds no live state**; d
 confined to the game server because it **holds live WebSocket sessions**. Both are true for
 reasons that have nothing to do with CRUD.
 
-**An army snapshot is a frozen copy, not a version column.** Written once at game load, never
-updated, so editing a saved army cannot reach into a live match. It is a `jsonb` column on
+**An army snapshot is a frozen copy, not a version column.** Written once when setup ends —
+the same moment the scheduler shape freezes — never updated, so editing a saved army cannot
+reach into a live match. A participant who joins after that has none. It is a `jsonb` column on
 `participant` rather than an entity — see [`docs/schema.md`](schema.md) — and it is opaque on
 purpose: normalised, a later migration would silently alter what a past game was played with.
 
@@ -622,7 +655,7 @@ event spine has been broken.
 
 ## Persistence
 
-Postgres on RDS, and **[`docs/schema.md`](schema.md) holds the tables**. Accounts, assets,
+Postgres, and **[`docs/schema.md`](schema.md) holds the tables**. Accounts, assets,
 armies, layouts and the whole army tree are ordinary relational tables — normalised rather than
 documents, so the closed sets and typed values the design argued for are constraints the
 database enforces.
@@ -641,7 +674,8 @@ awareness; the servers map to rows.
 The repo lives in WSL; the Godot editor runs on the Windows host. Because there is no offline
 mode, running the game means running a server:
 
-- Both servers and Postgres run in WSL.
+- Both servers run in WSL; Postgres and the local blob store that stands in for S3 run in
+  Docker, per the hosting ruling above.
 - The Godot client runs on Windows and connects over forwarded localhost.
 
 This is the only configuration, which means it is the one that is always tested. Deploying
@@ -655,7 +689,7 @@ until they are settled.
 | Contract | Between |
 | --- | --- |
 | `Tabletop.Geometry` API surface | client, game server |
-| `Tabletop.Protocol` command, event and presence schema | client, game server |
+| `Tabletop.Protocol` command, event, Ask, presence and setup-edit schema, and the event applier | client, game server |
 | `Tabletop.Content` army snapshot types | client, both servers |
 
 **Auth is not on this list, and the first version of this document was right about that** —
@@ -673,7 +707,7 @@ Starting, reconnecting, and crash recovery are one path.
 
 ## Build order
 
-1. **Contracts** — the four above, as types and schemas with no implementations behind them.
+1. **Contracts** — the three above, as types and schemas with no implementations behind them.
 2. **Geometry** — volumes, distance, LoS, surface settling. Headless tests, zero dependencies.
 3. **Management API and web app** — Stytch auth, signup, accounts. No game concepts at all.
 4. **Game server skeleton** — WebSocket, session lifecycle, event log, command dispatch.
@@ -693,7 +727,7 @@ Starting, reconnecting, and crash recovery are one path.
 Steps 2 and 3 have no dependency on anything and no overlap with each other, so they run in
 parallel immediately after step 1. Steps 4 and 5 run in parallel once the contracts exist.
 
-Networking is no longer deferred — it is the only transport, so it is exercised from step 6
+Networking is no longer deferred — it is the only transport, so it is exercised from step 4
 onward rather than bolted on late.
 
 The first playable seats two, but nothing in the code says "two": players are a list and teams

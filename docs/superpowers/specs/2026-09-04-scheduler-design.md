@@ -31,8 +31,9 @@ The scheduler is a generic engine component with two implementations, selected b
 | --- | --- |
 | the order over teams, and whose turn it is | who goes first each round: finished-first for two teams, roll-off in descending order for free-for-all (pages 7, 49); 40k, the same team every round |
 | when a turn ends, and when a round ends | which units on a team may activate now — a reading of the action record (OPR: no entry this round; 40k: no entry for this phase) |
+| calling the end-of-turn hook after the sequence finishes | what runs there (OPR: the end-of-activation morale test from action sequences) |
 | skipping a team with nothing to do | which actions a unit may take (`Immobile` means Hold only; Shaken means idle) |
-| when the action record clears, per shape | the phase before round one (deployment), and the round-boundary hooks (spell tokens, Ambushers) |
+| when the action record clears, per shape | the phase before round one (deployment), and the round-boundary hooks (spell tokens, Ambushers, clearing round-scoped conditions such as fatigue) |
 | ordering reactions in a window | the list of phases inside a turn — empty for OPR |
 
 Two other placements were considered. Putting the scheduler inside `GameRules`, with the
@@ -47,7 +48,8 @@ an Ask**, issued through the interpreter's own Ask type.
 ## State
 
 Round number, the order over teams for this round, the team whose turn it is, and which teams
-have finished the round. Nothing else.
+have passed this round. Nothing else. A team is *finished* when it has passed or its legal set
+is empty; only the pass is state, and it is a logged fact (`turn_ended` carrying `passed`).
 
 **It is rebuilt from the log and never stored**, as the action record and the resolution
 stack are, so a rejoining client and a crashed server recover it by the one hydrate path.
@@ -73,8 +75,8 @@ roll primitive and logs as one.
 The active team, the round number, a unit's action record — all editable from the menu as
 ordinary commands, through the same path the scheduler writes. A menu edit setting the active
 team logs a `turn_started`. **The scheduler reads state on every step and never assumes its
-last output is still true.** A team's "finished" is not a flag the scheduler holds; it is the
-team's legal set being empty, read again each time.
+last output is still true.** A team's "finished" is its legal set being empty, read again each
+time, or its own logged pass this round — never a flag held apart from the log.
 
 ## The turn is an Ask
 
@@ -83,9 +85,11 @@ interpreter uses. The question is *activate*; the legal set is server-computed �
 `GameRules` says may activate now, each paired with the actions it may take. Two teams or
 free-for-all, the Ask is the same.
 
-The answer names a unit and an action. The scheduler starts that action's sequence on the
-resolution stack. **When the sequence finishes, the turn ends** — ruled in this session — and
-the next team's Ask goes out. The activation is written to the unit's action record when the
+The answer names a unit and an action — one of the `action` rows, each of which is a sequence
+([action sequences](2026-09-03-action-sequences-design.md) lists the four). The scheduler starts
+that sequence on the resolution stack. **When the sequence finishes, the scheduler calls
+`GameRules`' end-of-turn hook** — OPR's end-of-activation morale test lives there — **and then
+the turn ends** — ruled in this session — and the next team's Ask goes out. The activation is written to the unit's action record when the
 sequence starts, not when it ends, so an abandoned sequence still counts as the unit having
 gone.
 
@@ -93,8 +97,10 @@ gone.
 arrange the models inside a unit; activating is a declared action from a button, and the move
 button assists with the distance. Hand moves never end a turn.
 
-**A team with an empty legal set is skipped** — no Ask, no turn events. That is how a
-spectator's third team ([presence](2026-08-30-presence-design.md)) never sees a prompt, and how
+**A team with an empty legal set is skipped** — no Ask, no turn events. A participant with no
+team at all is never addressed either, and that is what a spectator is since 09-04
+([the whole-design review](2026-09-04-whole-design-review.md); presence's "joins a third team" reading is
+superseded). It is also how
 OPR's "continues until all units have activated" works when one side has more units.
 
 **Passing is a real answer**, logged, and there is one of it: a team may pass its turn while
@@ -102,9 +108,10 @@ holding a non-empty legal set; the alternating scheduler treats it as the team f
 round. There is no separate end-turn command. The menu's *mark unit activated* writes the
 action record, and the scheduler reacts to the record.
 
-**Enforcement.** Answering with a unit or action outside the legal set is what the dial
-governs: strict refuses it; loose accepts it, logs it with a warning, and the scheduler
-proceeds as if it were legal. That is the whole answer to game flow's question about legality
+**Enforcement.** Answering with a unit or action outside the legal set is what the enforcement
+setting governs: `strict` refuses it; `warn` accepts it, logs it with a warning, and the
+scheduler proceeds as if it were legal; `silent` accepts it without the warning. (This sentence,
+with action sequences', reopened the earlier boolean; the review of 09-04 kept the three.) That is the whole answer to game flow's question about legality
 in a window — legality *is* the legal set, and out-of-set is enumerated rather than rejected,
 which is how the model holds "a unit that has already moved moving again".
 
@@ -138,7 +145,13 @@ with nothing left to deploy is skipped; the phase ends when every team is skippe
 roll primitive, logged. Its winner deploys first and, per page 7, takes the first turn of round
 one. Every roll result is editable from the menu, as any roll is.
 
-**The roll-off does not pick a table edge, and the deviation from the rulebook is accepted.**
+The roll-off is the roll primitive with no threshold — one die per team, raw results compared,
+ties rerolled among the tied — so the primitive admits a null threshold and records dice as
+always (added 09-04).
+
+**The roll-off does not pick a table edge, and the deviation from the rulebook is accepted** —
+*and, since the same day, reconciled: [the setup phase](2026-09-04-setup-phase-design.md) lets
+anyone swap two teams' zones during setup, which is how the winner picks an edge.*
 Deployment zones are geometry, assigned to team ordinals during the unlogged setup phase
 ([setup content](2026-08-29-setup-content-design.md)). The roll-off must be logged, because the
 first team of round one depends on it. So the app's order is *zones, then roll-off*, where the
@@ -154,8 +167,10 @@ flow's rule that why a model is on the shelf is a condition.
 ## The round boundary
 
 At `round_started`, after the order is set and before the first turn, the scheduler calls the
-`GameRules` hooks in the order they are listed. OPR has two:
+`GameRules` hooks in the order they are listed. OPR has three:
 
+- **Clear round-scoped conditions** — fatigue, per action sequences. Added 09-04; nothing had
+  cleared it.
 - **Spell tokens** — `Caster(X)` grants X, capped at 6, placed here by action sequences.
 - **Ambushers** (page 13) — for any round after the first, each team in the new order is Asked
   *deploy an Ambusher or pass*, "starting with the player that activates next", alternating
@@ -185,9 +200,10 @@ window offered to the non-active team, which the interface already allowed for.
 
 ## Re-entering a round
 
-If a menu edit clears a unit's record after its team finished, the scheduler sees a non-empty
-legal set at that team's slot and Asks it again. Nothing special happens: the scheduler holds no
-finished flag that outranks the record. A round that has already ended is reopened only by undo,
+If a menu edit clears a unit's record after its team's legal set emptied, the scheduler sees a
+non-empty legal set at that team's slot and Asks it again. A team that **passed** is not re-asked
+— its pass is logged and stands for the round — which is the one thing the earlier sentence "the
+scheduler holds no finished flag" got wrong, corrected 09-04. A round that has already ended is reopened only by undo,
 which is replay.
 
 ## What the interface must not assume

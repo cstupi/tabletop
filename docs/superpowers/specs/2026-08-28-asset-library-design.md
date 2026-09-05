@@ -7,7 +7,8 @@ Fifth module. It follows [the army](2026-08-28-army-design.md), which establishe
 an asset is a soft reference the rules never touch.
 
 `docs/architecture.md` already settled the parts this does not revisit: glTF and GLB only
-with STL rejected, conversion as an offline tool rather than a server-side job queue,
+with STL rejected, conversion outside the server rather than a job queue (an offline tool
+then; in the browser since [mesh conversion](2026-09-04-mesh-conversion-design.md), 09-04),
 content addressing in S3, loading at runtime through `GLTFDocument` rather than Godot's
 editor import, `kind` making the library generic so terrain uses the same upload, and a
 missing mesh degrading to a proxy shape with the game fully playable.

@@ -39,9 +39,9 @@ outside management holds a Stytch secret, and no Stytch identifier is stored in 
 `session` table. That table is gone: both services verify the JWT locally against Stytch's
 public JWKS, so nothing needs to be looked up and nothing calls Stytch on the request path.
 
-All of Stytch's methods are supported — email OTP, magic link, password, OAuth. OTP and
-password are Basic-auth endpoints that cannot be called from a browser, so they run in
-management regardless. OAuth and magic links need a page to redirect back to.
+~~All of Stytch's methods are supported — email OTP, magic link, password, OAuth.~~ Two are:
+email OTP and password, both Basic-auth endpoints that run in management. Magic links and OAuth
+are not offered (ruled 09-04, [the client shell](2026-09-04-client-shell-design.md)).
 
 *Revised 2026-08-29 by [the web app](2026-08-29-web-app-design.md): **login lives in the
 browser**, and the client acquires a session from it. This section originally put login in the
@@ -54,14 +54,16 @@ routing stands after all; only the redirect-based methods are gone.*
 
 **Replacing Stytch is a change inside one module.** That is the constraint the routing
 exists to satisfy, and it is why the vendor is not allowed to appear in the client, in the
-schema, or in any other module. The one place confinement is nominal rather than literal
-is an OAuth consent page, which has Stytch in the URL bar. That costs nothing.
+schema, or in any other module. ~~The one place confinement is nominal rather than literal
+is an OAuth consent page.~~ With no OAuth, confinement is literal.
 
-`architecture.md`'s original position — the browser owns login, the client acquires a token
-from that session — stands after all.
+~~`architecture.md`'s original position — the browser owns login, the client acquires a token
+from that session — stands after all.~~ Superseded 09-04: the client has its own login screen
+and acquires nothing from the browser.
 
-**Playing requires an account.** There are no guests: you need an owned army to bring, and
-there is no offline mode.
+**Playing requires an account.** There are no guests, and there is no offline mode. An owned
+army is needed to be on a team that deploys, not to join — a participant with no team watches
+([the setup phase](2026-09-04-setup-phase-design.md), 09-04).
 
 ## What an account owns
 
@@ -108,12 +110,14 @@ against.
 One record with a status, as `architecture.md` already had it. A room is a game that has
 not started.
 
-**Games are public.** The browser lists open games and anyone logged in may join one.
+**Games are public.** The client lists every game, whatever its status, and anyone logged in
+may join one.
 Passwords on games and friend-joining are later, and they change who is allowed in rather
 than what a game is.
 
 **Creating and joining are plain endpoints.** A user hits management, which creates the game
-and the `participant` row that puts them in it. The client then opens its WebSocket to the game
+and the `participant` row that puts them in it — on no team until they pick one in the lobby
+(09-04). The client then opens its WebSocket to the game
 server with that JWT and the game id. If no session for that game is in memory, the
 game server hydrates it and starts serving.
 

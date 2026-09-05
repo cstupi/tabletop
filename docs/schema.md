@@ -232,11 +232,13 @@ erDiagram
     }
     GAME {
         uuid id PK
+        text name
         text status
         text game_rules
         text properties_hash
         text scheduler_shape
-        bool warns
+        text enforcement
+        bool waits_between_steps
         uuid created_by FK
         timestamptz created_at
     }
@@ -548,8 +550,11 @@ Two columns, for opposite reasons to the one originally given.
 **`game_event.payload`** — genuinely heterogeneous by event kind. `architecture.md` settled
 this: adding an event type must not be a migration.
 
-**`participant.army_snapshot`** — because it **must not** be reasoned about. It is frozen at
-game load and read only to rebuild that game. Normalised, a later schema change would migrate
+**`participant.army_snapshot`** — because it **must not** be reasoned about. It is written when
+setup ends — the moment the armies freeze, per [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)
+— and read only to rebuild that game. It is **nullable**, as is `participant.team_id`: a
+participant who joins after deployment has no army, and one who has not yet picked a team in the
+lobby has no team (ruled 09-04, [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)). Normalised, a later schema change would migrate
 historical snapshots and silently alter what a past game was played with. Being opaque is the
 requirement here, not a convenience.
 
@@ -562,7 +567,13 @@ while altering a check constraint is ordinary DDL. Text also reads directly in q
 ### `table_state` has two nullable owners
 
 `owner_id` is set when it is an account's saved layout; `game_id` is set when it is a game's
-setup result. Exactly one, enforced by a check constraint.
+setup result. Exactly one, enforced by a check constraint. A game's row **exists from the moment
+setup starts and is written on every edit** by the game server, then frozen from `playing` on —
+enforced in the game server, not the database ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)).
+
+**Built-in or asset, exactly one.** `table_state.texture_builtin | texture_asset_id` and
+`marker.visual_builtin | visual_asset_id` each carry a check constraint that one and only one is
+set — stated here since 09-04, because the terrain placement section below leans on it.
 
 Nullable foreign keys are a smell, and the alternative is two tables with identical columns,
 which is a worse one. [Setup content](superpowers/specs/2026-08-29-setup-content-design.md)
@@ -576,7 +587,22 @@ terrain generators place it. So `terrain_placement` carries `builtin` beside a n
 `asset_id`, exactly one set, with the same check constraint `texture_builtin | texture_asset_id`
 and `visual_builtin | visual_asset_id` already use. The placement's own `terrain_volume` rows
 carry its footprint and declarations either way, which is what lets a user swap the mesh and
-keep the piece.
+keep the piece. For a built-in placement they are **the** volumes, not overrides: there is no
+`asset_volume` row beneath, so they are always written on add.
+
+### A game has a name, an enforcement setting and a wait setting
+
+**Added 2026-09-04 by [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md).** `name` is what the game list
+shows. `enforcement` is `silent | warn | strict`, replacing `warns boolean`: the review reopened
+identity and enumerations' boolean and kept the refusing position two later designs had written.
+`waits_between_steps` is resolution's second setting, which had no column; its first, animate, is
+a per-player client setting and not here.
+
+### The catalog's per-kind check
+
+`cost`, `target_side`, `target_grain`, `target_count` and `target_range` are non-null only when
+`kind = spell`; `aggregation` only when `kind = model`; `takes_parameter` is false for a spell.
+Stated in one place since 09-04.
 
 ### A game records its creator
 
@@ -617,8 +643,9 @@ dedup a property of the schema rather than a rule in code.
 - ~~How the game server reads game metadata.~~ **Settled** by
   [the management API](superpowers/specs/2026-08-29-management-api-design.md): the client
   opens its socket with a Stytch session JWT and a game id, and the game server **reads the
-  game's row directly**. A read is not a join, so `architecture.md`'s boundary holds — but the two
-  services now share a database, so a management migration can break the game server.
+  game's row directly** — and, since 09-04, writes the game's own rows while its status is
+  `lobby` or `setup` ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)). The
+  two services share a database, so a management migration can break the game server.
 - Whether the two schemas are two Postgres schemas in one database or two databases.
 - Indexes beyond primary and foreign keys. None are needed at this scale, but the game
   browser's listing query is the first candidate.

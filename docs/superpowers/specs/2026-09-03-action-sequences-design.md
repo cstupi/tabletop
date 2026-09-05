@@ -124,9 +124,11 @@ An Ask is addressed to a **team** — activation authority is team-wide, per
 server-computed legal set. The client renders it as the thing to answer; any team member may,
 and the log records who did.
 
-What the legal set *means* is the enforcement dial's business: at strict enforcement an
-out-of-set answer is refused; at loose it is accepted and logged with a warning. This is
-enumeration-rather-than-validation applied to resolution.
+What the legal set *means* is the enforcement setting's business: under `strict` an
+out-of-set answer is refused; under `warn` it is accepted and logged with a warning; under
+`silent` it is accepted. (This sentence reopened identity and enumerations' boolean, and the
+review of 09-04 kept the refusing position.) This is enumeration-rather-than-validation applied
+to resolution.
 
 ## Windows
 
@@ -168,10 +170,14 @@ Three shared sub-sequences do most of the work:
 - **deal-wounds** — assign each wound: `Tough` stacking onto the most-wounded tough model
   until it dies, heroes assigned last (p.14); `Deadly(X)` assigns then multiplies, resolved
   first, no carry-over (p.13). `Regeneration` roll per wound unless suppressed. Casualties go
-  to the shelf. Records wounds-this-activation for the morale threshold.
+  to the shelf. Records wounds-this-activation for the morale threshold — a per-unit counter in
+  game state, like spell tokens, cleared at `turn_ended` (placed 09-04; it must outlive the
+  frame that wrote it).
 - **resolve-hits** — Roll to Block, one die per hit against Defense (`AP`, cover modify it);
-  fails become wounds; push deal-wounds. Spells and `Impact` hits enter here, skipping the hit
-  roll entirely.
+  fails become wounds; push deal-wounds. `Impact` hits enter here, skipping the hit roll
+  entirely; spell hits enter after a hit roll that cannot fail, so *on rolls of 6* rules read a
+  real die ([spell effects](2026-09-04-spell-effects-design.md), correcting "spells skip the hit
+  roll").
 - **attack-sequence** — Determine Attacks: sum Attack of models in range and line of sight
   (p.8) → Roll to Hit: Quality tests as a pool; unmodified 6s feed `Furious`, `Relentless`,
   `Rending`; `Blast(X)` multiplies after other rules, capped at models in the target unit →
@@ -202,15 +208,20 @@ The actions:
 - **End-of-activation hook** — units that took wounds this activation leaving them at half or
   less of starting size (or Tough value, single-model) take a morale test; units that fought this melee compare wounds
   instead. Morale is a sequence with ruleset-owned triggers, never a fixed step of the attack
-  machinery.
+  machinery. The scheduler calls this hook after the declared action's sequence finishes and
+  before `turn_ended` ([the scheduler](2026-09-04-scheduler-design.md), added 09-04).
 - **Dangerous terrain** (p.11) — per model: one die, or the model's Tough value in dice; each
   1 is a wound → deal-wounds. Invoked by moves through it, activating in it, and transport
   destruction.
 - **Casting** (p.13) — an invoked window on the activation, any point before attacking,
   mid-move included → Ask: spell and tokens, cost equal to the spell's value, one try per
   spell → sealed bid window: models with tokens within 18" and line of sight of the caster's
-  unit, **both sides**, ±1 per token → 1D6 against 4+, modified → on success Ask the target in
-  line of sight → spell effects: hits push resolve-hits, grants write a condition.
+  unit, **both sides**, ±1 per token → 1D6 against 4+, modified → on success Ask the targets in
+  line of sight, one to `target_count` of them from the spell's four target columns → spell
+  effects per target: hits push resolve-hits after a hit roll that cannot fail, grants with
+  `duration = once` write the grants store. *Corrected 2026-09-04 by
+  [spell effects](2026-09-04-spell-effects-design.md): this read "Ask the target" and "grants
+  write a condition".*
 
 **The token economy.** A counter per model with `Caster(X)`: +X at the start of each round,
 even off the table (p.13); capped at 6; spent by casting and by bidding. The counter is
@@ -220,8 +231,16 @@ ordinary editable game state, logged like everything else — no schema change, 
 terrain granting a token on activation nearby (p.18), and the hero upgrade that holds one
 token only spendable as a bid (p.30).
 
+**The four actions are sequences too**, which this document left implicit and the review of
+09-04 made explicit: `Hold` is no move, then an Ask *shoot or not* that pushes Shooting;
+`Advance` is a move step of the action's distance, then the same Ask; `Rush` is a move step and
+nothing else; `Charge` is as written above. The scheduler starts whichever the Ask's answer
+named, and the `action` row supplies the distance.
+
 **Fatigue** is a condition set by the melee sequence when a unit first attacks in melee in a
-round, cleared at the round boundary, read by the melee hit roll and by `Impact`'s predicate.
+round, cleared at the round boundary — by a third OPR round-boundary hook, *clear round-scoped
+conditions*, which [the scheduler](2026-09-04-scheduler-design.md) lists since 09-04 — read by
+the melee hit roll and by `Impact`'s predicate.
 
 **Rulings on ambiguities the book leaves.** `Counter` resolves **before** `Impact` — ruled in
 this session. Two remain interpretation calls `GameRules` must make visibly: whether *"one try

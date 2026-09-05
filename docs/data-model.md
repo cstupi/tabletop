@@ -117,12 +117,14 @@ erDiagram
     }
     GAME {
         uuid id
+        string name
         enum status
         id created_by
         timestamp created_at
         id game_rules
         enum scheduler_shape
-        bool warns
+        enum enforcement
+        bool waits_between_steps
     }
     TEAM {
         uuid id
@@ -195,7 +197,6 @@ erDiagram
         inches length
     }
     TERRAINPLACEMENT {
-        string builtin
         units position
         degrees yaw
         float scale
@@ -288,8 +289,8 @@ exists**. It is kept because import knows it for free and no later pass could re
 time, so storing it would be two sources for one fact. A source identifier had no reader at all
 — the only candidate was a heuristic that was deliberately deferred.
 
-**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions plus one
-catalog of named rules. `GAME.game_rules`
+**A ruleset is two things.** `PROPERTIES` is the pinned data — stat definitions, one
+catalog of named rules, and the actions and rolls that effects can target. `GAME.game_rules`
 names the per-ruleset C#: turn structure, actions, pipeline order, scheduler, dice. Only the
 data half is pinned, which is an open problem for replay.
 
@@ -336,22 +337,25 @@ deployment, movement, action legality, usage, and melee strike order.
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
 lists all of them with their values.
 
-The two exceptions on `EFFECT` are stronger rather than weaker: what a `Grant` or `Suppress`
-names, and what a `Replace a stat` names, are **references into the same `PROPERTIES` set** —
-`Poison` cannot suppress a rule that set does not define.
+The four exceptions on `EFFECT` are stronger rather than weaker: what a `Grant` or `Suppress`
+names, what a `Replace a stat` names, and which action or roll an effect targets, are
+**references into the same `PROPERTIES` set** — `Poison` cannot suppress a rule that set does
+not define.
 
 ## What is deliberately not here
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
-conditions, granted effects, the shelf, what a model is inside, the action record, whose
-activation it is, the score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
+conditions, granted effects, spell tokens, wounds this activation, the shelf, what a model is
+inside, tokens dropped in play, the action record, the resolution stack, the scheduler's
+position (round, team order, whose turn, who has passed), the score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
 events. It is
 reconstructed in memory by replaying `GAMEEVENT` from `TABLESTATE`, which is the log's
 initial state. A table growing a "current position" column means the event spine has been
 broken.
 
 That is also why terrain is locked after setup with no flag and no check: terrain lives in
-`TABLESTATE`, and nothing in the log can reach it. Making terrain destructible later is
+`TABLESTATE`, which is writable only while the game is in `setup`, and nothing in the log can
+reach it. Making terrain destructible later is
 additive — terrain events on top of the same snapshot.
 
 **Presence is not here.** Cursors, pings, measurements, selection and live drag positions are
@@ -370,7 +374,10 @@ for the same reason the texture's is.
 `external_id` on their side holding `ACCOUNT.id`.
 
 **Two schemas, one shared id.** Everything above except `GAMEEVENT` is management's.
-`GAMEEVENT` is the whole of the game server's, and there are no joins across the boundary.
+`GAMEEVENT` is the whole of the game server's, and there are no joins across the boundary. The
+game server does **write** a game's own management rows while the game is in `lobby` or `setup`
+— status, teams, participants' team and snapshot, the `TABLESTATE` draft — and is read-only from
+`playing` on ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md), 09-04).
 
 ## Where these came from
 
@@ -385,3 +392,6 @@ for the same reason the texture's is.
 | `PROPERTIES`, `STATDEFINITION`, `ACTION`, and every enumeration | [Identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md) |
 | `CATALOGENTRY`, `EFFECT`, `EFFECTCONDITION` | [The effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) |
 | `WEAPON`, stats, and property entries | [Content values](superpowers/specs/2026-08-29-content-values-design.md) |
+| `GAME.created_by`, `TERRAINPLACEMENT` built-in or asset | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) |
+| `EFFECT.duration`, spell targeting on `CATALOGENTRY` | [Spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) |
+| `GAME.name`, `enforcement`, `waits_between_steps`; nullable participant team and snapshot | [The whole-design review](superpowers/specs/2026-09-04-whole-design-review.md) |

@@ -25,8 +25,10 @@ sequence out — the result is simply displayed. It changes presentation and not
 act mid-resolution: interrupts, reactive abilities, or anything the rules do not model.
 
 These are independent. A group can watch dice animate without ever pausing, or pause at
-every step without animation. Both are set at game setup, joining the configuration list
-in [game flow](2026-08-28-game-flow-design.md).
+every step without animation. ~~Both are set at game setup~~ — *corrected 2026-09-04 by
+[the whole-design review](2026-09-04-whole-design-review.md): waiting changes what the server does and what the log
+records, so it is a game setting, `game.waits_between_steps`; animation is presentation only,
+so it is a setting each player keeps in their own client.*
 
 The second is the one with consequences for the model.
 

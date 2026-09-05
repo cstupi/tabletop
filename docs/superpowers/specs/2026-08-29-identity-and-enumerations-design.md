@@ -94,6 +94,12 @@ stats are keyed and typed is the content session's question.
 
 ## Enforcement is a boolean
 
+*Reopened 2026-09-04 by [the whole-design review](2026-09-04-whole-design-review.md): action sequences and the
+scheduler had both written a refusing mode under the "dial" name, and the review kept it.
+**`GAME.enforcement` is `silent | warn | strict`**, replacing `warns`. `strict` refuses an
+out-of-set Ask answer or an illegal command; the menu's edits are accepted under every setting,
+because they are the override path. The argument below stands for `silent` and `warn`.*
+
 Not a dial. **The server warns, or it says nothing.**
 
 `architecture.md` called it "hybrid, dialled per game," and game flow listed "the
@@ -111,7 +117,8 @@ ASSET.kind             miniature | terrain | texture
 MARKER.kind            objective | token
 GAME.status            lobby | setup | playing | ended
 GAME.scheduler_shape   player-turn | alternating-activation
-GAME.warns             boolean
+GAME.enforcement       silent | warn | strict      (was `warns boolean`; reopened 09-04)
+GAME.waits_between_steps   boolean                 (added 09-04; animate is a per-player client setting)
 ModelProperty.aggregation   all | any | majority | none
 Volume.kind            solid | area          (geometry values)
 Volume.footprint       circle | rect         (geometry values)
@@ -127,21 +134,25 @@ StatDefinition.level     unit | model | weapon
 StatDefinition.kind      target number | distance | count | dice expression
 Effect.subject           self | opponent
 Effect.kind              the twelve       (the effect grammar)
-Effect.target_roll       hit | defense | morale | casting
 Effect.target_quantity   hits | wounds
 Effect.target_result     wound | morale_test
 Effect.target_modifier   cover | to_hit_penalties | range_penalties
 Effect.cap_kind          models_in_target_unit
 Condition.kind           the eight        (the effect grammar)
 Condition.comparison     eq | neq | gte | lte | gt | lt
+Effect.duration          interaction | once          (spell effects, 09-04)
+CatalogEntry.target_side   friendly | enemy          (spell effects, 09-04; spell kind only)
+CatalogEntry.target_grain  unit | model              (spell effects, 09-04; spell kind only)
 ```
 
 Actions are named per ruleset rather than enumerated — `Hold`, `Advance`, `Rush`, `Charge` in
 Grimdark Future — because a ruleset with an action nobody anticipated needs content, not a code
 change.
 
-`Effect.target_stat`, `Effect.target_entry` and `Effect.target_action` are **not** enumerations — they are foreign keys
-into the same `Properties` set, which is stronger. `neq` exists because `Impact(X)` applies
+`Effect.target_stat`, `Effect.target_entry`, `Effect.target_action` and, since 09-03,
+`Effect.target_roll` are **not** enumerations — they are foreign keys into the same `Properties`
+set, which is stronger. (`target_roll` was listed above as `hit | defense | morale | casting`
+until the review of 09-04; rolls became rows on 09-03.) `neq` exists because `Impact(X)` applies
 *unless fatigued*; the rulebook has no *or* and no *not* in its structure, but one predicate
 still has to test a state's absence.
 

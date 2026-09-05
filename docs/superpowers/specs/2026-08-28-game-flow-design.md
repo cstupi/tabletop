@@ -37,7 +37,8 @@ was added 2026-09-04 by [spell effects](2026-09-04-spell-effects-design.md): eff
 granted with a duration, consumed when they apply. Conditions stay names.*
 
 **Action record** — the named actions this unit has taken this round: moved, shot,
-charged. Cleared at the round boundary.
+charged. Cleared at the boundary the scheduler shape defines — the round for alternating
+activation, the team's turn end for player-turn (below).
 
 **Conditions** — shaken, fatigued, and anything else the unit currently is. Persist
 until something removes them.
@@ -154,24 +155,31 @@ the setup phase, which is unlogged, free for all, and has no scheduler
 
 ## Setup is configuration, before the game loads
 
-Everything above describes a game in progress. What decides its shape is chosen
-**before players load into it**, as a configuration on the game record:
+Everything above describes a game in progress. What decides its shape is chosen ~~before
+players load into it~~ **in the lobby, before setup** — corrected 2026-09-04: clients connect at
+`lobby` ([accounts](2026-08-29-accounts-design.md)), pack, shape and enforcement are set on
+`POST /v1/games` and may be changed in the lobby, and teams and armies stay editable through
+setup ([the setup phase](2026-09-04-setup-phase-design.md)). As a configuration on the game
+record:
 
 - **The rule pack** — content-addressed and pinned, per `docs/architecture.md`, because
   undo-by-replay needs the exact ruleset that produced the log.
 - **The scheduler shape** — player-turn or alternating activation.
-- **Table dimensions**, and the regions defined on it.
+- ~~**Table dimensions**, and the regions defined on it.~~ These are the setup phase's, not
+  configuration ([setup content](2026-08-29-setup-content-design.md)).
 - **Teams**: who is on which side, and which army each player brings.
-- **The enforcement dial** — how much the server warns about, which
-  `docs/architecture.md` already describes as hybrid and set per game.
+- **The enforcement setting** — `silent | warn | strict`, per
+  [identity and enumerations](2026-08-29-identity-and-enumerations-design.md) as reopened on
+  09-04.
 
 The pack supplies defaults for these; setup is where they are confirmed or changed.
 Consistent with players being in charge, a group that wants alternating activation in a
 game whose pack defaults to player turns can simply choose it.
 
-This is configuration, not play. It is not the setup *phases* — table size, terrain
-placement, deployment — which happen inside a loaded game as ordinary commands. The
-distinction is that configuration is settled before there is a log to write to.
+This is configuration, not play. It is not the setup phase — table size, terrain, markers,
+zones — which is unlogged free-for-all editing, nor deployment, which is the first thing the
+scheduler drives and the first thing logged. *Corrected 2026-09-04: this paragraph said the
+setup phases "happen inside a loaded game as ordinary commands"; setup edits are not commands.*
 
 ## Scoring
 

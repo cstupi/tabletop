@@ -173,7 +173,10 @@ already owns**, grouped by where the check happens rather than by what they rese
 | Action legality | `Immobile` |
 | Usage | `Limited` |
 | Melee strike order | `Counter` — *strikes first with this weapon when charged* |
-| Interrupt | `Caster` — casting happens mid-activation, which nothing else in the model does |
+| Interrupt | `Caster` — casting is an invoked window mid-activation; since 09-03 windows are general and `Overwatch` is another ([action sequences](2026-09-03-action-sequences-design.md)) |
+
+**Name checks read the grants store as well as the unit's own properties**, since
+[spell effects](2026-09-04-spell-effects-design.md) let a spell grant one of these names.
 
 **This is name-matching, and it is accepted deliberately here.** The alternative is inventing
 grammar for deployment timing, movement exemption and a token economy, most of which would
@@ -190,7 +193,8 @@ stat replacement conditioned on other models remaining.
 
 ## Deliberately not decided
 
-- How `order` is expressed — a number, a phase name, or a relation to another effect.
+- ~~How `order` is expressed — a number, a phase name, or a relation to another effect.~~
+  **Settled 08-30**: an integer `ordinal` on the effect row ([schema](../../schema.md)).
 - ~~Whether `Caster`'s token economy needs anything in `Properties` beyond its parameter.~~
   **Settled on 09-03 by [action sequences](2026-09-03-action-sequences-design.md): nothing.**
   Tokens are an ordinary editable counter in game state, granted by a `GameRules` hook at the

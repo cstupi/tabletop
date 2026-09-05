@@ -62,7 +62,9 @@ only thing a region is for — the table model's "or mission areas" has nothing 
 
 **The setup phase is not recorded as events.** Terrain and markers are placed, moved, added
 and removed freely while it runs, and none of that goes in the log. At the end of the
-phase, one record captures the result:
+phase, one record captures the result (*since 09-04 that record exists as a live draft row from
+the moment setup starts, written on every edit, and becomes the snapshot by the status flip —
+[the setup phase](2026-09-04-setup-phase-design.md)*):
 
 ```
 width, length, texture
@@ -115,7 +117,11 @@ that field is empty and the two records are the same shape.
 
 They still differ in the two ways that matter to a player: an objective is a large
 predefined circle placed during setup and locked, a token is a small chip dropped during
-play and moved freely. That difference is `kind`, size, and which record it lives in.
+play and moved freely. That difference is `kind`, size, and which record it lives in — and
+*which record* was left unsaid until 09-04: **objectives are rows in the snapshot; a token
+dropped in play is an ordinary logged command** (`marker_placed`, `marker_moved`,
+`marker_removed`), rebuilt from the log like every other in-play state. A token placed during
+setup may sit in the snapshot as well, as initial state.
 
 `kind` is also the hook automatic scoring hangs off if it is ever built, which is why the
 collapse costs nothing.
