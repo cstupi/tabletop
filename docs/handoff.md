@@ -1,4 +1,4 @@
-# Handoff — 2026-09-03
+# Handoff — 2026-09-04
 
 Where the project stands, and what to pick up next.
 
@@ -33,6 +33,7 @@ scaffold — all of the work so far is design.
 | 2026-08-30 | Review of the whole data layer, and the twelve findings it produced |
 | 2026-09-03 | [Action sequences](superpowers/specs/2026-09-03-action-sequences-design.md) — the interpreter and OPR's sequences, 40k read as the falsifier |
 | 2026-09-03 | Rolls given a row; `schema.md`, `data-model.md` and `architecture.md` corrected to match |
+| 2026-09-04 | [The scheduler](superpowers/specs/2026-09-04-scheduler-design.md) — both shapes, the turn as an Ask, deployment and the round boundary; three earlier open items closed |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -137,6 +138,26 @@ from inside the attack machinery. Abandonment settled: pop the frames, applied e
 logged with an actor. `Counter` before `Impact` was ruled; the 40k core rules were read as a
 falsifier and produced nine explicit constraints on what the interpreter must not contain.
 **Only OPR's `GameRules` gets built.**
+
+**The scheduler** — whose input is needed next, and what may they do with it. A generic engine
+component with two implementations behind one interface, selected by `game.scheduler_shape`;
+everything ruleset-specific is a hook `GameRules` supplies — who goes first each round, which
+units may activate (a reading of the action record), which actions they may take, the phase
+before round one, the round-boundary hooks, the phases inside a turn. Its state — round, order
+over teams, whose turn, who has finished — is **rebuilt from the log and never stored**, carried
+by four events: `round_started`, `turn_started`, `turn_ended`, `phase_started`. **The turn is
+an Ask** through the interpreter's own Ask type, with the activatable units and their actions as
+the legal set; the turn ends when the declared action's sequence finishes, and moving models by
+hand never ends one — that exists to arrange models inside a unit. A team with an empty legal
+set is skipped, which is how a spectator's team never sees a prompt. Deployment is the phase
+before round one, driven by the same scheduler after a logged roll-off; Scouts and Ambushers
+follow pages 13–14. **Reactions resolve in turn order starting after the actor**, replaceable by
+a hook; muted window kinds are per player; the scheduler shape and team membership are fixed
+once playing. Page 49's team games and free-for-all were read: turn order is team-based, and
+free-for-all rolls off every round — a first-team policy, not a scheduler shape. Six constraints
+on the interface were derived from 40k's battle round, Fight phase and Reinforcements. The
+roll-off does not pick a table edge, and that deviation from page 6 is accepted and handed to the
+setup phase session.
 
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
@@ -253,16 +274,17 @@ conditions.
 
 ## What is not designed
 
-**Nothing in the data layer**, and no longer the resolution machinery — action sequences
-closed on 09-03. What still needs a design session:
+**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler
+(09-04). What still needs a design session:
 
-- **The scheduler.** [Game flow](superpowers/specs/2026-08-28-game-flow-design.md) designed the
-  action record and teams; action sequences added a second question for it — who goes first
-  when several teams want to react in one window. Both scheduler shapes get built.
-- **The setup phase.** Its output record is designed; who places terrain and when is not.
+- **The setup phase.** Its output record is designed; who places terrain and when is not. The
+  scheduler handed it one more question: zones are assigned to team ordinals during setup, but
+  the rulebook has the deployment roll-off winner pick an edge, so a zone swap during setup is
+  the likely convenience.
 - **The client shell.**
 - **The mesh prep tool** — `architecture.md` says outright it is undesigned.
-- **Deployment.**
+- **Deployment**, meaning the infrastructure — ECS Fargate, RDS, S3 in `architecture.md`. Not
+  unit deployment, which the scheduler designed.
 - **The effect grammar follow-up** — small: real spells (Alien Hives, via the Army Forge API)
   exposed two gaps, a grant with a duration (*"gets X once"*) and multi-target selection
   (*"pick up to two friendly units within 12""*). Neither blocks anything except authoring
@@ -283,17 +305,13 @@ closed on 09-03. What still needs a design session:
 
 Carried from the design docs:
 
-- Whether setup configuration can change once a game is loaded. Pinning answers it for
-  `Properties`, and the setup snapshot answers it for board size and texture; the scheduler
-  shape and the teams are undecided.
 - Conflicts between two abilities reading the same result — whether both apply or one
   wins. Deferred deliberately: every example is specific to one ruleset.
 - The two `GameRules` interpretations action sequences flagged rather than guessed: whether
   *"one try per spell"* scopes to the activation or the round, and whether a later weapon
   group's attacks are recomputed after an earlier group's casualties. (`Counter` before
   `Impact` was ruled on 09-03.)
-- Whether a muted window kind is per player or per team; whether `step_completed` payloads
-  need a schema per step kind.
+- Whether `step_completed` payloads need a schema per step kind.
 - The triangle-count threshold at upload. Agreed in principle, never chosen.
 - Whether an objective ever needs game data again. Setup content deleted the field because
   scoring is manual; reopening it needs a reader.
@@ -315,10 +333,11 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**Design the remaining modules, one prompt each: the scheduler, the setup phase, the client
-shell, the mesh prep tool, deployment, and the small effect grammar follow-up.** The scheduler
-is the natural next session — action sequences left it a named seam (reaction ordering in
-windows) on top of the question game flow left it (what is legal in a window).
+**Design the remaining modules, one prompt each: the setup phase, the client shell, the mesh
+prep tool, deployment, and the small effect grammar follow-up.** The setup phase is the natural
+next session — the scheduler handed it the zone-assignment question, and game flow's line that
+terrain placement is "driven by the same scheduler" was superseded by setup content's unlogged
+snapshot, so the setup phase needs its own account of who places what and when.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.
@@ -332,8 +351,8 @@ name real types rather than describe them.
 ## Two things worth carrying into any session
 
 **Consult the rulebooks; do not reason about the rules.** Reading them has produced better
-answers than designing did, seven sessions running — most recently the whole of action
-sequences. Sources:
+answers than designing did, eight sessions running — most recently the scheduler, where page
+49's team-game and free-for-all rules settled turn order without a guess. Sources:
 
 - Grimdark Future v3.4.1 and Age of Fantasy v3.5.0, PDFs on the Windows host at
   `/mnt/c/Users/clays/Downloads/`.
@@ -359,7 +378,7 @@ print(r.pages[12].extract_text())"        # 68 pages; special rules are 13-14
 Useful page numbers in Grimdark Future v3.4.1: **7** actions and their distances, **8-10**
 shooting, charging and melee, **11-12** terrain, **13-14** every special rule, **16** placement
 styles, **18** army terrain, **20** buildings, **21-23** deployment styles, **24-28** missions,
-**29-34** extra actions, boosting, advanced casting and hero upgrades.
+**29-34** extra actions, boosting, advanced casting and hero upgrades, **49** multiplayer games.
 
 **Age of Fantasy is not a second ruleset for testing generalisation.** Its terrain section is
 word for word identical to Grimdark Future's — same engine, same text. Warhammer is the real

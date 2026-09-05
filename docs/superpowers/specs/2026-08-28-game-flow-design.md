@@ -213,8 +213,10 @@ for a checkpoint concept to protect against.
 
 - How any of this is expressed in C#.
 - Anything about resolution: dice, wounds, modifier stacking, pipeline internals.
-- How the scheduler decides what is legal in a window, beyond that it reads the action
-  record.
+- ~~How the scheduler decides what is legal in a window, beyond that it reads the action
+  record.~~ **Settled 2026-09-04** by [the scheduler](2026-09-04-scheduler-design.md): the turn is
+  an Ask whose legal set is the activatable units paired with their actions, and out-of-set
+  answers are what the enforcement dial governs.
 - Persistence layout.
 
 ## Still open
@@ -225,5 +227,8 @@ for a checkpoint concept to protect against.
   as recovering a crashed task. There is no `abandoned`. Disconnecting is answered too:
   [accounts](2026-08-29-accounts-design.md) says **disconnecting is not leaving** — the
   `participant` row stays and reconnecting rehydrates.
-- Whether any setup configuration can be changed once a game is loaded. Pinning the
-  rule pack says no for that one; the rest is undecided.
+- ~~Whether any setup configuration can be changed once a game is loaded. Pinning the
+  rule pack says no for that one; the rest is undecided.~~ **Settled 2026-09-04** by
+  [the scheduler](2026-09-04-scheduler-design.md): nothing changes once playing. The pack is
+  pinned, the board is the setup snapshot, and the scheduler shape and team membership are
+  settled by the end of the lobby.

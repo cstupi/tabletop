@@ -149,9 +149,15 @@ interaction is two passes: settle which properties and parameters are live, then
 
 ## Turn scheduling
 
-The ruleset owns a **scheduler** answering "whose input is needed next, and what is legal in
-this window?". Windows are **scoped to a team, not a player** — teams alternate activations
-and any member of the active team may act. Coordination inside a team is social.
+A **scheduler** answers "whose input is needed next, and what is legal in this window?".
+Windows are **scoped to a team, not a player** — teams alternate activations and any member of
+the active team may act. Coordination inside a team is social.
+
+**Corrected 2026-09-04.** This section said the ruleset owns the scheduler. It does not: the
+scheduler is a generic engine component with two implementations selected per game, and
+`GameRules` supplies its policies — who goes first each round, which units may activate, the
+phases inside a turn, the round-boundary hooks. See
+[the scheduler](superpowers/specs/2026-09-04-scheduler-design.md).
 
 - 2 players = two teams of one.
 - Free-for-all = N teams of one, differing only in the order over teams.

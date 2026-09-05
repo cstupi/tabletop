@@ -1,0 +1,238 @@
+# The scheduler
+
+Design session, 2026-09-04. Whose input is needed next, and what may they do with it.
+
+[Game flow](2026-08-28-game-flow-design.md) named the scheduler, gave it two shapes, and left
+it two questions: what is legal in a window, and whether setup configuration can change once
+a game is loaded. [Action sequences](2026-09-03-action-sequences-design.md) left it a third:
+who goes first when several teams react in one window. This session designs the scheduler and
+closes all three.
+
+## Read, not reasoned
+
+- **Grimdark Future v3.4.1**, page 6 (deployment roll-off and alternation), page 7 (rounds,
+  turns, activations, and who goes first each round), pages 13–14 (`Ambush`, `Scout`), page 32
+  (the optional `Overwatch` action), page 49 (free-for-all and team games).
+- **Warhammer 40,000 10th edition core rules** (Wahapedia), as a **falsifier**: battle round
+  structure, the Fight phase's alternation, Reinforcements, and the rule for simultaneous
+  effects. **Only OPR's `GameRules` gets built.**
+
+The rulebook's structure, page 7: rounds are made of turns, a turn is a single activation, an
+activation is one action. Teams alternate until every unit has activated; on each new round
+the player that finished activating first goes first. Page 49 makes turn order **team-based**
+in team games, and has free-for-all players **roll off at the start of every round**.
+
+## The line
+
+The scheduler is a generic engine component with two implementations, selected by
+`game.scheduler_shape`. It knows no ruleset. Everything ruleset-specific is a hook it calls.
+
+| The scheduler owns | `GameRules` supplies |
+| --- | --- |
+| the order over teams, and whose turn it is | who goes first each round: finished-first for two teams, roll-off in descending order for free-for-all (pages 7, 49); 40k, the same team every round |
+| when a turn ends, and when a round ends | which units on a team may activate now — a reading of the action record (OPR: no entry this round; 40k: no entry for this phase) |
+| skipping a team with nothing to do | which actions a unit may take (`Immobile` means Hold only; Shaken means idle) |
+| when the action record clears, per shape | the phase before round one (deployment), and the round-boundary hooks (spell tokens, Ambushers) |
+| ordering reactions in a window | the list of phases inside a turn — empty for OPR |
+
+Two other placements were considered. Putting the scheduler inside `GameRules`, with the
+shape as a parameter, is closest to the words in `architecture.md` but makes the two shapes
+two branches in one class rather than two implementations behind one interface, which is the
+second example game flow chose both shapes to have. Running the scheduler as a sequence on the
+resolution stack would make the turn literally an Ask, but the interpreter has no loop
+primitive by design, abandoning the game loop means nothing, and a frame that lives for the
+whole game is not what the stack was built for. What was kept from that option: **the turn is
+an Ask**, issued through the interpreter's own Ask type.
+
+## State
+
+Round number, the order over teams for this round, the team whose turn it is, and which teams
+have finished the round. Nothing else.
+
+**It is rebuilt from the log and never stored**, as the action record and the resolution
+stack are, so a rejoining client and a crashed server recover it by the one hydrate path.
+Game flow's "round number, current phase, active team" is this state; *phase* is
+`deployment`, `rounds`, or a `GameRules` phase name inside a turn.
+
+## Events
+
+Four kinds, all facts the scheduler emits:
+
+- `round_started` — round number, and the order over teams
+- `turn_started` — the team
+- `turn_ended` — the team
+- `phase_started` — a name
+
+**Replay applies them and never re-derives them.** A change to a first-team policy after a
+deploy does not rewrite who went first in a game already played — the same reasoning that put
+thresholds in roll events. The roll-off that produces an order is an ordinary sequence on the
+roll primitive and logs as one.
+
+## Nothing is an invariant
+
+The active team, the round number, a unit's action record — all editable from the menu as
+ordinary commands, through the same path the scheduler writes. A menu edit setting the active
+team logs a `turn_started`. **The scheduler reads state on every step and never assumes its
+last output is still true.** A team's "finished" is not a flag the scheduler holds; it is the
+team's legal set being empty, read again each time.
+
+## The turn is an Ask
+
+When a turn starts, the scheduler issues an Ask to the team, through the same Ask type the
+interpreter uses. The question is *activate*; the legal set is server-computed — every unit
+`GameRules` says may activate now, each paired with the actions it may take. Two teams or
+free-for-all, the Ask is the same.
+
+The answer names a unit and an action. The scheduler starts that action's sequence on the
+resolution stack. **When the sequence finishes, the turn ends** — ruled in this session — and
+the next team's Ask goes out. The activation is written to the unit's action record when the
+sequence starts, not when it ends, so an abandoned sequence still counts as the unit having
+gone.
+
+**Moving models by hand is not an answer.** "Anyone can move anything" exists so players can
+arrange the models inside a unit; activating is a declared action from a button, and the move
+button assists with the distance. Hand moves never end a turn.
+
+**A team with an empty legal set is skipped** — no Ask, no turn events. That is how a
+spectator's third team ([presence](2026-08-30-presence-design.md)) never sees a prompt, and how
+OPR's "continues until all units have activated" works when one side has more units.
+
+**Passing is a real answer**, logged, and there is one of it: a team may pass its turn while
+holding a non-empty legal set; the alternating scheduler treats it as the team finishing the
+round. There is no separate end-turn command. The menu's *mark unit activated* writes the
+action record, and the scheduler reacts to the record.
+
+**Enforcement.** Answering with a unit or action outside the legal set is what the dial
+governs: strict refuses it; loose accepts it, logs it with a warning, and the scheduler
+proceeds as if it were legal. That is the whole answer to game flow's question about legality
+in a window — legality *is* the legal set, and out-of-set is enumerated rather than rejected,
+which is how the model holds "a unit that has already moved moving again".
+
+## The two shapes
+
+**Alternating activation.** One activation per turn. The order over teams comes from the
+first-team policy at `round_started`; turns rotate through it, skipping finished teams. A team
+finishes when its legal set is empty or it passes. The round ends when every team has finished.
+The action record clears at `round_started`. Next round's order is the policy's: OPR two-team,
+the team that finished first goes first; free-for-all, roll off.
+
+**Player-turn.** A team holds the turn for every activation until its legal set is empty or it
+passes. The turn is a list of phases from `GameRules`; each phase is an Ask loop of *act or end
+phase*, with the legal set read per phase. OPR under this shape has one phase and activates
+every unit in a row. The team's action record clears at its `turn_ended`, per game flow. The
+round ends when every team has had a turn.
+
+**Only OPR's `GameRules` is built, and it runs under both shapes.** Game flow's point stands: a
+group may pick alternating activation in a game whose pack defaults to player turns, and the
+reverse.
+
+## Deployment
+
+The phase before round one, driven by the same scheduler. `GameRules` supplies it as a phase
+whose Ask is *deploy one unit*: the legal set is the team's shelf minus units set aside as
+Scouts or Ambushers. The answer names a unit; its models come off the shelf by ordinary
+placement commands, and the turn ends when the last model of that unit has a placement. A team
+with nothing left to deploy is skipped; the phase ends when every team is skipped.
+
+**The order comes from a roll-off** at the start of the phase — a `GameRules` sequence on the
+roll primitive, logged. Its winner deploys first and, per page 7, takes the first turn of round
+one. Every roll result is editable from the menu, as any roll is.
+
+**The roll-off does not pick a table edge, and the deviation from the rulebook is accepted.**
+Deployment zones are geometry, assigned to team ordinals during the unlogged setup phase
+([setup content](2026-08-29-setup-content-design.md)). The roll-off must be logged, because the
+first team of round one depends on it. So the app's order is *zones, then roll-off*, where the
+rulebook's is *roll-off, then edge*; a group that wants the rulebook's order rolls off among
+themselves before assigning zones. The setup phase session may add a zone swap as a convenience
+and is not asked to.
+
+**Scouts** (page 14) deploy after every other unit, alternating, "starting with the player that
+activates next" — at that moment, the roll-off winner. A second deploy Ask over the set-aside
+Scouts, same phase, same mechanics. Set-aside is a condition on the shelved unit, per game
+flow's rule that why a model is on the shelf is a condition.
+
+## The round boundary
+
+At `round_started`, after the order is set and before the first turn, the scheduler calls the
+`GameRules` hooks in the order they are listed. OPR has two:
+
+- **Spell tokens** — `Caster(X)` grants X, capped at 6, placed here by action sequences.
+- **Ambushers** (page 13) — for any round after the first, each team in the new order is Asked
+  *deploy an Ambusher or pass*, "starting with the player that activates next", alternating
+  until every team passes. Deploying an Ambusher writes nothing to the action record, so the
+  unit may activate that round, as the rulebook allows.
+
+**There is no round limit.** Rounds count up. Missions say four; players read their book, and
+ending is a flag they set.
+
+## Windows
+
+Eligibility is the sequence's business: a step names an interrupt point and the engine finds
+who can react. **Ordering is the scheduler's.** When more than one team answers *react*, their
+reactions resolve **in the current turn order, starting with the team after the actor** — ruled
+in this session. Teams that passed drop out. `GameRules` may replace the ordering with a hook,
+which is where 40k's *"the player whose turn it is chooses the order"* would go; no OPR rule
+needs it. With two teams the question never arises.
+
+**Muted window kinds are per player**, closing action sequences' open item. Muting is client
+convenience, the client renders for one player, and two members of one team may want different
+prompts. The pass is still that player's pass, logged with their name.
+
+The one OPR reaction outside casting is the optional **Overwatch** action (page 32): a unit
+stays idle and may react once to an enemy activation, at any point as it moves or shoots. It is
+a condition set by the action and read at the interrupt points inside move and shoot steps — a
+window offered to the non-active team, which the interface already allowed for.
+
+## Re-entering a round
+
+If a menu edit clears a unit's record after its team finished, the scheduler sees a non-empty
+legal set at that team's slot and Asks it again. Nothing special happens: the scheduler holds no
+finished flag that outranks the record. A round that has already ended is reopened only by undo,
+which is replay.
+
+## What the interface must not assume
+
+Each is a constraint on the generic scheduler, with the 40k rule that falsifies the OPR-shaped
+assumption.
+
+1. **The first team each round is a policy.** OPR two-team: whoever finished first. OPR
+   free-for-all: roll off every round. 40k: the same player every round, chosen by the mission.
+2. **A phase may alternate inside one team's turn.** 40k's Fight phase selects units
+   alternately, starting with the active player, inside the active player's turn. A phase
+   supplied by `GameRules` must be able to declare its own alternation, and the player-turn
+   scheduler must run it. Not built.
+3. **Reinforcements arrive on the ruleset's schedule.** OPR Ambushers arrive at the round
+   boundary, alternating; 40k Reserves arrive in a step of the active player's own Movement
+   phase. Both are hooks; the scheduler owns neither.
+4. **The action record is read per ruleset.** Any entry means spent in OPR; 40k checks the
+   entry for this phase. The scheduler never reads the record itself.
+5. **A window may belong to a non-active team**, and a whole sequence may run inside another
+   team's turn. Fire Overwatch, carried by action sequences.
+6. **Ordering simultaneous reactions is a policy with a default.** Turn order from the actor,
+   replaceable by a hook.
+
+## Setup configuration is fixed once playing
+
+Closing game flow's open item. The rule pack is pinned; the board is the setup snapshot; and
+**the scheduler shape and the team membership are settled by the end of the lobby.** Rejoining
+works at any point, joining does not. A group that wants a different shape starts a new game.
+
+## Testing
+
+The scheduler is pure logic over game state and a log, with no Godot and no socket in it. It is
+the first candidate for the headless test project `CLAUDE.md` defers until there is logic worth
+testing: two shapes, one `GameRules`, scripted logs in and events out.
+
+## Deliberately not decided
+
+- How any of this is expressed in C#.
+- The setup phase: who assigns deployment zones, who places terrain and when. Its own session.
+- 40k's `GameRules`. The core rules were read to falsify the interface, not to build it.
+- Action boosting's *Random* playstyle (page 30), which draws a token "whenever it's a player's
+  turn to activate" and would hang off `turn_started`. Undesigned with the rest of boosting.
+
+## Still open
+
+Nothing of its own. Closed here, and struck where they live: game flow's *what is legal in a
+window* and *whether setup configuration can change once loaded*; action sequences' *who goes
+first when several teams react* and *whether a muted window kind is per player or per team*.

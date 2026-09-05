@@ -269,8 +269,10 @@ data.
 
 ## Deliberately not decided
 
-- The scheduler: activation legality, and who goes first when several teams react in one
-  window.
+- ~~The scheduler: activation legality, and who goes first when several teams react in one
+  window.~~ **Settled 2026-09-04** by [the scheduler](2026-09-04-scheduler-design.md):
+  reactions resolve in turn order starting with the team after the actor, replaceable by a
+  `GameRules` hook.
 - 40k's `GameRules`. The core rules were read to falsify the interface, not to build it.
 - Advanced Casting's three optional modules — spell books, the psychic pool, living spells
   (p.31–32) — same status as action boosting: recorded, not designed.
@@ -286,6 +288,7 @@ data.
   block authoring spell rows.
 - The two flagged `GameRules` interpretations: *one try per spell* scope, and weapon-group
   recomputation after casualties.
-- Whether a muted window kind is per player or per team.
+- ~~Whether a muted window kind is per player or per team.~~ **Settled 2026-09-04** by
+  [the scheduler](2026-09-04-scheduler-design.md): per player.
 - Whether `step_completed` payloads need a schema per step kind, or stay free-form within the
   event payload's existing `jsonb`.
