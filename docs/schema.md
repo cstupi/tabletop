@@ -280,6 +280,10 @@ erDiagram
         int cost
         text faction
         text rule_text
+        text target_side
+        text target_grain
+        int target_count
+        real target_range
     }
     EFFECT {
         uuid id PK
@@ -301,6 +305,7 @@ erDiagram
         int threshold
         text cap_kind
         text replacement
+        text duration
     }
     EFFECT_CONDITION {
         uuid id PK
@@ -414,7 +419,12 @@ it has that no property has is a **cost**, which is why `cost` is on the entry �
 `Caster(X)` grants X spell tokens a round and casting spends as many tokens as the spell's
 value.
 
-`faction` groups spells by army book, and is null for the other three kinds. **It is not
+`faction` groups spells by army book. ~~It is null for the other three kinds.~~ **Corrected
+2026-09-04** by [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): faction
+rules such as `Hive Bond` are unit rules spells grant by name, so `faction` is set on any kind
+that came from an army book and null for a core rule. Spell entries also carry **`target_side`,
+`target_grain`, `target_count`, `target_range`**, nullable and checked to the spell kind, from
+which the casting sequence's target Ask computes its legal set. **It is not
 enforced.** The rulebook says a caster's spells come from their own faction, and this records
 which book a spell came from so the UI can group them — nothing in this project stops a player
 choosing wrongly, for the same reason players count their own points.
@@ -471,6 +481,12 @@ Per-kind `CHECK` constraints keep the nullable columns honest: a `Multiply` row 
 **`parent_effect_id` is how `Roll` nests.** *X dice at 2+, each success adds a hit* is a `Roll`
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
 self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
+
+**`duration` is `interaction | once`**, default `interaction`. **Added 2026-09-04** by
+[spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
+applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
+log and never a row — consumed the first time that grant's effect applies. Every core rule is
+`interaction`.
 
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
 first"*, `Blast` applies *"after resolving other special rules"* — and four of the twelve kinds

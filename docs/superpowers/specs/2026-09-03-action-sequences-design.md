@@ -282,10 +282,13 @@ data.
 
 ## Still open
 
-- **The effect grammar has two gaps real spells exposed** (Alien Hives, Army Forge): a grant
+- ~~**The effect grammar has two gaps real spells exposed** (Alien Hives, Army Forge): a grant
   with a duration — *"gets X once (next time the effect would apply)"* — and multi-target
   selection — *"pick up to two friendly units within 12""*. Neither blocks this design; both
-  block authoring spell rows.
+  block authoring spell rows.~~ **Settled 2026-09-04** by
+  [spell effects](2026-09-04-spell-effects-design.md): `effect.duration` and a grants store; four
+  target columns on the spell entry, so the target Ask returns a set and each target gets the
+  effect independently.
 - The two flagged `GameRules` interpretations: *one try per spell* scope, and weapon-group
   recomputation after casualties.
 - ~~Whether a muted window kind is per player or per team.~~ **Settled 2026-09-04** by

@@ -201,6 +201,14 @@ stat replacement conditioned on other models remaining.
   `GameRules` never enumerates abilities**
   ([action sequences](2026-09-03-action-sequences-design.md)).
 
+## Spells, 2026-09-04
+
+[Spell effects](2026-09-04-spell-effects-design.md) read forty-eight spells from eight army books
+against this grammar. Damage spells and attack-type restrictions were already expressible. Added:
+**`duration`** on an effect (`interaction | once`), a **grants store** on the unit that a
+once-effect writes and consumption removes, and **target selection** on the spell entry. The
+twelve kinds and eight predicates are unchanged.
+
 ## Still open
 
 - **Whether twelve kinds survive a genuinely different ruleset.** They were derived from one,

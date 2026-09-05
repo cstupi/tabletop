@@ -37,6 +37,8 @@ scaffold — all of the work so far is design.
 | 2026-09-04 | [The setup phase](superpowers/specs/2026-09-04-setup-phase-design.md) — free-for-all editing, the draft is the row, terrain generators and built-in terrain, the creator's two transitions; joining at any status restored |
 | 2026-09-04 | [The client shell](superpowers/specs/2026-09-04-client-shell-design.md) — three screens over a session object, the projection, the table view, Asks, log and menu; no social login, so loopback and device code are gone |
 | 2026-09-04 | [Mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md) — STL to GLB runs in the browser inside the upload flow; the mesh prep tool is gone from the layout, `architecture.md` and `CLAUDE.md` |
+| 2026-09-04 | Hosting deferred past the review: local development first, Docker at most |
+| 2026-09-04 | [Spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) — forty-eight spells from eight army books read against the grammar; `duration`, a grants store, target selection, faction rules in the catalog |
 
 **Read in this order from cold:** this file, then `docs/architecture.md`, then
 `docs/data-model.md` and `docs/schema.md`, then whichever design doc covers what you are
@@ -208,6 +210,18 @@ above 100,000** and still never blocks. **The converter proposes scale and orien
 user confirms**, closing the question the asset library and geometry values shared. `tools/`
 left the layout in `CLAUDE.md` and `architecture.md`, and the language exception went with it.
 
+**Spell effects** — the effect grammar follow-up. Forty-eight spells from eight army books were
+read through the Army Forge API, and **Army Forge's own generated spell structure** turned out to
+be the grammar: an assignment (side, grain, count, range) and an effect that is either *N hits
+with weapon rules* or *gets/loses a rule or stat modifier, once*. Damage spells were already
+expressible — kind 6 with nested grants, hits rolled as a hit roll that cannot fail so *"on rolls
+of 6"* rules read a real die. Four things were added: **`effect.duration`** (`interaction |
+once`); a **grants store**, the unit's fourth, that a once-effect writes and consumption removes,
+rebuilt from the log and editable from the menu; **four target columns** on the spell entry from
+which the casting Ask computes a set, each target getting the effect independently; and
+**faction rules as catalog entries**, correcting `schema.md`'s claim that `faction` is null off
+spells. Percentages stay open for boosting.
+
 **The army** — the first module touching no game. The load-bearing property is
 self-containment, not immutability: an army holds its own copy of every value, so Army
 Forge, the source list, and the asset library cannot reach into it. Users edit their own
@@ -323,16 +337,14 @@ conditions.
 
 ## What is not designed
 
-**Nothing in the data layer**, nor the resolution machinery (09-03), nor the scheduler, the
-setup phase, the client shell and mesh conversion (09-04). What still needs a design session:
+**Every module is designed.** The data layer (reviewed 08-30), the resolution machinery
+(09-03), and on 09-04 the scheduler, the setup phase, the client shell, mesh conversion and spell
+effects. Hosting alone is deferred past the review by ruling. Left over, all recorded where they
+belong:
 
 - **Hosting** — ECS Fargate, RDS, S3 in `architecture.md`. **Deferred past the review, ruled
   09-04**: local development first, Docker at most, and hosting is designed when there is
   something to host. Not unit deployment, which the scheduler designed.
-- **The effect grammar follow-up** — small: real spells (Alien Hives, via the Army Forge API)
-  exposed two gaps, a grant with a duration (*"gets X once"*) and multi-target selection
-  (*"pick up to two friendly units within 12""*). Neither blocks anything except authoring
-  spell rows.
 
 **Three things from the rulebook were deliberately left out**, recorded where they belong:
 
@@ -374,9 +386,11 @@ is the authority, and a later doc beats an earlier one.
 
 ## Next — pick up here
 
-**One design session remains before the review: the small effect grammar follow-up** — a grant
-with a duration and multi-target selection, from real Alien Hives spells. Then the review.
-Hosting is deliberately after it.
+**The whole-design review.** Every module is designed; the next prompt is the review, across all
+nineteen design documents, `architecture.md`, `data-model.md` and `schema.md`, the way the data
+layer was reviewed on 08-30 — looking for contradictions between sessions, stale open lists a
+later doc already closed, and first-pass assertions in `architecture.md` no design doc has
+touched. Hosting is designed after it, and implementation planning starts only after it.
 
 **Then review the whole design**, the way the data layer was reviewed on 08-30 — across
 documents, looking for the contradictions and stale open lists that single sessions leave.
@@ -432,7 +446,8 @@ whether the six terrain declarations are complete, whether twelve effect kinds s
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
 zoomable, generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a
 source** — it goes stale the moment either document changes, and it is regenerated by pulling
-the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after `game.created_by` and `terrain_placement.builtin` landed.
+the mermaid block out of each and republishing to the same URL. Regenerated 09-04 after `game.created_by`, `terrain_placement.builtin`, `effect.duration`
+and the spell target columns landed.
 
 ## Environment notes
 

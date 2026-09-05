@@ -159,6 +159,10 @@ erDiagram
         int cost
         string faction
         string rule_text
+        enum target_side
+        enum target_grain
+        int target_count
+        units target_range
     }
     EFFECT {
         enum subject
@@ -170,6 +174,7 @@ erDiagram
         int threshold
         enum cap_kind
         string replacement
+        enum duration
     }
     EFFECTCONDITION {
         enum kind
@@ -338,8 +343,8 @@ names, and what a `Replace a stat` names, are **references into the same `PROPER
 ## What is deliberately not here
 
 **In-play state is not persisted.** Unit in play, model in play, placement, wounds,
-conditions, the shelf, what a model is inside, the action record, whose activation it is, the
-score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
+conditions, granted effects, the shelf, what a model is inside, the action record, whose
+activation it is, the score — none of it is a row. `ACTION` names what actions *exist*; what a unit has *done* is
 events. It is
 reconstructed in memory by replaying `GAMEEVENT` from `TABLESTATE`, which is the log's
 initial state. A table growing a "current position" column means the event spine has been

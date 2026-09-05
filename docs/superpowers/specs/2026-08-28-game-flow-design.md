@@ -32,7 +32,9 @@ Acting with it belongs to the team.
 
 ## What a unit in play records
 
-Three stores, kept separate because they have three different lifetimes.
+Three stores, kept separate because they have three different lifetimes. *A fourth, **grants**,
+was added 2026-09-04 by [spell effects](2026-09-04-spell-effects-design.md): effects a spell
+granted with a duration, consumed when they apply. Conditions stay names.*
 
 **Action record** — the named actions this unit has taken this round: moved, shot,
 charged. Cleared at the round boundary.
