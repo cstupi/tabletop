@@ -197,8 +197,18 @@ describes the bytes.
 `EmitRequest` carries `Module`, `Options`, `Roots`, `PrunedUnions` and `Rename`. `PrunedUnions`
 narrows `SocketMessage` to the seven frames the live feed reads: `Connect`, `Welcome`,
 `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected`. No `Command`, no `Edit`,
-no `Presence`, no `Ping`. `Rename` is empty until two reachable types share a `Name`. The emitter
-throws when that happens rather than overwriting a declaration.
+no `Presence`, no `Ping`, no `AtRest`. `Rename` is empty until two reachable types share a `Name`.
+The emitter throws when that happens rather than overwriting a declaration.
+
+`AtRest(long Seq)`, wire kind `at_rest`, is the thirteenth `SocketMessage` kind, added by owner
+ruling 4 on 2026-09-06. It is pruned away. The frame announces that the game server has finished
+processing and has nothing further to emit, which replaces the simulator's 250 millisecond quiet
+window. The viewer has no quiet window to replace. It republishes on every `EventsMessage`, so its
+frame list is current the moment an events frame is decoded, and idleness changes nothing it draws.
+Declaring a kind no branch reads would also move the checked-in golden file for no behavioural
+reason. Pruning is therefore the side this falls on, and the two generated modules are byte for byte
+unchanged when the contracts plan lands the kind. Wanting an idle indicator later costs one member
+in `PrunedUnions`, one entry in `HANDLED` and one `case`.
 
 Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
 so `Point2` is first in `recording.generated.ts`. Members within an interface follow
@@ -370,7 +380,7 @@ pause a run and answer one Ask from outside.
 
 | File | Ports | Notes |
 | --- | --- | --- |
-| `apply.ts` | `Tabletop.Protocol.EventApplier` | `initialProjection`, `applyChange` (13 state-change kinds), `applyTo`, `effectiveLog`, `class Applier` |
+| `apply.ts` | `Tabletop.Protocol.EventApplier` | `initialProjection`, `applyChange` (13 state-change kinds), `applyTo`, `effectiveLog`, `class Applier`, `class ProjectionDesyncError` |
 | `logLines.ts` | `Tabletop.Sim.Recording.LogLines` | `lineOf(event, after, ordinals)`, `shortId` |
 | `project.ts` | `Tabletop.Sim.Recording.FrameProjector` | `recordedBoardOf(board, game)`, `declarationsOf`, `class FrameProjector` |
 | `management.ts` | nothing | `logIn`, `refreshSession`, `class ManagementError` |
@@ -379,6 +389,30 @@ The applier copies. It never decides legality, never derives a location and neve
 its own. `initialProjection` walks armies, then units, then model slots, in that order, because
 insertion order is the order every frame lists models and units in and the C# `Projection.Initial`
 walks the same way.
+
+**An unknown id.** Owner ruling 2 makes the C# `EventApplier` throw `ProjectionDesyncException` where
+it used to index a dictionary and raise `KeyNotFoundException`. The exception carries the event kind
+and the unknown id, as `Kind` and `UnknownId`. `apply.ts` mirrors that with `ProjectionDesyncError`,
+carrying `kind` and `unknownId`, thrown from the four helpers `unitIn`, `modelIn`, `markerIn` and
+`askIn`. No `!` on a `Map.get` survives in the file. The spelling matters more than it looks.
+`p.models.get(id)!.wounds = w` throws an untyped `TypeError`. `{ ...p.markers.get(id)!, position }`
+on a missing marker spreads `undefined` and succeeds, writing a marker with no `id` into the store,
+which is a silent divergence at the exact case ruling 2 names: a marker placed during setup and then
+moved. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
+there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
+the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
+ported, so `step_completed` and `modifier_added` can fault on an unknown frame id in C# and cannot
+here. That is the unported stack showing again rather than a second divergence.
+
+A desync stops the live feed. `drain` catches `ProjectionDesyncError`, drops the projector and the
+pending events, and reports `status: 'error'` naming the kind and the id. It never skips the event and
+continues, because a copy of the game that silently disagrees with the server is worse than one that
+visibly stops. It does not reconnect on its own either. Reconnecting is the source picker's connect
+form, and the connect sequence redelivers the whole log, so a fresh feed rebuilds the projection from
+scratch. That is ruling 2's drop, reconnect and rebuild, driven by hand rather than by a retry loop,
+which suits the one tool whose purpose is to make a server's behaviour visible. A log that genuinely
+names an id nothing created faults again on reconnect, and that is a server bug for `server/game/` to
+fault the session over.
 
 `undone` is not a state change and is not applied. `Applier.apply` sees it, rebuilds a fresh
 projection and replays `effectiveLog(this.#log)` into it. The log itself stays append-only with the
@@ -438,6 +472,14 @@ hide an empty field on both sides, so the same test asserts against the C# recor
 every `recording.board.zones[i].polygons` must be non-empty and every ring must have more than two
 vertices. The drop is then about what is ported, not about what resolved.
 
+Frame comparison proves agreement on a valid log only. The two implementations diverge most cheaply
+on an invalid one, where C# throws `ProjectionDesyncException` and the natural TypeScript spelling
+spreads `undefined` and carries on. One event covers that gap on both sides: `marker_moved` naming a
+marker nothing placed. `AgreementFixtureTests.The_csharp_applier_faults_on_an_id_the_projection_does_not_hold`
+asserts the C# throw, and `agreement.test.ts`, *the two appliers fault the same way*, asserts
+`ProjectionDesyncError` on the same event and that no marker was written. A typed fault on one side
+against a quiet `undefined` on the other is not equivalence, whatever the frame count says.
+
 A third case guards against a fixture that proves nothing: more than 20 frames, more than 5 distinct
 event kinds, at least one frame with rolls, at least one with an open Ask, at least one with a model
 on the table.
@@ -491,7 +533,11 @@ took because no spec spoke.
 | Plain Vite and Svelte 5, no SvelteKit | one screen, no redirect target, no route to split, no server-side anything; `?recording=<url>` needs no router | SvelteKit, which `web/` uses for Stytch redirect paths and code splitting | **(plan)** plan Task 1 |
 | The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for three no-op event kinds | **(plan)** plan Task 9 |
 | The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, question 5 |
-| `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
+| `at_rest` is pruned out of the generated wire union | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing it draws; the generated surface stays the smallest thing the live feed reads | declaring the kind, which moves the golden file and adds a declaration with no reader | owner ruling 4, 2026-09-06; plan Task 2 |
+| An unrecognised wire kind is dropped by a membership test, not by a `switch` on a closed union | the union in TypeScript is a pruned seven of thirteen, so the set of kinds actually read is the authority; the protocol grows without an edit here | narrowing on the generated union alone, which faults on a kind it cannot name | **(plan)** plan Task 11 |
+| The TypeScript applier throws `ProjectionDesyncError` where the C# throws `ProjectionDesyncException` | written with `!`, the port would spread `undefined` into a fresh marker and diverge silently; the agreement test would still pass | a `!` per lookup, or skipping the change and carrying on | owner ruling 2, 2026-09-06; plan Task 9 |
+| A desync stops the live feed and the operator reconnects | the tool exists to make server behaviour visible, and the connect sequence redelivers the whole log | an automatic reconnect loop, which repairs the symptom and hides the fault | owner ruling 2; **(plan)** plan Task 11 |
+| `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode; the protocol version stays `1` under owner ruling 4, because a thirteenth message kind is additive | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
 | Rendering is checked by looking at it | headless Chrome cannot launch in this WSL image (`handoff.md`: missing `libnspr4`) | Playwright or jsdom snapshots | spec → *Testing*; plan question 1 |
 
 ## Interfaces
@@ -503,7 +549,7 @@ took because no spec spoke.
 | Module | Exports |
 | --- | --- |
 | `protocol/recording.generated.ts` | `SCHEMA_VERSION`, and one interface per recording type: `Point2`, `Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier` |
-| `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected`, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
+| `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected`, seven of the wire's thirteen kinds, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
 | `recording/read.ts` | `class RecordingError`, `readRecording(unknown): Recording`, `parseRecording(string): Recording`, `teamOrdinals(Recording)`, `teamNames(Recording)` |
 | `recording/source.ts` | `type RecordingSource`, `fromFile(File)`, `fromUrl(string)`, `recordingUrlFrom(search): string \| null` |
 | `board/transform.ts` | `type Point`, `type Table`, `type Viewport`, `type View`, `MARGIN`, `fit`, `toScreen`, `toTable`, `zoomAt`, `panBy`, `gridStep`, `rotate` |
@@ -516,7 +562,7 @@ took because no spec spoke.
 | `feed/feed.ts` | `type FeedStatus`, `type FeedState`, `IDLE`, `type ControlChannel`, `interface Feed`, `class Emitter` |
 | `feed/recordingFeed.ts` | `recordingFeed(RecordingSource): Feed` |
 | `feed/liveFeed.ts` | `CLIENT_VERSION`, `type SocketLike`, `type LiveOptions`, `liveFeed(LiveOptions, open?): Feed`, `isServerFrame` |
-| `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier` |
+| `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `class ProjectionDesyncError` with `kind` and `unknownId`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier` |
 | `live/logLines.ts` | `lineOf(GameEvent, Projection, ReadonlyMap<string,number>): string`, `shortId` |
 | `live/project.ts` | `declarationsOf(string)`, `recordedBoardOf(Board, GameInfo): RecordedBoard`, `class FrameProjector` |
 | `live/management.ts` | `class ManagementError`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
@@ -543,7 +589,8 @@ took because no spec spoke.
 | `sim/` | `InProcessDriver.StartAsync`, `.Info`, `.Board`; `CompiledScenario.RecorderParticipantId`; `ScenarioCatalog.Get`; `ScenarioCompiler.Compile`; `Scenario` as a `record` supporting `with { RoundCap = 2 }` | the fixture writer's run |
 | `sim/` | `Chooser(ulong)`, `AnswerPolicy(Chooser, PolicyOptions?)`, `ComposedAnswers(AnswerScript, AnswerPolicy?)` | the fixture writer's answers |
 | `libs/Tabletop.Protocol` | `WireJson.Options`, `SocketMessage`, `Connect`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected` | the emitted wire subset |
-| `libs/Tabletop.Protocol` | `EventApplier`, `Projection`, `StateChange`, `EventPayload` | the C# original the TypeScript port copies |
+| `libs/Tabletop.Protocol` | `EventApplier`, `ProjectionDesyncException`, `Projection`, `StateChange`, `EventPayload` | the C# original the TypeScript port copies, including the fault on an unknown id |
+| `libs/Tabletop.Protocol` | `GameEvent`, `MarkerMoved`, `MarkerRemoved`, `Point3`, `Yaw` | the one event both appliers are faulted on |
 | `libs/Tabletop.Geometry` | `Bodies.BaseOutline`, `Bodies.OvalVertices`, `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains` | ported by hand into `board/frame.ts`, `board/transform.ts`, `board/pick.ts` |
 | `server/game/` | the connect sequence: `Connect` first within 10 s, then `Welcome`, `BoardMessage` from `setup` on, `EventsMessage` batches, then live frames | `liveFeed.ts` |
 | `server/management/` | `POST /v1/auth/password`, `POST /v1/auth/session/refresh`, each answering a body with `sessionJwt` | `management.ts` |
@@ -557,7 +604,9 @@ took because no spec spoke.
 | simulation plan | `RecordedFrame.Scores` and `.Passed`, whole rather than deltas | applied 2026-09-06 |
 | simulation plan | every name the fixture writer touches is `public`, and `sim/` references no test project | already true; stated in that plan's *Interfaces → Produces* |
 | contracts plan | no two reachable types in the `SocketMessage` closure share a `Name` | assumed; the one candidate is `Placement`, and the fix is one `EmitRequest.Rename` entry |
-| contracts plan | `ProtocolVersion.Current` stays `1`, or `liveFeed.ts` is edited | assumed; otherwise the server answers `rejected: upgrade_required` |
+| contracts plan | `ProtocolVersion.Current` stays `1`, or `liveFeed.ts` is edited | assumed; unaffected by owner ruling 4, which only adds a message kind |
+| contracts plan | `EventApplier` throws `ProjectionDesyncException` on an id the projection does not hold | owner ruling 2, 2026-09-06; the type is named in one `Assert.Throws` and ported as `ProjectionDesyncError` |
+| contracts plan | `AtRest(long Seq)` joins `SocketMessage` as `at_rest` | owner ruling 4, 2026-09-06; nothing here reads it, and nothing here moves if it lands under another name |
 | management plan | both auth routes answer a body carrying `sessionJwt` | assumed; the rest of `SessionResponse` is not read |
 
 ## Sequences
@@ -628,6 +677,13 @@ sequenceDiagram
         end
     end
 ```
+
+The socket also carries kinds the viewer never acts on: `presence`, `ping`, `presence_ended` and
+`at_rest`. `isServerFrame` tests membership of the `HANDLED` set of six server kinds, and the
+`switch` ends in a `default` that returns. An unrecognised kind therefore costs one lookup and never
+a fault. `at_rest` is pruned out of `wire.generated.ts`, so it arrives as a kind the generated union
+does not declare, which is the case that path exists to survive. A viewer that threw on an
+unrecognised kind would die the next time the protocol grew one.
 
 Three orderings matter. Events can arrive before the board, so `liveFeed` holds them in `pending`
 and drains on the `board` frame. A game ended before setup ever ran has no `table_state` row and no
@@ -751,6 +807,13 @@ its index, its seq and its event kind. The divergence a normalisation could hide
 only. The one field excluded from the comparison is `polygons`, and the same test asserts the C#
 side resolved non-empty rings so the exclusion cannot cover an empty field on both sides.
 
+**A desync.** An event names an id the projection does not hold. `FrameProjector.add` throws
+`ProjectionDesyncError`, `drain` catches it, the projector and the pending events are dropped, and
+the feed goes to `status: 'error'` naming the event kind and the id. Later frames change nothing,
+because `publish` and `drain` both return early with no projector. The operator reconnects from the
+source picker, which rebuilds from the redelivered log. The two designed features that reach this
+are moving a marker placed during setup and editing the dice of a popped frame.
+
 **Ordering in the live feed.** Events before the board are held and drained. A `board` frame before
 a `welcome` is an error, because the projector needs `GameInfo` for team ordinals. A `game` frame
 arriving after teams change does not rebuild the board, so a team created mid-game does not
@@ -779,7 +842,9 @@ the viewer reports as a plain close.
 seen is drawn anyway, because the viewer holds no ruleset and nothing it draws depends on one. Only
 `schemaVersion` gates a file. A live game shows no deployment-zone outlines. `CLIENT_VERSION` is
 hard-coded, so a protocol bump makes the server answer `rejected: upgrade_required` until the
-constant is edited. None of these has a mechanism behind it.
+constant is edited. `ProtocolVersion.Current` is still `1` and owner ruling 4 leaves it there,
+because a thirteenth `SocketMessage` kind is additive and a client that ignores it stays compatible.
+None of these has a mechanism behind it.
 
 ## Testing
 
@@ -790,9 +855,9 @@ needs a build of `sim/` and `libs/Tabletop.Protocol`.
 | Suite | Files | What it pins |
 | --- | --- | --- |
 | Vitest, pure modules | `read.test.ts`, `transform.test.ts`, `frame.test.ts`, `pick.test.ts`, `timeline.test.ts`, `describe.test.ts` | the schema gate and every refusal; the single `y` flip, the zoom anchor and the grid step ladder; the ported base and volume outlines against hand-computed corners; boundary-inclusive containment and last-drawn-wins picking; the eleven timeline actions including `follow`; every legal kind and the note list |
-| Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames, the close paths and the 10-second timeout |
-| Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the three no-op kinds, undo by rebuild; then every frame of two real recordings, field for field |
-| xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces |
+| Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames including `at_rest` and an invented kind, a desync going to error, the close paths and the 10-second timeout |
+| Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the three no-op kinds, undo by rebuild, `ProjectionDesyncError` on an unknown unit, model, marker or Ask id; then every frame of two real recordings, field for field, and the shared desync case |
+| xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order and the absence of `AtRest`; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces; the C# applier throws `ProjectionDesyncException` on the event the TypeScript one throws on |
 | By hand | the page | the board, the zones, the terrain declarations, the team colours, the facing ticks, the scoreboard, play, step, scrub, and a live game watched while `sim/` plays it |
 
 **Nothing needs Docker.** `sim/`'s in-process driver has no Postgres, so the fixture writer runs a
@@ -843,6 +908,8 @@ carries them, and `RollPanel.svelte` shows raw and modified faces with the net m
 | Drawing a badge on a container for the models inside it | needs no schema change and is a refinement | plan → *Spec corrections proposed*, item 4 |
 | Deployment zones on the live feed | needs `ZoneStyles` in the browser or a resolved-zone message | plan → *Interfaces needed*, item 1 |
 | A generated `CLIENT_VERSION` | one integer is not worth a second emitter mode | plan → *Interfaces needed*, item 6 |
+| An idle indicator driven by `at_rest` | the frame is pruned out of the generated union, and nothing the viewer draws depends on the server being idle | plan Task 2; owner ruling 4 |
+| An automatic reconnect after a desync | a retry loop would hide the fault the tool exists to show | plan Task 11; owner ruling 2 |
 | Serving recordings from a server | neither server has the concept | plan question 3 |
 
 ## References

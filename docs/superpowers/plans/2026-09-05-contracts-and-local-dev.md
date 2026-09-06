@@ -29,6 +29,15 @@
 - Local only: Postgres and MinIO in Docker; no AWS; no hosting (`architecture.md` → Deployment, ruled 09-04).
 - Commit after every task with a message in the repo's style (imperative, one line, no prefix), ending with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
 
+## Key decisions
+
+Four owner rulings of 2026-09-06 land in this plan. The first three are built here; the fourth is a risk taken deliberately.
+
+1. **Presence departure stays an explicit frame.** `PresenceEnded(ParticipantId)` is sent when a participant's last socket closes. The assumption in Task 11 and Task 12 is confirmed, nothing changes, and no client owns a presence timeout (ruling 1; open question 1 answered; spec correction 13).
+2. **An unknown id is a typed desync.** `EventApplier` throws `ProjectionDesyncException(Kind, UnknownId)` at every lookup that can miss, in place of `KeyNotFoundException` and `InvalidOperationException`. The client drops its projection and rebuilds from the log; the game server faults the session. Task 14 (ruling 2).
+3. **The server sends a frame when it comes to rest.** `AtRest(long Seq)`, wire kind `at_rest`, server to client, in Task 12's union (ruling 4).
+4. **The payload format's lack of versioning is accepted.** `game_event.payload` is the serialized wire message and nothing versions it, so renaming a property breaks every stored log while every round-trip test still passes, because those tests prove self-consistency and not stability. Accepted, because nothing is built and no stored game matters yet. **Revisit trigger:** the first game worth keeping. The two ways out were considered and **neither is built now**: golden fixtures, a committed corpus of literal JSON per kind, which fails the build on a rename and needs regenerating on every intentional change; and a version stamped on the stored payload, which needs a reader per version from the first bump. Do not add a version field or a fixture corpus to any task in this plan (ruling 3).
+
 ---
 
 ## File Structure
@@ -1594,8 +1603,8 @@ public sealed record ReplaceDraft(TableState Draft) : SetupEdit;
 
 **Interfaces:**
 - Consumes: `ContentJson.Configure` (Task 5); `GameInfo`, `Board` (Task 6); `GameEvent` (Task 9); `Command` (Task 10); `Presence`, `Ping`, `Edit` (Task 11); and, in the tests, `ArmyTests.Sample()` and `TableStateTests.Sample()` (Tasks 4 and 5).
-- Produces: `abstract record SocketMessage` — one union for both directions, each kind documented with its direction: client→server `Connect(string SessionJwt, Guid GameId, int ClientVersion)` [connect], `CommandMessage(Guid CommandId, Command Command)` [command], `EditMessage(Guid EditId, Edit Edit)` [edit]; server→client `Welcome(Guid ParticipantId, GameInfo Game)` [welcome], `GameInfoMessage(GameInfo Game)` [game], `BoardMessage(Board Board)` [board], `EventsMessage(IReadOnlyList<GameEvent> Events)` [events], `PresenceEnded(Guid ParticipantId)` [presence_ended], `Refused(Guid MessageId, RefusalReason Reason, string Detail)` [refused], `Rejected(RejectReason Reason)` [rejected]; both ways `PresenceMessage(Presence Presence)` [presence], `PingMessage(Ping Ping)` [ping]. `RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }`; `RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }`. `WireJson.Options`, `WireJson.Serialize(SocketMessage)`, `WireJson.Deserialize(string) : SocketMessage`, `WireJson.Serialize<T>(T)`, `WireJson.Deserialize<T>(string)`.
-- Connect sequence (client shell → The connection and the projection): `Connect` → `Welcome` (teams, participants, configuration) → from `setup` on, `BoardMessage` (the draft, or the snapshot with armies) → `EventsMessage` with the log from the start → live `EventsMessage`s. After a lobby edit the server sends `GameInfoMessage`; after a setup edit, `BoardMessage` with the whole draft (the client shell: "a setup edit replaces the draft").
+- Produces: `abstract record SocketMessage` — one union for both directions, each kind documented with its direction: client→server `Connect(string SessionJwt, Guid GameId, int ClientVersion)` [connect], `CommandMessage(Guid CommandId, Command Command)` [command], `EditMessage(Guid EditId, Edit Edit)` [edit]; server→client `Welcome(Guid ParticipantId, GameInfo Game)` [welcome], `GameInfoMessage(GameInfo Game)` [game], `BoardMessage(Board Board)` [board], `EventsMessage(IReadOnlyList<GameEvent> Events)` [events], `AtRest(long Seq)` [at_rest], `PresenceEnded(Guid ParticipantId)` [presence_ended], `Refused(Guid MessageId, RefusalReason Reason, string Detail)` [refused], `Rejected(RejectReason Reason)` [rejected]; both ways `PresenceMessage(Presence Presence)` [presence], `PingMessage(Ping Ping)` [ping]. Thirteen kinds. `RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }`; `RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }`. `WireJson.Options`, `WireJson.Serialize(SocketMessage)`, `WireJson.Deserialize(string) : SocketMessage`, `WireJson.Serialize<T>(T)`, `WireJson.Deserialize<T>(string)`.
+- Connect sequence (client shell → The connection and the projection): `Connect` → `Welcome` (teams, participants, configuration) → from `setup` on, `BoardMessage` (the draft, or the snapshot with armies) → `EventsMessage` with the log from the start → live `EventsMessage`s. After a lobby edit the server sends `GameInfoMessage`; after a setup edit, `BoardMessage` with the whole draft (the client shell: "a setup edit replaces the draft"). Each of those rounds of processing ends with `AtRest(Seq)`, whose recipients follow the game server plan's rule that the frame follows its batch (owner protocol ruling 4 of 2026-09-06).
 
 - [ ] **Step 1: Write `Samples.cs` — one instance of every concrete message, event, command, edit, legal set and answer**
 
@@ -1683,7 +1692,7 @@ public static class Samples
         new EditMessage(Guid.CreateVersion7(), Edits[0]), new Welcome(P1, Game), new GameInfoMessage(Game), new BoardMessage(Board),
         new EventsMessage([new GameEvent(1, P1, Events[0], null), new GameEvent(2, null, Events[5], "outside the legal set")]),
         new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0)))),
-        new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1),
+        new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),
         new Refused(Guid.CreateVersion7(), RefusalReason.OutsideLegalSet, "unit already activated"), new Rejected(RejectReason.UpgradeRequired),
     ];
 }
@@ -1756,6 +1765,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(GameInfoMessage), "game")]
 [JsonDerivedType(typeof(BoardMessage), "board")]
 [JsonDerivedType(typeof(EventsMessage), "events")]
+[JsonDerivedType(typeof(AtRest), "at_rest")]
 [JsonDerivedType(typeof(PresenceMessage), "presence")]
 [JsonDerivedType(typeof(PingMessage), "ping")]
 [JsonDerivedType(typeof(PresenceEnded), "presence_ended")]
@@ -1777,6 +1787,13 @@ public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
 public sealed record BoardMessage(Board Board) : SocketMessage;
 /// <summary>The log from the start on connect, then live events. Filtered per viewer for sealed answers.</summary>
 public sealed record EventsMessage(IReadOnlyList<GameEvent> Events) : SocketMessage;
+/// <summary>The server has finished processing and has nothing further to emit, sent after the last frame that
+/// processing produced. Who receives it, and which inbound frames produce one, are the game server's to decide and
+/// are settled in its plan: the frame follows its batch, so it is broadcast when the batch appended an event and
+/// goes to the provoking client alone when it did not. A relayed presence or ping never produces one.</summary>
+/// <param name="Seq">The last sequence number in the log. It repeats the previous value when this round of
+/// processing appended no event, and is 0 for a game whose log is empty, so it is a rest point and not a receipt.</param>
+public sealed record AtRest(long Seq) : SocketMessage;
 public sealed record PresenceEnded(Guid ParticipantId) : SocketMessage;
 /// <summary>A command or edit was not applied. MessageId is the CommandId or EditId.</summary>
 public sealed record Refused(Guid MessageId, RefusalReason Reason, string Detail) : SocketMessage;
@@ -1961,7 +1978,8 @@ public sealed class OpenAsk(Ask ask)
 
 **Interfaces:**
 - Consumes: `Board`, `GameInfo` (Task 6); every `StateChange` (Task 7); every `EventPayload` and `GameEvent` (Task 9); `Projection` and its views (Task 13); `Samples` (Task 12) in the tests.
-- Produces: `sealed class EventApplier(Board board, GameInfo game)` with `Projection Projection { get; }`, `IReadOnlyList<GameEvent> Log` (every event received, undone included), `void Apply(GameEvent e)`, `void ApplyAll(IEnumerable<GameEvent> events)`, `Projection ProjectTo(long seq)` (a fresh projection of the live log up to `seq`, for local undo prediction), `static IReadOnlyList<GameEvent> EffectiveLog(IReadOnlyList<GameEvent> log)` (drops every undone range and the `undone` markers), `static void ApplyTo(Projection p, GameEvent e)`, `static void ApplyChange(Projection p, StateChange change)`.
+- Produces: `sealed class EventApplier(Board board, GameInfo game)` with `Projection Projection { get; }`, `IReadOnlyList<GameEvent> Log` (every event received, undone included), `void Apply(GameEvent e)`, `void ApplyAll(IEnumerable<GameEvent> events)`, `Projection ProjectTo(long seq)` (a fresh projection of the live log up to `seq`, for local undo prediction), `static IReadOnlyList<GameEvent> EffectiveLog(IReadOnlyList<GameEvent> log)` (drops every undone range and the `undone` markers), `static void ApplyTo(Projection p, GameEvent e)`, `static void ApplyChange(Projection p, StateChange change)`. Also `sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception` with `string Kind` and `Guid UnknownId`, declared in the same file.
+- Desync: every lookup that can miss throws `ProjectionDesyncException`, carrying the event kind (`EventKinds.Of(payload)`) and the id that was not found; a change riding inside `round_started`, `turn_ended` or `step_completed` reports its own kind rather than the carrier's. Sixteen lookups can miss: `ModelsMut` under `models_moved`, `wounds_set`, `condition_set` on a model and `spell_tokens_set`; `UnitsMut` under `condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`, `grant_removed` and `wounds_this_activation_set`; `MarkersMut` under `marker_moved`; `OpenAsksMut` under `ask_answered`; `FrameOf` under `step_completed`, `modifier_added` and `ReplaceDice`; and the roll lookup inside `ReplaceDice`. It means the projection is unusable, not that the event was bad: nothing is unwound, the failed event is already in `Log`, and the caller throws the whole applier away. The client rebuilds from the log; the game server faults the session, because it is applying events it wrote itself and a rebuild throws again at the same event (owner protocol ruling 2 of 2026-09-06).
 - Contract: the applier copies. It never decides legality, never derives a location, never clears a store on its own. `Undone(N)` drops live events with `Seq > N`; `N` must be the seq of a live event or 0 (the server refuses anything else). Pending modifiers for roll `R` are cleared when a `step_completed` carries a roll named `R`, because the record already folds them in (action sequences → One roll primitive). Open Asks close only on `ask_closed`; the server emits it when a frame with open Asks is abandoned.
 
 Spec: client shell → The connection and the projection (applier rules-free; undo local first; reconnect is connect); scheduler → State, Re-entering a round (the pass stands); action sequences → The resolution stack; `architecture.md` → Undo.
@@ -2063,8 +2081,38 @@ public class EventApplierTests
         a.Apply(Ev(6, new Undone(0)));
         Assert.Equal(0, a.Projection.Scores[Samples.Team2]);
     }
+
+    [Fact]
+    public void Moving_a_marker_placed_during_setup_is_a_desync()
+    {
+        var board = Samples.Board;                                                  // its markers are the draft's, not the log's
+        var a = new EventApplier(board, Samples.Game);
+        var setupMarker = board.Table.Markers[0].Id;
+        var ex = Assert.Throws<ProjectionDesyncException>(
+            () => a.Apply(Ev(1, new MarkerMoved(setupMarker, new(2, 2, 0), new(90)))));
+        Assert.Equal("marker_moved", ex.Kind);
+        Assert.Equal(setupMarker, ex.UnknownId);
+    }
+
+    [Fact]
+    public void Editing_the_dice_of_a_popped_frame_is_a_desync()
+    {
+        var a = Fresh();
+        a.ApplyAll([Ev(1, new SequenceStarted(Frame, "roll-off", new SequenceContext(null, [], [], null))),
+            Ev(2, new StepCompleted(Frame, "roll", null, [Samples.Hit], [])),
+            Ev(3, new SequenceFinished(Frame))]);
+        var ex = Assert.Throws<ProjectionDesyncException>(
+            () => a.Apply(Ev(4, new DiceEdited(Frame, Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]))));
+        Assert.Equal("dice_edited", ex.Kind);
+        Assert.Equal(Frame, ex.UnknownId);
+    }
 }
 ```
+
+Both tests state a defect rather than a behaviour anyone wants: the scheduler promises the roll-off's
+dice are editable, and setup content puts a token in the snapshot. They pin the fault as a typed,
+recoverable desync. The fixes are the game server's (one marker id space, and a roll reachable after
+its frame pops).
 
 - [ ] **Step 2: Run; expect `EventApplier` undefined.**
 
@@ -2072,6 +2120,19 @@ public class EventApplierTests
 
 ```csharp
 namespace Tabletop.Protocol;
+
+/// <summary>An event named an id the projection does not hold. The projection is unusable and must be rebuilt:
+/// the client drops it, reconnects and replays the log; the game server faults the session, because it is applying
+/// events it wrote itself and a rebuild throws again at the same event. Nothing is unwound, and the failed event is
+/// already in Log, so the caller discards the whole applier rather than the event.</summary>
+public sealed class ProjectionDesyncException(string kind, Guid unknownId)
+    : Exception($"Event {kind} names {unknownId}, which the projection does not hold.")
+{
+    /// <summary>The kind of the event or state change that could not be applied.</summary>
+    public string Kind { get; } = kind;
+    /// <summary>The model, unit, marker, Ask, frame or roll id the projection has no entry for.</summary>
+    public Guid UnknownId { get; } = unknownId;
+}
 
 /// <summary>Builds a Projection by copying what events say. Rules-free: it never derives, decides or clears on its own.</summary>
 public sealed class EventApplier(Board board, GameInfo game)
@@ -2133,7 +2194,7 @@ public sealed class EventApplier(Board board, GameInfo game)
             case SequenceStarted s: p.StackMut.Add(new Frame(s.FrameId, s.Sequence, s.Context)); break;
             case StepCompleted s:
             {
-                var frame = FrameOf(p, s.FrameId);
+                var frame = FrameOf(p, s.FrameId, s);
                 frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values));
                 foreach (var roll in s.Rolls) frame.PendingMut.Remove(roll.Roll);
                 foreach (var c in s.Changes) ApplyChange(p, c);
@@ -2142,13 +2203,13 @@ public sealed class EventApplier(Board board, GameInfo game)
             case SequenceFinished f: Pop(p, f.FrameId); break;
             case SequenceAbandoned f: Pop(p, f.FrameId); break;
             case AskOpened a: p.OpenAsksMut[a.Ask.Id] = new OpenAsk(a.Ask); break;
-            case AskAnswered a: p.OpenAsksMut[a.AskId].AnswersMut[a.TeamId] = a.Answer; break;
+            case AskAnswered a: Need(p.OpenAsksMut, a.AskId, a).AnswersMut[a.TeamId] = a.Answer; break;
             case AskClosed a: p.OpenAsksMut.Remove(a.AskId); break;
-            case DiceRerolled d: ReplaceDice(p, d.FrameId, d.RollId, d.Replaced); break;
-            case DiceEdited d: ReplaceDice(p, d.FrameId, d.RollId, d.Replaced); break;
+            case DiceRerolled d: ReplaceDice(p, d, d.FrameId, d.RollId, d.Replaced); break;
+            case DiceEdited d: ReplaceDice(p, d, d.FrameId, d.RollId, d.Replaced); break;
             case ModifierAdded m:
             {
-                var frame = FrameOf(p, m.FrameId);
+                var frame = FrameOf(p, m.FrameId, m);
                 if (!frame.PendingMut.TryGetValue(m.Roll, out var list)) frame.PendingMut[m.Roll] = list = new List<RollModifier>();
                 list.Add(m.Modifier);
                 break;
@@ -2163,30 +2224,36 @@ public sealed class EventApplier(Board board, GameInfo game)
     {
         switch (change)
         {
-            case ModelsMoved m: foreach (var r in m.Moves) p.ModelsMut[r.ModelId].Location = r.To; break;
-            case WoundsSet w: p.ModelsMut[w.ModelId].Wounds = w.Wounds; break;
+            case ModelsMoved m: foreach (var r in m.Moves) Need(p.ModelsMut, r.ModelId, m).Location = r.To; break;
+            case WoundsSet w: Need(p.ModelsMut, w.ModelId, w).Wounds = w.Wounds; break;
             case ConditionSet c:
             {
-                var set = c.Subject.Kind == SubjectKind.Unit ? p.UnitsMut[c.Subject.Id].ConditionsMut : p.ModelsMut[c.Subject.Id].ConditionsMut;
+                var set = c.Subject.Kind == SubjectKind.Unit
+                    ? Need(p.UnitsMut, c.Subject.Id, c).ConditionsMut
+                    : Need(p.ModelsMut, c.Subject.Id, c).ConditionsMut;
                 if (c.Present) set.Add(c.Condition); else set.Remove(c.Condition);
                 break;
             }
-            case ActionRecorded a: p.UnitsMut[a.UnitId].ActionsMut.Add(a.Action); break;
-            case ActionRecordCleared a: p.UnitsMut[a.UnitId].ActionsMut.Clear(); break;
-            case GrantAdded g: p.UnitsMut[g.UnitId].GrantsMut.Add(g.Grant); break;
-            case GrantRemoved g: p.UnitsMut[g.UnitId].GrantsMut.RemoveAll(x => x.Id == g.GrantId); break;
-            case SpellTokensSet s: p.ModelsMut[s.ModelId].SpellTokens = s.Tokens; break;
-            case WoundsThisActivationSet w: p.UnitsMut[w.UnitId].WoundsThisActivation = w.Wounds; break;
-            case ScoreSet s: p.ScoresMut[s.TeamId] = s.Score; break;
+            case ActionRecorded a: Need(p.UnitsMut, a.UnitId, a).ActionsMut.Add(a.Action); break;
+            case ActionRecordCleared a: Need(p.UnitsMut, a.UnitId, a).ActionsMut.Clear(); break;
+            case GrantAdded g: Need(p.UnitsMut, g.UnitId, g).GrantsMut.Add(g.Grant); break;
+            case GrantRemoved g: Need(p.UnitsMut, g.UnitId, g).GrantsMut.RemoveAll(x => x.Id == g.GrantId); break;
+            case SpellTokensSet s: Need(p.ModelsMut, s.ModelId, s).SpellTokens = s.Tokens; break;
+            case WoundsThisActivationSet w: Need(p.UnitsMut, w.UnitId, w).WoundsThisActivation = w.Wounds; break;
+            case ScoreSet s: p.ScoresMut[s.TeamId] = s.Score; break;                       // an assignment cannot miss
             case MarkerPlaced m: p.MarkersMut[m.Marker.Id] = m.Marker; break;
-            case MarkerMoved m: p.MarkersMut[m.MarkerId] = p.MarkersMut[m.MarkerId] with { Position = m.Position, Yaw = m.Yaw }; break;
+            case MarkerMoved m: p.MarkersMut[m.MarkerId] = Need(p.MarkersMut, m.MarkerId, m) with { Position = m.Position, Yaw = m.Yaw }; break;
             case MarkerRemoved m: p.MarkersMut.Remove(m.MarkerId); break;
             default: throw new NotSupportedException($"Unknown state change {change.GetType().Name}");
         }
     }
 
-    private static Frame FrameOf(Projection p, Guid frameId) =>
-        p.StackMut.FirstOrDefault(f => f.Id == frameId) ?? throw new InvalidOperationException($"No frame {frameId} on the stack.");
+    /// <summary>The entry, or a desync naming the payload's kind and the id that was not there.</summary>
+    private static TValue Need<TValue>(Dictionary<Guid, TValue> from, Guid id, EventPayload payload) =>
+        from.TryGetValue(id, out var value) ? value : throw new ProjectionDesyncException(EventKinds.Of(payload), id);
+
+    private static Frame FrameOf(Projection p, Guid frameId, EventPayload payload) =>
+        p.StackMut.FirstOrDefault(f => f.Id == frameId) ?? throw new ProjectionDesyncException(EventKinds.Of(payload), frameId);
 
     private static void Pop(Projection p, Guid frameId)
     {
@@ -2194,9 +2261,10 @@ public sealed class EventApplier(Board board, GameInfo game)
         if (index >= 0) p.StackMut.RemoveRange(index, p.StackMut.Count - index);
     }
 
-    private static void ReplaceDice(Projection p, Guid frameId, Guid rollId, IReadOnlyList<DieReplacement> replaced)
+    private static void ReplaceDice(Projection p, EventPayload payload, Guid frameId, Guid rollId, IReadOnlyList<DieReplacement> replaced)
     {
-        var step = FrameOf(p, frameId).StepsMut.First(s => s.RollsMut.Any(r => r.Id == rollId));
+        var step = FrameOf(p, frameId, payload).StepsMut.FirstOrDefault(s => s.RollsMut.Any(r => r.Id == rollId))
+            ?? throw new ProjectionDesyncException(EventKinds.Of(payload), rollId);
         var i = step.RollsMut.FindIndex(r => r.Id == rollId);
         var dice = step.RollsMut[i].Dice.ToList();
         foreach (var r in replaced) dice[r.Index] = r.New;
@@ -2205,7 +2273,7 @@ public sealed class EventApplier(Board board, GameInfo game)
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test`; expect every project green (Protocol 30 passed). Commit: `Implement the rules-free event applier`.**
+- [ ] **Step 4: Run `dotnet test`; expect every project green (Geometry 12, Content 15, Protocol 32). Commit: `Implement the rules-free event applier`.**
 
 ### Task 15: Local development — Postgres, MinIO and the schema
 
@@ -2752,7 +2820,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed record Presence(Guid ParticipantId, Cursor? Cursor, Selection? Selection, IRL<PresencePlacement> Placements, Measurement? Measurement)` | |
 | `sealed record Cursor(Point3 Point, Guid? Target)`; `sealed record Selection(Guid PieceId, IRL<Guid> ModelIds)`; `enum PlacementKind { Held, Proposed }`; `sealed record PresencePlacement(Guid PieceId, Point3 Position, Yaw Yaw, PlacementKind Kind)`; `sealed record Measurement(Point3 From, Point3 To)`; `sealed record Ping(Guid Sender, Point3 Point, Guid? Target)` | |
 | `abstract record Edit`; `abstract record LobbyEdit : Edit`; `abstract record SetupEdit : Edit` | Lobby: `CreateTeam`, `PickTeam(Guid? TeamId)`, `PickArmy(Guid? ArmyId)`, `SetConfiguration(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps)`, `StartSetup`, `EndSetup`. Setup: `SetTableSize(TableSize Size)`, `SetTexture(VisualRef Texture)`, `AddTerrain(TerrainPlacement Placement)`, `MoveTerrain(Guid PlacementId, Point3 Position, Yaw Yaw)`, `ScaleTerrain(Guid PlacementId, double Scale)`, `RemoveTerrain(Guid PlacementId)`, `OverrideTerrainVolumes(Guid PlacementId, IRL<TerrainVolume> Volumes)`, `SwapTerrainMesh(Guid PlacementId, VisualRef Mesh)`, `AddSetupMarker(Marker Marker)`, `MoveSetupMarker(Guid MarkerId, Point3 Position, Yaw Yaw)`, `RemoveSetupMarker(Guid MarkerId)`, `SetZoneStyle(string Style, IRL<string> Shapes)`, `SwapZones(int TeamOrdinalA, int TeamOrdinalB)`, `ReplaceDraft(TableState Draft)` — kinds snake_case of the type name |
-| `abstract record SocketMessage` | `Connect(string SessionJwt, Guid GameId, int ClientVersion)` [connect], `CommandMessage(Guid CommandId, Command Command)` [command], `EditMessage(Guid EditId, Edit Edit)` [edit], `Welcome(Guid ParticipantId, GameInfo Game)` [welcome], `GameInfoMessage(GameInfo Game)` [game], `BoardMessage(Board Board)` [board], `EventsMessage(IRL<GameEvent> Events)` [events], `PresenceMessage(Presence Presence)` [presence], `PingMessage(Ping Ping)` [ping], `PresenceEnded(Guid ParticipantId)` [presence_ended], `Refused(Guid MessageId, RefusalReason Reason, string Detail)` [refused], `Rejected(RejectReason Reason)` [rejected] |
+| `abstract record SocketMessage` | `Connect(string SessionJwt, Guid GameId, int ClientVersion)` [connect], `CommandMessage(Guid CommandId, Command Command)` [command], `EditMessage(Guid EditId, Edit Edit)` [edit], `Welcome(Guid ParticipantId, GameInfo Game)` [welcome], `GameInfoMessage(GameInfo Game)` [game], `BoardMessage(Board Board)` [board], `EventsMessage(IRL<GameEvent> Events)` [events], `AtRest(long Seq)` [at_rest], `PresenceMessage(Presence Presence)` [presence], `PingMessage(Ping Ping)` [ping], `PresenceEnded(Guid ParticipantId)` [presence_ended], `Refused(Guid MessageId, RefusalReason Reason, string Detail)` [refused], `Rejected(RejectReason Reason)` [rejected] — thirteen kinds |
 | `enum RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }`; `enum RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }` | |
 | `static class WireJson` | `JsonSerializerOptions Options`, `string Serialize(SocketMessage)`, `SocketMessage Deserialize(string)`, `string Serialize<T>(T)`, `T Deserialize<T>(string)` |
 | `sealed class Projection` | `static Initial(Board, GameInfo)`, `Board Board`, `IRD<Guid,UnitInPlay> Units`, `IRD<Guid,ModelInPlay> Models`, `IRD<Guid,Marker> Markers`, `IRD<Guid,int> Scores`, `SchedulerPosition Scheduler`, `IRL<Frame> Stack`, `IRD<Guid,OpenAsk> OpenAsks`, `long LastSeq` |
@@ -2763,6 +2831,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed class CompletedStep` | `string Step`, `AskAnswer? Answer`, `IRL<RollRecord> Rolls`, `IRL<StateChange> Changes`, `IRD<string,int>? Values` |
 | `sealed class OpenAsk` | `Ask Ask`, `IRD<Guid, AskAnswer?> Answers` |
 | `sealed class EventApplier(Board, GameInfo)` | `Projection Projection`, `IRL<GameEvent> Log`, `void Apply(GameEvent)`, `void ApplyAll(IEnumerable<GameEvent>)`, `Projection ProjectTo(long seq)`, `static IRL<GameEvent> EffectiveLog(IRL<GameEvent>)`, `static void ApplyTo(Projection, GameEvent)`, `static void ApplyChange(Projection, StateChange)` |
+| `sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception` | `string Kind`, `Guid UnknownId`. Thrown by `Apply`, `ApplyAll`, `ApplyTo` and `ApplyChange` when an event names an id the projection does not hold. It means the projection is unusable and must be rebuilt: the client drops it, reconnects and replays the log; the game server faults the session (owner protocol ruling 2 of 2026-09-06) |
 
 ### Local development
 
@@ -2818,9 +2887,10 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `set_zone_style`, `swap_zones` | SetupEdit | setup phase → Zones |
 | `replace_draft` | SetupEdit | setup phase → Layouts |
 | **Presence** | | |
-| `presence`, `ping`, `presence_ended` | SocketMessage | presence → The presence value, A ping is silent; `presence_ended` is question 1 |
+| `presence`, `ping`, `presence_ended` | SocketMessage | presence → The presence value, A ping is silent; `presence_ended` is owner protocol ruling 1 of 2026-09-06, confirming question 1's assumption |
 | **Envelope** | | |
 | `connect`, `welcome`, `game`, `board`, `events`, `command`, `edit`, `refused`, `rejected` | SocketMessage | client shell → The connection and the projection; management API → The version check (`rejected: upgrade_required`); whole-design review ruling 1 (`refused` under strict) |
+| `at_rest` | SocketMessage | owner protocol ruling 4 of 2026-09-06, replacing the simulator's 250 millisecond quiet window |
 
 ---
 
@@ -2853,21 +2923,26 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
     >
     > No database default. Postgres 17 could fill it (`random(min, max)`), but then a management bug that omits the seed still produces a playable game and the write-once invariant lives in the database, where this plan's tests do not look; the schema's standing convention is that generated values come from application code, as ids do. `not null` with no default fails loudly instead. The table count is unaffected — this is a column, not a table.
 
+13. **`docs/superpowers/specs/2026-08-30-presence-design.md` → the open item on how a client is told that a presence value has stopped, versus timing it out.** Strike it, with: *"**Answered 2026-09-06 by owner protocol ruling 1.** The server sends an explicit `PresenceEnded(ParticipantId)` frame when a participant's last socket closes, and no client owns a presence timeout. Departure is a fact the server knows exactly; a client inferring it from silence has to pick a timeout and will get it wrong on a slow network."* Reason: the question was this plan's open question 1, the assumption it took is confirmed, and the item is the last thing leaving the mechanism ambiguous for the client shell.
+
 ## Interfaces needed from other modules
 
 None consumed. Obligations this plan places on later plans, stated as the signatures they must honour:
 
 - **Geometry plan**: implement every body in `libs/Tabletop.Geometry/Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests.
 - **Every plan that constructs `GameInfo`**: `RngSeed` is positional and last among the scalars, so every construction supplies it. See the note under *Spec corrections proposed* 12 for why it is positional rather than an init-only property: an init-only property would leave the six consuming plans' constructions compiling untouched, but a construction that forgot the seed would silently get `0`, and a `0` seed is a real game whose dice match every other game that forgot. Nothing is implemented yet, so the compile error costs a text edit in each plan and buys the guarantee that no game can be built without a seed.
-- **Game server plan**: read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types.
+- **Game server plan**: read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types. Send `AtRest(Seq)` to every socket on the game once it has finished processing an inbound `connect`, `command` or `edit`, after the last frame that processing produced, with `Seq` the last sequence number in the log and no frame for a relayed `presence` or `ping`. Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild throws again at the same event.
 - **Management API plan**: write `rng_seed` on `POST /v1/games`, generated in application code (`Random.Shared.NextInt64()` is enough — the seed is not a secret, since editing dice is already a first-class command) and never updated; return it in the game representation the game server and client read. Adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing.
 - **Interpreter plan**: set `GameState.RngSeed` from `GameInfo.RngSeed` — `unchecked((ulong)info.RngSeed)` keeps `GameState.RngSeed : ulong`, so `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 are untouched — and delete the SHA-256-of-`Info.Id` derivation and the test that asserts two game ids give two seeds.
-- **Simulation plan**: set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`; `SimIds.Of` and the UUIDv7 exception are withdrawn.
-- **Client shell plan**: add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
+- **Simulation plan**: set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`; `SimIds.Of` and the UUIDv7 exception are withdrawn. Wait for `at_rest` as the end of a step and delete the 250 millisecond quiet window: a socket run's pacing is the frame, not a timer.
+- **Viewer plan**: ignore `at_rest`, and ignore any other `SocketMessage` kind it does not handle without faulting. It reads the log and has nothing to do at a rest point.
+- **Client shell plan**: catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect and rebuild from the log — never skip the event and carry on; ignore `at_rest`, and any other kind it does not handle, without faulting. Add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
 
 ## Questions for the project owner
 
-1. **How is a departed presence signalled?** Presence deliberately left *"how a client is told that a presence value has stopped, versus timing it out"* open, and nothing since has closed it. Assumed an explicit `presence_ended` frame from the server when the socket closes. If timing out is preferred, `PresenceEnded` is dropped from `SocketMessage` and the client shell plan owns the timeout.
+**None open.**
+
+1. ~~**How is a departed presence signalled?**~~ **Answered 2026-09-06 by owner protocol ruling 1.** The server sends `PresenceEnded` when a participant's last socket closes. The assumption this plan took is confirmed: the frame stays in `SocketMessage`, no mechanism changes, and no client owns a presence timeout. Spec correction 13 strikes presence's open item.
 
 ### Answered from the specs, 2026-09-05 (design review)
 

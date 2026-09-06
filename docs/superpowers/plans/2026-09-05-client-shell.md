@@ -20,7 +20,7 @@
 - One world unit = one inch; Godot units are inches too. The slab is drawn 1" thick (setup content → Thickness is a render constant).
 - The namespace `Tabletop.Client.Table` shadows the type `Tabletop.Geometry.Table` wherever both are in scope, so every use of the on-slab check is written `Tabletop.Geometry.Table.ContainsPoint(...)` outside `tests/`. Nothing else in the client names a bare `Table` type.
 - Every HTTP request carries `Tabletop-Client-Version: {ProtocolVersion.Current}`; a `426` shows the update-required screen and nothing else runs (management API → The version check). The JWT is refreshed with `POST /v1/auth/session/refresh` every 60 s (management plan → Interfaces needed → Client-shell plan).
-- Server wins, always: a `models_moved` event snaps the piece; `Undo` shows `EventApplier.ProjectTo(n)` until the server's `undone` or `refused` arrives; reconnect discards the projection and rebuilds from `Welcome`/`Board`/`Events` (client shell → The connection and the projection).
+- Server wins, always: a `models_moved` event snaps the piece; `Undo` shows `EventApplier.ProjectTo(n)` until the server's `undone` or `refused` arrives; reconnect discards the projection and rebuilds from `Welcome`/`Board`/`Events` (client shell → The connection and the projection). A `ProjectionDesyncException` discards it the same way and resyncs immediately, once per sequence position, and the bound sends the player Home with the reason (owner ruling 2, 2026-09-06).
 - Presence is sent at 20 Hz while something changed and never logged; setup drags stream `held` placements and the drop is one edit; play drags the same and the drop is one `MoveModels` (presence; setup phase → The draft is the row).
 - Local settings (animate, muted window kinds, remember me, server URLs) live in `user://settings.json`; the remembered session in `user://session.bin` (DPAPI); the mesh cache in `user://cache/` keyed by SHA-256 hash.
 - Identifiers are `Guid.CreateVersion7()` (client-generated ids for terrain placements, markers, commands, edits).
@@ -784,13 +784,15 @@ public class PresenceTableTests
 - Test: `tests/Tabletop.Client.Tests/SessionTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 2–4; `EventApplier`, `Projection`, `GameInfo`, `Board`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `Refused`, `RefusalReason`, `Rejected`, `RejectReason`, `Connect`, `CommandMessage`, `EditMessage`, `Command`, `Edit`, `Undo`, `Undone`, `ProtocolVersion` (Protocol); `TableState` (Content).
+- Consumes: Tasks 2–4; `EventApplier`, `Projection`, `GameInfo`, `Board`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `Refused`, `RefusalReason`, `Rejected`, `RejectReason`, `Connect`, `CommandMessage`, `EditMessage`, `Command`, `Edit`, `Undo`, `Undone`, `AtRest`, `ProjectionDesyncException`, `ProtocolVersion` (Protocol); `TableState` (Content).
 - Produces: `interface IDispatcher { void Post(Action action); }`, `sealed class ImmediateDispatcher : IDispatcher`; `enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnecting, UpdateRequired }`; `sealed class Session(ManagementClient management, IGameSocketFactory sockets, SessionStore store, ClientSettings settings, Action<ClientSettings> persistSettings, IDispatcher dispatcher, Func<int, TimeSpan>? backoff = null)` with:
   - state: `SessionPhase Phase`, `AccountRow? Account`, `ClientSettings Settings`, `Guid? GameId`, `Guid? ParticipantId`, `GameInfo? Game`, `TableState? Draft`, `Projection? Projection` (the undo prediction while one is pending), `IReadOnlyList<GameEvent> Log`, `EventApplier? Applier`, `PresenceTable Others`, `Guid? MyTeamId`, `bool IsCreator`, `long? PendingUndoTo`, `string? LastCloseReason`;
   - events (raised on the dispatcher): `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IReadOnlyList<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool willReconnect)`;
   - login: `Task LoginWithPasswordAsync(email, password)`, `Task SignUpAsync(email, password)`, `Task<string> SendOtpAsync(email)`, `Task VerifyOtpAsync(methodId, code)`, `Task<bool> TryResumeAsync()`, `Task RefreshAsync()`, `Task LogoutAsync()`, `void UpdateSettings(Func<ClientSettings, ClientSettings>)`;
   - game: `Task ConnectAsync(Guid gameId)`, `Task DisconnectAsync()`, `Task LeaveAsync()`, `Task<Guid> SendCommandAsync(Command)`, `Task<Guid> SendEditAsync(Edit)`, `Task UndoToAsync(long seq)`, `Task SendPresenceAsync(Presence)`, `Task SendPingAsync(Ping)`.
 - Rules: `Rejected(UpgradeRequired)` and `UpdateRequiredException` both set `Phase = UpdateRequired`. A close the user did not ask for reconnects with backoff (1, 2, 5, 10, 10… s) **except** code `1000` after a `Welcome` (the server replaced this connection — `ConnectionLost(willReconnect: false)`) and any `Rejected`. Reconnect is `ConnectAsync` again: the applier, draft and presence table are discarded first. `UndoToAsync` sends `Undo`, keeps `PendingUndoTo`, and `Projection` returns `Applier.ProjectTo(seq)` until an `undone` event with that `ToSeq` arrives or the command is `Refused`.
+- Rules, the desync (owner ruling 2, 2026-09-06): a `ProjectionDesyncException` out of `ApplyAll` or `ProjectTo` means this copy of the projection is unusable. `OnDesync` drops it, closes the socket and connects again, so the rebuild is the ordinary hydrate. The bound is **one attempt per sequence position**: `_desyncFloor` records `Projection.LastSeq` at the fault, a fault that reached past the floor gets its own attempt, and a fault at or before the floor is the same bad event out of the server's own log and instead sets `Phase = LoggedIn` with `LastCloseReason`. Both outcomes raise `ConnectionLost` with `SocketClosed.Error` carrying the exception, which is how `GameScreen` tells a desync from a dropped socket. The resync has no backoff, because time does not fix a bad event. `ConnectAsync` gains a private `resync` parameter: it forces `Reconnecting` and keeps `_desyncFloor` across the reset, and the public one-argument signature is unchanged.
+- Rules, an uninteresting kind: `Handle`'s switch has **no default arm**, so a kind this client does not act on is dropped after a successful deserialization. `AtRest(long Seq)` is that kind today (owner ruling 4, 2026-09-06). Nothing in the client waits on the server coming to rest: every panel draws from the projection as events arrive, and the only busy state is `Connecting`/`Reconnecting`, which `Welcome` ends. Acting on it would add a second, weaker source of truth for "the table is settled".
 
 Spec: client shell → Structure (one session object outlives every screen; screens hold no truth), The connection and the projection (the connect sequence; undo local first; reconnect is connect; presence and setup edits bypass the projection; server wins), Screens (Home disconnects, Leave is a menu action calling `/leave`); accounts → Disconnecting is not leaving; game server plan → Interfaces needed → Client shell plan (Connect first; Welcome, Board, Events; `Rejected` then close; replaced sockets close with `1000`; `Refused.MessageId` echoes the id); management plan → Client-shell plan (refresh once a minute).
 
@@ -972,6 +974,56 @@ public class SessionTests : IDisposable
         Assert.EndsWith($"/v1/games/{Game.Id}/leave", _http.Requests[^1].RequestUri!.AbsolutePath);
         Assert.Equal((SessionPhase.LoggedIn, (Guid?)null), (_s.Phase, _s.GameId));
     }
+
+    // An event naming an id the projection does not hold: moving a token that was placed during setup is the
+    // designed case (contracts design -> the applier's strictness). The applier throws ProjectionDesyncException.
+    static GameEvent Desyncing(long seq) => new(seq, Samples.P1, new MarkerMoved(Guid.CreateVersion7(), new Point3(2, 2, 0), new Yaw(0)), null);
+    static GameEvent Score(long seq, int score) => new(seq, Samples.P1, new ScoreSet(Samples.Team1, score), null);
+
+    [Fact]
+    public async Task A_desync_drops_the_projection_and_rebuilds_it_from_the_log()
+    {
+        var sock = await ConnectedAtPlaying();
+        var lost = new List<bool>(); SocketClosed? closed = null;
+        _s.ConnectionLost += (c, will) => { closed = c; lost.Add(will); };
+        sock.Deliver(new PresenceMessage(new Presence(Game.Participants[0].Id, null, null, [], null)));
+        await _s.UndoToAsync(1);
+        sock.Deliver(new EventsMessage([Desyncing(3)]));
+        Assert.Equal([true], lost);
+        Assert.IsType<ProjectionDesyncException>(closed!.Error);     // how GameScreen tells this from a dropped socket
+        Assert.Equal(2, _sockets.Created.Count);                     // the socket was closed and reopened
+        Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
+        Assert.Null(_s.Projection); Assert.Null(_s.Applier); Assert.Null(_s.PendingUndoTo); Assert.Empty(_s.Others.All);
+        _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
+        _sockets.Last.Deliver(new BoardMessage(Samples.Board));
+        _sockets.Last.Deliver(new EventsMessage([Score(1, 1)]));
+        Assert.Equal((SessionPhase.Connected, 1), (_s.Phase, _s.Projection!.Scores[Samples.Team1]));
+    }
+
+    [Fact]
+    public async Task A_desync_that_makes_no_progress_stops_resyncing_and_goes_home_with_the_reason()
+    {
+        var sock = await ConnectedAtPlaying();
+        var lost = new List<bool>(); _s.ConnectionLost += (_, will) => lost.Add(will);
+        sock.Deliver(new EventsMessage([Desyncing(3)]));              // faults with LastSeq 2: the floor
+        _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
+        _sockets.Last.Deliver(new BoardMessage(Samples.Board));
+        _sockets.Last.Deliver(new EventsMessage([Score(1, 1), Score(2, 2), Desyncing(3)]));   // the log replays it
+        Assert.Equal([true, false], lost);
+        Assert.Equal(2, _sockets.Created.Count);                      // no third socket
+        Assert.Equal((SessionPhase.LoggedIn, (Guid?)null), (_s.Phase, _s.GameId));
+        Assert.NotNull(_s.LastCloseReason);                           // the Home screen prints it
+    }
+
+    [Fact]
+    public async Task An_at_rest_frame_is_ignored()
+    {
+        var sock = await ConnectedAtPlaying();
+        var applied = 0; _s.EventsApplied += _ => applied++;
+        sock.Deliver(new AtRest(2));
+        Assert.Equal((0, 2, SessionPhase.Connected), (applied, _s.Log.Count, _s.Phase));
+        Assert.Equal(2, _s.Projection!.Scores[Samples.Team1]);
+    }
 }
 ```
 
@@ -1008,6 +1060,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     IGameSocket? _socket;
     bool _welcomed, _userClosed;
     int _attempt;
+    long? _desyncFloor;                 // the projection's LastSeq at the last desync: one resync per position
     Guid? _pendingUndoCommand;
     Projection? _predicted;
 
@@ -1085,13 +1138,17 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     }
 
     // ---- the game ----------------------------------------------------------------------------------------------------
-    public async Task ConnectAsync(Guid gameId)
+    public Task ConnectAsync(Guid gameId) => ConnectAsync(gameId, resync: false);
+
+    /// <summary>A resync keeps the desync floor and shows as Reconnecting; a player-initiated connect starts clean.</summary>
+    async Task ConnectAsync(Guid gameId, bool resync)
     {
         if (Phase == SessionPhase.UpdateRequired || management.Jwt is null) return;
         if (_socket is not null) await TearDownSocket();
         GameId = gameId; _userClosed = false; _welcomed = false;
+        if (!resync) { _desyncFloor = null; LastCloseReason = null; }
         Reset();
-        SetPhase(_attempt == 0 ? SessionPhase.Connecting : SessionPhase.Reconnecting);
+        SetPhase(_attempt == 0 && !resync ? SessionPhase.Connecting : SessionPhase.Reconnecting);
         var socket = sockets.Create();
         socket.FrameReceived += frame => dispatcher.Post(() => { if (ReferenceEquals(socket, _socket)) Handle(frame); });
         socket.Closed += closed => dispatcher.Post(() => { if (ReferenceEquals(socket, _socket)) OnClosed(closed); });
@@ -1109,6 +1166,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public async Task DisconnectAsync()
     {
         _userClosed = true;
+        LastCloseReason = null;             // the player asked to leave: Home has nothing to explain
         await TearDownSocket();
         GameId = null; Reset();
         if (Phase is not (SessionPhase.LoggedOut or SessionPhase.UpdateRequired)) SetPhase(SessionPhase.LoggedIn);
@@ -1139,7 +1197,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public async Task UndoToAsync(long seq)
     {
         if (Applier is null) return;
-        _predicted = Applier.ProjectTo(seq);
+        // ProjectTo replays a prefix of a log this applier already applied in order, so it cannot fault where
+        // ApplyAll did not. The catch holds the invariant rather than a known case.
+        try { _predicted = Applier.ProjectTo(seq); }
+        catch (ProjectionDesyncException desync) { OnDesync(desync); return; }
         PendingUndoTo = seq;
         _pendingUndoCommand = await SendCommandAsync(new Undo(seq));
         EventsApplied?.Invoke([]);
@@ -1178,7 +1239,8 @@ The second half of `Session.cs` (same class, same file) — the frame handler, t
                 BoardChanged?.Invoke();
                 break;
             case EventsMessage e when Applier is not null:
-                Applier.ApplyAll(e.Events);
+                try { Applier.ApplyAll(e.Events); }
+                catch (ProjectionDesyncException desync) { OnDesync(desync); return; }   // partially applied: unusable
                 if (PendingUndoTo is { } to && e.Events.Any(x => x.Payload is Undone u && u.ToSeq == to)) ClearPrediction();
                 EventsApplied?.Invoke(e.Events);
                 break;
@@ -1199,10 +1261,37 @@ The second half of `Session.cs` (same class, same file) — the frame handler, t
                 if (r.Reason == RejectReason.UpgradeRequired) SetPhase(SessionPhase.UpdateRequired);
                 else { GameId = null; SetPhase(SessionPhase.LoggedIn); }
                 break;
+            // No default arm. A kind this client does not act on is dropped: AtRest, which says the server has
+            // nothing further to emit and which nothing here waits for, and anything a later protocol version adds.
+            // Deserialization has already succeeded by this point, so an unhandled kind is not an error.
         }
     }
 
     void ClearPrediction() { _predicted = null; PendingUndoTo = null; _pendingUndoCommand = null; }
+
+    /// <summary>
+    /// The applier faulted, so this copy of the projection is unusable: drop it, reopen the socket and rebuild from
+    /// the log. One attempt per sequence position. A fault whose projection reached past the last one is a new bad
+    /// event and gets its own attempt; a fault at or before it is the same event out of the server's own log, which
+    /// replaying cannot fix, so the player goes Home with the reason instead of resyncing forever.
+    /// </summary>
+    void OnDesync(ProjectionDesyncException desync)
+    {
+        var reached = Applier?.Projection.LastSeq ?? 0;
+        var closed = new SocketClosed(null, desync.Message, desync);
+        LastCloseReason = desync.Message;
+        if (_desyncFloor is { } floor && reached <= floor)
+        {
+            _ = TearDownSocket();
+            GameId = null; Reset();
+            SetPhase(SessionPhase.LoggedIn);
+            ConnectionLost?.Invoke(closed, false);
+            return;
+        }
+        _desyncFloor = reached;
+        ConnectionLost?.Invoke(closed, true);
+        if (GameId is { } id) _ = ConnectAsync(id, resync: true);     // no backoff: time does not fix a bad event
+    }
 
     void OnClosed(SocketClosed closed)
     {
@@ -1240,7 +1329,9 @@ The second half of `Session.cs` (same class, same file) — the frame handler, t
 
 `Reset()` clears `Game`, which `IsCreator`/`MyTeamId` read; after a reconnect the `Welcome` restores it. `ConnectAsync` calling `Reset()` before the first frame is what makes "reconnect is connect" literal.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 21 passed. Commit: `Add the session object: login, the connect sequence, the projection, local undo, reconnect`.**
+A resync is that same path, so the projection, the draft, the undo prediction and the presence table go through the one discard. The old socket's close does not reach `OnClosed`: `TearDownSocket` nulls `_socket` before closing it, and each handler is gated on `ReferenceEquals(socket, _socket)`. The `1000`-after-`welcome` inference is therefore not consulted on a resync and is left as it is.
+
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 24 passed. Commit: `Add the session object: login, the connect sequence, the projection, local undo, reconnect and the desync resync`.**
 
 ### Task 6: Built-in content and the four terrain generators
 
@@ -1482,7 +1573,7 @@ public static class TerrainGenerators
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 31 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 34 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.**
 
 ### Task 7: The content-addressed asset cache
 
@@ -1598,7 +1689,7 @@ public sealed class AssetCache(string root, HttpClient http)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 33 passed. Commit: `Add the content-addressed asset cache`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 36 passed. Commit: `Add the content-addressed asset cache`.**
 
 ### Task 8: View models — log text, the Ask view, the menu, the ruler, the animation queue
 
@@ -2207,7 +2298,7 @@ public sealed class AnimationQueue
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.Client.Tests`; expect 40 passed. Commit: `Add the client view models: log text, the Ask view, the menu, the ruler with its disembark region, the animation queue`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.Client.Tests`; expect 43 passed. Commit: `Add the client view models: log text, the Ask view, the menu, the ruler with its disembark region, the animation queue`.**
 
 ### Task 9: `Main`, the dispatcher, screen swapping, the login and update-required screens
 
@@ -2402,7 +2493,7 @@ public partial class UpdateRequiredScreen : Control
 - Create: `client/scenes/Home.tscn`, `client/src/Screens/HomeScreen.cs`
 
 **Interfaces:**
-- Consumes: `Session.Management` (`ListGames`, `ListProperties`, `ListArmies`, `CreateGame`, `JoinGame`), `Session.ConnectAsync`, `Session.SendEditAsync(PickArmy)`, `Session.LogoutAsync`; `GameSummary`, `PropertiesSummary`, `ArmySummary`, `CreateGameRequest` (Task 3); `SchedulerShape`, `Enforcement`, `GameStatus`, `PickArmy` (Protocol).
+- Consumes: `Session.Management` (`ListGames`, `ListProperties`, `ListArmies`, `CreateGame`, `JoinGame`), `Session.ConnectAsync`, `Session.SendEditAsync(PickArmy)`, `Session.LogoutAsync`, `Session.LastCloseReason`; `GameSummary`, `PropertiesSummary`, `ArmySummary`, `CreateGameRequest` (Task 3); `SchedulerShape`, `Enforcement`, `GameStatus`, `PickArmy` (Protocol).
 - Produces: `partial class HomeScreen : Control` — the game list (`ItemList`) with a status filter, a name filter and "created by me", a "More" button for the next keyset page, "Join", "Create game" (name, pack from `GET /v1/properties`, shape, enforcement, wait-between-steps, army from `GET /v1/armies`), "Sign out". Creating: `CreateGame` → `ConnectAsync(game.Id)` → once `Phase == Connected`, `SendEditAsync(new PickArmy(armyId))`. Joining: `JoinGame` → `ConnectAsync`.
 - `POST /v1/games` takes no army (management plan → HTTP surface); the army is a lobby edit after the socket opens (game server plan Task 10) — spec correction 3 records the wording.
 
@@ -2445,6 +2536,9 @@ public partial class HomeScreen : Control
         bottom.AddChild(Btn("More", () => _ = LoadPage()));
         bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _ = LoadPage(); }));
         root.AddChild(_error = new Label { Modulate = Colors.Orange });
+        // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
+        // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
+        if (Main.Instance.Session.LastCloseReason is { } why) _error.Text = $"Dropped from the last game: {why}";
         _ = LoadPage();
     }
 
@@ -3324,7 +3418,7 @@ public partial class PresenceOverlay : Node3D
 - Create: `client/scenes/Game.tscn`, `client/src/Screens/GameScreen.cs`, `client/src/Panels/LobbyPanel.cs`, `client/src/Panels/SetupToolbar.cs`, `client/src/Panels/TeamPanel.cs`
 
 **Interfaces:**
-- Consumes: `Session` (`Game`, `Draft`, `Phase`, `IsCreator`, `ParticipantId`, `GameChanged`, `BoardChanged`, `PhaseChanged`, `RefusedReceived`, `ConnectionLost`, `SendEditAsync`, `DisconnectAsync`, `Management.ListArmies/ListLayouts/GetLayout/SaveLayout/ListAssets/GetAssetVolumes`), `TableView`, `TableInput`, `PresenceOverlay`, `BuiltinContent`, `TerrainGenerators`, `ZoneStyles`; every `LobbyEdit` and `SetupEdit` (Protocol).
+- Consumes: `Session` (`Game`, `Draft`, `Phase`, `IsCreator`, `ParticipantId`, `GameChanged`, `BoardChanged`, `PhaseChanged`, `RefusedReceived`, `ConnectionLost`, `SendEditAsync`, `DisconnectAsync`, `Management.ListArmies/ListLayouts/GetLayout/SaveLayout/ListAssets/GetAssetVolumes`), `TableView`, `TableInput`, `PresenceOverlay`, `BuiltinContent`, `TerrainGenerators`, `ZoneStyles`; every `LobbyEdit` and `SetupEdit`, `ProjectionDesyncException` (Protocol).
 - Produces: `partial class GameScreen : Control` — hosts the `TableView` in a `SubViewportContainer`, `TableInput`, `PresenceOverlay`, the Home button (`DisconnectAsync`), a status line (`{game.name} — {status}`, `Reconnecting…` while `Phase == Reconnecting`), the panels by status: `LobbyPanel` at `lobby` and `setup`; `SetupToolbar` at `setup`; the play panels (Tasks 14–15) at `playing`/`ended`; a toast for `Refused` (`reason: detail`). `partial class LobbyPanel : Control` — teams with their members, "Create team", "Join team N"/"Watch" (`PickTeam(null)`), "Pick army" from `ListArmies` (`PickArmy`), the configuration form (`SetConfiguration` with the current values pre-filled), and for the creator "Start setup" (at `lobby`) and "End setup" (at `setup`, with a note of how many placements are off the slab). `partial class SetupToolbar : Control` — table width/length (`SetTableSize`), texture (`SetTexture` from `BuiltinContent.Textures` or my texture assets), add built-in terrain (a dropdown over `BuiltinContent.Terrain` → `AddTerrain(BuiltinContent.Place(name, beside-the-table, 0))`), add my library terrain (`ListAssets(Terrain)` → `GetAssetVolumes` → `AddTerrain` with `VisualRef.OfAsset` and the asset's volumes), the four generators (`TerrainGenerators.Generate(planet, size, Random.Shared)` → one `SendEditAsync` per add), add objective / token (`AddSetupMarker`), zone style (`SetZoneStyle(style, ZoneStyles.ShapesOf(style))`), swap zones (two ordinals → `SwapZones`), layouts ("Load…" → `ListLayouts` → `GetLayout` → `ReplaceDraft`; "Save as…" → `SaveLayout(Draft with { Name })`), and for the selected placement: scale (`ScaleTerrain`), remove (`RemoveTerrain`/`RemoveSetupMarker`), swap mesh (`SwapTerrainMesh` to a built-in or my asset), edit volumes (each volume's kind, footprint, heights, six declaration checkboxes and notes → `OverrideTerrainVolumes`), and "Reset volumes" (`OverrideTerrainVolumes` with `BuiltinContent.VolumesOf(name)` or the asset's `GetAssetVolumes`). `partial class TeamPanel : Control` — one per team: ordinal, colour, members, score (from `Projection.Scores`), a right-click hook for Task 15.
 
 Spec: client shell → Screens → Game (one screen for all four statuses; a status change is a change inside the screen; Home disconnects); setup phase → The lifecycle (lobby picks and configuration; the creator's two transitions; teams and armies editable during setup), Editing is free for all (the closed set of edits), Layouts (load replaces the whole draft; save is a management call from the client's own copy), Zones (style; anyone swaps), Terrain (built-in or asset; swapping the mesh keeps the volumes; clearing re-copies the source's volumes; generators as a batch of adds beside the table), Joining (a participant with no team watches); geometry plan → `ZoneStyles.ShapesOf`; game server plan Tasks 10–12 (which edits are accepted at which status; `Refused` reasons).
@@ -3368,7 +3462,9 @@ public partial class GameScreen : Control
         if (_session.GameId is not null) { Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session); }
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.BoardChanged += RefreshTeams; _session.EventsApplied += _ => RefreshTeams();
         _session.RefusedReceived += r => Toast($"{r.Reason}: {r.Detail}");
-        _session.ConnectionLost += (c, will) => Toast(will ? $"Connection lost ({c.Reason}); reconnecting…" : $"Disconnected: {c.Reason}");
+        _session.ConnectionLost += (c, will) => Toast(c.Error is ProjectionDesyncException
+            ? will ? "The table fell out of step with the server; rebuilding it from the log…" : $"This game's log cannot be replayed: {c.Reason}"
+            : will ? $"Connection lost ({c.Reason}); reconnecting…" : $"Disconnected: {c.Reason}");
         Rebuild();
     }
 
@@ -3589,7 +3685,7 @@ public partial class SetupToolbar : VBoxContainer
 
 Editing a volume's footprint and heights is the same `OverrideTerrainVolumes` with `SpinBox`es for `Footprint.A/B`, `Bottom`, `Top` and an `OptionButton` for `Kind`; add them to the row in the same pattern as the declaration checkboxes.
 
-- [ ] **Step 5: Run it with two clients.** Lobby: teams, picks, configuration and "Start setup" (creator only; the other client's button is absent and a forged `StartSetup` gets `NotPermitted`). Setup: size, texture, built-in terrain beside the table, a *Hospitable planet* batch of 13–21 pieces beside the slab, dragging pieces on with the ruler, zones with team colours (grey for an ordinal with no team), swap, a layout saved then loaded on a fresh game (size included), a volume's declaration toggled and the proxy recoloured, "End setup" dropping the off-slab count. `./scripts/check-client` prints nothing. Commit: `Add the game screen with the lobby panel and the setup toolbar`.
+- [ ] **Step 5: Run it with two clients.** Lobby: teams, picks, configuration and "Start setup" (creator only; the other client's button is absent and a forged `StartSetup` gets `NotPermitted`). Setup: size, texture, built-in terrain beside the table, a *Hospitable planet* batch of 13–21 pieces beside the slab, dragging pieces on with the ruler, zones with team colours (grey for an ordinal with no team), swap, a layout saved then loaded on a fresh game (size included), a volume's declaration toggled and the proxy recoloured, "End setup" dropping the off-slab count. The desync arm of the `ConnectionLost` toast has no manual trigger, because nothing a player can do makes the server emit an event the applier cannot apply; `SessionTests` covers the resync and the drop to Home, and this toast's two desync arms are read rather than run. `./scripts/check-client` prints nothing. Commit: `Add the game screen with the lobby panel and the setup toolbar`.
 
 ### Task 14: The Ask panel and the declared move
 
@@ -4166,6 +4262,8 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 10. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Input and presence, "Moving shows its distance".** Current: *"a ruler draws from each model's start position to its current one with the distance in inches"* … *"In a declared move the readout also shows the remaining allowance, and the reachable region is drawn at that radius."* Add: *"A model inside a container has no start position of its own, so its ruler draws from the container's placement — the point it is disembarking relative to — and shows a distance with no remaining allowance, because the move's allowance constrains nothing about where an occupant may be placed. The region there is the container's base grown by the exit distance, not a radius about a start."* Reason: the section assumes every moving model has a start placement, and an occupant has none (game flow → Inside a container).
 11. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → The table view**, after *"A missing, deleted or still-downloading mesh leaves a translucent proxy and the game is fully playable"*. Add: *"A model that is not on the table is not drawn at all — nothing for a model on the shelf, and nothing for a model inside a container, since neither location carries a placement to draw at. The single exception lasts as long as one Ask: while a unit is disembarking, the client puts one draggable ghost per model on the container's own node so the player has something to place. Those ghosts are not part of the projection and vanish when the answer is sent."* Reason: the section says how a piece is drawn but not that some are not, and the third location was added to the domain after this spec's table-view section was written.
 
+12. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → The connection and the projection.** Add after the reconnect sentences: *"A `ProjectionDesyncException` from the applier is a desync of this client's copy of the projection, not a network fault. The client drops the projection, reopens the socket and rebuilds from the log, which is the reconnect path with no backoff. It does not skip the change and carry on, because a client that silently diverges from the server is worse than one that visibly resets. One attempt per sequence position: a fault that has made no progress past the last one is an event in the server's own log, and the player goes to the home screen with the reason rather than replaying it forever."* Reason: owner ruling 2 of 2026-09-06; the spec's connection section covers a lost socket and says nothing about a projection that cannot be applied.
+
 ## Interfaces needed from other modules
 
 1. **The table frame — settled.** The compatibility review of 2026-09-05 ruled one frame, the corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up), on the wire and in `Tabletop.Geometry`; the geometry plan's `Table`, `ZoneStyles` and `Movement` tests were changed to it and this plan's `TableFrame` conversion layer was removed. `Table.ContainsPoint` is the client's on-slab check and `ZoneStyles.Resolve` draws without conversion. The owner is asked to confirm the ruling (geometry plan question 1).
@@ -4179,6 +4277,8 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 9. **Geometry plan, consumed as stated:** `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; `ZoneStyles.Resolve(shape, size)` for drawing; `Distance.ClosestPoints` for measurements; `Movement.Region(...).Boundary`; `Movement.Check(...)`'s `CrossesImpassable` and `LeavesTable`, asked of a single placement by passing that placement as both start and destination; `Containment.BaseFullyWithin(model, container, inches)` — edge to edge from the container's base, not a circle about its centre (geometry plan Task 6), which `MoveRuler.ExitRegion` marches into a boundary; `Settling.SurfaceHeightAt(Point3, volumes)` for a dragged model; yaw 0 faces +Y, counter-clockwise positive; an oval's length along the facing axis.
 10. **Sample data, not a contract:** the contracts plan's `TableStateTests.Sample()` names `hill-small`, `objective-ring`, `grass` and the zone shapes `frontline/1`, `frontline/2` (which `ZoneStyles` resolves); the same plan's `Samples` adds `chip` (`Samples.Token`) and `ruin` (its `SwapTerrainMesh` sample); the game server plan's `DraftEditor` tests add the texture `desert` and its default draft the texture `grass`. `BuiltinContent` ships all six so every plan's samples render, and an unknown zone shape (the game server plan's `DraftEditor` tests use `long-edges/*` and `corners/*`, plain strings that name no `ZoneStyles` shape) draws nothing with a warning. `Samples.Game` and `Samples.Board` are expression-bodied properties that mint new Guids per read, so a test that needs one game reads it into a `static readonly` first (Task 5).
 11. **Interpreter plan, consumed as stated:** the move step's Ask is question `move` with a `move_region` whose `Containment` is non-null exactly when the move may embark or is disembarking (Task 14); `transport-destroyed`'s `place` step opens a second question, `disembark`, with a `move_region` whose `Containment.ExitingId` is the wreck and whose `Allowance` is the exit distance (Task 19); `GfNames.ExitWithin` is 6" in Grimdark Future and reaches the client only inside `MoveContainment.ExitWithin`, never as a constant here; a `Destinations` answer is applied as sent, with the server dropping an `Inside` whose container is off the table and leaving inside any model placed beyond the exit radius. No ruleset question name is added to `AskQuestions`.
+
+12. **Contracts plan, the two names ruled on 2026-09-06 — settled.** `ProjectionDesyncException`, thrown by `EventApplier` in place of `KeyNotFoundException` and carrying the event kind and the unknown id, is caught in `Session` at the two places that apply events (Task 5). The client reads only the type and `Message`; it does not branch on the kind or the id, and the exception's own members are the contracts plan's to shape. `AtRest(long Seq)`, wire kind `at_rest`, server to client, is a `SocketMessage` this client deserialises and drops: `Handle`'s switch has no default arm. When it is sent, whether it is per connection or broadcast, and what it means when nothing was appended are the game server's to decide, and no client behaviour depends on any of those answers.
 
 ## Questions for the project owner
 

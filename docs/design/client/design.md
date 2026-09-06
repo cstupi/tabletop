@@ -21,7 +21,7 @@ In:
 | --- | --- |
 | Login (password, email one-time code), remembered session, update-required screen | `client/src/Core/`, `client/src/Screens/` |
 | The game list, create game, join | `client/src/Screens/HomeScreen.cs` |
-| One session object: management client, socket, projection, draft, presence, undo prediction, reconnect | `client/src/Core/Session.cs` |
+| One session object: management client, socket, projection, draft, presence, undo prediction, reconnect, desync resync | `client/src/Core/Session.cs` |
 | One game screen over four statuses; lobby panel, setup toolbar, team panels | `client/src/Screens/`, `client/src/Panels/` |
 | The table view: slab, hitbox-first pieces, terrain, markers, zones, camera | `client/src/Table/` |
 | Runtime GLB loading into a content-addressed disk cache | `client/src/Table/MeshLoader.cs`, `client/src/Core/AssetCache.cs` |
@@ -198,7 +198,7 @@ contradicts the server's view that lobby, setup and play are one connection.
 | the setup draft | `Draft : TableState?` |
 | others' presence | `Others : PresenceTable` |
 | the undo prediction | `_predicted`, `PendingUndoTo`, `_pendingUndoCommand` |
-| reconnect policy | `_attempt`, `_backoff`, `_userClosed`, `_welcomed` |
+| reconnect and resync policy | `_attempt`, `_backoff`, `_userClosed`, `_welcomed`, `_desyncFloor` |
 | local settings | `Settings`, persisted through the `persistSettings` delegate |
 
 It raises eight events: `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied`,
@@ -224,7 +224,9 @@ stateDiagram-v2
   LoggedIn --> Connecting: ConnectAsync(gameId)
   Connecting --> Connected: welcome
   Connected --> Reconnecting: close, code not 1000
+  Connected --> Reconnecting: ProjectionDesyncException, past the desync floor
   Reconnecting --> Connected: welcome
+  Reconnecting --> LoggedIn: ProjectionDesyncException, at or under the floor
   Connected --> LoggedIn: Home button, Leave, or 1000 after welcome
   Connecting --> LoggedIn: Rejected: InvalidSession or NotAParticipant
   LoggedIn --> LoggedOut: LogoutAsync
@@ -260,10 +262,23 @@ Reconnect policy lives in three fields:
 | `DisconnectAsync` / `LeaveAsync` | do not reconnect | `_userClosed` |
 | `1001` (server going away) | reconnect | drain-and-hydrate is the intended path |
 
-`ConnectionLost(SocketClosed, bool willReconnect)` is what the game screen toasts.
+`ConnectionLost(SocketClosed, bool willReconnect)` is what the game screen toasts. A desync raises
+the same event with `SocketClosed.Error` carrying the `ProjectionDesyncException`, which is how the
+toast tells a rebuild from a dropped socket.
 `_welcomed && code == 1000` is the only signal that a socket was replaced, since no frame says so.
-Any other server-side normal close after a welcome is read as a replacement, and drops the player
-to Home without explanation.
+Any other server-side normal close after a welcome is read as a replacement. The inference stands,
+because nothing on the wire distinguishes the two and a resync never reaches it: `TearDownSocket`
+nulls `_socket` before closing it, and the `ReferenceEquals` guard then drops that socket's close.
+The silence does not stand. `Session.LastCloseReason` survives the drop and the Home screen prints
+it, so every close the player did not ask for arrives with a reason. A player-initiated
+`ConnectAsync` clears it and so does `DisconnectAsync`, so Home explains only what the player did
+not choose.
+
+`Handle`'s switch has no default arm. A kind this client does not act on is dropped after a
+successful deserialization, which is what `AtRest(long Seq)` gets. Nothing here waits for the server
+to come to rest: every panel draws from the projection as events arrive, and the only busy state is
+`Connecting`/`Reconnecting`, which `Welcome` ends. Acting on `AtRest` would add a second and weaker
+source of truth for a settled table.
 
 Each socket's handlers capture the socket instance and check `ReferenceEquals(socket, _socket)`
 before touching state. A late frame or close from a replaced socket is dropped. That guard plus
@@ -320,6 +335,62 @@ id. There is no rollback machinery and no reconciliation. On either answer the c
 
 The server wins in every case. A `models_moved` event snaps the piece to where the event says. The
 client never withholds an answer on its own geometry, and never edits the log.
+
+### Desync and resync
+
+`EventApplier` indexes its dictionaries directly, so an event naming an id the projection does not
+hold throws `ProjectionDesyncException` carrying the event kind and the unknown id. Two designed
+features reach it: moving a marker placed during setup, and editing the dice of a frame that has been
+popped. The client treats it as a fatal desync of its own copy rather than a change to skip, because
+a client that silently diverges from the server is worse than one that visibly resets.
+
+`Session` catches it at the two places that apply events: `Applier.ApplyAll` in the `EventsMessage`
+arm, and `Applier.ProjectTo` in `UndoToAsync`. `ProjectTo` replays a prefix of a log the applier has
+already applied in order, so it cannot fault where `ApplyAll` did not, and that catch holds the
+invariant rather than a known case. Both route to `OnDesync`, which drops the projection, closes the
+socket and connects again. The rebuild is the ordinary hydrate.
+
+A resync reuses `Reconnecting` rather than taking a phase of its own. `Main.Route` maps a phase to a
+scene path, and a resync must not swap the scene, so a new phase would mean a new arm in `Route` and
+in every screen that switches on `Phase`, for a state that renders identically to a reconnect. It
+does not reuse `OnClosed`, because there is no close to interpret: the socket is healthy and the
+client is the one tearing it down. `ConnectAsync` gains a private `resync` parameter that forces
+`Reconnecting` and carries the desync bookkeeping across `Reset()`. The public signature is
+unchanged.
+
+The resync is immediate and has no backoff. The reconnect backoff exists because a dropped socket is
+usually transient and time fixes it. A desync is not transient, so the bound is on attempts.
+
+The bound is one attempt per sequence position. `_desyncFloor` records `Projection.LastSeq` at the
+moment of the fault. A later fault whose projection reached past the floor is a different bad event
+and gets its own attempt. A fault at or before the floor is the same event replayed out of the
+server's own log, which no further attempt can change. `LastSeq` only rises, so the number of
+resyncs in one connection is bounded by the number of distinct fault positions and every resync
+makes progress. A fixed retry count was rejected on both ends: too low and an unrelated fault an
+hour later gets no attempt at all, too high and a hydrate split into 500-event batches loops on the
+partial progress each batch makes. `_desyncFloor` is cleared by a player-initiated `ConnectAsync`,
+so rejoining from Home buys one more attempt and one more explanation.
+
+Reaching the bound sets `Phase = LoggedIn` with `LastCloseReason` and raises
+`ConnectionLost(willReconnect: false)`, which is the outcome a `Rejected` already has. The bad event
+is in the server's log, so the game is unplayable for every client until that log is repaired, and
+Home with a reason is what the player can act on. The server has no equivalent recovery: applying
+its own log is the last authority there, and the same exception faults the session.
+
+`Reset()` is the whole discard, so a resync loses exactly what a reconnect loses.
+
+| Invalidated | What becomes of it |
+| --- | --- |
+| the undo prediction | `ClearPrediction` drops `_predicted`, `PendingUndoTo` and the command id. The `Undone` or `Refused` that would have cleared it arrives on the replaced socket and is dropped by the `ReferenceEquals` guard. The rebuilt log says whether the undo committed |
+| an in-flight command or edit | nothing is resent. It was accepted or refused before the socket closed, and its events are in the log the resync downloads. A `Refused` for it is lost, so a command refused at the moment of the fault leaves no toast and the piece stays where the rebuilt projection puts it |
+| others' presence | `Others.Clear()`. Held placements and proposed ghosts vanish, and every piece snaps back to the projection |
+| this client's presence | `SendPresenceAsync` no-ops while `_socket` is null. The server sends `PresenceEnded` for this participant when the old socket closes, so the other players see this one leave and come back |
+| the selection, the ruler, an open menu, the setup toolbar's fields | held by Godot nodes and discarded when the hydrate redraws the table. The exit ghosts of a disembark go with them and are redrawn from the rebuilt Ask |
+
+The player sees a toast and a table that blanks and repopulates: *The table fell out of step with the
+server; rebuilding it from the log*. No dialog appears and nothing reaches Godot's error output,
+because the catch is in `Session` and the socket read loop never sees the fault. The selection and a
+pending undo are gone, which is the cost of the reset.
 
 ### Presence
 
@@ -754,6 +825,8 @@ Contested or re-decided:
 | A model that is not `OnTable` is not drawn at all | `OnShelf` and `Inside` carry no placement, so there is no position to draw at and `PieceAt` returning null keeps every consumer correct | drawing an occupant at the container's position, which makes it selectable and measurable when it is neither | spec correction 11; game flow → Inside a container |
 | Two region functions, and `ExitRegion` returns a boundary | an occupant has no start to sweep rays from, so `Movement.Region` is meaningless; a boundary lets `MoveRegionNode` draw both with no change | a predicate (`BaseFullyWithin`) evaluated per candidate, which cannot express a ring of impassable terrain and needs a different node | plan Task 8; geometry plan Task 6 |
 | The round boundary gets no control of its own | the one Ask panel is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 (ruled 2026-09-06) |
+| A `ProjectionDesyncException` resyncs the client, bounded at one attempt per sequence position | the fault is a divergence in this client's copy, which a rebuild from the log fixes; a fault that made no progress is in the server's log, which a rebuild cannot fix | skipping the change and carrying on, which diverges silently; a fixed retry count, which either strands an unrelated later fault or loops on a batched hydrate; a `Resyncing` phase, which renders identically to `Reconnecting` | owner ruling 2 (2026-09-06) |
+| The client drops `AtRest` | nothing here waits for the server to settle, and the only busy state ends at `Welcome` | stopping a busy indicator on it, which would be a second and weaker source of truth for a settled table | owner ruling 4 (2026-09-06) |
 | `ManagementDtos.cs` mirrors management's records by hand | keeps `client/` free of a dependency on `server/management`, and the DTOs are stable | a shared DTO assembly in `libs/`, not proposed | plan → Interfaces needed item 4 |
 
 Decisions the plan took because a spec was silent:
@@ -817,9 +890,9 @@ semantics.
 | Group | Names |
 | --- | --- |
 | version | `ProtocolVersion.Current`, `.Header` (`Tabletop-Client-Version`), `.UpgradeRequiredStatusCode` (426) |
-| envelope | `SocketMessage`; up: `Connect(SessionJwt, GameId, ClientVersion)`, `CommandMessage(CommandId, Command)`, `EditMessage(EditId, Edit)`; down: `Welcome(ParticipantId, GameInfo)`, `GameInfoMessage(GameInfo)`, `BoardMessage(Board)`, `EventsMessage(IReadOnlyList<GameEvent>)`, `PresenceEnded(ParticipantId)`, `Refused(MessageId, RefusalReason, Detail)`, `Rejected(RejectReason)`; both: `PresenceMessage`, `PingMessage`. `WireJson.Serialize/Deserialize` |
+| envelope | `SocketMessage`; up: `Connect(SessionJwt, GameId, ClientVersion)`, `CommandMessage(CommandId, Command)`, `EditMessage(EditId, Edit)`; down: `Welcome(ParticipantId, GameInfo)`, `GameInfoMessage(GameInfo)`, `BoardMessage(Board)`, `EventsMessage(IReadOnlyList<GameEvent>)`, `PresenceEnded(ParticipantId)`, `Refused(MessageId, RefusalReason, Detail)`, `Rejected(RejectReason)`, `AtRest(long Seq)` (dropped); both: `PresenceMessage`, `PingMessage`. `WireJson.Serialize/Deserialize` |
 | game | `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`, `Participant`, `Board(TableState Table, IReadOnlyList<ArmyInPlay> Armies)`, `ArmyInPlay` |
-| projection | `EventApplier(Board, GameInfo)`: `Projection`, `Log`, `Apply`, `ApplyAll`, `ProjectTo(seq)`, `static EffectiveLog`; `Projection`: `Board`, `Units`, `Models`, `Markers`, `Scores`, `Scheduler`, `Stack`, `OpenAsks`, `LastSeq`; `UnitInPlay`, `ModelInPlay`, `SchedulerPosition`, `Frame`, `CompletedStep`, `OpenAsk` |
+| projection | `EventApplier(Board, GameInfo)`: `Projection`, `Log`, `Apply`, `ApplyAll`, `ProjectTo(seq)`, `static EffectiveLog`; `ProjectionDesyncException`, thrown on an event naming an id the projection does not hold and carrying the event kind and that id; `Projection`: `Board`, `Units`, `Models`, `Markers`, `Scores`, `Scheduler`, `Stack`, `OpenAsks`, `LastSeq`; `UnitInPlay`, `ModelInPlay`, `SchedulerPosition`, `Frame`, `CompletedStep`, `OpenAsk` |
 | location | `Location` = `OnTable(Placement)` \| `OnShelf` \| `Inside(Guid ContainerId)`; `ModelRelocation(ModelId, From, To)` |
 | events | `GameEvent(Seq, Actor, Payload, Warning)`, every `EventPayload` and `StateChange`; the client reads `ModelsMoved`, `StepCompleted`, `ActionRecorded`, `MarkerPlaced`, `AskOpened/Answered/Closed`, `Undone`, `RoundStarted`, `TurnStarted/Ended` by name |
 | asks | `Ask(Id, Question, Prompt, Teams, Legal, AllowPass, Sealed, WindowKind, FrameId)`, `AskOption`, `AskQuestions` (reads `EndRound` only); `LegalSet` = `Options` \| `PieceSelection` \| `Allocation` \| `Assignment` \| `MoveRegion` \| `Bid` \| `Confirmation`; `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment)`, `MoveContainment(Enterable, ExitingId, ExitWithin)`; `AskAnswer` = `Chosen` \| `SelectedPieces` \| `Allocated` \| `Assigned` \| `Destinations` \| `BidPlaced` \| `Confirmed` \| `Passed` |
@@ -866,7 +939,8 @@ with the whole draft after every setup edit and a `GameInfoMessage` after every 
 default draft 72×48 with texture `grass`. The JWT is verified once, at connect. An open socket is
 never re-authenticated, so the once-a-minute refresh matters only for the next connect. Keep-alive
 is Kestrel's WebSocket ping/pong (20 s interval, 60 s timeout). There is no protocol heartbeat
-message and the client implements none.
+message and the client implements none. `AtRest(seq)` arrives when the server has nothing further
+to emit; this client deserialises it and drops it.
 
 ## Sequences
 
@@ -943,6 +1017,36 @@ both fields. A server answer that undoes to a different sequence number leaves t
 displayed indefinitely. The server refuses an `Undo` whose target is neither `0` nor a live event's
 seq, which is the case the `Refused` branch exists for. Events arriving during a pending undo are
 applied to the applier, but are invisible while the prediction shadows it.
+
+### A desync and its resync
+
+```mermaid
+sequenceDiagram
+  participant SC as GameScreen
+  participant S as Session
+  participant A as EventApplier
+  participant GS as game server
+  GS-->>S: EventsMessage: marker_moved naming an id nothing placed
+  S->>A: ApplyAll
+  A-->>S: ProjectionDesyncException(kind, id)
+  alt reached past _desyncFloor
+    S->>SC: ConnectionLost(Error = the exception, willReconnect true)
+    S->>S: _desyncFloor = Projection.LastSeq, close, Reset()
+    S->>GS: Connect(jwt, gameId, ProtocolVersion.Current)
+    GS-->>S: Welcome, BoardMessage, EventsMessage x N
+    S->>SC: GameChanged, BoardChanged, EventsApplied
+  else at or under it
+    S->>S: LastCloseReason = the message, close, Reset()
+    S->>SC: PhaseChanged LoggedIn, ConnectionLost(willReconnect false)
+    Note over SC: Main.Route swaps in Home, which prints LastCloseReason
+  end
+```
+
+The first branch's rebuild is the connect-and-hydrate sequence unchanged.
+
+The applier is partially applied when it throws, which is why the projection is dropped rather than
+repaired. The socket carries no fault of its own, so the close is the client's own teardown and the
+close-code inference plays no part.
 
 ### A setup edit
 
@@ -1045,6 +1149,7 @@ In-memory state, all of it on `Session` except the node dictionaries:
 | `Draft` | `setup` only | the `BoardMessage` after every edit |
 | `Others` (presence) | one connection | nothing; it starts empty |
 | `_predicted`, `PendingUndoTo` | one pending undo | discarded on answer or on any reset |
+| `_desyncFloor` | one player-initiated connection | nothing; it starts null, rises to the projection's `LastSeq` at each desync, and a resync carries it |
 | `Game`, `ParticipantId`, `MyTeamId`, `IsCreator` | one connection | `Welcome`, then each `GameInfoMessage` |
 | `TableView`'s `_pieces`/`_terrain`/`_markers`/`_zones`/`_ghosts` | one game screen | `Redraw()` diffing the projection or draft |
 
@@ -1060,10 +1165,13 @@ its own would mean the event spine had been broken.
 | JWT expired mid-session | the 60 s refresh normally prevents it; if a refresh fails with `401`, `TryResumeAsync` clears the store and drops to `LoggedOut`. An open socket is unaffected, because the server authenticates once at connect | yes; a socket can outlive its credential |
 | Socket closes unexpectedly | reconnect with backoff 1, 2, 5, 10, 10… s; `ConnectionLost(willReconnect: true)` toasts; the projection is discarded and rebuilt | yes |
 | Socket replaced by the same participant's newer connection (`1000` after `welcome`) | no reconnect; drop to Home | yes; reconnecting would fight the newer socket |
-| Any other server-side `1000` after `welcome` | read as a replacement; the player is dropped to Home with no retry | no; an accepted ambiguity, since no frame distinguishes the two |
+| Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two; the silence it used to carry is fixed |
 | `Rejected` with `InvalidSession` or `NotAParticipant` | no reconnect; `GameId` cleared; Home | yes |
 | Handshake window missed (10 s) | the server closes; the client reconnects, because no `Welcome` arrived | yes |
 | A command or edit refused | `RefusedReceived` toasts `{reason}: {detail}`; the Ask panel shows an in-panel line when the `MessageId` matches its last command; nothing is rolled back, because nothing was applied locally except a predicted undo | yes |
+| `ProjectionDesyncException` while applying an event | the projection is dropped, the socket is reopened and the log is replayed; `ConnectionLost(willReconnect: true)` toasts it as a rebuild | yes; ruling 2 |
+| A resync faulting again at or before `_desyncFloor` | no further attempt; `Phase = LoggedIn`, `LastCloseReason` is the exception's message, and Home prints it | yes; the bad event is in the server's own log, and rejoining buys one more attempt |
+| A frame kind the client does not act on, `AtRest` included | dropped; `Handle`'s switch has no default arm and deserialization has already succeeded | yes; ruling 4 |
 | A mesh 404s, its presigned URL has expired, or its hash mismatches | `MeshLoader` logs and returns null; the proxy stays; the game is playable | yes, and load-bearing |
 | Presigned URLs expire mid-game (`Manifest.ExpiresAt`, 60 minutes) | `RefreshManifest()` must be called again; a long game that never re-fetches will fail to load newly-visible meshes | a gap: nothing schedules a refresh on expiry |
 | Presence stops without `PresenceEnded` | another player's `held` placement leaves that piece's node displaced from the projection until the next `Redraw` for it | a gap: presence left "how a client is told a value stopped, versus timing it out" undecided, and the plan relies on `PresenceEnded` alone |
@@ -1110,7 +1218,7 @@ Two tiers, split on the Godot dependency.
 Headless, `tests/Tabletop.Client.Tests` (xUnit). The project compiles `client/src/Core/**/*.cs`
 from source and references the three libraries plus `Tabletop.Content.Tests` and
 `Tabletop.Protocol.Tests` for their samples (`TableStateTests.Sample()`, `Samples.Game`,
-`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at roughly 40
+`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at roughly 43
 tests. What is covered:
 
 | Subject | Test infrastructure | What is pinned |
@@ -1119,7 +1227,7 @@ tests. What is covered:
 | settings and the session store | temp directory | defaults on a missing or malformed file; round trip; DPAPI delegates faked with a byte flip; a corrupt session reads as null |
 | the management client | `FakeManagement : HttpMessageHandler` scripting responses | the version header and bearer on every request, the exact paths and verbs, `426` → `UpdateRequiredException`, problem+json title and detail, contract types round-tripping under `ContentJson` |
 | the socket seam and presence | `FakeGameSocket`, `FakeSocketFactory` | frames delivered, sends recorded, closes injected; presence set, removed and cleared |
-| the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management |
+| the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
 | built-in content and generators | seeded `Random` | 35 built-ins present, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
 | the asset cache | temp directory, `HttpMessageHandler` | hash verification, `HashMismatchException`, a cached hash never touching the network |
 | the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
@@ -1150,6 +1258,9 @@ Gaps:
   runtime in the client, not at build time in either.
 - The Ask panel's mode dispatch is tested at the view-model level, not the panel level. `ModeOf` is
   covered. That `RenderMove` swaps three things for a disembark is a manual step in Task 14.
+- The desync path is tested with an injected faulting event, and has no manual trigger: nothing a
+  player can do makes the server emit an event the applier cannot apply. The two desync arms of the
+  `ConnectionLost` toast and Home's reason line are read rather than run.
 - Reconnect is tested with an injected close, not a real dropped socket. Kestrel's keep-alive
   timeout, a WSL network hiccup and a server restart mid-hydrate are untested paths.
 - No performance test. There is no budget for `Redraw`, for the 20 Hz presence sample, or for a

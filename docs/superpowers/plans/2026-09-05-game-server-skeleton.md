@@ -1910,10 +1910,13 @@ public sealed class CommandDispatcher(IRulesEngine engine)
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/RecordingClient.cs`, `tests/Tabletop.GameServer.Tests/GameSessionTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 3–6 (`IGameRows`, `IEventLog`, `DuplicateSequenceException`, `GameState`, `Actor`, `IRulesEngine`, `IRulesEngineFactory`, `CommandDispatcher`, `Applied`, `Refused`, `EventFilter`, `GameRulesRegistry`); `SocketMessage` kinds, `GameEvent`, `Presence`, `Ping`, `GameStatus` (Protocol); `TableState` (Content).
+- Consumes: Tasks 3–6 (`IGameRows`, `IEventLog`, `DuplicateSequenceException`, `GameState`, `Actor`, `IRulesEngine`, `IRulesEngineFactory`, `CommandDispatcher`, `Applied`, `Refused`, `EventFilter`, `GameRulesRegistry`); `SocketMessage` kinds, `AtRest`, `GameEvent`, `ProjectionDesyncException`, `Presence`, `Ping`, `GameStatus` (Protocol); `TableState` (Content).
 - Produces: `interface ISessionClient { Guid ConnectionId { get; } Guid ParticipantId { get; } ValueTask SendAsync(SocketMessage message); ValueTask CloseAsync(System.Net.WebSockets.WebSocketCloseStatus status, string reason); }`; `sealed record SessionServices(IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging)`; `sealed class PresenceTable` with `void Set(Presence value)`, `void Remove(Guid participantId)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All`; `sealed class GameSession` with `Guid GameId`, `GameInfo Info`, `IGameRules Rules`, `TableState? Draft`, `GameState? Play`, `IReadOnlyList<ISessionClient> Clients`, `bool Faulted`, `Task StartAsync()`, `Task AttachAsync(ISessionClient)`, `Task DetachAsync(ISessionClient)`, `Task ReceiveAsync(ISessionClient from, SocketMessage frame)`, `Task TickPresenceAsync()`, `Task<T> RunAsync<T>(Func<Task<T>> work)` (posts to the mailbox and awaits), `Task DrainAsync(string reason)`, `Guid? TeamOf(Guid participantId)`, `Actor ActorOf(ISessionClient)`; `static class Hydrator { static Task<GameSession> HydrateAsync(Guid gameId, SessionServices services, CancellationToken ct); }` (throws `GameNotFoundException`); `sealed class SessionRegistry(SessionServices services)` with `Task<GameSession> GetOrHydrateAsync(Guid gameId, CancellationToken ct)`, `Task ReleaseIfEmptyAsync(GameSession session)`, `IReadOnlyCollection<GameSession> Live`, `Task DrainAllAsync(string reason)`, `bool Draining`.
 - **The dice seed arrives by hydration and needs no code of its own.** `Hydrator.HydrateAsync` already takes the whole game row through `IGameRows.ReadGameAsync`, so `GameInfo.RngSeed` is populated before the session exists, and the `new GameState(info, board, applier, rules)` in the playing branch carries it in. Nothing here reads the seed or writes it: the value's *use* — `GameState.RngSeed` becoming the stored seed instead of a hash of `Info.Id` — is the **interpreter plan's** change to `GameState`, not this plan's, and it lands with the dice (interpreter plan Task 5). `GameSession.ReloadInfoAsync` (Task 10) and the end-setup re-read (Task 12) both re-read the row, and both get the same unchanged seed back, because nobody ever updates the column.
-- Internal to the session and used by Tasks 10–12: `Task AppendAsync(IReadOnlyList<EventPayload> events, Guid? actor, string? warning)` (assigns seq, appends to the log **first**, applies, broadcasts per viewer), `Task AdvanceAsync()` (the `IRulesEngine.Advance` loop, capped at 10 000 iterations), `Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)`.
+- Internal to the session and used by Tasks 10–12: `Task AppendAsync(IReadOnlyList<EventPayload> events, Guid? actor, string? warning)` (assigns seq, appends to the log **first**, applies, broadcasts per viewer), `Task AdvanceAsync()` (the `IRulesEngine.Advance` loop, capped at 10 000 iterations), `Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)`, `AtRest Rest()` (the rest frame for the log as it stands).
+- **The rest frame, owner ruling 4 of 2026-09-06.** `AtRest(long Seq)` says "nothing further is coming from me right now, and the log ends at `Seq`". `Seq` is always the log's high-water mark, `Play?.Projection.LastSeq ?? 0`, so it is `0` before the log opens and unchanged when the batch appended nothing. The frame follows its batch: it is broadcast when the batch appended at least one event, and sent to the provoking client alone when it appended none, so a refusal still disturbs nobody but its sender. There are three call sites and no others: the end of `HandleCommandAsync` whatever the outcome (Step 3), the end of `HandleEndSetupAsync` after `AdvanceAsync` (Task 12), and the end of `ConnectAsync` at every status (Task 8). Lobby and setup edits do not emit it, because they touch no log, `Seq` would name nothing, and the `GameInfoMessage` or `BoardMessage` carrying the whole settled value is itself the terminator. This is what replaces the simulation plan's 250 ms quiet window.
+- **A desync applying the server's own event faults the session, owner ruling 2 of 2026-09-06.** `EventApplier.ApplyAll` throws `ProjectionDesyncException` when an event names an id the projection does not hold. On the log path that event is already durable, so there is nothing to resync from: `FaultAsync` closes every socket with `1011`, and the next hydrate replays the same event and throws again out of `Hydrator`, where `ConnectionHandshake` closes with `1011` (Task 8). A client meeting the same exception drops its projection and rebuilds from the log, which is the client plan's; the two sides differ because a client's projection is one copy of a log it can re-read, while the server's is the only copy and the log it would rebuild from is the log that faulted.
+- **Every other exception on the log path is caught as well.** `AppendAsync` today catches `DuplicateSequenceException` and nothing else, so any other database failure propagates out of the mailbox item into `ConnectionHandshake`'s read loop, which does not handle it: the socket dies without a `Refused` and the session keeps running. `AppendAsync` now catches every exception from `IEventLog.AppendAsync` and faults, because a batch whose outcome is unknown makes the next `seq` unknown. Task 8's read loop gains a last-resort catch for anything a handler throws off the log path.
 
 Spec: `architecture.md` → Two servers (live games in memory; the only module holding live state), Contracts to freeze (nobody instantiates a session: the first socket hydrates it; starting, reconnecting and crash recovery are one path), Deployment (a continuous relay at a fixed rate; reconnect rehydrates from the log); setup phase → The draft is the row (one game lives on one task; the server's memory is the one authority; the row write is durability, after the broadcast — for *events* the order is reversed by `architecture.md` → Persistence: the log is the authority, so an event is appended before it is broadcast); presence → Nothing here is written down, Connectedness is not a field, A ping is silent (one-shot); client shell → The connection and the projection; accounts → Ending is a flag (an ended game is served like any other — commands are accepted at `playing` and `ended`, because *"any participant can pick an ended game back up"* and picking one up is *"the identical operation"* to recovering a crashed task; identity and enumerations → `ended` is reversible agrees).
 
@@ -2064,9 +2067,16 @@ public sealed partial class GameSession
         var batch = payloads.Select((p, i) => new GameEvent(next + i + 1, actor, p, i == 0 ? warning : null)).ToList();
         try { await _services.Log.AppendAsync(GameId, batch, CancellationToken.None); }
         catch (DuplicateSequenceException ex) { await FaultAsync($"another writer holds this game (seq {ex.Seq})"); return; }
-        Play.Applier.ApplyAll(batch);
+        catch (Exception ex) { await FaultAsync($"the append at seq {batch[0].Seq} failed: {ex.Message}"); return; }
+        // The batch is durable and the projection cannot take it: the server's own event names an id nothing created (owner
+        // ruling 2). Faulting is the whole response. A resync would replay the same event from the same log and fault again.
+        try { Play.Applier.ApplyAll(batch); }
+        catch (ProjectionDesyncException ex) { await FaultAsync($"this server's own event does not apply to its own projection: {ex.Message}"); return; }
         foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
     }
+
+    /// <summary>The rest frame for the log as it stands: nothing further is coming right now, and the log ends at Seq (0 before it opens).</summary>
+    internal AtRest Rest() => new(Play?.Projection.LastSeq ?? 0);
 
     /// <summary>Runs the engine until it has nothing to say. Every iteration reads the projection afresh.</summary>
     internal async Task AdvanceAsync()
@@ -2120,18 +2130,20 @@ public sealed partial class GameSession
         _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
     });
 
+    /// <summary>Every command ends at rest. The frame follows its batch: broadcast when the batch appended something, to the sender alone when it did not.</summary>
     private async Task HandleCommandAsync(ISessionClient from, CommandMessage message)
     {
+        var before = Play?.Projection.LastSeq ?? 0;
         if (Play is null || Dispatcher is null || Info.Status is not (GameStatus.Playing or GameStatus.Ended))
-        {
             await from.SendAsync(new Protocol.Refused(message.CommandId, RefusalReason.WrongStatus, $"commands are not accepted while the game is {Info.Status}"));
-            return;
-        }
-        switch (Dispatcher.Dispatch(Play, message.Command, ActorOf(from)))
-        {
-            case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
-            case Applied a: await AppendAsync(a.Events, from.ParticipantId, a.Warning); await AdvanceAsync(); break;
-        }
+        else
+            switch (Dispatcher.Dispatch(Play, message.Command, ActorOf(from)))
+            {
+                case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
+                case Applied a: await AppendAsync(a.Events, from.ParticipantId, a.Warning); await AdvanceAsync(); break;
+            }
+        var rest = Rest();
+        if (rest.Seq > before) await BroadcastAsync(rest); else await from.SendAsync(rest);
     }
 
     /// <summary>Presence is state: the latest value wins and the tick relays it. The server stamps the participant id; a client cannot speak for another.</summary>
@@ -2339,7 +2351,8 @@ public class GameSessionTests
         var (session, log, clay, opponent, _) = await PlayingAsync();
         var id = Guid.CreateVersion7();
         await session.ReceiveAsync(clay, new CommandMessage(id, new SetWounds(Guid.CreateVersion7(), 1)));
-        Assert.Equal(id, Assert.IsType<Protocol.Refused>(clay.Received.Single()).MessageId);
+        Assert.Equal(id, Assert.IsType<Protocol.Refused>(clay.Received[0]).MessageId);
+        Assert.Equal(0, Assert.IsType<AtRest>(clay.Received[1]).Seq);   // nothing appended: the sender alone, at the unchanged high-water mark
         Assert.Empty(opponent.Received);
         Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
     }
@@ -2352,7 +2365,31 @@ public class GameSessionTests
         var clay = new RecordingClient(Samples.P1);
         await session.AttachAsync(clay);
         await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 1)));
-        Assert.Equal(RefusalReason.WrongStatus, Assert.IsType<Protocol.Refused>(clay.Received.Single()).Reason);
+        Assert.Equal(RefusalReason.WrongStatus, Assert.IsType<Protocol.Refused>(clay.Received[0]).Reason);
+        Assert.Equal(0, Assert.IsType<AtRest>(clay.Received[1]).Seq);   // no log at lobby, so the rest frame says 0
+    }
+
+    [Fact]
+    public async Task A_command_that_appends_ends_at_rest_after_its_events_for_everyone()
+    {
+        var (session, _, clay, opponent, watcher) = await PlayingAsync();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        foreach (var c in new[] { clay, opponent, watcher })
+        {
+            Assert.Equal([typeof(EventsMessage), typeof(AtRest)], c.Received.Select(m => m.GetType()));   // the events, then rest, never the other way round
+            Assert.Equal(1L, c.Received.OfType<AtRest>().Single().Seq);
+        }
+    }
+
+    [Fact]
+    public async Task An_event_the_servers_own_projection_cannot_apply_faults_the_session()
+    {
+        var (session, log, clay, opponent, _) = await PlayingAsync(new DesyncingEngineFactory());
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        Assert.True(session.Faulted);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, opponent.Closed!.Value.Status);
+        Assert.Empty(session.Clients);
+        Assert.Equal([1L, 2L], (await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Select(e => e.Seq));   // the bad event is durable; the next hydrate faults too
     }
 
     [Fact]
@@ -2410,9 +2447,22 @@ public class GameSessionTests
         Assert.Empty(session.Clients);
     }
 }
+
+/// <summary>Emits one event naming a model nothing created, as soon as the log holds anything: the applier's desync, provoked from the server's own side.</summary>
+public sealed class DesyncingEngine : IRulesEngine
+{
+    public Tabletop.GameServer.Dispatch.Legality Judge(GameState state, Command command, Actor actor) => Tabletop.GameServer.Dispatch.Legality.Legal;
+    public EngineResult Execute(GameState state, Command command, Actor actor) => new RefuseCommand(RefusalReason.Unknown, "test engine");
+    public IReadOnlyList<EventPayload> Advance(GameState state) => state.Applier.Log.Count == 1 ? [new WoundsSet(Guid.CreateVersion7(), 1)] : [];
+}
+
+public sealed class DesyncingEngineFactory : IRulesEngineFactory
+{
+    public IRulesEngine Create(IGameRules rules, GameInfo game) => new DesyncingEngine();
+}
 ```
 
-- [ ] **Step 6: Register in `Program.cs`**: `builder.Services.AddSingleton<SessionServices>(); builder.Services.AddSingleton<SessionRegistry>();` (`SessionServices` is a record with a constructor DI can satisfy). Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 102 passed. Commit: `Add the game session: the mailbox, the log path, presence and hydration`.
+- [ ] **Step 6: Register in `Program.cs`**: `builder.Services.AddSingleton<SessionServices>(); builder.Services.AddSingleton<SessionRegistry>();` (`SessionServices` is a record with a constructor DI can satisfy). Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 104 passed. Commit: `Add the game session: the mailbox, the log path, presence and hydration`.
 
 ### Task 8: The socket — connection, handshake, the connect sequence, and the end-to-end test client
 
@@ -2514,11 +2564,14 @@ public sealed partial class GameSession
             if (log.Count == 0) await client.SendAsync(new EventsMessage([]));
         }
         await AttachCoreAsync(client);
+        await client.SendAsync(Rest());
     });
 }
 ```
 
 An empty `EventsMessage` at `playing` tells the client the log has been delivered in full; the client shell treats "the log from the start" as one thing, so it must always arrive.
+
+`AtRest` is the last frame of the connect sequence and the one place it is sent per connection rather than broadcast, because what it terminates is this client's delivery. It is sent at every status: at `lobby` and `setup` there is no log and it carries `0`. A client joining an idle game therefore gets one after its initial events without anything else happening in the game, and needs no quiet window to tell "the server is still sending" from "the server has finished".
 
 - [ ] **Step 3: Write `ConnectionHandshake.cs` and wire `/ws`**
 
@@ -2556,7 +2609,9 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
 
         GameSession game;
         try { game = await registry.GetOrHydrateAsync(connect.GameId, aborted); }
-        catch (Exception ex) when (ex is GameNotFoundException or GameRowsInconsistentException or Rules.UnknownGameRulesException)
+        // ProjectionDesyncException here means the stored log does not apply to the stored snapshot, which is a server bug and
+        // not something a reconnect can clear: every attempt replays the same event (owner ruling 2).
+        catch (Exception ex) when (ex is GameNotFoundException or GameRowsInconsistentException or Rules.UnknownGameRulesException or ProjectionDesyncException)
         { log.LogError(ex, "cannot hydrate {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot hydrate this game"); return; }
 
         var connection = new SocketConnection(socket, participantId.Value, log);
@@ -2568,6 +2623,9 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         }
         catch (ProtocolViolationException ex) { await connection.CloseAsync(WebSocketCloseStatus.ProtocolError, ex.Message); }
         catch (Exception ex) when (ex is OperationCanceledException or WebSocketException) { }
+        // Last resort: whatever a handler threw, this connection closes with a reason instead of the frame silently ending the
+        // loop. Failures the session cannot survive have already called FaultAsync and closed every socket themselves.
+        catch (Exception ex) { log.LogError(ex, "handling a frame for {GameId} failed", connect.GameId); await connection.CloseAsync(WebSocketCloseStatus.InternalServerError, "the server failed to handle a frame"); }
         finally
         {
             await connection.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye");
@@ -2693,6 +2751,7 @@ public class SocketTests(PostgresFixture pg)
         Assert.Equal(seeded.Participants[0].ParticipantId, welcome.ParticipantId);
         Assert.Equal(GameStatus.Lobby, welcome.Game.Status);
         Assert.Equal(3, welcome.Game.Participants.Count);
+        Assert.Equal(0, (await client.ExpectAsync<AtRest>()).Seq);   // the connect sequence ends at rest even where there is no log
         await client.AssertSilentAsync(TimeSpan.FromMilliseconds(300));
     }
 
@@ -2750,7 +2809,31 @@ public class SocketTests(PostgresFixture pg)
 
         await a.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetWounds(Guid.CreateVersion7(), 1)));
         Assert.Equal(RefusalReason.Unknown, (await a.ExpectAsync<Refused>()).Reason);
-        await b.AssertSilentAsync(TimeSpan.FromMilliseconds(200));
+        await b.AssertSilentAsync(TimeSpan.FromMilliseconds(200));   // a refusal appends nothing, so b gets neither events nor a rest frame
+    }
+
+    [Fact]
+    public async Task At_rest_closes_the_connect_sequence_and_follows_every_batch()
+    {
+        using var factory = new GameServerFactory();
+        var seeded = await pg.SeedGameAsync(GameStatus.Playing, teams: 2);
+        await pg.SeedTableStateAsync(seeded.GameId);
+        await new PostgresEventLog(pg.Db).AppendAsync(seeded.GameId, [new GameEvent(1, null, new PhaseStarted("deployment"), null)], CancellationToken.None);
+
+        await using var a = await TestClient.OpenAsync(factory);
+        await a.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        Assert.IsType<BoardMessage>(await a.ReceiveAsync());
+        Assert.Equal([1L], Assert.IsType<EventsMessage>(await a.ReceiveAsync()).Events.Select(e => e.Seq));
+        Assert.Equal(1L, Assert.IsType<AtRest>(await a.ReceiveAsync()).Seq);           // the whole log, then rest, with nothing between
+        await a.AssertSilentAsync(TimeSpan.FromMilliseconds(300));                     // an idle game says nothing more
+
+        await a.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[0], 5)));
+        Assert.Equal(2L, Assert.IsType<EventsMessage>(await a.ReceiveAsync()).Events.Single().Seq);
+        Assert.Equal(2L, Assert.IsType<AtRest>(await a.ReceiveAsync()).Seq);           // after the batch's events, never before them
+
+        await a.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetWounds(Guid.CreateVersion7(), 1)));
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(await a.ReceiveAsync()).Reason);
+        Assert.Equal(2L, Assert.IsType<AtRest>(await a.ReceiveAsync()).Seq);           // refused: the high-water mark stands and only the sender hears it
     }
 
     [Fact]
@@ -2799,7 +2882,7 @@ public class SocketTests(PostgresFixture pg)
 
 `TestClient.DisposeAsync` disposes the socket without a close handshake; the server's read loop sees a `WebSocketException`, detaches, and releases — which is exactly the crashed-client path.
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 111 passed. Commit: `Accept sockets: the connect handshake, the connect sequence and the read loop`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 114 passed. Commit: `Accept sockets: the connect handshake, the connect sequence and the read loop`.**
 
 ### Task 9: The presence timer and graceful shutdown
 
@@ -2904,7 +2987,7 @@ public sealed class SessionHost(SessionRegistry registry, GameServerOptions opti
 
 `Program.cs`: `builder.Services.AddHostedService<SessionHost>();`. The drain runs synchronously inside `ApplicationStopping` on purpose: the host waits for those callbacks before it stops Kestrel, so every socket gets its `1001` while the listener is still up, and every queued append or draft write completes before the process exits. `HostOptions.ShutdownTimeout` (Task 1) bounds it at 30 s.
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 113 passed. Commit: `Relay presence on a timer and drain every game on shutdown`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 116 passed. Commit: `Relay presence on a timer and drain every game on shutdown`.**
 
 ### Task 10: The lobby — team, army and configuration picks, and starting setup
 
@@ -3193,7 +3276,7 @@ public sealed partial class GameSession
 
 Delete the placeholder `HandleEditAsync` from `GameSession.Frames.cs` (Task 7 Step 3); this file owns it now.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 118 passed. Commit: `Write the game's rows for lobby picks and start setup`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 121 passed. Commit: `Write the game's rows for lobby picks and start setup`.**
 
 ### Task 11: Setup edits — the draft editor, the row write, the board broadcast
 
@@ -3454,7 +3537,7 @@ public sealed partial class GameSession
 
 A failed row write faults the session: memory and row would otherwise disagree, and the next hydrate is what shows the truth. Clients reconnect and see the row.
 
-- [ ] **Step 5: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 127 passed. Commit: `Apply setup edits to the draft, broadcast the board and write the row`.**
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 130 passed. Commit: `Apply setup edits to the draft, broadcast the board and write the row`.**
 
 ### Task 12: Ending setup — the snapshot, the status flip, the log opens
 
@@ -3465,7 +3548,7 @@ A failed row write faults the session: memory and row would otherwise disagree, 
 
 **Interfaces:**
 - Consumes: `DraftEditor.DropOffSlab`, `IGameRows.ReadArmyAsync`, `IGameRows.EndSetupAsync`, `IRulesEngineFactory`, `GameState`, `EventApplier`, `ArmySnapshot.Of`, `ArmyInPlay`, `Board`.
-- Produces: `PostgresGameRows.EndSetupAsync` (one transaction: rewrite the tree, set every participant's `army_snapshot` from the dictionary — null stays null — flip `status` from `setup` to `playing`); `GameSession.HandleEndSetupAsync(ISessionClient from, Guid editId)` — after the commit: `Draft = null`, `Play = new GameState(...)` over `new Board(snapshot, armies)` and a fresh `EventApplier`, `Engine = Engines.Create(Rules, Info)`, `Dispatcher = new(Engine)`, broadcast `GameInfoMessage`, `BoardMessage`, an empty `EventsMessage`, then `AdvanceAsync()`.
+- Produces: `PostgresGameRows.EndSetupAsync` (one transaction: rewrite the tree, set every participant's `army_snapshot` from the dictionary — null stays null — flip `status` from `setup` to `playing`); `GameSession.HandleEndSetupAsync(ISessionClient from, Guid editId)` — after the commit: `Draft = null`, `Play = new GameState(...)` over `new Board(snapshot, armies)` and a fresh `EventApplier`, `Engine = Engines.Create(Rules, Info)`, `Dispatcher = new(Engine)`, broadcast `GameInfoMessage`, `BoardMessage`, an empty `EventsMessage`, then `AdvanceAsync()`, then `Rest()`.
 
 Spec: setup phase → The lifecycle (setup to playing: off-slab terrain rows deleted, each participant's `army_snapshot` written from their army as it stands, the draft becomes the snapshot by the status flip, the log opens with it as initial state, the scheduler begins deployment — here, `Advance`; this is where the shape and the armies freeze; creator only; no way back); `architecture.md` → Game management data model (an army snapshot is a frozen copy written once when setup ends; a participant who joins after that has none); `schema.md` → `participant.army_snapshot` is `jsonb` and opaque (`ContentJson.Serialize(ArmySnapshot)`); setup content → The lock is structural.
 
@@ -3515,6 +3598,7 @@ public class EndSetupTests(PostgresFixture pg)
         Assert.Equal((seeded.Participants[0].ParticipantId, army.Name, army.Units.Count), (inPlay.ParticipantId, inPlay.Snapshot.Name, inPlay.Snapshot.Units.Count));
         Assert.Empty((await other.ExpectAsync<EventsMessage>()).Events);
         Assert.IsType<AskOpened>((await other.ExpectAsync<EventsMessage>()).Events.Single().Payload);   // the engine advanced after the flip
+        Assert.Equal(1L, (await other.ExpectAsync<AtRest>()).Seq);                                     // and the transition ends at rest, on the opened log
 
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1 and status = 'playing'", seeded.GameId));
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.participant where game_id = $1 and army_snapshot is not null", seeded.GameId));
@@ -3621,13 +3705,14 @@ public sealed partial class GameSession
         await BroadcastAsync(new BoardMessage(board));
         await BroadcastAsync(new EventsMessage([]));
         await AdvanceAsync();
+        await BroadcastAsync(Rest());   // the log has opened and the scheduler's first events are out: the transition ends at rest
     }
 }
 ```
 
 A participant on a team with no army picked freezes with `army_snapshot` null and contributes nothing to any legal set — the scheduler skips a team with an empty legal set (scheduler → The turn is an Ask). A participant with a deleted army (`ReadArmyAsync` null) is treated the same.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 129 passed. Commit: `End setup: snapshot the armies, flip the status, open the log`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect 132 passed. Commit: `End setup: snapshot the armies, flip the status, open the log`.**
 
 ### Task 13: `CLAUDE.md`, running the server, and the whole-tree check
 
@@ -3669,7 +3754,7 @@ find server tests -path '*/obj/*' -maxdepth 3 -type d | grep -v Unix
 git status --short
 ```
 
-Expected: build clean; every test green (Geometry, Content, Protocol from the contracts plan, Management from its plan, plus 129 here); the `find` prints nothing; `curl` prints `400` (a plain GET on the WebSocket endpoint). From Windows PowerShell, `Test-NetConnection localhost -Port 5200` reports `TcpTestSucceeded : True` while the server runs, which is the client shell plan's connection target.
+Expected: build clean; every test green (Geometry, Content, Protocol from the contracts plan, Management from its plan, plus 132 here); the `find` prints nothing; `curl` prints `400` (a plain GET on the WebSocket endpoint). From Windows PowerShell, `Test-NetConnection localhost -Port 5200` reports `TcpTestSucceeded : True` while the server runs, which is the client shell plan's connection target.
 
 - [ ] **Step 3: Commit**
 
@@ -3746,7 +3831,7 @@ public interface IGameRules
 | Type | Members |
 | --- | --- |
 | `interface ISessionClient` | `Guid ConnectionId`, `Guid ParticipantId`, `ValueTask SendAsync(SocketMessage)`, `ValueTask CloseAsync(WebSocketCloseStatus, string)` |
-| `sealed class GameSession` | `Guid GameId`, `GameInfo Info`, `IGameRules Rules`, `TableState? Draft`, `GameState? Play`, `IRulesEngine? Engine`, `CommandDispatcher? Dispatcher`, `IReadOnlyList<ISessionClient> Clients`, `bool Faulted`, `Task StartAsync()`, `Task ConnectAsync(ISessionClient)`, `Task AttachAsync(ISessionClient)`, `Task DetachAsync(ISessionClient)`, `Task ReceiveAsync(ISessionClient, SocketMessage)`, `Task TickPresenceAsync()`, `Task<T> RunAsync<T>(Func<Task<T>>)`, `Task DrainAsync(string)`, `Task BroadcastAsync(SocketMessage, ISessionClient? except)`, `Guid? TeamOf(Guid participantId)`, `Actor ActorOf(ISessionClient)`; internal `AppendAsync(IReadOnlyList<EventPayload>, Guid? actor, string? warning)`, `AdvanceAsync()`, `ReloadInfoAsync()`, `NewDraft()` |
+| `sealed class GameSession` | `Guid GameId`, `GameInfo Info`, `IGameRules Rules`, `TableState? Draft`, `GameState? Play`, `IRulesEngine? Engine`, `CommandDispatcher? Dispatcher`, `IReadOnlyList<ISessionClient> Clients`, `bool Faulted`, `Task StartAsync()`, `Task ConnectAsync(ISessionClient)`, `Task AttachAsync(ISessionClient)`, `Task DetachAsync(ISessionClient)`, `Task ReceiveAsync(ISessionClient, SocketMessage)`, `Task TickPresenceAsync()`, `Task<T> RunAsync<T>(Func<Task<T>>)`, `Task DrainAsync(string)`, `Task BroadcastAsync(SocketMessage, ISessionClient? except)`, `Guid? TeamOf(Guid participantId)`, `Actor ActorOf(ISessionClient)`; internal `AppendAsync(IReadOnlyList<EventPayload>, Guid? actor, string? warning)`, `AdvanceAsync()`, `AtRest Rest()`, `ReloadInfoAsync()`, `NewDraft()` |
 | `sealed record SessionServices(IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging)` | |
 | `sealed class PresenceTable` | `Set(Presence)`, `Remove(Guid)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All` |
 | `static class Hydrator` | `Task<GameSession> HydrateAsync(Guid gameId, SessionServices, CancellationToken)` (`GameNotFoundException`, `GameRowsInconsistentException`) |
@@ -3786,7 +3871,8 @@ public interface IGameRules
 1. **Management API plan**: the Stytch project carries a session custom claim template of exactly `{"account_id": "{{ user.external_id }}"}`, and management keeps every Stytch user's `external_id` set to its `Account.id`, so every session JWT the client hands the game server carries `account_id` at the top level as a GUID string. Agreed exact claim name: `StytchJwtVerifier.AccountClaim = "account_id"` — the template's JSON key is ours to choose, so it must stay spelled this way, and if the template is ever missing this server rejects every connection with no Stytch error to show for it (management plan → *Interfaces needed from other modules → Stytch dashboard*). Also: `POST /v1/games` inserts `game` with `status = 'lobby'`, `created_by`, the six configuration columns (`name`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`) and `rng_seed` — generated there, in application code, because the column is `bigint not null` with no default; this server reads that column at hydration and never writes it, and no management endpoint updates it (owner ruling 1, 2026-09-06); `POST /v1/games/{id}/join` inserts `participant (id, game_id, team_id = null, account_id, army_id = null, army_snapshot = null)`; `POST /v1/games/{id}/end` sets `status = 'ended'`, as does the last `POST /v1/games/{id}/leave`; `leave` deletes the participant row; `DELETE /v1/games/{id}` deletes the game's rows and its `game.game_event` log. Management never writes `status` to `setup` or `playing`, never writes `team`, `participant.team_id`, `participant.army_id`, `participant.army_snapshot`, or a game's `table_state` tree — those are this server's while `lobby`/`setup` (management plan → Rows by writer agrees column for column). `TABLETOP_STYTCH_PROJECT_ID` and `TABLETOP_STYTCH_BASE_URL` in `.env` are shared by both servers; management verifies the same way (its Task 4) and confirms the JWT is checked at connect only.
 2. **Scheduler and interpreter plans**: one `IRulesEngine` implementation between them (the scheduler opens the turn Ask and reacts to `ask_closed`/`sequence_finished` in `Advance`; the interpreter handles `RerollDice`, `SetDice`, `AddModifier` in `Judge`/`Execute` and completes steps in `Advance`), registered by replacing `InertEngineFactory` as `IRulesEngineFactory`; members added to `IGameRules` and implemented on `GrimdarkFutureRules`; the RNG seed as a member the interpreter plan adds to `GameState`, read from `GameInfo.RngSeed` — the stored `management.game.rng_seed` this plan reads at hydration — rather than hashed from `Info.Id` (owner ruling 1, 2026-09-06). The dispatcher already emits `ask_answered`/`ask_closed` and closes a popped frame's Asks before `sequence_abandoned`; the engine must not emit those for answers (it reads `ask_closed`) — the one exception is the scheduler's `ask_closed` with an empty answer list for one of its own unframed Asks superseded by a menu edit (`set_active_team`, `set_round`). The engine must not append or broadcast: it returns payloads. **Reconciled 2026-09-05:** the one implementation is the interpreter plan's `Tabletop.GameServer.Engine.RulesEngine` (Task 10), registered by its `RulesEngineFactory`; the scheduler plugs in as `Engine.IScheduler` through `Engine.ISchedulerFactory` (`Create(IGameRules, GameInfo, PropertySet)`), registered in place of `NoSchedulerFactory`. The interpreter plan also modifies this plan's files: `ConnectionHandshake.RunAsync` gains `Engine.PropertiesNotFoundException` in the hydrate catch (close `1011`), `PostgresFixture` gains `DeletePropertiesAsync(string hash)`, `Program.cs` gains `IPropertiesStore`, `IDiceSource`, `ISchedulerFactory` registrations. `GrimdarkFutureRules` already lives in `Rules/GrimdarkFuture/GfRules.cs` as `partial` (Task 6), so neither plan moves it.
 3. **Geometry plan** (via the interpreter plan): `MoveRegion` destinations are checked here for model ids only; the distance check against `Allowance` and the impassable ids is the move step's, using `Distance.EdgeToEdge` and `Containment.VolumesContaining`, and settling the server-side `Z` with `Settling.SurfaceHeightAt`. Hand moves (`MoveModels`) are copied as sent, including the client's `Z`.
-4. **Client shell plan**: send `Connect` as the first frame within 10 s of opening `ws://localhost:5200/ws`; expect `Welcome`, then `BoardMessage` from `setup` on, then at `playing`/`ended` one or more `EventsMessage`s ending with the whole log delivered (an empty `EventsMessage` when the log is empty), then live frames — except a game ended before setup ever ran, which has no `table_state` row and no log, so `Welcome` is the whole sequence and no board arrives; a `Rejected` frame is followed by a close; a second socket for the same participant closes the first with `1000`; `Refused.MessageId` echoes `CommandId`/`EditId`; `presence_ended` arrives when another participant's last socket closes; the JWT in `Connect` is verified once — an open socket is never re-authenticated, so the client's once-a-minute refresh matters only for the next connect.
+4. **Client shell plan**: send `Connect` as the first frame within 10 s of opening `ws://localhost:5200/ws`; expect `Welcome`, then `BoardMessage` from `setup` on, then at `playing`/`ended` one or more `EventsMessage`s ending with the whole log delivered (an empty `EventsMessage` when the log is empty), then live frames — except a game ended before setup ever ran, which has no `table_state` row and no log, so `Welcome` is the whole sequence and no board arrives; a `Rejected` frame is followed by a close; a second socket for the same participant closes the first with `1000`; `Refused.MessageId` echoes `CommandId`/`EditId`; `presence_ended` arrives when another participant's last socket closes; the JWT in `Connect` is verified once — an open socket is never re-authenticated, so the client's once-a-minute refresh matters only for the next connect. The connect sequence ends with `AtRest`, at every status, and every command is answered by one `AtRest` after its events or its `Refused`; a client that has no use for the frame must ignore it, as it must ignore any kind it does not recognise, rather than treat it as a protocol error.
+5. **Contracts plan**: `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client (owner ruling 4, 2026-09-06); `ProjectionDesyncException` thrown by `EventApplier` in place of the `KeyNotFoundException` an unknown id raises today, carrying the event kind and the unknown id (owner ruling 2). This server catches the second in two places, `GameSession.AppendAsync` and `Hydrator` by way of `ConnectionHandshake`, and faults or refuses the connection rather than resyncing. The contracts plan owns the two types; **when the frame is sent is this plan's**, because ruling 4 left "when exactly it is sent, whether it is per connection or broadcast" to the module that sends it. Where that plan's connect-sequence note reads "each of those rounds of processing ends with `AtRest(Seq)`, broadcast to every socket", the rule to implement is the one above: nothing after a lobby or setup edit, and the sender alone when the batch appended nothing.
 
 ## Questions for the project owner
 

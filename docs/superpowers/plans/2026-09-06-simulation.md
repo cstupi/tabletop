@@ -1258,14 +1258,18 @@ git commit -m "Script answers by question and ordinal, and fall through to the p
 - Test: `tests/Tabletop.Sim.Tests/InProcessDriverTests.cs`
 
 **Interfaces:**
-- Consumes: `IGameRows`, `OwnedArmy`, `ISessionClient`, `SessionServices`, `GameSession`, `Hydrator`, `InMemoryEventLog`, `GameServerOptions`, `Replay` (game server skeleton); `RulesEngineFactory`, `InMemoryPropertiesStore`, `DiceSource`, `IDiceSource` (interpreter plan); `SchedulerFactory` (scheduler plan); `SetConfiguration`, `SocketMessage` (`Welcome`, `BoardMessage`, `EventsMessage`, `CommandMessage`, `Refused`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `GameInfoMessage`), `GameEvent`, `Command`, `AnswerAsk`, `AskAnswer`, `Projection`, `OpenAsk`, `EventApplier`, `RefusalReason`, `Board`, `GameInfo` (Protocol); `TableState`, `ArmySnapshot` (Content); `CompiledScenario`, `ScenarioCompiler` (Task 1); `PolicyView` (Task 2).
-- Produces: `abstract record SubmitResult` with `Accepted(string? Warning)` and `Rejected(RefusalReason Reason, string Detail)`; `sealed record StepResult(IReadOnlyList<GameEvent> Events, IReadOnlyList<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }`; `interface IGameDriver : IAsyncDisposable` with `Guid GameId`, `GameInfo Info`, `Board Board`, `IReadOnlyList<Guid> TeamIds`, `Guid ParticipantFor(Guid teamId)`, `DriverMode Mode { get; set; }`, `string Name`, `Task StartAsync(CancellationToken ct)`, `Task<IReadOnlyList<OpenAsk>> OpenAsksAsync(CancellationToken ct)`, `Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)`, `Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)`, `Task<Projection> ProjectionAsync(CancellationToken ct)`, `Task<StepResult> StepAsync(CancellationToken ct)`, and the default method `Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer answer, CancellationToken ct)`; `sealed class ScenarioRows(CompiledScenario scenario) : IGameRows`; `sealed class RecorderClient(Guid participantId) : ISessionClient` with `IReadOnlyList<SocketMessage> Frames`, `IReadOnlyList<SocketMessage> TakeFrames()`, `bool Closed`; `sealed class InProcessDriver : IGameDriver` with `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IReadOnlyList<GameEvent> Log`.
+- Consumes: `IGameRows`, `OwnedArmy`, `ISessionClient`, `SessionServices`, `GameSession`, `Hydrator`, `InMemoryEventLog`, `GameServerOptions`, `Replay` (game server skeleton); `RulesEngineFactory`, `InMemoryPropertiesStore`, `DiceSource`, `IDiceSource` (interpreter plan); `SchedulerFactory` (scheduler plan); `SetConfiguration`, `SocketMessage` (`Welcome`, `BoardMessage`, `EventsMessage`, `CommandMessage`, `Refused`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `GameInfoMessage`, `AtRest`), `GameEvent`, `Command`, `AnswerAsk`, `AskAnswer`, `Projection`, `OpenAsk`, `EventApplier`, `RefusalReason`, `Board`, `GameInfo` (Protocol); `TableState`, `ArmySnapshot` (Content); `CompiledScenario`, `ScenarioCompiler` (Task 1); `PolicyView` (Task 2).
+- Produces: `abstract record SubmitResult` with `Accepted(string? Warning)` and `Rejected(RefusalReason Reason, string Detail)`; `sealed record StepResult(IReadOnlyList<GameEvent> Events, IReadOnlyList<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }`; `sealed class RestTimeoutException(TimeSpan timeout, long lastSeq) : Exception` with `TimeSpan Timeout` and `long LastSeq`; `interface IGameDriver : IAsyncDisposable` with `Guid GameId`, `GameInfo Info`, `Board Board`, `IReadOnlyList<Guid> TeamIds`, `Guid ParticipantFor(Guid teamId)`, `DriverMode Mode { get; set; }`, `string Name`, `Task StartAsync(CancellationToken ct)`, `Task<IReadOnlyList<OpenAsk>> OpenAsksAsync(CancellationToken ct)`, `Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)`, `Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)`, `Task<Projection> ProjectionAsync(CancellationToken ct)`, `Task<StepResult> StepAsync(CancellationToken ct)`, and the default method `Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer answer, CancellationToken ct)`; `sealed class ScenarioRows(CompiledScenario scenario) : IGameRows`; `sealed class RecorderClient(Guid participantId) : ISessionClient` with `IReadOnlyList<SocketMessage> Frames`, `IReadOnlyList<SocketMessage> TakeFrames()`, `bool Closed`; `sealed class InProcessDriver : IGameDriver` with `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IReadOnlyList<GameEvent> Log`.
 
 Spec: spec → *Two drivers behind one interface* — "In process. The session, the engine and an in-memory log, constructed directly. No socket, no Postgres, no Docker. This is the default because a full game must cost milliseconds"; "A driver interface with one implementation would not have been worth the abstraction." `architecture.md` → Contracts to freeze ("nobody instantiates a game session: a client opens a socket naming a game, and if no session for that game is in memory the server hydrates it from the log") — which is why the in-process driver goes through `Hydrator` and `GameSession.ConnectAsync` rather than building a `GameState` by hand: the two drivers then differ in transport and nothing else.
 
 **The driver's projection is its own.** Every driver keeps an `EventApplier` over the scenario's board and info, fed by the events it drains from the **recorder participant's** stream — a participant with no team, which is what a spectator is. That is the same applier the client uses, so the run loop, the invariants and the recording all read a projection built the way a client builds one, and the socket driver needs no second mechanism. `InProcessDriver.ServerProjectionAsync` additionally exposes the session's own projection, and Task 7's first invariant compares them.
 
-**Quiescence.** `StepAsync` returns when the driver believes the server has rested. In process that is exact: `GameSession.RunAsync` puts a marker at the back of the mailbox, so when it returns every queued turn has run. Over the socket it is a quiet window — no frame for `SocketDriver.QuietWindow` (250 ms by default). The asymmetry is real and is named on the interface, because a fuzz run in process must cost milliseconds and a socket run cannot.
+**Quiescence is exact on both drivers.** `StepAsync` returns when the server has said it is at rest. In process the signal is a marker: `GameSession.RunAsync` puts one at the back of the mailbox, so when it returns every queued turn has run. Over the socket the signal is the `AtRest(long Seq)` frame the project owner ruled on 2026-09-06 — sent when the game server has finished processing an inbound `connect` or `command`, after the last frame that processing produced. It replaces the 250 ms quiet window an earlier draft used, which guessed at rest and therefore read a slow server as a stuck game and cost a quarter of a second per step.
+
+**Who receives it, from the game server plan's ruling and not assumed here.** `Seq` is the log's high-water mark, `Play?.Projection.LastSeq ?? 0`, so it is `0` before the log opens and unchanged when the batch appended nothing. The frame is broadcast to every socket on the game when the batch appended at least one event, and sent to the provoking client alone when it appended none, so a refusal disturbs nobody but its sender (game server skeleton plan → Task 9, *The rest frame*). Two things follow for `SocketDriver`, and both are in the code below. `SubmitAsync` reads the submitting socket's own rest frame, which arrives whatever the outcome and always after a `Refused` for that command, so the refusal check needs no timing window. And `StepAsync` waits on the recorder's socket **only when the last command appended**, which the submitting socket's `AtRest.Seq` says by standing above what the recorder has applied; otherwise no batch is coming to the recorder and the step is an empty one. Every driver's absorb path selects `EventsMessage` and ignores every other kind, which is what lets a consumer with no use for `at_rest` (or for any kind added later) see it without faulting.
+
+**The timeout is a liveness guard, not a quiescence guess.** `SocketDriver.RestTimeout` is 30 seconds and bounds one wait for `AtRest`. Any value above the slowest real step is correct, and no designed step approaches it, which is why the number is two orders of magnitude larger than the window it replaces rather than a tuned one. Expiry throws `RestTimeoutException`; `RunLoop.RunAsync` catches it and the run ends `Failed` with the last frames dumped, so a socket soak exits `1`. Expiry is never `Stuck`: stuck means the engine made no progress, and a rest timeout means the harness stopped observing.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1374,11 +1378,22 @@ public abstract record SubmitResult
     public sealed record Rejected(RefusalReason Reason, string Detail) : SubmitResult;
 }
 
-/// <summary>What one step produced. Quiescent means the driver believes the server has rested.</summary>
+/// <summary>What one step produced. Quiescent means the server rested without emitting anything.</summary>
 public sealed record StepResult(IReadOnlyList<GameEvent> Events, IReadOnlyList<OpenAsk> OpenAsks, bool Quiescent);
 
 /// <summary>Run answers every Ask; StepAndWait stops with one open and answers nothing (spec → Interactive debugging is a door).</summary>
 public enum DriverMode { Run, StepAndWait }
+
+/// <summary>
+/// The server did not say it was at rest inside the driver's timeout. A hung server or a dead
+/// connection, never a stuck game: RunLoop turns it into RunOutcome.Failed.
+/// </summary>
+public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq)
+    : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}")
+{
+    public TimeSpan Timeout { get; } = timeout;
+    public long LastSeq { get; } = lastSeq;
+}
 
 /// <summary>
 /// One game, played from outside. Two implementations: in process and over the socket, and the same
@@ -2246,7 +2261,7 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 | Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. **This check is defeatable and is not the only guard:** a single non-Ask event since the last answer clears the suspicion, so an engine that emits one cosmetic event per turn of the loop re-Asks forever without ever tripping it, and is caught only by `RunSettings.MaxSteps` (20 000), which is the backstop. |
 | Stuck: `SubmitRefused` | An answer the driver refuses. Under `strict` that is a real bug in the policy or the engine, and the run stops rather than looping. |
 | Stuck: `NoLegalAnswer` | `NoLegalAnswerException`: a legal set with no answer and no pass. |
-| Failed | An `UnscriptedAskException`, a failed expectation, or a failed invariant. |
+| Failed | An `UnscriptedAskException`, a `RestTimeoutException` (the socket driver waited out `RestTimeout` for `AtRest`), a failed expectation, or a failed invariant. |
 
 **A cap of *n* means *n* whole rounds.** The boundary condition is not a detail: `Round >= RoundCap` **and every open Ask is the round-boundary Ask** stops the run at the end of round *n*, where `Round > RoundCap` alone would let round *n* + 1 start and stop part-way through it. A cap of two therefore ends after the second round, not during the third. Two reasons for that reading. A cap is a maximum number of rounds, so exceeding it by a fraction of a round is a cap that does not hold; and stopping on the boundary Ask leaves the recording ending on a whole round, which is what a viewer's round scrubber and every `ReachedRound` expectation assume. The boundary Ask always arrives, so the loop cannot sail past the cap waiting for it: the scheduler cannot advance a round except through an answered `end_round` Ask, which is invariant 5, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` (Task 7). This is the condition the design document records (`docs/design/simulation/design.md` → *The run loop and the four outcomes*); the table above and `RunLoop.DriveAsync` state it identically, and `A_cap_of_two_stops_at_the_end_of_the_second_round` pins it.
 
@@ -2708,6 +2723,8 @@ public sealed class RunLoop(
             outcome = await DriveAsync(ct);
         }
         catch (UnscriptedAskException ex) { outcome = new RunOutcome.Failed(ex.Message); }
+        // A hung server or a dead socket, not a stuck game: the engine may have been making progress.
+        catch (RestTimeoutException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         catch (NoLegalAnswerException ex) { outcome = new RunOutcome.Stuck(StuckReason.NoLegalAnswer, ex.Message); }
 
         var projection = await driver.ProjectionAsync(ct);
@@ -3227,7 +3244,7 @@ git commit -m "Assert the five invariants that hold for any game"
 
 **Interfaces:**
 - Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IGameRows`, `PostgresGameRows`, `GameServerFactory`, `TestKeys` (game server skeleton; the last two only from the test project); `SocketMessage` and every kind, `WireJson`, `ProtocolVersion`, `Connect`, `Welcome`, `Rejected`, `BoardMessage`, `EventsMessage`, `CommandMessage`, `Refused`, `GameEvent`, `EventApplier`, `Projection`, `OpenAsk`, `Board`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement` (Protocol); `ArmySnapshot`, `TableState`, `ContentJson` (Content); `NpgsqlDataSource` (Npgsql); `CompiledScenario` (Task 1).
-- Produces: `interface IWebSocketConnector { Task<WebSocket> ConnectAsync(CancellationToken ct); }`; `sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector`; `sealed record SocketCredentials(IReadOnlyList<string> Jwts)` with `static SocketCredentials FromEnvironment()`, `Guid AccountOf(int index)` (the `account_id` claim, read without verifying — the server verifies), `string For(int index)`; `sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)` with `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)` and `Task DeleteAsync(Guid gameId, CancellationToken)`, plus `sealed class PropertiesMissingException(string hash)`; `sealed class SocketDriver : IGameDriver` with `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan QuietWindow { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)`.
+- Produces: `interface IWebSocketConnector { Task<WebSocket> ConnectAsync(CancellationToken ct); }`; `sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector`; `sealed record SocketCredentials(IReadOnlyList<string> Jwts)` with `static SocketCredentials FromEnvironment()`, `Guid AccountOf(int index)` (the `account_id` claim, read without verifying — the server verifies), `string For(int index)`; `sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)` with `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)` and `Task DeleteAsync(Guid gameId, CancellationToken)`, plus `sealed class PropertiesMissingException(string hash)`; `sealed class SocketDriver : IGameDriver` with `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)`.
 
 Spec: spec → *Two drivers behind one interface* — "Over the socket. A real WebSocket to a running game server, a real session JWT, real rows and a real event log in Postgres. This exercises the handshake, the wire format, hydration, reconnect and the whole path `architecture.md` calls the only path"; "The same scenario passing in process and failing over the socket localises the fault to transport, serialization or persistence, which is the reason both exist." Module prompt → "Prefer writing rows directly through `IGameRows` plus a test-signed JWT, as the game server's own tests do."
 
@@ -3272,7 +3289,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     }
 
     [Fact]
-    public async Task The_same_scenario_reaches_a_legitimate_end_on_both_drivers()
+    public async Task The_same_scenario_plays_the_same_game_on_both_drivers()
     {
         const ulong seed = 21;
         var scenario = ScenarioCatalog.Get("skirmish").WithSeed(seed);
@@ -3292,17 +3309,26 @@ public class DriverAgreementTests(PostgresFixture pg)
             await using (var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), Credentials(c), pg.Db, ct))
                 overSocket = await RunWith(driver, c, seed, ct);
 
-            // What is asserted and what deliberately is not: see the note under this block.
+            // Run for run, not merely a legitimate end on each: see the note under this block for why
+            // the rest frame makes this sound where the quiet window could not.
+            Assert.Equal("in-process", inProcess.Driver);
             Assert.Equal("socket", overSocket.Driver);
             Assert.True(inProcess.Passed, string.Join("\n", inProcess.Failures));
             Assert.True(overSocket.Passed, string.Join("\n", overSocket.Failures));
+            Assert.Equal(inProcess.Outcome, overSocket.Outcome);
+            Assert.Equal(inProcess.Rounds, overSocket.Rounds);
+            Assert.Equal(inProcess.LastSeq, overSocket.LastSeq);
+            Assert.Equal(inProcess.Frames, overSocket.Frames);
+            Assert.Equal(inProcess.AsksAnswered, overSocket.AsksAnswered);
+
+            // The run reached a legitimate end and did real work, so the equalities above are not two
+            // runs agreeing on having gone nowhere.
             Assert.Contains(overSocket.Outcome.Kind, (string[])["decided", "round_limit"]);
             Assert.True(overSocket.Rounds >= 1, $"the socket run only reached round {overSocket.Rounds}");
             Assert.True(overSocket.AsksAnswered > 10);
 
             // Nothing lost, reordered or duplicated on the wire: seq starts at 1 and rises by one per
             // event, and the recording keeps a frame per event, so Frames == LastSeq on both drivers.
-            // A dropped or replayed EventsMessage breaks this and a slow quiet window cannot.
             Assert.Equal(inProcess.LastSeq, (long)inProcess.Frames);
             Assert.Equal(overSocket.LastSeq, (long)overSocket.Frames);
         }
@@ -3381,13 +3407,13 @@ public class DriverAgreementTests(PostgresFixture pg)
 }
 ```
 
-**Why the two drivers are not compared run-for-run.** An earlier draft of this test asserted `inProcess.Outcome == overSocket.Outcome` and equality of `Rounds`, `LastSeq`, `Frames` and `AsksAnswered` across the two drivers. That is more than the transports guarantee, and a timing window could break it in CI without anything being wrong.
+**Why the two drivers are compared run-for-run again.** An earlier draft of this test asserted `inProcess.Outcome == overSocket.Outcome` and equality of `Rounds`, `LastSeq`, `Frames` and `AsksAnswered`. A later draft weakened all five to a legitimate-end check, because the 250 ms quiet window could not guarantee that the two drivers saw the same Asks at the same step boundary. The project owner's ruling of 2026-09-06 removes that reason, so the strict form is back, and this note records why it is now sound rather than why it was dropped.
 
-What the socket transport *does* guarantee: every event the server emits reaches the recorder's socket, once, in `seq` order, and `DrainEventsAsync` sorts by `seq` and skips anything already applied — so the socket driver's projection is always a prefix of the same event sequence, never a different one. That is what the `Frames == LastSeq` assertions above check, and it is what a serialization, transport or persistence fault actually breaks.
+What the socket transport always guaranteed: every event the server emits reaches the recorder's socket, once, in `seq` order, and `DrainEventsAsync` sorts by `seq` and skips anything already applied, so the socket driver's projection is always a prefix of the same event sequence and never a different one. Per-viewer filtering does not weaken that, because it nulls `ask_answered.Answer` rather than withholding an event (contracts design → *Sequences*: "the filtering nulls a field rather than withholding an event"), so every stream carries every sequence number. That is what the `Frames == LastSeq` assertions check, and it is what a serialization, transport or persistence fault breaks.
 
-What it does not guarantee is *when* an event is observed. `QuietAsync` returns after 250 ms of silence, and a server that takes longer than that over one step hands the loop a shorter list of open Asks than the in-process driver — whose `GameSession.RunAsync` marker makes quiescence exact — would have seen. Two consequences, both real. If two Asks of the same question are open at once, the two drivers can pair them with different `(question, ordinal)` keys, take different answers from the same seeded `Chooser`, and play a different game from there: a different outcome, a different round count, a different `LastSeq`. And a window that expires before the server has emitted anything at all shows the loop a step with no events and no open Ask, which is `Stuck(NoAskNoEvents)` reported for a server that was merely slow. Neither is a bug this test should be reporting as a driver disagreement.
+What the quiet window could not guarantee was *when* an event was observed. A server slower than 250 ms handed the loop a shorter list of open Asks than the in-process driver would have seen, and two Asks of the same question open at once could then be paired with different `(question, ordinal)` keys, take different answers from the same seeded `Chooser`, and play a different game from there. `AtRest` closes exactly that gap. Both drivers now return from `StepAsync` on a positive rest signal rather than on a guess: the marker at the back of the mailbox in process, the frame on the recorder's socket over the wire. Each step therefore sees every event of the batch and every Ask the batch opened, so the `(question, ordinal)` keys, the answers drawn from the `Chooser` and the sequence of commands are the same on both drivers by construction, for the same scenario and the same seed.
 
-So the run-level equality is dropped rather than weakened into something still timing-dependent, and the transport localisation the spec asks for is carried by the parts that do not depend on observation order: both runs pass, both satisfy all five invariants (`RunWith` checks them on each driver), both logs are contiguous, and the two tests below check that the log lands in Postgres and that hydrating from it alone reproduces the projection. If the 250 ms window is ever replaced by a positive rested-signal from the server (*Questions for the project owner*, item 5), quiescence over the socket becomes exact, the observation order is then the same on both drivers by construction, and the strict comparison can come back.
+What remains transport-invariant rather than run-identical is stated separately and still holds: both runs pass, both satisfy all five invariants (`RunWith` checks them on each driver), and `Frames == LastSeq` holds on each independently of the other. Those are the assertions that survive a driver disagreement and localise it, which is why they stay even though the run-for-run equalities subsume them on a passing run. The two tests below carry the rest of the localisation the spec asks for: the log lands in Postgres, and hydrating from it alone reproduces the projection. A socket run that now disagrees with the in-process run on outcome, rounds, `LastSeq`, `Frames` or `AsksAnswered` is a real fault in transport, serialization or persistence, which is what this test exists to say.
 
 `RunLoop` therefore exposes its answer source: add `public IAnswerSource Answers => answers;`.
 
@@ -3568,7 +3594,10 @@ public sealed class SocketDriver : IGameDriver
     private readonly SocketCredentials _credentials;
     private readonly EventApplier _applier;
     private readonly List<Peer> _players = [];
+    private readonly List<GameEvent> _pending = [];
     private readonly CancellationTokenSource _stopping = new();
+    // True when the last command appended, so a rest frame is on its way to the recorder too.
+    private bool _restDueOnRecorder;
     private Peer _recorder = null!;
 
     private SocketDriver(CompiledScenario scenario, IWebSocketConnector connector, SocketCredentials credentials)
@@ -3579,7 +3608,8 @@ public sealed class SocketDriver : IGameDriver
         _applier = new EventApplier(scenario.Board, scenario.Info);
     }
 
-    public TimeSpan QuietWindow { get; init; } = TimeSpan.FromMilliseconds(250);
+    /// <summary>How long one wait for AtRest may take before the server counts as hung. Not a quiescence guess.</summary>
+    public TimeSpan RestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     public static async Task<SocketDriver> StartAsync(CompiledScenario scenario, IWebSocketConnector connector,
         SocketCredentials credentials, NpgsqlDataSource db, CancellationToken ct)
@@ -3604,6 +3634,9 @@ public sealed class SocketDriver : IGameDriver
         _recorder = await OpenAsync(_scenario.RecorderParticipantId, recorderIndex, ct);
         for (var i = 0; i < _scenario.ParticipantIds.Count; i++)
             _players.Add(await OpenAsync(_scenario.ParticipantIds[i], i, ct));
+        // Connect appends nothing, so its AtRest goes to the connecting client alone: waiting for the
+        // recorder's own says the whole log has arrived, where draining whatever had arrived raced it.
+        await RestAsync(ct);
         await DrainEventsAsync(ct);
     }
 
@@ -3630,19 +3663,26 @@ public sealed class SocketDriver : IGameDriver
             ?? throw new ArgumentException($"no socket for participant {participantId}", nameof(participantId));
         var commandId = Guid.CreateVersion7();
         await SendAsync(peer, new CommandMessage(commandId, command));
-        // Refusals come back on the submitting socket; events come back on every socket, including the recorder's.
-        var refusal = await WaitForRefusalAsync(peer, commandId, ct);
-        await QuietAsync(ct);
+        // Refusals come back on the submitting socket, before that command's AtRest, so the rest frame
+        // ends the wait and no timing window is involved. Its Seq is the log's high-water mark: above
+        // what the recorder has applied means the command appended, and the game server broadcasts the
+        // batch and its rest frame to every socket. Equal means it appended nothing, and the rest frame
+        // went to this socket alone, so the recorder has nothing coming and StepAsync must not wait.
+        var (refusal, restSeq) = await WaitForRefusalAsync(peer, commandId, ct);
+        _restDueOnRecorder = restSeq > _applier.Projection.LastSeq;
         return refusal is null ? new SubmitResult.Accepted(null) : new SubmitResult.Rejected(refusal.Reason, refusal.Detail);
     }
 
     public Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)
     {
-        var events = new List<GameEvent>();
+        // Anything RestAsync already read is in _pending; anything queued since is read here. Every
+        // kind but EventsMessage is ignored rather than rejected, which is how a driver tolerates a
+        // frame it has no use for.
         while (_recorder.Inbox.Reader.TryRead(out var frame))
-            if (frame is EventsMessage message) events.AddRange(message.Events);
+            if (frame is EventsMessage message) _pending.AddRange(message.Events);
         foreach (var player in _players) while (player.Inbox.Reader.TryRead(out _)) { }
-        var ordered = events.OrderBy(e => e.Seq).ToList();
+        var ordered = _pending.OrderBy(e => e.Seq).ToList();
+        _pending.Clear();
         foreach (var e in ordered) if (e.Seq > _applier.Projection.LastSeq) _applier.Apply(e);
         return Task.FromResult<IReadOnlyList<GameEvent>>(ordered);
     }
@@ -3651,8 +3691,16 @@ public sealed class SocketDriver : IGameDriver
 
     public async Task<StepResult> StepAsync(CancellationToken ct)
     {
-        await QuietAsync(ct);
+        // No batch is on its way when the last command appended nothing, and none is on its way before
+        // the first command of the run: the server is already at rest and the step is an empty one.
+        AtRest? rest = null;
+        if (_restDueOnRecorder) { rest = await RestAsync(ct); _restDueOnRecorder = false; }
         var events = await DrainEventsAsync(ct);
+        // One connection delivers in order, so every EventsMessage of the batch preceded its AtRest.
+        // A mismatch is a lost, reordered or duplicated frame, and it is a fault rather than a step.
+        if (rest is not null && _applier.Projection.LastSeq != rest.Seq)
+            throw new InvalidOperationException(
+                $"the server rested at seq {rest.Seq} but the recorder's stream reached {_applier.Projection.LastSeq}");
         return new StepResult(events, _applier.Projection.OpenAsks.Values.ToList(), events.Count == 0);
     }
 
@@ -3660,39 +3708,68 @@ public sealed class SocketDriver : IGameDriver
     public async Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken ct)
     {
         var old = _recorder;
+        _pending.Clear();
+        _restDueOnRecorder = false;
         _recorder = await OpenAsync(old.ParticipantId, _scenario.Info.Participants.Count - 1, ct);
-        await QuietAsync(ct);
+        await RestAsync(ct);
         await DrainEventsAsync(ct);
         return old.Socket.CloseStatus;
     }
 
-    /// <summary>No frame on the recorder's socket for a whole window means the server has rested.</summary>
-    private async Task QuietAsync(CancellationToken ct)
+    /// <summary>
+    /// Read the recorder's socket until the server says it is at rest, keeping the events read on the
+    /// way for DrainEventsAsync. RestTimeout guards a hung server; it is not a quiescence guess.
+    /// </summary>
+    private async Task<AtRest> RestAsync(CancellationToken ct)
     {
-        while (true)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RestTimeout);
+        try
         {
-            using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            window.CancelAfter(QuietWindow);
-            try { await _recorder.Inbox.Reader.WaitToReadAsync(window.Token); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return; }
-            if (!_recorder.Inbox.Reader.TryPeek(out _)) return;
-            await Task.Yield();
-            if (_recorder.Inbox.Reader.Count > 0) { await DrainEventsAsync(ct); continue; }
+            while (true)
+            {
+                var frame = await _recorder.Inbox.Reader.ReadAsync(deadline.Token);
+                if (frame is EventsMessage message) _pending.AddRange(message.Events);
+                else if (frame is AtRest rest) return rest;
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
+        }
+        catch (ChannelClosedException)
+        {
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
         }
     }
 
-    private async Task<Refused?> WaitForRefusalAsync(Peer peer, Guid commandId, CancellationToken ct)
+    /// <summary>
+    /// A command's Refused precedes that command's AtRest on the submitting socket, whatever the
+    /// outcome, so the rest frame ends the wait. Returns the refusal if there was one and the rest
+    /// frame's Seq either way.
+    /// </summary>
+    private async Task<(Refused? Refusal, long RestSeq)> WaitForRefusalAsync(Peer peer, Guid commandId, CancellationToken ct)
     {
-        using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        window.CancelAfter(QuietWindow);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RestTimeout);
+        Refused? refusal = null;
         try
         {
-            while (await peer.Inbox.Reader.WaitToReadAsync(window.Token))
-                while (peer.Inbox.Reader.TryRead(out var frame))
-                    if (frame is Refused refused && refused.MessageId == commandId) return refused;
+            while (true)
+            {
+                var frame = await peer.Inbox.Reader.ReadAsync(deadline.Token);
+                if (frame is Refused r && r.MessageId == commandId) refusal = r;
+                if (frame is AtRest rest) return (refusal, rest.Seq);
+            }
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
-        return null;
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
+        }
+        catch (ChannelClosedException)
+        {
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
+        }
     }
 
     private async Task<SocketMessage> ExpectAsync(Peer peer, CancellationToken ct)
@@ -3742,7 +3819,9 @@ public sealed class SocketDriver : IGameDriver
 }
 ```
 
-`QuietAsync` is the whole of the asymmetry the interface names: it waits for a silence of `QuietWindow` on the recorder's socket, draining anything that arrives in the meantime. A 250 ms window over a loopback socket costs a quarter of a second per step, so a socket run of a full game takes minutes where the in-process run takes milliseconds — which is exactly why the in-process driver is the default and the socket one is a smaller set of scenarios in CI.
+`RestAsync` is where the asymmetry used to live. It reads the recorder's socket until an `AtRest` arrives, keeping the events it passes on the way, so a step costs what the server takes to answer it and nothing more. Three earlier hazards go with the window it replaces: a slow server no longer reads as a rested one, `StartAsync` and `ReconnectRecorderAsync` no longer race the connect-time log delivery, and `WaitForRefusalAsync` no longer reads a slow refusal as an acceptance. The in-process driver is still the default, because it needs no Postgres, no server process and no Docker, and the socket one still runs a smaller set of scenarios in CI.
+
+**What Task 8 breaks without**, all of it already decided by the game server skeleton plan and consumed rather than requested here: an `AtRest` at the end of `ConnectAsync` at every status, an `AtRest` at the end of `HandleCommandAsync` whatever the outcome, a `Refused` before that command's `AtRest` on the sender's socket, and `Seq` as the log's high-water mark. A server that appends events and never sends the frame leaves the step waiting out `RestTimeout` and the run `Failed`, which is loud rather than silent and is why the wait is bounded at all.
 
 - [ ] **Step 5: Run the tests; expect all green, then commit**
 
@@ -4465,14 +4544,15 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 | --- | --- |
 | `interface IGameDriver : IAsyncDisposable` | `string Name`, `Guid GameId`, `GameInfo Info`, `Board Board`, `IRL<Guid> TeamIds`, `Guid ParticipantFor(Guid)`, `DriverMode Mode`, `Task StartAsync`, `Task<IRL<OpenAsk>> OpenAsksAsync`, `Task<SubmitResult> SubmitAsync(Guid, Command, CancellationToken)`, `Task<IRL<GameEvent>> DrainEventsAsync`, `Task<Projection> ProjectionAsync`, `Task<StepResult> StepAsync`, default `Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer, CancellationToken)` |
 | `abstract record SubmitResult` | `Accepted(string? Warning)`, `Rejected(RefusalReason, string Detail)` |
-| `sealed record StepResult(IRL<GameEvent> Events, IRL<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }` | |
+| `sealed record StepResult(IRL<GameEvent> Events, IRL<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }` | `Quiescent` is true when the server rested and emitted nothing |
+| `sealed class RestTimeoutException(TimeSpan timeout, long lastSeq) : Exception` | `TimeSpan Timeout`, `long LastSeq`; thrown by `SocketDriver` when `AtRest` does not arrive inside `RestTimeout`, and turned into `RunOutcome.Failed` by `RunLoop` |
 | `sealed class ScenarioRows(CompiledScenario) : IGameRows` | the six reads; the seven writes throw `NotSupportedException` |
 | `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed` |
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
 | `sealed record SocketCredentials(IRL<string> Jwts)` | `const EnvironmentVariable = "TABLETOP_SIM_JWT"`, `static FromEnvironment()`, `string For(int)`, `Guid AccountOf(int)` |
 | `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
-| `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan QuietWindow`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
+| `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout` (30 seconds), `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
 ### `Tabletop.Sim.Run`
 
@@ -4571,8 +4651,8 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 1. **Interpreter plan** — `PropertiesSeeder.EmbeddedDocuments()` (`static IReadOnlyList<PropertySetDocument>`) and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` must both be `public`, because `ScenarioCompiler.CoreProperties` is how `sim/` gets the core Grimdark Future set without touching a test project. `PropertySetDocument.GameRules` is read to pick the document. Also `InMemoryPropertiesStore.Add(PropertySet)` returning `this`, `DiceSource()` parameterless, and `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public.
 2. **Scheduler plan** — `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. `AskQuestions.EndRound` is the boundary Ask's question, and invariant 5 reads it from `Tabletop.Protocol.AskQuestions` (added to the contracts plan on 2026-09-06 by that plan's *Interfaces needed*).
-3. **Game server skeleton plan** — `GameSession.ConnectAsync(ISessionClient)`, `ReceiveAsync(ISessionClient, SocketMessage)`, `RunAsync<T>(Func<Task<T>>)`, `DrainAsync(string)` and the `Play` property public; `Hydrator.HydrateAsync`; `Replay.To(Board, GameInfo, IReadOnlyList<GameEvent>, long)`; `InMemoryEventLog()`; `GameServerOptions` constructible from object-initializer syntax with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set (every other member defaulted); `PostgresGameRows(NpgsqlDataSource)`; and `PostgresFixture.CountAsync`, confirmed from that plan as `Task<int> CountAsync(string sql, params object[] args)` — positional parameters, so `DriverAgreementTests` passes the game id as `$1`, and an `int` return, so the one comparison against a `long` sequence casts. Nothing here asks for a change.
-4. **Contracts plan** — `EventApplier.EffectiveLog(IReadOnlyList<GameEvent>)` as a public static, which the undo invariant and invariant 4 both call; `Projection.Initial(Board, GameInfo)`; `WireJson.Serialize<T>(T)` accepting an enum, which is how `sim/` prints `alternating-activation` rather than inventing a second spelling. Also **`GameInfo.RngSeed`**, the stored RNG seed the project owner ruled on 2026-09-06, together with the `management.game` column it comes from. That plan owns the name, the SQL type and the C# type; this one consumes its choice.
+3. **Game server skeleton plan** — `AtRest(long Seq)` at the end of `ConnectAsync` at every status and at the end of `HandleCommandAsync` whatever the outcome, with `Seq` the log's high-water mark (`Play?.Projection.LastSeq ?? 0`), broadcast when the batch appended at least one event and sent to the provoking client alone when it appended none, and a command's `Refused` sent before that command's `AtRest`. **That plan landed this on 2026-09-06 and this one consumes it unchanged**; it is why `SocketDriver.SubmitAsync` reads the submitting socket's rest frame and why `StepAsync` waits on the recorder's only when the command appended. Also `GameSession.ConnectAsync(ISessionClient)`, `ReceiveAsync(ISessionClient, SocketMessage)`, `RunAsync<T>(Func<Task<T>>)`, `DrainAsync(string)` and the `Play` property public; `Hydrator.HydrateAsync`; `Replay.To(Board, GameInfo, IReadOnlyList<GameEvent>, long)`; `InMemoryEventLog()`; `GameServerOptions` constructible from object-initializer syntax with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set (every other member defaulted); `PostgresGameRows(NpgsqlDataSource)`; and `PostgresFixture.CountAsync`, confirmed from that plan as `Task<int> CountAsync(string sql, params object[] args)` — positional parameters, so `DriverAgreementTests` passes the game id as `$1`, and an `int` return, so the one comparison against a `long` sequence casts. Nothing here asks for a change.
+4. **Contracts plan** — `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client. **Landed 2026-09-06** as `public sealed record AtRest(long Seq) : SocketMessage` with `[JsonDerivedType(typeof(AtRest), "at_rest")]`, the eighth of thirteen kinds; this plan consumes it and adds nothing to it. Also `EventApplier.EffectiveLog(IReadOnlyList<GameEvent>)` as a public static, which the undo invariant and invariant 4 both call; `Projection.Initial(Board, GameInfo)`; `WireJson.Serialize<T>(T)` accepting an enum, which is how `sim/` prints `alternating-activation` rather than inventing a second spelling. Also **`GameInfo.RngSeed`**, the stored RNG seed the project owner ruled on 2026-09-06, together with the `management.game` column it comes from. That plan owns the name, the SQL type and the C# type; this one consumes its choice.
 
    **Landed 2026-09-06, and this plan follows it: `long RngSeed`, positional and last among `GameInfo`'s scalars — after `WaitsBetweenSteps`, before `Teams` and `Participants` — over a `management.game.rng_seed bigint not null` column with no default** (contracts plan → *Interfaces → Produces* and spec correction 12). Positional on purpose, so a construction that forgets the seed fails to compile rather than silently getting `0`. `long` because `bigint` is signed, so `ScenarioCompiler` writes `unchecked((long)s.Seed)` from the scenario's `ulong Seed`; the reverse cast (`unchecked((ulong)info.RngSeed)`, where `GameState.RngSeed : ulong` is set) belongs to the interpreter plan, not this one. `SocketRowSeeder` passes `info.RngSeed` straight into the insert. The four places this plan spells the seed are `ScenarioCompiler.Compile`, `SocketRowSeeder.SeedAsync`, and the seed assertions in `ScenarioTests` and `RunLoopTests`.
 5. **Geometry plan** — `Movement.Check(PlacedModel, Point2, double, IReadOnlyList<WorldVolume>, IReadOnlyList<WorldVolume>, double?, TableSize?) → MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`; `ZoneStyles.ShapesOf(string)`, `ZoneStyles.Resolve(string, TableSize)`, `ZoneStyles.Contains(string, TableSize, Point2)`, and the style constants `Frontline` and `FreeForAll`; `Settling.SurfaceHeightAt(Point2, IReadOnlyList<WorldVolume>)`.
@@ -4585,11 +4665,11 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 ## Questions for the project owner
 
-1. **How does a socket run get its session JWTs?** Assumed a comma-separated `TABLETOP_SIM_JWT` with one real session token per team plus one for the recorder, since a token names one account and an account maps to one participant. That is clumsy: a three-team soak needs four tokens pasted by hand, and they expire. If instead the game server should grow a development-only endpoint that mints a token for a named account — off by default, on only under `ASPNETCORE_ENVIRONMENT=Development` — then `SocketCredentials.FromEnvironment` becomes a call to it, `SocketRowSeeder` creates the accounts itself, and `--driver socket` needs no environment variable at all. That is a change to the game server, which is why it is a question rather than a decision. Nothing else in the plan moves either way.
+1. **How does a socket run get its session JWTs?** Assumed a comma-separated `TABLETOP_SIM_JWT` with one real session token per team plus one for the recorder, since a token names one account and an account maps to one participant. Still open, and narrowed by the ruling on question 5: two objections stood, four tokens pasted by hand for a three-team soak and tokens expiring, and the second was largely a consequence of a socket game taking minutes, so a seed range outran the tokens it started with. A rest-signalled socket run is fast enough that expiry inside a run is no longer the concern, and the pasting is what remains. If instead the game server should grow a development-only endpoint that mints a token for a named account — off by default, on only under `ASPNETCORE_ENVIRONMENT=Development` — then `SocketCredentials.FromEnvironment` becomes a call to it, `SocketRowSeeder` creates the accounts itself, and `--driver socket` needs no environment variable at all. That is a change to the game server, which is why it is a question rather than a decision. Nothing else in the plan moves either way.
 2. **Should a `stuck` run fail the console's exit code?** Assumed yes: `RunReport.Passed` is false for `stuck` and `failed`, so `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the exit code changes; the frames are still dumped either way.
 3. **Should `sim/` be in `Tabletop.sln`?** Assumed yes, in a `sim` solution folder, so `dotnet build` at the root builds it and `dotnet test` runs its tests — which is what makes it part of the whole-tree check every plan ends with. If it should be excluded so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands section grows a line; nothing in the code changes.
 4. **How many scenarios should the catalog ship with, and are these the right five?** Assumed `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change.
-5. **Is 250 ms the right quiet window for the socket driver?** Assumed yes, which makes a full socket game take minutes. If socket runs should be fast enough for a seed range rather than a single scenario, the driver needs a positive signal that the server has rested — a frame the server sends when `AdvanceAsync` finds nothing to do — and that is a new `SocketMessage` kind owned by the contracts plan, so it is a question rather than a tuning knob. In process is unaffected and stays exact.
+5. **Is 250 ms the right quiet window for the socket driver? Answered by the project owner on 2026-09-06: it is replaced by a rest frame.** The game server sends `AtRest(long Seq)` when it has finished processing an inbound `connect` or `command`, carrying the log's high-water mark, broadcast when the batch appended and sent to the provoking client alone when it did not. `SocketDriver.StepAsync` waits for that frame instead of for silence, and `RestTimeout` (30 seconds) replaces `QuietWindow` as a guard on a hung server rather than as a guess at quiescence; expiry is `RestTimeoutException`, which `RunLoop` turns into a `Failed` run. Task 8 is rewritten accordingly, and `DriverAgreementTests` compares the two drivers run for run again. In process is unaffected and stays exact.
 
 ---
 

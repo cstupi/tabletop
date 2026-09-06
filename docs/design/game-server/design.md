@@ -287,6 +287,50 @@ that loses calls `FaultAsync`, which closes every socket with `1011` and marks t
 Single-task ownership is a deployment property ("one game lives on one task"), and the database
 is the backstop for the window in which it is briefly false.
 
+**Three failures on this path, one response.** `AppendAsync` faults the session on a
+`DuplicateSequenceException` from step 3, on any other exception from step 3, and on a
+`ProjectionDesyncException` from step 4. A batch whose append threw for any other reason has an
+unknown outcome, so the next `seq` is unknown and the instance cannot be trusted to continue. A
+`ProjectionDesyncException` in step 4 means this server has just written an event naming an id
+its own projection does not hold (owner ruling 2, 2026-09-06). Faulting is the whole response:
+the batch is durable by then, so a resync would replay the same event from the same log and
+throw again, and hydration hits it in `Hydrator` instead, where `ConnectionHandshake` closes the
+socket with `1011`. The client's opposite treatment of the same exception, dropping the
+projection and rebuilding it from the log, works because a client holds one copy of a log it can
+re-read.
+The server holds the only copy, and the log it would rebuild from is the log that faulted. The
+order stays append-first. Applying before appending would keep the log clean at the cost of a
+projection mutated by events that may never be durable, and the session is discarded either way.
+
+### The rest frame
+
+`AtRest(long Seq)` is the server saying it has nothing further to send right now, with the log
+ending at `Seq` (owner ruling 4, 2026-09-06). `Seq` is always `Play?.Projection.LastSeq ?? 0`,
+the log's high-water mark: `0` before the log opens, and unchanged from the previous frame when
+the batch appended nothing. The frame is `GameSession.Rest()` and has three call sites.
+
+| Sent | To whom | Carrying |
+| --- | --- | --- |
+| At the end of `ConnectAsync`, at every status | the connecting client alone | the log as delivered, `0` at `lobby` and `setup` |
+| At the end of `HandleCommandAsync`, whatever the outcome | everyone when the batch appended an event, the sender alone when it appended none | the mark after the batch, or the unchanged mark |
+| At the end of `HandleEndSetupAsync`, after `AdvanceAsync` | everyone | the last of the scheduler's opening events |
+
+The frame follows its batch. A command refused under strict enforcement, or refused for the
+status, appends nothing, so its rest frame reaches nobody but the sender and a refusal still
+tells the other players nothing. A command that appended reaches everyone the events reached, after those
+events, because both go out from the same mailbox turn through each connection's ordered send
+queue. A client connecting to an idle game therefore gets one immediately after its initial
+events, and needs no quiet window to tell "still sending" from "finished".
+
+Lobby and setup edits emit nothing. They touch no log, `Seq` would name nothing at `setup`, and
+the `GameInfoMessage` or `BoardMessage` carrying the whole settled value is itself the
+terminator. Ending setup is the exception among edits, because it opens the log and runs the
+engine.
+
+This replaces the simulator's 250 millisecond quiet window, which was its only signal that the
+server had stopped. A slower server read as a stuck game and a socket run took minutes. A client
+with no use for the frame ignores it, as it ignores any kind it does not recognise.
+
 ### Undo by replay
 
 `Undo(ToSeq)` is an ordinary logged command. The dispatcher accepts it only when `ToSeq` is `0`
@@ -325,7 +369,7 @@ durability rules. `GameSession.ReceiveAsync` is the whole routing table:
 
 | Frame | Handled by | Logged | Persisted | Broadcast | Valid at |
 | --- | --- | --- | --- | --- | --- |
-| `CommandMessage` | `HandleCommandAsync` → `CommandDispatcher` | **yes**, before broadcast | in the log | to everyone, filtered per viewer | `playing`, `ended` |
+| `CommandMessage` | `HandleCommandAsync` → `CommandDispatcher` | **yes**, before broadcast | in the log | to everyone, filtered per viewer, then one `AtRest` | `playing`, `ended` |
 | `PresenceMessage` | `HandlePresence` → `PresenceTable.Set` | never | never | on the next 20 Hz tick, latest value only | every status |
 | `PingMessage` | relayed at once, sender stamped | never | never | immediately, except back to the sender | every status |
 | `EditMessage` with a `LobbyEdit` | `HandleLobbyEditAsync` | never | **management's rows** | `GameInfoMessage` | `lobby`, `setup` |
@@ -456,7 +500,9 @@ empty list, appending each result. That is where the scheduler opens the next As
 interpreter completes steps. The engine is never asked "what happens next" by a timer, only by a
 command having landed. `architecture.md`'s "no simulation tick" is this loop being driven by
 appends. The loop is capped at 10 000 iterations and logs an error rather than spinning forever.
-That cap is the only guard against a `GameRules` hook that never rests.
+That cap is the only guard against a `GameRules` hook that never rests. When the loop does rest,
+one `AtRest` goes out behind the last of its events, which is the client's signal that the
+command is finished and not merely quiet.
 
 The seam states two invariants for the plans behind it. The engine **never appends and never
 broadcasts**: it returns payloads. The engine reads `state.Projection` afresh on every call,
@@ -523,7 +569,8 @@ writes every `army_snapshot` (null staying null) and flips `status` to `playing`
 `Draft` becomes null, `Play` is a fresh `GameState` over `new Board(snapshot, armies)`, and a
 fresh `EventApplier`, `Engine` and `Dispatcher` are created. `GameInfoMessage`, `BoardMessage`
 and an empty `EventsMessage` go out, and `AdvanceAsync` runs, which is where the scheduler will
-begin deployment.
+begin deployment. One `AtRest` closes the transition, because it is the one edit that opens the
+log and runs the engine.
 
 | Transition | Frozen by it |
 | --- | --- |
@@ -620,6 +667,8 @@ Decisions this plan took because no spec settled them:
 | A game leaves memory with its last socket; nothing keeps it warm | `ReleaseIfEmptyAsync` on every detach | Accounts makes hydrate-from-the-log the one path, so a warm cache would be a second one |
 | 20 Hz presence relay | `GameServerOptions.PresenceRelayHz` | Presence left the rate open; `architecture.md`'s "four players at 20Hz" is the standing figure the review left untouched |
 | A lost `seq` race faults the game rather than retrying | `FaultAsync`, close `1011`, replace on next hydrate | One game on one task is a deployment property; the primary key is the backstop, and a retry would paper over two writers |
+| The rest frame follows its batch: broadcast when the batch appended, to the sender alone when it did not | `HandleCommandAsync` compares `LastSeq` before and after | Always broadcasting would tell every player that someone's command was refused, and sending only on a non-empty batch would leave a refused sender with no terminator. Owner ruling 4, 2026-09-06 |
+| A desync applying the server's own event faults the session | `FaultAsync`, close `1011`; hydration hits the same event and the handshake closes `1011` | Resyncing, which is what the client does with the same exception, would replay the same event from the same log. Owner ruling 2, 2026-09-06 |
 
 ## Interfaces
 
@@ -658,7 +707,7 @@ Decisions this plan took because no spec settled them:
 | Type | Members |
 | --- | --- |
 | `interface ISessionClient` | `Guid ConnectionId`, `Guid ParticipantId`, `ValueTask SendAsync(SocketMessage)`, `ValueTask CloseAsync(WebSocketCloseStatus, string)` |
-| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `AdvanceAsync`, `ReloadInfoAsync`, `NewDraft` |
+| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `AdvanceAsync`, `Rest`, `ReloadInfoAsync`, `NewDraft` |
 | `sealed record SessionServices` | `IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging` |
 | `sealed class PresenceTable` | `Set(Presence)`, `Remove(Guid)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All` |
 | `static class Hydrator` | `Task<GameSession> HydrateAsync(Guid, SessionServices, CancellationToken)`; `GameNotFoundException`, `GameRowsInconsistentException` |
@@ -677,7 +726,7 @@ Decisions this plan took because no spec settled them:
 
 | From | What |
 | --- | --- |
-| `Tabletop.Protocol` | `ProtocolVersion`, `SocketMessage` and its twelve kinds, `Command` and its twenty-one, `EventPayload`/`StateChange`, `GameEvent`, `EventKinds`, `Ask`/`LegalSet`/`AskAnswer`/`AskQuestions`, `Edit`/`LobbyEdit`/`SetupEdit`, `Presence`/`Ping`, `GameInfo`/`Team`/`Participant`/`ArmyInPlay`/`Board`, `Projection`/`EventApplier`, `GameStatus`/`SchedulerShape`/`Enforcement`/`RefusalReason`/`RejectReason`, `WireJson` |
+| `Tabletop.Protocol` | `ProtocolVersion`, `SocketMessage` and its thirteen kinds including `AtRest`, `ProjectionDesyncException`, `Command` and its twenty-one, `EventPayload`/`StateChange`, `GameEvent`, `EventKinds`, `Ask`/`LegalSet`/`AskAnswer`/`AskQuestions`, `Edit`/`LobbyEdit`/`SetupEdit`, `Presence`/`Ping`, `GameInfo`/`Team`/`Participant`/`ArmyInPlay`/`Board`, `Projection`/`EventApplier`, `GameStatus`/`SchedulerShape`/`Enforcement`/`RefusalReason`/`RejectReason`, `WireJson` |
 | `Tabletop.Content` | `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `DeploymentZone`, `VisualRef`, `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `ArmySnapshot`, `ContentJson` |
 | `Tabletop.Geometry` | `Point2`, `Point3`, `Yaw`, `TableSize`, `Base`, `Volume`, `Footprint`, `TerrainDeclarations` (values only, no geometry is computed here) |
 | Management (indirectly) | `game`, `team`, `participant`, `army`, `properties` rows, and a session JWT carrying `account_id` from the Stytch project's `SESSION` claim template |
@@ -688,7 +737,9 @@ Honoured, from the contracts plan: `GameEvent.Kind` to `game_event.kind` and
 `WireJson.Serialize(GameEvent)` to `payload`; `AskClosed` before `SequenceAbandoned` for every
 Ask on a popped frame; `Undo` refused unless the target is `0` or a live seq; a `BoardMessage`
 with the whole draft after each setup edit and a `GameInfoMessage` after each lobby edit;
-`AskAnswered.Answer` nulled for teams a sealed window withholds from.
+`AskAnswered.Answer` nulled for teams a sealed window withholds from; `AtRest` as the last frame
+of the connect sequence and of every command, and `ProjectionDesyncException` caught rather than
+allowed to kill a mailbox item.
 
 Placed: management must keep every Stytch user's `external_id` set to its `Account.id`, so that
 the project's `SESSION` claim template renders `account_id` into every JWT that reaches this
@@ -697,7 +748,9 @@ columns, must insert `participant` with `team_id` and `army_id` null, and must
 never write `status = 'setup' | 'playing'`, `team`, `participant.team_id`, `participant.army_id`,
 `participant.army_snapshot`, or a game's `table_state` tree. The scheduler and the interpreter
 must supply exactly one `IRulesEngine` between them, must not emit `AskAnswered`/`AskClosed` for
-answers, and must not append or broadcast.
+answers, and must not append or broadcast. Every client must ignore a `SocketMessage` kind it
+does not recognise, `at_rest` included, rather than treat it as a protocol error. The simulator
+waits for `at_rest` instead of timing a quiet window.
 
 ## Sequences
 
@@ -729,6 +782,7 @@ sequenceDiagram
     S-->>C: BoardMessage (setup on, none at lobby)
     S-->>C: EventsMessage x N, 500 events each, filtered per viewer
     S-->>C: other participants' presence values
+    S-->>C: AtRest(LastSeq, 0 before the log opens)
     Note over S,C: then live frames, the whole sequence is one mailbox turn
 ```
 
@@ -737,8 +791,14 @@ turn, so no live event can interleave into the middle of it. A `Rejected` frame 
 close. A hydration failure closes with `1011` instead, so the client sees a different signal for
 "your game is broken" than for "you are not allowed in". An empty `EventsMessage` is always sent
 at `playing`, so "the log from the start" is one observable thing even when the log is empty. A
-game that ended before setup ever ran has no `table_state` row and no log, so `Welcome` is the
-entire sequence.
+game that ended before setup ever ran has no `table_state` row and no log, so `Welcome` and
+`AtRest(0)` are the whole sequence. `AtRest` is the last frame at every status, and this is the
+one place it is addressed to a single connection rather than broadcast, because what it
+terminates is that connection's delivery.
+
+A hydration failure includes `ProjectionDesyncException` out of `Hydrator`'s `ApplyAll`: a
+stored log that does not apply to the stored snapshot is a server bug, and no reconnect clears
+it, so the socket closes with `1011` like any other broken game.
 
 ### A command: socket to log to broadcast
 
@@ -765,7 +825,8 @@ sequenceDiagram
     D-->>S: Applied(events, warning) or Refused(reason, detail)
     alt Refused
         S-->>A: Refused(commandId, reason, detail)
-        Note over L: nothing is written
+        S-->>A: AtRest(LastSeq, unchanged)
+        Note over L: nothing is written, and nobody else hears anything
     else Applied
         S->>S: capture sealed-open Asks, assign seq from LastSeq + 1
         S->>L: AppendAsync (one transaction, all or nothing)
@@ -777,6 +838,7 @@ sequenceDiagram
             S->>L: append
             S-->>B: broadcast
         end
+        S-->>B: AtRest(LastSeq)
     end
 ```
 
@@ -784,9 +846,10 @@ The append precedes every broadcast, so no client ever sees an event that is not
 refusal reaches only the sender and writes nothing. The append is a Postgres round trip on the
 mailbox, so command latency for a game is one round trip plus however many `Advance` iterations
 the engine takes. A `GameRules` hook that emits an event every iteration turns one command into a
-chain of appends before any other frame for that game is handled. A `DuplicateSequenceException`
-here faults the game. Any *other* database exception escapes the mailbox item and reaches the
-read loop uncaught.
+chain of appends before any other frame for that game is handled. The whole chain ends in one
+`AtRest`, after the last of its events, so the batch has one terminator however many appends it
+took. A `DuplicateSequenceException`, any other append failure, and a `ProjectionDesyncException`
+from applying the batch all fault the game.
 
 ### A setup edit, for contrast
 
@@ -844,6 +907,7 @@ sequenceDiagram
     S-->>B: GameInfoMessage, BoardMessage, empty EventsMessage
     S->>E: Advance
     E-->>B: the scheduler's first events (deployment)
+    S-->>B: AtRest(LastSeq)
 ```
 
 The draft becomes the snapshot by the status flip, with no copy step, and the log opens on it.
@@ -1007,9 +1071,9 @@ stateDiagram-v2
     [*] --> absent
     absent --> hydrating : first socket for this game
     hydrating --> live : rows + draft/snapshot + log, then StartAsync (+ Advance)
-    hydrating --> absent : GameNotFound / GameRowsInconsistent / UnknownGameRules, close 1011
+    hydrating --> absent : GameNotFound / GameRowsInconsistent / UnknownGameRules / ProjectionDesync, close 1011
     live --> live : sockets attach and detach, a newer socket replaces an older one per participant
-    live --> faulted : DuplicateSequenceException, or a draft write failure
+    live --> faulted : any append failure, a ProjectionDesyncException applying the batch, or a draft write failure
     live --> absent : ReleaseIfEmptyAsync when the last socket goes
     faulted --> absent : released, or replaced on the next GetOrHydrateAsync
     live --> drained : SIGTERM, DrainAllAsync, every socket closed 1001
@@ -1032,6 +1096,7 @@ edge back to `absent` is recovered by hydrating again.
 | Two members of one team answering the same Ask | The dispatcher refuses the second with `NotPermitted`; one answer per team | `Only_an_addressed_team_may_answer_and_an_unknown_ask_is_unknown` |
 | Two people dragging the same piece in setup | Arrival order on the mailbox; last drop wins, and each sees the other's drag through presence | `Anyone_edits_everyone_sees_the_whole_draft_and_the_row_follows` |
 | A crash between an append and `Advance` | `StartAsync` runs `AdvanceAsync` after hydrating a `playing` game | `Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer` |
+| An event the server's own projection cannot apply | `EventApplier` throws `ProjectionDesyncException`, `AppendAsync` faults the session and closes every socket with `1011`; the next hydrate throws the same exception and the handshake closes with `1011` | `An_event_the_servers_own_projection_cannot_apply_faults_the_session` |
 | An engine that never rests | `AdvanceAsync` caps at 10 000 iterations and logs an error | — |
 | Two sockets for one participant | The newer replaces the older, closed with `1000`; presence stays one value | `A_second_connection_for_the_same_participant_replaces_the_first` |
 
@@ -1044,11 +1109,17 @@ edge back to `absent` is recovered by hydrating again.
 - **A draft write failure faults the session.** Memory and row would otherwise disagree, and the
   next hydrate is what shows the truth. Closing the sockets makes clients reconnect onto the row
   rather than hold a board the database does not have.
-- **Any database exception other than a duplicate seq escapes.** `AppendAsync` catches
-  `DuplicateSequenceException` only. Anything else propagates out of the mailbox item to the
-  `Task` that `ReceiveAsync` returned, which `ConnectionHandshake`'s read loop awaits and does
-  not catch. The connection dies without a `Refused` and the session keeps running. This is the
-  largest hole in the module's error handling.
+- **No exception escapes a mailbox item.** `AppendAsync` catches every exception from
+  `IEventLog.AppendAsync` and every `ProjectionDesyncException` from applying the batch, and
+  faults on all of them. What a handler throws off the log path, in a lobby edit's row read or
+  the end-setup transaction, reaches the `Task` that `ReceiveAsync` returned, and
+  `ConnectionHandshake`'s read loop catches it as a last resort, logs it, and closes that
+  connection with `1011`. Catching only `DuplicateSequenceException`, which is what the first
+  draft of the log path did, left the read loop awaiting a faulted `Task` it did not handle: a
+  dead socket and a running session, and the largest hole in the module's error handling.
+  Faulting stays reserved for the two places where memory and the database can disagree: the log
+  path, and the draft write whose broadcast has already gone out. A lobby or end-setup write that
+  throws rolls back and leaves the session's own state untouched, so only the connection goes.
 - **A faulted session's mailbox loop is never completed.** `FaultAsync` closes and clears the
   clients but does not complete the channel writer. The loop is stopped only by `DrainAsync`,
   which runs from `ReleaseIfEmptyAsync` or the global drain. A faulted session whose clients all
@@ -1072,6 +1143,10 @@ edge back to `absent` is recovered by hydrating again.
 - **Illegal game states.** Nothing is an invariant: a dead model on the table, a unit marked
   activated twice, an active team whose turn it is not. Only references are checked, because
   applying an event naming nothing would throw inside the applier.
+- **A log the projection cannot apply is unrecoverable in place.** The batch is durable before it
+  is applied, so an event naming an id nothing created stays in the log. Every subsequent hydrate
+  replays it and throws, and the game cannot be opened until the row is removed by hand. The
+  fault makes the bug loud on the first occurrence instead of letting one player's copy diverge.
 - **`GameRules` is not pinned.** Only `Properties` is content-addressed. Restarting an ended
   game after a deploy that changed a step list may replay differently. Pinning a build version
   was rejected: every deploy would become a wall old games cannot cross.
@@ -1098,9 +1173,9 @@ end to end in-process.
 | `LegalSetMembership`, `EnforcementPolicy`, `EventFilter` | pure functions; the policy is a nine-row theory over the three settings times the four legalities | no |
 | `CommandDispatcher` | over `InertEngine` and `FixedAskEngine`; menu edits under every setting, out-of-set answers under each setting, sealed collection, abandon-closes-asks-first, enumeration | no |
 | `DraftEditor` | fourteen edit kinds in, drafts out, plus the corner-origin off-slab rule | no |
-| `GameSession` | `RecordingClient` implements `ISessionClient`, so the actor, the log path, presence, faulting and per-viewer filtering are tested with no socket at all | no |
+| `GameSession` | `RecordingClient` implements `ISessionClient`, so the actor, the log path, presence, faulting, per-viewer filtering, the rest frame's two audiences and the desync fault (`DesyncingEngine` emits an event naming a model nothing created) are tested with no socket at all | no |
 | `PostgresGameRows` | `PostgresFixture` seeds and deletes rows in the compose database; an army tree is written and read back against `ArmyTests.Sample()` | **yes** |
-| The socket | `GameServerFactory : WebApplicationFactory<Program>` plus `TestClient`; connect, four rejections, protocol errors, the log-then-live sequence, reconnect, release-and-rehydrate, the presence tick, the SIGTERM drain, lobby and setup edits, end-setup | **yes** for anything that needs a game row |
+| The socket | `GameServerFactory : WebApplicationFactory<Program>` plus `TestClient`; connect, four rejections, protocol errors, the log-then-live sequence, the rest frame closing the connect sequence and following every batch, reconnect, release-and-rehydrate, the presence tick, the SIGTERM drain, lobby and setup edits, end-setup | **yes** for anything that needs a game row |
 
 Tests needing rows carry `[Collection("Postgres")]` and expect `docker compose up -d`. The
 fixture neither migrates nor checks the schema, so a volume created before

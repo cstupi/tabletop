@@ -602,8 +602,12 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 | Direction | Kinds |
 | --- | --- |
 | Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit` |
-| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`) |
+| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`) |
 | Both | `presence`, `ping` |
+
+Thirteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
+which is what lets a kind be added to the union without a lockstep release of the client, the viewer
+and the simulator.
 
 `RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }` closes the connection.
 `RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }` refuses one command
@@ -611,6 +615,18 @@ or edit and leaves the socket up. `Refused.MessageId` is the client's own `Comma
 so both `CommandMessage` and `EditMessage` carry a client-generated `Guid`. It is a correlation id
 and nothing else. An accepted command gets no acknowledgement, because the resulting event is the
 acknowledgement.
+
+**`AtRest(long Seq)` is the rest frame.** The game server sends it when it has finished processing
+an inbound `connect`, `command` or `edit` and has nothing further to emit for that game. It is
+sent after the last frame that processing produced: the hydration frames on a connect, the `events`
+frame on an accepted command, the `refused` frame on a rejected one. Who receives it is the game
+server's rule and is settled in its design: the frame follows its batch, broadcast when the batch
+appended an event and sent to the provoking client alone when it did not. Presence and pings are
+relayed rather than processed and never produce one. `Seq` is the last sequence number in the log, so it repeats the previous value
+when the round of processing appended nothing, and is `0` for a game whose log is empty. It is a
+rest point, not a receipt: `at_rest` says nothing more is coming, and never that anything happened.
+The cost is one small frame per participant per inbound frame, paid by every client whether or not
+it reads them. This is **owner protocol ruling 4 of 2026-09-06**.
 
 ### 5. Serialization rules
 
@@ -665,7 +681,9 @@ Two things are absent.
   applies to the payload shape, and nothing pins it. `GameRules` is knowingly unpinned (identity and
   enumerations → Only `Properties` is pinned), and this extends that accepted risk from behaviour to
   format. The only mitigation today is the rule already in the design: never rename or remove a
-  payload property, only add.
+  payload property, only add. This is accepted with a revisit trigger by **owner protocol ruling 3
+  of 2026-09-06** ([Key decisions](#accepted-risk-the-payload-format-is-unversioned)), and no
+  version field is added now.
 
 The HTTP status code `426` sits in `Tabletop.Protocol`, which otherwise knows nothing about
 transports. That is accepted so the client, management and the game server name one constant rather
@@ -734,7 +752,26 @@ public sealed class EventApplier(Board board, GameInfo game)
     public static void ApplyTo(Projection p, GameEvent e);
     public static void ApplyChange(Projection p, StateChange change);
 }
+
+public sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception
+{
+    public string Kind { get; }                                // the event kind that could not be applied
+    public Guid UnknownId { get; }                             // the id the projection has no entry for
+}
 ```
+
+`ProjectionDesyncException` is thrown wherever an event names an id the projection does not hold: a
+model, a unit, a marker, an Ask, a frame or a roll. `Kind` is `EventKinds.Of(payload)`, so a change
+riding inside `round_started`, `turn_ended` or `step_completed` reports its own kind rather than the
+carrier's, because that is what names the payload that failed. It means the projection the caller
+passed in is unusable and has to be thrown away and rebuilt, not that the event was bad. Nothing is
+repaired partway: a payload carrying several relocations may have applied some before it threw, and
+the failed event is already in `Log`, which is why the whole applier goes rather than the event.
+The two call sites answer it differently, and the difference is the point of the type. A client
+drops its projection, reconnects, and rebuilds from the log (client shell → The connection and the
+projection). The game server, which is applying events it wrote itself, faults the session: a resync
+replays the same event and throws again, so the fault is a server bug and hiding it behind a rebuild
+loop would hide the bug. This is **owner protocol ruling 2 of 2026-09-06**.
 
 The contract as prohibitions: **it never decides legality, never derives a location, never clears a
 store on its own.** Every branch in `ApplyChange` is an assignment, an `Add`, a `Remove` or a
@@ -944,6 +981,9 @@ belongs to the interpreter module (rows, not schema). A freshly composed stack t
 | The applier copies and never derives | keeps every ruleset off the player's machine and makes replay faithful to what happened | let the client recompute consequences from a thinner event | client shell → The connection and the projection; action sequences → `step_completed` records "everything it produced" |
 | Undo is replay to N from the initial state, `Undone(N)` a logged event, the log append-only | RNG is state, so redoing reproduces the dice; no inverse events to write or keep correct | inverse events; a separate checkpoint mechanism | `architecture.md` → Undo |
 | `GameInfo` carries `long RngSeed`, positional and last among the scalars, backed by `game.rng_seed bigint not null` with no database default | undo and replay need a seed fixed for the life of the game, and a simulator run needs one it can choose; positional because a construction that omitted it would silently get `0`, and a `0` seed is a real game whose dice match every other game that omitted it | deriving the seed from `game.id`; carrying it in the first event, which a game in `lobby` or `setup` does not have; a database default, which would let a management bug produce a playable game | owner ruling 1 of 2026-09-06; **spec correction 12** |
+| `AtRest(long Seq)`, wire kind `at_rest`, broadcast when the server finishes processing an inbound frame | a client, a simulator run and a viewer all need to know that nothing more is coming, and the only signal before this was a 250 millisecond quiet window that reads a slow server as a stuck game | leave the quiet window, whose cost is minutes per socket run and a false stall under load; a per-command acknowledgement, which would say a command was handled rather than that the game is idle | owner protocol ruling 4 of 2026-09-06 |
+| `PresenceEnded(ParticipantId)` is an explicit frame, sent when a participant's last socket closes | departure is a fact the server knows exactly, while a client inferring it from silence has to pick a timeout and will get it wrong on a slow network | a client-side presence timeout, which puts a mechanism in every client to replace one frame from the server | owner protocol ruling 1 of 2026-09-06, confirming the assumption; presence → Connectedness is not a field |
+| An event naming an id the projection does not hold throws `ProjectionDesyncException`, and the client rebuilds from the log | the fault is identifiable, so the client can treat its own copy as lost instead of dying, and the server can fault a session it knows is its own bug | `KeyNotFoundException`, which is untypeable at the catch site; skipping the change and carrying on, which trades a visible reset for a client that silently diverges from the server | owner protocol ruling 2 of 2026-09-06 |
 | Asks are events (`ask_opened`, `ask_answered`, `ask_closed`) | the projection *holds* the current Asks and is rebuilt from snapshot and log, so an Ask outside the log cannot survive a reconnect, and a window's pass is "a real answer, logged" | Asks as ephemeral server state pushed to clients | **spec correction 3**, derived from client shell and action sequences, neither of which listed the kinds |
 | The 13 `StateChange` leaves are registered on both `StateChange` and `EventPayload` | one `ApplyChange` serves the menu and automation: "the same fields through the same path" | wrap each change in a `StateChanged` payload | game flow → Nothing is an invariant |
 | `TableState` lives in `Content`, not `Protocol` | management stores it as a layout, the game server writes it as the draft, the client saves and loads it over HTTP. The client and both servers, which is `architecture.md`'s own test for `Content` | keep it in `Protocol` and duplicate a layout DTO in management | setup phase → Layouts; whole-design review ruling 4; **spec correction 10** |
@@ -955,6 +995,22 @@ belongs to the interpreter module (rows, not schema). A freshly composed stack t
 | Two Postgres schemas in one database | the game server reads and, before play, writes management's rows, so one connection | two databases and a second connection, or an internal API | closes `schema.md` → Still open; **spec correction 5** |
 | Compose init SQL *and* a DbUp migrator, both keeping 001 | a bare `docker compose up` must give the game server a schema, management owns the schema, and `libs/` may not touch persistence | one mechanism only, giving either no schema without running management or no migration story | settled with the management API plan, 2026-09-05 |
 | MinIO rather than a filesystem stand-in | same S3 API, so presigned PUT/GET and the AWS SDK code are written once | a local blob directory behind a management endpoint, which would pass the bytes through the API. The design forbids that | `architecture.md` → Local development; management API → Asset bytes never pass through the API |
+
+### Accepted risk: the payload format is unversioned
+
+`game_event.payload` holds the serialized wire message and nothing versions it. Renaming a property
+breaks every stored log, and every round-trip test still passes, because those tests prove
+self-consistency and not stability. This is accepted as of **owner protocol ruling 3 of 2026-09-06**,
+because nothing is built and no stored game matters yet.
+
+The revisit trigger is the first game worth keeping. Until then a rename is a text edit; after it a
+rename is a migration of every `game_event` row.
+
+Two ways out were considered and neither is built now. Golden fixtures, a committed corpus of
+literal JSON per kind, would fail the build on a rename and would need regenerating on every
+intentional change. A version stamped on the stored payload would let a reader dispatch on it and
+would need a reader per version from the first bump. Adding either before the trigger buys a guard
+against breaking logs that do not exist.
 
 ### Decisions that were contested and re-decided
 
@@ -982,7 +1038,6 @@ Each of these is this module's own call, not a spec's.
 | `ProtocolVersion.Current = 1` and a single integer with no negotiation | no spec defines a protocol version scheme; management API defines only the header and `426` | a compatible-but-renamed field cannot be shipped without locking out old clients |
 | `StepCompleted.Values` as `IRD<string,int>?` | action sequences left "a schema per step kind, or free-form" open | the one untyped bag in the contract, and `int`-only forces distances into tenths |
 | One `SocketMessage` union for both directions | client shell explicitly deferred "which socket frames carry which message kind" | a client can construct a server-only frame, because direction is documentation and not a type |
-| `PresenceEnded` as an explicit frame | presence left "how a client is told that a presence value has stopped, versus timing it out" open | if timing out is preferred, `PresenceEnded` is deleted and the client shell owns a timeout (open question 1) |
 | `Refused` correlates by a client-generated `CommandId`/`EditId`, with no ack for success | no spec mentions acknowledgement | a command that legitimately produces no event is indistinguishable from a lost one |
 | `EventsMessage` carries a list, and the whole log on connect | no spec bounds the connect payload | a long game's first frame is unbounded (see [Failure modes](#failure-modes)) |
 | `WireJson` and `ContentJson` hold two `JsonSerializerOptions` instances built by the same `Configure` | no spec says where the options live | two metadata caches, and a divergence between them would be silent |
@@ -1086,6 +1141,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `sealed class CompletedStep` | `string Step`, `AskAnswer? Answer`, `IRL<RollRecord> Rolls`, `IRL<StateChange> Changes`, `IRD<string,int>? Values` |
 | `sealed class OpenAsk` | `Ask Ask`, `IRD<Guid, AskAnswer?> Answers` (null while withheld) |
 | `sealed class EventApplier(Board, GameInfo)` | `Projection Projection`, `IRL<GameEvent> Log`, `Apply`, `ApplyAll`, `ProjectTo(long)`, `static EffectiveLog`, `static ApplyTo`, `static ApplyChange` |
+| `sealed class ProjectionDesyncException : Exception` | `string Kind`, `Guid UnknownId`; thrown by `Apply`, `ApplyAll`, `ApplyTo` and `ApplyChange`, and it means the projection passed in is unusable |
 
 ### Produced: local development
 
@@ -1109,6 +1165,18 @@ written in this module and kept in another.
 | Management API | adopt `001_schema.sql` as migration 001 and baseline a compose-built database; generate `game.rng_seed` in application code when inserting the game row, never update it, and return it in the game representation; read the `TABLETOP_*` names; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing |
 | Client shell | add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/`; marshal socket-thread applier writes onto Godot's main thread; render `MoveRegion.Containment`, where a click on an `Enterable` container answers `Destinations` with `Inside(container)` for every model and a non-null `ExitingId` draws the exit region with `Containment.BaseFullyWithin` |
 | Web app | mirror the JSON conventions in TypeScript, including the `[Flags]` comma-joined `TerrainDeclarations` form and the `builtin`-or-`assetId` exclusivity |
+
+### What the owner protocol rulings of 2026-09-06 require of each consumer
+
+Two of the four rulings add a contract another module has to keep. Every consumer of `at_rest` and
+of `ProjectionDesyncException` is listed here.
+
+| Module | What it must now do |
+| --- | --- |
+| Client shell | Catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect, and rebuild from the log. Never skip the event and carry on. Ignore `at_rest`, and ignore any other kind it does not handle, without faulting |
+| Game server | Send `AtRest(Seq)` after the last frame that processing produced, broadcast when the batch appended an event and to the provoking client alone when it did not, per its own plan's rule, after the last frame that processing produced, with `Seq` the last sequence number in the log. Do not send one for a relayed `presence` or `ping`. Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild replays the same event and throws again |
+| Simulation | Wait for `at_rest` as the end of a step, and delete the 250 millisecond quiet window. A socket run's pacing is the frame, not a timer |
+| Viewer | Ignore `at_rest`. It reads the log and has nothing to do at a rest point |
 
 ## Sequences
 
@@ -1139,6 +1207,7 @@ sequenceDiagram
             S-->>C: EventsMessage(whole log, filtered per viewer)
             Note over C: new EventApplier(board, game); ApplyAll(log)
         end
+        S-->>C: AtRest(lastSeq)
         loop while connected
             S-->>C: EventsMessage(live), PresenceMessage, PingMessage
         end
@@ -1173,8 +1242,8 @@ sequenceDiagram
 
 The command names an intent, the event states the fact, and both clients copy it.
 
-The applier indexes `p.ModelsMut[w.ModelId]` directly, so an event naming a model that is not in the
-projection throws `KeyNotFoundException` and the client is dead until it reconnects. The trust
+The applier looks `w.ModelId` up in `p.ModelsMut`, so an event naming a model that is not in the
+projection throws `ProjectionDesyncException` and the client rebuilds from the log. The trust
 boundary is that the server only emits ids from the snapshot it hydrated. Nothing validates that a
 wound count is within a model's capacity, because nothing recorded here is an invariant.
 
@@ -1358,32 +1427,37 @@ in `libs/` is thread-safe.
 
 ### Applier strictness
 
-`ApplyChange` and `ApplyTo` reach into dictionaries with the indexer: `ModelsMut[id]`,
-`UnitsMut[id]`, `MarkersMut[id]`, `OpenAsksMut[askId]`. `FrameOf` throws
-`InvalidOperationException` when a frame id is not on the stack. An event naming an id the projection
-does not hold therefore kills the projection. On the client the game screen is then dead until a
-reconnect rebuilds from the log, which fails again at the same event. The two exceptions are
-`SequenceFinished`/`SequenceAbandoned`, whose `Pop` uses `FindIndex` and does nothing when the frame
-is gone, and `AskClosed`, which uses `Remove`.
+Every lookup in `ApplyChange` and `ApplyTo` that can miss throws `ProjectionDesyncException` with
+the event's kind and the id that was not found. Sixteen lookups can miss, by the kind that reaches
+them: `ModelsMut` for `models_moved`, `wounds_set`, `condition_set` on a model and
+`spell_tokens_set`; `UnitsMut` for
+`condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`,
+`grant_removed` and `wounds_this_activation_set`; `MarkersMut` for `marker_moved`; `OpenAsksMut` for
+`ask_answered`; `FrameOf` for `step_completed`, `modifier_added` and both dice kinds; and the roll
+lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`score_set`,
+`marker_placed`), `Remove` (`marker_removed`, `ask_closed`) and `Pop`, whose `FindIndex` does
+nothing when the frame is already gone.
 
 Strictness holds because the server is the only writer and it emits ids from the snapshot it
-hydrated. The asymmetry is not designed, and two cases fall on the wrong side of it.
+hydrated. Two cases fall on the wrong side of it, and both are now a typed desync rather than a
+`KeyNotFoundException` or an `InvalidOperationException`.
 
 - **A token placed during setup and then moved in play throws.** Setup content says objectives are
   snapshot rows and *"a token placed during setup may sit in the snapshot as well, as initial
   state"*. Such a marker lives in `Projection.Board.Table.Markers`, while `MarkerMoved` and
-  `MarkerRemoved` look in `Projection.Markers`, which holds only tokens dropped in play. Moving or
-  removing a setup marker is `KeyNotFoundException`. Two id spaces, one `MarkerId` field, and a
-  renderer that has to union the two collections anyway.
+  `MarkerRemoved` look in `Projection.Markers`, which holds only tokens dropped in play. Two id
+  spaces, one `MarkerId` field, and a renderer that has to union the two collections anyway.
 - **Editing a roll after its sequence has finished throws.** The scheduler says *"every roll result
   is editable from the menu, as any roll is"*, and the deployment roll-off is a sequence that
-  finishes. `SetDice`/`DiceEdited` carry a `FrameId`, and `ReplaceDice` calls `FrameOf`, which throws
-  once the frame has been popped. `.StepsMut.First(...)` then throws again if no step in a live frame
-  holds that roll. The menu affordance the scheduler promises is unreachable for any roll in a
-  completed sequence, and attempting it desyncs every client.
+  finishes. `SetDice`/`DiceEdited` carry a `FrameId`, and `ReplaceDice` calls `FrameOf`, which
+  throws once the frame has been popped. The roll lookup throws in the same way when no step in a
+  live frame holds that roll. The menu affordance the scheduler promises is unreachable for any roll
+  in a completed sequence.
 
-Neither case is caught by this module's tests. `EventApplierTests` only ever edits dice in a frame
-that is still on the stack.
+The typed exception makes both cases recoverable on the client and loud on the server rather than
+fatal on both, and `EventApplierTests` now asserts each of them. It does not make either case
+correct: a client that resyncs replays the same event and desyncs again, so the two id spaces and
+the popped-frame lookup are still the fix, and both belong to the game server module.
 
 ### Ordering, duplication and gaps
 
@@ -1454,7 +1528,8 @@ every type in the tree stays immutable. Nothing enforces that.
 - **A missing or undownloadable mesh degrades to a proxy.** `VisualRef` may name an asset that no
   longer exists. The soft reference has no foreign key and the game stays playable.
 - **`GameRules` is unpinned**, so replaying an old log after a deploy may diverge. Accepted, and this
-  module extends it to the payload format ([Versioning](#6-versioning-and-the-426-path)).
+  module extends it to the payload format ([Versioning](#6-versioning-and-the-426-path),
+  [Key decisions](#accepted-risk-the-payload-format-is-unversioned)).
 
 ### Local stack
 
@@ -1467,7 +1542,7 @@ changes safe. Before that module exists, `down -v` is the only path.
 
 Three xUnit 2.9 projects under `tests/`, one per library, run by `dotnet test` at the repo root.
 Nothing in this module needs Docker, and nothing in it needs Godot. The expected final counts are
-Geometry 12, Content 15, Protocol 29.
+Geometry 12, Content 15, Protocol 32.
 
 | What | How | Project |
 | --- | --- | --- |
@@ -1487,6 +1562,7 @@ Geometry 12, Content 15, Protocol 29.
 | Derived properties stay off the wire | `"horizontal"`, `"isBuiltin"`, `"transform"` absent from serialised `TableState` | Content |
 | One literal wire shape | the `EventsMessage` prefix is asserted character for character: `{"kind":"events","events":[{"seq":1,"payload":{"kind":"turn_started","teamId":"` | Protocol |
 | Applier behaviour | deployment moves a model off the shelf; every store copies what its event says and un-copies on the inverse event; the scheduler's four events with a pass that stands across a round; frames push, record steps, clear pending modifiers, replace dice, and pop with everything above; Asks open, collect and close; undo drops a range while `Log` stays append-only, including `ProjectTo(1)`, `ProjectTo(0)` and `Undone(0)` | Protocol |
+| Desync is typed | moving a marker that came from the setup draft, and editing the dice of a frame that has been popped, each throw `ProjectionDesyncException` carrying the event kind and the unknown id | Protocol |
 
 `Every_concrete_kind_has_a_sample` plus the round-trip loop means no message kind can be added to
 the contract without a serialisation test existing for it. That is the mechanism keeping a
@@ -1498,7 +1574,8 @@ hand-written union honest.
   stability. Renaming `RollRecord.Roll` to `RollName` would change every serialised log and every
   test would still pass. Exactly one assertion pins literal JSON, and it covers one event kind.
   `game_event.payload` is this format, so a golden-file corpus is the missing guard against silently
-  breaking every existing log.
+  breaking every existing log. This is an accepted risk with a revisit trigger, recorded under
+  [Key decisions](#accepted-risk-the-payload-format-is-unversioned).
 - **The TypeScript side is untested.** The web app must parse the same JSON and nothing shared
   verifies it. The two hardest shapes for a hand-written parser are the comma-joined `[Flags]`
   string and the exclusive `builtin`/`assetId` pair, and they are the two most likely to drift.
@@ -1510,8 +1587,9 @@ hand-written union honest.
 - **`EffectiveLog` is not tested against interleaved undos**: an `Undone` after an `Undone`, or an
   `Undone` naming a sequence that was already undone past. The behaviour is defined by the code and
   by a server-side guard in a different module, and no test states it.
-- **No test for a missing id.** Nothing asserts what happens when an event names a model, unit,
-  marker or frame the projection does not hold, which is the module's main crash surface.
+- **A missing id is tested at two sites, not at all sixteen.** The setup marker and the popped frame
+  are asserted; the model, unit, Ask and roll lookups are not. One test per site would be cheap and
+  is not in the plan.
 - **Nothing measures.** No assertion bounds a frame size, a projection rebuild, or `EffectiveLog`
   over a realistic log.
 - **`ApiSurfaceTests` is not a behaviour test.** Until the geometry module lands, the five most
@@ -1521,13 +1599,15 @@ The client's Godot layer is out of scope and is tested by running the game (clie
 
 ## Open questions and deferred work
 
-### Open question
+### Open questions
 
-**1. How is a departed presence signalled?** Presence left *"how a client is told that a presence
-value has stopped, versus timing it out"* open, and nothing since has closed it. **Assumption
-taken:** an explicit `PresenceEnded(ParticipantId)` frame from the server when a socket closes. **If
-the answer differs:** `PresenceEnded` is deleted from `SocketMessage` and the client shell owns a
-timeout. The change is one union member and one test.
+**None.** The one question this module carried is answered.
+
+**1. How is a departed presence signalled? Answered 2026-09-06 by owner protocol ruling 1.** The
+server sends `PresenceEnded` when a participant's last socket closes. Presence left *"how a client
+is told that a presence value has stopped, versus timing it out"* open; the assumption this module
+took is confirmed, so no mechanism changes and no type moves. Timing out on the client was the
+rejected alternative, and presence's own open item is struck by spec correction 13.
 
 ### Questions closed from the specs rather than asked
 
@@ -1539,8 +1619,11 @@ timeout. The change is one union member and one test.
 
 ### Spec corrections this module proposes
 
-Eleven, all raised by the plan and applied by the coordinator, not by this module. Eight change a
-decision rather than a word: **1** (a placement's volumes are always written on add, so the game
+Thirteen, all raised by the plan and applied by the coordinator, not by this module. **12** adds
+`game.rng_seed` to `schema.md`, by owner ruling 1 of 2026-09-06. **13** strikes presence's open item
+on how a departure is signalled, answered by owner protocol ruling 1 of 2026-09-06: the frame is
+`PresenceEnded` and the client owns no timeout. Eight of the first eleven change a decision rather
+than a word: **1** (a placement's volumes are always written on add, so the game
 server never reads `asset_volume`), **2** (`participant.army_id`, the lobby's pick), **3** (the three
 Ask event kinds), **4** (`participant.game_id` and `unique (game_id, account_id)`, which ruling 5
 left implicit when it made `team_id` nullable), **6** (`effect.target_stat_level`, without which the
