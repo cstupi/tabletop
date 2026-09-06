@@ -18,6 +18,7 @@
 - No rules engine code, no legality, no `Properties` interpretation here. Management stores `properties` rows and serves `(content_hash, name, game_rules)`; the game server owns the catalog types (contracts plan → *`Properties` types are not in `libs/`*).
 - Management is the only thing that talks to Stytch; no Stytch identifier is stored in our schema; `external_id` = `account.id` (accounts → Auth is a module, not a vendor). We issue no token of our own (management API → We issue no tokens of our own).
 - Auth on every non-`/v1/auth/*` request is a Stytch session JWT verified locally against `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` (RS256, `iss = stytch.com/{project_id}`, `aud = {project_id}`); the account id rides in the custom claim `account_id`. No call to Stytch on the request path.
+- The `account_id` claim is put there by the project's **Stytch custom claim template**, `{"account_id": "{{ user.external_id }}"}`, evaluated by Stytch every time it mints a JWT — not by our code (owner ruling 09-06, question 1). Management passes `session_custom_claims` nowhere; its only job is to keep `external_id` set to the account id.
 - Version check: header `Tabletop-Client-Version` (`ProtocolVersion.Header`); below the minimum → `426` (`ProtocolVersion.UpgradeRequiredStatusCode`), no body work done (management API → The version check).
 - Authorisation is owner-only throughout, except `GET /v1/games` (public) and `GET /v1/games/{id}/assets` (participants). A row another account owns is `404`, never `403` (management API → The rest of the surface).
 - Asset bytes never pass through the API: presigned PUT and GET against `TABLETOP_S3_ENDPOINT`, path-style, key `{owner_id}/{hash}`; GLB accepted, STL rejected; the triangle check warns above **100,000** and never blocks (management API → Asset bytes never pass through the API; mesh conversion → The threshold).
@@ -53,7 +54,7 @@ server/management/
   Identity/StytchAuthentication.cs                JwtBearer wiring
   Identity/StytchClient.cs                        the ten Stytch calls (typed HTTP)
   Identity/AccountRepository.cs                   account rows
-  Identity/Sessions.cs                            ensure-account + stamp-claim after any Stytch authenticate
+  Identity/Sessions.cs                            ensure-account, link external_id, re-mint on the first login
   Identity/AuthEndpoints.cs                       /v1/auth/*
   Identity/AccountEndpoints.cs                    /v1/account
   Identity/AccountDeleter.cs                      total deletion
@@ -843,7 +844,7 @@ namespace Tabletop.Management.Identity;
 
 public static class StytchAuthentication
 {
-    /// <summary>Our account UUID, stamped as a session custom claim at login (Sessions.Complete).</summary>
+    /// <summary>Our account UUID. Stytch's custom claim template maps {{ user.external_id }} to this name on every mint; we never send it per call.</summary>
     public const string AccountClaim = "account_id";
     public const string SessionClaim = "https://stytch.com/session";
     /// <summary>Named client so tests can swap its handler; the cache must be a singleton, which a typed client is not.</summary>
@@ -949,10 +950,11 @@ public static class AccountEndpoints
 
 **Interfaces:**
 - Consumes: `AccountRepository.Insert/Get`; `StytchAuthentication.AccountClaim`; `ManagementOptions.StytchBaseUrl/StytchProjectId/StytchSecret/SessionMinutes/WebUrl`.
-- Produces: `StytchClient(HttpClient, ManagementOptions)` over the named client `StytchClient.HttpClientName = "stytch"` with `SendEmailOtp(email) : Task<OtpSent(string MethodId, string UserId, bool UserCreated)>`, `AuthenticateOtp(methodId, code)`, `AuthenticatePassword(email, password)`, `CreatePassword(email, password)`, `StartPasswordReset(email, redirectUrl) : Task`, `CompletePasswordReset(token, password)`, `RefreshSession(sessionJwt, IReadOnlyDictionary<string, object> customClaims)`, `RevokeSession(sessionJwt) : Task`, `SetExternalId(userId, externalId) : Task`, `DeleteUser(externalId) : Task` — each authenticate returns `StytchSession(string SessionJwt, StytchUser User)`, `StytchUser(string UserId, string? ExternalId, IReadOnlyList<StytchEmail> Emails)`, `StytchEmail(string Email)`; failures throw `StytchException(int Status, string ErrorType, string Message)`.
-- `Sessions(StytchClient, AccountRepository).Complete(StytchSession) : Task<SessionResponse>` — the one path every login takes: read `user.external_id`; when absent, create the account row (`Guid.CreateVersion7()`, name = the email's local part) and `PUT /v1/users/{user_id} {external_id}`; when present, make sure the row exists; then `POST /v1/sessions/authenticate` with `session_custom_claims = { account_id }` so the JWT the caller gets carries our id. `SessionResponse(string SessionJwt, AccountRow Account)`.
+- Produces: `StytchClient(HttpClient, ManagementOptions)` over the named client `StytchClient.HttpClientName = "stytch"` with `SendEmailOtp(email) : Task<OtpSent(string MethodId, string UserId, bool UserCreated)>`, `AuthenticateOtp(methodId, code)`, `AuthenticatePassword(email, password)`, `CreatePassword(email, password)`, `StartPasswordReset(email, redirectUrl) : Task`, `CompletePasswordReset(token, password)`, `RefreshSession(sessionJwt)`, `RevokeSession(sessionJwt) : Task`, `SetExternalId(userId, externalId) : Task`, `DeleteUser(externalId) : Task` — each authenticate returns `StytchSession(string SessionJwt, StytchUser User)`, `StytchUser(string UserId, string? ExternalId, IReadOnlyList<StytchEmail> Emails)`, `StytchEmail(string Email)`; failures throw `StytchException(int Status, string ErrorType, string Message)`.
+- `Sessions(StytchClient, AccountRepository).Complete(StytchSession) : Task<SessionResponse>` — the one path every login takes: read `user.external_id`; when present, make sure the account row exists and hand back the JWT Stytch just minted, which the claim template already stamped — **one Stytch call, no more**; when absent, create the account row (`Guid.CreateVersion7()`, name = the email's local part), `PUT /v1/users/{user_id} {external_id}`, and then re-mint the JWT once with `POST /v1/sessions/authenticate` (no body beyond `session_jwt` and `session_duration_minutes`). `SessionResponse(string SessionJwt, AccountRow Account)`.
+- **Why the re-mint, and only there** — the template reads `user.external_id`, and on a brand-new account the session is minted by the very call that consumes the OTP code or the signup password, *before* we know the account id, so that first JWT has no `account_id`. Stytch's custom-claim-template page is explicit that this is fixable and how: *"Updates to the custom claim template or user metadata propagate to existing sessions the next time a JWT is minted"* and *"A JWT cannot be modified once it is minted. You must authenticate again to update claims."* So one `sessions/authenticate` after the link re-runs the template against the now-linked user. The alternative — never mint until the user is linked — cannot work for OTP: the code is single-use, so the session must be minted by the call that spends it, and linking earlier at `POST /v1/auth/otp` would create an account row for any email anyone types. The cost is one extra call on the first login of an account and never again: a returning login and a refresh are one Stytch call each.
 - Endpoints (anonymous unless noted): `POST /v1/auth/otp {email} → {methodId}`; `POST /v1/auth/otp/verify {methodId, code} → SessionResponse`; `POST /v1/auth/password {email, password} → SessionResponse`; `POST /v1/auth/password/signup {email, password} → 201 SessionResponse`; `POST /v1/auth/password/reset {email} → 202`; `POST /v1/auth/password/reset/complete {token, password} → SessionResponse`; `POST /v1/auth/session/refresh {sessionJwt} → SessionResponse` (an expired JWT is accepted while the Stytch session lives); `DELETE /v1/auth/session` (bearer) `→ 204`. Stytch `401/404` → `401`; `duplicate_email` → `409`; `weak_password`/other `4xx` → `422`; `5xx` → `502`.
-- Stytch endpoints, read from the Consumer API docs on 09-05 and re-checked page by page on 09-06: `POST /v1/otps/email/login_or_create` (`email`, `expiration_minutes` 1–10, default 2; returns `user_id`, **`email_id`**, `user_created` — there is no `method_id` in the response, and `email_id` is what the next call sends as `method_id`); `POST /v1/otps/authenticate` (`method_id`, `code`, `session_duration_minutes`, range 5–527040); `POST /v1/passwords/authenticate` (`email`, `password`); `POST /v1/passwords` (`email`, `password`; error types `duplicate_email`, `weak_password` for a strength score ≤ 2, and `breached_password` for a leaked one — two distinct errors, both `4xx`, both `422` here); `POST /v1/passwords/email/reset/start` (`email`, `reset_password_redirect_url`); `POST /v1/passwords/email/reset` (`token`, `password`); `POST /v1/sessions/authenticate` (`session_jwt`, `session_duration_minutes`, `session_custom_claims` — "Claims are only created if a Session is initialized by providing a value in `session_duration_minutes`", and "You may provide a JWT that needs to be refreshed and is expired according to its `exp` claim", which is what `/session/refresh` relies on); `POST /v1/sessions/revoke` (**exactly one** of `session_id`, `session_token`, `session_jwt` — sending more than one is an error, so only `session_jwt` goes); `PUT /v1/users/{user_id}` (`external_id`: alphanumeric, `.`, `_`, `-`, `|`, ≤128 — a GUID string fits); `DELETE /v1/users/{user_id}` ("You may use an `external_id` here if one is set for the user"). All Basic-auth `project_id:secret` against `https://test.stytch.com`.
+- Stytch endpoints, read from the Consumer API docs on 09-05 and re-checked page by page on 09-06: `POST /v1/otps/email/login_or_create` (`email`, `expiration_minutes` 1–10, default 2; returns `user_id`, **`email_id`**, `user_created` — there is no `method_id` in the response, and `email_id` is what the next call sends as `method_id`); `POST /v1/otps/authenticate` (`method_id`, `code`, `session_duration_minutes`, range 5–527040); `POST /v1/passwords/authenticate` (`email`, `password`); `POST /v1/passwords` (`email`, `password`; error types `duplicate_email`, `weak_password` for a strength score ≤ 2, and `breached_password` for a leaked one — two distinct errors, both `4xx`, both `422` here); `POST /v1/passwords/email/reset/start` (`email`, `reset_password_redirect_url`); `POST /v1/passwords/email/reset` (`token`, `password`); `POST /v1/sessions/authenticate` (`session_jwt`, `session_duration_minutes` — we send no `session_custom_claims`; "You may provide a JWT that needs to be refreshed and is expired according to its `exp` claim", which is what `/session/refresh` relies on, and the response's `session_jwt` is freshly minted, so the claim template runs again); `POST /v1/sessions/revoke` (**exactly one** of `session_id`, `session_token`, `session_jwt` — sending more than one is an error, so only `session_jwt` goes); `PUT /v1/users/{user_id}` (`external_id`: alphanumeric, `.`, `_`, `-`, `|`, ≤128 — a GUID string fits); `DELETE /v1/users/{user_id}` ("You may use an `external_id` here if one is set for the user"). All Basic-auth `project_id:secret` against `https://test.stytch.com`.
 - Signup, refresh and reset-complete are three endpoints the spec's list lacks — spec correction 2.
 
 Spec: management API → Authentication (the five endpoints; "OTP and password are Basic-auth Stytch endpoints requiring the project secret, so they run server-side"); accounts → Auth is a module ("a Stytch session JWT carrying our account UUID comes back"); client shell → No social login; `architecture.md` → Game management data model ("Stytch's `external_id` is set to `Account.id`").
@@ -966,7 +968,7 @@ using System.Text.Json.Nodes;
 
 namespace Tabletop.Management.Tests;
 
-/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys.</summary>
+/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys — including the project's claim template.</summary>
 public sealed class FakeStytch : HttpMessageHandler
 {
     public const string Code = "123456";
@@ -975,12 +977,15 @@ public sealed class FakeStytch : HttpMessageHandler
     public readonly List<string> Revoked = new();
     public readonly List<string> Deleted = new();
     public readonly List<string> ResetEmails = new();
+    public readonly List<string> Calls = new();               // every path, so tests can count round trips
+    public int Authenticates => Calls.Count(p => p == "/v1/sessions/authenticate");
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
     {
         Assert.StartsWith("Basic ", req.Headers.Authorization?.ToString());
         var body = req.Content is null ? new JsonObject() : JsonNode.Parse(await req.Content.ReadAsStringAsync(ct))!.AsObject();
         var path = req.RequestUri!.AbsolutePath;
+        Calls.Add(path);
         string S(string k) => body[k]?.GetValue<string>() ?? "";
         switch (path)
         {
@@ -1032,11 +1037,11 @@ public sealed class FakeStytch : HttpMessageHandler
         return Error(404, "unknown_route");
     }
 
+    /// <summary>Minting runs the project's custom claim template: account_id = user.external_id, or no claim when the user is not linked yet.</summary>
     private HttpResponseMessage Session(User u, JsonObject body)
     {
-        var claims = body["session_custom_claims"]?.AsObject();
-        var accountId = claims?["account_id"]?.GetValue<string>();
-        var jwt = TestKeys.MintForUser(u.Id, accountId is null ? null : Guid.Parse(accountId));
+        Assert.Null(body["session_custom_claims"]);   // the template stamps the claim; nothing may send it per call
+        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(u.ExternalId, out var linked) ? linked : null);
         return Json(200, new { user_id = u.Id, session_jwt = jwt, session_token = "tok-" + u.Id,
             user = new { user_id = u.Id, external_id = u.ExternalId, emails = new[] { new { email_id = "email-" + u.Id, email = u.Email, verified = true } } } });
     }
@@ -1064,12 +1069,14 @@ public class AuthTests : IClassFixture<ManagementFactory>
     public AuthTests(ManagementFactory f) => _f = f;
 
     [Fact]
-    public async Task Otp_login_creates_the_account_and_stamps_the_claim()
+    public async Task Otp_login_creates_the_account_and_the_first_jwt_carries_the_claim()
     {
         var c = _f.CreateClient();
         var sent = await (await c.PostAsJsonAsync("/v1/auth/otp", new { email = "clay@example.com" })).Content.ReadFromJsonAsync<OtpSentResponse>();
+        var before = _f.Stytch.Authenticates;
         var r = await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent!.MethodId, code = FakeStytch.Code });
         var session = await r.Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one re-mint, because external_id was written on this login
         Assert.Equal("clay", session!.Account.Name);
         Assert.Equal(session.Account.Id.ToString(), _f.Stytch.Users["clay@example.com"].ExternalId);
         var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(session.SessionJwt);
@@ -1086,6 +1093,26 @@ public class AuthTests : IClassFixture<ManagementFactory>
         var again = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "a@example.com", password = "correct horse battery" })).Content.ReadFromJsonAsync<SessionResponse>();
         Assert.Equal(first!.Account.Id, again!.Account.Id);
     }
+
+    [Fact]
+    public async Task A_linked_login_and_a_refresh_cost_one_stytch_call_each()
+    {
+        var c = _f.CreateClient();
+        await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "once@example.com", password = "long enough password" });
+
+        var beforeLogin = _f.Stytch.Authenticates;
+        var again = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "once@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(0, _f.Stytch.Authenticates - beforeLogin);    // no re-mint: the user was already linked, so the template stamped the claim
+        Assert.Equal(again!.Account.Id.ToString(), Claim(again.SessionJwt));
+
+        var beforeRefresh = _f.Stytch.Authenticates;
+        var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = again.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(1, _f.Stytch.Authenticates - beforeRefresh);   // the refresh itself and nothing after it
+        Assert.Equal(again.Account.Id.ToString(), Claim(refreshed!.SessionJwt));
+    }
+
+    private static string Claim(string jwt) =>
+        new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt).Claims.Single(x => x.Type == StytchAuthentication.AccountClaim).Value;
 
     [Fact]
     public async Task Failures_map_to_401_409_422()
@@ -1161,8 +1188,9 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
         Call(HttpMethod.Post, "/v1/passwords/email/reset/start", new { email, reset_password_redirect_url = redirectUrl });
     public Task<StytchSession> CompletePasswordReset(string token, string password) =>
         Session(HttpMethod.Post, "/v1/passwords/email/reset", new { token, password, session_duration_minutes = options.SessionMinutes });
-    public Task<StytchSession> RefreshSession(string sessionJwt, IReadOnlyDictionary<string, object> customClaims) =>
-        Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes, session_custom_claims = customClaims });
+    /// <summary>Extends the session and mints a fresh JWT; the project's claim template runs on every mint, so nothing is passed here.</summary>
+    public Task<StytchSession> RefreshSession(string sessionJwt) =>
+        Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes });
     public Task RevokeSession(string sessionJwt) => Call(HttpMethod.Post, "/v1/sessions/revoke", new { session_jwt = sessionJwt });
     public Task SetExternalId(string userId, string externalId) => Call(HttpMethod.Put, $"/v1/users/{userId}", new { external_id = externalId });
     public Task DeleteUser(string externalId) => Call(HttpMethod.Delete, $"/v1/users/{externalId}", null);
@@ -1202,12 +1230,13 @@ namespace Tabletop.Management.Identity;
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
-/// <summary>After any Stytch authenticate: make sure the account exists and is linked, then re-issue the JWT with our id in it.</summary>
+/// <summary>After any Stytch authenticate: make sure the account exists and is linked to the Stytch user. The JWT's account_id comes from the project's claim template.</summary>
 public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
 {
     public async Task<SessionResponse> Complete(StytchSession session)
     {
         var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
+        var jwt = session.SessionJwt;
         Guid accountId;
         if (Guid.TryParse(session.User.ExternalId, out var linked))
         {
@@ -1219,10 +1248,13 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
             accountId = Guid.CreateVersion7();
             await accounts.Insert(accountId, name);
             await stytch.SetExternalId(session.User.UserId, accountId.ToString());
+            // The session above was minted before the user was linked, so its JWT has no account_id.
+            // Re-minting is the documented way to pick the template up ("You must authenticate again to update claims").
+            // First login only; every later login and every refresh skips this branch.
+            jwt = (await stytch.RefreshSession(jwt)).SessionJwt;
         }
-        var stamped = await stytch.RefreshSession(session.SessionJwt, new Dictionary<string, object> { [StytchAuthentication.AccountClaim] = accountId.ToString() });
         var account = await accounts.Get(accountId) ?? throw new InvalidOperationException("account vanished");
-        return new SessionResponse(stamped.SessionJwt, account);
+        return new SessionResponse(jwt, account);
     }
 
     public static IResult Problem(StytchException e) => e.Status switch
@@ -1259,7 +1291,7 @@ public static class AuthEndpoints
         g.MapPost("/password/signup", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Created("/v1/account", await x.Complete(await s.CreatePassword(r.Email, r.Password)))));
         g.MapPost("/password/reset", Guard(async (EmailRequest r, StytchClient s, ManagementOptions o) => { await s.StartPasswordReset(r.Email, $"{o.WebUrl.TrimEnd('/')}/reset-password"); return Results.Accepted(); }));
         g.MapPost("/password/reset/complete", Guard(async (ResetCompleteRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.CompletePasswordReset(r.Token, r.Password)))));
-        g.MapPost("/session/refresh", Guard(async (RefreshRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.RefreshSession(r.SessionJwt, new Dictionary<string, object>())))));
+        g.MapPost("/session/refresh", Guard(async (RefreshRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.RefreshSession(r.SessionJwt)))));
         g.MapDelete("/session", async (HttpContext ctx, StytchClient s) =>
         {
             var jwt = ctx.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
@@ -1273,11 +1305,11 @@ public static class AuthEndpoints
 }
 ```
 
-`RefreshSession` with empty custom claims keeps the stamped claim — Stytch persists custom claims on the session — and `Complete` re-stamps regardless, which is what makes refresh and first login one path.
+Refresh and login are one path because `Complete` is the same for both: a refresh presents a JWT whose user is already linked, so `Complete` takes the first branch, does no second Stytch call, and hands back the JWT `sessions/authenticate` just minted with `account_id` on it. Refresh runs once a minute per client and costs exactly one Stytch call.
 
 - [ ] **Step 6: Wire `Program.cs`** — `builder.Services.AddHttpClient(StytchClient.HttpClientName); builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), options)); builder.Services.AddSingleton<Sessions>();` and `app.MapAuth();`.
 
-- [ ] **Step 7: Run `dotnet test tests/Tabletop.Management.Tests`; expect 23 passed. Then the real thing once: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`, `dotnet run --project server/management`, `curl -X POST localhost:5100/v1/auth/otp -H 'content-type: application/json' -d '{"email":"<your address>"}'`, verify with the emailed code, and check the JWT at jwt.io carries `account_id`. Commit: `Log in through Stytch by email code or password, stamping the account id into the session`.**
+- [ ] **Step 7: Run `dotnet test tests/Tabletop.Management.Tests`; expect 24 passed. Then the real thing once: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`, `dotnet run --project server/management`, `curl -X POST localhost:5100/v1/auth/otp -H 'content-type: application/json' -d '{"email":"<your address>"}'`, verify with the emailed code, and check the JWT at jwt.io carries `account_id`. That last check is the only thing that proves the dashboard claim template is in place — set it before running this (*Interfaces needed from other modules → Stytch dashboard*), and if `account_id` is absent it is the template, not the code. Commit: `Log in through Stytch by email code or password, linking the account id into the session`.**
 
 ### Task 6: The blob store and the GLB header read
 
@@ -1505,7 +1537,7 @@ public sealed class S3BlobStore(ManagementOptions options) : IBlobStore
 
 - [ ] **Step 5: Wire `Program.cs`** — `builder.Services.AddSingleton<Content.Assets.IBlobStore>(new Content.Assets.S3BlobStore(options));`.
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.Management.Tests`; expect 31 passed (MinIO must be up). Commit: `Add the S3 blob store over MinIO and the GLB header triangle count`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.Management.Tests`; expect 32 passed (MinIO must be up). Commit: `Add the S3 blob store over MinIO and the GLB header triangle count`.**
 
 ### Task 7: Assets — create, confirm, download, library CRUD, volumes
 
@@ -1916,7 +1948,7 @@ public static class AssetEndpoints
 
 - [ ] **Step 5: Wire `Program.cs`** — `builder.Services.AddSingleton<Content.Assets.AssetRepository>();` and `app.MapAssets();`.
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.Management.Tests`; expect 36 passed. Commit: `Add the asset library: presigned upload and download, confirm with the header read, volumes`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.Management.Tests`; expect 37 passed. Commit: `Add the asset library: presigned upload and download, confirm with the header read, volumes`.**
 
 ### Task 8: Folders
 
@@ -2081,7 +2113,7 @@ public static class FolderEndpoints
 }
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<FolderRepository>()`, `app.MapFolders()`), run `dotnet test`; expect 38 passed. Commit: `Add nested folders over the asset library`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<FolderRepository>()`, `app.MapFolders()`), run `dotnet test`; expect 39 passed. Commit: `Add nested folders over the asset library`.
 
 ### Task 9: Army Forge — the export's shape and the import mapping
 
@@ -2634,7 +2666,7 @@ public static class ArmyEndpoints
 
 - [ ] **Step 4: Wire `Program.cs`** — `builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName); builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName))); builder.Services.AddSingleton<CatalogKinds>(); builder.Services.AddSingleton<ArmyRepository>();` and `app.MapArmies();`.
 
-- [ ] **Step 5: Run `dotnet test tests/Tabletop.Management.Tests`; expect 46 passed. Commit: `Import armies from Army Forge and edit their bindings and bases`.**
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.Management.Tests`; expect 47 passed. Commit: `Import armies from Army Forge and edit their bindings and bases`.**
 
 ### Task 11: Layouts
 
@@ -2847,7 +2879,7 @@ public static class LayoutEndpoints
 }
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<LayoutRepository>()`, `app.MapLayouts()`); run `dotnet test`; expect 48 passed. Commit: `Save and load layouts as copies of a table state`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<LayoutRepository>()`, `app.MapLayouts()`); run `dotnet test`; expect 49 passed. Commit: `Save and load layouts as copies of a table state`.
 
 ### Task 12: Properties, games, the public browser and the manifest
 
@@ -3209,7 +3241,7 @@ public static class ManifestEndpoint
 }
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<GameRepository>()`, `app.MapProperties(); app.MapGames(); app.MapManifest();`); run `dotnet test`; expect 51 passed. Commit: `Add games, the public browser, join and leave, and the asset manifest`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<GameRepository>()`, `app.MapProperties(); app.MapGames(); app.MapManifest();`); run `dotnet test`; expect 52 passed. Commit: `Add games, the public browser, join and leave, and the asset manifest`.
 
 ### Task 13: The account — rename, and total deletion
 
@@ -3351,7 +3383,7 @@ group.MapDelete("", async (ClaimsPrincipal user, AccountDeleter deleter) =>
 });
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<AccountDeleter>()`); run `dotnet test`; expect 53 passed. Commit: `Rename the account, and delete it with everything it owns and every game it played in`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<AccountDeleter>()`); run `dotnet test`; expect 54 passed. Commit: `Rename the account, and delete it with everything it owns and every game it played in`.
 
 ### Task 14: Run script, CLAUDE.md, and the whole-tree check
 
@@ -3508,7 +3540,7 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
    POST   /v1/auth/session/refresh          an expiring or expired session JWT → a fresh one
    DELETE /v1/auth/session                  log out
    ```
-   and add after it: *"Every session-returning call ends the same way: the account row is created or found by `external_id`, and the JWT is re-issued through `POST /v1/sessions/authenticate` with `session_custom_claims = { account_id }`, because Stytch's JWT names the user by its own `sub` and does not carry `external_id` on its own. Refresh exists because the JWT lives five minutes and only management holds the project secret."*
+   and add after it: *"Every session-returning call ends the same way: the account row is created or found by `external_id`. The JWT carries our id because the project's Stytch custom claim template maps `{{ user.external_id }}` to the claim `account_id` and Stytch evaluates it on every mint — Stytch's own JWT names the user by its `sub` and does not carry `external_id`. Management sends `session_custom_claims` nowhere. On the one login where `external_id` is first written the session was minted a moment too early, so that login re-mints the JWT once; no other login and no refresh does. Refresh exists because the JWT lives five minutes and only management holds the project secret."*
 3. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → "Deliberately not decided".** Strike *"Whether `PATCH` on an army takes a whole document or a patch."* with: *"Settled 2026-09-05 by the management API plan: a patch — a name, unit-default bindings (`UnitPatch`), and per-slot binding, base and height (`SlotPatch`)."* Strike *"Error shapes and status code conventions."* with: *"RFC 7807 `application/problem+json`; another owner's row is `404`."*
 4. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → Army import.** Add after *"a change to Army Forge's format is a server deploy rather than a client release"*: *"The source is a share link (`https://army-forge.onepagerules.com/share?id=…`) or a bare list id; management fetches `GET /api/tts?id={id}`. Only Grimdark Future (`gameSystem: "gf"`) imports while OPR's is the only `GameRules`. Two `combined` entries are one unit; a hero's `joinToUnit` is not recorded. Weapons with a count below the unit's size are dealt onto successive models from an advancing cursor; a rule's level comes from the `catalog_entry` rows for the game rules (model-level rules go onto every slot), and a name no catalog knows is a unit rule."*
 5. **`docs/superpowers/specs/2026-08-28-army-design.md` → Base shape and height** (*"defaulting to whatever the ruleset says"*). Add: *"Army Forge publishes a recommended round base per unit (`bases.round`, e.g. `32` or `60x35` mm), which import uses as the default; a unit without one gets a 32 mm circle. No ruleset supplies a height; import writes 1.5" and the user corrects it per slot."*
@@ -3520,13 +3552,16 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
 - **Game-server plan** — must match, not consume: verify the session JWT exactly as Task 4 does (JWKS `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}`, no auth; `iss = stytch.com/{project_id}`; `aud = project_id`; RS256; 30 s clock skew; the account id is the top-level claim `account_id`, a GUID string — `StytchAuthentication.AccountClaim`), reading `TABLETOP_STYTCH_PROJECT_ID` and `TABLETOP_STYTCH_BASE_URL` from the same `.env`; it verifies at connect only — a socket outlives the five-minute JWT and is never re-verified, and a reconnect presents whatever JWT the client then holds; write only the rows in *Rows by writer* above and set `participant.army_id` on `pick_army` (the manifest reads it before the snapshot exists); read `game.rng_seed` into `GameInfo.RngSeed` at hydration and never write it — this project generates it once in `GameRepository.Create` and the column has no default, so it is a value the game server can rely on being there; on `replace_draft` from a loaded layout, regenerate every child id, because `terrain_placement`, `terrain_volume`, `marker` and `deployment_zone` ids are global primary keys and the layout's rows keep theirs; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)` (the manifest deserialises it with `ContentJson`); seed the OPR `stat_definition` names `Quality` and `Defense` (unit) and `Range` and `Attacks` (weapon), which import writes as stat keys; load at least one `properties` row, without which `POST /v1/games` answers `422` and no game can be created.
 - **Web-app plan** — consumes the HTTP surface above; hosts `/reset-password` at `TABLETOP_WEB_URL` and reads `?token=` from Stytch's redirect, then calls `POST /v1/auth/password/reset/complete`; computes the SHA-256 before `POST /v1/assets`; PUTs the bytes to `UploadUrl` with the same `Content-Type` it declared; calls `/confirm` and shows `Warning`; writes the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Gets CORS for `TABLETOP_WEB_URL` from Task 3 (its request). Does not get a way to rename units or model slots: the army spec gives the user "everything about appearance and physical presence" and the list "composition and loadout"; names are the list's, so `UnitPatch` and `SlotPatch` stay without `Name?` and the editor shows them read-only (compatibility review ruling, 2026-09-05; a one-column change in `ArmyRepository.Patch` if the owner wants it).
 - **Client-shell plan** — consumes `/v1/auth/*`, `/v1/account`, `/v1/games*` including the manifest `GET /v1/games/{id}/assets` (whose `ManifestEntry.Scale/Orientation` it applies to another participant's mesh), `/v1/properties`, `/v1/armies` (list and get only), `/v1/layouts` (list, get, `POST` to save), and three owner-only asset routes for the setup toolbar: `GET /v1/assets?kind=terrain|texture&limit=200`, `GET /v1/assets/{id}/volumes`, `GET /v1/assets/{id}/download`; sends `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; refreshes with `POST /v1/auth/session/refresh` before the five-minute JWT lapses (once a minute, per the management API's working figures). Its `ManagementDtos.cs` mirrors `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member; a change to any of these here is a change there.
-- **Stytch dashboard** (project `TabletopWar`, test) — `TABLETOP_WEB_URL/reset-password` must be a registered redirect URL for password resets; the two redirect URLs registered on 08-24 for OAuth and magic links can be removed.
+- **Stytch dashboard** (project `TabletopWar`, test) — two pieces of project state this code depends on and does not create, plus a note on managing the second:
+  - `TABLETOP_WEB_URL/reset-password` must be a registered redirect URL for password resets; the two redirect URLs registered on 08-24 for OAuth and magic links can be removed.
+  - The **session custom claim template** must be set to exactly `{"account_id": "{{ user.external_id }}"}` (dashboard → Custom Claim Templates, the `SESSION` template, for the test environment and again for live). `{{ user.external_id }}` is one of the supported variables, and the rendered object "will be used as the initial set of custom claims for all of that user's sessions", so Stytch stamps the claim on every mint with no call from us. The JSON key is ours to choose and must stay `account_id`, because both `StytchAuthentication.AccountClaim` and the game server's `StytchJwtVerifier.AccountClaim` read that name. **If it is missing or misspelled nothing errors:** every JWT mints without `account_id`, `CurrentAccount.Id` throws `UnauthorizedAccessException` on every management request, and the game server rejects every WebSocket connection — a total, silent outage with no Stytch error anywhere. Task 5's `AuthTests` catch a code regression but not a missing template, so the manual check in Task 5 Step 7 (read the JWT at jwt.io) is what proves the template exists. Limits, from the same page: total claims under 4 kB, no registered claim names (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`, or anything under `https://stytch.com/*` — `account_id` is none of these), and template changes reach existing sessions only the next time a JWT is minted.
+  - The template is also readable and writable over the Programmatic Workspace Actions API, verified 09-06 against Stytch's OpenAPI: `GET` and `PUT https://management.stytch.com/pwa/v3/projects/{project_slug}/environments/{environment_slug}/jwt_templates/SESSION`, Basic auth with a *workspace management* key (not the project secret), `PUT` body `{"template_content": …, "custom_audience": …}` with **both fields required** — send `custom_audience` back exactly as `GET` returned it, because a non-empty value replaces `aud` and both verifiers require `aud = project_id`. Nothing in this plan calls it; it is worth knowing only as a way to read the template back in CI, or to set it on a live project without the dashboard.
 
 ## Questions for the project owner
 
 ~~1. **Is a request with no `Tabletop-Client-Version` header accepted?**~~ Struck 09-06: the specs answer it. The management API's version check exists *"because the Godot client is a downloaded desktop application and a user can be months behind"* (management API → `/v1` in the path), and the client shell is the document that says *"the client sends its version on every request"* — the web app is deployed with the API and is not the case the mechanism was built for. A missing header is accepted, which is what `ClientVersion.Decide` does; spec correction 7 records it in the spec.
 
-1. **Should the account id go into the JWT by a per-login `session_custom_claims` (as planned) or by a Stytch dashboard "custom claim template" (`{"account_id": "{{ user.external_id }}"}`)?** Assumed the code path: it is visible in the repo, testable, and needs no dashboard state. If the template is preferred, `Sessions.Complete` drops the `RefreshSession` call for already-linked users (one fewer Stytch round trip per login) and the template becomes environment setup.
+~~1. **Should the account id go into the JWT by a per-login `session_custom_claims` or by a Stytch dashboard "custom claim template"?**~~ **Ruled 09-06: the template**, `{"account_id": "{{ user.external_id }}"}`. The plan's reason for the code path — visible, testable, no dashboard state — did not survive the cost the whole-design review had already measured: an extra Stytch call on every login *and* on every refresh, and refresh runs once a minute per client. Stytch's custom-claim-templates page, re-read 09-06, lists `{{ user.external_id }}` among the supported variables and says the rendered object "will be used as the initial set of custom claims for all of that user's sessions", so the claim costs nothing at run time. Consequences, all now written into Tasks 4 and 5: `StytchClient.RefreshSession` loses its `customClaims` parameter and `Sessions.Complete` makes no second call on a returning login or a refresh; `external_id = account.id` stops being incidental and becomes the mechanism; the template is recorded under *Interfaces needed from other modules → Stytch dashboard*, with what its absence breaks; and the one case the template cannot cover on its own — the first login, where the session is minted before `external_id` is written — is handled by re-minting the JWT once on that login only, which `AuthTests` asserts happens exactly once there and not at all afterwards.
 2. **Do joined heroes (`joinToUnit` on a non-combined entry) import as their own unit?** Assumed yes, and the join is lost, because no army table records it and content values dropped `list_entry`. If the hero should become a model of the unit it joined, it needs slot-level `Quality`/`Defense` stats on that slot and `Hero`/`Tough` as slot properties — a change to `ArmyForgeImport.Merge` only.
 3. **Default base and height when Army Forge gives none.** Assumed `Base.Circle(32/25.4)` and `1.5"` (`ArmyForgeImport.DefaultBase/DefaultHeight`); the army spec says "the ruleset's values" and no ruleset value exists. If the defaults should come from `Properties`, they need a table (there is none), or a `GameRules`-keyed constant in this project.
 4. **How are partial weapon counts dealt onto models?** Assumed an advancing cursor (9× Rifle, 1× Flamer → the flamer on the last model). If the user should be asked, import cannot expand deterministically, and the web app needs a per-slot weapon editor plus a `PATCH` shape for weapons — neither designed.

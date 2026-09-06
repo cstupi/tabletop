@@ -80,7 +80,7 @@ graph TD
     web -->|"armies, assets, account"| mgmt
     client -->|"ws /ws: session JWT + game id"| game
     game -->|"fetch public keys, cached 10 min"| stytch
-    mgmt -->|"authenticate, session_custom_claims"| stytch
+    mgmt -->|"authenticate; keeps external_id set to the account id"| stytch
     game -->|"read game/team/participant/table_state/army; write them while lobby or setup"| pg
     game -->|"append-only game.game_event"| pg
     mgmt -->|"owns every other row; owns migrations"| pg
@@ -95,9 +95,13 @@ and one token format.
 session JWT. The client then opens `ws://.../ws` and sends `Connect(SessionJwt, GameId,
 ClientVersion)`. `StytchJwtVerifier` validates it locally: RS256, issuer `stytch.com/{project}`,
 audience the project id, 30 s clock skew, keys from `HttpJwksSource`. It reads the account UUID
-out of the top-level custom claim `account_id`. There is no M2M call, no shared signing key and
-no session row. Verification happens once, at connect. The socket lives hours and the JWT five
-minutes, so re-checking it would kill live games on a five-minute clock.
+out of the top-level custom claim `account_id`. The claim is there because the Stytch project's
+`SESSION` claim template renders `{{ user.external_id }}` into it on every mint, and management
+keeps `external_id` equal to the account id; no call from either server passes
+`session_custom_claims` (owner ruling 2026-09-06 on the management plan's question 1). There is no
+M2M call, no shared signing key and no session row. Verification happens once, at connect. The
+socket lives hours and the JWT five minutes, so re-checking it would kill live games on a
+five-minute clock.
 `VerifiedSession.ExpiresAt` is recorded and not enforced.
 
 **The row seam.** One database, two schemas, no joins across the line. The game server reads
@@ -606,7 +610,7 @@ Decisions this plan took because no spec settled them:
 | Decision | Assumption taken | Why |
 | --- | --- | --- |
 | One actor per game, mailbox, no locks | Every mutation runs on the loop | Three of the four things a session does are order-sensitive; a lock gives exclusion without order |
-| The account UUID rides as the top-level custom claim `account_id` | Stytch's `sub` is its own `user_id` and does not carry `external_id` | Accounts allowed the fallback ("if it ever cannot, it is added as a custom claim"); the verifier needs one exact name. Spec correction 2 |
+| The account UUID rides as the top-level custom claim `account_id`, rendered by the Stytch project's `SESSION` claim template from `{{ user.external_id }}` | Stytch's `sub` is its own `user_id` and does not carry `external_id` | Accounts allowed the fallback ("if it ever cannot, it is added as a custom claim"); the verifier needs one exact name. Spec correction 2; the template is the owner's 2026-09-06 ruling and changes neither the name nor the position |
 | The heartbeat is Kestrel's WebSocket ping/pong, not a protocol frame | `KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s | `Tabletop.Protocol` has no heartbeat kind and needs none; `architecture.md` said "app-level ping/pong". Spec correction 6 |
 | The table frame is corner-origin | `0 <= x <= width`, `0 <= y <= length`, Z up | No document stated the origin, and both end-setup's off-slab rule and the client's rendering need one. Spec correction 3, aligned with the geometry plan |
 | `deployment_zone` rows exist per shape, keyed by ordinal, with no stored style | "Re-derive on team change" becomes a render-time join | The server keeps no style state. Spec correction 4 |
@@ -676,7 +680,7 @@ Decisions this plan took because no spec settled them:
 | `Tabletop.Protocol` | `ProtocolVersion`, `SocketMessage` and its twelve kinds, `Command` and its twenty-one, `EventPayload`/`StateChange`, `GameEvent`, `EventKinds`, `Ask`/`LegalSet`/`AskAnswer`/`AskQuestions`, `Edit`/`LobbyEdit`/`SetupEdit`, `Presence`/`Ping`, `GameInfo`/`Team`/`Participant`/`ArmyInPlay`/`Board`, `Projection`/`EventApplier`, `GameStatus`/`SchedulerShape`/`Enforcement`/`RefusalReason`/`RejectReason`, `WireJson` |
 | `Tabletop.Content` | `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `DeploymentZone`, `VisualRef`, `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `ArmySnapshot`, `ContentJson` |
 | `Tabletop.Geometry` | `Point2`, `Point3`, `Yaw`, `TableSize`, `Base`, `Volume`, `Footprint`, `TerrainDeclarations` (values only, no geometry is computed here) |
-| Management (indirectly) | `game`, `team`, `participant`, `army`, `properties` rows, and a session JWT carrying `account_id` |
+| Management (indirectly) | `game`, `team`, `participant`, `army`, `properties` rows, and a session JWT carrying `account_id` from the Stytch project's `SESSION` claim template |
 
 ### Obligations
 
@@ -686,9 +690,10 @@ Ask on a popped frame; `Undo` refused unless the target is `0` or a live seq; a 
 with the whole draft after each setup edit and a `GameInfoMessage` after each lobby edit;
 `AskAnswered.Answer` nulled for teams a sealed window withholds from.
 
-Placed: management must pass `session_custom_claims: { "account_id": "<Account.id>" }` on every
-authenticate, must insert `game` at `status = 'lobby'` with `created_by` and the six
-configuration columns, must insert `participant` with `team_id` and `army_id` null, and must
+Placed: management must keep every Stytch user's `external_id` set to its `Account.id`, so that
+the project's `SESSION` claim template renders `account_id` into every JWT that reaches this
+server, must insert `game` at `status = 'lobby'` with `created_by` and the six configuration
+columns, must insert `participant` with `team_id` and `army_id` null, and must
 never write `status = 'setup' | 'playing'`, `team`, `participant.team_id`, `participant.army_id`,
 `participant.army_snapshot`, or a game's `table_state` tree. The scheduler and the interpreter
 must supply exactly one `IRulesEngine` between them, must not emit `AskAnswered`/`AskClosed` for
@@ -1075,6 +1080,10 @@ edge back to `absent` is recovered by hydrating again.
   anything, and the record says who".
 - **No rate limiting anywhere.** A client may send presence at any rate. The relay is capped at
   20 Hz outbound. The inbound side is not capped.
+- **The account claim comes from configuration this repo does not hold.** If the Stytch project's
+  `SESSION` claim template is missing or misspelled, every JWT mints without `account_id` and this
+  server rejects every connection with `InvalidSession`. Stytch reports no error, and no test here
+  can see it (management API → *Obligations this module places on others → Stytch dashboard*).
 
 ## Testing
 
@@ -1139,7 +1148,10 @@ The plan's three questions, with the assumption taken:
 Questions the plan asked and then answered from the specs: commands while `ended` (accepted,
 because `ended` is a flag and there is no un-end endpoint), the presence relay rate (20 Hz),
 session eviction (a game leaves memory with its last socket), and the account claim name
-(`account_id`, settled between this plan and management's).
+(`account_id`, settled between this plan and management's). Management's own question about where
+the claim comes from was ruled on 2026-09-06 in favour of the Stytch claim template, which changes
+nothing here: the name and the top-level position are the same, so `StytchJwtVerifier` and its
+tests are untouched.
 
 Deferred, with where it is recorded:
 

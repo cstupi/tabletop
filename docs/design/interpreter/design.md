@@ -1,16 +1,16 @@
 # Interpreter and effects
 
 The rules engine's resolution half, built only in `server/game/`. It contains the pinned
-`Properties` set loaded from eight Postgres tables, a counter-based roll primitive that is game
-state but is never stored, the effect grammar's two passes, a generic sequence interpreter whose
+`Properties` set loaded from eight Postgres tables, a counter-based roll primitive over the
+game's stored seed, the effect grammar's two passes, a generic sequence interpreter whose
 frames are rebuilt from the event log on every call, and Grimdark Future's sequences behind
 `IGameRules`. It supplies the one `IRulesEngine` the game server skeleton left inert. It shares
 that engine with the scheduler module through `Engine.IScheduler`.
 
-Nothing about resolution is stored: not the frame stack, not the step's position, not the RNG.
-Every call to `Advance` re-reads the effective log and reconstructs them. A step may therefore
-hold no C# local across a suspension. Undo-by-replay, hydration and crash recovery are the same
-mechanism because of this.
+Nothing about resolution is stored: not the frame stack, not the step's position, not the dice
+cursor. The RNG seed is read with the game's row and never written here. Every call to `Advance`
+re-reads the effective log and reconstructs them. A step may therefore hold no C# local across a
+suspension. Undo-by-replay, hydration and crash recovery are the same mechanism because of this.
 
 ## Scope
 
@@ -61,7 +61,7 @@ scheduler. Three modules must land first:
 
 | Module | What this one consumes |
 | --- | --- |
-| Contracts | Every `EventPayload`, `Command`, `Ask`, `LegalSet`, `StateChange`, `Projection`, `Frame`, `EventApplier.EffectiveLog`, and `StepCompleted.Values` |
+| Contracts | Every `EventPayload`, `Command`, `Ask`, `LegalSet`, `StateChange`, `Projection`, `Frame`, `EventApplier.EffectiveLog`, `StepCompleted.Values`, and `GameInfo.RngSeed` |
 | Geometry | `Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Settling` |
 | Game server skeleton | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`, `CommandDispatcher`, `Legality`, `InMemoryEventLog`, `PostgresFixture`, `GrimdarkFutureRules` as a `partial` |
 
@@ -304,11 +304,13 @@ keeps only `LoadAsync`.
 ### The roll primitive
 
 `architecture.md` says *RNG lives in server state as a seed*. Undo must reproduce the same dice,
-so rewinding cannot be used to fish for a roll. Both hold without storing anything.
+so rewinding cannot be used to fish for a roll. The seed is `GameInfo.RngSeed`, written once when
+management creates the game row and never written again. The cursor is counted from the effective
+log and stored nowhere.
 
 ```mermaid
 flowchart LR
-    gid["game.id"] -- "SHA-256, first 8 bytes" --> seed["GameState.RngSeed : ulong"]
+    row["management.game.rng_seed : bigint"] -- "GameInfo.RngSeed, unchecked cast" --> seed["GameState.RngSeed : ulong"]
     log["effective log"] -- "sum of RollRecord.Dice.Count + DiceRerolled.Replaced.Count" --> cur["DiceCursor.DrawnSoFar : long"]
     seed --> src["IDiceSource.Draw(seed, index, sides)"]
     cur --> src
@@ -320,8 +322,8 @@ flowchart LR
     undo["Undone(N) shortens the effective log"] --> cur
 ```
 
-The RNG has no state of its own. An undo rewinds the dice with everything else, and redoing the
-same action draws the same faces.
+The seed is fixed for the life of the game and the cursor is a function of the effective log. An
+undo rewinds the dice with everything else, and redoing the same action draws the same faces.
 
 `DiceSource` is a counter-based generator: a SplitMix64 finaliser over `seed ^ (index * golden
 ratio)`. Die *i* of a game is a pure function of `(seed, i)` with no sequential dependency.
@@ -760,7 +762,7 @@ what it held.
 | Authored content is a JSON document per set under `server/game/Content/`, hashed over a canonical serialisation and seeded as rows at game-server startup, idempotently by hash | `architecture.md` names this the one part of Rules-as-data no design doc has touched; the interpreter needed a mechanism and this is the smallest one | Management owning the seeder behind an admin endpoint or CLI verb; a migration per set | spec correction 1, question 1 |
 | A step's settled parameters are a flat `Values` map on `step_completed` | A later step reads a parameter without re-deriving it, and a reroll changes what the next step reads without changing what was settled | A payload schema per step kind, the *Still open* item action sequences left | spec correction 4 |
 | A fifth step outcome: complete and run again | A move takes a second segment after a mid-move cast, and one window per activation would allow only one spell | A separate *checkpoint* primitive; a sequence listing the move step twice | spec correction 5 |
-| The RNG is counter-based: seed from the game id, cursor from the count of dice drawn in the effective log | Nothing about the RNG is stored, so an undo rewinds the dice with the log | Storing RNG state in the game record and rewinding it explicitly | spec correction 7 |
+| The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the effective log | The seed is written once at creation and never again, and no RNG state is stored, so an undo rewinds the dice with the log | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | owner ruling 1 of 2026-09-06; spec correction 7 |
 | A property's own roll is a `RollRecord` named after the entry, with the effect row's threshold | Nothing targets it, so it needs no `roll` row, and `AddModifier` therefore cannot name it | A `roll` row per property that rolls | spec correction 3 |
 | One sealed `Bid` legal set carrying the largest team maximum, clamped per team in the step | `Bid.MaxTokens` is one number for the whole Ask | A per-team map in the Protocol; one sealed Ask per team | spec correction 6, question 6 |
 | A `spell` entry's top-level effect must be `add_hit` or `duration = once`, validated | Reading all forty-eight spells found nothing else; anything else would apply nowhere | Accepting it and silently doing nothing | spec correction 8 |
@@ -821,9 +823,10 @@ eight:
 | `IRL<StateChange> OnRoundStarted(GameState, PropertySet, int round)` | OPR: clear `fatigued`, grant `Caster(X)` tokens capped at 6; round 0 yields none |
 | `IRL<StateChange> OnTurnEnded(GameState, PropertySet, TurnContext)` | OPR: `WoundsThisActivation` to 0; an idle activation clears `shaken` |
 
-Plus `GameState.RngSeed : ulong` on the skeleton's `GameState`, and `GfNames` as the one names
-class. `GfNames` declares the scheduler module's names too: `Deployment`, `Scouts`, `Rounds`,
-`Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`, `SetAside`.
+Plus `GameState.RngSeed : ulong` on the skeleton's `GameState`, `unchecked((ulong)Info.RngSeed)`
+from the game's stored seed, and `GfNames` as the one names class. `GfNames` declares the
+scheduler module's names too: `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`,
+`Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`, `SetAside`.
 
 `Tabletop.GameServer.Properties`, `.Dice`, `.Effects` are consumed by the scheduler module only
 through four names: `PropertySet.Actions` for the turn Ask's action rows, `Lookup.UnitHas` for
@@ -840,7 +843,7 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `remove_casualties`, `charge_
 
 | From | Exact names |
 | --- | --- |
-| Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog` |
+| Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog`, `GameInfo.RngSeed : long` (owner ruling 1 of 2026-09-06) |
 | Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed` |
 | Skeleton (`server/game/`) | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult` (`Emit`, `RefuseCommand`), `Legality`, `CommandDispatcher`, `RowMapping.EnumText/EnumFrom`, `IEventLog`, `InMemoryEventLog`, `PostgresFixture`, `RecordingClient`, `FixedAskEngine`, `GrimdarkFutureRules` as `sealed partial` |
 | Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `IGameRules.OrderReactions`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
@@ -1019,7 +1022,7 @@ tables, once per hash, through `PropertiesSeeder` at startup. Every payload it p
 | `management.effect` | `id`, `properties_hash`, `entry_name`, `parent_effect_id`, `subject`, `ordinal`, `kind`, `target_roll`, `target_stat`, `target_entry`, `target_action`, `target_quantity`, `target_result`, `target_modifier`, `amount`, `amount_from_parameter`, `threshold`, `cap_kind`, `replacement`, `duration` | the same |
 | `management.effect_condition` | `id`, `effect_id`, `kind`, `subject`, `comparison`, `number` | the same |
 | `management.condition_value` | `condition_id`, `value` | the same |
-| `management.game` | `properties_hash` read at hydration; nothing written | management, then the game server while `lobby`/`setup` |
+| `management.game` | `properties_hash` and `rng_seed` read at hydration; nothing written | management, which writes `rng_seed` once at creation, then the game server while `lobby`/`setup` |
 | `game.game_event` | `(game_id, seq, kind, payload)`: every payload this module returns | the skeleton's `PostgresEventLog` |
 
 `PostgresFixture.DeletePropertiesAsync(hash)` deletes the `properties` row and lets the seven
@@ -1030,7 +1033,7 @@ others cascade. The embedded core set is left in a developer's database on purpo
 | Thing | Held where | Lifetime |
 | --- | --- | --- |
 | `PropertySet` | `RulesEngineFactory._cache`, keyed by hash | process |
-| `GameState.RngSeed` | derived on `GameState` construction from the game id | session |
+| `GameState.RngSeed` | `unchecked((ulong)Info.RngSeed)` on `GameState` construction, the value stored on the game row | session |
 | The frame stack | `Projection.Stack`, applied from the four sequence events | rebuilt by the applier; **never a row** |
 | A frame's position, values and history | nothing; computed by `FrameReader.Read` on every `Advance` | one call |
 | The dice cursor | nothing; `DiceCursor.DrawnSoFar` sums over the effective log | one call |
@@ -1110,7 +1113,7 @@ with scripted dice. 74 new tests are expected.
 | `PropertySetTests`, `PropertySetDocumentTests` | lookups, `Comparison` over six operators, enum wire spellings, canonical hashing, validation, a spell's two admissible effect shapes | no |
 | `CoreContentTests` | the authored OPR core set parses, validates and builds | no |
 | `PropertiesStoreTests` | eight tables in, eight tables out; `SeedAsync` idempotent by hash | **yes**: `[Collection("Postgres")]`, `PostgresFixture` |
-| `DiceTests` | counter-based determinism, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, undo reproducing dice | no |
+| `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, undo reproducing dice | no |
 | `LivePropertiesTests`, `RollEffectsTests` | aggregation, collapse-unless-parameter, the four pass-one kinds in ordinal order, plan modifiers, suppression, per-die grants, capped multipliers | no |
 | `InterpreterTests`, `WindowTests` | the five outcomes, position and history from the log, confirm gates, reaction order, the sealed bid | no |
 | `RulesEngineTests` | the three-line `Advance` split, the three dice commands, `PropertiesNotFoundException` | no |

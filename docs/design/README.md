@@ -14,7 +14,7 @@ points; there are no victory conditions.
 ## Scope of this document
 
 The end architecture, how the modules communicate, the patterns that span them, and the build
-order. Per-module detail is in the eight documents indexed at the bottom.
+order. Per-module detail is in the ten documents indexed at the bottom.
 
 ## What is being built
 
@@ -25,10 +25,17 @@ order. Per-module detail is in the eight documents indexed at the bottom.
 | Management API | `server/management/` | Linux container | Accounts, armies, assets, layouts, game records |
 | Web app | `web/` | Static SPA, Svelte 5 | Army import, mesh conversion and binding, the asset library, the account |
 | Shared libraries | `libs/` | Consumed, never shipped alone | `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content` |
+| Simulator | `sim/` | Developer tool | Playing whole games with no client, and recording them |
+| Viewer | `viewer/` | Developer tool, static | Drawing a recording or a live game top-down |
 
 The division of labour between the browser and the client is **preparation versus play**. The
 browser owns everything a player builds between games. The client owns everything that happens
 during one. The client cannot edit an army; it picks one.
+
+`sim/` and `viewer/` were added on 2026-09-06 as a fourth and fifth deliverable, against a
+layout rule that had three. They ship to developers rather than to players: neither is in the
+client's export, neither is referenced by a server, and a release omitting both is complete.
+A simulator only xUnit can start is not something you can point at a problem.
 
 The rules engine lives only in `server/game/`. It is not in `libs/`, so there is one
 implementation and no second copy on a machine a player controls. There is no offline mode:
@@ -41,6 +48,10 @@ flowchart TB
   subgraph user["User machines"]
     browser["Browser: web app SPA"]
     client["Godot client"]
+  end
+  subgraph dev["Developer tools"]
+    sim["Simulator"]
+    viewer["Viewer: static page"]
   end
   subgraph services["Services"]
     mgmt["Management API<br/>ASP.NET Core, HTTP"]
@@ -64,9 +75,15 @@ flowchart TB
   mgmt --> pg
   game --> pg
   mgmt -->|"issues presigned URLs"| blob
+  sim -->|"in process: session and engine directly"| game
+  sim -->|"socket driver: the same path a client takes"| game
+  sim -->|"recording, a JSON file"| viewer
+  viewer -->|"spectator socket, a participant with no team"| game
 ```
 
-The two services never call each other. They share a database and nothing else.
+The two services never call each other. They share a database and nothing else. The simulator
+reaches the game server two ways, in process and over the socket, and the same scenario asserts
+the same things through either.
 
 ### Transport and payload per edge
 
@@ -79,6 +96,10 @@ The two services never call each other. They share a database and nothing else.
 | Management to Stytch | HTTP/JSON | Project secret | Stytch API |
 | Game server to Stytch | HTTP GET | None | JWKS |
 | Either service to Postgres | Npgsql | Connection string | SQL |
+| Simulator to game server, in process | None, direct construction | None | The session and engine types |
+| Simulator to game server, over the socket | One WebSocket per game | Session JWT per team | The same `SocketMessage` a client sends |
+| Simulator to viewer | A file on disk | None | A recording: one board, then a frame per event |
+| Viewer to game server | One WebSocket | Session JWT, no team | `SocketMessage` inbound only. It sends no command |
 
 Bytes never pass through management. It issues a URL and reads at most a ranged header.
 
@@ -367,6 +388,8 @@ the ECS Fargate sketch a later session will design against.
 | Postgres | Docker | `localhost:5432` |
 | Blob store, MinIO | Docker | `localhost:9000` |
 | Godot client | Windows host | Connects over forwarded localhost |
+| Simulator | WSL | A console run, no address of its own |
+| Viewer dev server | WSL | `localhost:5174` |
 
 The client runs on the Windows host because the Godot editor does; the repository is reached
 over the WSL share. This is the only configuration, so it is the one that is always tested.
@@ -386,6 +409,9 @@ flowchart LR
   S -->|"required by"| I["3 Interpreter"]
   G -->|"required by"| I
   I <-->|"one engine, one IGameRules"| SC["3 Scheduler"]
+  I -->|"required by"| SIM["4 Simulator"]
+  SC -->|"required by"| SIM
+  SIM -->|"recording schema"| V["5 Viewer"]
 ```
 
 **Contracts first** because they are the seams. Work behind a seam can proceed independently;
@@ -407,6 +433,11 @@ all three. The two rules modules need the skeleton's seam and geometry.
 consumes its Ask machinery, its roll primitive and its sequence starter, while the interpreter
 needs only an interface from the scheduler.
 
+**The developer tools come last and repay early.** The simulator needs both rules modules
+before it can play a game, and the viewer needs the simulator's recording schema before it can
+draw one. Once the simulator exists the interpreter's and scheduler's own full-game tests run
+through it.
+
 Headless before rendered. The libraries, both servers and the rules engine are Godot-free and
 have xUnit tests. The client is last and is tested by running it, with everything Godot-free
 extracted into core code that the test project compiles from source.
@@ -423,6 +454,8 @@ extracted into core code that the test project compiles from source.
 | Client | `client/` | [client](client/design.md) |
 | Interpreter and effects | `server/game/`, the rules engine | [interpreter](interpreter/design.md), [effect grammar](interpreter/effect-grammar.md), [OPR sequences](interpreter/opr-sequences.md) |
 | Scheduler | `server/game/`, turn order | [scheduler](scheduler/design.md) |
+| Simulator | `sim/` | [simulation](simulation/design.md) |
+| Viewer | `viewer/` | [viewer](viewer/design.md) |
 
 Precedence: the specs in `../superpowers/specs/` settle behaviour, the plans in
 `../superpowers/plans/` settle what gets written, these documents settle structure and record

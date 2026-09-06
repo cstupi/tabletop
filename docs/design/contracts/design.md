@@ -873,6 +873,7 @@ erDiagram
         text scheduler_shape "player-turn, alternating-activation"
         text enforcement "silent, warn, strict"
         bool waits_between_steps
+        bigint rng_seed "spec correction 12: the dice seed, written once at creation"
         uuid created_by FK
     }
     PARTICIPANT {
@@ -942,6 +943,7 @@ belongs to the interpreter module (rows, not schema). A freshly composed stack t
 | Every message set is a closed C# union with a `"kind"` discriminator | exhaustive switches, a reflection test that the set is complete, and a place to hang direction and fate | a `kind` string plus a property bag or `JsonObject`; a mistyped key would silently do nothing | identity and enumerations → The closed sets |
 | The applier copies and never derives | keeps every ruleset off the player's machine and makes replay faithful to what happened | let the client recompute consequences from a thinner event | client shell → The connection and the projection; action sequences → `step_completed` records "everything it produced" |
 | Undo is replay to N from the initial state, `Undone(N)` a logged event, the log append-only | RNG is state, so redoing reproduces the dice; no inverse events to write or keep correct | inverse events; a separate checkpoint mechanism | `architecture.md` → Undo |
+| `GameInfo` carries `long RngSeed`, positional and last among the scalars, backed by `game.rng_seed bigint not null` with no database default | undo and replay need a seed fixed for the life of the game, and a simulator run needs one it can choose; positional because a construction that omitted it would silently get `0`, and a `0` seed is a real game whose dice match every other game that omitted it | deriving the seed from `game.id`; carrying it in the first event, which a game in `lobby` or `setup` does not have; a database default, which would let a management bug produce a playable game | owner ruling 1 of 2026-09-06; **spec correction 12** |
 | Asks are events (`ask_opened`, `ask_answered`, `ask_closed`) | the projection *holds* the current Asks and is rebuilt from snapshot and log, so an Ask outside the log cannot survive a reconnect, and a window's pass is "a real answer, logged" | Asks as ephemeral server state pushed to clients | **spec correction 3**, derived from client shell and action sequences, neither of which listed the kinds |
 | The 13 `StateChange` leaves are registered on both `StateChange` and `EventPayload` | one `ApplyChange` serves the menu and automation: "the same fields through the same path" | wrap each change in a `StateChanged` payload | game flow → Nothing is an invariant |
 | `TableState` lives in `Content`, not `Protocol` | management stores it as a layout, the game server writes it as the draft, the client saves and loads it over HTTP. The client and both servers, which is `architecture.md`'s own test for `Content` | keep it in `Protocol` and duplicate a layout DTO in management | setup phase → Layouts; whole-design review ruling 4; **spec correction 10** |
@@ -1059,7 +1061,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `enum Enforcement { Silent, Warn, Strict }` | |
 | `sealed record Team(Guid Id, int Ordinal)` | |
 | `sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId)` | |
-| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, IRL<Team> Teams, IRL<Participant> Participants)` | what a lobby connect receives |
+| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, IRL<Team> Teams, IRL<Participant> Participants)` | what a lobby connect receives; `RngSeed` is the game's stored dice seed, wire name `rngSeed` |
 | `sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot)`; `sealed record Board(TableState Table, IRL<ArmyInPlay> Armies)` | `Armies` empty during setup |
 | `abstract record Location` | `OnTable(Placement)` `[table]`, `OnShelf` `[shelf]`, `Inside(Guid ContainerId)` `[inside]` |
 | `sealed record ModelRelocation(Guid ModelId, Location From, Location To)` | |
@@ -1091,7 +1093,7 @@ this table is the rest of the surface, with the exact member names later modules
 | --- | --- |
 | Postgres | `localhost:5432`, db `tabletop`, user `tabletop`, schemas `management` and `game`, `TABLETOP_DB_CONNECTION` |
 | MinIO | S3 API `http://localhost:9000`, console `:9001`, bucket `tabletop-blobs`, path-style, `TABLETOP_S3_ENDPOINT`, `TABLETOP_S3_BUCKET`, `TABLETOP_S3_ACCESS_KEY`, `TABLETOP_S3_SECRET_KEY` |
-| Schema | `scripts/postgres/init/001_schema.sql`, applied on first volume creation, and the same file is the management API's migration 001 |
+| Schema | `scripts/postgres/init/001_schema.sql`, applied on first volume creation, including `management.game.rng_seed bigint not null`, and the same file is the management API's migration 001 |
 | Reserved ports | management `5100`, game server `5200`, both bound to `0.0.0.0` |
 | Test seam | `Tabletop.Protocol.Tests.Samples`, one instance of every concrete message, event, command, edit, legal set and answer |
 
@@ -1103,8 +1105,8 @@ written in this module and kept in another.
 | Module | Obligation |
 | --- | --- |
 | Geometry | implement every body in `Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests; add `ZoneStyles`, `Movement`, `Table`, `Containment.BaseFullyWithin`, `Settling.SurfaceHeightAt(Point3, …)` |
-| Game server | emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` (whole draft) after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; overwrite `Presence.ParticipantId`, `Ping.Sender` and `GameEvent.Actor` from the socket's identity; own the `Properties` catalog types |
-| Management API | adopt `001_schema.sql` as migration 001 and baseline a compose-built database; read the `TABLETOP_*` names; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing |
+| Game server | read `game.rng_seed` with the rest of the game's row at hydration, pass it into `GameInfo.RngSeed`, and never write it; emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` (whole draft) after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; overwrite `Presence.ParticipantId`, `Ping.Sender` and `GameEvent.Actor` from the socket's identity; own the `Properties` catalog types |
+| Management API | adopt `001_schema.sql` as migration 001 and baseline a compose-built database; generate `game.rng_seed` in application code when inserting the game row, never update it, and return it in the game representation; read the `TABLETOP_*` names; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing |
 | Client shell | add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/`; marshal socket-thread applier writes onto Godot's main thread; render `MoveRegion.Containment`, where a click on an `Enterable` container answers `Destinations` with `Inside(container)` for every model and a non-null `ExitingId` draws the exit region with `Containment.BaseFullyWithin` |
 | Web app | mirror the JSON conventions in TypeScript, including the `[Flags]` comma-joined `TerrainDeclarations` form and the `builtin`-or-`assetId` exclusivity |
 
