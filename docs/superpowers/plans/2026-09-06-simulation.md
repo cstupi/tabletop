@@ -27,7 +27,7 @@
 - **Reproducibility means: the same scenario with the same seed gives the same dice and the same answers. Ids differ between runs.** The dice, because `GameState.RngSeed` is the stored seed and the *k*th die of a game is a pure function of that seed and *k* (interpreter plan Task 5). The answers, because one `Chooser` seeded from the same value is advanced in Ask order over legal sets the engine offers in its own ordinal order. Nothing asserts id equality across two runs, and nothing compares two recordings byte for byte; what is compared is the outcome kind, the round count, the sequence and frame counts, the answer history and the dice.
 - **The recording is a projection recording, not an event log** (spec → The recording is the artifact). It is derived and disposable, is never replayed into the engine, and the event log stays the only thing undo and hydration read. Say so in the header comment of every recording type.
 - The recording schema is version `1` in a `version` field. The spec leaves versioning undecided; the field costs one integer and a viewer that reads it can refuse a file it does not understand.
-- JSON: camelCase, string enums as plain strings, nulls omitted, indented. `sim/` owns `RecordingJson.Options`; it does **not** reuse `WireJson.Options`, because the recording is not a wire format.
+- JSON: camelCase, string enums as plain strings, nulls omitted, indented. `sim/` owns `RecordingJson.Options`; it does **not** reuse `WireJson.Options`, because the recording is not a wire format. The one thing it does borrow from `WireJson` is the *spelling of a Protocol enum* — `WireJson.Serialize(value).Trim('"')`, in `RunLoop.BuildRecording` and `SocketRowSeeder` — so that `alternating-activation` is spelled once in the tree and not twice.
 - Enforcement in a scenario defaults to `Enforcement.Strict`, which is the opposite of every fixture's default and is the point: a policy answer outside the legal set must be refused loudly rather than logged and accepted.
 - Commit after every task, imperative one-line subject, ending with the two trailers the session requires:
   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` and `Claude-Session: <the session URL>`.
@@ -357,6 +357,10 @@ public sealed record ScenarioArmy(
 /// What a run is: a board, armies, a scheduler shape, enforcement, a round cap, a seed, a script and
 /// the expectations. Declared in C# because that keeps the assertions typed (spec → Deliberately not decided).
 /// </summary>
+/// <param name="RoundCap">
+/// The maximum number of *whole* rounds. A cap of n ends the run on round n's boundary Ask; round n + 1 never
+/// starts. Task 6 → Termination, exactly.
+/// </param>
 public sealed record Scenario(
     string Name,
     ulong Seed,
@@ -2227,7 +2231,7 @@ git commit -m "Record a projection frame per event, and its JSON schema"
 - Test: `tests/Tabletop.Sim.Tests/RunLoopTests.cs`
 
 **Interfaces:**
-- Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IAnswerSource`, `PolicyView`, `UnscriptedAskException`, `NoLegalAnswerException`, `AnsweredAsk` (Tasks 2–3); `FrameProjector`, `Recording`, `RecordingMeta`, `RecordedTeam` (Task 5); `Projection`, `OpenAsk`, `Ask`, `LegalSet`, `AskAnswer`, `AskQuestions`, `MoveModels`, `ModelRelocation`, `Location`, `OnTable`, `OnShelf`, `GameEvent`, `EventKinds`, `Command` (Protocol); `Placement`, `Point2`, `Point3`, `Yaw`, `Polygon`, `PlacedModel`, `ZoneStyles`, `Settling` (Geometry); `CompiledScenario`, `Scenario`, `Expectation` (Task 1).
+- Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IAnswerSource`, `PolicyView`, `UnscriptedAskException`, `NoLegalAnswerException`, `AnsweredAsk` (Tasks 2–3); `FrameProjector`, `Recording`, `RecordingMeta`, `RecordedTeam` (Task 5); `Projection`, `OpenAsk`, `Ask`, `LegalSet`, `AskAnswer`, `AskQuestions`, `MoveModels`, `ModelRelocation`, `Location`, `OnTable`, `OnShelf`, `GameEvent`, `EventKinds`, `Command`, `WireJson` (Protocol — `Serialize<T>` on an enum, for the meta block's spelling only); `Placement`, `Point2`, `Point3`, `Yaw`, `Polygon`, `PlacedModel`, `ZoneStyles`, `Settling` (Geometry); `CompiledScenario`, `Scenario`, `Expectation` (Task 1).
 - Produces: `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }`; `abstract record RunOutcome` with `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason Reason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, and `string Kind` (`decided`, `round_limit`, `stuck`, `failed`, `paused`); `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` with `static AskFingerprint Of(Ask)`; `static class HandPlacement` with `IReadOnlyList<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)`; `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true)`; `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IReadOnlyList<string> Failures, string? RecordingPath)` with `bool Passed`; `sealed class RunLoop(IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)` with `Task<RunReport> RunAsync(CancellationToken ct)`, `FrameProjector Projector`, `Recording BuildRecording(RunReport)`, `IReadOnlyList<string> LastFrames(int n)`; `static class Expectations` with `IReadOnlyList<string> Check(IReadOnlyList<Expectation>, Projection, IReadOnlyList<GameEvent>, RunOutcome, CompiledScenario)`.
 
 Spec: spec → *What a full game means* — the three-row table, "a run that reaches none of them is a bug the simulator exists to find"; "Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in production and a failed assertion here." Module prompt → "Detect stuck precisely: no open Ask and no events emitted, or an Ask answered that reopens unchanged. A stuck run is a failure with the last frames dumped."
@@ -2237,12 +2241,14 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 | End | Condition as this loop computes it |
 | --- | --- |
 | Decided | Exactly one team has a model whose `Location is OnTable`, and at least one other team has none. A team's models are its participants' armies' models. |
-| Round limit | `Projection.Scheduler.Round > Scenario.RoundCap`. |
+| Round limit | `Projection.Scheduler.Round >= Scenario.RoundCap` and every open Ask is `AskQuestions.EndRound`. |
 | Stuck: `NoAskNoEvents` | A step produced no events and no Ask is open. |
-| Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. |
+| Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. **This check is defeatable and is not the only guard:** a single non-Ask event since the last answer clears the suspicion, so an engine that emits one cosmetic event per turn of the loop re-Asks forever without ever tripping it, and is caught only by `RunSettings.MaxSteps` (20 000), which is the backstop. |
 | Stuck: `SubmitRefused` | An answer the driver refuses. Under `strict` that is a real bug in the policy or the engine, and the run stops rather than looping. |
 | Stuck: `NoLegalAnswer` | `NoLegalAnswerException`: a legal set with no answer and no pass. |
 | Failed | An `UnscriptedAskException`, a failed expectation, or a failed invariant. |
+
+**A cap of *n* means *n* whole rounds.** The boundary condition is not a detail: `Round >= RoundCap` **and every open Ask is the round-boundary Ask** stops the run at the end of round *n*, where `Round > RoundCap` alone would let round *n* + 1 start and stop part-way through it. A cap of two therefore ends after the second round, not during the third. Two reasons for that reading. A cap is a maximum number of rounds, so exceeding it by a fraction of a round is a cap that does not hold; and stopping on the boundary Ask leaves the recording ending on a whole round, which is what a viewer's round scrubber and every `ReachedRound` expectation assume. The boundary Ask always arrives, so the loop cannot sail past the cap waiting for it: the scheduler cannot advance a round except through an answered `end_round` Ask, which is invariant 5, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` (Task 7). This is the condition the design document records (`docs/design/simulation/design.md` → *The run loop and the four outcomes*); the table above and `RunLoop.DriveAsync` state it identically, and `A_cap_of_two_stops_at_the_end_of_the_second_round` pins it.
 
 **Why the loop places models by hand.** Deployment's Ask is `deploy` over a `PieceSelection` of units; the scheduler spec's phase ends "when the last model of that unit has a placement", and moving models by hand is an ordinary `MoveModels` command, not an Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). So after a `deploy` answer the loop puts that unit's models on the table itself, inside the team's own deployment zone, using `ZoneStyles.Resolve` — geometry from a library, not a rules outcome the engine should have computed. Nothing checks whether the placement is *good*; placement is free under every enforcement setting (`architecture.md` → Rules enforcement: "free placement, with base overlap, terrain intersection, and broken coherency flagged rather than prevented").
 
@@ -2252,6 +2258,7 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
+using Tabletop.Sim.Recording;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
 
@@ -2353,7 +2360,30 @@ public class RunLoopTests
     {
         var report = await Run("stalemate");
         Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
-        Assert.True(report.Rounds <= 4, $"the cap of 3 was exceeded: {report.Rounds}");
+        Assert.True(report.Rounds <= 3, $"the cap of 3 was exceeded: {report.Rounds}");
+        if (report.Outcome is RunOutcome.RoundLimit limit) Assert.Equal(3, limit.Rounds);
+    }
+
+    // A cap of n means n whole rounds, so the loop stops on round n's boundary Ask and round n + 1
+    // never starts. The two readings differ by exactly this frame, which is why it is asserted twice:
+    // on the reported round and on the frames.
+    [Fact]
+    public async Task A_cap_of_two_stops_at_the_end_of_the_second_round()
+    {
+        var scenario = ScenarioCatalog.Get("stalemate").WithSeed(7) with { RoundCap = 2 };
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        var loop = new RunLoop(driver, compiled,
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), new Chooser(7));
+        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.DoesNotContain(loop.Projector.Frames, f => f.Round > 2);
+        if (report.Outcome is RunOutcome.RoundLimit limit)
+        {
+            Assert.Equal(2, limit.Rounds);
+            Assert.Equal(2, report.Rounds);
+        }
     }
 
     [Fact]
@@ -2368,6 +2398,24 @@ public class RunLoopTests
         Assert.False(report.Passed);
         Assert.Equal("failed", report.Outcome.Kind);
         Assert.Contains("script-only", Assert.IsType<RunOutcome.Failed>(report.Outcome).Detail);
+    }
+
+    // The meta block is the viewer's input, so its enums carry the Protocol's spelling and not C#'s.
+    [Fact]
+    public async Task The_meta_block_spells_its_enums_the_way_the_wire_does()
+    {
+        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(3) with { RoundCap = 1 };
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        var loop = new RunLoop(driver, compiled,
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(3))), new Chooser(3));
+        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+
+        var meta = loop.BuildRecording(report).Meta;
+        Assert.Equal("alternating-activation", meta.SchedulerShape);
+        Assert.Equal("strict", meta.Enforcement);
+        Assert.Equal(1, meta.RoundCap);
+        Assert.Contains(meta.Outcome, (string[])["decided", "round_limit"]);
     }
 
     [Fact]
@@ -2413,7 +2461,12 @@ namespace Tabletop.Sim.Run;
 /// <summary>Why the engine stopped making progress. Every one of these is a bug the simulator exists to find.</summary>
 public enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }
 
-/// <summary>The three ends of spec → What a full game means, plus the fourth a scenario or an invariant can produce.</summary>
+/// <summary>
+/// Five ends, not the three spec → What a full game means tabulates. Decided, RoundLimit and Stuck are the
+/// spec's; Failed is an assertion breach — an unscripted Ask in a script-only run, a failed expectation or a
+/// failed invariant — and Paused is the step-and-wait seam of Task 9. The spec's table is asked to name all
+/// five in spec correction 11, because as written it reads as exhaustive and is not.
+/// </summary>
 public abstract record RunOutcome
 {
     public sealed record Decided(Guid WinningTeamId) : RunOutcome;
@@ -2535,9 +2588,20 @@ The `Z` is `0` and the server settles it: the interpreter plan's move step calls
 ```csharp
 namespace Tabletop.Sim.Run;
 
-/// <param name="MaxSteps">A hard stop, so a bug in this loop cannot spin forever.</param>
+/// <param name="MaxSteps">
+/// A hard stop, so a bug in this loop cannot spin forever — and the only guard against an engine that makes
+/// no real progress while emitting one non-Ask event per pass, which clears the AskReopenedUnchanged check.
+/// </param>
 public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true);
 
+/// <param name="RecordingPath">
+/// Where the recording was written, or null. <b><c>RunLoop</c> never sets this and always leaves it null.</b>
+/// The loop builds a <c>Recording</c> on demand through <c>BuildRecording</c> but writes no file and knows no
+/// output directory; whoever writes the file owns the path, which is <c>Program.PlayAsync</c> (Task 10)
+/// returning <c>report with { RecordingPath = path }</c> after <c>RecordingJson.WriteAsync</c>. A caller that
+/// drives <c>RunLoop</c> itself — a full-game test, say — gets null here and that is correct, because nothing
+/// was written.
+/// </param>
 public sealed record RunReport(
     string Scenario, ulong Seed, string Driver, RunOutcome Outcome,
     int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs,
@@ -2618,9 +2682,9 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Run;
 
 /// <summary>
-/// Drive a game to one of the three ends spec → What a full game means lists, and fail loudly on the fourth
-/// thing that can happen: no progress at all. Every answer comes from the answer source; nothing here reads
-/// a rule.
+/// Drive a game to one of the three ends spec → What a full game means lists, and fail loudly on the two
+/// further things that can happen: no progress at all, and an assertion that does not hold. Paused is the
+/// fifth and is not an end. Every answer comes from the answer source; nothing here reads a rule.
 /// </summary>
 public sealed class RunLoop(
     IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)
@@ -2651,9 +2715,11 @@ public sealed class RunLoop(
         if (outcome is RunOutcome.Stuck or RunOutcome.Failed)
             failures.Add($"{outcome.Kind}: {outcome}\nlast frames:\n{string.Join("\n", LastFrames(_settings.FrameDumpOnFailure))}");
 
+        // RecordingPath stays null: this loop writes no file. Program.PlayAsync fills it in after
+        // RecordingJson.WriteAsync, and it is the only thing that does — see RunReport's own comment.
         return new RunReport(scenario.Scenario.Name, scenario.Scenario.Seed, driver.Name, outcome,
             projection.Scheduler.Round, projection.LastSeq, Projector.Frames.Count,
-            answers.History.Count, clock.Elapsed.TotalMilliseconds, failures, null);
+            answers.History.Count, clock.Elapsed.TotalMilliseconds, failures, RecordingPath: null);
     }
 
     private async Task<RunOutcome> DriveAsync(CancellationToken ct)
@@ -2675,6 +2741,8 @@ public sealed class RunLoop(
                 continue;
             }
 
+            // n whole rounds, ending on round n's boundary Ask rather than part-way through round n + 1.
+            // The boundary Ask always comes: the scheduler cannot advance a round without one (invariant 5).
             if (projection.Scheduler.Round >= scenario.Scenario.RoundCap &&
                 open.All(a => a.Ask.Question == AskQuestions.EndRound))
                 return new RunOutcome.RoundLimit(projection.Scheduler.Round);
@@ -2724,7 +2792,12 @@ public sealed class RunLoop(
         Absorb(await driver.DrainEventsAsync(ct));
     }
 
-    /// <summary>An Ask answered and reopening unchanged, with nothing but the three Ask events between.</summary>
+    /// <summary>
+    /// An Ask answered and reopening unchanged, with nothing but the three Ask events between. One non-Ask
+    /// event since the last answer clears the suspicion, so this catches a tight re-Ask loop and nothing
+    /// slower: an engine emitting one cosmetic event per pass re-Asks forever and is caught by
+    /// RunSettings.MaxSteps instead, which is the backstop and not a formality.
+    /// </summary>
     private RunOutcome? Reopened(Ask ask, IReadOnlyList<GameEvent> since)
     {
         _sinceLastAnswer += since.Count(e => e.Payload is not (AskOpened or AskAnswered or AskClosed));
@@ -2752,7 +2825,7 @@ public sealed class RunLoop(
 
     public Recording BuildRecording(RunReport report) => Projector.Build(new RecordingMeta(
         report.Scenario, report.Seed, report.Driver, scenario.Info.GameRules, scenario.Info.PropertiesHash,
-        scenario.Info.SchedulerShape.ToString(), scenario.Info.Enforcement.ToString().ToLowerInvariant(),
+        Wire(scenario.Info.SchedulerShape), Wire(scenario.Info.Enforcement),
         scenario.Scenario.RoundCap,
         scenario.Info.Teams.Select(t => new RecordedTeam(t.Id, t.Ordinal,
             scenario.Scenario.Armies.ElementAtOrDefault(t.Ordinal - 1)?.Name ?? $"Team {t.Ordinal}",
@@ -2761,10 +2834,15 @@ public sealed class RunLoop(
         report.Outcome switch { RunOutcome.Stuck s => s.Detail, RunOutcome.Failed f => f.Detail, _ => null },
         report.Outcome is RunOutcome.Decided d ? d.WinningTeamId : null,
         report.Rounds, report.LastSeq, DateTimeOffset.UtcNow, report.DurationMs));
+
+    /// <summary>The Protocol's own spelling of an enum, so the meta block carries one convention and not two.</summary>
+    private static string Wire<T>(T value) where T : struct, Enum => WireJson.Serialize(value).Trim('"');
 }
 ```
 
-`SchedulerShape.ToString()` gives `AlternatingActivation`; the recording wants the wire spelling, so write `WireJson.Serialize(scenario.Info.SchedulerShape).Trim('"')` — the one place `sim/` borrows the Protocol's own spelling of an enum, so a viewer sees `alternating-activation` and not two conventions.
+**Every enum in the recording is written in the Protocol's spelling.** `SchedulerShape.ToString()` gives `AlternatingActivation`, and a viewer reading the meta block must see `alternating-activation`, so `RunLoop` takes the spelling from `WireJson` itself rather than inventing one — the same `Wire<T>` helper `SocketRowSeeder` uses in Task 8, and the reason `WireJson.Serialize<T>(T)` accepting an enum is on the *Interfaces needed* list. `Enforcement` goes through the same helper: `Silent`/`Warn`/`Strict` happen to spell the same under `.ToLowerInvariant()` as under `WireJson`'s `JsonNamingPolicy.SnakeCaseLower`, so this is not a bug being fixed but a coincidence being removed, and a multi-word member added to `Enforcement` later cannot start the two spellings drifting apart again. `RunLoop.cs` therefore needs `using Tabletop.Protocol;`, which it already has.
+
+The rest of the recording's enums were checked against the contracts plan and are correct as written, because every one of them is a single word and `SnakeCaseLower` leaves a single word alone: `MarkerKind { Objective, Token }` in `MarkerState` and `BuildBoard`, `BaseShape { Circle, Oval, Square }` in `BuildBoard`, and `VolumeKind { Solid, Area }` with `FootprintKind { Circle, Rect }` in `VolumeOf` (Task 5 Step 5). `TerrainDeclarations` is a `[Flags]` enum with multi-word members and is already spelled by hand into `blocks_line_of_sight` and the rest, matching `SnakeCaseLower`. `RecordingMeta.Outcome` is `RunOutcome.Kind`, a string this plan owns, not an enum. `SchedulerShape` was the only member whose two spellings differ, and it was the one that was wrong.
 
 - [ ] **Step 6: Run the tests; expect all green, then commit**
 
@@ -3194,7 +3272,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     }
 
     [Fact]
-    public async Task The_same_scenario_reaches_the_same_end_in_process_and_over_the_socket()
+    public async Task The_same_scenario_reaches_a_legitimate_end_on_both_drivers()
     {
         const ulong seed = 21;
         var scenario = ScenarioCatalog.Get("skirmish").WithSeed(seed);
@@ -3214,12 +3292,19 @@ public class DriverAgreementTests(PostgresFixture pg)
             await using (var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), Credentials(c), pg.Db, ct))
                 overSocket = await RunWith(driver, c, seed, ct);
 
+            // What is asserted and what deliberately is not: see the note under this block.
             Assert.Equal("socket", overSocket.Driver);
-            Assert.Equal(inProcess.Outcome, overSocket.Outcome);
-            Assert.Equal(inProcess.Rounds, overSocket.Rounds);
-            Assert.Equal(inProcess.LastSeq, overSocket.LastSeq);
-            Assert.Equal(inProcess.Frames, overSocket.Frames);
-            Assert.Equal(inProcess.AsksAnswered, overSocket.AsksAnswered);
+            Assert.True(inProcess.Passed, string.Join("\n", inProcess.Failures));
+            Assert.True(overSocket.Passed, string.Join("\n", overSocket.Failures));
+            Assert.Contains(overSocket.Outcome.Kind, (string[])["decided", "round_limit"]);
+            Assert.True(overSocket.Rounds >= 1, $"the socket run only reached round {overSocket.Rounds}");
+            Assert.True(overSocket.AsksAnswered > 10);
+
+            // Nothing lost, reordered or duplicated on the wire: seq starts at 1 and rises by one per
+            // event, and the recording keeps a frame per event, so Frames == LastSeq on both drivers.
+            // A dropped or replayed EventsMessage breaks this and a slow quiet window cannot.
+            Assert.Equal(inProcess.LastSeq, (long)inProcess.Frames);
+            Assert.Equal(overSocket.LastSeq, (long)overSocket.Frames);
         }
         finally { await seeder.DeleteAsync(c.Info.Id, ct); }
     }
@@ -3243,7 +3328,9 @@ public class DriverAgreementTests(PostgresFixture pg)
                 lastSeq = report.LastSeq;
                 played = await driver.ProjectionAsync(ct);
             }
-            Assert.Equal(lastSeq, await pg.CountAsync("select coalesce(max(seq), 0) from game.game_event where game_id = $1", c.Info.Id));
+            // PostgresFixture.CountAsync returns int, so the cast is what makes the comparison a long one.
+            Assert.Equal(lastSeq, (long)await pg.CountAsync(
+                "select coalesce(max(seq), 0) from game.game_event where game_id = $1", c.Info.Id));
 
             // Every socket gone, so the session left memory; connecting again hydrates from the log alone.
             await using var again = await SocketDriver.StartAsync(c, new FactoryConnector(factory), Credentials(c), pg.Db, ct);
@@ -3294,7 +3381,17 @@ public class DriverAgreementTests(PostgresFixture pg)
 }
 ```
 
-`RunLoop` therefore exposes its answer source: add `public IAnswerSource Answers => answers;`. `PostgresFixture.CountAsync` is the skeleton plan's (`Task<long> CountAsync(string sql, params object[] parameters)`); if its signature does not take parameters, inline the `game_id` in the SQL string.
+**Why the two drivers are not compared run-for-run.** An earlier draft of this test asserted `inProcess.Outcome == overSocket.Outcome` and equality of `Rounds`, `LastSeq`, `Frames` and `AsksAnswered` across the two drivers. That is more than the transports guarantee, and a timing window could break it in CI without anything being wrong.
+
+What the socket transport *does* guarantee: every event the server emits reaches the recorder's socket, once, in `seq` order, and `DrainEventsAsync` sorts by `seq` and skips anything already applied — so the socket driver's projection is always a prefix of the same event sequence, never a different one. That is what the `Frames == LastSeq` assertions above check, and it is what a serialization, transport or persistence fault actually breaks.
+
+What it does not guarantee is *when* an event is observed. `QuietAsync` returns after 250 ms of silence, and a server that takes longer than that over one step hands the loop a shorter list of open Asks than the in-process driver — whose `GameSession.RunAsync` marker makes quiescence exact — would have seen. Two consequences, both real. If two Asks of the same question are open at once, the two drivers can pair them with different `(question, ordinal)` keys, take different answers from the same seeded `Chooser`, and play a different game from there: a different outcome, a different round count, a different `LastSeq`. And a window that expires before the server has emitted anything at all shows the loop a step with no events and no open Ask, which is `Stuck(NoAskNoEvents)` reported for a server that was merely slow. Neither is a bug this test should be reporting as a driver disagreement.
+
+So the run-level equality is dropped rather than weakened into something still timing-dependent, and the transport localisation the spec asks for is carried by the parts that do not depend on observation order: both runs pass, both satisfy all five invariants (`RunWith` checks them on each driver), both logs are contiguous, and the two tests below check that the log lands in Postgres and that hydrating from it alone reproduces the projection. If the 250 ms window is ever replaced by a positive rested-signal from the server (*Questions for the project owner*, item 5), quiescence over the socket becomes exact, the observation order is then the same on both drivers by construction, and the strict comparison can come back.
+
+`RunLoop` therefore exposes its answer source: add `public IAnswerSource Answers => answers;`.
+
+`PostgresFixture.CountAsync` was checked against the game server skeleton plan rather than assumed: it is `public async Task<int> CountAsync(string sql, params object[] args)` (that plan, Task 3's fixture), which does take positional parameters, so the `$1` form above is right and the inline-SQL fallback is not needed. It returns `int` rather than `long` — it ends in `Convert.ToInt32(await cmd.ExecuteScalarAsync())` — which is why the `max(seq)` comparison casts. A game long enough to overflow an `int` sequence is not a game this test runs.
 - [ ] **Step 2: Run; expect failure, then write `IWebSocketConnector.cs`**
 
 Run: `docker compose up -d && dotnet test tests/Tabletop.Sim.Tests --filter DriverAgreementTests`
@@ -3888,6 +3985,11 @@ public class ProgramTests
             Assert.Equal(1ul, recording.Meta.Seed);
             Assert.Equal("in-process", recording.Meta.Driver);
             Assert.NotEmpty(recording.Frames);
+
+            // RunLoop always leaves RunReport.RecordingPath null; this is the only code that fills it in,
+            // and the path reaches summary.json by no other route.
+            Assert.Contains("stalemate-1.json",
+                await File.ReadAllTextAsync(Path.Combine(directory, "summary.json"), TestContext.Current.CancellationToken));
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }
@@ -4445,10 +4547,23 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
    > 2. **It must never compute a rules outcome the engine should compute.** No deciding for itself whether a target is in range, whether a wound lands, or what a modifier totals. A second rules implementation inside the simulator can agree with a broken engine and hide the fault.
    >
    > Separately, and for a different reason: the **default** policy stays uniform over the legal set and ignorant of state. A cleverer policy explores a narrower, more plausible region and finds fewer bugs, so a state-reading policy is opt-in and named as such, never the default for a soak run. An opponent that plays well is a later feature and would live behind the same seam.
-7. **Same file → What a full game means**, the Decided row: *"One team has models and the others do not."* Add: *"Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game."*
+7. **Same file → What a full game means**, the Decided row: *"One team has models and the others do not."* Add: *"Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game."* **Subsumed by correction 11**, which replaces that whole table and carries this wording in it; apply 11 and this row is already done.
 8. **Same file → Testing**, the sentence *"It is then the harness the interpreter's and scheduler's own full-game tests use."* Add: *"Those tests live in `tests/Tabletop.Sim.Tests` rather than in `tests/Tabletop.GameServer.Tests`, because `sim/` references the game server and a test project that `sim/` referenced back would be a cycle. `sim/` therefore reaches the core `Properties` set through the production path — `PropertiesSeeder.EmbeddedDocuments()` — rather than through `TestProperties`, and builds its armies with `ScenarioArmy` rather than `TestArmies`."*
 9. **Same file → `sim/` is a fourth deliverable.** Add a paragraph: *"One thing the simulator must do that is not an answer to an Ask: **deploy**. Deployment's Ask names a unit, and putting that unit's models on the table is an ordinary `MoveModels` command rather than an Ask (the scheduler → The turn is an Ask: 'moving models by hand never ends one'). So `sim/` places models itself, inside the team's own deployment zone, resolving the zone's shape with `Tabletop.Geometry.ZoneStyles`. That is geometry rather than a rule, and nothing judges whether a placement is good — placement is free under every enforcement setting."*
 10. **`docs/schema.md` → Diagram**, the `PARTICIPANT` block, which lists `id`, `team_id`, `account_id`, `army_snapshot`. Add `uuid game_id FK` and `uuid army_id FK`. Reason: the game server plan's `FindParticipantAsync(gameId, accountId)`, its `SetParticipantArmyAsync`, and the management plan's `POST /v1/games/{id}/join` all require both columns, and `scripts/postgres/init/001_schema.sql` has them; the diagram is stale rather than the schema. `sim/`'s `SocketRowSeeder` inserts both.
+11. **`docs/superpowers/specs/2026-09-06-simulation-design.md` → What a full game means**, the sentence *"A run reaches one of three ends, and a run that reaches none of them is a bug the simulator exists to find."* and the three-row table under it. The plan produces five `RunOutcome` kinds, not three, and the spec names only three, so the table cannot be read as exhaustive as it stands. Replace the sentence and the table with:
+
+    > A run reaches one of five ends. Three are the game ending; two are the harness. A run that reaches none of them is a bug the simulator exists to find.
+    >
+    > | End | Condition |
+    > | --- | --- |
+    > | Decided | One team has models and the others do not. Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game |
+    > | Round limit | A configured round cap, since OPR has no round limit and a stalemate must still terminate. A cap of *n* means *n* whole rounds: the run ends on round *n*'s boundary Ask rather than part-way through round *n* + 1 |
+    > | Stuck | No Ask is open and the engine emits nothing, or an Ask is answered and reopens unchanged |
+    > | Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending, and it is the outcome that makes the console exit non-zero |
+    > | Paused | The step-and-wait seam: the loop stopped with an Ask open and answered nothing, waiting for a person or a test to answer it. A paused run is not a failure and is resumed rather than ended |
+
+    Three of those five rows are the spec's own. The Decided row carries the wording correction 7 asks for, folded in so the replacement can be pasted whole, which leaves 7 subsumed rather than in conflict; the Round limit row gains the boundary sentence this plan settled (Task 6 → *A cap of *n* means *n* whole rounds*), because a cap that is off by one round is the difference between two readings of the same word. The two new rows are `Failed` and `Paused`. Both are already elsewhere in the spec — `Failed` in *What it asserts* ("a failed assertion here") and *Two ways to answer an Ask* ("an unscripted Ask under a script-only run is a failure"), `Paused` in *Interactive debugging is a door, not a room* ("the driver interface has a step-and-wait mode") — but neither is in the one table that claims to enumerate how a run can end, which is the table anybody counting outcomes reads. Naming them there also states the thing the plan relies on and the spec does not say: `Decided`, `RoundLimit` and `Paused` pass; `Stuck` and `Failed` do not.
 
 ## Interfaces needed from other modules
 
@@ -4456,7 +4571,7 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 1. **Interpreter plan** — `PropertiesSeeder.EmbeddedDocuments()` (`static IReadOnlyList<PropertySetDocument>`) and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` must both be `public`, because `ScenarioCompiler.CoreProperties` is how `sim/` gets the core Grimdark Future set without touching a test project. `PropertySetDocument.GameRules` is read to pick the document. Also `InMemoryPropertiesStore.Add(PropertySet)` returning `this`, `DiceSource()` parameterless, and `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public.
 2. **Scheduler plan** — `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. `AskQuestions.EndRound` is the boundary Ask's question, and invariant 5 reads it from `Tabletop.Protocol.AskQuestions` (added to the contracts plan on 2026-09-06 by that plan's *Interfaces needed*).
-3. **Game server skeleton plan** — `GameSession.ConnectAsync(ISessionClient)`, `ReceiveAsync(ISessionClient, SocketMessage)`, `RunAsync<T>(Func<Task<T>>)`, `DrainAsync(string)` and the `Play` property public; `Hydrator.HydrateAsync`; `Replay.To(Board, GameInfo, IReadOnlyList<GameEvent>, long)`; `InMemoryEventLog()`; `GameServerOptions` constructible from object-initializer syntax with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set (every other member defaulted); `PostgresGameRows(NpgsqlDataSource)`; and `PostgresFixture.CountAsync` taking parameters — assumed `Task<long> CountAsync(string sql, params object[] parameters)`. If it takes no parameters, `DriverAgreementTests` inlines the game id into the SQL string instead.
+3. **Game server skeleton plan** — `GameSession.ConnectAsync(ISessionClient)`, `ReceiveAsync(ISessionClient, SocketMessage)`, `RunAsync<T>(Func<Task<T>>)`, `DrainAsync(string)` and the `Play` property public; `Hydrator.HydrateAsync`; `Replay.To(Board, GameInfo, IReadOnlyList<GameEvent>, long)`; `InMemoryEventLog()`; `GameServerOptions` constructible from object-initializer syntax with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set (every other member defaulted); `PostgresGameRows(NpgsqlDataSource)`; and `PostgresFixture.CountAsync`, confirmed from that plan as `Task<int> CountAsync(string sql, params object[] args)` — positional parameters, so `DriverAgreementTests` passes the game id as `$1`, and an `int` return, so the one comparison against a `long` sequence casts. Nothing here asks for a change.
 4. **Contracts plan** — `EventApplier.EffectiveLog(IReadOnlyList<GameEvent>)` as a public static, which the undo invariant and invariant 4 both call; `Projection.Initial(Board, GameInfo)`; `WireJson.Serialize<T>(T)` accepting an enum, which is how `sim/` prints `alternating-activation` rather than inventing a second spelling. Also **`GameInfo.RngSeed`**, the stored RNG seed the project owner ruled on 2026-09-06, together with the `management.game` column it comes from. That plan owns the name, the SQL type and the C# type; this one consumes its choice.
 
    **Landed 2026-09-06, and this plan follows it: `long RngSeed`, positional and last among `GameInfo`'s scalars — after `WaitsBetweenSteps`, before `Teams` and `Participants` — over a `management.game.rng_seed bigint not null` column with no default** (contracts plan → *Interfaces → Produces* and spec correction 12). Positional on purpose, so a construction that forgets the seed fails to compile rather than silently getting `0`. `long` because `bigint` is signed, so `ScenarioCompiler` writes `unchecked((long)s.Seed)` from the scenario's `ulong Seed`; the reverse cast (`unchecked((ulong)info.RngSeed)`, where `GameState.RngSeed : ulong` is set) belongs to the interpreter plan, not this one. `SocketRowSeeder` passes `info.RngSeed` straight into the insert. The four places this plan spells the seed are `ScenarioCompiler.Compile`, `SocketRowSeeder.SeedAsync`, and the seed assertions in `ScenarioTests` and `RunLoopTests`.
@@ -4480,8 +4595,10 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 ## Self-review
 
-**Spec coverage.** Every section of `docs/superpowers/specs/2026-09-06-simulation-design.md` that concerns `sim/` maps to a task: *`sim/` is a fourth deliverable* → Tasks 1 and 11; *Two ways to answer an Ask* → Tasks 2 and 3; *Two drivers behind one interface* → Tasks 4 and 8; *The recording is the artifact* → Task 5; *Interactive debugging is a door* → Task 9; *What a full game means* → Task 6; *What it asserts* → Task 7; *Testing* (`sim/` half) → the tests in every task. The `viewer/` sections are another plan's and are untouched beyond the one line each in Task 11. Four *Deliberately not decided* / *Still open* items that `sim/` had to settle are settled in the spec corrections rather than silently; corrections 1 and 6 were overtaken by the project owner's rulings of 2026-09-06 and now record what became of them.
+**Spec coverage.** Every section of `docs/superpowers/specs/2026-09-06-simulation-design.md` that concerns `sim/` maps to a task: *`sim/` is a fourth deliverable* → Tasks 1 and 11; *Two ways to answer an Ask* → Tasks 2 and 3; *Two drivers behind one interface* → Tasks 4 and 8; *The recording is the artifact* → Task 5; *Interactive debugging is a door* → Task 9; *What a full game means* → Task 6; *What it asserts* → Task 7; *Testing* (`sim/` half) → the tests in every task. The `viewer/` sections are another plan's and are untouched beyond the one line each in Task 11. Four *Deliberately not decided* / *Still open* items that `sim/` had to settle are settled in the spec corrections rather than silently; corrections 1 and 6 were overtaken by the project owner's rulings of 2026-09-06 and now record what became of them. Correction 11 is the one place the plan outruns the spec rather than filling a gap it left: the loop produces five outcomes where *What a full game means* tabulates three, so that table is asked to name `Failed` and `Paused` too, and correction 7 folds into it.
 
-**Placeholders.** None. Every step carries the code or the exact command it needs; the two places where an earlier plan's signature could not be confirmed from its text (`PostgresFixture.CountAsync`'s parameters, `Projection`'s team-ordinal lookup) name the fallback inline rather than leaving a gap.
+**Placeholders.** None. Every step carries the code or the exact command it needs. `PostgresFixture.CountAsync` was left assumed in an earlier draft and is now confirmed against the game server skeleton plan — `Task<int> CountAsync(string sql, params object[] args)`, positional parameters and an `int` return — so the inline-SQL fallback is gone and Task 8 casts instead. The one remaining place where an earlier plan's signature could not be confirmed from its text, `Projection`'s team-ordinal lookup, names its fallback inline rather than leaving a gap.
+
+**Termination is stated once.** The *Termination, exactly* table and `RunLoop.DriveAsync` now give the round limit the same way — `Round >= RoundCap` with every open Ask the boundary Ask — which is also what `docs/design/simulation/design.md` records. `A_cap_of_two_stops_at_the_end_of_the_second_round` pins the boundary that the two earlier readings disagreed about. Where a check is weaker than it looks it says so: `AskReopenedUnchanged` names `RunSettings.MaxSteps` as its backstop in the table, in the `Reopened` doc comment and in `RunSettings`' own.
 
 **Type consistency.** `SubmitResult.Accepted`/`Rejected`, `RunOutcome.Decided`/`RoundLimit`/`Stuck`/`Failed`/`Paused`, `RecordedFrame`'s sixteen members, `PolicyView`'s five-parameter constructor (two positional, three optional) and `LogLines.Of`'s three-argument signature are used the same way in every task that touches them. `CompiledScenario` gained `RecorderParticipantId` in Task 1 and is consumed with it in Tasks 4, 5, 6 and 8. `RunLoop` gained `Log` in Task 7 and `Answers` in Task 8, both named where they are added.

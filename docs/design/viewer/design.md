@@ -1,0 +1,898 @@
+# Viewer
+
+`viewer/` is a static web page that draws a `sim/` recording top-down in inches, with a timeline
+under the board and the log beside it. It is a developer tool and the fifth deliverable, separate
+from `web/` by a ruling of 2026-09-06: `web/` owns preparation for players, and a debugging surface
+for the person writing the engine does not belong in it. Two feeds reach it, a recording file and a
+live socket, and the live feed manufactures the recording's own shape in the browser, so nothing
+below the feed abstraction knows which feed it is on.
+
+That second path is the one place in the project where `Tabletop.Protocol` and the event applier
+exist twice. The duplication is generated and tested away rather than maintained: the TypeScript
+types come from the C# JSON contracts, and the ported applier must reproduce a recording the C#
+applier produced, frame for frame. Playback is the whole first version. The viewer sends one frame
+in its life, `Connect`, and after that it only receives.
+
+## Scope
+
+**In scope.** The recording reader and its schema gate; the frame-to-scene projection, including
+the two `Tabletop.Geometry` outline functions ported to TypeScript; the 2D canvas, its view
+transform and its picking; the timeline reducer with play, step, scrub and jump; the log, Ask, dice
+and meta panels; the scoreboard; the feed abstraction and both feeds; the ported event applier, log
+lines and frame projector; the TypeScript emitter and its drift guard; the agreement test and its
+checked-in fixtures.
+
+**Not in scope.**
+
+| Not built here | Where it lives |
+| --- | --- |
+| Any command, any Ask answer, any edit | not built; `Feed.control` is declared and `null` |
+| Pausing or resuming a run from the browser | `sim/`'s `DriverMode.StepAndWait`, `RunLoop.ResumeAsync`, `RunLoop.AnswerPausedAsync` (simulation plan Task 9) |
+| The recording schema | `sim/Recording/Recording.cs`, simulation plan Task 5 |
+| Producing recordings | `sim/`, simulation plan |
+| Deployment-zone shape resolution | `Tabletop.Geometry.ZoneStyles`, C# only, not ported |
+| The resolution frame stack | `Tabletop.Protocol.Projection.Stack`, not ported |
+| Joining a game as a spectator | `POST /v1/games/{id}/join`, management API |
+| 3D, meshes, WebGL, any drawing library, a router, SvelteKit, persistence | not built |
+
+**Code lands in** two places. `viewer/` holds its own `package.json` and lockfile, twenty-eight
+files under `src/`, eleven Vitest files, two test helpers and eight checked-in fixture files; two of
+the files under `src/lib/protocol/` are generated. `tests/Tabletop.Viewer.Tests/` holds five C#
+files, is `net10.0` xUnit, and is added to `Tabletop.sln`'s `tests` folder. Task 12 edits one
+bullet in `CLAUDE.md` and one paragraph in `docs/architecture.md`.
+Nothing under `viewer/` is in `Tabletop.sln`, and nothing in `viewer/` imports from `web/`.
+
+**Position in the build order.** Last. `viewer/` consumes the recording schema, so `sim/` must land
+first, and `sim/` consumes the whole engine. What must exist before Task 1:
+
+1. the contracts plan: `Tabletop.Protocol`'s `SocketMessage` and its closure, `WireJson.Options`,
+   `EventApplier` as the C# original the port copies;
+2. the simulation plan Tasks 1 through 6: `Recording` and every `Recorded*` record,
+   `RecordingJson.SchemaVersion`, `LogLines`, `FrameProjector`, `ScenarioCatalog`,
+   `ScenarioCompiler`, `InProcessDriver`, `RunLoop`, all `public`;
+3. the simulation plan Task 11, which writes `viewer/`'s placeholder lines into `CLAUDE.md` and
+   `docs/architecture.md` that this module's Task 12 replaces;
+4. the geometry plan Task 4: `Bodies.BaseOutline`, `WorldVolumes.WorldOutline` and `Point2.Rotate`,
+   as the source the port copies line for line;
+5. the game-server skeleton, for the live feed only, and the management API's
+   `POST /v1/auth/password` and `POST /v1/auth/session/refresh`.
+
+Tasks 1 through 8 need only `sim/` and the recording schema. Tasks 9 through 11 add the live feed
+and need `Tabletop.Protocol` and a running game server to be exercised by hand.
+
+## Context
+
+```mermaid
+flowchart TD
+    subgraph dev["Developer machine"]
+        sim["sim/ (Tabletop.Sim)"]
+        file[("recording.json")]
+        viewer["viewer/ (this module)"]
+    end
+    subgraph services["Services"]
+        game["server/game/: WebSocket"]
+        mgmt["server/management/: HTTP"]
+    end
+    subgraph csharp["C# sources the viewer copies from"]
+        proto["libs/Tabletop.Protocol<br/>SocketMessage, EventApplier"]
+        geom["libs/Tabletop.Geometry<br/>Bodies, WorldVolumes, Point2"]
+        rec["sim/Recording/Recording.cs<br/>the schema"]
+    end
+    tests["tests/Tabletop.Viewer.Tests"]
+
+    sim -->|"writes"| file
+    file -->|"recording feed"| viewer
+    game -->|"live feed: welcome, board, events"| viewer
+    viewer -->|"Connect, once"| game
+    mgmt -->|"sessionJwt"| viewer
+    proto -->|"emitted as wire.generated.ts"| tests
+    rec -->|"emitted as recording.generated.ts"| tests
+    tests -->|"checked-in .ts and fixtures"| viewer
+    geom -->|"ported by hand: two functions"| viewer
+```
+
+Four seams.
+
+**The recording schema.** `viewer/` consumes it and never redefines it. `schemaVersion` is the
+integer `1`, from `RecordingJson.SchemaVersion`. A file carrying any other value is refused. Every
+field the viewer reads is declared by `recording.generated.ts`, so a schema change is a TypeScript
+error rather than a silent `undefined`. Three additions were requested against the schema on
+2026-09-06 and applied. They are listed under *Interfaces*.
+
+**The socket.** The live feed follows the connect sequence the game-server plan states, sends
+`Connect` and reads six frame kinds. It is a participant with no team. Presence, the scheduler and
+the interpreter already treat such a participant as a spectator who is never Asked, so watching a
+real game needs no new server concept and no new identity. Joining is the management API's, not the
+viewer's.
+
+**The management API.** Two routes, read for one property. `logIn` and `refreshSession` return a
+body and the viewer reads `sessionJwt` from it. Development is same-origin through Vite's `/v1`
+proxy, so management needs no CORS entry.
+
+**Code generation, not a build step.** `tests/Tabletop.Viewer.Tests` holds the emitter and the
+fixture writer. `viewer/` stays a pure npm project with no .NET dependency, and `npm ci && npm run
+build` works with no .NET SDK installed. The drift guard runs inside the `dotnet test` every plan
+already ends with.
+
+## Design
+
+### One input shape, two feeds
+
+```mermaid
+flowchart TD
+    file[("recording.json")] --> read["recording/read.ts<br/>schemaVersion gate,<br/>structural checks"]
+    read --> rf["feed/recordingFeed.ts"]
+
+    sock(["ws://host/ws"]) --> live["feed/liveFeed.ts<br/>connect sequence"]
+    live -->|"Board + GameInfo"| proj["live/project.ts<br/>FrameProjector"]
+    live -->|"GameEvent"| proj
+    proj -->|"applies"| ap["live/apply.ts<br/>ported EventApplier"]
+    proj -->|"names"| ll["live/logLines.ts"]
+    proj --> lf["liveFeed emits"]
+
+    rf --> state["FeedState:<br/>RecordedBoard + RecordedFrame list"]
+    lf --> state
+    state --> scene["board/frame.ts sceneOf"]
+    state --> tl["timeline/timeline.ts"]
+    state --> panels["LogPanel, AskPanel,<br/>RollPanel, Scoreboard"]
+    scene --> draw["board/draw.ts -> canvas"]
+```
+
+`src/lib/live/` is the only directory that knows `Tabletop.Protocol` exists.
+
+`FeedState` is six fields: `label`, `status`, `detail`, `meta`, `board`, `frames`. `board` is a
+`RecordedBoard` and `frames` is a `RecordedFrame[]`, whichever feed produced them. The renderer, the
+timeline, the panels and the scoreboard read only those. `Feed` is `kind`, `control`,
+`subscribe` and `close`, and `kind` is read once, in `App.svelte`, to decide whether the timeline
+starts in follow mode.
+
+The live feed's cost is stated in the spec: the socket carries events, so the viewer must apply
+them, so the message types and the applier exist a second time in TypeScript. The alternative was a
+live feed that spoke its own shape, which would have made every component branch on the feed and
+would have duplicated the frame projection instead of the applier. `liveFeed` builds a
+`FrameProjector` when the `board` frame arrives, feeds it each `GameEvent`, and publishes
+`projector.board` and `projector.frames`.
+
+Frames are whole state and never deltas. A scrub to frame 300 reads frame 300 and nothing else.
+Nothing accumulates, interpolates or tweens.
+
+### The manufactured meta
+
+The live feed has no `RecordingMeta` to read, so it builds one from `GameInfo` on every publish.
+`scenario` is `info.name`, `driver` is `live`, `outcome` is `live`, `seed` is `0`, `rounds` and
+`lastSeq` come from the last frame, and `teams` is built from `info.teams` with the name
+`Team {ordinal}`. `outcome: 'live'` is a value `sim/` never writes. The simulation plan's doc
+comment was amended to say so (simulation plan → *Applied from the viewer plan, 2026-09-06*, item
+5). The field is a `string`, so no shape changes.
+
+A null `meta` was rejected: the Ask panel resolves a team id to a name through `RecordingMeta.Teams`
+and would fall back to an eight-character id for every team in a live game.
+
+### Generated protocol types
+
+```mermaid
+flowchart LR
+    subgraph emit["tests/Tabletop.Viewer.Tests"]
+        opts["RecordingJson.Options<br/>WireJson.Options"] --> info["JsonTypeInfo:<br/>JsonPropertyInfo.Name,<br/>PolymorphismOptions.DerivedTypes"]
+        info --> emitter["TypeScriptEmitter.Emit(EmitRequest)"]
+        emitter --> text["emitted text"]
+    end
+    text -->|"TABLETOP_WRITE_GENERATED=1"| files
+    files[("viewer/src/lib/protocol/<br/>recording.generated.ts<br/>wire.generated.ts")]
+    files -->|"read back"| guard{"Assert.Equal:<br/>emitted vs on disk"}
+    text --> guard
+    guard -->|"differs"| fail["dotnet test fails"]
+    files -->|"imported"| app["viewer/src/**"]
+```
+
+The emitter reflects over `System.Text.Json`'s contract metadata, not over the C# records.
+`JsonPropertyInfo.Name` is the wire name, so `[JsonPropertyName]` and the camelCase policy are
+honoured without being reimplemented. `JsonPolymorphismOptions.DerivedTypes` supplies each union's
+members and every `kind` string. An enum's spelling is obtained by serialising the value, not by
+choosing between `snake_case` and `kebab-case`. A reflection-over-properties emitter would be a
+second implementation of the JSON conventions, which is the drift the approach exists to remove. A
+computed C# property that the serializer includes appears in the output, because the output
+describes the bytes.
+
+`EmitRequest` carries `Module`, `Options`, `Roots`, `PrunedUnions` and `Rename`. `PrunedUnions`
+narrows `SocketMessage` to the seven frames the live feed reads: `Connect`, `Welcome`,
+`GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected`. No `Command`, no `Edit`,
+no `Presence`, no `Ping`. `Rename` is empty until two reachable types share a `Name`. The emitter
+throws when that happens rather than overwriting a declaration.
+
+Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
+so `Point2` is first in `recording.generated.ts`. Members within an interface follow
+`JsonTypeInfo.Properties` order, which is the C# record's positional order. A reordered record
+shows as a one-line golden-file diff. Nothing else would catch it, so `RecordedMarkerState`'s eight
+members are also pinned line for line in a test.
+
+`TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests` rewrites both modules. Any
+other run asserts they are what the C# emits today. This settles the spec's open item on whether
+generating types is worth a build step: checked in, guarded by a test.
+
+### The recording reader and the schema gate
+
+`readRecording(value: unknown): Recording` validates and refuses. It never repairs. A recording is
+derived and disposable, so the answer to a malformed file is to re-run `sim/`.
+
+It checks five things: `schemaVersion` equals `SCHEMA_VERSION`; the root has `meta`, `board` and
+`frames` of the right kinds; each frame's `index` equals its position; each frame has a numeric
+`seq` and a string `line`; every model id a frame names is defined by `board.models`. It returns the
+value unchanged. Everything downstream reads the generated types and trusts them.
+
+A recording with zero frames is accepted. A run that emitted nothing is still a run.
+
+### Frame to scene
+
+`sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene` is pure and is the only place table
+geometry is computed. `Scene` has six members: `table`, `terrain`, `zones`, `markers`, `models`,
+`offTable`. Everything is in table inches. No screen coordinate reaches it.
+
+| Input | Output | Rule |
+| --- | --- | --- |
+| `RecordedModel` + `RecordedModelState` where `where === 'table'` | `ModelShape` | `baseOutline` for the base, plus a facing tick of `baseA / 2` along the yaw |
+| `RecordedModelState` where `where` is `shelf` or `inside` | `OffTable` | no position is invented; `containerLabel` names the container model |
+| `RecordedTerrain` x `RecordedVolume` | one `TerrainShape` per volume | `volumeOutline`; `bottom` and `top` scaled by the piece's `scale` |
+| `RecordedMarkerState` | `MarkerShape` | read from the frame alone; `board.markers` is never consulted |
+| `RecordedZone` | `ZoneShape` | each `polygons` ring wrapped as a `Shape`; nothing resolved |
+
+`baseOutline` is `Tabletop.Geometry.Bodies.BaseOutline` ported line for line, including
+`OvalVertices = 64` and the placement by `Point2.Rotate`. `volumeOutline` is
+`WorldVolumes.WorldOutline` ported the same way. These two are the whole of the geometry the viewer
+needs, because a canvas draws outlines. Two conventions differ and both are inherited: a
+`RecordedModel`'s `baseA` is a diameter, and a circle `RecordedVolume`'s `a` is a radius.
+
+`rotate` in `board/transform.ts` is `Point2.Rotate`: yaw 0 faces `+y`, positive yaw turns
+counter-clockwise seen from above.
+
+**A model with no position is not drawn.** A model whose `where` is `inside` or `shelf` goes to
+`Scene.offTable` and is listed in the meta panel with what it is inside. Placing it beside its
+container would be the viewer deciding something, which is what handing it frames prevents. This
+answers the spec's *Deliberately not decided* item on drawing a model inside a container.
+
+**Zone rings come from C#.** `RecordedZone.Polygons` is filled by `ZoneStyles.Resolve(shape, size)`
+in `sim/`, already in the corner frame. Resolving a shape id is C# geometry, and OPR's frontline is
+an absolute twelve-inch inset rather than a fraction of the table, so a browser cannot recover it
+from the id and the table size. Porting `ZoneStyles` would be a second geometry implementation. An
+empty ring list draws no outline and is not an error: `ZoneStyles.Resolve` answers an empty list for
+a shape id it does not know, and the live feed has no resolver at all.
+
+### The view transform
+
+`View` is `{ scale, panX, panY }`: pixels per inch, and the screen position of the table corner at
+`x = 0, y = length`. `fit(table, viewport)` centres the table with a 12-pixel margin. `zoomAt`
+clamps scale to `[0.25, 400]` and keeps the table point under the pointer fixed. `gridStep(view)`
+returns the smallest of 1, 3, 6, 12 inches that keeps grid lines at least 12 pixels apart.
+
+`toScreen` is the only place `y` is flipped. Table `y` grows away from the near edge, canvas `y`
+grows downward, and the flip happens once. `toTable` is its inverse and is what the pointer
+handlers use, so every hit test happens in inches.
+
+### Canvas rather than SVG
+
+Frames carry whole state, so moving the timeline one step invalidates every model, every marker and
+every position at once. There is no partial update for a retained-mode tree to exploit. At a few
+hundred models an SVG document is roughly 300 base nodes, 300 facing ticks, the terrain outlines and
+about 120 grid lines, and one step rewrites an attribute on every one of them. Dragging the scrubber
+does that at pointer rate, paying style recalculation and layout for the whole document each time. A
+single `<canvas>` pays one `clearRect` and about 800 path operations per frame.
+
+The two things SVG gives away are hit testing and text layout. Both are cheap here. A base is a
+circle, a square or a convex 64-gon in table space, so `pickAt` is a point test in inches with no
+screen-space arithmetic. The only text is a short label drawn with `fillText`.
+
+WebGL and every drawing library are refused. The workload does not need them, and the viewer is
+schematic by design: nothing is rendered in 3D and no mesh is ever loaded.
+
+The cost is that nothing on the board is in the accessibility tree, nothing is selectable text, and
+the rendering has no unit test. `Board.svelte` owns the canvas, its `ResizeObserver`, the
+device-pixel-ratio scaling, wheel zoom, drag pan and a `Reset view` button.
+
+### The render pipeline
+
+```mermaid
+flowchart LR
+    frame["RecordedFrame + RecordedBoard"] --> sceneOf["sceneOf: pure, in inches"]
+    sceneOf --> scene["Scene"]
+    scene --> draw["draw: ctx, scene, view,<br/>viewport, options"]
+    view["View: fit / zoomAt / panBy"] --> draw
+    draw --> order["slab -> grid -> zones -> terrain<br/>-> markers -> models"]
+    order --> canvas[["canvas 2D"]]
+    scene --> pick["pickAt over the pointer<br/>in table inches"]
+    pick --> hit["Hit: model, terrain, or null"]
+    hit --> selected["selected id -> draw options"]
+    selected --> draw
+```
+
+Draw order is also z order. `pickAt` walks models last-drawn first, then terrain, so the visible
+shape is the one that is picked.
+
+`contains(shape, point)` is boundary-inclusive, accepts any vertex order and allows a concave ring,
+matching `Tabletop.Geometry.Polygon.Contains`. Circles are a squared-distance test. Polygons are an
+on-edge test followed by a crossing count.
+
+`draw` is one function over the whole scene with a `DrawOptions` of `selected`, `hovered`,
+`showGrid`, `showZones` and `showLabels`. A model with wounds is drawn filled dark rather than
+tinted, a model whose `z` is above the slab gets a dashed outline, and grid lines on a twelve-inch
+boundary are brighter.
+
+### The timeline reducer
+
+`reduce(state: Timeline, action: TimelineAction): Timeline` is pure and covers eleven actions:
+`frames`, `play`, `pause`, `toggle`, `tick`, `step`, `scrub`, `jump`, `first`, `last`, `fps`.
+`Timeline` is `count`, `index`, `playing`, `fps`, `follow`. `index` is `-1` when there is no frame.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Paused: EMPTY (index -1)
+    Paused --> Playing: play / toggle
+    Playing --> Playing: tick (index + 1)
+    Playing --> Paused: tick at last frame
+    Playing --> Paused: pause / toggle / step / scrub / jump
+    Paused --> Following: last
+    Following --> Following: frames (index = count - 1)
+    Following --> Paused: step / scrub / jump / first
+    Paused --> Paused: frames (index clamped)
+```
+
+`follow` is what makes one reducer serve both feeds. A recording arrives complete, so `follow`
+starts `false` and the timeline sits on frame 0. The live feed appends, so `App.svelte` starts it
+`true` and every new frame becomes the current one until the user steps or scrubs. A `frames` action
+with a smaller count clamps the index rather than pointing past the end, which is what a feed
+replacement does.
+
+`indexOfSeq(seqs, seq)` returns the last index whose seq is at or below the target, which is how a
+log line for an event the frame list does not carry still jumps somewhere sensible. It is a linear
+scan over a monotonic array. A binary search is the change if a recording ever grows past a few
+thousand frames.
+
+### The Ask panel and the empty control channel
+
+`describeAsk(ask, teamLabels): AskView` turns a `RecordedAsk` into a heading, a prompt, one
+addressee per team with whether it has answered, the teams still being waited on, a one-line
+description of the legal set, and a note list. `describeLegal` covers the seven wire kinds
+(`options`, `pieces`, `allocation`, `assignment`, `move_region`, `bid`, `confirmation`) and returns
+an unknown kind's own string rather than throwing, so a new legal kind degrades to its name.
+
+The panel is display only. It exists because the recording carries the open Ask at every frame, and
+showing it is what makes the seam visible without being built on.
+
+`ControlChannel` is declared with `answer(askId, answer)` and `resume()`. Both feeds return `null`
+for `Feed.control`, and `feed.test.ts` and `live.test.ts` each assert it. The spec's position is
+that interactive debugging is a door, not a room: building on the seam makes the viewer a second
+thin client, which is a larger surface than a renderer. The other half of the seam is already built
+in `sim/`, where `DriverMode.StepAndWait`, `RunLoop.ResumeAsync` and `RunLoop.AnswerPausedAsync`
+pause a run and answer one Ask from outside.
+
+### The ported applier
+
+`src/lib/live/` holds three ports and one HTTP client.
+
+| File | Ports | Notes |
+| --- | --- | --- |
+| `apply.ts` | `Tabletop.Protocol.EventApplier` | `initialProjection`, `applyChange` (13 state-change kinds), `applyTo`, `effectiveLog`, `class Applier` |
+| `logLines.ts` | `Tabletop.Sim.Recording.LogLines` | `lineOf(event, after, ordinals)`, `shortId` |
+| `project.ts` | `Tabletop.Sim.Recording.FrameProjector` | `recordedBoardOf(board, game)`, `declarationsOf`, `class FrameProjector` |
+| `management.ts` | nothing | `logIn`, `refreshSession`, `class ManagementError` |
+
+The applier copies. It never decides legality, never derives a location and never clears a store on
+its own. `initialProjection` walks armies, then units, then model slots, in that order, because
+insertion order is the order every frame lists models and units in and the C# `Projection.Initial`
+walks the same way.
+
+`undone` is not a state change and is not applied. `Applier.apply` sees it, rebuilds a fresh
+projection and replays `effectiveLog(this.#log)` into it. The log itself stays append-only with the
+undone markers in place. Cost is one full replay per undo event.
+
+**The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s so that
+`dice_rerolled`, `dice_edited` and `modifier_added` can amend a completed step's rolls. A
+`RecordedFrame` carries no stack, and its `rolls` come from the `step_completed` payload rather than
+from the stack, so the C# recording does not show a reroll in `rolls` either. Those three event
+kinds are no-ops in `applyTo`, and `apply.test.ts` pins that.
+
+`FrameProjector` in TypeScript takes `(board: Board, game: GameInfo)`, while the C# original takes a
+`CompiledScenario`. The live feed has no scenario, and `recordedBoardOf` needs only the wire board
+and the game's teams.
+
+**The live feed resolves no zone.** `recordedBoardOf` writes `polygons: []` for every zone, because
+`ZoneStyles` is C#. A live game therefore draws no deployment-zone outlines, which is the one
+deliberate disagreement between the two feeds. The zone list in the meta panel still shows shape id
+and team ordinal.
+
+### The applier agreement test
+
+```mermaid
+flowchart TD
+    run["FixtureWriter.RunAsync:<br/>one sim/ run, RoundCap = 2"]
+    run --> recjson[("skirmish.recording.json<br/>C# FrameProjector output")]
+    run --> welcome[("skirmish.welcome.json")]
+    run --> boardf[("skirmish.board.json")]
+    run --> eventsf[("skirmish.events.json<br/>raw log, undone markers kept")]
+
+    welcome --> ts["TypeScript FrameProjector"]
+    boardf --> ts
+    eventsf -->|"one event at a time"| ts
+    ts --> produced["produced frames"]
+    recjson --> expected["recording.frames"]
+    produced --> cmp{"normaliseFrame both sides,<br/>deep equal"}
+    expected --> cmp
+    cmp -->|"differs"| named["failure names frame index, seq and event kind"]
+```
+
+No separate C# projection dump exists, and none is needed. A recording's frames *are* the C#
+`EventApplier`'s output, canonicalised by `FrameProjector`. The TypeScript side is handed the three
+socket frames of a run and must reproduce every frame of that run's recording, field for field.
+That compares a couple of hundred intermediate states rather than one final projection, and it
+exercises the generated wire types, the ported applier, the ported log lines and the ported board
+projection in one pass. It is also an end-to-end test of the live feed's decoding, because those are
+the bytes the socket sends.
+
+`normaliseFrame` sorts collections by id on both sides and sorts string arrays. C# `Dictionary`
+enumeration order and JavaScript `Map` insertion order can diverge once an entry is removed and
+another added, such as a marker taken off the table or an Ask closed, and C#'s `Order()` is
+culture-sensitive where JavaScript's `sort()` is by code unit. Neither is a drift in the applier.
+Everything else is compared exactly, including `line`.
+
+`normaliseBoard` drops `polygons`, because the browser has no `ZoneStyles`. That exclusion could
+hide an empty field on both sides, so the same test asserts against the C# recording directly:
+every `recording.board.zones[i].polygons` must be non-empty and every ring must have more than two
+vertices. The drop is then about what is ported, not about what resolved.
+
+A third case guards against a fixture that proves nothing: more than 20 frames, more than 5 distinct
+event kinds, at least one frame with rolls, at least one with an open Ask, at least one with a model
+on the table.
+
+Fixtures are checked in and rewritten only under a flag. Ids are `Guid.CreateVersion7()` and differ
+between runs, so a fixture cannot be regenerated and diffed against its predecessor.
+`TABLETOP_WRITE_FIXTURES=1` rewrites them, every other run reads what is checked in, and both
+scenarios run under a two-round cap so the eight files stay a few hundred kilobytes.
+
+### Layout
+
+Board on the left, a tabbed side panel on the right, the timeline across the bottom. The tabs are
+`log`, `ask`, `dice` and `meta`, because the log is in constant use and the other three are
+consulted at a specific frame. `LogPanel` renders one row per frame and clicking a row dispatches
+`{ type: 'jump', seq, seqs }`.
+
+Two things sit in the header, outside the tabs, because they are wanted continuously.
+`SourcePicker.svelte` loads a file, a URL, or connects to a live game. `Scoreboard.svelte` shows the
+round and one chip per team in ordinal order carrying its colour, its name, its score, and `active`
+or `passed` when either applies. `RecordedFrame.Scores` and `RecordedFrame.Passed` are read straight
+off the frame as whole state. `scores` is the schema's only dictionary and its Guid keys are
+canonical lowercase strings, because neither option set sets a dictionary key policy, so
+`frame.scores[team.id]` matches `RecordedTeam.Id` verbatim. `?? 0` covers a team the projection has
+not scored for, which `noUncheckedIndexedAccess` makes visible.
+
+The score is not geometry. `Scene` is unchanged by it.
+
+## Key decisions
+
+**(reversed)** marks a decision a spec had settled differently. **(plan)** marks a decision the plan
+took because no spec spoke.
+
+| Decision | Why | Alternative rejected | Source |
+| --- | --- | --- | --- |
+| `viewer/` is a fifth deliverable, not part of `web/` and not under `tests/` | `web/` owns preparation for players; a debugging surface for the engine author is a different audience | living in `web/`, or a fixture only xUnit can start | ruled by the project owner 2026-09-06; spec → *`sim/` is a fourth deliverable*, *`viewer/` is a developer web app* |
+| The live feed manufactures `RecordedBoard` and `RecordedFrame[]` in the browser | one input shape below the feed abstraction; neither feed is privileged | a live feed with its own shape, branching every component on the feed | spec → *Two feeds*; plan → Architecture |
+| The recording is a projection per event, not a log of events | a viewer given raw events would need an applier, and a second applier drifts | streaming events to the viewer for the recording feed too | spec → *The recording is the artifact* |
+| The TypeScript applier exists anyway, for the live feed, and is checked rather than avoided | the socket carries events; there is no third option | a hand-maintained second applier | spec → *Two feeds* |
+| Types generated by reflecting over `JsonTypeInfo`, not over C# properties | property names, union discriminators and enum spellings come from the serializer's own contract, so no JSON convention is reimplemented | reflection over records, which reimplements the naming policy and the discriminator rules | **(plan)** plan Task 2 → *Why `JsonTypeInfo`* |
+| Generated files checked in, guarded by a test, not produced by a build step | `viewer/` needs no .NET SDK to build; drift is caught by the `dotnet test` every plan already runs | a codegen step in `npm run build`, or a `dotnet` invocation from Vite | plan Task 2, answering spec → *Still open* |
+| The emitter lives in `tests/Tabletop.Viewer.Tests`, not in `viewer/` and not in a new directory | keeps `viewer/` a pure npm project and adds no top-level directory | a `tools/` project, or an MSBuild task | **(plan)** plan → *File Structure* |
+| Canvas, not SVG | whole-state frames invalidate every model per step, so retained-mode diffing buys nothing; picking is a point test in inches | SVG, which pays layout for the whole document at pointer rate; WebGL and drawing libraries, which the workload does not need | **(plan)** plan Task 5; proposed as spec correction 5 |
+| Playback only; `Feed.control` declared and `null` | building on the seam makes the viewer a second thin client | shipping interactive control in version one | spec → *Interactive debugging is a door, not a room* |
+| A spectator is a participant with no team | the server already treats such a participant as never Asked; no new server concept | a spectator identity, or a third team | spec → *Two feeds*; whole-design review ruling 5 **(reversed:** presence's "joins a third team" corrected**)** |
+| A session JWT is the whole of the live feed's auth | the server already matches the JWT's account against a `participant` row and answers `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | plan → *Spec corrections proposed*, item 2, answering spec → *Still open* |
+| Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; applied to the schema 2026-09-06 |
+| A marker's definition rides on every frame state | a marker placed during play is in no board block, and the live feed writes the board before any event | a board block covering every marker that ever appears | simulation plan → *Applied from the viewer plan*, item 2 |
+| A model with no position is listed, not drawn | inventing a position is the viewer deciding something | drawing it beside or on its container | **(plan)** proposed as spec correction 4 |
+| Fixtures checked in, rewritten only under a flag, never diffed against a predecessor | ids are UUIDv7 and differ between runs, so two recordings are never byte-comparable | generating fixtures on demand, which makes `npm test` need a .NET SDK to have run first | plan question 2; spec → *The seed is stored* |
+| Agreement compares every frame, not final projections | localises a ported branch to one event; needs no extra export | comparing the last projection only | plan Task 10; proposed as spec correction 6 |
+| Plain Vite and Svelte 5, no SvelteKit | one screen, no redirect target, no route to split, no server-side anything; `?recording=<url>` needs no router | SvelteKit, which `web/` uses for Stytch redirect paths and code splitting | **(plan)** plan Task 1 |
+| The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for three no-op event kinds | **(plan)** plan Task 9 |
+| The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, question 5 |
+| `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
+| Rendering is checked by looking at it | headless Chrome cannot launch in this WSL image (`handoff.md`: missing `libnspr4`) | Playwright or jsdom snapshots | spec → *Testing*; plan question 1 |
+
+## Interfaces
+
+`RO<T>` abbreviates `readonly T[]`.
+
+### Produced: `viewer/src/lib/`
+
+| Module | Exports |
+| --- | --- |
+| `protocol/recording.generated.ts` | `SCHEMA_VERSION`, and one interface per recording type: `Point2`, `Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier` |
+| `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected`, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
+| `recording/read.ts` | `class RecordingError`, `readRecording(unknown): Recording`, `parseRecording(string): Recording`, `teamOrdinals(Recording)`, `teamNames(Recording)` |
+| `recording/source.ts` | `type RecordingSource`, `fromFile(File)`, `fromUrl(string)`, `recordingUrlFrom(search): string \| null` |
+| `board/transform.ts` | `type Point`, `type Table`, `type Viewport`, `type View`, `MARGIN`, `fit`, `toScreen`, `toTable`, `zoomAt`, `panBy`, `gridStep`, `rotate` |
+| `board/palette.ts` | `TEAM_COLOURS`, `teamColour(number)`, `DECLARATIONS`, `declarationColour`, `terrainStroke`, `markerColour` |
+| `board/frame.ts` | `type Shape`, `OVAL_VERTICES`, `type ModelShape`, `type TerrainShape`, `type MarkerShape`, `type ZoneShape`, `type OffTable`, `type Scene`, `sceneOf(RecordedBoard, RecordedFrame): Scene`, `baseOutline`, `volumeOutline` |
+| `board/pick.ts` | `type Hit`, `contains(Shape, Point)`, `pickAt(Scene, Point): Hit \| null` |
+| `board/draw.ts` | `type DrawOptions`, `draw(ctx, Scene, View, Viewport, DrawOptions)` |
+| `timeline/timeline.ts` | `type Timeline`, `EMPTY`, `type TimelineAction`, `reduce`, `indexOfSeq`, `frameOf` |
+| `asks/describe.ts` | `type Addressee`, `type AskView`, `describeAsk`, `describeLegal`, `humanise` |
+| `feed/feed.ts` | `type FeedStatus`, `type FeedState`, `IDLE`, `type ControlChannel`, `interface Feed`, `class Emitter` |
+| `feed/recordingFeed.ts` | `recordingFeed(RecordingSource): Feed` |
+| `feed/liveFeed.ts` | `CLIENT_VERSION`, `type SocketLike`, `type LiveOptions`, `liveFeed(LiveOptions, open?): Feed`, `isServerFrame` |
+| `live/apply.ts` | `type UnitInPlay`, `type ModelInPlay`, `type SchedulerPosition`, `type OpenAsk`, `type Projection`, `initialProjection`, `applyChange`, `applyTo`, `effectiveLog`, `class Applier` |
+| `live/logLines.ts` | `lineOf(GameEvent, Projection, ReadonlyMap<string,number>): string`, `shortId` |
+| `live/project.ts` | `declarationsOf(string)`, `recordedBoardOf(Board, GameInfo): RecordedBoard`, `class FrameProjector` |
+| `live/management.ts` | `class ManagementError`, `type Session`, `logIn(email, password, base?)`, `refreshSession(jwt, base?)` |
+| `components/` | `Board.svelte`, `Timeline.svelte`, `LogPanel.svelte`, `AskPanel.svelte`, `RollPanel.svelte`, `SourcePicker.svelte`, `Scoreboard.svelte` |
+
+### Produced: `tests/Tabletop.Viewer.Tests`
+
+| Type | Members |
+| --- | --- |
+| `static class RepoPaths` | `string Root`, `string Viewer`, `string Generated`, `string Fixtures` |
+| `sealed record EmitRequest(string Module, JsonSerializerOptions Options, IReadOnlyList<Type> Roots, IReadOnlyDictionary<Type, IReadOnlyList<Type>> PrunedUnions, IReadOnlyDictionary<Type, string> Rename)` | |
+| `static class TypeScriptEmitter` | `string Emit(EmitRequest)` |
+| `sealed record Fixture(string Name, Recording Recording, IReadOnlyList<GameEvent> Log, GameInfo Game, Board Board, Guid RecorderParticipantId)` | |
+| `static class FixtureWriter` | `string[] FixtureNames`, `Task<Fixture> RunAsync(Scenario, CancellationToken)`, `Task WriteAsync(Fixture, string directory, CancellationToken)` |
+| `GeneratedTypesTests`, `AgreementFixtureTests` | the two golden guards; `TABLETOP_WRITE_GENERATED=1` and `TABLETOP_WRITE_FIXTURES=1` rewrite |
+
+### Consumed
+
+| From | Member | Used for |
+| --- | --- | --- |
+| `sim/` | `Recording`, `RecordingMeta`, `RecordedBoard`, `RecordedFrame`, and every other `Recorded*` record | the one input shape, emitted as TypeScript |
+| `sim/` | `RecordingJson.SchemaVersion`, `.Options`, `.Serialize`, `.Deserialize`, `.WriteAsync`, `.ReadAsync` | the schema gate and the fixture writer |
+| `sim/` | `RunLoop.BuildRecording(RunReport)`, `RunLoop.Log`, `RunSettings()`, `RunReport` | the fixture writer's run |
+| `sim/` | `InProcessDriver.StartAsync`, `.Info`, `.Board`; `CompiledScenario.RecorderParticipantId`; `ScenarioCatalog.Get`; `ScenarioCompiler.Compile`; `Scenario` as a `record` supporting `with { RoundCap = 2 }` | the fixture writer's run |
+| `sim/` | `Chooser(ulong)`, `AnswerPolicy(Chooser, PolicyOptions?)`, `ComposedAnswers(AnswerScript, AnswerPolicy?)` | the fixture writer's answers |
+| `libs/Tabletop.Protocol` | `WireJson.Options`, `SocketMessage`, `Connect`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected` | the emitted wire subset |
+| `libs/Tabletop.Protocol` | `EventApplier`, `Projection`, `StateChange`, `EventPayload` | the C# original the TypeScript port copies |
+| `libs/Tabletop.Geometry` | `Bodies.BaseOutline`, `Bodies.OvalVertices`, `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains` | ported by hand into `board/frame.ts`, `board/transform.ts`, `board/pick.ts` |
+| `server/game/` | the connect sequence: `Connect` first within 10 s, then `Welcome`, `BoardMessage` from `setup` on, `EventsMessage` batches, then live frames | `liveFeed.ts` |
+| `server/management/` | `POST /v1/auth/password`, `POST /v1/auth/session/refresh`, each answering a body with `sessionJwt` | `management.ts` |
+
+### Required of others
+
+| Of | What | State |
+| --- | --- | --- |
+| simulation plan | `RecordedZone.Polygons` as `IReadOnlyList<IReadOnlyList<Point2>>`, resolved by `ZoneStyles.Resolve` | applied 2026-09-06 |
+| simulation plan | `RecordedMarkerState.Kind`, `.Diameter`, `.Label`, positionally before `X` | applied 2026-09-06 |
+| simulation plan | `RecordedFrame.Scores` and `.Passed`, whole rather than deltas | applied 2026-09-06 |
+| simulation plan | every name the fixture writer touches is `public`, and `sim/` references no test project | already true; stated in that plan's *Interfaces → Produces* |
+| contracts plan | no two reachable types in the `SocketMessage` closure share a `Name` | assumed; the one candidate is `Placement`, and the fix is one `EmitRequest.Rename` entry |
+| contracts plan | `ProtocolVersion.Current` stays `1`, or `liveFeed.ts` is edited | assumed; otherwise the server answers `rejected: upgrade_required` |
+| management plan | both auth routes answer a body carrying `sessionJwt` | assumed; the rest of `SessionResponse` is not read |
+
+## Sequences
+
+### Loading a recording and scrubbing
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant SP as SourcePicker
+    participant R as "recording/read.ts"
+    participant F as recordingFeed
+    participant A as App.svelte
+    participant B as Board.svelte
+
+    U->>SP: choose a file
+    SP->>R: parseRecording(text)
+    R->>R: schemaVersion gate, structural checks
+    alt refused
+        R-->>SP: throw RecordingError
+        SP-->>A: onError(message)
+    else accepted
+        R-->>SP: Recording
+        SP->>F: recordingFeed(source)
+        SP-->>A: onFeed(feed)
+        A->>F: subscribe(listener)
+        F-->>A: FeedState status open, all frames
+        A->>A: reduce(timeline, frames count)
+        A->>B: sceneOf(board, frames[0])
+    end
+    U->>A: scrub to index 300
+    A->>A: reduce(timeline, scrub 300)
+    A->>B: sceneOf(board, frames[300])
+    B->>B: draw
+```
+
+`recordingFeed` emits once, on subscribe, and never again until `close`. A scrub reads one frame and
+recomputes one `Scene`. Nothing accumulates.
+
+### The live connect sequence
+
+```mermaid
+sequenceDiagram
+    participant V as liveFeed
+    participant S as "server/game/"
+    participant P as FrameProjector
+    participant A as App.svelte
+
+    V->>S: open ws
+    V->>S: Connect(sessionJwt, gameId, clientVersion 1)
+    Note over V: 10 s timer armed
+    alt not a participant
+        S-->>V: Rejected(not_a_participant)
+        V-->>A: status error, detail rejected: not_a_participant
+        S-->>V: close
+    else accepted
+        S-->>V: Welcome(participantId, game)
+        V->>V: clear timer, build meta from GameInfo
+        V-->>A: status open, no frames
+        S-->>V: BoardMessage(board)
+        V->>P: new FrameProjector(board, game)
+        V->>P: drain any events held before the board
+        V-->>A: board plus frames
+        loop while the game runs
+            S-->>V: EventsMessage(events)
+            V->>P: add(event) for each
+            V-->>A: board plus frames plus meta
+        end
+    end
+```
+
+Three orderings matter. Events can arrive before the board, so `liveFeed` holds them in `pending`
+and drains on the `board` frame. A game ended before setup ever ran has no `table_state` row and no
+log, so `Welcome` is the whole sequence and status stays `open` with nothing to draw. A `Rejected`
+sets `failed`, and the close that follows it does not overwrite the error.
+
+### One event becoming one frame
+
+```mermaid
+sequenceDiagram
+    participant S as socket
+    participant P as FrameProjector
+    participant AP as "Applier (ported)"
+    participant LL as lineOf
+    participant FS as FeedState
+
+    S->>P: GameEvent(seq, payload)
+    P->>AP: apply(event)
+    alt payload is a StateChange
+        AP->>AP: applyChange
+    else undone
+        AP->>AP: rebuild from effectiveLog(log)
+    else scheduler or Ask event
+        AP->>AP: update scheduler / openAsks
+    else reroll, edit, modifier
+        AP->>AP: no-op, no frame field reads the stack
+    end
+    AP-->>P: projection after
+    P->>LL: lineOf(event, projection, ordinals)
+    LL-->>P: line
+    P->>P: copy models, units, markers, asks, rolls, scores, passed
+    P-->>FS: RecordedFrame at the next index
+```
+
+Every collection is copied rather than aliased. The applier keeps mutating its maps and every frame
+is kept for the whole run.
+
+### Regenerating the protocol modules
+
+```mermaid
+sequenceDiagram
+    participant D as Developer
+    participant T as GeneratedTypesTests
+    participant E as TypeScriptEmitter
+    participant G as "viewer/src/lib/protocol/*.ts"
+
+    D->>T: TABLETOP_WRITE_GENERATED=1 dotnet test
+    T->>E: Emit(RecordingModule), Emit(WireModule)
+    E->>E: walk JsonTypeInfo, sort declarations by name
+    E-->>T: text
+    T->>G: write both modules
+    D->>T: dotnet test
+    T->>E: Emit again
+    T->>G: read from disk
+    T->>T: Assert.Equal(emitted, on disk)
+    Note over T: a changed C# record fails here, not in the browser
+```
+
+A C# record change that nobody regenerates fails `dotnet test`, never `npm test`. The failure names
+the module, not the field, so the diff is read from git.
+
+## State and data
+
+**Nothing is persisted.** The viewer writes no file, sets no cookie, uses no `localStorage` and
+registers no service worker. Reloading the page loses the loaded recording, which is correct for a
+file the developer has on disk. `?recording=<url>` is the only thing that survives a reload, and it
+is read once from `location.search`.
+
+**In memory, per feed.**
+
+| Held by | State | Lifetime |
+| --- | --- | --- |
+| `Emitter` | the current `FeedState`, one `Set` of listeners | the feed |
+| `recordingFeed` | nothing beyond the `Emitter` | the feed |
+| `liveFeed` | `game`, `projector`, `pending`, `welcomed`, `failed`, one timeout handle | the socket |
+| `FrameProjector` | the ported `Projection` plus every `RecordedFrame` produced so far | the socket |
+| `App.svelte` | `feed`, `state`, `timeline`, `error`, `selected`, `tab`, three visibility flags | the page |
+| `Board.svelte` | `canvas`, `box`, `view`, `hovered`, `dragging` | the component |
+
+`view` is `null` until the user zooms or pans, and `fit(scene.table, box)` is derived until then, so
+`Reset view` is one assignment.
+
+**Rebuilt rather than stored.** The live feed's whole frame list is rebuilt by replaying events. An
+`undone` event rebuilds the projection from the effective log. `Scene` is recomputed from
+`(board, frame)` on every frame change and is never cached.
+
+### The feed lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle: IDLE
+    idle --> open: recordingFeed constructed
+    idle --> loading: liveFeed constructed
+    loading --> open: welcome
+    loading --> error: rejected / socket error / no welcome within 10 s
+    open --> open: board, events, game, refused
+    open --> error: rejected, board before welcome
+    open --> closed: close() or socket close
+    error --> error: close does not overwrite an error
+    closed --> [*]
+    error --> [*]
+```
+
+`refused` sets `detail` and leaves `status` at `open`, because a refusal is per-message and the feed
+survives it. `rejected` is terminal and is followed by a server close.
+
+## Failure modes
+
+**A malformed or stale recording.** `readRecording` refuses with a `RecordingError` naming what is
+wrong: the schema version, the missing key, the frame whose `index` is not its position, the frame
+naming a model the board does not define. The message says to re-run `sim/`. Nothing is repaired and
+nothing is drawn partially.
+
+**A schema change nobody regenerated.** `dotnet test tests/Tabletop.Viewer.Tests` fails on the
+golden file. `npm test` and `npm run build` keep passing against the stale checked-in modules, so a
+developer working only in `viewer/` will not see it until CI or a full `dotnet test` runs. That is
+the cost of not making it a build step.
+
+**The two appliers diverging.** `agreement.test.ts` fails on the first frame that differs, naming
+its index, its seq and its event kind. The divergence a normalisation could hide is collection order
+only. The one field excluded from the comparison is `polygons`, and the same test asserts the C#
+side resolved non-empty rings so the exclusion cannot cover an empty field on both sides.
+
+**Ordering in the live feed.** Events before the board are held and drained. A `board` frame before
+a `welcome` is an error, because the projector needs `GameInfo` for team ordinals. A `game` frame
+arriving after teams change does not rebuild the board, so a team created mid-game does not
+recolour existing models. Lobby edits are refused from `playing` on, so it cannot happen in a
+watched game.
+
+**Stale subscriptions.** `App.svelte` discards the unsubscribe function `Feed.subscribe` returns.
+Attaching a second feed calls `close()` on the first, and a `recordingFeed` emits its `closed` state
+synchronously before the new feed is attached. A `liveFeed`'s socket `close` event is asynchronous,
+so the old listener can fire after the new feed is attached and overwrite `state` with the old
+feed's frames. The case is switching away from a live feed. Holding
+the unsubscribe function in `attach` is the fix.
+
+**Cost per live frame.** `publish()` copies the whole frame array, builds a fresh `RecordingMeta`
+and notifies every subscriber, on every `EventsMessage`. `App.svelte` then recomputes `seqs` over
+every frame. A long unattended game pays quadratic work in the number of events. A recording of a
+500-frame game is about 1.5 MB, so the recording feed is unaffected and only a long-lived live
+socket is exposed.
+
+**No reconnect.** A dropped socket sets `closed` and the user reconnects by hand. The JWT is
+verified once at connect, so nothing refreshes it on an open socket. `refreshSession` exists for
+the next connect. A second socket for the same participant closes the first with code `1000`, which
+the viewer reports as a plain close.
+
+**Left to break.** A recording whose `meta.gameRules` or `meta.propertiesHash` the viewer has never
+seen is drawn anyway, because the viewer holds no ruleset and nothing it draws depends on one. Only
+`schemaVersion` gates a file. A live game shows no deployment-zone outlines. `CLIENT_VERSION` is
+hard-coded, so a protocol bump makes the server answer `rejected: upgrade_required` until the
+constant is edited. None of these has a mechanism behind it.
+
+## Testing
+
+Two suites in two languages. `npm test` is Vitest in a Node environment over `viewer/tests/**`, and
+needs no .NET SDK, no Docker and no server. `dotnet test tests/Tabletop.Viewer.Tests` is xUnit and
+needs a build of `sim/` and `libs/Tabletop.Protocol`.
+
+| Suite | Files | What it pins |
+| --- | --- | --- |
+| Vitest, pure modules | `read.test.ts`, `transform.test.ts`, `frame.test.ts`, `pick.test.ts`, `timeline.test.ts`, `describe.test.ts` | the schema gate and every refusal; the single `y` flip, the zoom anchor and the grid step ladder; the ported base and volume outlines against hand-computed corners; boundary-inclusive containment and last-drawn-wins picking; the eleven timeline actions including `follow`; every legal kind and the note list |
+| Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames, the close paths and the 10-second timeout |
+| Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the three no-op kinds, undo by rebuild; then every frame of two real recordings, field for field |
+| xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces |
+| By hand | the page | the board, the zones, the terrain declarations, the team colours, the facing ticks, the scoreboard, play, step, scrub, and a live game watched while `sim/` plays it |
+
+**Nothing needs Docker.** `sim/`'s in-process driver has no Postgres, so the fixture writer runs a
+whole game in memory. The socket driver and its Postgres are `sim/`'s concern.
+
+**The gaps.**
+
+1. The rendering has no automated test. `draw.ts` is exercised by nothing but the eye. The spec says
+   the rendering is checked by looking at it, and headless Chrome cannot launch in this WSL image.
+   The cheapest pin would be a Node canvas shim producing a PNG per fixture frame and a byte
+   comparison, which adds a native dependency.
+2. The Svelte components have no test. `svelte-check` is the only automated check on them.
+3. `Connect` is sent as an object literal rather than as a typed `Connect`, so the one message the
+   viewer produces is not checked against the generated type.
+4. `management.ts` has no test. It is two `fetch` calls reading one property.
+5. The live feed is only tested against a fake socket carrying fixture bytes. The real handshake,
+   the reconnect close code and the presence frames are exercised by hand.
+
+## Open questions and deferred work
+
+### The plan's own questions
+
+| Question | Assumption taken | What changes if the answer differs |
+| --- | --- | --- |
+| Should the rendering be pinned by a headless browser test? | No, per spec → *Testing*, and forced by the missing `libnspr4` in this WSL image | a Node canvas shim, a PNG per fixture frame, a byte comparison, one added task and a native dependency in `viewer/` |
+| Two checked-in fixtures at a two-round cap, the right size? | Yes: `skirmish` and `terrain`, eight files, a few hundred kilobytes | generating on demand makes the agreement test require a prior `dotnet test`, and `npm test` alone stops being a complete check |
+| Should the viewer fetch a recording from a server? | No: a recording is a `sim/` artifact on the developer's filesystem, and neither server knows the concept; `?recording=<url>` covers a static file server | an endpoint on somebody's API, which is another module's concern |
+| Should the viewer refuse an unknown `meta.gameRules` or `meta.propertiesHash`? | No: only `schemaVersion` gates a file, and both values are shown in the meta panel | the viewer needs a source for the list of known rulesets, which it has none |
+| Tabbed side panel, or all panels visible? | Tabbed, with the source picker and the scoreboard exempt in the header | `App.svelte`'s right pane becomes a scrolling column; nothing else moves |
+
+### Answered from the specs
+
+Two spec items marked *Still open* are settled by this module and are proposed as corrections.
+Generated types are checked in and guarded by a test rather than produced by a build step. The live
+feed needs no authentication beyond a session JWT, because the game server already answers "may this
+account watch" as "has this account joined". Two items marked *Deliberately not decided* are also
+settled: a model inside a container is listed rather than drawn, and the canvas-over-SVG argument is
+proposed as an addition to the viewer section.
+
+Whether a recording carries the dice or only their result was settled by the simulation plan: it
+carries them, and `RollPanel.svelte` shows raw and modified faces with the net modifier.
+
+### Deferred
+
+| Deferred | Reason | Recorded in |
+| --- | --- | --- |
+| Interactive control from the browser | it makes the viewer a second thin client | spec → *Interactive debugging is a door, not a room*; the null `ControlChannel` |
+| Drawing a badge on a container for the models inside it | needs no schema change and is a refinement | plan → *Spec corrections proposed*, item 4 |
+| Deployment zones on the live feed | needs `ZoneStyles` in the browser or a resolved-zone message | plan → *Interfaces needed*, item 1 |
+| A generated `CLIENT_VERSION` | one integer is not worth a second emitter mode | plan → *Interfaces needed*, item 6 |
+| Serving recordings from a server | neither server has the concept | plan question 3 |
+
+## References
+
+### The plan
+
+- [`docs/superpowers/plans/2026-09-06-viewer.md`](../../superpowers/plans/2026-09-06-viewer.md):
+  twelve tasks, the file structure, the recording schema it consumes verbatim, the
+  `Interfaces → Produces` tables, six spec corrections, seven interfaces needed from other modules,
+  five questions.
+
+### Specs
+
+| Spec | What this module takes from it |
+| --- | --- |
+| [`2026-09-06-simulation-design.md`](../../superpowers/specs/2026-09-06-simulation-design.md) | primary: the recording as a projection per event, `viewer/` as a fifth deliverable separate from `web/`, the two feeds, interactive debugging as a door, what is tested |
+| [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | newer than every other spec: a participant with no team is a spectator |
+| [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | the spectator reading the review corrected |
+| [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed six terrain declarations the palette colours |
+| [`2026-08-29-geometry-values-design.md`](../../superpowers/specs/2026-08-29-geometry-values-design.md) | the corner frame, yaw 0 facing `+y`, base shapes |
+| [`2026-08-29-web-app-design.md`](../../superpowers/specs/2026-08-29-web-app-design.md) | the Svelte, Vite and Vitest versions only; no code is shared |
+| [`docs/architecture.md`](../../architecture.md) | the command/event spine, the applier as rules-free and run on both sides, one world unit is one inch |
+
+### Sibling plans read for their seams
+
+- [`2026-09-06-simulation.md`](../../superpowers/plans/2026-09-06-simulation.md) Task 5: the
+  recording schema, owned there and consumed here; Task 9: the step-and-wait seam this module
+  deliberately does not reach.
+- [`2026-09-05-contracts-and-local-dev.md`](../../superpowers/plans/2026-09-05-contracts-and-local-dev.md):
+  `SocketMessage`, `EventApplier`, `WireJson`.
+- [`2026-09-05-game-server-skeleton.md`](../../superpowers/plans/2026-09-05-game-server-skeleton.md):
+  the connect sequence, the frame order, the rejection cases.
+- [`2026-09-05-geometry.md`](../../superpowers/plans/2026-09-05-geometry.md): `Bodies.BaseOutline`,
+  `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains`.
+- [`2026-09-05-management-api.md`](../../superpowers/plans/2026-09-05-management-api.md):
+  `POST /v1/auth/password`, `POST /v1/auth/session/refresh`.
+
+### Rulebook
+
+No page of Grimdark Future v3.4.1 is read by this module. The one rules fact it depends on, that
+OPR's frontline zone is an absolute twelve-inch inset rather than a fraction of the table, reaches
+it as resolved `Point2` rings in `RecordedZone.Polygons`.
+
+### Sibling design documents
+
+- `docs/design/contracts/`: `Tabletop.Protocol`'s `SocketMessage`, `EventPayload`, `StateChange`,
+  `Ask`, `LegalSet`, and `EventApplier`, which `src/lib/live/apply.ts` ports.
+- `docs/design/geometry/`: the corner frame and the two outline functions ported here.
+- `docs/design/game-server/`: the socket, the connect sequence, the participant rows a spectator
+  needs.
+- `docs/design/management-api/`: the two auth routes.
+- `docs/design/web-app/`: the Svelte and Vite conventions; no code edge to this module.
+- `docs/design/client/`, `docs/design/interpreter/`, `docs/design/scheduler/`: no edge.
