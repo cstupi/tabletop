@@ -1627,7 +1627,7 @@ git commit -m "Drive a hydrated session in process behind IGameDriver"
 - Test: `tests/Tabletop.Sim.Tests/RecordingTests.cs`
 
 **Interfaces:**
-- Consumes: `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `OpenAsk`, `Ask`, `LegalSet`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `Grant`, `RollRecord`, `Die`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Board`, `GameInfo`, `EventApplier`, `AskAnswer` members (Protocol); `TableState`, `Marker`, `MarkerKind`, `TerrainPlacement`, `TerrainVolume`, `DeploymentZone`, `VisualRef` (Content); `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `Base`, `BaseShape` (Geometry); `CompiledScenario` (Task 1).
+- Consumes: `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `OpenAsk`, `Ask`, `LegalSet`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `Grant`, `RollRecord`, `Die`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Board`, `GameInfo`, `EventApplier`, `AskAnswer` members (Protocol); `TableState`, `Marker`, `MarkerKind`, `TerrainPlacement`, `TerrainVolume`, `DeploymentZone`, `VisualRef` (Content); `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `Base`, `BaseShape`, `Point2`, `Polygon`, `ZoneStyles` (Geometry); `CompiledScenario` (Task 1).
 - Produces: the record schema below (`Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier`); `static class RecordingJson` with `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `Task WriteAsync(Recording, string path, CancellationToken)`, `Task<Recording> ReadAsync(string path, CancellationToken)`, `string Serialize(Recording)`, `Recording Deserialize(string)`; `static class LogLines` with `string Of(GameEvent, Projection after, IReadOnlyDictionary<Guid,int> teamOrdinals)`; `sealed class FrameProjector(CompiledScenario scenario)` with `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IReadOnlyList<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta meta)`.
 
 Spec: spec → *The recording is the artifact* — "A run writes one file: the board, then one frame per event, each frame carrying the model positions, wounds, conditions and the log line that event produced. It is a **recording of a projection, not a log of events**"; "Given frames, the viewer interpolates nothing and decides nothing; it draws what it is handed"; "The recording is derived and disposable. It is not a save format, it is not replayed into the engine, and the event log remains the only thing undo and hydration read." Spec → *Interactive debugging is a door* — "the recording carries the open Ask at every frame". Spec → *Still open*: "Whether a recording should carry the dice so a viewer can show a roll, or only its result" — this plan carries the dice (question 3).
@@ -1637,6 +1637,7 @@ Spec: spec → *The recording is the artifact* — "A run writes one file: the b
 - [ ] **Step 1: Write the failing tests**
 
 ```csharp
+using Tabletop.Content;
 using Tabletop.Protocol;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Scenarios;
@@ -1659,6 +1660,17 @@ public class RecordingTests
         Assert.Equal(18, board.Models.Count);
         Assert.Equal(2, board.Models.Select(m => m.TeamId).Distinct().Count());
         Assert.All(board.Models, m => Assert.True(m.BaseA > 0));
+
+        // The zones carry resolved rings, not just a shape id: resolving `frontline/1` is C# and the
+        // twelve-inch inset is absolute, so a browser cannot recover it from the id and the table size.
+        Assert.Equal(2, board.Zones.Count);
+        Assert.Equal("frontline/1", board.Zones[0].Shape);
+        Assert.Equal(1, board.Zones[0].TeamOrdinal);
+        var ring = Assert.Single(board.Zones[0].Polygons);
+        Assert.Equal(4, ring.Count);
+        Assert.All(ring, p => Assert.InRange(p.X, 0, board.Width));
+        Assert.All(ring, p => Assert.InRange(p.Y, 0, board.Length));
+        Assert.Equal(12, ring.Max(p => p.Y) - ring.Min(p => p.Y));
     }
 
     [Fact]
@@ -1679,7 +1691,44 @@ public class RecordingTests
         Assert.Equal("table", placed.Where);
         Assert.Equal(6, placed.X);
         Assert.Empty(frame.OpenAsks);
+        Assert.Empty(frame.Passed);
+        Assert.Equal(0, frame.Scores.Values.Sum());
         Assert.Contains("moved", frame.Line);
+    }
+
+    [Fact]
+    public void A_frame_carries_the_score_and_who_has_passed()
+    {
+        var c = Scenario();
+        var projector = new FrameProjector(c);
+        projector.Add(new GameEvent(1, null, new RoundStarted(1, c.TeamIds, []), null));
+        projector.Add(new GameEvent(2, null, new TurnStarted(c.TeamIds[0]), null));
+        var scored = projector.Add(new GameEvent(3, null, new ScoreSet(c.TeamIds[0], 3), null));
+        Assert.Equal(3, scored.Scores[c.TeamIds[0]]);
+        Assert.Empty(scored.Passed);
+
+        var passed = projector.Add(new GameEvent(4, null, new TurnEnded(c.TeamIds[0], true, []), null));
+        Assert.Equal(c.TeamIds[0], Assert.Single(passed.Passed));
+        Assert.Equal(3, passed.Scores[c.TeamIds[0]]);   // whole state, not a delta
+    }
+
+    [Fact]
+    public void A_marker_placed_during_play_carries_its_own_definition()
+    {
+        var c = Scenario();
+        var projector = new FrameProjector(c);
+        var marker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Tabletop.Geometry.Point3(24, 12, 0),
+            new Tabletop.Geometry.Yaw(0), 3, "Objective A", VisualRef.OfBuiltin("objective-ring"));
+        var frame = projector.Add(new GameEvent(1, null, new MarkerPlaced(marker), null));
+
+        // The board block knows only the setup markers, so the frame is what tells a viewer how to draw this one.
+        Assert.DoesNotContain(marker.Id, projector.Board.Markers.Select(m => m.Id));
+        var state = Assert.Single(frame.Markers);
+        Assert.Equal(marker.Id, state.Id);
+        Assert.Equal("objective", state.Kind);
+        Assert.Equal(3, state.Diameter);
+        Assert.Equal("Objective A", state.Label);
+        Assert.Equal(24, state.X);
     }
 
     [Fact]
@@ -1747,6 +1796,9 @@ public class RecordingTests
             null, 0, 1, DateTimeOffset.UnixEpoch, 1)));
         Assert.Contains("\"frames\"", json);
         Assert.DoesNotContain("\"Frames\"", json);
+        Assert.Contains("\"polygons\"", json);            // the resolved zone rings, in the board block
+        Assert.Contains("\"scores\"", json);              // empty, but present: a frame is whole state
+        Assert.Contains("\"passed\"", json);
         Assert.DoesNotContain("roundCap", json);          // null, so omitted
         Assert.DoesNotContain("activeTeamId", json);      // no active team yet, so omitted
     }
@@ -1758,6 +1810,8 @@ Run: `dotnet test tests/Tabletop.Sim.Tests --filter RecordingTests`
 Expected: `CS0246: ... 'FrameProjector' could not be found`.
 
 ```csharp
+using Tabletop.Geometry;   // Point2 only: a zone's resolved rings are the one geometry type in the schema.
+
 namespace Tabletop.Sim.Recording;
 
 // A RECORDING OF A PROJECTION, NOT A LOG OF EVENTS (spec → The recording is the artifact).
@@ -1769,7 +1823,11 @@ namespace Tabletop.Sim.Recording;
 /// <summary>One run. `schemaVersion` is RecordingJson.SchemaVersion; a reader that does not know it should refuse the file.</summary>
 public sealed record Recording(int Version, RecordingMeta Meta, RecordedBoard Board, IReadOnlyList<RecordedFrame> Frames);
 
-/// <param name="Outcome">`decided`, `round_limit`, `stuck` or `failed`.</param>
+/// <param name="Outcome">
+/// `decided`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
+/// running, which viewer/'s live feed sets when it manufactures a RecordingMeta from GameInfo.
+/// sim/ writes only the first four.
+/// </param>
 public sealed record RecordingMeta(
     string Scenario,
     ulong Seed,
@@ -1814,7 +1872,15 @@ public sealed record RecordedVolume(
 /// <param name="Kind">`objective` or `token`.</param>
 public sealed record RecordedMarker(Guid Id, string Kind, double Diameter, string? Label);
 
-public sealed record RecordedZone(Guid Id, string Shape, int TeamOrdinal);
+/// <param name="Shape">The shape id, as the table state holds it — `frontline/1`.</param>
+/// <param name="Polygons">
+/// The shape already resolved: one ring per polygon, each a list of `{x, y}` in table inches. Recorded
+/// rather than left to the reader because resolving a shape id is `Tabletop.Geometry.ZoneStyles`, which is
+/// C#, and the inset is absolute (OPR's frontline is twelve inches) rather than a fraction of the table,
+/// so it cannot be recovered from the id and the size. It costs a handful of points once per zone.
+/// </param>
+public sealed record RecordedZone(
+    Guid Id, string Shape, int TeamOrdinal, IReadOnlyList<IReadOnlyList<Point2>> Polygons);
 
 /// <param name="BaseShape">`circle`, `oval` or `square`.</param>
 /// <param name="BaseA">A circle's diameter, an oval's length, a square's side — all in inches.</param>
@@ -1827,6 +1893,8 @@ public sealed record RecordedModel(
 /// <param name="Seq">The event log sequence this frame is the state after.</param>
 /// <param name="Kind">The event kind, snake_case, exactly as EventKinds spells it.</param>
 /// <param name="Line">One human line, generated by LogLines from the names the event already carries.</param>
+/// <param name="Scores">Projection.Scores, whole: every team's score as of this frame, not a delta.</param>
+/// <param name="Passed">Projection.Scheduler.Passed: the teams that have passed and will not re-enter the round.</param>
 public sealed record RecordedFrame(
     int Index,
     long Seq,
@@ -1841,7 +1909,9 @@ public sealed record RecordedFrame(
     IReadOnlyList<RecordedUnitState> Units,
     IReadOnlyList<RecordedMarkerState> Markers,
     IReadOnlyList<RecordedAsk> OpenAsks,
-    IReadOnlyList<RecordedRoll> Rolls);
+    IReadOnlyList<RecordedRoll> Rolls,
+    IReadOnlyDictionary<Guid, int> Scores,
+    IReadOnlyList<Guid> Passed);
 
 /// <param name="Where">`table`, `shelf` or `inside` — the three places a model can be (game flow → The shelf, Inside a container).</param>
 /// <param name="ContainerId">Set when Where is `inside`; a model inside a container has no position.</param>
@@ -1853,7 +1923,12 @@ public sealed record RecordedUnitState(
     Guid Id, IReadOnlyList<string> Actions, IReadOnlyList<string> Conditions,
     IReadOnlyList<string> Grants, int WoundsThisActivation);
 
-public sealed record RecordedMarkerState(Guid Id, double X, double Y, double Z, double Yaw);
+/// <param name="Kind">`objective` or `token`.</param>
+/// <param name="Diameter">Inches. Carried per frame, not looked up in Board.Markers: a marker placed during
+/// play is in no board block, and a frame a reader has to join against something that may not be there is
+/// not whole state.</param>
+public sealed record RecordedMarkerState(
+    Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw);
 
 /// <param name="LegalKind">The legal set's wire kind: options, pieces, allocation, assignment, move_region, bid, confirmation.</param>
 /// <param name="Answered">The teams that have already answered — a sealed Ask's answers stay hidden until it closes.</param>
@@ -1920,6 +1995,8 @@ public static class RecordingJson
 ```
 
 `Recording.Version` serialises as `version`; the test asserts `schemaVersion` appears in the file, so `Recording` declares it as `[JsonPropertyName("schemaVersion")] int Version` — add that attribute to the record's first parameter (`[property: JsonPropertyName("schemaVersion")] int Version`). A reader checks it first and refuses anything it does not know.
+
+`RecordedFrame.Scores` is the schema's only dictionary and its keys are `Guid`s. `DictionaryKeyPolicy` is left unset, so `System.Text.Json` writes each key as the canonical hyphenated form and a team id in `scores` is spelled exactly as a team id anywhere else in the file. `PropertyNamingPolicy` does not touch dictionary keys.
 - [ ] **Step 4: Write `LogLines.cs`**
 
 ```csharp
@@ -2038,9 +2115,12 @@ public sealed class FrameProjector(CompiledScenario scenario)
             LogLines.Of(e, p, _ordinals),
             p.Models.Values.Select(ModelState).ToList(),
             p.Units.Values.Select(UnitState).ToList(),
-            p.Markers.Values.Select(m => new RecordedMarkerState(m.Id, m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees)).ToList(),
+            p.Markers.Values.Select(MarkerState).ToList(),
             p.OpenAsks.Values.Select(AskOf).ToList(),
-            rolls);
+            rolls,
+            // Copied, not aliased: the applier keeps mutating these and every frame is kept for the run.
+            p.Scores.ToDictionary(kv => kv.Key, kv => kv.Value),
+            p.Scheduler.Passed.ToList());
         _frames.Add(frame);
         return frame;
     }
@@ -2056,6 +2136,11 @@ public sealed class FrameProjector(CompiledScenario scenario)
         _ => new RecordedModelState(m.Id, "shelf", null, null, null, null, null,
             m.Wounds, m.SpellTokens, m.Conditions.Order().ToList()),
     };
+
+    // Kind, diameter and label ride along per frame, because a marker placed during play is in no board block.
+    private static RecordedMarkerState MarkerState(Marker m) => new(
+        m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label,
+        m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees);
 
     private static RecordedUnitState UnitState(UnitInPlay u) => new(
         u.Id, u.Actions.Order().ToList(), u.Conditions.Order().ToList(),
@@ -2101,7 +2186,8 @@ public sealed class FrameProjector(CompiledScenario scenario)
                 t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale,
                 t.Volumes.Select(v => VolumeOf(v.Id, v.Volume)).ToList())).ToList(),
             table.Markers.Select(m => new RecordedMarker(m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label)).ToList(),
-            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal)).ToList(),
+            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal,
+                ZoneStyles.Resolve(z.Shape, table.Size).Select(g => g.Vertices).ToList())).ToList(),
             models);
     }
 
@@ -2120,7 +2206,9 @@ public sealed class FrameProjector(CompiledScenario scenario)
 }
 ```
 
-The markers' initial positions live on `RecordedMarkerState` frame by frame like a model's, and `RecordedMarker` carries only what does not change — the kind, the diameter and the label. A marker placed during play appears in the first frame after its `marker_placed`.
+The markers' positions live on `RecordedMarkerState` frame by frame like a model's, and so do the kind, the diameter and the label — a marker placed during play appears in the first frame after its `marker_placed` and is in no board block, so the frame has to be enough on its own. `RecordedBoard.Markers` stays as the *setup* markers, which is what the board block describes; where both name the same marker they agree, and the frame is what a viewer draws from.
+
+`ZoneStyles.Resolve` answers in the corner frame the recording already uses, so nothing converts. An unknown shape id resolves to no rings, so `polygons` is `[]` and a viewer draws no outline while still showing the id — the same fallback as a client that does not know the style (client design → *An unknown zone shape id*).
 
 - [ ] **Step 6: Run the tests; expect all green, then commit**
 
@@ -4231,7 +4319,9 @@ git commit -m "Record sim and viewer as developer deliverables, per the 2026-09-
 ---
 ## Interfaces → Produces
 
-Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`.
+Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, `IRD<K,V>` abbreviates `IReadOnlyDictionary<K,V>`.
+
+**Every type and member in these tables is `public`**, so another project can reference `sim/Tabletop.Sim.csproj` and drive a run: `tests/Tabletop.Viewer.Tests` does exactly that to write its fixtures (viewer plan → *Interfaces needed from other modules*, item 4). Nothing is `internal` and nothing needs `InternalsVisibleTo`. **`sim/` references no test project**, here or anywhere, so a test project referencing `sim/` is not a cycle (spec correction 8).
 
 ### `Tabletop.Sim` (root)
 
@@ -4313,16 +4403,31 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 | `RecordedBoard(double Width, double Length, string Texture, IRL<RecordedTerrain> Terrain, IRL<RecordedMarker> Markers, IRL<RecordedZone> Zones, IRL<RecordedModel> Models)` | |
 | `RecordedTerrain(Guid Id, string Mesh, double X, double Y, double Z, double Yaw, double Scale, IRL<RecordedVolume> Volumes)` | |
 | `RecordedVolume(Guid Id, string Kind, string Footprint, double A, double B, double OffsetX, double OffsetY, double Yaw, double Bottom, double Top, IRL<string> Declarations, string? Notes)` | |
-| `RecordedMarker(Guid Id, string Kind, double Diameter, string? Label)`; `RecordedZone(Guid Id, string Shape, int TeamOrdinal)` | |
+| `RecordedMarker(Guid Id, string Kind, double Diameter, string? Label)`; `RecordedZone(Guid Id, string Shape, int TeamOrdinal, IRL<IRL<Point2>> Polygons)` | `polygons` is the shape already resolved by `ZoneStyles.Resolve`, one ring per polygon, `{x, y}` in table inches |
 | `RecordedModel(Guid Id, Guid UnitId, string UnitName, string Name, int Ordinal, Guid TeamId, int TeamOrdinal, string BaseShape, double BaseA, double BaseB, double Height)` | |
-| `RecordedFrame(int Index, long Seq, string Kind, Guid? Actor, string? Warning, int Round, string? Phase, Guid? ActiveTeamId, string Line, IRL<RecordedModelState> Models, IRL<RecordedUnitState> Units, IRL<RecordedMarkerState> Markers, IRL<RecordedAsk> OpenAsks, IRL<RecordedRoll> Rolls)` | |
+| `RecordedFrame(int Index, long Seq, string Kind, Guid? Actor, string? Warning, int Round, string? Phase, Guid? ActiveTeamId, string Line, IRL<RecordedModelState> Models, IRL<RecordedUnitState> Units, IRL<RecordedMarkerState> Markers, IRL<RecordedAsk> OpenAsks, IRL<RecordedRoll> Rolls, IRD<Guid,int> Scores, IRL<Guid> Passed)` | `Scores` is `Projection.Scores` and `Passed` is `Projection.Scheduler.Passed`, both whole rather than deltas |
 | `RecordedModelState(Guid Id, string Where, double? X, double? Y, double? Z, double? Yaw, Guid? ContainerId, int Wounds, int SpellTokens, IRL<string> Conditions)` | `Where` is `table`, `shelf` or `inside` |
-| `RecordedUnitState(Guid Id, IRL<string> Actions, IRL<string> Conditions, IRL<string> Grants, int WoundsThisActivation)`; `RecordedMarkerState(Guid Id, double X, double Y, double Z, double Yaw)` | |
+| `RecordedUnitState(Guid Id, IRL<string> Actions, IRL<string> Conditions, IRL<string> Grants, int WoundsThisActivation)`; `RecordedMarkerState(Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw)` | a marker's definition rides along per frame, because one placed during play is in no board block |
 | `RecordedAsk(Guid Id, string Question, string Prompt, IRL<Guid> Teams, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId, string LegalKind, IRL<Guid> Answered, IRL<RecordedAskOption> Options, IRL<Guid> Pieces, double? Allowance)`; `RecordedAskOption(string Id, string Label, IRL<Guid> Pieces)` | |
 | `RecordedRoll(Guid Id, string Roll, int? Threshold, int Net, IRL<int> Raw, IRL<int> Modified, IRL<bool> Success, IRL<RecordedModifier> Modifiers)`; `RecordedModifier(string Source, int Amount)` | |
 | `static class RecordingJson` | `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `WriteAsync`, `ReadAsync`, `Serialize`, `Deserialize` |
 | `static class LogLines` | `string Of(GameEvent, Projection after, IRD<Guid,int> teamOrdinals)` |
 | `sealed class FrameProjector(CompiledScenario)` | `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IRL<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta)` |
+
+---
+## Applied from the viewer plan, 2026-09-06
+
+`docs/superpowers/plans/2026-09-06-viewer.md` was written against this plan's recording schema and found four gaps in it, plus one doc comment. All five are **applied above rather than proposed**, because they came from a sibling plan and not from a spec: nothing a spec says changes, and the recording stays derived, so the whole cost is a re-run.
+
+1. **`RecordedZone` gained `Polygons`** (viewer plan → *Interfaces needed from other modules*, item 1). `IReadOnlyList<IReadOnlyList<Point2>>`, wire name `polygons`, one ring per polygon of `{x, y}` in table inches, filled in `FrameProjector.BuildBoard` by `ZoneStyles.Resolve(z.Shape, table.Size)` and flattened to each `Polygon.Vertices`. Recorded rather than left to the reader because the board block carried only a shape id such as `frontline/1`; resolving one is `Tabletop.Geometry.ZoneStyles`, which is C#, and OPR's frontline is an absolute twelve-inch inset rather than a fraction of the table, so it cannot be normalised out of the id and the size. Porting `ZoneStyles` would be a second geometry implementation in the browser. It costs a handful of points once per zone in the board block, not per frame. Task 5 Step 1's board test pins the ring's four vertices and the twelve inches, Step 5's `BuildBoard` calls the resolver, `Point2`/`Polygon`/`ZoneStyles` join Task 5's Consumes list, and `Recording.cs` gains `using Tabletop.Geometry;`. The viewer's fallback was `Scene.zones[i].polygons = []` and no outline drawn, which is now also what an unresolvable shape id produces.
+
+2. **`RecordedMarkerState` gained `Kind`, `Diameter` and `Label`** (item 2) — the first of the two fixes the viewer plan offered, not the second. The gap was real: `BuildBoard` reads `table.Markers`, so a token dropped during play by `marker_placed` appeared in a frame with a position and no definition at all, and the viewer's fallback was to draw it as a dashed half-inch ring labelled with the first eight characters of its id, with `MarkerShape.known` false. The alternative — having `BuildBoard` include every marker that appears in any frame rather than only the table's — was rejected on three counts. The live feed cannot implement it: it receives the `board` socket frame before any event, so a marker not yet placed is not knowable when the board is written, and the two feeds must produce the same shape. It would make `FrameProjector.Board` mutable and make the board block depend on how far the run got, so two runs of one scenario would carry different boards for the same table. And it would leave a frame that a reader has to join against a block which may not hold the row — a frame that is not whole state, which is the one thing the schema is for. Per-frame is also nearly free here: `Projection.Markers` holds `Marker` values that already carry kind, diameter and label, so it is three fields off a value `Add` already reads, and a game has single-digit markers — unlike a model's base, which is why models keep the definition/state split. `RecordedBoard.Markers` stays as the *setup* markers, which is what the board block describes; where both name the same marker they agree, and the frame is what a viewer draws from.
+
+3. **`RecordedFrame` gained `Scores` and `Passed`** (item 3). `IReadOnlyDictionary<Guid, int> Scores` from `Projection.Scores`, `IReadOnlyList<Guid> Passed` from `Projection.Scheduler.Passed`; both copied rather than aliased, since the applier keeps mutating them and every frame is kept for the whole run, and both whole rather than deltas like everything else on a frame. The applier maintains both and `ProjectionComparer` already compares both (Task 7), so a frame carrying neither meant a viewer could show neither the score nor which team had passed. `RecordedFrame`'s fourteen members became sixteen, and Task 5 Step 1 gained `A_frame_carries_the_score_and_who_has_passed`.
+
+4. **The public surface `tests/Tabletop.Viewer.Tests` needs** (item 4). Every name on that list is already `public` in this plan as written, and nothing needed changing: `RunLoop.BuildRecording` (Task 6) and `RunLoop.Log` (Task 7), `InProcessDriver.Info` and `.Board` (Task 4), `CompiledScenario.RecorderParticipantId`, `ScenarioCatalog.Get`, `ScenarioCompiler.Compile`, `Scenario` — a `record`, so `with { RoundCap = 2 }` works — and `Chooser(ulong)` (Task 1), `AnswerPolicy(Chooser, PolicyOptions?)` (Task 2), `ComposedAnswers(AnswerScript, AnswerPolicy?)` (Task 3), `RunSettings()` (Task 6, every parameter defaulted), all six `RecordingJson` members and every `Recorded*` record (Task 5). *Interfaces → Produces* now states it at the top, together with the fact that **`sim/` references no test project**, so a test project referencing `sim/` is not a cycle (spec correction 8).
+
+5. **`RecordingMeta`'s `Outcome` doc comment** (viewer plan → *Spec corrections proposed*, item 3, which is aimed at this file rather than at a spec). It now reads that `decided`, `round_limit`, `stuck` and `failed` are what a finished run writes, and that `live` is what `viewer/`'s live feed sets when it manufactures a meta from `GameInfo`; `sim/` writes only the first four. The field was already a `string`, so nothing about the schema changes, and the alternative — a null `meta` on a live feed — would strip the team names the Ask panel needs to say who an Ask addresses.
 
 ---
 ## Spec corrections proposed
@@ -4356,7 +4461,11 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
    **Landed 2026-09-06, and this plan follows it: `long RngSeed`, positional and last among `GameInfo`'s scalars — after `WaitsBetweenSteps`, before `Teams` and `Participants` — over a `management.game.rng_seed bigint not null` column with no default** (contracts plan → *Interfaces → Produces* and spec correction 12). Positional on purpose, so a construction that forgets the seed fails to compile rather than silently getting `0`. `long` because `bigint` is signed, so `ScenarioCompiler` writes `unchecked((long)s.Seed)` from the scenario's `ulong Seed`; the reverse cast (`unchecked((ulong)info.RngSeed)`, where `GameState.RngSeed : ulong` is set) belongs to the interpreter plan, not this one. `SocketRowSeeder` passes `info.RngSeed` straight into the insert. The four places this plan spells the seed are `ScenarioCompiler.Compile`, `SocketRowSeeder.SeedAsync`, and the seed assertions in `ScenarioTests` and `RunLoopTests`.
 5. **Geometry plan** — `Movement.Check(PlacedModel, Point2, double, IReadOnlyList<WorldVolume>, IReadOnlyList<WorldVolume>, double?, TableSize?) → MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`; `ZoneStyles.ShapesOf(string)`, `ZoneStyles.Resolve(string, TableSize)`, `ZoneStyles.Contains(string, TableSize, Point2)`, and the style constants `Frontline` and `FreeForAll`; `Settling.SurfaceHeightAt(Point2, IReadOnlyList<WorldVolume>)`.
+
+   `Resolve` is assumed to be `IReadOnlyList<Polygon> Resolve(string shapeId, TableSize)` with `sealed record Polygon(IReadOnlyList<Point2> Vertices)` (geometry design → *Interfaces → Produces*; contracts design → the `Polygon` row), answering in the corner frame, and to return no polygons for a shape id it does not know rather than throwing. `RecordedZone.Polygons` is that list flattened to `Vertices`, so if `Resolve` throws on an unknown id instead, `BuildBoard` wraps the call and records `[]`.
 6. **The viewer plan** — consumes this plan's whole `Tabletop.Sim.Recording` table above as its input format, and `RecordingJson.SchemaVersion` as the number to check. It should generate its TypeScript types from these C# records, as the spec requires of the Protocol types, rather than hand-writing them.
+
+   **That plan landed 2026-09-06 and named four gaps in the schema and one doc comment; all five are applied here** — see *Applied from the viewer plan* above. Nothing else it asks for is a change: the public surface its test project references was already public, and `sim/` references no test project either way.
 7. **The interpreter and scheduler plans, later** — when their full-game tests are written they reference `sim/Tabletop.Sim.csproj` from `tests/Tabletop.Sim.Tests` and build a `Scenario`, an `InProcessDriver` and a `RunLoop`. `sim/` never references a test project (spec correction 8).
 
 ## Questions for the project owner
@@ -4375,4 +4484,4 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 **Placeholders.** None. Every step carries the code or the exact command it needs; the two places where an earlier plan's signature could not be confirmed from its text (`PostgresFixture.CountAsync`'s parameters, `Projection`'s team-ordinal lookup) name the fallback inline rather than leaving a gap.
 
-**Type consistency.** `SubmitResult.Accepted`/`Rejected`, `RunOutcome.Decided`/`RoundLimit`/`Stuck`/`Failed`/`Paused`, `RecordedFrame`'s fourteen members, `PolicyView`'s five-parameter constructor (two positional, three optional) and `LogLines.Of`'s three-argument signature are used the same way in every task that touches them. `CompiledScenario` gained `RecorderParticipantId` in Task 1 and is consumed with it in Tasks 4, 5, 6 and 8. `RunLoop` gained `Log` in Task 7 and `Answers` in Task 8, both named where they are added.
+**Type consistency.** `SubmitResult.Accepted`/`Rejected`, `RunOutcome.Decided`/`RoundLimit`/`Stuck`/`Failed`/`Paused`, `RecordedFrame`'s sixteen members, `PolicyView`'s five-parameter constructor (two positional, three optional) and `LogLines.Of`'s three-argument signature are used the same way in every task that touches them. `CompiledScenario` gained `RecorderParticipantId` in Task 1 and is consumed with it in Tasks 4, 5, 6 and 8. `RunLoop` gained `Log` in Task 7 and `Answers` in Task 8, both named where they are added.
