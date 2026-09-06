@@ -1,21 +1,17 @@
-# Management API — engineering design
+# Management API
 
 `server/management/` is the project's HTTP surface: one ASP.NET Core minimal-API process,
 `Tabletop.Management`, over the `management` Postgres schema. It owns identity (Stytch login,
 accounts), the asset library and its folders, armies imported from Army Forge, layouts, game
 records and the public game browser, and the pinned `Properties` sets a game may choose. It holds
-no live state and can restart at any time. **The one sentence a reviewer must not miss: this
-service is not the sole writer of the rows it defines — the game server writes a game's own rows
-(`game.status`, `team`, `participant.team_id`, `participant.army_id`, `participant.army_snapshot`,
-and the `table_state` tree keyed by `game_id`) while that game is in `lobby` or `setup`, and every
-one of this service's game endpoints is written around that split rather than around a lock.**
+no live state and can restart at any time.
 
-Two other things are structural rather than incidental. Asset bytes never pass through this
-process: the client computes a SHA-256, the service mints a presigned S3 `PUT`, and the only
-server-side read of an upload is a ranged `GET` of a GLB's 20-byte header plus its JSON chunk. And
-the service issues no token of its own: the credential is Stytch's session JWT, verified locally
-against Stytch's public JWKS by both servers, carrying our account UUID in the custom claim
-`account_id`.
+It is not the sole writer of the rows it defines. While a game is in `lobby` or `setup` the game
+server writes that game's own rows: `game.status`, `team`, `participant.team_id`,
+`participant.army_id`, `participant.army_snapshot`, and the `table_state` tree keyed by `game_id`.
+Every game endpoint here is written around that split rather than around a lock.
+
+Asset bytes never pass through the process, and the service issues no token of its own.
 
 ---
 
@@ -26,19 +22,19 @@ against Stytch's public JWKS by both servers, carrying our account UUID in the c
 | Subject | Surface |
 | --- | --- |
 | Identity | `POST /v1/auth/otp`, `/otp/verify`, `/password`, `/password/signup`, `/password/reset`, `/password/reset/complete`, `/session/refresh`, `DELETE /v1/auth/session` |
-| Account | `GET`, `PATCH`, `DELETE /v1/account` — deletion is total |
+| Account | `GET`, `PATCH`, `DELETE /v1/account`; deletion is total |
 | Asset library | `/v1/assets` (keyset), create/confirm/download, `PATCH`, `DELETE`, `/volumes` |
 | Folders | `/v1/folders`, nested, many-to-many with assets |
 | Armies | `POST /v1/armies/import` from Army Forge, list (keyset), get, patch bindings and bases, delete |
-| Layouts | `/v1/layouts` — a `TableState` owned by an account |
+| Layouts | `/v1/layouts`, a `TableState` owned by an account |
 | Games | `/v1/properties`, `/v1/games` (public, keyset), create, get, join, leave, end, delete |
-| Manifest | `GET /v1/games/{id}/assets` — the one cross-owner read in the service |
+| Manifest | `GET /v1/games/{id}/assets`, the one cross-owner read in the service |
 | Plumbing | the `Tabletop-Client-Version` check, keyset paging, RFC 7807 problems, CORS, DbUp migrations |
 
-### Deliberately not in
+### Not in
 
 - **No rules.** No legality, no dice, no turn order, no interpretation of a `Properties` set. The
-  service stores `properties` rows and serves `(content_hash, name, game_rules)`; the game server
+  service stores `properties` rows and serves `(content_hash, name, game_rules)`. The game server
   owns the catalog types (`architecture.md` → *The load-bearing seam*; contracts plan → *`Properties`
   types are not in `libs/`*).
 - **No WebSocket, no live state.** Commands, events, Asks, presence and setup edits are the game
@@ -47,11 +43,11 @@ against Stytch's public JWKS by both servers, carrying our account UUID in the c
   (whole-design review ruling 4).
 - **No mesh processing.** Conversion, decimation and the bounding-box volume run in the browser
   (mesh conversion → *Conversion runs in the browser*). The service reads a header.
-- **No multipart upload.** `IBlobStore` has no multipart member; the management API spec's open
+- **No multipart upload.** `IBlobStore` has no multipart member. The management API spec's open
   item stays open.
 - **No content import.** How authored `Properties` rows reach the eight tables is undesigned
-  (`architecture.md` → *Rules as data*), so `GET /v1/properties` can legitimately return an empty
-  list and then `POST /v1/games` answers `422`.
+  (`architecture.md` → *Rules as data*), so `GET /v1/properties` can return an empty list and
+  `POST /v1/games` then answers `422`.
 - **No hosting.** Local only: Postgres and MinIO from `docker-compose.yml`, configuration from
   `TABLETOP_*` and `dotnet user-secrets` (hosting ruling 2026-09-04).
 
@@ -85,18 +81,18 @@ client class is an external system. `server/management/` is the project root, so
 Step 3 of `architecture.md`'s build order, in parallel with the web app. It consumes exactly one
 earlier plan, **contracts and local dev** (`docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`):
 
-- `libs/Tabletop.Content` — `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`,
+- `libs/Tabletop.Content`: `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`,
   `ArmySnapshot`, `TableState` and its children, `VisualRef`, `ContentJson`.
-- `libs/Tabletop.Protocol` — `ProtocolVersion`, `GameStatus`, `SchedulerShape`, `Enforcement`,
+- `libs/Tabletop.Protocol`: `ProtocolVersion`, `GameStatus`, `SchedulerShape`, `Enforcement`,
   `Team`, `Participant`, `GameInfo`.
-- `libs/Tabletop.Geometry` — `Base`, `Orientation`, `Volume`, `Footprint`, `TableSize`, `Point3`, `Yaw`.
+- `libs/Tabletop.Geometry`: `Base`, `Orientation`, `Volume`, `Footprint`, `TableSize`, `Point3`, `Yaw`.
 - `scripts/postgres/init/001_schema.sql`, adopted verbatim as DbUp migration `001`.
 - `docker-compose.yml` (Postgres 5432, MinIO 9000/9001, bucket `tabletop-blobs`) and the
   `TABLETOP_*` names in `.env.example`. Port `5100` is reserved for this service.
 
-Nothing else needs to exist. The geometry plan's bodies are not called here — only its value
-types. The game server, web app and client shell all consume this service and none of them is a
-prerequisite.
+Nothing else needs to exist. The geometry plan's bodies are not called here. Only its value types
+are used. The game server, web app and client shell all consume this service, and none of them is
+a prerequisite.
 
 ### What already exists
 
@@ -133,33 +129,29 @@ flowchart TD
     game -.->|"JWKS, no credentials"| stytch
 ```
 
-*Every edge that matters to this module. Note what is absent: there is no edge from management to
-the game server. The two servers never call each other.*
+*The two servers never call each other.*
 
-Three seams carry the weight.
+**Auth seam.** Management is the only process holding the Stytch project secret, and the only one
+that calls Stytch's Basic-auth endpoints. The game server never touches Stytch's API surface. It
+fetches the same public JWKS and applies the same validation parameters. There is no contract type
+to agree on and no M2M call. The contract is four constants (`iss`, `aud`, `RS256`, the claim name
+`account_id`) plus a URL, recorded under *Interfaces needed from other modules* for the
+game-server plan to copy. Auth is not in `architecture.md` → *Contracts to freeze*, and the join
+token that was once on that list is gone.
 
-**The auth seam is a shared verification recipe, not a shared secret.** Management is the only
-process holding the Stytch project secret, and the only one that calls Stytch's Basic-auth
-endpoints. The game server never talks to Stytch's API surface at all; it fetches the same public
-JWKS and applies the same validation parameters. There is therefore no contract type to agree on
-and no M2M call — the "contract" is four constants (`iss`, `aud`, `RS256`, the claim name
-`account_id`) plus a URL, recorded in this plan's *Interfaces needed from other modules* for the
-game-server plan to copy. `architecture.md` → *Contracts to freeze* is right that auth is not on
-the list, and the join token that once was is gone.
+**Database seam.** Both servers open the same database. Management owns the schema and runs DbUp
+at its own startup. The game server never migrates. A management migration can break the game
+server either way, and both specs record that and leave it (management API → *Still open*;
+`schema.md` → *Still open*). The write split is not enforced by the database: `game.status`,
+`team`, `participant.team_id/army_id/army_snapshot` and a `game_id`-owned `table_state` are
+writable by both processes, kept apart by convention inside each. The split buys a game server
+that hydrates a game with plain `SELECT`s and no service call. It costs a rule that only code
+review enforces.
 
-**The database seam is shared and unguarded.** Both servers open the same database. Management
-owns the schema and runs DbUp at its own startup; the game server never migrates. A management
-migration can break the game server either way, and both specs say so and leave it (management API
-→ *Still open*; `schema.md` → *Still open*). Worse, the write split is not enforced by the
-database: `game.status`, `team`, `participant.team_id/army_id/army_snapshot` and a `game_id`-owned
-`table_state` are writable by both processes and are kept apart by convention inside each. The
-compromise buys a game server that hydrates a game with plain `SELECT`s and no service call; it
-costs a rule that only code review enforces.
-
-**The blob seam is a URL, not a stream.** No `.glb` is ever read or written by this process except
-20 bytes plus a JSON chunk. That removes a job queue, a worker and an async upload state machine
-(`architecture.md` → *GLB only; conversion is not in the product*) at the price of a two-step
-create-then-confirm protocol and a `blob.uploaded` flag that can be false forever.
+**Blob seam.** No `.glb` is read or written by this process except 20 bytes plus a JSON chunk.
+That removes a job queue, a worker and an async upload state machine (`architecture.md` → *GLB
+only; conversion is not in the product*). It costs a two-step create-then-confirm protocol and a
+`blob.uploaded` flag that can be false forever.
 
 ---
 
@@ -167,9 +159,9 @@ create-then-confirm protocol and a `blob.uploaded` flag that can be false foreve
 
 ### 1. Composition and the request pipeline
 
-One process, one composition root. Every collaborator is a singleton — the repositories hold only
-a `Database`, which holds an `NpgsqlDataSource`, which is the pool. There is no scoped state and no
-unit of work; a repository method opens a connection, does its work, and returns.
+One process, one composition root. Every collaborator is a singleton. The repositories hold only a
+`Database`, which holds an `NpgsqlDataSource`, which is the pool. There is no scoped state and no
+unit of work. A repository method opens a connection, does its work, and returns.
 
 ```mermaid
 graph TD
@@ -224,12 +216,13 @@ graph TD
     se --> ar
 ```
 
-*Four modules over one `Database`. Note the cross-module edges that exist on purpose:
-`AccountDeleter` reaches into `GameRepository` and `IBlobStore` because deletion is total, the
-manifest reaches into `IBlobStore` because it presigns, and `VolumeRow` is shared because
-`asset_volume` and `terrain_volume` are the same seventeen columns.*
+*Four modules over one `Database`.*
 
-Middleware order is load-bearing and is the first thing to check in review:
+`AccountDeleter` reaches into `GameRepository` and `IBlobStore` because deletion is total.
+`ManifestEndpoint` reaches into `IBlobStore` because it presigns. `VolumeRow` is shared because
+`asset_volume` and `terrain_volume` are the same seventeen columns.
+
+Middleware order is load-bearing:
 `UseExceptionHandler` → `UseCors` → `ClientVersionMiddleware` → `UseAuthentication` →
 `UseAuthorization` → the endpoint, which calls `CurrentAccount.Id(user)` and passes it to a
 repository that puts `owner_id` in the `WHERE` clause. **CORS runs before the version check**
@@ -241,8 +234,7 @@ to update rather than told its token is bad. The exception handler maps
 `ClientVersion.Decide(string? header, int minimum)` returns `Accept | UpgradeRequired | Malformed`
 and is a pure function, unit-tested apart from the middleware. **A missing header is accepted**:
 the web app ships with the API and does not send one, and the mechanism exists for the downloaded
-desktop client (management API → *`/v1` in the path*; client shell → *Home*). The spec was silent;
-the plan decides, and spec correction 7 records it.
+desktop client (management API → *`/v1` in the path*; client shell → *Home*).
 
 ### 2. Configuration
 
@@ -250,32 +242,32 @@ the plan decides, and spec correction 7 records it.
 that throws on anything missing. Keys are the `.env` names with `TABLETOP_` stripped
 (`AddEnvironmentVariables("TABLETOP_")`), so `TABLETOP_STYTCH_SECRET` and
 `dotnet user-secrets set STYTCH_SECRET` are the same key and the secret is never in a committed
-file. `DotEnv.Load()` walks up from `AppContext.BaseDirectory` and reads the repo-root `.env` —
-the same file `docker compose` reads — with existing environment variables winning, so one file
-configures the compose stack, the API and the tests.
+file. `DotEnv.Load()` walks up from `AppContext.BaseDirectory` and reads the repo-root `.env`, the
+same file `docker compose` reads. Existing environment variables win. One file configures the
+compose stack, the API and the tests.
 
-Two settings are easy to confuse and worth stating plainly:
+Two settings are easy to confuse:
 
 | Setting | Value | What it is |
 | --- | --- | --- |
-| `SessionMinutes` | 43200 (30 days) | Stytch's `session_duration_minutes` — the life of the **session**, so a player is not logged out mid-campaign |
+| `SessionMinutes` | 43200 (30 days) | Stytch's `session_duration_minutes`. The life of the **session**, so a player is not logged out mid-campaign |
 | the JWT's own lifetime | 5 minutes, fixed by Stytch | why `POST /v1/auth/session/refresh` exists, and why deleting an account locks it out within five minutes |
 
-The revocation argument in the management API spec depends on the second number, not the first:
-deleting an account revokes the Stytch user, refresh then fails, and the last JWT lapses. That is
-the whole of the "instant revocation needs a session table" rebuttal.
+Revocation in the management API spec depends on the second number, not the first. Deleting an
+account revokes the Stytch user, refresh then fails, and the last JWT lapses within five minutes.
+No session table is needed for revocation.
 
 ### 3. Authentication
 
-**We issue no token of our own.** The spec designed two opaque token tables — a `session` table
-and a join token — and both are gone, each for its own reason (management API → *We issue no
-tokens of our own*). What remains is a Stytch session JWT that both servers verify locally.
+No token of our own is issued. The spec designed two opaque token tables, a `session` table and a
+join token. Both are gone (management API → *We issue no tokens of our own*). The credential is a
+Stytch session JWT that both servers verify locally.
 
-Stytch's JWT names the user by Stytch's own `sub`. It does not carry `external_id`. So the account
-id rides in a **custom claim**, `account_id`, stamped by calling `POST /v1/sessions/authenticate`
-with `session_custom_claims = { account_id }` after every Stytch authenticate. That is what
-`Sessions.Complete(StytchSession)` is for, and it is the single funnel every login method passes
-through:
+Stytch's JWT names the user by Stytch's own `sub`. It does not carry `external_id`. The account id
+therefore rides in the custom claim `account_id`, stamped by calling
+`POST /v1/sessions/authenticate` with `session_custom_claims = { account_id }` after every Stytch
+authenticate. `Sessions.Complete(StytchSession)` does that, and every login method passes through
+it:
 
 ```mermaid
 sequenceDiagram
@@ -310,10 +302,11 @@ sequenceDiagram
     A-->>C: 200
 ```
 
-*Every session-returning endpoint ends in this same tail. Where it can go wrong: the second
-`sessions/authenticate` is a second Stytch round trip on every login and every refresh, and the
-claim survives a refresh only because Stytch persists custom claims on the session — asserted from
-the docs, exercised only against `FakeStytch`.*
+*Every session-returning endpoint ends in this same tail.*
+
+The second `sessions/authenticate` is an extra Stytch round trip on every login and every refresh.
+The claim survives a refresh only because Stytch persists custom claims on the session. That is
+asserted from the docs and exercised only against `FakeStytch`.
 
 `external_id` is the entire link between the two systems, and **no Stytch identifier is stored in
 our schema** (accounts → *Auth is a module, not a vendor*). `account` is two columns.
@@ -321,15 +314,14 @@ our schema** (accounts → *Auth is a module, not a vendor*). `account` is two c
 Verification is `Microsoft.AspNetCore.Authentication.JwtBearer` with
 `MapInboundClaims = false`, `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = {project_id}`,
 `ValidAlgorithms = [RS256]`, `ClockSkew = 30s`, and an `IssuerSigningKeyResolver` that delegates to
-the `StytchJwks` singleton. `StytchJwks.Resolve(kid)` caches the key set, and on a `kid` it does
-not hold refetches **once, at most every 30 seconds**, behind a `SemaphoreSlim` — that is the key
-rotation path and the only reason the cache is not permanent.
+the `StytchJwks` singleton. `StytchJwks.Resolve(kid)` caches the key set. On a `kid` it does not
+hold, it refetches **once, at most every 30 seconds**, behind a `SemaphoreSlim`. That is the key
+rotation path, and the only reason the cache is not permanent.
 
 The JWKS endpoint `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` **takes no credentials**.
-Stytch's reference page lists a `basicAuth` scheme and passes `-u project:secret` in its example;
-an unauthenticated `curl` answers `200` with the key set (verified 2026-09-05 and 2026-09-06). That
-verification is what lets the game server verify without holding the project secret, so it is
-load-bearing rather than trivia.
+Stytch's reference page lists a `basicAuth` scheme and passes `-u project:secret` in its example.
+An unauthenticated `curl` answers `200` with the key set (verified 2026-09-05 and 2026-09-06). That
+is what lets the game server verify a JWT without holding the project secret.
 
 `CurrentAccount.Id(ClaimsPrincipal)` parses the claim and throws `UnauthorizedAccessException` when
 it is missing. Every authorized endpoint's first act is to call it, and every repository method
@@ -347,58 +339,56 @@ There is one rule and two exceptions.
 
 Owner-only is expressed **in SQL, not in a check before the SQL**: `where id = @id and owner_id =
 @ownerId`. A row another account owns and a row that does not exist produce the same zero-row
-result and the same `404` — existence is not disclosed (management API → *The rest of the surface*).
-There is no `403` anywhere in the service. The cost is that a genuine permission error is
-indistinguishable from a typo in an id, which for a single-owner model with no sharing is not a
-cost at all.
+result and the same `404`. Existence is not disclosed (management API → *The rest of the surface*).
+There is no `403` anywhere in the service. A permission error is indistinguishable from a mistyped
+id. That is accepted for a single-owner model with no sharing.
 
-`/end` and `DELETE /v1/games/{id}` require participation. The spec says these are "unowned",
-meaning not the creator's; the plan reads that as *any participant, and nobody else*, and asks the
-owner (question 6). `game.created_by` is read by the game server for the two status transitions and
+`/end` and `DELETE /v1/games/{id}` require participation. The spec calls these "unowned", meaning
+not the creator's. This design reads that as any participant and nobody else, and question 6 asks
+the owner. `game.created_by` is read by the game server for the two status transitions and
 by nothing here (setup phase → *The lifecycle*).
 
 ### 5. Persistence
 
-Hand-written SQL over Npgsql, with Dapper for row mapping. No ORM, no `DbContext`, no entities —
-`libs/` stays persistence-free by rule (`architecture.md` → *Persistence*), and the schema is
-already normalised and hand-written with every closed set as a check constraint. Rows are
+Hand-written SQL over Npgsql, with Dapper for row mapping. No ORM, no `DbContext`, no entities.
+`libs/` stays persistence-free by rule (`architecture.md` → *Persistence*). The schema is already
+normalised and hand-written, with every closed set as a check constraint. Rows are
 `sealed record`s mapped by constructor, so every query aliases columns to parameter names
 (`owner_id as OwnerId`) and every `real` column is cast (`dim_a::float8 as DimA`) because the
 records use `double`.
 
 `Database` builds one `NpgsqlDataSource` with `SearchPath = "management,game,public"`, so SQL names
-tables bare and the cross-schema delete qualifies (`delete from game.game_event`). One footgun to
-know: `game` is both a schema and a table name, and with this search path `from game` resolves to
-`management.game`, the table.
+tables bare and the cross-schema delete qualifies (`delete from game.game_event`). `game` is both
+a schema and a table name. With this search path `from game` resolves to `management.game`, the
+table.
 
 `Migrator.Run(connectionString)` is DbUp over `Persistence/Migrations/*.sql` embedded in the
 assembly, journalled in `public.schema_version`, one transaction per script. It runs at process
 startup and in `TestDatabase`, and is idempotent. `001_schema.sql` is a byte-for-byte copy of
-`scripts/postgres/init/001_schema.sql` and is never edited afterwards; later changes are new
-scripts. The interesting part is the **baseline**: a database created by `docker compose`'s init
-already holds `001` and has no journal, so `Migrator` detects `management.account` without a
-journal, creates the journal, and records `001` as applied rather than re-running it. The decision
-table:
+`scripts/postgres/init/001_schema.sql` and is never edited. Later changes are new scripts. The
+**baseline** case: a database created by `docker compose`'s init already holds `001` and has no
+journal, so `Migrator` detects `management.account` without a journal, creates the journal, and
+records `001` as applied rather than re-running it.
 
 | `management.account` exists | journal exists | What happens |
 | --- | --- | --- |
 | no | no | DbUp applies 001 then 002 |
 | yes | no | journal created, 001 recorded, DbUp applies 002 |
 | yes | yes | DbUp applies whatever is unapplied |
-| no | yes | the early return fires and DbUp applies only what the journal lacks — if the journal already records `001`, `002` runs against a table that is not there and fails. Not reachable through either supported path, and not tested |
+| no | yes | the early return fires and DbUp applies only what the journal lacks. If the journal already records `001`, `002` runs against a table that is not there and fails. Not reachable through either supported path, and not tested |
 
 Migration `002_blob_uploaded.sql` adds `blob.uploaded boolean not null default false` and
 `blob.content_type text not null check (content_type in ('model/gltf-binary','image/png','image/jpeg'))`.
-Both are needed by the presigned protocol and neither is in `schema.md`; spec correction 1 proposes
+Both are needed by the presigned protocol. Neither is in `schema.md`. Spec correction 1 proposes
 them.
 
 ### 6. The asset library and the presigned protocol
 
-Two records, per the asset library spec: `blob` is the bytes, keyed `(owner_id, hash)` so **per-user
-dedup is a property of the schema**, and `asset` is the library item carrying `name`, `kind`,
-`scale`, the three orientation angles and, for a miniature only, the modelled base. `kind` profiles
-are per kind and one is empty — a texture carries nothing (identity and enumerations → *`ASSET`
-profiles are per kind*).
+Two records, per the asset library spec. `blob` is the bytes, keyed `(owner_id, hash)`, so
+**per-user dedup is a property of the schema**. `asset` is the library item carrying `name`,
+`kind`, `scale`, the three orientation angles and, for a miniature only, the modelled base. `kind`
+profiles are per kind and one is empty: a texture carries nothing (identity and enumerations →
+*`ASSET` profiles are per kind*).
 
 Upload is three calls and no server-side bytes:
 
@@ -430,41 +420,42 @@ sequenceDiagram
     B->>M: PUT /v1/assets/{id}/volumes (terrain only)
 ```
 
-*The dedup short-circuit is why the hash is computed client-side: the service can answer
-"already there" before any bytes move (management API, "Asset bytes never pass through the API").
-Where it can go wrong: nothing recovers a `blob` row whose confirm never arrives, and the presigned
-`PUT` carries no size constraint, so the declared `byteSize` is checked only after the bytes are in
-the bucket.*
+*The three-call upload, including the dedup short-circuit.*
+
+The hash is computed client-side so the service can answer "already there" before any bytes move
+(management API, "Asset bytes never pass through the API"). Nothing recovers a `blob` row whose
+confirm never arrives. The presigned `PUT` carries no size constraint, so the declared `byteSize`
+is checked only after the bytes are in the bucket.
 
 `confirm` is where every check lives:
 
 | Condition | Answer |
 | --- | --- |
-| `Size(key)` is null | `409` — the bytes are not there yet |
+| `Size(key)` is null | `409`, the bytes are not there yet |
 | size ≠ `asset.ByteSize` | `422` |
-| content type is `model/gltf-binary` and the magic is not `glTF`/version 2 | the object is **deleted** and `422` — this is where an STL renamed `.glb` dies |
-| triangles > `GlbHeader.WarnAbove` (100,000) | `200` with `Warning` set — **never refused** |
+| content type is `model/gltf-binary` and the magic is not `glTF`/version 2 | the object is **deleted** and `422`. An STL renamed `.glb` dies here |
+| triangles > `GlbHeader.WarnAbove` (100,000) | `200` with `Warning` set. **Never refused** |
 | otherwise | `200`, `blob.uploaded = true` |
 
 **GLB only**, narrowed from `architecture.md`'s "glTF/GLB": a `.gltf` with external `.bin` buffers
-is several files with relative references, which breaks single-object presigned upload and makes
-the header read pointless. `GlbHeader` is pure and headless:
+is several files with relative references. That breaks single-object presigned upload and makes the
+header read pointless. `GlbHeader` is pure and headless:
 
-- `IsGlb(first12)` — magic `0x46546C67` and version 2.
-- `JsonChunkLength(first20)` — the chunk length at offset 12, with chunk type `JSON` at 16.
-- `CountTriangles(jsonChunk)` — for every primitive of every mesh, take
+- `IsGlb(first12)`: magic `0x46546C67` and version 2.
+- `JsonChunkLength(first20)`: the chunk length at offset 12, with chunk type `JSON` at 16.
+- `CountTriangles(jsonChunk)`: for every primitive of every mesh, take
   `accessors[indices ?? attributes.POSITION].count` and convert by `mode`: 4 → `count/3`, 5 and 6
   (strip, fan) → `count - 2`, points and lines → 0. Meshes are counted **once each, not per node**,
   because that is what a client loads into memory.
 
-The threshold warns and does not block, per mesh conversion → *The threshold*, and is unrelated to
+The threshold warns and does not block (mesh conversion → *The threshold*). It is unrelated to
 `game.enforcement`, which gained a refusing position on 09-04. Nothing about uploads refuses.
 
 Download is `GET /v1/assets/{id}/download` → a presigned `GET` valid 60 minutes, `409` until
-confirmed. Delete removes the asset row and, only when it was the owner's **last** reference to
-that hash, the `blob` row too — returning the S3 key so the endpoint can delete the object after
-the transaction commits. Per-user dedup is what makes that check a single `not exists` over the
-owner's own rows and never a cross-account count.
+confirmed. Delete removes the asset row. When that was the owner's **last** reference to the hash
+it removes the `blob` row too, and returns the S3 key so the endpoint can delete the object after
+the transaction commits. Per-user dedup makes that check a single `not exists` over the owner's own
+rows rather than a cross-account count.
 
 `Content/VolumeRows.cs` holds `VolumeRow`, one record over the seventeen columns
 `asset_volume` and `terrain_volume` share, with `ToVolume()`/`From(id, Volume)` and three
@@ -475,15 +466,15 @@ terrain.
 
 ### 7. Folders
 
-Nested, many-to-many with assets, returned whole — folders are small enough that paging them would
-be ceremony (management API → *Pagination is keyset*). `GET /v1/folders` is two queries: the
-`folder` rows plus one join over `asset_folder`, assembled into a flat `FolderDto(Id, ParentId,
-Name, AssetIds)` list; the client makes the tree. Deleting a folder cascades its children in the
-schema and touches no asset — an asset in no folder is fine.
+Nested, many-to-many with assets, returned whole. Folders are small enough that they are not paged
+(management API → *Pagination is keyset*). `GET /v1/folders` is two queries: the `folder` rows plus
+one join over `asset_folder`, assembled into a flat `FolderDto(Id, ParentId, Name, AssetIds)` list.
+The client makes the tree. Deleting a folder cascades its children in the schema and touches no
+asset. An asset in no folder is valid.
 
 The only logic is cycle prevention on `PATCH`: a new parent must be the owner's own folder, must
 not be the folder itself, and must not be a descendant, checked by a `with recursive` query. That
-answers `422`; a folder that is not the caller's answers `404`.
+answers `422`. A folder that is not the caller's answers `404`.
 
 ### 8. Armies and the Army Forge import
 
@@ -498,14 +489,14 @@ and throws `ArmyForgeException(status)` on non-200, which the endpoint maps to `
 `ArmyForgeList.cs` is the **subset of the export this project reads**, verified against a live
 fetch on 2026-09-06 (`c2-6YsWRH3py`, 26 KB, saved as a fixture). Every optional member is nullable
 and nothing is `required`, because a required-field model throws on the real payload. What the
-verification actually established, and why each point matters:
+fetch established:
 
 | Observation | Consequence for import |
 | --- | --- |
 | `gameSystem` is `"gf"` on this list and is the list's own field | the only signal import uses; a list carrying another book's content still reports `gf`, and nothing here resolves the book |
 | `selectionId` is unique; `id` repeats across duplicated units | combining and joining key on `selectionId` |
 | `quality` and `defense` are **plain integers** (`4`, not `"4+"`, never objects) | `TargetNumber` accepts a number or a string and emits `"4+"` |
-| `loadout` is the resolved post-upgrade list; `weapons` is the pre-upgrade profile | import reads `loadout` and ignores `weapons` — unit 0's `weapons[0]` is a "Blood Sword" its `loadout[0]` replaced |
+| `loadout` is the resolved post-upgrade list; `weapons` is the pre-upgrade profile | import reads `loadout` and ignores `weapons`. Unit 0's `weapons[0]` is a "Blood Sword" that its `loadout[0]` replaced |
 | a rule's `rating` is **absent**, not null, when it takes none | `AfRule.Rating` is `JsonElement?` and `Rating()` returns `int?` |
 | `range` is `0` on some melee weapons and `null` on others in one payload | the melee test is `is { } range and > 0`, and a melee weapon gets **no** `Range` stat at all |
 | `attacksMultiplier` is `1` on every entry observed | not read; a list carrying anything else makes the `Attacks` stat wrong, and the fix is one term |
@@ -513,8 +504,8 @@ verification actually established, and why each point matters:
 | there is no `customName` | `name` is the only name field |
 | `combined: true` on two entries whose `joinToUnit` cross-reference | one unit of double size; sizes and loadout counts add |
 
-`ArmyForgeImport.ToArmy(list, source, catalog)` is a pure function — no database, no HTTP — which is
-why the mapping is the most heavily unit-tested piece in the module. Its shape:
+`ArmyForgeImport.ToArmy(list, source, catalog)` is a pure function: no database, no HTTP. The
+mapping is the most heavily unit-tested piece in the module.
 
 ```mermaid
 flowchart TD
@@ -541,14 +532,15 @@ flowchart TD
     slots --> out
 ```
 
-*Expansion to one slot per model happens here and nowhere else — "nothing carries a count"
-(`data-model.md`). The two branch points a reviewer should press on are the catalog lookup, which
-depends on database state at import time, and the shared cursor, which weapons and part-count rules
-both advance.*
+*Expansion to one slot per model happens here and nowhere else, because nothing carries a count
+(`data-model.md`).*
 
-The cursor is the answer to `9x Rifle, 1x Flamer`: the flamer lands on slot 10, not slot 1. It is
-shared between weapons and partial-count item rules, so a shield on two models and a flamer on one
-do not both start at slot 1 — a deliberate, and arbitrary, deterministic choice (question 4).
+Two branch points are state-dependent. The catalog lookup depends on database state at import
+time. The cursor is shared, and both weapons and part-count rules advance it.
+
+The cursor answers `9x Rifle, 1x Flamer`: the flamer lands on slot 10, not slot 1. Because it is
+shared between weapons and partial-count item rules, a shield on two models and a flamer on one do
+not both start at slot 1. The choice is arbitrary and deterministic (question 4).
 
 The level of a rule comes from `CatalogKinds.For(gameRules)`, a `distinct` query over
 `catalog_entry` joined to `properties` on `game_rules`: a name the catalog calls `model` goes onto
@@ -563,19 +555,19 @@ Storage is ten tables and a single transaction: `army`, `unit`, `unit_stat`, `un
 `model_slot`, `slot_stat`, `slot_property`, `weapon`, `weapon_stat`, `weapon_property`.
 `ArmyRepository.Get` reads the whole tree in **nine queries plus one head query** and assembles it
 with `ToLookup`, rather than one join that would multiply rows across six child tables.
-`model_slot.asset_id` is written as given with **no existence check** — the reference is soft, the
+`model_slot.asset_id` is written as given with **no existence check**. The reference is soft, the
 army holds the hitbox, and deleting a mesh must not be blocked (the army → *Assets are a soft
 reference*).
 
 `PATCH /v1/armies/{id}` is **a patch, not a document**: `PatchArmyRequest(Name?, Units?, Slots?)`
 where `UnitPatch(UnitId, AssetId?)` sets the unit default across every slot and
-`SlotPatch(SlotId, AssetId?, ClearAsset, Base?, Height?)` overrides one. That is exactly the army
-spec's shape — the pack or the import supplies a default, the user overrides per slot — and the
-spec's open question about document-versus-patch is settled here (spec correction 3). There is no
-`Name?` on either patch: names are the list's, and appearance and physical presence are the user's.
+`SlotPatch(SlotId, AssetId?, ClearAsset, Base?, Height?)` overrides one. That is the army spec's
+shape: the pack or the import supplies a default, and the user overrides per slot. Spec correction
+3 settles the spec's open question about document versus patch. There is no `Name?` on either
+patch. Names are the list's. Appearance and physical presence are the user's.
 
-A changed list means a re-import, with no reconciliation and no preserved bindings. That is the
-army spec's accepted cost, and it is why `list_entry` and `upgrades` do not exist as columns.
+A changed list means a re-import, with no reconciliation and no preserved bindings. The army spec
+accepts that cost. `list_entry` and `upgrades` therefore do not exist as columns.
 
 ### 9. Layouts
 
@@ -584,26 +576,25 @@ nullable `owner_id` and a nullable `game_id` with a check constraint that exactl
 content → *The setup phase is snapshotted*; `schema.md` → *`table_state` has two nullable owners*).
 Management writes the `owner_id` half and never the `game_id` half.
 
-`LayoutRepository.Save(ownerId, TableState)` regenerates **every** id — the layout row, each
-`terrain_placement`, each `terrain_volume`, each `marker`, each `deployment_zone` — because these
-are global primary keys and saving is a copy. Loading is the mirror image and happens elsewhere:
-the client reads `GET /v1/layouts/{id}` and sends a `ReplaceDraft` setup edit, so the game server
-regenerates ids on the way in. That keeps the rule *the game server never writes an owner-side
-row* literally true (whole-design review ruling 4: **layouts stay management's**), at the cost of a
-round trip through the client that a service-to-service call would have avoided — and there are no
-service-to-service calls.
+`LayoutRepository.Save(ownerId, TableState)` regenerates **every** id: the layout row, each
+`terrain_placement`, each `terrain_volume`, each `marker`, each `deployment_zone`. These are global
+primary keys and saving is a copy. Loading happens elsewhere. The client reads
+`GET /v1/layouts/{id}` and sends a `ReplaceDraft` setup edit, so the game server regenerates ids on
+the way in. That keeps the rule *the game server never writes an owner-side row* true
+(whole-design review ruling 4: **layouts stay management's**). It costs a round trip through the
+client, which a service-to-service call would have avoided. There are no service-to-service calls.
 
 `PATCH /v1/layouts/{id}` takes `PatchLayoutRequest(Name?, State?)`. A name-only patch is an
-`update`; a state patch deletes the three child collections and rewrites them. `POST` requires a
-name (`422` without one) — a game's draft has none, and a saved layout must.
+`update`. A state patch deletes the three child collections and rewrites them. `POST` requires a
+name and answers `422` without one. A game's draft has none. A saved layout must have one.
 
-`LayoutRepository.ReadTree(connection, id, name, size, texture)` is `static` on purpose: it is the
-one reader of the placement/volume/marker/zone tree, and the game-server plan reads the same rows
-for a game's draft.
+`LayoutRepository.ReadTree(connection, id, name, size, texture)` is `static`. It is the one reader
+of the placement/volume/marker/zone tree, and the game-server plan reads the same rows for a game's
+draft.
 
 ### 10. Games, the browser and the row-ownership split
 
-A game is a lobby — one row with a status (accounts → *A game is a lobby*). Management creates it
+A game is a lobby: one row with a status (accounts → *A game is a lobby*). Management creates it
 at `lobby`, inserts a `participant` row for the creator with **no team and no army**, and from then
 on the row is co-owned.
 
@@ -622,69 +613,67 @@ stateDiagram-v2
     ended --> [*] : DELETE
 ```
 
-*Who writes `game.status` depends on which transition it is: the two forward transitions are the
-game server's socket commands, and `ended` is always management's. `ended` is a flag, not a
-terminal state — restarting an ended game is the same hydrate-from-the-log operation as recovering
-a crashed task.*
+*`ended` is a flag, not a terminal state. Restarting an ended game is the same
+hydrate-from-the-log operation as recovering a crashed task.*
 
-The full split, which is the sharpest edge in this module:
+The full split:
 
 | Table or column | Management writes | Game server writes (only while `lobby` or `setup`) |
 | --- | --- | --- |
-| `account`, `blob`, `asset`, `asset_volume`, `folder`, `asset_folder`, the ten army tables, `table_state` with `owner_id` and its children | always | never — reads only |
-| `properties` and the seven tables under it | never (loaded by the undesigned content import) | never — reads only |
+| `account`, `blob`, `asset`, `asset_volume`, `folder`, `asset_folder`, the ten army tables, `table_state` with `owner_id` and its children | always | never, reads only |
+| `properties` and the seven tables under it | never (loaded by the undesigned content import) | never, reads only |
 | `game` insert, `name`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`, `created_by`, `created_at` | on create | rewrites the configuration on `SetConfiguration` |
 | `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing` |
 | `team` | never | inserts on `CreateTeam` |
 | `participant` insert and delete | create, join, leave | never |
-| `participant.team_id`, `participant.army_id`, `participant.army_snapshot` | never — null on insert | writes on `PickTeam`, `PickArmy`, `EndSetup` |
+| `participant.team_id`, `participant.army_id`, `participant.army_snapshot` | never, null on insert | writes on `PickTeam`, `PickArmy`, `EndSetup` |
 | `table_state` with `game_id`, and its `terrain_placement`, `terrain_volume`, `marker`, `deployment_zone` | never | writes the live draft, then frozen by the status flip |
 | `game.game_event` | deletes with the game | appends |
 
-Read this as two disjoint write sets over the same handful of tables, separated by convention. Nothing in the
-database enforces it: no trigger, no per-column grant, no status guard. The service does not read
-`game.status` before writing `'ended'`, and the game server does not check whether management has
+These are two disjoint write sets over the same handful of tables, separated by convention. Nothing
+in the database enforces it: no trigger, no per-column grant, no status guard. The service does not
+read `game.status` before writing `'ended'`. The game server does not check whether management has
 deleted the game under it.
 
 `participant` needs two columns `schema.md` does not yet have, both proposed by the contracts plan:
 `game_id uuid not null references game(id) on delete cascade` with `unique (game_id, account_id)`
-(its spec correction 4 — ruling 5 made `team_id` nullable, which left a team-less participant
+(its spec correction 4: ruling 5 made `team_id` nullable, which left a team-less participant
 attached to nothing), and `army_id uuid references army(id) on delete set null` (its spec
-correction 2 — the lobby's pick, which the manifest reads before a snapshot exists). This module's
+correction 2: the lobby's pick, which the manifest reads before a snapshot exists). This module's
 SQL depends on both.
 
-Endpoint behaviour worth naming:
+Endpoint behaviour:
 
 - `POST /v1/games` validates the `properties_hash` against the `properties` table and copies
   `game_rules` from the chosen row, so a game can never name a ruleset its pinned set disagrees
   with. An unknown hash is `422` with a pointer to `GET /v1/properties`.
 - `GET /v1/games` lists **every status**, keyset over `id`, ascending. Filtering is the user's, not
-  the server's — "open games" was the wrong phrase and nothing is hidden by status (accounts →
-  *Still open*). Ascending-by-id means oldest first, which is what the cursor mechanism gives and
-  probably not what a browser wants (question 7).
+  the server's. "Open games" was the wrong phrase. Nothing is hidden by status (accounts → *Still
+  open*). Ascending by id means oldest first. That is what the cursor mechanism gives, and probably
+  not what a browser wants (question 7).
 - `POST /v1/games/{id}/join` is `insert ... on conflict (game_id, account_id) do nothing` guarded by
   `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
-  nonexistent game is `404`. Joining is allowed at every status, including `ended` — the arriving
+  nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
   client hydrates from the log like any reconnect (setup phase → *Joining is allowed at any status*).
 - `POST /v1/games/{id}/leave` deletes the row and then, in the same transaction, sets `status =
-  'ended'` when no participant remains. Disconnecting is not leaving; the client's Home button
+  'ended'` when no participant remains. Disconnecting is not leaving. The client's Home button
   closes the socket and keeps the row (client shell → *Screens*).
 - `DELETE /v1/games/{id}` deletes `game.game_event` first and then `game`, in one transaction,
   because no foreign key crosses the schema boundary.
 
-### 11. The manifest — the one cross-owner read
+### 11. The manifest, the one cross-owner read
 
-The library is private for discovery, not for access. Every other asset route is owner-only; this
-one is authorized by being a participant and returns presigned URLs for every asset in play,
-whoever owns it (management API → *The game manifest*).
+The library is private for discovery, not for access. Every other asset route is owner-only. This
+one is authorized by participation and returns presigned URLs for every asset in play, whoever owns
+it (management API → *The game manifest*).
 
 `GameRepository.ManifestAssets(gameId)` collects one `HashSet<Guid>` of asset ids from five
 sources, then joins `asset` to `blob` and keeps only what is uploaded:
 
 | Source | Query | When |
 | --- | --- | --- |
-| a participant's picked army | `participant.army_id` → `unit` → `model_slot.asset_id` | only where `army_snapshot is null` — `lobby` and `setup` |
-| a participant's frozen army | `army_snapshot::text` → `ContentJson.Deserialize<ArmySnapshot>` → slots' `AssetId` | only where `army_snapshot is not null` — `playing` and after |
+| a participant's picked army | `participant.army_id` → `unit` → `model_slot.asset_id` | only where `army_snapshot is null`, so `lobby` and `setup` |
+| a participant's frozen army | `army_snapshot::text` → `ContentJson.Deserialize<ArmySnapshot>` → slots' `AssetId` | only where `army_snapshot is not null`, so `playing` and after |
 | the board texture | `table_state.texture_asset_id where game_id = @id` | always |
 | terrain meshes | `terrain_placement.asset_id` under that `table_state` | always |
 | marker visuals | `marker.visual_asset_id` under that `table_state` | always |
@@ -694,14 +683,14 @@ The `army_snapshot is null` test is what makes one endpoint serve both before an
 minutes, and the result is `Manifest(ManifestEntry[], ExpiresAt)`.
 
 `ManifestEntry(AssetId, Kind, Hash, Url, Scale, Orientation)` carries the owner's confirmed scale
-and orientation because `GET /v1/assets/{id}` is owner-only — a participant drawing someone else's
-mesh has no other way to learn how it should stand, and the alternative would be to loosen the
-owner-only rule. It carries `Hash` so the client's content-addressed on-disk cache can key on it
-and fetch a blob once per machine (client shell → *The table view*).
+and orientation because `GET /v1/assets/{id}` is owner-only. A participant drawing someone else's
+mesh has no other way to learn how it should stand. The alternative is loosening the owner-only
+rule. It carries `Hash` so the client's content-addressed on-disk cache can key on it and fetch a
+blob once per machine (client shell → *The table view*).
 
-Nothing is copied and no row is created: it is a download, not a share, and per-user dedup is
-untouched. A presigned URL outlives the participation check that produced it, and the spec accepts
-that explicitly — nobody is harmed by another player retaining a mesh they were already shown.
+Nothing is copied and no row is created. It is a download, not a share, and per-user dedup is
+untouched. A presigned URL outlives the participation check that produced it. The spec accepts
+that: another player retaining a mesh they were already shown harms nobody.
 
 ### 12. Paging, problems, and JSON
 
@@ -709,8 +698,8 @@ that explicitly — nobody is harmed by another player retaining a mesh they wer
 `ArgumentOutOfRangeException` (→ `400`) on a non-positive limit. The cursor is the id, because
 UUIDv7 is time-ordered by construction, so no sort column is needed and a library being added to
 while someone scrolls it does not skip or repeat rows. `Page<T>(Items, Next)` sets `Next` to the
-last item's id when the page came back full. Applied to assets, armies and the game browser only;
-folders, teams and a game's participants come back whole.
+last item's id when the page came back full. Applied to assets, armies and the game browser only.
+Folders, teams and a game's participants come back whole.
 
 Every error is `application/problem+json` via `Problems.NotFound/Conflict/Unprocessable/BadGateway`
 plus `AddProblemDetails()`. The status vocabulary across the whole surface:
@@ -721,29 +710,28 @@ plus `AddProblemDetails()`. The status vocabulary across the whole surface:
 | `401` | no token, wrong issuer, expired token, Stytch `401`/`404` on a login |
 | `404` | a missing row, another owner's row, a game the caller is not a participant of (for the participant-only routes) |
 | `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset, Stytch `duplicate_email` |
-| `415` | a content type the kind does not accept — where STL is refused at create time |
+| `415` | a content type the kind does not accept. STL is refused here, at create time |
 | `422` | validation, an unknown `properties_hash`, an unimportable game system, a folder cycle, Stytch `weak_password`/`breached_password` |
 | `426` | `Tabletop-Client-Version` below `MinimumClientVersion` |
 | `502` | Army Forge unreachable or non-200, Stytch `5xx` |
 
-Response bodies serialise through `ContentJson.Configure` — camelCase, snake_case enums, nulls
-omitted — so a `TableState` or a `GameInfo` on HTTP is byte-identical to the same value on the
-socket. That is the point of putting those types in `libs/Tabletop.Content` and
-`libs/Tabletop.Protocol` rather than defining DTOs here; everything with no contract type is a DTO
-of this project.
+Response bodies serialise through `ContentJson.Configure`: camelCase, snake_case enums, nulls
+omitted. A `TableState` or a `GameInfo` on HTTP is therefore byte-identical to the same value on
+the socket. That is why those types live in `libs/Tabletop.Content` and `libs/Tabletop.Protocol`
+instead of being redefined here. Everything with no contract type is a DTO of this project.
 
 ### 13. Total account deletion
 
-Deleting an account destroys its armies, assets, blobs, folders and layouts, **and every game it
-participated in** — the game record and its event log — and then the account row. No tombstone, no
-scrubbed name, no deactivated state. The collateral is real and accepted: a game other people
-played in disappears because one participant left (accounts → *Deletion is total*).
+Deleting an account destroys its armies, assets, blobs, folders and layouts, then **every game it
+participated in**, both the game record and its event log, and then the account row. No tombstone,
+no scrubbed name, no deactivated state. The collateral is accepted: a game other people played in
+disappears because one participant left (accounts → *Deletion is total*).
 
-Postgres cascades cannot express this. Content hangs *below* the account and cascades normally;
-games hang *above* it — participant to team to game — and then back down into other people's
-participants and across into the `game` schema's log. So it is a deliberate multi-step operation
-rather than a constraint or a trigger, because a trigger would hide a destructive cross-schema
-action behind an ordinary `DELETE` (`schema.md` → *Deleting an account is application logic*).
+Postgres cascades cannot express this. Content hangs *below* the account and cascades normally.
+Games hang *above* it, participant to team to game, and then back down into other people's
+participants and across into the `game` schema's log. Deletion is therefore a multi-step operation
+rather than a constraint or a trigger. A trigger would hide a destructive cross-schema action
+behind an ordinary `DELETE` (`schema.md` → *Deleting an account is application logic*).
 
 ```mermaid
 sequenceDiagram
@@ -769,18 +757,18 @@ sequenceDiagram
     D-->>E: 204
 ```
 
-*Database first, then S3, then Stytch — so a Stytch failure leaves no orphaned content. Where it
-can go wrong: a Stytch failure other than `404` answers `502` after the content is already gone,
-and logging in again recreates an empty account with the same id, because `Sessions.Complete`
-inserts on conflict.*
+*Database first, then S3, then Stytch, so a Stytch failure leaves no orphaned content.*
 
-**The union is the non-obvious part.** `game.created_by` is `not null references account(id)` with
-**no** `on delete` action, and `/leave` deletes the participant row while the game survives — so an
-account that created a game and then left is still named by `created_by`, and a plain
-`delete from account` would fail on that foreign key. `schema.md` asserts *"Account deletion
-already destroys every game the account played in, so a deleted creator leaves no orphan"*; the
-union over `participant.game_id` and `game.created_by` is what makes that assertion true, and the
-plan's test exercises exactly that case (a game created, then left, then still deleted).
+A Stytch failure other than `404` answers `502` after the content is already gone. Logging in again
+then recreates an empty account with the same id, because `Sessions.Complete` inserts on conflict.
+
+The union carries the case that cascades miss. `game.created_by` is
+`not null references account(id)` with **no** `on delete` action, and `/leave` deletes the
+participant row while the game survives. An account that created a game and then left is still
+named by `created_by`, so a plain `delete from account` would fail on that foreign key. The union
+over `participant.game_id` and `game.created_by` is what makes `schema.md`'s assertion true, that
+*"Account deletion already destroys every game the account played in, so a deleted creator leaves
+no orphan"*. The plan's test exercises that case: a game created, then left, then still deleted.
 
 ---
 
@@ -788,61 +776,60 @@ plan's test exercises exactly that case (a game created, then left, then still d
 
 ### Contested and re-decided
 
-These are the ones a reviewer wants first: each was decided, reversed, and in several cases
-reversed again.
+Each of these was decided, reversed, and in several cases reversed again.
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| **We issue no token of our own.** Stytch's session JWT is the only credential; both servers verify it locally against Stytch's JWKS | our UUID is the identifier on both sides, so swapping vendors changes what issues the token, not what it means; verification is local, so nothing calls Stytch on the request path; short expiry covers revocation | two opaque token tables — a `session` table and a join token — both designed in this session and both dropped 08-30; every argument for them was answered rather than traded | management API → *We issue no tokens of our own*; accounts → *Auth is a module* (revised 08-30) |
-| **The join token is gone.** A game has an id, a session says who you are, `participant` records who is allowed in | the token restated three facts and added an expiry that could lapse mid-game — a four-player game runs hours, so a token issued at the lobby could be dead when a player who dropped at hour three reconnects | a fourth frozen contract between two servers that never call each other | accounts → *A game is a lobby*; `architecture.md` → *Contracts to freeze* |
-| **The client has its own login screen; both it and the web app call the same two methods** | reversed twice: accounts put login in the client, the web app moved it to the browser because one existed, the client shell removed social login and magic links so nothing needs a page to redirect to — and accounts' original routing stands after all | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* (corrected 09-04) |
-| **The account id rides in a per-login custom claim, not in `external_id`** | Stytch's JWT names the user by its own `sub`; the spec's 08-30 confirmation allowed for a custom claim if `external_id` could not ride, and it cannot | reading `external_id` from the token; a Stytch dashboard claim template (offered as question 1 — visible in the repo and testable beat dashboard state) | management API → *Confirmed 2026-08-30*; plan Task 5 |
+| **No token of our own.** Stytch's session JWT is the only credential. Both servers verify it locally against Stytch's JWKS | our UUID is the identifier on both sides, so swapping vendors changes what issues the token, not what it means. Verification is local, so nothing calls Stytch on the request path. Short expiry covers revocation | two opaque token tables, a `session` table and a join token, both designed in this session and both dropped 08-30 | management API → *We issue no tokens of our own*; accounts → *Auth is a module* (revised 08-30) |
+| **The join token is gone.** A game has an id, a session says who you are, `participant` records who is allowed in | the token restated three facts and added an expiry that could lapse mid-game. A four-player game runs hours, so a token issued at the lobby could be dead when a player who dropped at hour three reconnects | a fourth frozen contract between two servers that never call each other | accounts → *A game is a lobby*; `architecture.md` → *Contracts to freeze* |
+| **The client has its own login screen. Both it and the web app call the same two methods** | reversed twice: accounts put login in the client, the web app moved it to the browser because one existed, and the client shell removed social login and magic links so nothing needs a page to redirect to. Accounts' original routing stands | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* (corrected 09-04) |
+| **The account id rides in a per-login custom claim, not in `external_id`** | Stytch's JWT names the user by its own `sub`. The spec's 08-30 confirmation allowed a custom claim if `external_id` could not ride, and it cannot | reading `external_id` from the token; a Stytch dashboard claim template (question 1: in-repo and testable was preferred to dashboard state) | management API → *Confirmed 2026-08-30*; plan Task 5 |
 | **GLB only**, narrowed from "glTF/GLB" | a `.gltf` with external buffers is several files with relative references: single-object presigned upload breaks, the header read becomes pointless, and serving it to another player's client can fail | accepting `.gltf` with sidecar buffers | management API → *GLB only*; `architecture.md` → *GLB only* |
-| **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client; refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* (settled 09-04) |
-| **`enforcement` is `silent \| warn \| strict`**, not a boolean | identity and enumerations ruled a boolean and argued a blocking mode contradicts the product; action sequences and the scheduler then both wrote a refusing mode, and the review put the contradiction to the owner, who kept `strict` | `warns boolean`. This module only stores and validates the column, but the column's domain came from a reversal | whole-design review ruling 1 |
-| **A participant has no team until they pick one** | nothing said what team `join` assigned; a team-less participant is never addressed by an Ask, and that is what a spectator is | presence's "joins a third team", superseded | whole-design review ruling 5; setup phase |
-| **The game server writes a game's own rows before play** | three documents said it was read-only and wrote only events; the setup phase had it flipping status, writing the draft and taking team and army picks over the socket | keeping management the sole writer, which would have meant endpoints for every lobby and setup edit | whole-design review ruling 4 |
+| **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* (settled 09-04) |
+| **`enforcement` is `silent \| warn \| strict`**, not a boolean | identity and enumerations ruled a boolean and argued that a blocking mode contradicts the product. Action sequences and the scheduler then both wrote a refusing mode. The owner kept `strict` | `warns boolean`. This module only stores and validates the column | whole-design review ruling 1 |
+| **A participant has no team until they pick one** | nothing said what team `join` assigned. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team", superseded | whole-design review ruling 5; setup phase |
+| **The game server writes a game's own rows before play** | three documents said it was read-only and wrote only events. The setup phase had it flipping status, writing the draft, and taking team and army picks over the socket | keeping management the sole writer, which would have meant endpoints for every lobby and setup edit | whole-design review ruling 4 |
 | **Layouts stay management's** even though the game server owns the draft | the client saves by `POST /v1/layouts` from its own copy of the draft and loads by `GET` plus a replace-draft edit, so the game server never writes an owner-side row | letting the game server write the layout directly, which would have put an owner's row in the other service's write set | whole-design review ruling 4; setup phase → *Layouts* |
-| **A changed list means a re-import**, losing per-slot bindings | the army session originally copied an army and applied the new list to the copy so bindings survived; armies are cheap to rebuild and list changes are rare | reconciliation, copy-on-write, and the `Binding` table and `list_entry` column that existed to serve it — all dropped | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
-| **Dedup is per user**, `blob` keyed `(owner_id, hash)` | `architecture.md` deduped globally; nobody shares storage, so cross-user reference counting never has to exist, and deleting an asset checks only the owner's own rows | global content addressing with reference counts | asset library → *Two records*; `schema.md` → *Identifiers* |
-| **Normalised, not `jsonb`** | `jsonb` is the magic-string move at the storage layer — the database checks nothing exactly where checking is cheapest. An earlier draft had the army tree, the table state and the asset profile as documents | document columns per aggregate. Two `jsonb` columns survive for opposite reasons: `game_event.payload` is genuinely heterogeneous, `participant.army_snapshot` **must not** be reasoned about | `schema.md` → *Normalised, not documents*, *Where `jsonb` survives* |
+| **A changed list means a re-import**, losing per-slot bindings | the army session originally copied an army and applied the new list to the copy so bindings survived. Armies are cheap to rebuild and list changes are rare | reconciliation, copy-on-write, and the `Binding` table and `list_entry` column that served them, all dropped | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
+| **Dedup is per user**, `blob` keyed `(owner_id, hash)` | `architecture.md` deduped globally. Nobody shares storage, so cross-user reference counting never has to exist, and deleting an asset checks only the owner's own rows | global content addressing with reference counts | asset library → *Two records*; `schema.md` → *Identifiers* |
+| **Normalised, not `jsonb`** | with `jsonb` the database checks nothing, at the layer where checking is cheapest. An earlier draft had the army tree, the table state and the asset profile as documents | document columns per aggregate. Two `jsonb` columns survive for opposite reasons: `game_event.payload` is heterogeneous, and `participant.army_snapshot` **must not** be reasoned about | `schema.md` → *Normalised, not documents*, *Where `jsonb` survives* |
 
 ### Taken as designed
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| Asset bytes never pass through the service; presigned `PUT` and `GET` | every participant pulls every mesh in a game, including other people's — streaming that through the API is the wrong shape, and no AWS credential reaches a client | proxying bytes; a signed-download endpoint that reads and re-serves | management API → *Asset bytes never pass through the API* |
-| The triangle count is a ranged `GET` of the GLB header | a GLB's first chunk is JSON carrying the mesh accessors, so the total needs no part of the binary — a small read, no worker, no queue | a background job on upload; trusting a client-declared count | management API → *The triangle count is a ranged read* |
+| Asset bytes never pass through the service. Presigned `PUT` and `GET` | every participant pulls every mesh in a game, including other people's. Streaming that through the API is the wrong shape, and no AWS credential reaches a client | proxying bytes; a signed-download endpoint that reads and re-serves | management API → *Asset bytes never pass through the API* |
+| The triangle count is a ranged `GET` of the GLB header | a GLB's first chunk is JSON carrying the mesh accessors, so the total needs no part of the binary. One small read, no worker, no queue | a background job on upload; trusting a client-declared count | management API → *The triangle count is a ranged read* |
 | Owner-only authorization answering `404` | existence is not disclosed, and there is no sharing model for a `403` to mean anything in | `403` for another owner's row | management API → *The rest of the surface* |
-| Keyset paging with the id as the cursor | UUIDv7 is time-ordered, so no sort column is needed; offset skips and repeats rows when the list changes, and a library being added to while it is scrolled is the normal case | offset/limit | management API → *Pagination is keyset* |
-| Dapper over Npgsql with hand-written SQL | the schema is normalised and hand-written already, the army tree and table state load whole in a handful of queries, and every constraint lives in the database rather than in mapping attributes; `libs/` must stay persistence-free | EF Core | plan Task 2; `architecture.md` → *Persistence* |
+| Keyset paging with the id as the cursor | UUIDv7 is time-ordered, so no sort column is needed. Offset skips and repeats rows when the list changes, and a library being added to while it is scrolled is the normal case | offset/limit | management API → *Pagination is keyset* |
+| Dapper over Npgsql with hand-written SQL | the schema is normalised and hand-written already, the army tree and table state load whole in a handful of queries, and every constraint lives in the database rather than in mapping attributes. `libs/` must stay persistence-free | EF Core | plan Task 2; `architecture.md` → *Persistence* |
 | DbUp with embedded scripts, `001` baselined | the compose init SQL must keep working for a bare `docker compose up`, so the migrator recognises a database that already holds `001` and records it instead of re-running it | EF migrations; running the init SQL only from compose and never versioning it | plan Task 2; contracts plan → *Local development* |
 | `game.game_event` deleted explicitly with a game | no foreign key crosses the schema boundary, so the cascade cannot reach it | a cross-schema FK; a trigger | plan Task 12; `schema.md` |
 | Management fetches the Army Forge list | the parser lives in one place, there is no CORS problem, and a format change is a server deploy rather than a client release | the browser fetching and posting the JSON | management API → *Army import* |
 | Single-object presigned `PUT`, no multipart | a converter-produced GLB is a few megabytes; adding multipart later is a second presign method plus a complete call and changes none of the three endpoints | pre-empting the spec's open item with a multipart API nothing needs yet | management API → *Still open*; plan Task 6 |
-| The manifest carries `Scale`, `Orientation` and `Hash` | `GET /v1/assets/{id}` is owner-only, so a participant has no other way to learn how another player's mesh should stand; `Hash` keys the client's per-machine blob cache | relaxing owner-only on the asset row; a second cross-owner endpoint | plan Task 12; client shell → *The table view* |
+| The manifest carries `Scale`, `Orientation` and `Hash` | `GET /v1/assets/{id}` is owner-only, so a participant has no other way to learn how another player's mesh should stand. `Hash` keys the client's per-machine blob cache | relaxing owner-only on the asset row; a second cross-owner endpoint | plan Task 12; client shell → *The table view* |
 
 ### Taken because a spec was silent
 
 | Question the specs do not answer | What the plan does | What it costs if wrong |
 | --- | --- | --- |
-| Is a request with no version header accepted? | yes — the web app ships with the API and does not send one (spec correction 7) | a stale cached SPA would not be told to reload; the mechanism was built for the desktop client |
-| Does `PATCH /v1/armies/{id}` take a document or a patch? | a patch: `Name?`, `UnitPatch` (unit default), `SlotPatch` (per-slot asset, base, height) — spec correction 3 | a whole-document `PUT` would need the client to hold the full tree and would race with itself |
-| What are the error shapes? | RFC 7807 `application/problem+json` throughout; another owner's row is `404` — spec correction 3 | nothing; the spec listed this under *Deliberately not decided* |
+| Is a request with no version header accepted? | yes, the web app ships with the API and does not send one (spec correction 7) | a stale cached SPA would not be told to reload. The mechanism was built for the desktop client |
+| Does `PATCH /v1/armies/{id}` take a document or a patch? | a patch: `Name?`, `UnitPatch` (unit default), `SlotPatch` (per-slot asset, base, height), spec correction 3 | a whole-document `PUT` would need the client to hold the full tree and would race with itself |
+| What are the error shapes? | RFC 7807 `application/problem+json` throughout. Another owner's row is `404`, spec correction 3 | nothing. The spec listed this under *Deliberately not decided* |
 | Who may `/end` and `DELETE` a game? | any participant, nobody else (question 6) | if anyone logged in may, drop the `IsParticipant` check on two routes |
 | Default base and height when Army Forge gives none? | `Base.Circle(32/25.4)` and `1.5"` (question 3; spec correction 5) | if they should come from `Properties`, there is no table for them |
-| How are partial weapon counts dealt onto models? | an advancing cursor — `9x Rifle, 1x Flamer` puts the flamer last (question 4) | if the user must be asked, import cannot expand deterministically and the web app needs a weapon editor that is not designed |
+| How are partial weapon counts dealt onto models? | an advancing cursor. `9x Rifle, 1x Flamer` puts the flamer last (question 4) | if the user must be asked, import cannot expand deterministically and the web app needs a weapon editor that is not designed |
 | Which game systems import? | only `gf` → `grimdark-future`; anything else is `422` (question 5) | `aof`/`gff` lists would need entries and `army.game_system` values no `GameRules` matches |
-| Do joined heroes become models of the unit they joined? | no — a hero imports as its own unit and the join is lost, because no column records it (question 2) | slot-level stats and properties on the joined slot; a change to `Merge` only |
-| Is the game browser newest-first? | oldest-first, ascending by id — what the keyset cursor gives (question 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
+| Do joined heroes become models of the unit they joined? | no. A hero imports as its own unit and the join is lost, because no column records it (question 2) | slot-level stats and properties on the joined slot; a change to `Merge` only |
+| Is the game browser newest-first? | oldest-first, ascending by id, which is what the keyset cursor gives (question 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
 | Does the texture kind accept WebP? | no, PNG and JPEG (question 8) | one value in `AssetRules.ContentTypes` and the `002` check constraint |
-| Is the manifest re-issued on reconnect? | not decided here either — the client re-requests it; `ExpiresAt` is 60 minutes and a game runs hours | management API → *Deliberately not decided*; the client must handle expiry |
+| Is the manifest re-issued on reconnect? | not decided here. The client re-requests it. `ExpiresAt` is 60 minutes and a game runs hours | management API → *Deliberately not decided*; the client must handle expiry |
 
 ---
 
 ## Interfaces
 
-### Produced — the HTTP surface
+### Produced: the HTTP surface
 
 | Method and path | Body → response | Auth |
 | --- | --- | --- |
@@ -853,7 +840,7 @@ reversed again.
 | `POST /v1/auth/password/signup` | `PasswordRequest` → `201 SessionResponse` | none |
 | `POST /v1/auth/password/reset` | `EmailRequest` → `202` | none |
 | `POST /v1/auth/password/reset/complete` | `ResetCompleteRequest(Token, Password)` → `SessionResponse` | none |
-| `POST /v1/auth/session/refresh` | `RefreshRequest(SessionJwt)` → `SessionResponse` | none — the JWT may be expired |
+| `POST /v1/auth/session/refresh` | `RefreshRequest(SessionJwt)` → `SessionResponse` | none; the JWT may be expired |
 | `DELETE /v1/auth/session` | → `204` | bearer |
 | `GET /v1/account` | → `AccountRow(Id, Name)` | bearer |
 | `PATCH /v1/account` | `RenameRequest(Name)` → `AccountRow` | bearer |
@@ -880,7 +867,7 @@ reversed again.
 | `POST /v1/games/{id}/leave`, `/end`, `DELETE /v1/games/{id}` | → `204` | participant |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets, ExpiresAt)` | participant |
 
-### Produced — types and services
+### Produced: types and services
 
 | Type | Members |
 | --- | --- |
@@ -925,8 +912,8 @@ reversed again.
 
 | Module | Must honour |
 | --- | --- |
-| Game server | verify the JWT exactly as here — JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string; verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
-| Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only — they are the list's |
+| Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string; verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
+| Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
 | Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a redirect URL; the two URLs registered 08-24 for OAuth and magic links can go |
 
@@ -934,12 +921,11 @@ reversed again.
 
 ## Sequences
 
-Three flows are drawn where they are designed and not repeated here: **login and claim stamping**
-(§3), **presigned upload and confirm** (§6), and **total account deletion** (§13). Two more are
-drawn below; the two auth flows between them are stated in prose, since a diagram of either would
-only redraw a straight line.
+Three flows are drawn where they are designed: **login and claim stamping** (§3), **presigned
+upload and confirm** (§6), and **total account deletion** (§13). The two auth flows are stated in
+prose rather than drawn.
 
-### Create a game, then connect — nobody instantiates the session
+### Create a game, then connect
 
 ```mermaid
 sequenceDiagram
@@ -967,33 +953,30 @@ sequenceDiagram
     Note over M,G: No call between the two servers. The session exists because a client arrived.
 ```
 
-*This is the settled answer to who instantiates a game session: nobody. Where it can go wrong —
-the client holds a `GameInfo` from management and a `GameInfo` from the socket, and after any lobby
-edit only the socket's is current; and `POST /v1/games` succeeds against a `properties` table the
-game server may not have finished seeding.*
+*Nobody instantiates a game session.*
+
+The client holds a `GameInfo` from management and a `GameInfo` from the socket. After any lobby
+edit only the socket's is current. `POST /v1/games` succeeds against a `properties` table the game
+server may not have finished seeding.
 
 ### Key resolution, and the refresh loop
 
-Two auth flows are mechanical enough to state without a picture, and both have a failure window
-worth naming.
-
-**Key resolution.** The `JwtBearer` handler calls `StytchJwks.Resolve(kid)` for every request.
-On an empty cache it fetches `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no
-credentials; when the token names a `kid` the cached set does not hold, it refetches **once, and
-only if the last fetch is more than 30 seconds old**. That floor is a stampede guard and it is also
-the exposure: a Stytch key rotation inside 30 seconds of the last fetch answers `401` until the
-window passes. The resolver is called synchronously — `Resolve(kid).GetAwaiter().GetResult()` —
-so the fetch blocks a request thread behind a `SemaphoreSlim` every other concurrent caller also
-waits on.
+**Key resolution.** The `JwtBearer` handler calls `StytchJwks.Resolve(kid)` for every request. On
+an empty cache it fetches `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` with no credentials.
+When the token names a `kid` the cached set does not hold, it refetches **once, and only if the
+last fetch is more than 30 seconds old**. That floor is a stampede guard. It is also the exposure:
+a Stytch key rotation inside 30 seconds of the last fetch answers `401` until the window passes.
+The resolver is called synchronously, as `Resolve(kid).GetAwaiter().GetResult()`. The fetch blocks
+a request thread behind a `SemaphoreSlim` that every other concurrent caller also waits on.
 
 **Refresh.** The client calls `POST /v1/auth/session/refresh` about once a minute with the JWT it
-holds, expired or not; Stytch documents that `/v1/sessions/authenticate` accepts a JWT already past
-its `exp`, which is the whole basis of the endpoint. The handler calls `RefreshSession(jwt, {})`
-and then hands the result to `Sessions.Complete`, which calls `RefreshSession(jwt, {account_id})`
-again — because Stytch creates custom claims only when `session_duration_minutes` is supplied, so
-`Complete` re-stamps rather than trusting the first call. **That is two
-`POST /v1/sessions/authenticate` calls per refresh, per client, per minute**, and it is the shape
-question 1 offers to remove with a dashboard claim template.
+holds, expired or not. Stytch documents that `/v1/sessions/authenticate` accepts a JWT already past
+its `exp`, which the endpoint depends on. The handler calls `RefreshSession(jwt, {})` and hands the
+result to `Sessions.Complete`, which calls `RefreshSession(jwt, {account_id})` again. Stytch
+creates custom claims only when `session_duration_minutes` is supplied, so `Complete` re-stamps
+rather than trusting the first call. **That is two `POST /v1/sessions/authenticate` calls per
+refresh, per client, per minute.** Question 1 offers to remove it with a dashboard claim
+template.
 
 ### Ending or deleting a game the game server is holding
 
@@ -1016,24 +999,24 @@ sequenceDiagram
     Note over DB: An event row for a game that no longer exists: no FK crosses the schema boundary.
 ```
 
-*The deliberate hole. There is no management-to-game-server channel by design
-(`architecture.md`, "Contracts to freeze": no M2M), so a delete or an `/end` during play is
-invisible to the process holding the game. `/end` is merely stale — a status the server will
-overwrite on its next flip — but `DELETE` leaves an in-memory game with no row and an append that
-writes orphan log rows into the other schema. Nothing in either plan detects or cleans that.*
+*A delete or an `/end` during play is invisible to the process holding the game.*
+
+There is no management-to-game-server channel (`architecture.md`, "Contracts to freeze": no M2M).
+`/end` leaves only a stale status, which the server overwrites on its next flip. `DELETE` leaves an
+in-memory game with no row, and its appends write orphan log rows into the other schema. Nothing in
+either plan detects or cleans that.
 
 ---
 
 ## State and data
 
 This service holds **no in-memory state** beyond two caches: the `StytchJwks` key set, and the
-`NpgsqlDataSource` connection pool. Nothing is rebuilt from the event log here — the event log is
+`NpgsqlDataSource` connection pool. Nothing is rebuilt from the event log here. The event log is
 the game server's, and this service only deletes from it. Restarting the process loses nothing.
 
 ### The tables this service owns
 
-Three diagrams rather than one, because the management schema is twenty-five tables and one picture
-of it says nothing.
+Three diagrams rather than one: the management schema is twenty-five tables.
 
 ```mermaid
 erDiagram
@@ -1097,9 +1080,9 @@ erDiagram
     }
 ```
 
-*The account and the library. `blob.uploaded` and `blob.content_type` are this module's migration
-`002` and are not yet in `schema.md`. `ASSET_VOLUME` is shown abbreviated — it carries all six
-declaration booleans and the full footprint, seventeen columns mapped by one `VolumeRow`.*
+*The account and the library. `blob.uploaded` and `blob.content_type` come from this module's
+migration `002` and are not yet in `schema.md`. `ASSET_VOLUME` is abbreviated here: it carries all
+six declaration booleans and the full footprint, seventeen columns mapped by one `VolumeRow`.*
 
 ```mermaid
 erDiagram
@@ -1175,10 +1158,9 @@ erDiagram
     }
 ```
 
-*Ten tables written in one transaction by import and read back in nine queries. `model_slot.asset_id`
-has no foreign key — the reference is soft. Stats are rows at three levels because stats are
-declared by `Properties`, not typed into the engine; that is the schema's one acknowledged smell,
-forced by a decision that is correct.*
+*Ten tables written in one transaction by import and read back in nine queries.
+`model_slot.asset_id` has no foreign key, so the reference is soft. Stats are rows at three levels
+because stats are declared by `Properties` rather than typed into the engine.*
 
 ```mermaid
 erDiagram
@@ -1280,13 +1262,13 @@ exactly one is set: management writes the `owner_id` rows, the game server the `
 proposed corrections to `schema.md`, and this module's SQL requires them. `PROPERTIES` and the
 seven tables beneath it are read here and written by nothing that exists.*
 
-Not shown, and deliberately absent: any column holding a model position, a wound, or whose
-activation it is. That is never a row — it is events, reconstructed into the game server's memory.
-A table growing a "current position" column means the event spine has been broken.
+No column holds a model position, a wound, or whose activation it is. None of that is a row. It is
+events, reconstructed into the game server's memory. A "current position" column here would mean
+the event spine has been broken.
 
-The one `jsonb` this module reads is `participant.army_snapshot`, and it reads it **only** to
-collect asset ids for the manifest, via `ContentJson.Deserialize<ArmySnapshot>`. Its opacity is the
-requirement: normalised, a later migration would silently alter what a past game was played with.
+The one `jsonb` this module reads is `participant.army_snapshot`. It reads it **only** to collect
+asset ids for the manifest, via `ContentJson.Deserialize<ArmySnapshot>`. The snapshot stays opaque
+on purpose. Normalised, a later migration could alter what a past game was played with.
 
 ---
 
@@ -1296,34 +1278,34 @@ requirement: normalised, a later migration would silently alter what a past game
 
 | Hazard | What happens | What the design does |
 | --- | --- | --- |
-| **Two simultaneous last leaves** | each `Leave` deletes its own `participant` row and then runs `update game set status='ended' where not exists (select 1 from participant where game_id = @id)`. Under read committed each transaction may still see the other's row, so **neither** ends the game and it survives with zero participants | nothing. No advisory lock, no `select for update`, no test. The consequence is cosmetic — an empty game listed as `lobby` — and it is not detected |
-| **Concurrent create with the same hash** | `insert blob ... on conflict (owner_id, hash) do nothing` makes the second a no-op, and both assets point at one blob. The **first** row's `byte_size` and `content_type` win | intended for dedup; unintended when the second caller declared a different `contentType`, because `confirm` branches on `asset.ContentType`, which is read from the blob row |
-| **Confirm twice** | idempotent: `Size` still matches, the header is read again, `uploaded` is set again. The dedup path deliberately re-reads the header so a second asset over the same bytes still gets its triangle count | by design |
-| **Two `PUT /volumes` on one asset** | delete-then-insert inside one transaction; last writer wins, and volume ids change every time | by design — volumes are a value, not an identity |
+| **Two simultaneous last leaves** | each `Leave` deletes its own `participant` row and then runs `update game set status='ended' where not exists (select 1 from participant where game_id = @id)`. Under read committed each transaction may still see the other's row, so **neither** ends the game and it survives with zero participants | nothing. No advisory lock, no `select for update`, no test. The consequence is an empty game listed as `lobby`, and it is not detected |
+| **Concurrent create with the same hash** | `insert blob ... on conflict (owner_id, hash) do nothing` makes the second a no-op, and both assets point at one blob. The **first** row's `byte_size` and `content_type` win | intended for dedup. Unintended when the second caller declared a different `contentType`, because `confirm` branches on `asset.ContentType`, which is read from the blob row |
+| **Confirm twice** | idempotent: `Size` still matches, the header is read again, `uploaded` is set again. The dedup path re-reads the header so a second asset over the same bytes still gets its triangle count | by design |
+| **Two `PUT /volumes` on one asset** | delete-then-insert inside one transaction. Last writer wins, and volume ids change every time | by design: volumes are a value, not an identity |
 | **Migration during a live game** | management runs DbUp at startup against the database the game server is holding games in. A management deploy can add or alter a column under it | named as still open by both the management API spec and `schema.md`, and not addressed. There is no coordination, no read-only window, and no version handshake |
-| **Delete or `/end` during play** | see the last sequence diagram above: the game server keeps serving from memory and appends `game_event` rows for a game row that is gone | deliberate — there is no channel to tell it |
-| **A `PATCH` on an army during setup** | the game server writes `army_snapshot` from the army "as it stands" at `EndSetup`; an edit landing between the read and the write is a lost or surprising update | accepted: the army is loaded once at setup, which is exactly why the army spec says independence rather than immutability, and why no versioning exists |
+| **Delete or `/end` during play** | the game server keeps serving from memory and appends `game_event` rows for a game row that is gone | no channel exists to tell it |
+| **A `PATCH` on an army during setup** | the game server writes `army_snapshot` from the army "as it stands" at `EndSetup`; an edit landing between the read and the write is a lost or surprising update | accepted. The army is loaded once at setup. The army spec says independence rather than immutability, and no versioning exists |
 
 ### Lifecycle and leakage
 
 | Hazard | Consequence | Disposition |
 | --- | --- | --- |
-| `POST /v1/assets` and then no `confirm` | a `blob` row with `uploaded = false` forever; possibly an S3 object with no confirm | **deliberately left to break.** No reaper. The row is invisible to downloads and manifests, and delete removes it with the asset |
-| Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes; the only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
-| S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted; the alternative is deleting bytes before committing, which loses data on rollback |
-| Account deletion: Stytch fails with anything but `404` | content and games are already gone; the caller gets `502`; the Stytch user survives, so logging in again recreates an **empty** account with the same id | deliberate ordering — database first, so a Stytch failure leaves no orphaned content |
-| A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a real gap, and untested. See *Open questions* |
+| `POST /v1/assets` and then no `confirm` | a `blob` row with `uploaded = false` forever, and possibly an S3 object with no confirm | **left in place.** No reaper. The row is invisible to downloads and manifests, and delete removes it with the asset |
+| Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes. The only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
+| S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
+| Account deletion: Stytch fails with anything but `404` | content and games are already gone. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
+| A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Open questions* |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
 | Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
-| Presigned download URL outlives participation | a player who left keeps a working URL for up to 60 minutes | **explicitly accepted**: it is a game, and nobody is harmed by another player retaining a mesh they were already shown |
-| Manifest `ExpiresAt` is 60 minutes; games run hours | mid-game asset loads fail after an hour unless the client re-requests | the spec leaves re-issue undecided; the client must handle it |
+| Presigned download URL outlives participation | a player who left keeps a working URL for up to 60 minutes | **accepted**: another player retaining a mesh they were already shown harms nobody |
+| Manifest `ExpiresAt` is 60 minutes, and games run hours | mid-game asset loads fail after an hour unless the client re-requests | the spec leaves re-issue undecided. The client must handle it |
 | `GET /v1/games/{id}` exposes participants' display names to any logged-in caller | there is no relationship graph, but a public game reveals who is in it | consistent with games being public; what an account looks like to another account beyond a name is undecided (accounts) |
-| Army Forge changes its export format | `POST /v1/armies/import` starts throwing or, worse, mapping silently wrong values | only a saved fixture guards it. A format change is a server deploy, which is the reason import lives here |
-| `CatalogKinds.For` returns empty | every imported rule lands at unit level. Model-level rules such as `Tough(X)` land wrong until content exists, and re-importing later changes the outcome | not addressed. There is no content import yet, so this is today's actual behaviour |
+| Army Forge changes its export format | `POST /v1/armies/import` starts throwing, or maps silently wrong values | only a saved fixture guards it. A format change is a server deploy, which is the reason import lives here |
+| `CatalogKinds.For` returns empty | every imported rule lands at unit level. Model-level rules such as `Tough(X)` land wrong until content exists, and re-importing later changes the outcome | not addressed. There is no content import yet, so this is today's behaviour |
 
-### Refusals that are not failures
+### Refusals
 
-Under `strict` enforcement the **game server** refuses commands; nothing in this service refuses
+Under `strict` enforcement the **game server** refuses commands. Nothing in this service refuses
 anything on rules grounds. The triangle check warns. Model placement, coherency and base overlap
 are not this service's concern at all. The only things this service refuses are malformed input,
 an unknown `properties_hash`, a non-GLB masquerading as one, an unsupported game system, and a row
@@ -1349,19 +1331,19 @@ tests/Tabletop.Management.Tests` reaches 53 tests across thirteen tasks.
 
 `ManagementFactory : WebApplicationFactory<Program>` with three fakes and one real dependency:
 
-- **`TestDatabase`** — a database of its own per factory on the Docker Postgres named in `.env`,
+- **`TestDatabase`**: a database of its own per factory on the Docker Postgres named in `.env`,
   created, migrated by `Migrator.Run`, dropped `with (force)` on dispose. `MigrationTests` asserts
   33 tables across the `management` and `game` schemas and that a second `Migrator.Run` is a no-op.
-- **`TestKeys`** — an RSA key, a JWT minter matching Stytch's claim shape, a fake JWKS handler that
+- **`TestKeys`**: an RSA key, a JWT minter matching Stytch's claim shape, a fake JWKS handler that
   counts fetches, and `Rotate()`. `AuthenticatedClient(accountId)` inserts the account row, mints a
-  JWT and sets the bearer header — the helper every later test uses.
-- **`FakeStytch`** — an `HttpMessageHandler` implementing enough of Stytch to log in: users by
+  JWT and sets the bearer header. Every later test uses that helper.
+- **`FakeStytch`**: an `HttpMessageHandler` implementing enough of Stytch to log in: users by
   email, one fixed OTP code, passwords, external ids, sessions minted through `TestKeys`, plus
   revoke and delete lists to assert against. It asserts Basic auth is present on every call.
-- **`FakeArmyForge`** — serves the fixture for one id and `404` for anything else.
+- **`FakeArmyForge`**: serves the fixture for one id and `404` for anything else.
 - **MinIO, real.** `BlobStoreTests` does a presigned `PUT`, a `HEAD`, a ranged read and a presigned
   `GET` against the actual bucket, and the asset tests upload real bytes through the real presigned
-  URL. This is the one place a fake would have hidden the thing being designed.
+  URL. A fake here would have hidden the mechanism being designed.
 
 Notable integration assertions: `426` before anything else runs, and `problem+json` on it; the CORS
 preflight answered for `TABLETOP_WEB_URL` and not for another origin; the same bytes twice
@@ -1375,18 +1357,18 @@ assets across two owners with the owner's corrections and excluding the unconfir
 removing content, blobs, three games including one created-and-left, and the Stytch user, while
 leaving another account's untouched game alone.
 
-### What cannot be tested headlessly, and why
+### What cannot be tested headlessly
 
 - **Real Stytch.** Every automated test runs against `FakeStytch`. Task 5 ends with one manual
-  pass — set the secret, `POST /v1/auth/otp` to a real address, verify the emailed code, and check
-  the JWT at jwt.io carries `account_id`. So the two things `FakeStytch` cannot prove are unproven
-  by the suite: that custom claims survive a refresh, and that `session_duration_minutes` behaves
-  as documented.
-- **The live Army Forge format.** A fixture is a snapshot; the suite cannot notice a format change.
+  pass: set the secret, `POST /v1/auth/otp` to a real address, verify the emailed code, and check
+  the JWT at jwt.io carries `account_id`. Two things stay unproven by the suite: that custom claims
+  survive a refresh, and that `session_duration_minutes` behaves as documented.
+- **The live Army Forge format.** A fixture is a snapshot. The suite cannot notice a format
+  change.
 - **CORS in a browser.** The preflight test exercises the middleware, not a real browser's
   enforcement.
 - **Presigned URL reachability from Windows.** URLs are minted against `TABLETOP_S3_ENDPOINT`
-  verbatim so `localhost:9000` works from both WSL and the Windows host; only the manual
+  verbatim, so `localhost:9000` works from both WSL and the Windows host. Only the manual
   `Invoke-WebRequest` check in Task 14 exercises that.
 
 ### Notable gaps
@@ -1394,11 +1376,11 @@ leaving another account's untouched game alone.
 - **No concurrency test anywhere.** Not the double leave, not two creates racing on one hash, not
   two confirms.
 - **The compose-init baseline path is never exercised.** `TestDatabase` creates an empty database,
-  so `Migrator.Baseline` always takes its early return. The branch that matters — a database the
-  compose init already populated — has no test, and a partially applied init would be baselined as
-  if complete because the probe is `management.account` alone.
-- **No test for a valid JWT lacking `account_id`**, which is the case that reveals the
-  exception-handler gap above.
+  so `Migrator.Baseline` always takes its early return. The branch for a database the compose init
+  already populated has no test. A partially applied init would be baselined as complete, because
+  the probe is `management.account` alone.
+- **No test for a valid JWT lacking `account_id`**, the case that reveals the exception-handler
+  gap.
 - **No test that `blob.content_type` cannot diverge** from a second asset's declared type over the
   same hash.
 - Nothing asserts a presigned URL's TTL, or that an expired one is refused.
@@ -1411,27 +1393,27 @@ leaving another account's untouched game alone.
 
 | Question | Assumption | If the answer differs |
 | --- | --- | --- |
-| 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | the code path — visible in the repo, testable, no dashboard state | `Sessions.Complete` drops the `RefreshSession` call for already-linked users: one fewer Stytch round trip per login and per refresh, and the template becomes environment setup |
-| 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | yes, and the join is lost — no table records it | the hero becomes a model of the unit it joined, needing slot-level `Quality`/`Defense` and `Hero`/`Tough` as slot properties; a change to `ArmyForgeImport.Merge` only |
+| 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | the code path: in the repo, testable, no dashboard state | `Sessions.Complete` drops the `RefreshSession` call for already-linked users: one fewer Stytch round trip per login and per refresh, and the template becomes environment setup |
+| 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | yes, and the join is lost, because no table records it | the hero becomes a model of the unit it joined, needing slot-level `Quality`/`Defense` and `Hero`/`Tough` as slot properties. A change to `ArmyForgeImport.Merge` only |
 | 3. Default base and height when Army Forge gives none? | `Base.Circle(32/25.4)` and `1.5"` | defaults from `Properties` need a table that does not exist, or a `GameRules`-keyed constant here |
-| 4. How are partial weapon counts dealt onto models? | an advancing cursor; the flamer lands last | if the user must choose, import cannot expand deterministically and the web app needs a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
+| 4. How are partial weapon counts dealt onto models? | an advancing cursor, and the flamer lands last | if the user must choose, import cannot expand deterministically and the web app needs a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
 | 5. Which game systems import? | only `gf` → `grimdark-future` | `ArmyForgeImport.GameRules` gains entries and `army.game_system` carries names no `GameRules` matches yet |
 | 6. Who may `/end` and `DELETE` a game? | any participant | drop the `IsParticipant` check on two routes |
 | 7. Is `GET /v1/games` newest-first? | oldest-first, ascending by id | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
 | 8. Does the texture kind accept `image/webp`? | no | one value in `AssetRules.ContentTypes` and in the `002` check constraint |
 
-A ninth question — whether a missing version header is accepted — was struck on 09-06 because the
-specs answer it: the check exists for the downloaded desktop client, and the client shell is the
-document that says the client sends its version on every request.
+A ninth question, whether a missing version header is accepted, was struck on 09-06. The specs
+answer it: the check exists for the downloaded desktop client, and the client shell says the client
+sends its version on every request.
 
 ### Deferred, with where it is recorded
 
 | Deferred | Where |
 | --- | --- |
-| Multipart upload for large files | management API → *Still open*; `IBlobStore` deliberately has no multipart member |
+| Multipart upload for large files | management API → *Still open*. `IBlobStore` has no multipart member |
 | Rate limiting | management API → *Deliberately not decided* |
 | Whether the manifest is re-issued on reconnect or re-requested | management API → *Deliberately not decided* |
-| The JWT lifetime and refresh interval as anything but working figures | management API → *Deliberately not decided*; five minutes and one minute are used here |
+| The JWT lifetime and refresh interval as anything but working figures | management API → *Deliberately not decided*. Five minutes and one minute are used here |
 | How authored `Properties` content reaches the eight tables | `architecture.md` → *Rules as data*; whole-design review → *Left as first-pass assertions*. Until it exists, `GET /v1/properties` is empty and no game can be created |
 | Indexes beyond primary and foreign keys | `schema.md` → *Still open*; the game browser's listing query is the first candidate |
 | Whether the two schemas become two databases | contracts plan spec correction 5 settles one database for local development; hosting may revisit |
@@ -1452,13 +1434,13 @@ shape, error conventions); the Army Forge source format and mapping rules; Army 
 
 ## References
 
-**Plan.** `docs/superpowers/plans/2026-09-05-management-api.md` — the source of truth for what gets
-built: fourteen tasks, the File Structure, every `Interfaces` block, the *Interfaces → Produces*
-tables, *Rows by writer*, the seven spec corrections and the eight owner questions.
+**Plan.** `docs/superpowers/plans/2026-09-05-management-api.md` is the source of truth for what
+gets built: fourteen tasks, the File Structure, every `Interfaces` block, the *Interfaces →
+Produces* tables, *Rows by writer*, the seven spec corrections and the eight owner questions.
 
 **Specs**, in the order the plan names them:
 
-- `docs/superpowers/specs/2026-08-29-management-api-design.md` — primary
+- `docs/superpowers/specs/2026-08-29-management-api-design.md` (primary)
 - `docs/superpowers/specs/2026-08-29-accounts-design.md`
 - `docs/superpowers/specs/2026-08-28-army-design.md`
 - `docs/superpowers/specs/2026-08-28-asset-library-design.md`
@@ -1469,14 +1451,15 @@ tables, *Rows by writer*, the seven spec corrections and the eight owner questio
 - `docs/superpowers/specs/2026-09-04-setup-phase-design.md`
 - `docs/superpowers/specs/2026-08-29-identity-and-enumerations-design.md`
 - `docs/superpowers/specs/2026-08-29-content-values-design.md`
-- `docs/superpowers/specs/2026-09-04-whole-design-review.md` — newest, wins
+- `docs/superpowers/specs/2026-09-04-whole-design-review.md` (newest, wins)
 
 **Repo documents.** `docs/architecture.md`, `docs/data-model.md`, `docs/schema.md`, `CLAUDE.md`.
 `docs/workstreams/03-management-identity.md` and `09-management-collections.md` are stale and not
 followed.
 
-**Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` — the three
-libraries, `001_schema.sql`, `docker-compose.yml`, the `TABLETOP_*` names, and the reserved ports.
+**Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` supplies the
+three libraries, `001_schema.sql`, `docker-compose.yml`, the `TABLETOP_*` names, and the reserved
+ports.
 Its spec corrections 2 and 4 (`participant.army_id`, `participant.game_id` and its unique
 constraint) are prerequisites for this module's SQL.
 
@@ -1486,11 +1469,11 @@ constraint) are prerequisites for this module's SQL.
 unauthenticated `curl` on both dates. Army Forge `GET https://army-forge.onepagerules.com/api/tts?id=c2-6YsWRH3py`
 fetched live 2026-09-06 (`200`, 26 KB, `access-control-allow-origin: *`) and saved as the fixture.
 
-**Rulebook.** No page of Grimdark Future is read by this module — it stores content and enforces no
-rule. The one number that comes from the rules side is the triangle warning threshold, 100,000,
-which is a product decision from mesh conversion rather than a rulebook figure. Pages 6, 16, 17–18,
-19 and 49 of Grimdark Future v3.4.1 are read by the setup phase, whose rows this module stores as
-layouts but never interprets.
+**Rulebook.** No page of Grimdark Future is read by this module. It stores content and enforces no
+rule. The one number from the rules side is the triangle warning threshold, 100,000, and that is a
+product decision from mesh conversion rather than a rulebook figure. Pages 6, 16, 17–18, 19 and 49
+of Grimdark Future v3.4.1 are read by the setup phase, whose rows this module stores as layouts but
+never interprets.
 
 **Sibling design documents** in `docs/design/`: `contracts/`, `geometry/`, `game-server/`,
 `scheduler/`, `interpreter/`, `client/`, `web-app/`.
