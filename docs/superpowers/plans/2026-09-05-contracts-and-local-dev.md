@@ -807,9 +807,9 @@ public static class ContentJson
 
 **Interfaces:**
 - Consumes: `Point3`, `Yaw`, `Placement` (Task 2); `ArmySnapshot` (Task 4); `TableState`, `ContentJson` (Task 5).
-- Produces (namespace `Tabletop.Protocol`): `ProtocolVersion.Current = 1`, `ProtocolVersion.Header = "Tabletop-Client-Version"`, `ProtocolVersion.UpgradeRequiredStatusCode = 426`; `GameStatus { Lobby, Setup, Playing, Ended }`; `SchedulerShape { PlayerTurn, AlternatingActivation }` (wire names `player-turn`, `alternating-activation`); `Enforcement { Silent, Warn, Strict }`; `Team(Guid Id, int Ordinal)`; `Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId)`; `GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants)`; `ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot)`; `Board(TableState Table, IReadOnlyList<ArmyInPlay> Armies)`; `Location` union (`OnTable(Placement)`, `OnShelf`, `Inside(Guid ContainerId)`); `ModelRelocation(Guid ModelId, Location From, Location To)`; `SubjectKind { Unit, Model }`; `Subject(SubjectKind Kind, Guid Id)`; `Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)`; `Die(int Raw, int Modified, bool Success)`; `RollModifier(string Source, int Amount)`; `RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice)`; `SequenceContext(Guid? ActorUnitId, IReadOnlyList<Guid> TargetUnitIds, IReadOnlyList<Guid> WeaponIds, string? Action)`.
+- Produces (namespace `Tabletop.Protocol`): `ProtocolVersion.Current = 1`, `ProtocolVersion.Header = "Tabletop-Client-Version"`, `ProtocolVersion.UpgradeRequiredStatusCode = 426`; `GameStatus { Lobby, Setup, Playing, Ended }`; `SchedulerShape { PlayerTurn, AlternatingActivation }` (wire names `player-turn`, `alternating-activation`); `Enforcement { Silent, Warn, Strict }`; `Team(Guid Id, int Ordinal)`; `Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId)`; `GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants)` (`RngSeed` is positional and last among the scalars; wire name `rngSeed`); `ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot)`; `Board(TableState Table, IReadOnlyList<ArmyInPlay> Armies)`; `Location` union (`OnTable(Placement)`, `OnShelf`, `Inside(Guid ContainerId)`); `ModelRelocation(Guid ModelId, Location From, Location To)`; `SubjectKind { Unit, Model }`; `Subject(SubjectKind Kind, Guid Id)`; `Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)`; `Die(int Raw, int Modified, bool Success)`; `RollModifier(string Source, int Amount)`; `RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice)`; `SequenceContext(Guid? ActorUnitId, IReadOnlyList<Guid> TargetUnitIds, IReadOnlyList<Guid> WeaponIds, string? Action)`.
 
-Spec: management API → The version check (`426`); identity and enumerations → The closed sets; game flow → The shelf, Inside a container (a model is always in exactly one of three places); action sequences → One roll primitive (raw and modified per die, threshold and modifiers carried; null threshold for the roll-off, scheduler → Deployment); spell effects → The grants store; whole-design review ruling 5 (nullable team). `Participant.ArmyId` is spec correction 2.
+Spec: management API → The version check (`426`); identity and enumerations → The closed sets; game flow → The shelf, Inside a container (a model is always in exactly one of three places); action sequences → One roll primitive (raw and modified per die, threshold and modifiers carried; null threshold for the roll-off, scheduler → Deployment); spell effects → The grants store; whole-design review ruling 5 (nullable team). `Participant.ArmyId` is spec correction 2; `GameInfo.RngSeed` is owner ruling 1 of 2026-09-06 (the seed is stored, not derived from the game id) and spec correction 12.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -833,6 +833,17 @@ public class GameTests
     {
         Location[] all = [new OnTable(new(new(1, 2, 0), new(90))), new OnShelf(), new Inside(Guid.CreateVersion7())];
         Assert.Equal(3, all.Select(l => l.GetType()).Distinct().Count());
+    }
+
+    [Fact]
+    public void Game_info_carries_the_stored_rng_seed_whole()
+    {
+        // long.MinValue + 1: signed, and past 2^53, so a JSON number that went through a double would come back changed.
+        var game = new GameInfo(Guid.CreateVersion7(), "Friday", GameStatus.Lobby, Guid.CreateVersion7(),
+            "grimdark-future", "sha256:abc", SchedulerShape.PlayerTurn, Enforcement.Warn, false, -9223372036854775807L, [], []);
+        var json = ContentJson.Serialize(game);
+        Assert.Contains("\"rngSeed\":-9223372036854775807", json);
+        Assert.Equal(game.RngSeed, ContentJson.Deserialize<GameInfo>(json).RngSeed);
     }
 
     [Fact]
@@ -877,10 +888,15 @@ public sealed record Team(Guid Id, int Ordinal);
 /// <summary>TeamId is null until the participant picks one; a participant with no team is never Asked. ArmyId is the lobby pick, null after deployment.</summary>
 public sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId);
 
-/// <summary>Teams, participants and configuration: what a lobby connect receives.</summary>
+/// <summary>
+/// Teams, participants and configuration: what a lobby connect receives.
+/// RngSeed is the game's stored dice seed, generated once when the game row is created and never changed —
+/// which is what makes undo and replay exact. It is not derived from Id (owner ruling 1, 2026-09-06).
+/// </summary>
 public sealed record GameInfo(
     Guid Id, string Name, GameStatus Status, Guid CreatedBy,
     string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
+    long RngSeed,
     IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants);
 
 public sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot);
@@ -926,7 +942,7 @@ public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyL
 public sealed record SequenceContext(Guid? ActorUnitId, IReadOnlyList<Guid> TargetUnitIds, IReadOnlyList<Guid> WeaponIds, string? Action);
 ```
 
-- [ ] **Step 5: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 3 passed. Commit: `Define the protocol's game info and in-play values`.**
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 4 passed. Commit: `Define the protocol's game info and in-play values`.**
 
 ### Task 7: Protocol — the StateChange union
 
@@ -1017,7 +1033,7 @@ public sealed record MarkerRemoved(Guid MarkerId) : StateChange;
 
 `EventPayload` does not exist yet; add a placeholder `public abstract record EventPayload;` at the top of a new `Events.cs` — Task 9 replaces it.
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 4 passed. Commit: `Define the closed set of in-play state changes`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 5 passed. Commit: `Define the closed set of in-play state changes`.**
 
 ### Task 8: Protocol — Asks
 
@@ -1170,7 +1186,7 @@ public sealed record Confirmed : AskAnswer;
 public sealed record Passed : AskAnswer;
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 7 passed. Commit: `Define Asks, legal sets and answers`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 8 passed. Commit: `Define Asks, legal sets and answers`.**
 
 ### Task 9: Protocol — events
 
@@ -1321,7 +1337,7 @@ public static class EventKinds
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 9 passed. Commit: `Define the event log's payloads`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 10 passed. Commit: `Define the event log's payloads`.**
 
 ### Task 10: Protocol — commands
 
@@ -1425,7 +1441,7 @@ public sealed record SetDice(Guid FrameId, Guid RollId, IReadOnlyList<DieValue> 
 public sealed record AddModifier(Guid FrameId, string Roll, int Amount) : Command;
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 11 passed. Commit: `Define the commands`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 12 passed. Commit: `Define the commands`.**
 
 ### Task 11: Protocol — presence and edits
 
@@ -1567,7 +1583,7 @@ public sealed record SwapZones(int TeamOrdinalA, int TeamOrdinalB) : SetupEdit;
 public sealed record ReplaceDraft(TableState Draft) : SetupEdit;
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 14 passed. Commit: `Define presence values and the unlogged edits`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 15 passed. Commit: `Define presence values and the unlogged edits`.**
 
 ### Task 12: Protocol — the socket envelope and the wire format
 
@@ -1604,7 +1620,8 @@ public static class Samples
     public static ModelRelocation Embark => new(Model, new OnTable(At(12, 12)), new Inside(Container));
     public static ModelRelocation Disembark => new(Model, new Inside(Container), new OnTable(At(14, 12)));
     public static GameInfo Game => new(Guid.CreateVersion7(), "Friday", GameStatus.Playing, P1, "grimdark-future", "sha256:abc",
-        SchedulerShape.AlternatingActivation, Enforcement.Warn, false, [new Team(Team1, 1), new Team(Team2, 2)],
+        SchedulerShape.AlternatingActivation, Enforcement.Warn, false, 0x0123_4567_89AB_CDEF,
+        [new Team(Team1, 1), new Team(Team2, 2)],
         [new Participant(P1, Guid.CreateVersion7(), "Clay", Team1, null)]);
     public static Board Board => new(TableStateTests.Sample(), [new ArmyInPlay(P1, ArmySnapshot.Of(Army, Guid.CreateVersion7()))]);
     public static RollRecord Hit => new(Roll, "hit", 4, [new RollModifier("AP", -1)], [new Die(6, 6, true), new Die(2, 2, false)]);
@@ -1784,7 +1801,7 @@ public static class WireJson
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 22 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 23 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
 
 ### Task 13: Protocol — the projection
 
@@ -1934,7 +1951,7 @@ public sealed class OpenAsk(Ask ask)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 23 passed. Commit: `Define the projection the client draws from`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 24 passed. Commit: `Define the projection the client draws from`.**
 
 ### Task 14: Protocol — the rules-free event applier
 
@@ -2188,7 +2205,7 @@ public sealed class EventApplier(Board board, GameInfo game)
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test`; expect every project green (Protocol 29 passed). Commit: `Implement the rules-free event applier`.**
+- [ ] **Step 4: Run `dotnet test`; expect every project green (Protocol 30 passed). Commit: `Implement the rules-free event applier`.**
 
 ### Task 15: Local development — Postgres, MinIO and the schema
 
@@ -2196,7 +2213,7 @@ public sealed class EventApplier(Board board, GameInfo game)
 - Create: `docker-compose.yml`, `.env.example`, `scripts/postgres/init/001_schema.sql`
 
 **Interfaces:**
-- Consumes: nothing from Tasks 1–14. The SQL is `docs/schema.md`'s thirty-three tables; the enumerations in its check constraints are the same closed sets Tasks 2, 5 and 6 encode, and spec corrections 1, 2, 4 and 6 are applied to it.
+- Consumes: nothing from Tasks 1–14. The SQL is `docs/schema.md`'s thirty-three tables; the enumerations in its check constraints are the same closed sets Tasks 2, 5 and 6 encode, and spec corrections 1, 2, 4, 6 and 12 are applied to it.
 - Produces: Postgres 17 on `localhost:5432`, database `tabletop`, user `tabletop`, two Postgres schemas `management` and `game`; MinIO on `localhost:9000` (S3 API) and `localhost:9001` (console), bucket `tabletop-blobs`, path-style addressing; environment variable names in `.env.example` that the management API and game server plans read: `TABLETOP_DB_CONNECTION`, `TABLETOP_S3_ENDPOINT`, `TABLETOP_S3_BUCKET`, `TABLETOP_S3_ACCESS_KEY`, `TABLETOP_S3_SECRET_KEY`.
 - Decisions: **MinIO** stands in for S3 because it speaks the S3 API the AWS SDK's `AmazonS3Client` already targets (`ServiceURL` + `ForcePathStyle`), presigned PUT and GET work unchanged, and it is one container plus one bootstrap command — so the management API plan writes S3 code once and hosting later changes only the endpoint (`architecture.md` → Local development: "deploying changes the address, not the shape"). **Two Postgres schemas in one database** (closing `schema.md`'s open item for local development): the game server reads and, before play, writes management's rows, which is one connection when they share a database. **Migrations**: the schema ships here as Postgres init SQL, applied once when the volume is first created; `docker compose down -v && docker compose up -d` re-applies it. The management API plan owns the real migration mechanism (its first migration is this file's contents), because management owns the schema and `libs/` may not touch persistence. Settled with that plan (compatibility review, 2026-09-05): both mechanisms stay. The compose init gives a bare `docker compose up -d` the schema, which is all the game server and its tests need; management's DbUp migrator (`Persistence/Migrator.cs`) embeds a byte-for-byte copy as `001_schema.sql`, recognises a database the init already built (`management.account` exists, no journal) and records 001 as applied instead of re-running it, then applies `002_blob_uploaded.sql` and later scripts itself; a database management creates from nothing (its per-run test databases) gets 001 from DbUp. The `create schema management; create schema game;` at the top of this file is therefore the only place the two schemas are created, on either path. The game server never migrates; the interpreter plan's `Properties` seeding writes rows, not schema.
 - Windows reaches WSL over forwarded localhost: with WSL2's default `localhostForwarding=true`, Docker's published ports and any WSL process listening on `0.0.0.0` are reachable from Windows at `localhost:<port>`. The Godot client therefore uses `localhost` for management and the game server, and presigned MinIO URLs are minted for `http://localhost:9000` so the same URL works from a WSL server and a Windows client. Ports reserved for the server plans: management `5100`, game server `5200`.
@@ -2480,6 +2497,7 @@ create table game (
     scheduler_shape     text not null check (scheduler_shape in ('player-turn', 'alternating-activation')),
     enforcement         text not null check (enforcement in ('silent', 'warn', 'strict')),
     waits_between_steps boolean not null default false,
+    rng_seed            bigint not null,                                    -- spec correction 12: the stored dice seed, written once at creation; no default, so omitting it fails loudly
     created_by          uuid not null references account(id),
     created_at          timestamptz not null default now()
 );
@@ -2577,7 +2595,7 @@ docker compose exec postgres psql -U tabletop -d tabletop -Atc "select count(*) 
 docker compose logs minio-init | tail -1
 ```
 
-Expected: the count is `33` (32 management tables + `game.game_event`, matching `schema.md`'s thirty-three), and the last MinIO line is `bucket ready`. From Windows PowerShell: `Test-NetConnection localhost -Port 5432` and `Test-NetConnection localhost -Port 9000` both report `TcpTestSucceeded : True`.
+Expected: the count is `33` (32 management tables + `game.game_event`, matching `schema.md`'s thirty-three), and the last MinIO line is `bucket ready`. The count is **unchanged** by spec correction 12: `rng_seed` is a column on `management.game`, not a table. From Windows PowerShell: `Test-NetConnection localhost -Port 5432` and `Test-NetConnection localhost -Port 9000` both report `TcpTestSucceeded : True`.
 
 - [ ] **Step 6: Commit**
 
@@ -2708,7 +2726,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `enum Enforcement { Silent, Warn, Strict }` | |
 | `sealed record Team(Guid Id, int Ordinal)` | |
 | `sealed record Participant(Guid Id, Guid AccountId, string Name, Guid? TeamId, Guid? ArmyId)` | |
-| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, IRL<Team> Teams, IRL<Participant> Participants)` | |
+| `sealed record GameInfo(Guid Id, string Name, GameStatus Status, Guid CreatedBy, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, IRL<Team> Teams, IRL<Participant> Participants)` | `RngSeed` is **positional**, the last scalar before the two collections; wire name `rngSeed` (camelCase policy, no attribute); column `management.game.rng_seed bigint not null`, no default. The stored dice seed: management generates it once at creation, the game server reads it with the rest of the row at hydration, the interpreter reads it instead of hashing `Id`, a simulator run sets it. |
 | `sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot)` | |
 | `sealed record Board(TableState Table, IRL<ArmyInPlay> Armies)` | |
 | `abstract record Location` | `OnTable(Placement Placement)` [table], `OnShelf` [shelf], `Inside(Guid ContainerId)` [inside] |
@@ -2752,7 +2770,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | --- | --- |
 | Postgres | `localhost:5432`, db `tabletop`, user `tabletop`, schemas `management`, `game`; `TABLETOP_DB_CONNECTION` |
 | MinIO | S3 API `http://localhost:9000`, console `:9001`, bucket `tabletop-blobs`, path-style; `TABLETOP_S3_ENDPOINT`, `TABLETOP_S3_BUCKET`, `TABLETOP_S3_ACCESS_KEY`, `TABLETOP_S3_SECRET_KEY` |
-| Schema | `scripts/postgres/init/001_schema.sql`, applied on first volume creation; the management API plan embeds the same file as DbUp migration 001, baselines a compose-built database, and owns every later migration (`002_blob_uploaded.sql` onward); the game server never migrates |
+| Schema | `scripts/postgres/init/001_schema.sql`, applied on first volume creation; includes `management.game.rng_seed bigint not null` (spec correction 12); the management API plan embeds the same file as DbUp migration 001, baselines a compose-built database, and owns every later migration (`002_blob_uploaded.sql` onward); the game server never migrates |
 | Reserved ports | management `5100`, game server `5200`; both bind `0.0.0.0` so Windows reaches them at `localhost` |
 
 ## Every kind, and the spec it comes from
@@ -2823,13 +2841,28 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 
 11. **`docs/superpowers/specs/2026-08-28-game-flow-design.md` → Inside a container**, after *"Disembarking is the operation that already exists: give a model a placement."* Add: *"What does not fall out is **where** a placement is legal, and which containers a move may enter. The wire carries the destination (`Inside`, in a `Destinations` answer) but not the offer, so the move Ask carries it: `move_region.containment` names the containers a model of the unit could reach — one reaching model embarks the whole unit — or the container it is inside with the 6\" its models must be placed fully within of. Enterable and exiting are never both set, which is where *"never both in one activation"* is enforced."* Reason: the section designs containment as a location and states the rules half, but no plan could offer either move without a field on the Ask (the coverage gap of 2026-09-06).
 
+12. **`docs/schema.md` → the `GAME` entity block in the diagram**, and a new prose section beside **"A game has a name, an enforcement setting and a wait setting"**. Add column `rng_seed bigint not null` after `waits_between_steps`, and add the section:
+
+    > ### A game stores its dice seed
+    >
+    > **Added 2026-09-06 by owner ruling 1.** `rng_seed` is the seed every roll in the game is drawn from. Management generates it once, in application code, when it inserts the `game` row — any value in `bigint`'s range is valid — and nothing ever writes it again. The game server reads it with the rest of the game's row at hydration and hands it to the interpreter, which stops deriving a seed from `game.id`.
+    >
+    > It is a **stored** column rather than a value derived from `id` because the two things a seed has to do pull apart otherwise. Undo and replay need the seed to be *fixed for the life of the game*, which a hash of the id gives; a simulator run needs it to be *chosen*, which a hash of the id does not, and the only way to choose one is then to choose the id — which is why the simulation plan had `SimIds.Of` deriving ids from a run seed and an exception to the UUIDv7 rule. A stored column gives both: fixed after creation, free at creation. The UUIDv7 exception is withdrawn, and a simulator run generates ordinary `Guid.CreateVersion7()` ids and sets `rng_seed` explicitly.
+    >
+    > It is not carried in the first event either. The seed has to be readable *before* the log is interpreted at all — the interpreter needs it to construct the `Roller` for the very first roll, and the game server hydrates `GameInfo` from the game's row before it reads a single `game_event` row. Putting it in an event would also make it undoable in principle and would give a game in `lobby` or `setup`, which has no events, no seed; and `game_event` belongs to the `game` schema while the value is written by management, which writes no events. There is one stored seed per game, written once at creation.
+    >
+    > No database default. Postgres 17 could fill it (`random(min, max)`), but then a management bug that omits the seed still produces a playable game and the write-once invariant lives in the database, where this plan's tests do not look; the schema's standing convention is that generated values come from application code, as ids do. `not null` with no default fails loudly instead. The table count is unaffected — this is a column, not a table.
+
 ## Interfaces needed from other modules
 
 None consumed. Obligations this plan places on later plans, stated as the signatures they must honour:
 
 - **Geometry plan**: implement every body in `libs/Tabletop.Geometry/Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests.
-- **Game server plan**: emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types.
-- **Management API plan**: adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing.
+- **Every plan that constructs `GameInfo`**: `RngSeed` is positional and last among the scalars, so every construction supplies it. See the note under *Spec corrections proposed* 12 for why it is positional rather than an init-only property: an init-only property would leave the six consuming plans' constructions compiling untouched, but a construction that forgot the seed would silently get `0`, and a `0` seed is a real game whose dice match every other game that forgot. Nothing is implemented yet, so the compile error costs a text edit in each plan and buys the guarantee that no game can be built without a seed.
+- **Game server plan**: read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types.
+- **Management API plan**: write `rng_seed` on `POST /v1/games`, generated in application code (`Random.Shared.NextInt64()` is enough — the seed is not a secret, since editing dice is already a first-class command) and never updated; return it in the game representation the game server and client read. Adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing.
+- **Interpreter plan**: set `GameState.RngSeed` from `GameInfo.RngSeed` — `unchecked((ulong)info.RngSeed)` keeps `GameState.RngSeed : ulong`, so `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 are untouched — and delete the SHA-256-of-`Info.Id` derivation and the test that asserts two game ids give two seeds.
+- **Simulation plan**: set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`; `SimIds.Of` and the UUIDv7 exception are withdrawn.
 - **Client shell plan**: add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
 
 ## Questions for the project owner

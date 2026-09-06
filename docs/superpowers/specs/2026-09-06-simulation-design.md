@@ -37,9 +37,25 @@ therefore a function from an Ask to an answer, and there are two useful ones.
 policy, which is how a specific position becomes a whole game. An unscripted Ask under a
 script-only run is a failure; under a mixed run it goes to the policy.
 
-The policy is not an AI opponent and must not become one. It chooses legally, not well. Nothing
-in `sim/` may read a rule to decide what is a good move: the legal set is the whole of its
-input. An opponent that plays well is a later feature and would live behind the same seam.
+The policy is not an AI opponent and must not become one. It chooses legally, not well.
+
+**Ruled 2026-09-06.** The simulator may read anything the engine exposes: properties, stats,
+wounds, conditions, teams, the projection, the pinned `PropertySet`. An earlier draft banned all
+of it, which was both over-broad and self-contradictory — the invariant checks, the expectations
+and the recording all read wounds, conditions, positions and properties. Two prohibitions carry
+the argument instead:
+
+1. **It must never narrow the legal set.** An answer is chosen from what the server offered,
+   whole. A policy that filtered the set to answers it judged sensible would stop exercising the
+   ones that find bugs.
+2. **It must never compute a rules outcome the engine should compute.** No deciding for itself
+   whether a target is in range, whether a wound lands, or what a modifier totals. A second rules
+   implementation inside the simulator can agree with a broken engine and hide the fault.
+
+Separately, and for a different reason: the **default** policy stays uniform over the legal set
+and ignorant of state. A cleverer policy explores a narrower, more plausible region and finds
+fewer bugs, so a state-reading policy is opt-in and named as such, never the default for a soak
+run. An opponent that plays well is a later feature and would live behind the same seam.
 
 ## Two drivers behind one interface
 
@@ -120,13 +136,30 @@ exists to find.
 Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in
 production and a failed assertion here.
 
+## The seed is stored, so a run sets it
+
+**Ruled 2026-09-06.** The RNG seed is its own stored value on the management-owned game row —
+`rng_seed`, not null, written once when the game is created — and it reaches the engine through
+`GameInfo` like everything else. It is not derived from the game id.
+
+An earlier design hashed the game id to get the seed, which made the dice a function of the id and
+forced the simulator to derive its ids from its run seed to be reproducible at all. That is
+withdrawn: a run sets the seed explicitly and takes ordinary `Guid.CreateVersion7()` ids. In
+process the driver hands the engine a `GameInfo` carrying the seed; over the socket it writes the
+column, because it makes a row rather than a `GameInfo`.
+
+Reproducibility therefore means: **the same scenario with the same seed gives the same dice and the
+same answers, and the ids differ between runs.** Nothing asserts that two runs share an id, and
+nothing compares two recordings byte for byte. Undo and replay stay exact, because the value never
+changes for a game.
+
 ## What it asserts
 
 Beyond a scenario's own expectations, every run checks the invariants that hold for any game:
 
 - Replaying the log from the initial state reproduces the final projection.
-- Undoing to an arbitrary sequence and redoing reproduces the same dice, because the seed is
-  game state.
+- Undoing to an arbitrary sequence and redoing reproduces the same dice, because the seed never
+  changes for a game.
 - Every Ask is answered by a team that Ask addressed.
 - No model is in two places, and no model on the table is outside the slab.
 - The round only advances through the boundary Ask, per the ruling of 2026-09-06.
@@ -145,8 +178,8 @@ is checked by looking at it.
 
 - The recording's exact schema and whether it is versioned. It is derived, so a breaking change
   costs a re-run.
-- Whether the policy is uniform over the legal set or weighted, and whether it prefers to act
-  over passing.
+- Whether the policy prefers to act over passing when both are legal. That it is *uniform* over
+  the legal set is no longer open: it was ruled on 2026-09-06 — see *Two ways to answer an Ask*.
 - How the viewer draws a model inside a container, which has no position.
 - Whether a scenario is C# or a text format. C# costs nothing to start and keeps the assertions
   typed.
