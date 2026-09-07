@@ -282,36 +282,54 @@ it"* and must cite page 15, along with every other `Transport` reference.
 useful-pages index built on 3.4.1 numbering. Both need the new filenames, the 71 and 70 page
 counts, and a rebuilt index.
 
+## Rulings made while propagating
+
+Three of the four questions this document opened were put to the owner during the propagation
+pass and answered the same day.
+
+1. **`Takedown` picks per model.** *"This model may pick any model in the target unit as its
+   individual target"* is taken at its word, so `GfShooting.Groups` splits a takedown weapon type
+   into one group per model carrying it, each with its own `pick-target-model`, its own pooled
+   `roll-to-hit` over its own attacks, and its own `deal-wounds`. A split group's name carries the
+   model's ordinal, because the name is the key the target declaration and `fire-groups` use. This
+   replaces the per-group compromise of the earlier ruling, which 3.4.1's *"each model with
+   Sniper"* had forced on a pooled roll.
+2. **Cover is p.11's majority, strictly more than half.** Five of ten models inside cover terrain
+   is not a majority and gives nothing. This revises the 2026-09-06 ruling recorded as *"half or
+   more inside cover terrain gives cover"*; that ruling's other clause, *"fewer than half the
+   models visible gives cover"*, already means majority-hidden and needed no change, so both
+   clauses now use one threshold. `GfRolls.InCover` is `* 2 > models`.
+3. **`Artillery` aggregates `all`.** Every model in the unit must carry it for the -2 to apply.
+   Decided after `Stealth`, which is the same to-hit penalty at the same range band and reads
+   *"units where all models have this rule"* in both books; cover's majority was the alternative,
+   and `any`, the plans' reading for `Entrenched`, the loosest.
+
 ## Open questions
 
-Four, none of which blocks the propagation of everything above.
+Two, neither of which blocks execution.
 
-1. **What aggregation does `Artillery`'s -2 use?** The successor to interpreter question 4. The
-   text is model grain and the roll is pooled, so `all` (after `Stealth`, the nearer sibling) or
-   `majority` (after cover, the nearer mechanism) has to be chosen. `any`, the interpreter
-   plan's current reading for `Entrenched`, remains available and is the loosest.
-2. **Is cover *"the majority of models"* or half or more?** Page 11 is unchanged in 3.5.1 and
-   says *"If the majority of models in a unit are fully inside a piece of cover terrain"*, which
-   is strictly more than half. The ruling of 2026-09-06 is recorded as *"half or more inside
-   cover terrain gives cover"*, and `GfRolls.InCover` is
-   `Battlefield.ModelsInCoverTerrain(state, targetUnit) * 2 >= models`, with a test at
-   interpreter plan line 4023 named for the disagreement. The ruling's other clause, *"fewer
-   than half the models visible gives cover"*, already means majority-hidden and agrees with the
-   book. The two clauses of one ruling therefore use two thresholds.
-3. **Are weapons dealt onto models in order?** Management question 4, untouched by 3.5.1 because
+1. **Are weapons dealt onto models in order?** Management question 4, untouched by 3.5.1 because
    it is a question about Army Forge data rather than about the rules. Assumed an advancing
    cursor, so a lone flamer lands on the last model. Asking the player instead means import
    cannot expand a unit on its own, which needs a per-slot weapon editor and a `PATCH` shape,
    neither designed.
-4. **How is the elevated 3" coherency measured?** Page 11's new sentence reads *"If not all
-   models in a unit can fit on elevation, then a coherency of 3" is allowed to models at
-   different elevation."* The rule states the allowance and not the test, so geometry needs a
-   definition of *at different elevation* between two models before the 1" chain check can
-   branch on it.
+2. **How is the elevated 3" coherency measured?** Page 11's new sentence reads *"If not all models
+   in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
+   elevation."* `Coherency.Check` takes one chain distance for every pair, so a per-pair distance
+   keyed on the two models' elevations is a signature change, and the precondition, whether the
+   unit *can fit* on the elevation, is a ruleset judgement the geometry library cannot make. The
+   rule states the allowance and not the test.
 
-Interpreter question 4 is closed as asked, because `Entrenched` does not exist; it reopens as
-question 1 above. The `Sniper` per-group residue under interpreter question 7 is closed by
-`Takedown`'s *"This model"*.
+Interpreter question 4 is closed as asked, because `Entrenched` does not exist; it reopened as
+`Artillery`'s aggregation and is ruled above. The `Sniper` per-group residue under interpreter
+question 7 is closed by `Takedown`'s *"This model"* and the split that implements it.
+
+**One propagation is owed rather than done.** The joined-hero ruling needs `GfRolls.HitPlan` to
+emit one roll per distinct model-level `Quality`, `determine-attacks` and `fire-groups` to carry
+an attack count per Quality, since question 3's ruling fixes those counts before the first group
+fires, and `GfRolls.DefensePlan` to take a live-model count for the Hero clause's sunset. Every
+document that asserted the squad's Quality is corrected, and the owed work is stated at
+`GfRolls.HitPlan` and in interpreter question 13. None of it is written.
 
 ## Precedence
 

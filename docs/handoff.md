@@ -224,8 +224,13 @@ documents cite those paths as the sketch they departed from. **Execute nothing f
 
 ## How to work here
 
-Five things, four of them learned the hard way this session.
+Six things, five of them learned the hard way in a session.
 
+- **Pin the rulebook version before you read it, and check for a newer one.** The whole repository
+  was designed against Grimdark Future v3.4.1, and v3.5.1 renamed five rules the plans were built
+  on, removed two and moved every page from 15 onward. A second lesson came free: comparing
+  Grimdark Future 3.4.1 against Age of Fantasy 3.5.0 made the two games look like they had
+  diverged, when the books were simply at different revisions. Compare like with like.
 - **Read the rulebook; do not reason about the rules.** Ten sessions running, reading has produced
   better answers than designing. Grimdark Future v3.5.1 and Age of Fantasy v3.5.1 are at
   `/mnt/c/Users/clays/Downloads/`, as `GF - Advanced_Rules_v3_5_1.pdf` and
