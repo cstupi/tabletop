@@ -27,7 +27,8 @@ Asset bytes never pass through the process, and the service issues no token of i
 | Folders | `/v1/folders`, nested, many-to-many with assets |
 | Armies | `POST /v1/armies/import` from Army Forge, list (keyset), get, patch bindings and bases, delete |
 | Layouts | `/v1/layouts`, a `TableState` owned by an account |
-| Games | `/v1/properties`, `/v1/games` (public, keyset), create, get, join, leave, end, delete |
+| Games | `/v1/properties`, `/v1/games` (public, keyset), create, get, join the game, leave, end, delete. Taking a team is the game server's, not here |
+| Development mint | `POST /v1/dev/sessions`, a real Stytch session JWT for a named account, mapped only under a development environment |
 | Manifest | `GET /v1/games/{id}/assets`, the one cross-owner read in the service |
 | Plumbing | the `Tabletop-Client-Version` check, keyset paging, RFC 7807 problems, CORS, DbUp migrations |
 
@@ -40,7 +41,7 @@ Asset bytes never pass through the process, and the service issues no token of i
 - **No WebSocket, no live state.** Commands, events, Asks, presence and setup edits are the game
   server's, over `Tabletop.Protocol`.
 - **No team, army-pick or draft writes.** Lobby and setup edits are socket messages, not endpoints
-  (whole-design review ruling 4).
+  (whole-design review ruling 4). `POST /v1/games/{id}/join` joins the game and assigns no team.
 - **No mesh processing.** Conversion, decimation and the bounding-box volume run in the browser
   (mesh conversion → *Conversion runs in the browser*). The service reads a header.
 - **No multipart upload.** `IBlobStore` has no multipart member. The management API spec's open
@@ -117,7 +118,7 @@ flowchart TD
     web -->|"HTTP: login, library, armies, account"| mgmt
     client -->|"HTTP: login, games, properties, manifest"| mgmt
     client -->|"WebSocket: JWT + game id"| game
-    mgmt -->|"Basic auth: the ten calls"| stytch
+    mgmt -->|"Basic auth: fourteen calls, four of them development only"| stytch
     mgmt -->|"GET api/tts?id="| forge
     mgmt -->|"read and write management schema"| pg
     mgmt -->|"delete game.game_event with a game"| pg
@@ -177,6 +178,7 @@ graph TD
         se["Sessions"]
         ar["AccountRepository"]
         ad["AccountDeleter"]
+        dv["DevSessions, development only"]
     end
     subgraph Content
         asr["AssetRepository"]
@@ -214,12 +216,16 @@ graph TD
     ad --> sc
     se --> sc
     se --> ar
+    dv --> sc
+    dv --> ar
+    dv --> se
 ```
 
 *Four modules over one `Database`.*
 
 `AccountDeleter` reaches into `GameRepository` and `IBlobStore` because deletion is total.
-`ManifestEndpoint` reaches into `IBlobStore` because it presigns. `VolumeRow` is shared because
+`ManifestEndpoint` reaches into `IBlobStore` because it presigns. `DevSessions` is the one
+collaborator whose registration and route are conditional, on `IHostEnvironment.IsDevelopment()`. `VolumeRow` is shared because
 `asset_volume` and `terrain_volume` are the same seventeen columns.
 
 Middleware order is load-bearing:
@@ -344,6 +350,53 @@ is what lets the game server verify a JWT without holding the project secret.
 `CurrentAccount.Id(ClaimsPrincipal)` parses the claim and throws `UnauthorizedAccessException` when
 it is missing. Every authorized endpoint's first act is to call it, and every repository method
 takes `ownerId` as a parameter rather than reading ambient state.
+
+#### The development mint
+
+`POST /v1/dev/sessions` takes a name and returns a real Stytch session JWT for the account of that
+name. Owner ruling 4 of 2026-09-06. The simulator's socket driver needs one session token per team,
+hand-pasting them was rejected, and management is the only process holding the Stytch project
+secret, so the mint belongs here.
+
+`DevSessions.Mint(name)`:
+
+1. `AccountIdFor(name)` is a name-based UUIDv8, RFC 9562 §5.8: SHA-256 over a fixed namespace GUID
+   and the UTF-8 name, the first sixteen bytes, version and variant nibbles stamped. The account id
+   is a pure function of the name, so nothing has to be looked up and a caller can predict it.
+2. `AccountRepository.Insert(accountId, name)`, which is `on conflict do nothing`.
+3. `GET /v1/users/{accountId}`, the external-id substitution Stytch's get-user documents. A
+   `404` is followed by `POST /v1/users {email, external_id = accountId}`.
+4. `POST /v1/magic_links` for an embeddable token, then `POST /v1/magic_links/authenticate` with
+   `session_duration_minutes`. The second is the same endpoint an emailed magic link would reach.
+5. `Sessions.Complete(session)`, the path every login takes.
+
+Because `external_id` is written when the user is created, the claim template renders `account_id`
+on the first mint and `Complete` takes its one-call branch. The re-mint above never fires here.
+
+The derived email is the name lowercased, non-alphanumeric characters replaced by `-`, at
+`example.com`, reserved by RFC 2606 and undeliverable. No call on this path sends mail: creating a
+user does not, and an embeddable magic link is the endpoint that returns the token instead of
+mailing it. Two names that slug to one address collide as `duplicate_email` → `409`.
+
+The gate is `IHostEnvironment.IsDevelopment()`, in two places: `builder.Environment` around the
+service registration and `app.Environment` around `MapDevSession`. `EnvironmentName` defaults to
+`Production` when neither `ASPNETCORE_ENVIRONMENT` nor `DOTNET_ENVIRONMENT` is set, so a published
+build has no such route and answers `404`. No configuration key controls it, so no deployment turns
+it on by mistake. The test host runs as `Testing`, which is also not development.
+
+An account that does not exist is created rather than refused, which is what lets the simulator's
+`SocketRowSeeder` make its own accounts. A repeated name is idempotent down to the Stytch user:
+same name, same account id, same row, same user found by `external_id`. Only the JWT differs. A
+first mint costs four Stytch calls and every later one three.
+
+Nothing about the verification path changes. There is no second signing key, no local trust anchor,
+and no development branch in either verifier. The token is Stytch-signed and checked against
+Stytch's JWKS exactly as a player's is, which is the reason for minting a real one rather than
+forging a cheap one.
+
+The cost is network access. A `--driver socket` simulator run reaches the Stytch test project for
+every token; the in-process driver reaches nothing. Automated tests are unaffected, since they mint
+with `TestKeys` against a fake JWKS.
 
 ### 4. Authorization: owner-only, and 404 rather than 403
 
@@ -642,9 +695,10 @@ The full split:
 | `properties` and the seven tables under it | never (loaded by the undesigned content import) | never, reads only |
 | `game` insert, `name`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`, `created_by`, `created_at` | on create | rewrites the configuration on `SetConfiguration` |
 | `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing` |
-| `team` | never | inserts on `CreateTeam` |
-| `participant` insert and delete | create, join, leave | never |
-| `participant.team_id`, `participant.army_id`, `participant.army_snapshot` | never, null on insert | writes on `PickTeam`, `PickArmy`, `EndSetup` |
+| `team` | never | inserts on `CreateTeam`, while `lobby` or `setup` |
+| `participant` insert and delete, which is **joining the game** | create, join, leave | never |
+| `participant.team_id`, which is **taking a team** and is not joining | never, null on insert | writes on `PickTeam`, while `lobby` or `setup` |
+| `participant.army_id`, `participant.army_snapshot` | never, null on insert | writes on `PickArmy`, `EndSetup` |
 | `table_state` with `game_id`, and its `terrain_placement`, `terrain_volume`, `marker`, `deployment_zone` | never | writes the live draft, then frozen by the status flip |
 | `game.game_event` | deletes with the game | appends |
 
@@ -673,6 +727,12 @@ Endpoint behaviour:
   `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
   nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
   client hydrates from the log like any reconnect (setup phase → *Joining is allowed at any status*).
+  This endpoint joins the game. It does not take a team, and the row it inserts has `team_id null`.
+  Taking a team is a lobby edit on the game server's socket, allowed only while the game is `lobby`
+  or `setup`, and no route here reaches it. An account that joins a `playing` game therefore has a
+  row and no team, which is what a spectator is. A player who already holds a slot rejoins it by
+  reconnecting, not by joining again. The canonical statement of the team model is game flow →
+  *Teams are frozen at the flip, and a team is a slot*.
 - `POST /v1/games/{id}/leave` deletes the row and then, in the same transaction, sets `status =
   'ended'` when no participant remains. Disconnecting is not leaving. The client's Home button
   closes the socket and keeps the row (client shell → *Screens*).
@@ -805,7 +865,8 @@ Each of these was decided, reversed, and in several cases reversed again.
 | **GLB only**, narrowed from "glTF/GLB" | a `.gltf` with external buffers is several files with relative references: single-object presigned upload breaks, the header read becomes pointless, and serving it to another player's client can fail | accepting `.gltf` with sidecar buffers | management API → *GLB only*; `architecture.md` → *GLB only* |
 | **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* (settled 09-04) |
 | **`enforcement` is `silent \| warn \| strict`**, not a boolean | identity and enumerations ruled a boolean and argued that a blocking mode contradicts the product. Action sequences and the scheduler then both wrote a refusing mode. The owner kept `strict` | `warns boolean`. This module only stores and validates the column | whole-design review ruling 1 |
-| **A participant has no team until they pick one** | nothing said what team `join` assigned. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team", superseded | whole-design review ruling 5; setup phase |
+| **A participant has no team until they pick one, and picking is not joining** | nothing said what team `join` assigned. `POST /v1/games/{id}/join` inserts the row and sets no team, at any status; taking a team is a game-server lobby edit before play. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team", superseded; and the reading that made `join` assign a team, which conflated the two operations | whole-design review ruling 5; owner ruling 1 of 2026-09-06; game flow → *Teams are frozen at the flip, and a team is a slot* |
+| **A development-only route mints a real Stytch session for a named account.** `POST /v1/dev/sessions`, gated on `IHostEnvironment.IsDevelopment()` | the simulator's socket driver has to hold a session token per team, and hand-pasting four of them was rejected. Management holds the project secret and already creates users and authenticates sessions, so the mint costs four Stytch calls and no new machinery. Minting a real token keeps the socket driver on the production verification path, which is the only reason that driver exists | a hand-pasted `TABLETOP_SIM_JWT`; a second signing key or a local trust anchor for either verifier, which would put a bypass in the auth path; a feature flag, which a deployment could set by accident | owner ruling 4 of 2026-09-06; simulation design → *How a socket run gets its session JWTs* |
 | **The game server writes a game's own rows before play** | three documents said it was read-only and wrote only events. The setup phase had it flipping status, writing the draft, and taking team and army picks over the socket | keeping management the sole writer, which would have meant endpoints for every lobby and setup edit | whole-design review ruling 4 |
 | **Layouts stay management's** even though the game server owns the draft | the client saves by `POST /v1/layouts` from its own copy of the draft and loads by `GET` plus a replace-draft edit, so the game server never writes an owner-side row | letting the game server write the layout directly, which would have put an owner's row in the other service's write set | whole-design review ruling 4; setup phase → *Layouts* |
 | **A changed list means a re-import**, losing per-slot bindings | the army session originally copied an army and applied the new list to the copy so bindings survived. Armies are cheap to rebuild and list changes are rare | reconciliation, copy-on-write, and the `Binding` table and `list_entry` column that served them, all dropped | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
@@ -881,9 +942,13 @@ Each of these was decided, reversed, and in several cases reversed again.
 | `GET /v1/games?limit&after` | → `Page<GameSummary>` | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |
-| `POST /v1/games/{id}/join` | → `GameInfo` | bearer |
+| `POST /v1/games/{id}/join` | → `GameInfo`. Joins the game, no team | bearer |
 | `POST /v1/games/{id}/leave`, `/end`, `DELETE /v1/games/{id}` | → `204` | participant |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets, ExpiresAt)` | participant |
+| **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
+
+The last route is the simulator's token source. Nothing else calls it, no client and no web app may,
+and a build whose environment is unset serves `404` for it.
 
 ### Produced: types and services
 
@@ -897,8 +962,9 @@ Each of these was decided, reversed, and in several cases reversed again.
 | `Persistence.Database`, `Persistence.Migrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)` |
 | `Identity.StytchJwks` | `Resolve(string? kid)`, `Url` |
 | `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
-| `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
+| `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
+| `Identity.DevSessions`, `Identity.DevSessionEndpoint` | `Mint(name) : SessionResponse`, `static AccountIdFor(name) : Guid`, `static EmailFor(name) : string`; `DevSessionRequest(Name)`; `MapDevSession`, registered only under a development environment |
 | `Identity.AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
@@ -923,7 +989,7 @@ Each of these was decided, reversed, and in several cases reversed again.
 | `Tabletop.Protocol` | `ProtocolVersion.{Current, Header, UpgradeRequiredStatusCode}`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`, `Participant`, `GameInfo` |
 | `Tabletop.Geometry` | `Base`, `BaseShape`, `Orientation`, `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `TableSize`, `Point2`, `Point3`, `Yaw` |
 | contracts plan | `scripts/postgres/init/001_schema.sql`; `TABLETOP_DB_CONNECTION`, `TABLETOP_S3_ENDPOINT`, `TABLETOP_S3_BUCKET`, `TABLETOP_S3_ACCESS_KEY`, `TABLETOP_S3_SECRET_KEY`, `TABLETOP_MANAGEMENT_URL`, `TABLETOP_WEB_URL`, `TABLETOP_STYTCH_*` |
-| Stytch Consumer API | `/v1/otps/email/login_or_create`, `/v1/otps/authenticate`, `/v1/passwords`, `/v1/passwords/authenticate`, `/v1/passwords/email/reset/start`, `/v1/passwords/email/reset`, `/v1/sessions/authenticate`, `/v1/sessions/revoke`, `PUT`/`DELETE /v1/users/{id}`, `GET /v1/sessions/jwks/{project_id}` |
+| Stytch Consumer API | `/v1/otps/email/login_or_create`, `/v1/otps/authenticate`, `/v1/passwords`, `/v1/passwords/authenticate`, `/v1/passwords/email/reset/start`, `/v1/passwords/email/reset`, `/v1/sessions/authenticate`, `/v1/sessions/revoke`, `PUT`/`DELETE /v1/users/{id}`, `GET /v1/sessions/jwks/{project_id}`; and for the development mint `GET /v1/users/{id}`, `POST /v1/users`, `POST /v1/magic_links` (embeddable, Consumer API only, returns the token instead of mailing it), `POST /v1/magic_links/authenticate` |
 | Army Forge | `GET /api/tts?id={listId}` |
 
 ### Obligations this module places on others
@@ -933,6 +999,7 @@ Each of these was decided, reversed, and in several cases reversed again.
 | Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string; verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
+| Simulator | call `POST /v1/dev/sessions` once per team plus once for the recorder, and seed `participant` rows for the account ids it returns. It needs this service running under `ASPNETCORE_ENVIRONMENT=Development` with the Stytch secret set, and network access to the Stytch test project |
 | Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a redirect URL; the `SESSION` custom claim template set to exactly `{"account_id": "{{ user.external_id }}"}`, in the test environment and again in live, because its absence takes both services down with no Stytch error; the two URLs registered 08-24 for OAuth and magic links can go |
 
 ---
@@ -1333,7 +1400,7 @@ that is not the caller's.
 ## Testing
 
 Test-driven throughout: a failing test, then the code, every task ending green. `dotnet test
-tests/Tabletop.Management.Tests` reaches 53 tests across thirteen tasks.
+tests/Tabletop.Management.Tests` reaches 55 tests across thirteen tasks.
 
 ### Headless unit tests, no Docker
 
@@ -1356,7 +1423,10 @@ tests/Tabletop.Management.Tests` reaches 53 tests across thirteen tasks.
   JWT and sets the bearer header. Every later test uses that helper.
 - **`FakeStytch`**: an `HttpMessageHandler` implementing enough of Stytch to log in: users by
   email, one fixed OTP code, passwords, external ids, sessions minted through `TestKeys`, plus
-  revoke and delete lists to assert against. It asserts Basic auth is present on every call.
+  revoke and delete lists to assert against. It asserts Basic auth is present on every call. It
+  also serves the four calls the development mint uses, so `DevSessionTests` runs without touching
+  Stytch. `ManagementFactory.HostEnvironment` defaults to `Testing` and that one test class stands
+  a second host up as `Development`.
 - **`FakeArmyForge`**: serves the fixture for one id and `404` for anything else.
 - **MinIO, real.** `BlobStoreTests` does a presigned `PUT`, a `HEAD`, a ranged read and a presigned
   `GET` against the actual bucket, and the asset tests upload real bytes through the real presigned
@@ -1372,7 +1442,9 @@ clear; save-a-layout regenerating every id; join at `ended` and idempotent re-jo
 ending the game; a whole-game delete removing `game.game_event`; the manifest returning three
 assets across two owners with the owner's corrections and excluding the unconfirmed one; deletion
 removing content, blobs, three games including one created-and-left, and the Stytch user, while
-leaving another account's untouched game alone.
+leaving another account's untouched game alone; `POST /v1/dev/sessions` answering `404` on the
+`Testing` host and no Stytch call being made; the same name minting twice to one account id, one
+Stytch user and no re-mint, with the second JWT accepted by `GET /v1/account`.
 
 ### What cannot be tested headlessly
 
@@ -1381,7 +1453,10 @@ leaving another account's untouched game alone.
   the JWT at jwt.io carries `account_id`. Two things stay unproven by the suite: that the project's
   `SESSION` claim template is in place, and that `session_duration_minutes` behaves as documented.
   `FakeStytch` renders the template itself, so a missing real one looks exactly like a passing
-  test run.
+  test run. Task 5 also mints once for real through `POST /v1/dev/sessions`, which is the only
+  proof that the embeddable-magic-link pair works against the live project. A `--driver socket`
+  simulator run depends on that pair and therefore on network access to the Stytch test project,
+  which the in-process driver does not need.
 - **The live Army Forge format.** A fixture is a snapshot. The suite cannot notice a format
   change.
 - **CORS in a browser.** The preflight test exercises the middleware, not a real browser's

@@ -117,12 +117,12 @@ with any of it, the model snaps. That is the entire cost (`architecture.md` → 
 ### 1. The coordinate frame
 
 No spec said where the origin was or which way yaw turned. This plan first assumed the table's
-**centre**. The compatibility review of 2026-09-05 ruled the **corner**, and every affected
-file was changed to match (plan question 1, spec correction 4). Three reasons: the game server
-plan's `DraftEditor.OnSlab` and the contracts plan's wire samples already used
-`0 <= x <= width`, nothing in the specs preferred the centre, and one frame everywhere removes
-a conversion layer from the client. This is the only decision in the module that the wire, the
-database and both runtimes depend on simultaneously.
+**centre**. The compatibility review of 2026-09-05 ruled the **corner**, and the owner ratified
+that on 2026-09-06 (plan question 1, spec correction 4). Every affected file matches. Three
+reasons carried the ruling: the game server plan's `DraftEditor.OnSlab` and the contracts plan's
+wire samples already used `0 <= x <= width`, nothing in the specs preferred the centre, and one
+frame everywhere removes a conversion layer from the client. This is the only decision in the
+module that the wire, the database and both runtimes depend on simultaneously.
 
 ```mermaid
 flowchart LR
@@ -716,7 +716,7 @@ Contested or reversed decisions first.
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| **Origin at a table corner**, X along Width `0..W`, Y along Length `0..L`, Z up from the slab top; yaw 0 faces +Y, positive yaw counter-clockwise | The game server plan's `DraftEditor.OnSlab` and the contracts plan's wire samples already used it; one frame on the wire, in the library and in both runtimes removes a conversion layer | **Table centre**, which this plan assumed first | Ruled 2026-09-05 by the compatibility review; plan question 1, spec correction 4 |
+| **Origin at a table corner**, X along Width `0..W`, Y along Length `0..L`, Z up from the slab top; yaw 0 faces +Y, positive yaw counter-clockwise | The game server plan's `DraftEditor.OnSlab` and the contracts plan's wire samples already used it; one frame on the wire, in the library and in both runtimes removes a conversion layer | **Table centre**, which this plan assumed first | Ruled 2026-09-05 by the compatibility review, ratified by the owner 2026-09-06; plan question 1, spec correction 4 |
 | **Zone style resolution lives in the library** | The server checks a deployment against a zone (`BaseFullyWithin`); a client-side resolver cannot be called by the server | Contracts plan's explicit *"Not here, by decision … the client shell plan owns it"* | Reversed by geometry plan spec correction 1, applied to the contracts plan |
 | **`MoveRegion` carries `DifficultVolumeIds` and `DifficultCap`** | `architecture.md` names "terrain effects" among the parameters and says the cap is whatever `GameRules` computes; the three-field record could not carry it | The declared three-field `MoveRegion` | Spec correction 5, applied 2026-09-05 |
 | **`MoveRegion.Containment` (optional)** | `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire, but nothing told the client *where* one is legal | Leaving embark/disembark undrawable | Spec correction 9, the containment coverage gap of 2026-09-06 |
@@ -1065,11 +1065,12 @@ Coverage gaps:
 
 ## Open questions and deferred work
 
-The plan's eight questions, with the assumption taken and what changes if the answer differs.
+The plan's eight questions. Question 1 is closed by ruling. The other seven carry the
+assumption taken and what changes if the answer differs.
 
 | # | Question | Assumption taken | If the answer differs |
 | --- | --- | --- | --- |
-| 1 | Where is the origin? | **The corner**, ruled 2026-09-05 by the compatibility review. The owner is asked to confirm | `Table.Bounds`/`ContainsPoint`, `ZoneStyles.Resolve` and their tests revert; the game server's `OnSlab` and the wire samples must move with them. Every other class is frame-agnostic |
+| 1 | Where is the origin? | **Closed: the corner**, ruled 2026-09-05 by the compatibility review and ratified by the owner 2026-09-06 | Nothing. The frame is settled on the wire, in the library, in both servers and in the client |
 | 2 | What is the sight-line policy? | Eye at the shooter's top centre; 17 target points (9 for a square); clear if any line is clear | A denser or shooter-rim sample changes only `TargetPoints` and `Eye`. A single centre line is simpler and stricter but leaves *behind a sight blocker* nothing to measure |
 | 3 | What does *mostly inside* mean for a single model? | Base centre inside the volume | Area coverage needs polygon clipping in `Outline` and a new `BaseCoverage(PlacedModel, WorldVolume) : double` |
 | 4 | Is straight-line reach enough? | Yes. The region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |

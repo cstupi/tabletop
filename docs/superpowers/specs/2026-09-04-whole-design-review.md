@@ -42,11 +42,22 @@ Findings that reversed an earlier decision or added a column went to the user.
    management API, schema, data model and the setup phase.
 5. **A participant has no team until they pick one.** Nothing said what team `join` put a
    participant on or who created team rows. `participant.team_id` is nullable; teams are created
-   by lobby commands at any status; **a participant with no team is never addressed by an Ask,
-   and that is what a spectator is** — superseding presence's "joins a third team". Zones
-   re-derive from the zone style whenever the team list changes during setup; a team created
-   after `playing` has no zone and nothing to deploy. Corrected in presence, the scheduler,
-   accounts, the setup phase, schema and data model.
+   by lobby commands **only while the game is `lobby` or `setup`**; **a participant with no team
+   is never addressed by an Ask, and that is what a spectator is** — superseding presence's
+   "joins a third team". Zones re-derive from the zone style whenever the team list changes
+   during setup. Corrected in presence, the scheduler, accounts, the setup phase, schema and
+   data model.
+
+   *Corrected 2026-09-06, ruled by the owner.* This ruling first read "teams are created by
+   lobby commands at any status", and closed with ~~a team created after `playing` has no zone
+   and nothing to deploy~~. Both are struck: they contradicted ruling 4 above, since a server
+   that is read-only from `playing` on cannot write a `team` row then, and no team is created
+   after `playing` for the zone case to arise. **The team list is frozen at the flip to
+   `playing`**, and a returning player **rejoins the slot recorded on their own `participant`
+   row** — same team, no re-pick, not a spectator. Ruling 4 and this ruling now agree: both stop
+   team writes at the flip. The model is stated in full in
+   [game flow](2026-08-28-game-flow-design.md), *Teams are frozen at the flip, and a team is a
+   slot*, and the other documents point there.
 
 ## Contradictions fixed
 

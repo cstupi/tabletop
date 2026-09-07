@@ -214,10 +214,15 @@ need for an admin mode.
 
 ### 7. Row ownership moves with game status
 
-Management owns everything *about* a game. The game server owns what *happened* in it. The
-boundary is not static: while a game is in `lobby` or `setup` the game server writes the game's
+Management owns everything *about* a game. The game server owns what *happened* in it. Ownership
+follows the game's status: while a game is in `lobby` or `setup` the game server writes the game's
 own rows, because setup edits are not events and need somewhere to live. From `playing` on it
 writes only events.
+
+Both processes run against one database. Status therefore governs which rows are still editable,
+not which process may touch a schema. Hydration and the read-only-during-play rule are built on
+exactly that. The game server also seeds the `Properties` tables at startup, once per content
+hash; that is ruleset content rather than a game's state, so no status governs it.
 
 ```mermaid
 stateDiagram-v2
@@ -253,8 +258,8 @@ exactly what play saw.
   presigned URL straight from the store. A library is private for discovery, not for access:
   participants download the assets a game uses without any row being created on either side.
 - **`Properties`.** The data half of a ruleset lives in eight Postgres tables, authored
-  in-repo as JSON and seeded by canonical hash. A game pins `properties_hash`, so a pack
-  changing between sessions cannot make undo diverge.
+  in-repo as JSON and seeded by the game server at startup, once per canonical hash. A game
+  pins `properties_hash`, so a pack changing between sessions cannot make undo diverge.
 
 Pinning covers the data half only. `GameRules` is C# shipped with the build, so a pipeline
 order changing between deploys can make an old game replay differently. Accepted: pinning a
@@ -371,9 +376,10 @@ with. `docs/schema.md` holds the columns and `docs/data-model.md` the entity dia
 Positions, wounds and whose activation it is are never rows. A table growing a current-position
 column means the event spine has been broken.
 
-Both services share the database, and the game server reads management's schema at hydration. A
-read is not a join, so the ownership line holds, but a management migration can break a running
-game server. That risk is recorded and unmitigated.
+One system, two processes, one database. The game server reads the `management` schema at
+hydration, writes a game's own rows while it is in `lobby` or `setup`, and seeds the `Properties`
+tables at startup. A management migration can therefore break a running game server. That risk is
+recorded and unmitigated.
 
 ## Runtime topology
 

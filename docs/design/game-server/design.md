@@ -246,7 +246,13 @@ Three consequences:
 
 - **Reconnect is connect.** The client discards its projection and rebuilds. Nothing on the
   server distinguishes a first join from a rejoin from a crashed-task recovery, so the path is
-  exercised by all three and not only by an incident.
+  exercised by all three and not only by an incident. A participant's team is part of what
+  hydration reads: `participant.team_id` outlives the socket, `Welcome` carries it in
+  `Info.Participants`, and `TeamOf` filters the log by it. A socket arriving at `playing` for a
+  participant who has a team is that team's player again, with no re-pick and nothing
+  re-derived. A spectator is a participant whose `team_id` is null, which is a fact about the
+  row rather than about how the socket arrived (owner ruling 1, 2026-09-06; the model is stated in
+  game flow → Teams are frozen at the flip, and a team is a slot).
 - **`ended` is a flag, not a terminal state.** `Hydrator` treats `Ended` like `Playing`, and
   `HandleCommandAsync` accepts commands at both. Accounts says "any participant can pick an
   ended game back up" and that this is "the identical operation" to recovery. There is no un-end
@@ -575,13 +581,18 @@ log and runs the engine.
 | Transition | Frozen by it |
 | --- | --- |
 | `lobby -> setup` | nothing; the draft row starts existing |
-| `setup -> playing` | the board (structurally: the snapshot is the log's initial state), the scheduler shape, the armies in play, and every `army_snapshot`; the log opens |
+| `setup -> playing` | the board (structurally: the snapshot is the log's initial state), the scheduler shape, the team list, the armies in play and every `army_snapshot`, and the layout; the log opens |
 
-There is no way back from `playing` to `setup`. A participant who joins after the flip has no
-`army_snapshot`. One on a team with no army picked freezes with `army_snapshot` null and
-contributes nothing to any legal set, and the scheduler skips a team whose legal set is empty. A
-participant with no team at all is never addressed by an Ask, **and that is what a spectator
-is**. There is no second identity for one.
+There is no way back from `playing` to `setup`. An account joining the game after the flip has no
+`army_snapshot` and no team, because `CreateTeam` and `PickTeam` are refused with `WrongStatus`
+from `playing` on. A participant on a team with no army picked freezes with `army_snapshot` null
+and contributes nothing to any legal set, and the scheduler skips a team whose legal set is
+empty. A participant with no team at all is never addressed by an Ask, **and that is what a
+spectator is**. There is no second identity for one.
+
+Freezing the team list is about the list, not about who is holding a socket: a participant's team
+is their slot on their `participant` row, and reconnecting during play returns them to it (owner
+ruling 1, 2026-09-06).
 
 ### Per-team Ask addressing and the sealed answer
 
@@ -644,6 +655,7 @@ nothing to flush.
 | Menu edits are accepted under **every** setting | They are the override path, visible to opponents and logged with an actor, never silent | A separate admin mode or a confirmation gate; a second write path for overrides | Review ruling 1; game flow, *Nothing is an invariant* |
 | The game server **writes** the game's own rows while `lobby` or `setup` | The setup phase had it writing the draft, flipping the status and taking team and army picks over the socket; three documents said read-only | Read-only throughout, with management endpoints for team, army, configuration and the draft | Review ruling 4, reversing architecture, the management API, schema and data model |
 | A participant has no team until they pick one, and that *is* a spectator | Nothing said what team `join` assigned or who created team rows | Presence's "someone who wants to watch joins a third team" | Review ruling 5, superseding presence |
+| The team list is locked at the flip to `playing`, and a participant reconnecting during play is returned to their slot | A team is a slot on the `participant` row, so it survives the socket; letting teams change mid-game would also need a score entry for a team created after `Projection.Initial` | Teams created and picked at any status, which review ruling 5 said and which contradicts ruling 4; treating a reconnecting player as a late joiner, which would make every dropped connection cost a seat | Owner ruling 1, 2026-09-06, stated in game flow → Teams are frozen at the flip, and a team is a slot, and settling the two readings |
 | The setup phase is not logged; only the result is | Setup needs a settled result, not replay, and keeping terrain out of the log locks it structurally, with no flag and no check | `architecture.md`'s original: placement as a stream of ordinary commands, so a predefined map is a batch of events and undo-during-placement is free | Setup content, *The setup phase is snapshotted, not logged*; setup phase |
 | Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | `architecture.md`'s original "computed locally, never sent anywhere" | Presence, *What this corrects in architecture.md* |
 | No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts (revised 08-30); management API, *We issue no tokens of our own* |
@@ -779,6 +791,7 @@ sequenceDiagram
     R-->>H: session
     H->>S: ConnectAsync(SocketConnection)
     S-->>C: Welcome(participantId, GameInfo)
+    Note over S,C: GameInfo carries participant.team_id, so a rejoin at playing returns a slot
     S-->>C: BoardMessage (setup on, none at lobby)
     S-->>C: EventsMessage x N, 500 events each, filtered per viewer
     S-->>C: other participants' presence values
@@ -1040,7 +1053,7 @@ means the event spine has been broken.
 stateDiagram-v2
     [*] --> lobby : POST /v1/games (management)
     lobby --> setup : StartSetup, creator only, creates the table_state draft row
-    setup --> playing : EndSetup, creator only, off-slab dropped, snapshots written, log opens
+    setup --> playing : EndSetup, creator only, off-slab dropped, snapshots written, teams locked, log opens
     lobby --> ended : POST /end, or the last leave
     setup --> ended : POST /end, or the last leave
     playing --> ended : POST /end, or the last leave
@@ -1056,13 +1069,23 @@ stateDiagram-v2
     end note
     note right of playing
         Read-only rows. Log opens.
-        Board, shape and armies frozen.
+        Scheduler shape, team list,
+        armies and layout frozen.
         Edits refused with WrongStatus.
+        A rejoin returns a slot.
     end note
 ```
 
 There is no arrow from `playing` back to `setup`. `ended` is not terminal: nothing hydrates
 differently for it, and commands are accepted there.
+
+What freezes at the flip is the scheduler shape, the team list, the armies and the layout.
+Freezing the team list means `CreateTeam` and `PickTeam` are refused with `WrongStatus` from
+`playing` on, so no `team` row and no `participant.team_id` changes for the rest of the game. It
+does not mean a participant loses their team by disconnecting. Their slot is on their
+`participant` row, so a socket arriving during play is returned to it, and only an account that
+never joined before the flip has no slot and watches (owner ruling 1, 2026-09-06; the model is
+stated in game flow → Teams are frozen at the flip, and a team is a slot).
 
 ### A session in memory
 
@@ -1175,7 +1198,7 @@ end to end in-process.
 | `DraftEditor` | fourteen edit kinds in, drafts out, plus the corner-origin off-slab rule | no |
 | `GameSession` | `RecordingClient` implements `ISessionClient`, so the actor, the log path, presence, faulting, per-viewer filtering, the rest frame's two audiences and the desync fault (`DesyncingEngine` emits an event naming a model nothing created) are tested with no socket at all | no |
 | `PostgresGameRows` | `PostgresFixture` seeds and deletes rows in the compose database; an army tree is written and read back against `ArmyTests.Sample()` | **yes** |
-| The socket | `GameServerFactory : WebApplicationFactory<Program>` plus `TestClient`; connect, four rejections, protocol errors, the log-then-live sequence, the rest frame closing the connect sequence and following every batch, reconnect, release-and-rehydrate, the presence tick, the SIGTERM drain, lobby and setup edits, end-setup | **yes** for anything that needs a game row |
+| The socket | `GameServerFactory : WebApplicationFactory<Program>` plus `TestClient`; connect, four rejections, protocol errors, the log-then-live sequence, the rest frame closing the connect sequence and following every batch, reconnect, release-and-rehydrate, the presence tick, the SIGTERM drain, lobby and setup edits, teams locked from `playing` on with a rejoining participant returned to their team, end-setup | **yes** for anything that needs a game row |
 
 Tests needing rows carry `[Collection("Postgres")]` and expect `docker compose up -d`. The
 fixture neither migrates nor checks the schema, so a volume created before
@@ -1198,18 +1221,21 @@ interpreter plans.
 
 ## Open questions and deferred work
 
-The plan's three questions, with the assumption taken:
+The plan's three questions. The first is answered; the other two stand with the assumption taken:
 
-1. **May teams be created and picked after `playing`?** Assumed **no**. Lobby edits are refused
-   with `WrongStatus` from `playing` on, and a late joiner is a spectator for the rest of the
-   game. This is a contradiction in the specs: the setup phase and ruling 5 say teams
-   are created and picked "at any status", ruling 4 says the server is read-only from `playing`
-   on, and both cannot hold. Spec correction 1 proposes narrowing the first. **If the answer is
-   yes**: `HandleLobbyEditAsync` accepts `CreateTeam` and `PickTeam` at every status,
-   `PostgresGameRows` writes `team` and `participant.team_id` from `playing` on, ruling 4 gains
-   an exception, and `Projection.Scores` needs an entry for a team created after
-   `Projection.Initial`. That entry is either a `ScoreSet` the server emits on creation or an
-   applier change in the contracts plan.
+1. **May teams be created and picked after `playing`?** **Answered by the owner on 2026-09-06
+   (ruling 1): no, and a returning player rejoins their slot.** Teams are created only while the
+   game is `lobby` or `setup`, and the team list freezes at the flip with the scheduler shape,
+   the armies and the layout, so `CreateTeam` and `PickTeam` are refused with `WrongStatus` from
+   `playing` on. A participant's team is their slot, recorded on their `participant` row; a
+   socket arriving during play is returned to it, with no re-pick and nothing re-derived. Only an
+   account that never joined before the flip has no slot, and that account is a spectator: no
+   team, never Asked, watching. This ruling also settles the contradiction the plan had to guess
+   past, where the setup phase spec and ruling 5 said teams are created "at any status" while
+   ruling 4 said the server is read-only from `playing` on. The specs are corrected in place, and
+   the canonical statement is game flow → Teams are frozen at the flip, and a team is a slot.
+   `Projection.Scores` therefore needs no entry beyond the ones `Projection.Initial` builds from
+   the frozen list.
 2. **What does the draft start as?** Assumed 72 × 48 with the built-in texture `grass`, replaced
    by the first edit (typically a layout load). **If the creator's client should choose**,
    `StartSetup` gains fields, which is a `Tabletop.Protocol` change the contracts plan owns. **If

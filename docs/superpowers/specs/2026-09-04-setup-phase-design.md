@@ -26,22 +26,35 @@ under a geometric restriction, except *Full Table*, where the winner places ever
 loser picks a side. Page 6 has objectives placed the same way: D3+2 markers, roll off, alternate,
 outside the zones and over 9" apart.
 
-## Joining is allowed at any status
+## Joining is allowed at any status; taking a team is not
 
 [Accounts](2026-08-29-accounts-design.md) settled on 08-30 that a game is joinable at every
 status, since joining is a `participant` row plus a socket. [The scheduler](2026-09-04-scheduler-design.md)
 said yesterday that team membership is fixed once playing. Both could not stand, and **accounts'
-reading holds.** Anyone may join at any time. What is fixed once playing is the scheduler shape
-and **which armies are in play**: a participant who joins after deployment brings no army,
-because deployment has passed. The scheduler document is corrected in place.
+reading holds** for joining a game. Anyone may join at any time. What is fixed once playing is
+the scheduler shape, **the team list** and **which armies are in play**: a participant who joins
+after deployment brings no army, because deployment has passed. The scheduler document is
+corrected in place.
+
+*Corrected 2026-09-06, ruled by the owner.* This section originally ran two things together, and
+the heading said so: joining a game and taking a team are not the same act. **Joining stays open
+at every status; teams are created and taken only while `lobby` or `setup`.** The scheduler's
+"team membership is fixed once playing" was closer to right than this session allowed — what it
+got wrong was joining, not teams. A player who was here before the flip **rejoins the slot on
+their own `participant` row**: same team, no re-pick, not a spectator. One who arrives after the
+flip has no slot, so they have no team and they watch. Stated in full in
+[game flow](2026-08-28-game-flow-design.md), *Teams are frozen at the flip, and a team is a
+slot*.
 
 **A participant has no team until they pick one** — ruled 2026-09-04 in
 [the whole-design review](2026-09-04-whole-design-review.md). `participant.team_id` is nullable; `join` creates the
 row with no team, and the lobby's pick assigns one. Teams are created, and participants moved
-between them, by lobby commands over the socket, at any status. **A participant with no team is
+between them, by lobby commands over the socket, ~~at any status~~ **while status is `lobby` or
+`setup`** (corrected 2026-09-06, ruled by the owner). **A participant with no team is
 never addressed by an Ask**, and that is what a spectator is — cleaner than presence's "joins a
 third team", which is corrected there. During setup, zones re-derive from the zone style whenever
-the team list changes; a team created after `playing` has no zone and nothing to deploy.
+the team list changes; ~~a team created after `playing` has no zone and nothing to deploy~~ — no
+team is created after `playing`, so that case does not arise.
 
 ## The lifecycle
 
@@ -57,7 +70,8 @@ the creator's participant:
 - **Setup to playing.** The creator ends setup. Off-slab terrain rows are deleted, each
   participant's `army_snapshot` is written from their army as it stands, the draft becomes the
   snapshot by the status flip, the log opens with it as initial state, and the scheduler begins
-  deployment. This is where the shape and the armies freeze.
+  deployment. This is where the shape, **the team list** and the armies freeze (the team list
+  added 2026-09-06, ruled by the owner).
 
 A client connecting at `lobby` receives the teams, participants and configuration and no board;
 the draft arrives with `setup`.
@@ -100,7 +114,9 @@ whoever drops last, and each sees the other's drag through presence.
 are **applied to the draft, broadcast, and persisted, but never logged.** The line presence drew
 between relayed and logged gains a middle term, and it exists only during `setup`: after the
 flip the server refuses them. Lobby commands — create a team, pick a team, pick an army, change
-the configuration — are the same kind: written to the game's rows, broadcast, never logged.
+the configuration — are the same kind: written to the game's rows, broadcast, never logged, and
+refused from `playing` on, which is where the team list freezes (2026-09-06, ruled by the
+owner).
 
 **The game server writes management's rows for this**, ruled 09-04 in
 [the whole-design review](2026-09-04-whole-design-review.md): `game.status`, `team`, `participant.team_id` and
@@ -218,7 +234,10 @@ cannot say, such as *dangerous when using Rush or Charge*.
 ## Corrections made in place
 
 - **Scheduler** — *team membership is fixed once playing* becomes *the shape and the armies in
-  play are fixed once playing; participants may join at any status.*
+  play are fixed once playing; participants may join at any status.* *Amended 2026-09-06, ruled
+  by the owner: the team list is fixed once playing too, so the scheduler's original line was
+  only half wrong. What stays open at every status is joining a game, not taking a team, and a
+  returning player rejoins their own slot.*
 - **Game flow** — *table size, terrain placement, and deployment are phases like any other,
   driven by the same scheduler* is struck to deployment only. Terrain is setup, and setup has no
   scheduler.

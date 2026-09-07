@@ -117,8 +117,9 @@ than what a game is.
 
 **Creating and joining are plain endpoints.** A user hits management, which creates the game
 and the `participant` row that puts them in it — on no team until they pick one in the lobby
-(09-04). The client then opens its WebSocket to the game
-server with that JWT and the game id. If no session for that game is in memory, the
+(09-04), and there is a team to pick only while the game is `lobby` or `setup` (ruled by the
+owner 09-06). The client then opens its WebSocket to the game server with that JWT and the game
+id. If no session for that game is in memory, the
 game server hydrates it and starts serving.
 
 No M2M call is involved and management never learns which task holds which game. This
@@ -139,7 +140,8 @@ their own points.
 
 A game ends when someone ends it explicitly, or when the last participant leaves. Leaving
 is deliberate. **Disconnecting is not leaving**: a disconnected player is still in the
-game, and reconnecting rehydrates from the log.
+game, and reconnecting rehydrates from the log — into the team slot on their own `participant`
+row, unchanged (ruled by the owner 09-06).
 
 **An ended game is just one marked ended.** Because state is replayed from the event log,
 restarting an ended game is the identical operation to recovering a crashed task: hydrate
@@ -173,3 +175,13 @@ viewer possible later, and it is what account deletion has to reach into.
   **Clients connect at `lobby`**, not at `setup`, and may rejoin at any point afterwards. There
   is one path in — hydrate from the log and serve — whether it is a first join, a rejoin, a
   reconnect or a crashed task coming back.
+
+  *Amended 2026-09-06, ruled by the owner.* Joining a game at any status stays true. **Taking a
+  team does not**: teams are created and taken only while the game is `lobby` or `setup`, and
+  the team list freezes at the flip to `playing`. This section allowed joining at any status
+  without distinguishing the two, which is one of the readings that made teams keep coming up. A
+  player who joined before the flip **rejoins the slot recorded on their `participant` row** —
+  same team, no re-pick, not a spectator. One who arrives after it has no slot and therefore no
+  team, which is the whole definition of a spectator. Stated in full in
+  [game flow](2026-08-28-game-flow-design.md), *Teams are frozen at the flip, and a team is a
+  slot*.

@@ -295,11 +295,10 @@ every test outside `PropertiesStoreTests` uses. `PropertiesSeeder.SeedEmbeddedAs
 startup from `Program.cs`, guarded off the `Test` environment so `WebApplicationFactory` tests do
 not write to the shared database.
 
-**Who seeds is open question 1.** The game server seeds at startup here, because it is the only
-process that interprets the catalog and the write is idempotent by hash. Management is the
-alternative: it owns the schema and lists the sets. Moving the seeder there is mechanical.
-`PropertiesSeeder` and `SeedAsync` go behind an admin endpoint or a CLI verb, and the game server
-keeps only `LoadAsync`.
+**The game server seeds**, ruled by the owner on 2026-09-06 (question 1). It is the only process
+that interprets the catalog, and the write is idempotent by content hash. Management is a second
+process over the same database, and its `GET /v1/properties` lists what has been seeded. The two
+processes are one system, so the seeding write needs no endpoint to pass through.
 
 ### The roll primitive
 
@@ -759,7 +758,7 @@ what it held.
 
 | Decision | Reason | Rejected alternative | Recorded as |
 | --- | --- | --- | --- |
-| Authored content is a JSON document per set under `server/game/Content/`, hashed over a canonical serialisation and seeded as rows at game-server startup, idempotently by hash | `architecture.md` names this the one part of Rules-as-data no design doc has touched; the interpreter needed a mechanism and this is the smallest one | Management owning the seeder behind an admin endpoint or CLI verb; a migration per set | spec correction 1, question 1 |
+| Authored content is a JSON document per set under `server/game/Content/`, hashed over a canonical serialisation and seeded as rows at game-server startup, idempotently by hash | `architecture.md` names this the one part of Rules-as-data no design doc has touched; the interpreter needed a mechanism and this is the smallest one | Management owning the seeder behind an admin endpoint or CLI verb; a migration per set | spec correction 1; owner ruling of 2026-09-06 on question 1 |
 | A step's settled parameters are a flat `Values` map on `step_completed` | A later step reads a parameter without re-deriving it, and a reroll changes what the next step reads without changing what was settled | A payload schema per step kind, the *Still open* item action sequences left | spec correction 4 |
 | A fifth step outcome: complete and run again | A move takes a second segment after a mid-move cast, and one window per activation would allow only one spell | A separate *checkpoint* primitive; a sequence listing the move step twice | spec correction 5 |
 | The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the effective log | The seed is written once at creation and never again, and no RNG state is stored, so an undo rewinds the dice with the log | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | owner ruling 1 of 2026-09-06; spec correction 7 |
@@ -1008,9 +1007,9 @@ rather than the stack. A nested `deal-wounds` beneath a `transport-destroyed` th
 
 ### Persisted
 
-Two schemas. This module reads both and writes to exactly one place: the eight `Properties`
-tables, once per hash, through `PropertiesSeeder` at startup. Every payload it produces reaches
-`game.game_event` through the skeleton's session, never through this module.
+One database, two schemas. This module reads both and has one write path of its own: the eight
+`Properties` tables, once per hash, through `PropertiesSeeder` at startup. Every payload it
+produces reaches `game.game_event` through the skeleton's session, never through this module.
 
 | Table | Columns this module reads or writes | Who writes |
 | --- | --- | --- |
@@ -1148,11 +1147,12 @@ Notable gaps:
 
 ## Open questions and deferred work
 
-Twelve questions, each with the assumption taken and the cost of the other answer.
+Twelve questions. Question 1 is closed by ruling. The other eleven carry the assumption taken
+and the cost of the other answer.
 
 | # | Question | Assumed | If the answer differs |
 | --- | --- | --- | --- |
-| 1 | Who seeds `Properties`, and when? | The game server, at startup, from embedded documents, idempotently by hash | `PropertiesSeeder` and `SeedAsync` move to `server/management/` behind an admin endpoint or a CLI verb, and the game server keeps only `LoadAsync`. Or `Program.cs` gains a `seed-properties` argument |
+| 1 | Who seeds `Properties`, and when? | **Closed 2026-09-06 by the owner:** the game server, at startup, from embedded documents, idempotently by hash | Nothing. The mechanism was confirmed as assumed |
 | 2 | *One try per spell*: activation or round? | The activation. `OneTryPerSpellScope = "activation"`, and `TriedThisActivation` scans from the activation's `sequence_started` | The scan starts at the last `round_started` and the constant reads `"round"`. Nothing else changes |
 | 3 | Are a later weapon group's attacks recomputed after an earlier group's casualties? | Yes. `RecomputeAttacksPerGroup = true` | `fire-groups` records each group's attack count before pushing and `determine-attacks` reads it. *All weapons are fired simultaneously* then wins over group order |
 | 4 | Catalog kinds and aggregation for the core rules no spec fixes | `Entrenched` is `any`, the loosest reading. `Fast`/`Slow`/`Flying`/`Strider`/`Immobile`/`Furious`/`Relentless` are `model` with `all`. The per-model rules are `none`. `Aircraft`/`Ambush`/`Scout` are `unit` | The document changes and the hash with it. `all` is `Entrenched`'s alternative. `none` is not available, since a per-model instance would add its −2 once per entrenched model to a unit-pooled hit roll |

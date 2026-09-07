@@ -426,10 +426,17 @@ also the only mechanism needed for a team that brought no army.
 
 **A participant with no team is never addressed.** Every Ask the scheduler builds names teams,
 and the `end_round` Ask is addressed to `teams.Where(t => Info.Participants.Any(p => p.TeamId == t))`.
-`participant.team_id` is nullable, and a `join` creates the row with no team. A participant with
-no team is what a spectator is: ruling 5 of the whole-design review, superseding presence's
-"joins a third team". There is no spectator type, no second identity and no filtering. A watcher
-appears in no `Ask.Teams`.
+`participant.team_id` is nullable, and someone who first joins after the flip to `playing` gets a
+row with no team. A participant with no team is what a spectator is: ruling 5 of the whole-design
+review, superseding presence's "joins a third team". There is no spectator type, no second
+identity and no filtering. A watcher appears in no `Ask.Teams`.
+
+A returning player is not that case. Teams are created only while the game is `lobby` or `setup`,
+a participant's team is their slot, and reconnecting returns the player to the slot already on
+their `participant` row. The model is stated once in
+[game flow](../../superpowers/specs/2026-08-28-game-flow-design.md) → *Teams are frozen at the
+flip, and a team is a slot*, ruled 2026-09-06. Nothing about a team is re-derived on reconnect, so
+the scheduler reads the same `Info.Teams` and the same `participant.team_id` before and after.
 
 **A pass is a logged fact.** `turn_ended` carries `Passed`, and the applier adds the team to
 `SchedulerPosition.Passed`. It stands for the round: `IsFinished` is
@@ -522,6 +529,10 @@ pages:
 - **round 2 on** with two teams: whoever finished activating first goes first (p.7), computed as
   `previous.OrderBy(t => lastTurnEndedSeq[t])`, reading the round that just finished, with the
   previous order as the tie-break.
+
+`teams` is `Info.Teams`, frozen at the flip to `playing` along with the rest of the setup. Every
+round of a game therefore orders the same team list, and an order rebuilt from the log needs no
+reconciliation against a team that appeared or vanished during play.
 
 The round-2 reading has an edge the rulebook does not cover. A team with *no* `turn_ended` in the
 round just finished sorts at seq 0 and therefore goes first next round. Such a team was skipped
@@ -1032,9 +1043,9 @@ the RNG is counter-based over the effective log. Both are tested.
 **Left to break.** A `set_round` to an arbitrary number is followed without question. There is no
 clamp, no maximum, and no check that the round is not already past. A unit hand-moved onto the
 table after its team's Ask opened is not in that Ask's legal set and cannot be activated until the
-next one. A team created after `playing` has no zone and nothing to deploy, and never appears in a
-legal set. A model placed half-deployed leaves the phase waiting. All four are *"the players are
-in charge"* rather than bugs, and the log is the accountability.
+next one. A model placed half-deployed leaves the phase waiting. All three are *"the players are
+in charge"* rather than bugs, and the log is the accountability. A team appearing mid-game is not
+on the list, because no team is created after `playing`.
 
 **What no mechanism protects.** `GameRules` is not pinned, only `Properties` is. A deploy that
 changes `PhasesBeforeRounds`, `FirstTeam` or `ActionsFor` can therefore make an *ended* game
@@ -1156,7 +1167,7 @@ all confirm. That is about ten lines in the interpreter's Task 8, plus one test 
 | Spec | What this module takes from it |
 | --- | --- |
 | [`2026-09-04-scheduler-design.md`](../../superpowers/specs/2026-09-04-scheduler-design.md) | primary: the line, state, the four events, the turn as an Ask, the two shapes, deployment, the round boundary, windows, re-entering a round, the six constraints |
-| [`2026-08-28-game-flow-design.md`](../../superpowers/specs/2026-08-28-game-flow-design.md) | two schedulers, when the record clears, the shelf, *Nothing is an invariant*, and the automatic-advance sentence the 2026-09-06 ruling replaces |
+| [`2026-08-28-game-flow-design.md`](../../superpowers/specs/2026-08-28-game-flow-design.md) | two schedulers, when the record clears, the shelf, *Nothing is an invariant*, the team model (teams created only in `lobby` or `setup`, a participant's team is their slot, reconnecting returns to it), and the automatic-advance sentence the 2026-09-06 ruling replaces |
 | [`2026-09-03-action-sequences-design.md`](../../superpowers/specs/2026-09-03-action-sequences-design.md) | the Ask, the frame stack, the end-of-activation hook, fatigue, the token economy, the four actions as sequences |
 | [`2026-09-04-setup-phase-design.md`](../../superpowers/specs/2026-09-04-setup-phase-design.md) | the flip into deployment, and the zone swap that reconciles *"the winner picks an edge"* |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | selecting is not activating; the corrected spectator reading |

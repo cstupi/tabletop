@@ -947,6 +947,22 @@ public class SessionTests : IDisposable
         Assert.Equal(SessionPhase.LoggedIn, _s.Phase);
     }
 
+    // Owner ruling 1, 2026-09-06: a reconnecting player rejoins the team their participant row names, and the
+    // "no Game yet" of a reconnect is a different state from having no team.
+    [Fact]
+    public async Task A_reconnecting_player_rejoins_their_team_and_re_picks_nothing()
+    {
+        var sock = await ConnectedAtPlaying();
+        Assert.Equal(Samples.Team1, _s.MyTeamId);
+        sock.Drop(1001, "server shutting down");
+        await Task.Delay(50);
+        Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
+        Assert.Null(_s.Game); Assert.Null(_s.MyTeamId);                 // nothing to read a team from yet, which is not watching
+        _sockets.Last.Deliver(new Welcome(Samples.P1, Game));           // the server names the same team, out of the participant row
+        Assert.Equal((SessionPhase.Connected, Samples.Team1), (_s.Phase, _s.MyTeamId));
+        Assert.IsType<Connect>(Assert.Single(_sockets.Last.Sent));      // one connect frame, and no PickTeam edit
+    }
+
     [Fact]
     public async Task A_rejected_connect_does_not_reconnect_and_upgrade_required_is_sticky()
     {
@@ -1329,9 +1345,11 @@ The second half of `Session.cs` (same class, same file) — the frame handler, t
 
 `Reset()` clears `Game`, which `IsCreator`/`MyTeamId` read; after a reconnect the `Welcome` restores it. `ConnectAsync` calling `Reset()` before the first frame is what makes "reconnect is connect" literal.
 
+`MyTeamId` is derived, never picked or remembered: it reads `Game.Participants` for `ParticipantId`, and the server fills that from the participant's row. So a reconnecting player is back on the team they were on, and the client has nothing to re-pick — teams are locked from `playing` on, and only the server's `Welcome` says which one is yours (owner ruling 1, 2026-09-06; the model is stated in game flow → Teams are frozen at the flip, and a team is a slot). `MyTeamId` is null in two unrelated cases, and no code may conflate them: a spectator has a `Game` with no team on their participant row, while a client mid-reconnect has no `Game` at all. Both paths that read it return early on a null `Game`: `GameScreen.Rebuild` tears the team panels down and rebuilds them from the `Welcome`, and `AskPanel.Render` draws nothing. So a returning player shows as `Reconnecting…` and then as themselves, never as a watcher.
+
 A resync is that same path, so the projection, the draft, the undo prediction and the presence table go through the one discard. The old socket's close does not reach `OnClosed`: `TearDownSocket` nulls `_socket` before closing it, and each handler is gated on `ReferenceEquals(socket, _socket)`. The `1000`-after-`welcome` inference is therefore not consulted on a resync and is left as it is.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 24 passed. Commit: `Add the session object: login, the connect sequence, the projection, local undo, reconnect and the desync resync`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 25 passed. Commit: `Add the session object: login, the connect sequence, the projection, local undo, reconnect and the desync resync`.**
 
 ### Task 6: Built-in content and the four terrain generators
 
@@ -1573,7 +1591,7 @@ public static class TerrainGenerators
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 34 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 35 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.**
 
 ### Task 7: The content-addressed asset cache
 
@@ -1689,7 +1707,7 @@ public sealed class AssetCache(string root, HttpClient http)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 36 passed. Commit: `Add the content-addressed asset cache`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 37 passed. Commit: `Add the content-addressed asset cache`.**
 
 ### Task 8: View models — log text, the Ask view, the menu, the ruler, the animation queue
 
@@ -2040,7 +2058,7 @@ public static class AskViewModel
         _ => throw new ArgumentOutOfRangeException(nameof(legal)),
     };
 
-    /// <summary>The first open Ask addressed to my team that my team has not answered. Null for a watcher: a participant with no team is never Asked.</summary>
+    /// <summary>The first open Ask addressed to my team that my team has not answered. Null for a watcher: a participant with no team is never Asked. `myTeam` comes from the participant's row by way of `Welcome`, so a player who reconnects mid-Ask is addressed by it again (owner ruling 1, 2026-09-06); callers pass null only for a real watcher, never for a client that is mid-reconnect.</summary>
     public static AskView? Mine(Projection p, GameInfo game, Guid? myTeam, IReadOnlySet<string> muted)
     {
         if (myTeam is not { } team) return null;
@@ -2298,7 +2316,7 @@ public sealed class AnimationQueue
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.Client.Tests`; expect 43 passed. Commit: `Add the client view models: log text, the Ask view, the menu, the ruler with its disembark region, the animation queue`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.Client.Tests`; expect 44 passed. Commit: `Add the client view models: log text, the Ask view, the menu, the ruler with its disembark region, the animation queue`.**
 
 ### Task 9: `Main`, the dispatcher, screen swapping, the login and update-required screens
 
@@ -3552,6 +3570,8 @@ public partial class LobbyPanel : VBoxContainer
 }
 ```
 
+`LobbyPanel` is the only control that sends `CreateTeam` or `PickTeam`, and `GameScreen.Rebuild` adds it only at `lobby` and `setup`, which is where the server accepts those edits: teams are locked at the flip to `playing` (owner ruling 1, 2026-09-06; the model is stated in game flow → Teams are frozen at the flip, and a team is a slot). Nothing offers a team pick from `playing` on, and nothing asks for one after a reconnect — a `TeamPanel` lists whoever `Game.Participants` puts on its team, and the `Welcome` that ends a reconnect names the same team it named before, so a returning player reappears in the panel they left. `TeamPanel.Refresh` keys on `Team.Id` and never on `MyTeamId`, so it draws a returning player and one who never dropped identically.
+
 - [ ] **Step 4: Write `SetupToolbar.cs`**
 
 ```csharp
@@ -4187,7 +4207,7 @@ find client libs tests -path '*/obj/*' -maxdepth 3 -type d | grep -v -E 'Unix|Wi
 git status --short
 ```
 
-Then, with `./scripts/management` and `dotnet run --project server/game` running in WSL, `./scripts/client` on two accounts: log in (remember me), create a game, the second joins, teams and armies picked, setup with a generator batch, a saved layout reloaded, end setup; both see the board, presence, a hand move with its ruler, a menu edit in the log, an undo-to-here, Home and back (reconnect rebuilds), Leave. Expected: every test project green (Geometry, Content, Protocol, Management, GameServer, Client — 39 in Client), the check script silent, no `obj/` outside `Unix/` and `Windows_NT/`, and `git status` clean apart from the intended files (never `.env`, never `client/.godot/`).
+Then, with `./scripts/management` and `dotnet run --project server/game` running in WSL, `./scripts/client` on two accounts: log in (remember me), create a game, the second joins, teams and armies picked, setup with a generator batch, a saved layout reloaded, end setup; both see the board, presence, a hand move with its ruler, a menu edit in the log, an undo-to-here, Home and back (reconnect rebuilds, and the returning player is back on their own team with the same Ask controls), Leave. Expected: every test project green (Geometry, Content, Protocol, Management, GameServer, Client — 44 in Client), the check script silent, no `obj/` outside `Unix/` and `Windows_NT/`, and `git status` clean apart from the intended files (never `.env`, never `client/.godot/`).
 
 - [ ] **Step 4: Commit**
 

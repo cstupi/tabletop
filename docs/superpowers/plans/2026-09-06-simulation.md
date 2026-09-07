@@ -3244,13 +3244,17 @@ git commit -m "Assert the five invariants that hold for any game"
 
 **Interfaces:**
 - Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IGameRows`, `PostgresGameRows`, `GameServerFactory`, `TestKeys` (game server skeleton; the last two only from the test project); `SocketMessage` and every kind, `WireJson`, `ProtocolVersion`, `Connect`, `Welcome`, `Rejected`, `BoardMessage`, `EventsMessage`, `CommandMessage`, `Refused`, `GameEvent`, `EventApplier`, `Projection`, `OpenAsk`, `Board`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement` (Protocol); `ArmySnapshot`, `TableState`, `ContentJson` (Content); `NpgsqlDataSource` (Npgsql); `CompiledScenario` (Task 1).
-- Produces: `interface IWebSocketConnector { Task<WebSocket> ConnectAsync(CancellationToken ct); }`; `sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector`; `sealed record SocketCredentials(IReadOnlyList<string> Jwts)` with `static SocketCredentials FromEnvironment()`, `Guid AccountOf(int index)` (the `account_id` claim, read without verifying — the server verifies), `string For(int index)`; `sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)` with `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)` and `Task DeleteAsync(Guid gameId, CancellationToken)`, plus `sealed class PropertiesMissingException(string hash)`; `sealed class SocketDriver : IGameDriver` with `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)`.
+- Produces: `interface IWebSocketConnector { Task<WebSocket> ConnectAsync(CancellationToken ct); }`; `sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector`; `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)` with `static Task<SocketCredentials> MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static string NameFor(CompiledScenario, int index)`, `Guid AccountOf(int index)`, `string For(int index)`; `sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)` with `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)` and `Task DeleteAsync(Guid gameId, CancellationToken)`, plus `sealed class PropertiesMissingException(string hash)`; `sealed class SocketDriver : IGameDriver` with `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)`.
 
 Spec: spec → *Two drivers behind one interface* — "Over the socket. A real WebSocket to a running game server, a real session JWT, real rows and a real event log in Postgres. This exercises the handshake, the wire format, hydration, reconnect and the whole path `architecture.md` calls the only path"; "The same scenario passing in process and failing over the socket localises the fault to transport, serialization or persistence, which is the reason both exist." Module prompt → "Prefer writing rows directly through `IGameRows` plus a test-signed JWT, as the game server's own tests do."
 
 **How the rows are written.** `account`, `game` (at `lobby`, with the scenario's own id, its configuration and its `rng_seed`), `team` and `participant` go in as raw SQL, because those four are management's writes and `IGameRows` has no method for them (game server skeleton plan → Interfaces needed 1). The `rng_seed` column is the whole of how a socket run sets the seed: the in-process driver hands `compiled.Info` straight to the session, while this driver has to put the same number in the row the server will hydrate from. Both therefore run the same dice for the same scenario seed, which is what makes the two-driver agreement test meaningful. Everything after that goes through `IGameRows`: `StartSetupAsync(gameId, snapshot)` writes the whole `table_state` tree and flips to `setup`, and `EndSetupAsync(gameId, snapshot, snapshotsByParticipant)` writes each participant's `army_snapshot` and flips to `playing`. So the scenario's own ids survive — `CreateTeamAsync` would mint its own, and the driver's projection, its recording and its answers are all keyed on the `CompiledScenario`'s ids — and the tree is written by the code that owns it.
 
-**One JWT per team, plus one for the recorder.** A session JWT names one account, `FindParticipantAsync(gameId, accountId)` maps an account to one participant, and a newer socket for a participant closes the older one — so N participants need N accounts and N tokens. In tests `TestKeys.Mint` produces them; from the console they come from `TABLETOP_SIM_JWT` as a comma-separated list, in team-ordinal order with the recorder last. This is question 4.
+**One minted session per team, plus one for the recorder.** A session JWT names one account, `FindParticipantAsync(gameId, accountId)` maps an account to one participant, and a newer socket for a participant closes the older one — so N participants need N accounts and N tokens. In tests `TestKeys.Mint` produces them against the fake JWKS, so the suite reaches no network. From the console they come from the management API's development-only mint, `POST /v1/dev/sessions`, one call per participant in team-ordinal order with the recorder last. Owner ruling 4 of 2026-09-06 settled question 1: hand-pasting tokens is rejected, and management holds the Stytch secret, so the mint lives there and returns a real Stytch session JWT for a named account, creating the Stytch user and the `account` row as needed.
+
+**What that changes here.** `SocketCredentials` no longer reads an environment variable and no longer decodes a JWT to find its account id: `MintAsync` calls the endpoint and the response carries `account.id` beside the token, so `AccountOf` is a lookup. `NameFor(scenario, index)` is `sim-{scenario name}-{index}`, which is stable across runs and distinct within a scenario, so re-running a seed mints for the same accounts rather than accumulating new ones. `SocketRowSeeder` still inserts `management.account` with `on conflict (id) do nothing`, which is now a no-op for a minted account and remains the path for a test-minted one. `--driver socket` needs no token variable at all; it needs `TABLETOP_MANAGEMENT_URL` (default `http://localhost:5100`) and a management API running under `ASPNETCORE_ENVIRONMENT=Development`, which `./scripts/management` sets.
+
+**And what it costs.** A console socket run now reaches Stytch's test project once per participant, because the tokens are real ones minted there. The in-process driver reaches nothing, and neither does `DriverAgreementTests`, which still mints with `TestKeys`. A `404` from the mint means the management API is not running as a development environment, and `MintAsync` says so rather than reporting a bad token later at the handshake.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3277,8 +3281,10 @@ public class DriverAgreementTests(PostgresFixture pg)
             await factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), ct);
     }
 
+    // The test never calls management's mint: TestKeys signs against the fake JWKS the factory serves,
+    // so DriverAgreementTests reaches no network and needs no Stytch project.
     static SocketCredentials Credentials(CompiledScenario c) =>
-        new(c.Info.Participants.Select(p => TestKeys.Mint(p.AccountId)).ToList());
+        new(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList());
 
     static async Task<RunReport> RunWith(IGameDriver driver, CompiledScenario c, ulong seed, CancellationToken ct)
     {
@@ -3424,8 +3430,11 @@ Run: `docker compose up -d && dotnet test tests/Tabletop.Sim.Tests --filter Driv
 Expected: `CS0246: ... 'SocketDriver' could not be found`.
 
 ```csharp
+using System.Net;
+using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
+using Tabletop.Sim.Scenarios;
 
 namespace Tabletop.Sim.Drivers;
 
@@ -3445,38 +3454,55 @@ public sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector
     }
 }
 
+/// <summary>A real Stytch session JWT and the account it names.</summary>
+public sealed record MintedSession(string Jwt, Guid AccountId);
+
 /// <summary>
-/// One session JWT per participant, in team-ordinal order with the recorder last. Nothing here verifies a
-/// token: the game server does that against Stytch's JWKS. The account id is read out only so the seeder
-/// can write a participant row that the handshake will find.
+/// One session per participant, in team-ordinal order with the recorder last. Nothing here verifies a
+/// token: the game server does that against Stytch's JWKS. From the console the sessions come from
+/// management's development-only mint; in tests TestKeys mints them against the fake JWKS.
 /// </summary>
-public sealed record SocketCredentials(IReadOnlyList<string> Jwts)
+public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
 {
-    public const string EnvironmentVariable = "TABLETOP_SIM_JWT";
+    public const string ManagementUrlVariable = "TABLETOP_MANAGEMENT_URL";
+    public const string MintPath = "/v1/dev/sessions";
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public static SocketCredentials FromEnvironment()
+    private sealed record MintAccount(Guid Id, string Name);
+    private sealed record MintResponse(string SessionJwt, MintAccount Account);
+
+    /// <summary>Stable across runs and distinct within a scenario, so a re-run mints for the same accounts.</summary>
+    public static string NameFor(CompiledScenario scenario, int index) => $"sim-{scenario.Scenario.Name}-{index}";
+
+    public static async Task<SocketCredentials> MintAsync(CompiledScenario scenario, HttpClient http, CancellationToken ct)
     {
-        var raw = Environment.GetEnvironmentVariable(EnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(raw))
-            throw new InvalidOperationException($"{EnvironmentVariable} is not set; the socket driver needs one session JWT per team plus one for the recorder, comma separated");
-        return new SocketCredentials(raw.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+        var sessions = new List<MintedSession>();
+        for (var i = 0; i < scenario.Info.Participants.Count; i++)
+        {
+            using var response = await http.PostAsJsonAsync(MintPath, new { name = NameFor(scenario, i) }, Json, ct);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                throw new InvalidOperationException(
+                    $"{http.BaseAddress}{MintPath.TrimStart('/')} answered 404; the management API must run as a development environment (./scripts/management sets ASPNETCORE_ENVIRONMENT=Development)");
+            response.EnsureSuccessStatusCode();
+            var minted = await response.Content.ReadFromJsonAsync<MintResponse>(Json, ct)
+                ?? throw new InvalidOperationException("the mint returned an empty body");
+            sessions.Add(new MintedSession(minted.SessionJwt, minted.Account.Id));
+        }
+        return new SocketCredentials(sessions);
     }
 
-    public string For(int index) => index < Jwts.Count
-        ? Jwts[index]
-        : throw new InvalidOperationException($"{EnvironmentVariable} has {Jwts.Count} tokens; participant {index} needs one of its own");
+    public string For(int index) => At(index).Jwt;
+    public Guid AccountOf(int index) => At(index).AccountId;
 
-    public Guid AccountOf(int index)
-    {
-        var payload = For(index).Split('.')[1];
-        var json = Convert.FromBase64String(payload.Replace('-', '+').Replace('_', '/').PadRight((payload.Length + 3) / 4 * 4, '='));
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.TryGetProperty("account_id", out var claim) && Guid.TryParse(claim.GetString(), out var id)
-            ? id
-            : throw new InvalidOperationException($"token {index} carries no account_id claim; management adds it via session_custom_claims");
-    }
+    private MintedSession At(int index) => index < Sessions.Count
+        ? Sessions[index]
+        : throw new InvalidOperationException($"{Sessions.Count} sessions were minted; participant {index} needs one of its own");
 }
 ```
+
+`MintAsync` mints serially rather than in parallel. Each call is one HTTP round trip plus three or four
+Stytch calls, three participants make it four calls, and the mint inserts an `account` row, so a
+sequential loop is both fast enough and free of a write race on one account id.
 
 - [ ] **Step 3: Write `SocketRowSeeder.cs`**
 
@@ -4003,7 +4029,7 @@ dotnet run --project sim -- <scenario> [options]
   --list                list the scenario names and exit
 ```
 
-Environment for `--driver socket`: `TABLETOP_DB_CONNECTION` (the same variable the servers read), `TABLETOP_SIM_WS` (default `ws://localhost:5200/ws`), `TABLETOP_SIM_JWT` (one session JWT per team plus one for the recorder, comma separated). Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
+Environment for `--driver socket`: `TABLETOP_DB_CONNECTION` (the same variable the servers read), `TABLETOP_SIM_WS` (default `ws://localhost:5200/ws`), `TABLETOP_MANAGEMENT_URL` (default `http://localhost:5100`, where the session mint lives). There is no token variable: the tokens are minted per run. Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4122,7 +4148,8 @@ public sealed record SimOptions(
           --list                list the scenario names and exit
 
         For --driver socket: TABLETOP_DB_CONNECTION, TABLETOP_SIM_WS (default ws://localhost:5200/ws)
-        and TABLETOP_SIM_JWT — one session JWT per team plus one for the recorder, comma separated.
+        and TABLETOP_MANAGEMENT_URL (default http://localhost:5100). Session tokens are minted from
+        POST /v1/dev/sessions, which needs the management API run as a development environment.
         """;
 
     public IEnumerable<ulong> Seeds
@@ -4283,7 +4310,9 @@ public static class Program
         var connection = Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION")
             ?? throw new UsageException("TABLETOP_DB_CONNECTION is not set; --driver socket needs the same database the servers use");
         var address = Environment.GetEnvironmentVariable("TABLETOP_SIM_WS") ?? "ws://localhost:5200/ws";
-        var credentials = SocketCredentials.FromEnvironment();
+        var management = Environment.GetEnvironmentVariable(SocketCredentials.ManagementUrlVariable) ?? "http://localhost:5100";
+        using var http = new HttpClient { BaseAddress = new Uri(management) };
+        var credentials = await SocketCredentials.MintAsync(compiled, http, ct);
 
         var db = NpgsqlDataSource.Create(connection);
         await new SocketRowSeeder(db, new PostgresGameRows(db)).SeedAsync(compiled, credentials, ct);
@@ -4550,7 +4579,7 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 | `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed` |
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
-| `sealed record SocketCredentials(IRL<string> Jwts)` | `const EnvironmentVariable = "TABLETOP_SIM_JWT"`, `static FromEnvironment()`, `string For(int)`, `Guid AccountOf(int)` |
+| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_MANAGEMENT_URL"`, `const MintPath = "/v1/dev/sessions"`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static NameFor(CompiledScenario, int)`, `string For(int)`, `Guid AccountOf(int)` |
 | `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
 | `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout` (30 seconds), `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
@@ -4661,11 +4690,12 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 6. **The viewer plan** — consumes this plan's whole `Tabletop.Sim.Recording` table above as its input format, and `RecordingJson.SchemaVersion` as the number to check. It should generate its TypeScript types from these C# records, as the spec requires of the Protocol types, rather than hand-writing them.
 
    **That plan landed 2026-09-06 and named four gaps in the schema and one doc comment; all five are applied here** — see *Applied from the viewer plan* above. Nothing else it asks for is a change: the public surface its test project references was already public, and `sim/` references no test project either way.
-7. **The interpreter and scheduler plans, later** — when their full-game tests are written they reference `sim/Tabletop.Sim.csproj` from `tests/Tabletop.Sim.Tests` and build a `Scenario`, an `InProcessDriver` and a `RunLoop`. `sim/` never references a test project (spec correction 8).
+7. **Management API plan** — `POST /v1/dev/sessions`, body `{"name": "..."}`, response `{"sessionJwt": "...", "account": {"id": "...", "name": "..."}}`, mapped only when `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Landed in that plan's Task 5 by owner ruling 4 of 2026-09-06, together with the test that the route is absent outside a development environment. This plan needs nothing else from management: the seeder writes `management.account`, `game`, `team` and `participant` as raw SQL, and the mint's `on conflict do nothing` insert of the same account row is harmless.
+8. **The interpreter and scheduler plans, later** — when their full-game tests are written they reference `sim/Tabletop.Sim.csproj` from `tests/Tabletop.Sim.Tests` and build a `Scenario`, an `InProcessDriver` and a `RunLoop`. `sim/` never references a test project (spec correction 8).
 
 ## Questions for the project owner
 
-1. **How does a socket run get its session JWTs?** Assumed a comma-separated `TABLETOP_SIM_JWT` with one real session token per team plus one for the recorder, since a token names one account and an account maps to one participant. Still open, and narrowed by the ruling on question 5: two objections stood, four tokens pasted by hand for a three-team soak and tokens expiring, and the second was largely a consequence of a socket game taking minutes, so a seed range outran the tokens it started with. A rest-signalled socket run is fast enough that expiry inside a run is no longer the concern, and the pasting is what remains. If instead the game server should grow a development-only endpoint that mints a token for a named account — off by default, on only under `ASPNETCORE_ENVIRONMENT=Development` — then `SocketCredentials.FromEnvironment` becomes a call to it, `SocketRowSeeder` creates the accounts itself, and `--driver socket` needs no environment variable at all. That is a change to the game server, which is why it is a question rather than a decision. Nothing else in the plan moves either way.
+1. **How does a socket run get its session JWTs? Answered by the project owner on 2026-09-06, ruling 4: from a development-only endpoint that mints one.** Hand-pasting is rejected. The endpoint is `POST /v1/dev/sessions` on the **management API**, not the game server, because management holds the Stytch project secret and already creates users and authenticates sessions; the game server holds no credential and could not mint anything real. It takes a name, finds or creates the Stytch user and the `account` row, and returns a real Stytch session JWT, so the socket driver stays on the production verification path. It is gated on `IHostEnvironment.IsDevelopment()` rather than on a configuration flag, and it is absent from the route table a production build serves. Applied in Task 8: `SocketCredentials.MintAsync` replaces `FromEnvironment`, `AccountOf` reads the account id from the mint's response instead of decoding the token, `NameFor` makes the account names stable per scenario and participant, and `--driver socket` has no token variable. The cost is that a console socket run now needs network access to the Stytch test project; the in-process driver and `DriverAgreementTests` still need none. See the management API plan, Task 5, for the endpoint and its absence test.
 2. **Should a `stuck` run fail the console's exit code?** Assumed yes: `RunReport.Passed` is false for `stuck` and `failed`, so `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the exit code changes; the frames are still dumped either way.
 3. **Should `sim/` be in `Tabletop.sln`?** Assumed yes, in a `sim` solution folder, so `dotnet build` at the root builds it and `dotnet test` runs its tests — which is what makes it part of the whole-tree check every plan ends with. If it should be excluded so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands section grows a line; nothing in the code changes.
 4. **How many scenarios should the catalog ship with, and are these the right five?** Assumed `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change.

@@ -30,6 +30,29 @@ inside a team is social, not enforced.
 Ownership and authority are therefore different axes. An army belongs to a player.
 Acting with it belongs to the team.
 
+### Teams are frozen at the flip, and a team is a slot
+
+**Added 2026-09-06, ruled by the owner.** This session said a team groups players and never said
+when the grouping stops changing, so four later documents each guessed and two of them
+contradicted each other. The model, stated here once because this is where teams are designed:
+
+- **Teams are created only while the game is `lobby` or `setup`.** At the flip to `playing` the
+  team list is frozen along with the scheduler shape, the armies and the layout. No team is
+  created, renamed or removed after that.
+- **A participant's team is their slot**, recorded on their `participant` row. It is chosen
+  before play and does not change during it.
+- **Reconnecting returns a player to their own slot.** They are not a spectator, they do not
+  re-pick, and nothing about their team is re-derived. This is the ordinary case, and it is why
+  hydration reads the participant rows.
+- **Someone who never joined before play began has no slot**, so they have no team, are never
+  addressed by an Ask, and watch. That is the whole definition of a spectator, and it is
+  unchanged.
+
+Joining a game and taking a team are two different things, and running them together is what
+generated the contradiction. **Joining stays open at every status**
+([accounts](2026-08-29-accounts-design.md)); **taking a team does not**. Every other document
+points at this statement rather than restating it.
+
 ## What a unit in play records
 
 Three stores, kept separate because they have three different lifetimes. *A fourth, **grants**,
@@ -167,7 +190,9 @@ record:
 - **The scheduler shape** — player-turn or alternating activation.
 - ~~**Table dimensions**, and the regions defined on it.~~ These are the setup phase's, not
   configuration ([setup content](2026-08-29-setup-content-design.md)).
-- **Teams**: who is on which side, and which army each player brings.
+- **Teams**: who is on which side, and which army each player brings. Set in the lobby and
+  editable through setup; frozen at the flip to `playing` (ruled by the owner 2026-09-06, and
+  stated above under *Teams are frozen at the flip, and a team is a slot*).
 - **The enforcement setting** — `silent | warn | strict`, per
   [identity and enumerations](2026-08-29-identity-and-enumerations-design.md) as reopened on
   09-04.
@@ -246,3 +271,7 @@ for a checkpoint concept to protect against.
   pinned, the board is the setup snapshot, and the scheduler shape and the armies in play are
   fixed once playing (first written as "team membership", corrected the same day by
   [the setup phase](2026-09-04-setup-phase-design.md): joining stays open at every status).
+  **The team list is fixed once playing too** — ruled by the owner 2026-09-06, after the same
+  day's correction had been read as leaving team creation open. What stays open at every status
+  is joining a game, not taking a team; see *Teams are frozen at the flip, and a team is a slot*
+  above.

@@ -252,6 +252,19 @@ sequence number, so there is no divergence to detect. A reconnect re-downloads t
 exchange, first join, reconnect, crash recovery and a game migrating between server tasks are one
 code path on both sides.
 
+A reconnecting player rejoins their team. `MyTeamId` is derived, never picked or stored: it reads
+`Game.Participants` for `ParticipantId`, and the server fills that from the participant's row,
+which outlives the socket. So the `Welcome` that ends a reconnect names the team the previous one
+named, and no client code re-picks a team or asks the player to (owner ruling 1, 2026-09-06; the
+model is stated in game flow → Teams are frozen at the flip, and a team is a slot). `LobbyPanel`,
+the only control that sends `PickTeam`, exists at `lobby` and `setup` only, which is where the
+server accepts the edit. `MyTeamId` is
+null in two unrelated states, and nothing may treat them alike: a spectator has a `Game` whose
+participant row carries no team, while a client mid-reconnect has no `Game` at all. Both readers
+return early on a null `Game`. `GameScreen.Rebuild` tears the team panels down and rebuilds them
+from the `Welcome`, and `AskPanel.Render` draws nothing. A returning player is therefore shown as
+`Reconnecting…` and then as themselves, never as a watcher.
+
 Reconnect policy lives in three fields:
 
 | Close | Decision | Why |
@@ -659,6 +672,11 @@ come from one place. `Highlights` is the pieces the legal set names, plus any `E
 and the container being exited. Asks addressed to other teams render as a waiting indicator naming
 the team, never as controls.
 
+The `myTeam` argument is `Session.MyTeamId`, so a player who reconnects in the middle of an open
+Ask is addressed by it again as soon as the `Welcome` lands, with the same controls a player who
+never dropped is looking at. `Render` returns early while `Game` is null, so a reconnect never
+reaches `Mine` with a null team and a returning player is never rendered as a watcher.
+
 Behaviour the specs demand, and where it lives:
 
 - Any team member may answer, and the panel shows who did. `AnsweredBy` reads the last
@@ -826,6 +844,7 @@ Contested or re-decided:
 | Two region functions, and `ExitRegion` returns a boundary | an occupant has no start to sweep rays from, so `Movement.Region` is meaningless; a boundary lets `MoveRegionNode` draw both with no change | a predicate (`BaseFullyWithin`) evaluated per candidate, which cannot express a ring of impassable terrain and needs a different node | plan Task 8; geometry plan Task 6 |
 | The round boundary gets no control of its own | the one Ask panel is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 (ruled 2026-09-06) |
 | A `ProjectionDesyncException` resyncs the client, bounded at one attempt per sequence position | the fault is a divergence in this client's copy, which a rebuild from the log fixes; a fault that made no progress is in the server's log, which a rebuild cannot fix | skipping the change and carrying on, which diverges silently; a fixed retry count, which either strands an unrelated later fault or loops on a batched hydrate; a `Resyncing` phase, which renders identically to `Reconnecting` | owner ruling 2 (2026-09-06) |
+| `MyTeamId` is derived from `Game.Participants` on every read, and a reconnect re-picks nothing | the participant row is the one record of a slot, and it outlives the socket; teams are locked from `playing` on, so a returning player's team cannot have changed while they were away | caching the team across `Reset()`, which would be a second source of truth for a value the `Welcome` already carries; treating a reconnecting player as teamless, which is what a spectator is and would cost a seat on every dropped connection | owner ruling 1 (2026-09-06), stated in game flow → Teams are frozen at the flip, and a team is a slot |
 | The client drops `AtRest` | nothing here waits for the server to settle, and the only busy state ends at `Welcome` | stopping a busy indicator on it, which would be a second and weaker source of truth for a settled table | owner ruling 4 (2026-09-06) |
 | `ManagementDtos.cs` mirrors management's records by hand | keeps `client/` free of a dependency on `server/management`, and the DTOs are stable | a shared DTO assembly in `libs/`, not proposed | plan → Interfaces needed item 4 |
 
@@ -1163,7 +1182,7 @@ its own would mean the event spine had been broken.
 | Management unreachable | the login screen shows `Cannot reach {ManagementUrl}`; the Home screen's list stays stale | yes; no retry loop on HTTP |
 | `426` on any request | `UpdateRequiredException` sets `Phase = UpdateRequired`, which is a sink; the screen offers Quit and nothing else | yes |
 | JWT expired mid-session | the 60 s refresh normally prevents it; if a refresh fails with `401`, `TryResumeAsync` clears the store and drops to `LoggedOut`. An open socket is unaffected, because the server authenticates once at connect | yes; a socket can outlive its credential |
-| Socket closes unexpectedly | reconnect with backoff 1, 2, 5, 10, 10… s; `ConnectionLost(willReconnect: true)` toasts; the projection is discarded and rebuilt | yes |
+| Socket closes unexpectedly | reconnect with backoff 1, 2, 5, 10, 10… s; `ConnectionLost(willReconnect: true)` toasts; the projection is discarded and rebuilt, and the `Welcome` restores the player's team | yes |
 | Socket replaced by the same participant's newer connection (`1000` after `welcome`) | no reconnect; drop to Home | yes; reconnecting would fight the newer socket |
 | Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two; the silence it used to carry is fixed |
 | `Rejected` with `InvalidSession` or `NotAParticipant` | no reconnect; `GameId` cleared; Home | yes |
@@ -1227,7 +1246,7 @@ tests. What is covered:
 | settings and the session store | temp directory | defaults on a missing or malformed file; round trip; DPAPI delegates faked with a byte flip; a corrupt session reads as null |
 | the management client | `FakeManagement : HttpMessageHandler` scripting responses | the version header and bearer on every request, the exact paths and verbs, `426` → `UpdateRequiredException`, problem+json title and detail, contract types round-tripping under `ContentJson` |
 | the socket seam and presence | `FakeGameSocket`, `FakeSocketFactory` | frames delivered, sends recorded, closes injected; presence set, removed and cleared |
-| the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
+| the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a reconnect rejoining the same team with no re-pick, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
 | built-in content and generators | seeded `Random` | 35 built-ins present, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
 | the asset cache | temp directory, `HttpMessageHandler` | hash verification, `HashMismatchException`, a cached hash never touching the network |
 | the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
