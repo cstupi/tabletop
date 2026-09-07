@@ -657,7 +657,7 @@ flowchart TD
   alloc["Allocate: Allocation<br/>-> Allocated"]
   assign["Assign: Assignment<br/>-> Assigned"]
   move["Move: MoveRegion<br/>-> Destinations"]
-  spend["TokenSpend: TokenSpend, private input<br/>-> TokensSpent"]
+  spend["TokenSpend: TokenSpend, one private input per model<br/>-> TokensSpent"]
   confirm["Confirm: Confirmation<br/>-> Confirmed"]
   autopass["AutoPass: WindowKind is muted<br/>-> Passed at once"]
 
@@ -679,8 +679,8 @@ flowchart TD
 does not. It returns null for a watcher, since a participant with no team is never addressed. It
 also computes `Highlights` and `AnsweredTeams`, so the panel's choices and the table's highlights
 come from one place. `Highlights` is the pieces the legal set names, plus any `Enterable` container
-and the container being exited. Asks addressed to other teams render as a waiting indicator naming
-the team, never as controls.
+and the container being exited, and less any spender model that is not my team's. Asks addressed to
+other teams render as a waiting indicator naming the team, never as controls.
 
 The `myTeam` argument is `Session.MyTeamId`, so a player who reconnects in the middle of an open
 Ask is addressed by it again as soon as the `Welcome` lands, with the same controls a player who
@@ -694,9 +694,9 @@ Behaviour the specs demand, and where it lives:
 - Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
   `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
   as that player's own. It is a client convenience, not part of the model.
-- The simultaneous token spend renders as a private input. The panel shows who has answered
-  without showing what, then reveals every answer at once from `ask_closed`. This is the only
-  consumer of the server's per-player filtered streams.
+- The simultaneous token spend renders as one private input per eligible model (p.13). The panel
+  shows who has answered without showing what, then reveals every answer at once from
+  `ask_closed`. This is the only consumer of the server's per-player filtered streams.
 - Confirm gates (wait-between-steps) are one button in the same panel, labelled by `ConfirmLabel`:
   "Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask.
 - `strict` refusals show in the panel. A `Refused` whose `MessageId` matches the panel's last
@@ -727,6 +727,56 @@ the same `Inside(container)`. P.14 embarks the whole unit when one model reaches
 There is no partial embark and no per-reaching-model answer. An offered container is a click target
 rather than a button. `Highlights` already highlights it, and a button per container would be a
 second control for the same command.
+
+### A spend over models and a pick of one model
+
+Two rulings of 2026-09-06 put models where the panel previously saw one number and one unit.
+
+A team's spell token spend is `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)`, `Sealed`,
+with a pass, answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)` (p.13: *"Models within
+18\" in line of sight of the caster's unit may spend any number of spell tokens at the same time
+before rolling"*). Eligibility is the engine's: on the table, holding tokens, within 18" and in
+line of sight of the caster's unit, the caster itself included. `AskMode.TokenSpend` keeps its own
+control rather than borrowing the allocation widget, for two reasons in the shape itself. An
+allocation is one total split exactly across its targets, and a spend has no total to split: p.13
+allows any number up to each model's own holding, so spending one token of a possible five is a
+legal answer that an allocation would reject. And an allocation carries a single amount with no
+per-target bound, while five tokens across two models holding one and four is a different legal set
+from five across two holding three and two. So the panel renders one private `SpinBox` per entry of
+`MaxByModel`, prefixed with the model's name and bounded by that model's own value, and no total
+appears anywhere. The team's maximum is the sum of its own entries and is never rendered as a
+constraint. The map covers every addressed team's models at once, which discloses
+nothing a client does not already hold: `ModelInPlay.SpellTokens` is in every projection. It has to
+cover both, because the window addresses both teams. P.13 gives the caster's side +1 and the other
+side -1 per token, so the map necessarily names models this player may not spend.
+`AskViewModel.SpendableBy(projection, game, myTeam, legal)` narrows it to the models whose unit
+belongs to my own team, and both the spin boxes and `Highlights` come from that. A model the
+projection cannot resolve to a team is not mine. The question name `spend_tokens` and the `casting`
+window kind are unchanged, so the mute path, `AnsweredTeams` and the `ask_closed` reveal are the
+ones already described.
+
+A Sniper group's target is a `PieceSelection` over the model ids of one target unit, `Min` and
+`Max` both 1, addressed to the attacking team (p.13: *"each model with Sniper may pick any model in
+the target unit as its individual target"*). The wound goes to the model it names rather than
+through the defender's allocation. Nothing on the wire changed for it. Two things follow for the
+table. `Highlights` is that model list, and `TableView.PieceAt` takes a model id already, so the
+highlight lands on the models rather than on the unit. And a left click still selects the model's
+unit, because that is what a bare click means everywhere else in the client, so the panel answers
+from `TableInput.PieceLeftClicked`, which carries the clicked piece's own id and therefore a model,
+rather than from `Selected`. The panel calls `TableInput.CancelDrag()` on a click it consumed, so
+answering an Ask is never also a drag. That matters most here, because the eligible models are the
+other team's, and a stray click would otherwise start a hand move of the unit being shot at.
+Shift-click, which narrows the selection to one model, is not needed to answer and does no harm.
+Where the pick is one model the counter reads that model's name instead of a tally, and the model
+is marked on the table. A wound landing on a particular model is worth reading back before "Done".
+
+Both rulings land in the log through `LogText.Answer(answer, names)`, which takes a `Names` so it
+can name pieces: a `TokensSpent` reads *"spent 3 tokens"* followed by each spending model and its
+count, and a one-piece `SelectedPieces` reads *"picked"* followed by that model's unit and slot
+name. `AskAnswered` and `AskClosed` both render through it, so an unsealed pick reads on the line
+that answered it and a sealed spend reads on the line that closed it. `LogText.Touched` names the
+pieces an answer carries, so clicking either row highlights the models that spent and the model that was
+picked.
 
 ### The log panel
 
@@ -917,8 +967,8 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `enum Planet { Generic, Hospitable, Wasteland, Death }`, `static class TerrainGenerators` | `Generate(Planet, TableSize, Random) : IReadOnlyList<AddTerrain>`, `Fixed(Planet)`, `Rolled(Planet, int twoD6)` |
 | `sealed class AssetCache(string root, HttpClient)`, `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
 | `sealed class Names(GameInfo, Projection?)` | `Participant`, `Team`, `Unit`, `Model`, `UnitOfModel`, `Piece`, `static Short` |
-| `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer)`, `Touched(GameEvent)` |
-| `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `ConfirmLabel(Ask)` |
+| `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer, Names)`, `Touched(GameEvent)` |
+| `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `SpendableBy(Projection, GameInfo, Guid team, TokenSpend)`, `ConfirmLabel(Ask)` |
 | `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`, `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
 | `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(bool animate)`, `Count` |
@@ -1282,9 +1332,10 @@ Two tiers, split on the Godot dependency.
 Headless, `tests/Tabletop.Client.Tests` (xUnit). The project compiles `client/src/Core/**/*.cs`
 from source and references the three libraries plus `Tabletop.Content.Tests` and
 `Tabletop.Protocol.Tests` for their samples (`TableStateTests.Sample()`, `Samples.Game`,
-`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at 44 tests,
-unchanged by the rulings of 2026-09-06: the session store's two facts were rewritten rather than
-replaced, and the mesh grouping is asserted inside a fact that already existed. What is covered:
+`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at 45 tests.
+The rulings of 2026-09-06 moved it by one: the session store's two facts were rewritten rather
+than replaced, the mesh grouping is asserted inside a fact that already existed, and the token
+spend and the sniper pick added one fact over the answers' wording. What is covered:
 
 | Subject | Test infrastructure | What is pinned |
 | --- | --- | --- |
@@ -1295,7 +1346,7 @@ replaced, and the mesh grouping is asserted inside a fact that already existed. 
 | the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a reconnect rejoining the same team with no re-pick, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
 | built-in content and generators | seeded `Random` | 35 built-ins present, each naming one of the ten group meshes, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
 | the asset cache | temp directory, `HttpMessageHandler` | hash verification, `HashMismatchException`, a cached hash never touching the network |
-| the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
+| the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `SpendableBy` keeping only my team's spender models, the reveal naming who spent what, a one-model pick naming the model, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
 
 `ImmediateDispatcher` raises every event inline, so a test asserts on state immediately after
 delivering a frame.

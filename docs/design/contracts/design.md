@@ -518,16 +518,16 @@ once. `FrameId` is null for the scheduler's own Asks. `WindowKind` is the name a
 is null when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
 `activate`, `act_or_end_phase`, `deploy`, `deploy_scouts`, `deploy_ambusher`, `end_round`,
 `confirm`, `react`, `spend_tokens`. Every other name comes from `GameRules`, including `shoot_or_not`,
-`strike_back`, `remove_casualties`, a charge target and a spell's targets.
+`strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Sniper`'s target model.
 
 | `LegalSet` | Answer | Used for |
 | --- | --- | --- |
 | `Options(IRL<AskOption> Choices)` | `Chosen(OptionId)` | activate (unit x action), act-or-end-phase, react, ruleset yes/no questions |
-| `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`) |
-| `Allocation(Targets, Amount)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal |
+| `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Sniper`'s target model (p.13) |
+| `Allocation(Targets, Amount)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly |
 | `Assignment(Items, Targets, MaxDistinctTargets)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8) |
 | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
-| `TokenSpend(MaxTokens)` | `TokensSpent(Tokens)` | casting's simultaneous token spend (p.13) |
+| `TokenSpend(MaxByModel)` | `TokensSpent(Counts)` | casting's simultaneous token spend, per spending model (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
 | any, when `AllowPass` | `Passed` | a window's pass, a team passing its turn |
 
@@ -548,6 +548,52 @@ of `Movement.Region`, because an occupant has no position to move from. `Enterab
 are never both set, which enforces *"never both in one activation"* (game flow → Inside a container;
 Grimdark Future p.14 `Transport(X)`, p.20 solid buildings). `Containment` is optional, so an ordinary
 open-table move constructs with five arguments as before. This is **spec correction 11**.
+
+**`PieceSelection.Eligible` holds either grain.** A unit id is the grain for deploy, for an Ambusher
+and for a charge target. A model id is the grain for a spell whose `effect.target_grain` is `model`,
+and for a `Sniper` choosing which model of the target unit takes the wound (Grimdark Future p.13).
+Nothing in the contract distinguishes the two. `LegalSetMembership` checks the count bounds, the
+distinctness of the ids and their presence in `Eligible`. The client resolves a clicked piece's own
+id first and the unit its selection widened to second, so a model-grain set is answerable by one
+click, and `Names.Piece` labels a unit, a model or a marker from the same id. A `Sniper` target Ask
+is therefore a `PieceSelection(models, 1, 1)` under a `GameRules` question name, and costs nothing
+new on the wire.
+
+**A wound already names its model.** `WoundsSet(Guid ModelId, int Wounds)` sets one model's absolute
+wound count, and it travels inside `StepCompleted.Changes` like every other state change. A
+`Sniper`'s wound is that change on the chosen model id, so a targeted wound needs nothing new on the
+wire. What a sniper sequence bypasses is the `assign` Ask itself: p.14's rule that a wounded `Tough`
+model takes wounds until it dies, and its rule that heroes are assigned last, both live in the
+predicate that builds `Allocation.Targets`, and a step that opens no `Allocation` consults neither.
+The bypass is an absence in the sequence rather than a field in the contract.
+
+**`TokenSpend` is a per-model map.** `TokenSpend(IRD<Guid,int> MaxByModel)` names every model that
+may pay and the number of tokens it holds. Grimdark Future p.13, `Caster(X)`: *"Models within 18" in
+line of sight of the caster's unit may spend any number of spell tokens at the same time before
+rolling, to give the caster +1/-1 to the roll per token."* The player chooses which model pays what,
+because every token holder is itself a caster with its own spell to pay for. A model may pay only
+what it holds, and that per-model cap is the map's value; a team's maximum is the sum of its own
+entries and is not carried separately. The caster's own model is in the map with the tokens it has
+left after the spell's cost. The hero upgrade whose single token is spendable only in a token spend
+(p.30) is one more model with a cap of one. `TokensSpent(IRD<Guid,int> Counts)` is the answer, a key
+absent from it paid nothing, and an empty map is the fact `Passed` already carries.
+`LegalSetMembership` checks that every key is a key of `MaxByModel` and every value lies between
+zero and that key's cap. Which team owns a key is the spend step's check and not membership's, on
+the precedent of `MoveRegion`, whose distances belong to the move step. One map covers every
+addressed team's eligible models, because an Ask has one legal set for all of its teams, and it
+reveals nothing: `ModelInPlay.SpellTokens` is in the projection every client holds, and range and
+line of sight are read off the table. The sealed window still withholds the answers. This is the
+owner's per-model spend ruling of 2026-09-06.
+
+Reusing `Allocation(Targets, Amount)` for the spend was rejected on two counts. `Allocated` is legal
+only when its counts sum to `Amount`, which is what wound assignment and casualty removal need and
+the opposite of a spend of any number up to a maximum. `Allocation` also carries no per-target cap,
+and the cap does not follow from a total: five tokens over two models holding one and four is a
+different legal set from five over two holding three and two. An optional cap map plus an exactness
+flag on `Allocation` would make one shape's meaning conditional on a field, would change what its
+two existing uses validate against, and would buy the deletion of a wire kind that already exists.
+`TokenSpend` and `TokensSpent` keep their slots and change their shapes, so `LegalSet` still has
+seven kinds and `AskAnswer` eight.
 
 #### Edit inventory
 
@@ -1179,6 +1225,19 @@ of `ProjectionDesyncException` is listed here.
 | Simulation | Wait for `at_rest` as the end of a step, and delete the 250 millisecond quiet window. A socket run's pacing is the frame, not a timer |
 | Viewer | Ignore `at_rest`. It reads the log and has nothing to do at a rest point |
 
+### What the owner spend rulings of 2026-09-06 require of each consumer
+
+`TokenSpend` and `TokensSpent` carry a map keyed by model, and a `Sniper` target is a model-grain
+`PieceSelection`. Both changes land in other modules.
+
+| Module | What it must now do |
+| --- | --- |
+| Interpreter | Build `TokenSpend.MaxByModel` from p.13's predicate over every addressed team's models, each with its own token count as its cap, the caster's own model included with the tokens left after the spell's cost. Read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model. Sum every team's counts for the roll modifier, which is what `Values["net_tokens"]` records. Open a `Sniper`'s target as a `PieceSelection(models, 1, 1)` under its own question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask |
+| Game server | `LegalSetMembership` for a `TokenSpend` checks that every key of `Counts` is a key of `MaxByModel` and every value lies between zero and that key's cap. It checks no total, because a spend is any number up to a maximum. Which team owns a key belongs to the spend step, as `MoveRegion`'s distances belong to the move step |
+| Client shell | Render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map. Keep the mode; only its two shapes changed |
+| Simulation | Choose a count per model within that model's cap and answer `TokensSpent` with the map, rather than one integer within a single maximum |
+| Viewer | Read `TokenSpend.MaxByModel`'s keys as the pieces an Ask concerns and the sum of its values as the amount at stake, and sum `TokensSpent.Counts` when it reports what a team spent. Neither kind's name changed, so its generated types and its recording's legal-kind strings do not move |
+
 ## Sequences
 
 ### 1. Connect and hydrate
@@ -1286,21 +1345,23 @@ sequenceDiagram
     participant S as Game server
     participant B as Team 2 client
 
-    S-->>A: AskOpened(Ask spend_tokens, Sealed=true, Teams=[1,2], TokenSpend(maxTokens))
+    S-->>A: AskOpened(Ask spend_tokens, Sealed=true, Teams=[1,2], TokenSpend({m1: 2, m2: 3, m3: 1}))
     S-->>B: AskOpened(same Ask)
-    A->>S: AnswerAsk(askId, TokensSpent(2))
-    S-->>A: AskAnswered(askId, team1, TokensSpent(2), false)
+    A->>S: AnswerAsk(askId, TokensSpent({m1: 2}))
+    S-->>A: AskAnswered(askId, team1, TokensSpent({m1: 2}), false)
     S-->>B: AskAnswered(askId, team1, null, false)
     Note over B: OpenAsks[askId].Answers[team1] = null<br/>"answered, but not what"
-    B->>S: AnswerAsk(askId, TokensSpent(1))
-    S-->>A: AskClosed(askId, [team1 = TokensSpent(2), team2 = TokensSpent(1)])
+    B->>S: AnswerAsk(askId, TokensSpent({m3: 1}))
+    S-->>A: AskClosed(askId, [team1 = TokensSpent({m1: 2}), team2 = TokensSpent({m3: 1})])
     S-->>B: AskClosed(askId, same)
     Note over A,B: both projections drop the OpenAsk;<br/>the reveal is one event
 ```
 
 The only use of `architecture.md`'s per-player filtered streams (casting's simultaneous token spend,
 Grimdark Future p.13). The filtering nulls a field rather than withholding an event, so both clients
-show "Team 1 has answered" from the same event kind.
+show "Team 1 has answered" from the same event kind. The one legal set lists team 1's eligible models
+`m1` and `m2` beside team 2's `m3`, with each model's own token count as its cap, and a team's answer
+may name only models it owns.
 
 `AskAnswered` indexes `OpenAsksMut[a.AskId]` and throws if the Ask is not open, so the server must
 never filter out an `ask_opened`. Only answers are filtered. A frame carrying an open Ask that is
@@ -1699,8 +1760,9 @@ header answered by `426`.
 
 **Rulebook.** Grimdark Future v3.4.1: p. 6 (objectives, the deployment roll-off), p. 7 (rounds,
 turns, activations, movement measured from each base's start), p. 8 (weapon groups and up to two
-targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the simultaneous token spend),
-p. 14 (`Transport(X)`, `Sniper`, `Scout`), pp. 16-20 (terrain types, placement styles, solid
+targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the simultaneous token spend, `Sniper`),
+p. 14 (`Transport(X)`, `Scout`, wounded `Tough` models and heroes assigned last), p. 30 (the hero
+upgrade holding one token spendable only in a token spend), pp. 16-20 (terrain types, placement styles, solid
 buildings and the 6" exit), p. 49 (free-for-all and team games).
 
 **Sibling design documents** under `docs/design/`: `geometry/`, `management-api/`, `web-app/`,

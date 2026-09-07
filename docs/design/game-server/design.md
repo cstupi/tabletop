@@ -444,9 +444,13 @@ functions read it:
 - `LegalSetMembership.Contains(Ask, AskAnswer)` is rules-free set membership over the seven
   closed `LegalSet` shapes. `Options` by option id, `PieceSelection` by count bounds,
   distinctness and eligibility, `Allocation` by targets and a sum equal to `Amount`,
-  `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by `0 <= Tokens <= MaxTokens`,
+  `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
+  every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
+  that key's own cap, with **no total**, because a spend is any number up to a maximum —
   `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
   against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
+  A spend divides the same way: whether the answering team owns the models it paid with is state
+  the protocol cannot answer, so the spend step checks it.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for
   a team, derived from the open Asks addressed to it: every `Options` choice, `Confirmed` where
   the set is a `Confirmation`, and `Passed` where `AllowPass`.
@@ -943,13 +947,13 @@ sequenceDiagram
     S->>L: AskOpened(Ask sealed, teams 1 and 2)
     S-->>T1: ask_opened
     S-->>T2: ask_opened
-    T1->>D: AnswerAsk(TokensSpent 2)
+    T1->>D: AnswerAsk(TokensSpent {model A: 2})
     D->>D: team addressed? already answered? in the legal set?
-    D-->>S: Applied([AskAnswered(ask, team1, tokens spent 2)])
+    D-->>S: Applied([AskAnswered(ask, team1, spent {model A: 2})])
     S->>L: append
     S-->>T1: ask_answered with the answer
     S-->>T2: ask_answered with Answer = null
-    T2->>D: AnswerAsk(TokensSpent 1)
+    T2->>D: AnswerAsk(TokensSpent {model B: 1})
     D-->>S: Applied([AskAnswered(team2), AskClosed(both answers)])
     S->>L: append
     S-->>T1: team 2's answer nulled, then ask_closed revealing both

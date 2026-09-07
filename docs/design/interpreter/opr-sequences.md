@@ -95,6 +95,7 @@ for a strike-back.
 | Step | Does |
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]` and `Values["eligible_models"]`. The count comes from `Values["attacks_<i>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
+| `pick-target-model` | Nothing, unless the group shoots and carries `Sniper` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.13). One pick per group, not per shot, and the answer stays on this step for `GfAttack.SnipedModel` to read |
 | `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["blast_cap_<i>"]` on the pushing frame, which is p.13's models in the target counted with the attack counts rather than when this group fires), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
 | `resolve` | `Push(resolve-hits, ...)` |
 
@@ -141,6 +142,19 @@ wounded like any other. A hero joined to another unit is a model of that unit ca
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
 That is the one clause of `Hero` a joined hero's slot property does reach. The answer is applied as given. An out-of-set allocation under
 `warn`/`silent` is applied too, because nothing is an invariant.
+
+A **sniped** wound opens no Ask at all. When `GfAttack.SnipedModel` names a living model of the
+target, every wound this group deals is assigned to that one model and the defender is not asked
+(p.13 `Sniper`). What that skips is precisely what building the prompt's targets decides:
+`EligibleForNextWound`, and so p.8's free choice of removal order, p.14's wounded-`Tough`-model-first
+and heroes-last, and the per-model read of `Hero` that orders a joined hero last. Nothing after the
+assignment changes: `Deadly` multiplies, `Regeneration` rolls, the `Tough` capacity read shelves the
+model, and `WoundsThisActivation` rises by what landed. `Tough` therefore splits in two: it is not
+consulted as an *ordering* rule, so a sniper may name a fresh model while a wounded `Tough` model
+stands, and it is still read as a *capacity*. Wounds past that capacity are lost, exactly as they
+are when a defender allocates more to one model than it can take. A name that is not a living model
+of the target is ignored and the ordinary Ask opens; only a menu edit can produce one, because the
+pick and the wound are two steps of one frame and the only wounds dealt in between are this group's.
 
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
 ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on that model rolls
@@ -234,8 +248,16 @@ living models, excluding `Limited` weapons already used this game. `ValidTargets
 units with a model still in play that `EligibleModels` admits. A unit inside a container is
 therefore a candidate and is then ruled out, or ruled in for a fellow occupant.
 
-`Sniper` resolving as a group at Quality 2+ against the target unit rather than per model is
-question 7.
+A `Sniper` group resolves first, at Quality 2+, and names one model in the target unit as the
+target of its wounds in `attack-sequence`'s `pick-target-model` step. The pick precedes the hit
+roll, because p.8 declares targets before any roll, and follows `determine-attacks`, so a group
+with nothing in range never asks. `GfAttack.IsSniperGroup` is the one predicate: `WeaponGroup.Sniper`
+and the step read it, so a group cannot be ordered first without also being offered the pick. Two
+parts of p.13's sentence are not modelled. The pick is per **group** rather than per Sniper model,
+because a group is one weapon type whose dice `roll-to-hit` pools into one roll, so two Sniper
+models sharing a weapon type name one model between them. And *resolved as if it was a unit of 1*
+is not, so cover, `Blast`'s cap and the defence roll still read the whole target unit. That is what
+is left of question 7.
 
 ## Charge and melee
 
@@ -331,8 +353,8 @@ still takes its test.
 
 | Step | Does |
 | --- | --- |
-| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and `Values["tokens_max_<team:N>"]` for every team `SpendCapacity` finds |
-| `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`. Tokens are deducted from the spending team's eligible models nearest the caster first. `Values["net_tokens"]` is the own team's tokens less everyone else's |
+| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
+| `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`, over `GfCasting.SpendCapacity`. Each addressed team names which of its own models pays what and each named model is deducted its own count. `Values["net_tokens"]` is the own team's counts summed less everyone else's |
 | `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13). A failure `Finish`es |
 | `targets` | `PieceSelection` from the spell entry's four columns: `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the maximum with a minimum of 1, `Range` from the caster model, and line of sight from the caster model |
 | `effects` | Once per chosen target, via `Values["target_index"]` and `Repeat`: every effect of the spell whose conditions hold, in ordinal order |
@@ -347,19 +369,26 @@ shape:
   effect.TargetEntry ?? spell.Name, casterUnit, 1))`. A model-grain target's grant lands on its
   unit, because the grants store is the unit's.
 
-`EligibleSpenders` is p.13's per-model test — *models with tokens within 18 inches and line of
-sight of the caster's unit*, both sides, the caster excluded — and `SpendCapacity` sums it per
-team. One predicate serves the maximum and the payers, so an ineligible model neither raises a
-team's maximum nor pays for it. Excluding the caster is a reading rather than a quotation: the
-caster model is trivially within 18 inches of its own unit, and p.13 does not say whether it may
-add its remaining tokens to its own roll. The test stays **positional on both ends**: `LivingModels` on the
-caster's side and `Location is OnTable` on the spender's. A cast from inside a container therefore
-draws no token spend in either direction and resolves at a flat 4+ (question 10).
+`EligibleSpenders` is p.13's per-model test: *models with tokens within 18 inches and line of
+sight of the caster's unit*, both sides, **the caster included**. `SpendCapacity` groups it by
+team, keyed to the tokens each model holds. One predicate serves the caps and the eligibility, so an
+ineligible model is neither offered nor paid from. The caster's own model is admitted without
+measurement, being a model of the caster's own unit, and p.13 does not exclude it. That is the one
+exception to a test that is otherwise **positional on both ends**: `LivingModels` on the caster's
+side and `Location is OnTable` on the spender's. A cast from inside a container therefore draws no
+tokens from anybody else and resolves at 4+ modified only by what the caster itself still holds
+(question 10).
 
-The per-model test is answered as one number per team, which the roll does not care about: the
-modifier is ±1 per token spent, so the sum is the whole input. The player's choice of which
-eligible model pays is what the aggregation drops, and every token holder is a `Caster(X)` model,
-so nearest-first can spend the tokens held for that model's own spell (question 14).
+The caps are built in `spend-tokens`, after `pick-spell`'s deduction is applied, so the caster is
+offered what the spell's cost left it and no step subtracts that cost twice. A caster whose tokens
+exactly paid the cost holds none and is not an entry.
+
+The spend is answered per model, not as one number per team: `TokenSpend.MaxByModel` carries a cap
+per model and `TokensSpent.Counts` a count per model, so the player chooses which of its own models
+pays (question 14). Every token holder is itself a `Caster(X)` model, which is why the choice
+matters: a server-chosen payer would spend the tokens held for that model's own spell. The roll
+reads only the sums, since the modifier is ±1 per token spent. Two checks are the step's rather than
+the protocol's: a key belongs to the answering team, and a count is within that key's cap.
 
 The token economy is a per-model counter: `+X` at the start of each round for a model with
 `Caster(X)`, **even off the table** (p.13), capped at `GfNames.TokenCap = 6`, spent by casting and

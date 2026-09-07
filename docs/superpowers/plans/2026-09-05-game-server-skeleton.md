@@ -1237,6 +1237,7 @@ The in-memory duplicate detection covers the duplicate-within-the-batch case too
 - Consumes: `Ask`, `LegalSet` and its seven kinds, `AskAnswer` and its eight kinds, `Enforcement`, `RefusalReason`, `GameEvent`, `AskOpened`, `AskAnswered`, `AskClosed` (Protocol).
 - Produces: `static class LegalSetMembership { static bool Contains(Ask ask, AskAnswer answer); }`; `enum Legality { AlwaysAccepted, Legal, OutsideLegalSet, Illegal }`; `abstract record Verdict` with `Accept(string? Warning)` and `Refuse(RefusalReason Reason, string Detail)`; `static class EnforcementPolicy { static Verdict Decide(Enforcement enforcement, Legality legality, string detail); }`; `static class EventFilter { static IReadOnlyList<GameEvent> ForViewer(IReadOnlyList<GameEvent> events, Guid? viewerTeamId, IReadOnlySet<Guid> sealedOpenBefore); static IReadOnlySet<Guid> SealedOpenAsks(Projection p); }`.
 - `Contains` is rules-free set membership over the closed `LegalSet` shapes. It does **not** check a `MoveRegion` destination's distance — that is geometry the geometry plan implements and the interpreter plan's move step calls; here only the model ids are checked. Recorded as *Interfaces needed* item 3.
+- `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)` and `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)` are maps keyed by model (contracts plan Task 8, owner ruling of 2026-09-06): one entry per eligible spender, valued at that model's own token count, with no total and no per-team maximum. `Contains` checks that every key of `Counts` is a key of `MaxByModel` and every value is between zero and that key's cap, and checks **no total**, because p.13 lets a model spend any number up to what it holds. It does **not** check that the answering team owns those keys — no state here answers that, so the interpreter plan's spend step does, on the same division as `MoveRegion`'s model ids against the move step's distance.
 
 Spec: `architecture.md` → Rules enforcement (three positions; menu edits accepted under every setting; strict refuses; warn logs a warning); action sequences → Asks (pass is a real answer, legal only when the Ask allows it), Windows (sealed: answers withheld until the window closes, then revealed); `architecture.md` → per-player filtered event streams; contracts plan Task 9 (`ask_answered.Answer` is null on the stream to teams a sealed answer is withheld from; `ask_closed` reveals all).
 
@@ -1285,15 +1286,18 @@ public class LegalSetMembershipTests
         Assert.True(LegalSetMembership.Contains(ask, new Destinations([Samples.Deploy])));
         Assert.False(LegalSetMembership.Contains(ask, new Destinations([Samples.Deploy with { ModelId = C }])));
     }
-    [Fact] public void Token_spend_within_max_confirmation_and_pass()
+    [Fact] public void Token_spend_by_key_and_per_key_cap_with_no_total_confirmation_and_pass()
     {
-        Assert.True(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(3)));
-        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(4)));
-        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(-1)));
+        var spend = With(new TokenSpend(new Dictionary<Guid, int> { [A] = 2, [B] = 3 }));
+        Assert.True(LegalSetMembership.Contains(spend, new TokensSpent(new Dictionary<Guid, int> { [A] = 2 })));
+        Assert.False(LegalSetMembership.Contains(spend, new TokensSpent(new Dictionary<Guid, int> { [C] = 1 })));      // C is not a spender
+        Assert.False(LegalSetMembership.Contains(spend, new TokensSpent(new Dictionary<Guid, int> { [A] = 3 })));      // over A's own cap
+        Assert.False(LegalSetMembership.Contains(spend, new TokensSpent(new Dictionary<Guid, int> { [A] = -1 })));
+        Assert.True(LegalSetMembership.Contains(spend, new TokensSpent(new Dictionary<Guid, int> { [A] = 2, [B] = 3 })));  // five, over either cap: each entry is within its own and there is no total to violate
         Assert.True(LegalSetMembership.Contains(With(new Confirmation()), new Confirmed()));
         Assert.False(LegalSetMembership.Contains(With(new Confirmation()), new Chosen("x")));
-        Assert.True(LegalSetMembership.Contains(With(new TokenSpend(3), allowPass: true), new Passed()));
-        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new Passed()));
+        Assert.True(LegalSetMembership.Contains(With(new TokenSpend(new Dictionary<Guid, int> { [A] = 2 }), allowPass: true), new Passed()));
+        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(new Dictionary<Guid, int> { [A] = 2 })), new Passed()));
     }
 }
 
@@ -1329,15 +1333,18 @@ namespace Tabletop.GameServer.Tests;
 public class EventFilterTests
 {
     static readonly Guid Sealed = Guid.CreateVersion7(), Open = Guid.CreateVersion7();
+    /// <summary>Two model ids out of Samples, so the spend maps are concrete: one key per eligible spender, capped at its own tokens.</summary>
+    static readonly Guid M1 = Samples.Model, M2 = Samples.Container;
+    static readonly TokensSpent SpentByTeam1 = new(new Dictionary<Guid, int> { [M1] = 2 }), SpentByTeam2 = new(new Dictionary<Guid, int> { [M2] = 1 });
     static GameEvent Ev(long seq, EventPayload p) => new(seq, null, p, null);
     static readonly GameEvent[] Log =
     [
-        Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", Samples.Frame))),
+        Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", Samples.Frame))),
         Ev(2, new AskOpened(new Ask(Open, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([]), true, false, null, null))),
-        Ev(3, new AskAnswered(Sealed, Samples.Team1, new TokensSpent(2), false)),
+        Ev(3, new AskAnswered(Sealed, Samples.Team1, SpentByTeam1, false)),
         Ev(4, new AskAnswered(Open, Samples.Team1, new Passed(), false)),
-        Ev(5, new AskAnswered(Sealed, Samples.Team2, new TokensSpent(1), false)),
-        Ev(6, new AskClosed(Sealed, [new TeamAnswer(Samples.Team1, new TokensSpent(2)), new TeamAnswer(Samples.Team2, new TokensSpent(1))])),
+        Ev(5, new AskAnswered(Sealed, Samples.Team2, SpentByTeam2, false)),
+        Ev(6, new AskClosed(Sealed, [new TeamAnswer(Samples.Team1, SpentByTeam1), new TeamAnswer(Samples.Team2, SpentByTeam2)])),
     ];
 
     [Fact]
@@ -1367,7 +1374,7 @@ public class EventFilterTests
     [Fact]
     public void A_live_batch_uses_the_asks_open_before_it()
     {
-        var batch = new[] { Ev(7, new AskAnswered(Sealed, Samples.Team1, new TokensSpent(2), false)) };
+        var batch = new[] { Ev(7, new AskAnswered(Sealed, Samples.Team1, SpentByTeam1, false)) };
         Assert.Null(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid> { Sealed })[0].Payload).Answer);
         Assert.NotNull(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid>())[0].Payload).Answer);
     }
@@ -1394,7 +1401,9 @@ public static class LegalSetMembership
         Assigned g => ask.Legal is Assignment asg && asg.Items.All(i => g.Targets.ContainsKey(i.Id)) && g.Targets.Keys.All(k => asg.Items.Any(i => i.Id == k))
                       && g.Targets.Values.All(asg.Targets.Contains) && g.Targets.Values.Distinct().Count() <= asg.MaxDistinctTargets,
         Destinations d => ask.Legal is MoveRegion m && d.Moves.All(x => m.ModelIds.Contains(x.ModelId)),
-        TokensSpent t => ask.Legal is TokenSpend ts && t.Tokens >= 0 && t.Tokens <= ts.MaxTokens,
+        // Keys and per-key caps, and no total: a spend is any number up to a maximum (p.13). Whether the answering
+        // team owns a key is the spend step's, as MoveRegion's distance is the move step's — no state answers it here.
+        TokensSpent t => ask.Legal is TokenSpend ts && t.Counts.All(kv => ts.MaxByModel.TryGetValue(kv.Key, out var max) && kv.Value >= 0 && kv.Value <= max),
         Confirmed => ask.Legal is Confirmation,
         _ => false,
     };
@@ -1637,7 +1646,10 @@ public class CommandDispatcherTests
     }
     static CommandDispatcher Dispatcher() => new(new InertEngine());
     static readonly Ask Activate = new(Samples.AskId, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([new AskOption("a", "Advance", [Samples.Unit])]), true, false, null, null);
-    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", Samples.Frame);
+    /// <summary>Two model ids out of Samples, so the spend map is concrete: one key per eligible spender, capped at its own tokens.</summary>
+    static readonly Guid M1 = Samples.Model, M2 = Samples.Container;
+    static readonly TokensSpent SpentByTeam1 = new(new Dictionary<Guid, int> { [M1] = 2 }), SpentByTeam2 = new(new Dictionary<Guid, int> { [M2] = 1 });
+    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", Samples.Frame);
 
     public static IEnumerable<object[]> Overrides() =>
         new Command[] { new MoveModels([Samples.Deploy]), new SetWounds(Samples.Model, 2), new SetCondition(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
@@ -1709,14 +1721,14 @@ public class CommandDispatcherTests
     public void A_sealed_ask_collects_every_team_before_it_closes()
     {
         var state = State(Enforcement.Strict, new AskOpened(SimultaneousSpend));
-        var first = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(2)), Clay));
+        var first = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, SpentByTeam1), Clay));
         Assert.Single(first.Events); Assert.IsType<AskAnswered>(first.Events[0]);
         state.Applier.Apply(new GameEvent(2, Clay.ParticipantId, first.Events[0], null));
-        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1)), Clay)).Reason);
-        var second = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1)), Opponent));
+        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, SpentByTeam2), Clay)).Reason);
+        var second = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, SpentByTeam2), Opponent));
         var closed = Assert.IsType<AskClosed>(second.Events[1]);
         Assert.Equal([Samples.Team1, Samples.Team2], closed.Answers.Select(a => a.TeamId));
-        Assert.Equal([2, 1], closed.Answers.Select(a => ((TokensSpent)a.Answer).Tokens));
+        Assert.Equal([2, 1], closed.Answers.Select(a => ((TokensSpent)a.Answer).Counts.Values.Single()));
     }
 
     [Fact]
@@ -1727,7 +1739,7 @@ public class CommandDispatcherTests
         var state = State(Enforcement.Strict,
             new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null)),
             new SequenceStarted(inner, "resolve-hits", new SequenceContext(Samples.Unit, [], [], null)),
-            new AskOpened(innerAsk), new AskAnswered(innerAsk.Id, Samples.Team1, new TokensSpent(2), false));
+            new AskOpened(innerAsk), new AskAnswered(innerAsk.Id, Samples.Team1, SpentByTeam1, false));
         var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AbandonSequence(Samples.Frame), Watcher));
         Assert.Equal([typeof(AskClosed), typeof(SequenceAbandoned)], ok.Events.Select(e => e.GetType()));
         Assert.Single(((AskClosed)ok.Events[0]).Answers);
@@ -2301,7 +2313,10 @@ public class GameSessionTests
     static readonly Guid P2 = Guid.CreateVersion7(), Watcher = Guid.CreateVersion7();
     static readonly GameInfo Info = Samples.Game with { Participants =
         [new Participant(Samples.P1, Guid.CreateVersion7(), "Clay", Samples.Team1, null), new Participant(P2, Guid.CreateVersion7(), "Opponent", Samples.Team2, null), new Participant(Watcher, Guid.CreateVersion7(), "Watcher", null, null)] };
-    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", null);
+    /// <summary>Two model ids out of Samples, so the spend map is concrete: one key per eligible spender, capped at its own tokens.</summary>
+    static readonly Guid M1 = Samples.Model, M2 = Samples.Container;
+    static readonly TokensSpent SpentByTeam1 = new(new Dictionary<Guid, int> { [M1] = 2 }), SpentByTeam2 = new(new Dictionary<Guid, int> { [M2] = 1 });
+    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", null);
     static readonly GameServerOptions Options = new() { DbConnection = "", StytchProjectId = "p", StytchJwksUrl = "u" };
 
     // Rows are never touched on the playing path, so the session tests pass none; Tasks 10-12 test the row paths against Postgres.
@@ -2397,11 +2412,11 @@ public class GameSessionTests
     {
         var (session, log, clay, opponent, watcher) = await PlayingAsync(new FixedAskEngineFactory(SimultaneousSpend));
         Assert.IsType<AskOpened>((await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Single().Payload);
-        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(2))));
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, SpentByTeam1)));
         Assert.NotNull(clay.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
         Assert.Null(opponent.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
         Assert.Null(watcher.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
-        await session.ReceiveAsync(opponent, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1))));
+        await session.ReceiveAsync(opponent, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, SpentByTeam2)));
         Assert.Equal(2, watcher.Events.Select(e => e.Payload).OfType<AskClosed>().Single().Answers.Count);
     }
 
@@ -3898,7 +3913,7 @@ public interface IGameRules
 ## Interfaces needed from other modules
 
 1. **Management API plan**: the Stytch project carries a session custom claim template of exactly `{"account_id": "{{ user.external_id }}"}`, and management keeps every Stytch user's `external_id` set to its `Account.id`, so every session JWT the client hands the game server carries `account_id` at the top level as a GUID string. Agreed exact claim name: `StytchJwtVerifier.AccountClaim = "account_id"` — the template's JSON key is ours to choose, so it must stay spelled this way, and if the template is ever missing this server rejects every connection with no Stytch error to show for it (management plan → *Interfaces needed from other modules → Stytch dashboard*). Also: `POST /v1/games` inserts `game` with `status = 'lobby'`, `created_by`, the six configuration columns (`name`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`) and `rng_seed` — generated there, in application code, because the column is `bigint not null` with no default; this server reads that column at hydration and never writes it, and no management endpoint updates it (owner ruling 1, 2026-09-06); `POST /v1/games/{id}/join` inserts `participant (id, game_id, team_id = null, account_id, army_id = null, army_snapshot = null)`; `POST /v1/games/{id}/end` sets `status = 'ended'`, as does the last `POST /v1/games/{id}/leave`; `leave` deletes the participant row; `DELETE /v1/games/{id}` deletes the game's rows and its `game.game_event` log. Management never writes `status` to `setup` or `playing`, never writes `team`, `participant.team_id`, `participant.army_id`, `participant.army_snapshot`, or a game's `table_state` tree — those are this server's while `lobby`/`setup` (management plan → Rows by writer agrees column for column). `TABLETOP_STYTCH_PROJECT_ID` and `TABLETOP_STYTCH_BASE_URL` in `.env` are shared by both servers; management verifies the same way (its Task 4) and confirms the JWT is checked at connect only.
-2. **Scheduler and interpreter plans**: one `IRulesEngine` implementation between them (the scheduler opens the turn Ask and reacts to `ask_closed`/`sequence_finished` in `Advance`; the interpreter handles `RerollDice`, `SetDice`, `AddModifier` in `Judge`/`Execute` and completes steps in `Advance`), registered by replacing `InertEngineFactory` as `IRulesEngineFactory`; members added to `IGameRules` and implemented on `GrimdarkFutureRules`; the RNG seed as a member the interpreter plan adds to `GameState`, read from `GameInfo.RngSeed` — the stored `management.game.rng_seed` this plan reads at hydration — rather than hashed from `Info.Id` (owner ruling 1, 2026-09-06). The dispatcher already emits `ask_answered`/`ask_closed` and closes a popped frame's Asks before `sequence_abandoned`; the engine must not emit those for answers (it reads `ask_closed`) — the one exception is the scheduler's `ask_closed` with an empty answer list for one of its own unframed Asks superseded by a menu edit (`set_active_team`, `set_round`). The engine must not append or broadcast: it returns payloads. **Reconciled 2026-09-05:** the one implementation is the interpreter plan's `Tabletop.GameServer.Engine.RulesEngine` (Task 10), registered by its `RulesEngineFactory`; the scheduler plugs in as `Engine.IScheduler` through `Engine.ISchedulerFactory` (`Create(IGameRules, GameInfo, PropertySet)`), registered in place of `NoSchedulerFactory`. The interpreter plan also modifies this plan's files: `ConnectionHandshake.RunAsync` gains `Engine.PropertiesNotFoundException` in the hydrate catch (close `1011`), `PostgresFixture` gains `DeletePropertiesAsync(string hash)`, `Program.cs` gains `IPropertiesStore`, `IDiceSource`, `ISchedulerFactory` registrations. `GrimdarkFutureRules` already lives in `Rules/GrimdarkFuture/GfRules.cs` as `partial` (Task 6), so neither plan moves it.
+2. **Scheduler and interpreter plans**: one `IRulesEngine` implementation between them (the scheduler opens the turn Ask and reacts to `ask_closed`/`sequence_finished` in `Advance`; the interpreter handles `RerollDice`, `SetDice`, `AddModifier` in `Judge`/`Execute` and completes steps in `Advance`), registered by replacing `InertEngineFactory` as `IRulesEngineFactory`; members added to `IGameRules` and implemented on `GrimdarkFutureRules`; the RNG seed as a member the interpreter plan adds to `GameState`, read from `GameInfo.RngSeed` — the stored `management.game.rng_seed` this plan reads at hydration — rather than hashed from `Info.Id` (owner ruling 1, 2026-09-06). The dispatcher already emits `ask_answered`/`ask_closed` and closes a popped frame's Asks before `sequence_abandoned`; the engine must not emit those for answers (it reads `ask_closed`) — the one exception is the scheduler's `ask_closed` with an empty answer list for one of its own unframed Asks superseded by a menu edit (`set_active_team`, `set_round`). The engine must not append or broadcast: it returns payloads. **Reconciled 2026-09-05:** the one implementation is the interpreter plan's `Tabletop.GameServer.Engine.RulesEngine` (Task 10), registered by its `RulesEngineFactory`; the scheduler plugs in as `Engine.IScheduler` through `Engine.ISchedulerFactory` (`Create(IGameRules, GameInfo, PropertySet)`), registered in place of `NoSchedulerFactory`. The interpreter plan also modifies this plan's files: `ConnectionHandshake.RunAsync` gains `Engine.PropertiesNotFoundException` in the hydrate catch (close `1011`), `PostgresFixture` gains `DeletePropertiesAsync(string hash)`, `Program.cs` gains `IPropertiesStore`, `IDiceSource`, `ISchedulerFactory` registrations. `GrimdarkFutureRules` already lives in `Rules/GrimdarkFuture/GfRules.cs` as `partial` (Task 6), so neither plan moves it. Also: `LegalSetMembership` checks a `TokensSpent` by the keys and per-key caps of `TokenSpend.MaxByModel` and by no total, so the interpreter plan's spend step owns the one check left — that each key the answering team paid with is one of **its own** models — reading the caps back off the Ask the log holds.
 3. **Geometry plan** (via the interpreter plan): `MoveRegion` destinations are checked here for model ids only; the distance check against `Allowance` and the impassable ids is the move step's, using `Distance.EdgeToEdge` and `Containment.VolumesContaining`, and settling the server-side `Z` with `Settling.SurfaceHeightAt`. Hand moves (`MoveModels`) are copied as sent, including the client's `Z`.
 4. **Client shell plan**: send `Connect` as the first frame within 10 s of opening `ws://localhost:5200/ws`; expect `Welcome`, then `BoardMessage` from `setup` on, then at `playing`/`ended` one or more `EventsMessage`s ending with the whole log delivered (an empty `EventsMessage` when the log is empty), then live frames — except a game ended before setup ever ran, which has no `table_state` row and no log, so `Welcome` is the whole sequence and no board arrives; a `Rejected` frame is followed by a close; a second socket for the same participant closes the first with `1000`; a reconnecting participant is returned to the team their `participant` row names, carried in `Welcome`'s `Info.Participants`, so the client never re-picks a team after a reconnect and never renders a returning player as a spectator (owner ruling 1, 2026-09-06); `Refused.MessageId` echoes `CommandId`/`EditId`; `presence_ended` arrives when another participant's last socket closes; the JWT in `Connect` is verified once — an open socket is never re-authenticated, so the client's once-a-minute refresh matters only for the next connect. The connect sequence ends with `AtRest`, at every status, and every command is answered by one `AtRest` after its events or its `Refused`; a client that has no use for the frame must ignore it, as it must ignore any kind it does not recognise, rather than treat it as a protocol error.
 5. **Contracts plan**: `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client (owner ruling 4, 2026-09-06); `ProjectionDesyncException` thrown by `EventApplier` in place of the `KeyNotFoundException` an unknown id raises today, carrying the event kind and the unknown id (owner ruling 2). This server catches the second in two places, `GameSession.AppendAsync` and `Hydrator` by way of `ConnectionHandshake`, and faults or refuses the connection rather than resyncing. The contracts plan owns the two types; **when the frame is sent is this plan's**, because ruling 4 left "when exactly it is sent, whether it is per connection or broadcast" to the module that sends it. Where that plan's connect-sequence note reads "each of those rounds of processing ends with `AtRest(Seq)`, broadcast to every socket", the rule to implement is the one above: nothing after a lobby or setup edit, and the sender alone when the batch appended nothing.

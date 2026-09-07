@@ -292,8 +292,20 @@ hole rather than a runtime one.
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
 | `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets`, then one pick per item |
 | `MoveRegion` | `Destinations` | see below |
-| `TokenSpend` | `TokensSpent` | `Chooser.Next(MaxTokens + 1)` |
+| `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in id order |
 | `Confirmation` | `Confirmed` | always |
+
+A token spend draws per model rather than once against a total. Grimdark Future p.13 lets each
+model spend any number of the tokens it holds, so `TokenSpend` carries a maximum per model and
+the bound under test is that maximum. A single draw against the sum could never produce "one from
+the model holding four, none from the other", which is the answer a per-model bug shows up in.
+The entries are drawn in id order, so one seed answers one run identically.
+
+A `PieceSelection` whose `Eligible` list is model ids needs nothing from the policy: it picks ids
+out of the list it was given without asking what they name, which is what makes a Sniper choosing
+its target model (p.13, ruled 2026-09-06) a zero-change shape here. The deployment loop that
+places models by hand after an answer keys on the question name, not on the answer shape, so a
+model-id selection never reaches it.
 
 A pass is taken only where `Ask.AllowPass` is set and `Chooser.Chance(PassProbability)` fires.
 `PassProbability` defaults to `0`, so the policy acts whenever the set admits anything. It stays
@@ -617,7 +629,10 @@ show why a unit died, which is the first thing a person debugging the engine wan
 cost is a few hundred integers per game.
 
 **Open Asks ride on every frame.** `RecordedAsk` carries the question, prompt, teams, flags,
-window kind, frame id, legal-set kind, who has answered, options, pieces and allowance. Pausing
+window kind, frame id, legal-set kind, who has answered, options, pieces and allowance. A token
+spend records its spender models in `Pieces` and the sum of their maxima in `Allowance`, and not
+the per-model maxima: each frame already carries every model's `SpellTokens`, which is the same
+number. Pausing
 a simulation and answering an open Ask from a browser is therefore a later feature rather than a
 schema change.
 

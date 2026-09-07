@@ -1052,11 +1052,13 @@ public sealed record MarkerRemoved(Guid MarkerId) : StateChange;
 
 **Interfaces:**
 - Consumes: `ModelRelocation` (Task 6).
-- Produces: `Ask(Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)`; `AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces)`; `abstract record LegalSet` with `Options(IReadOnlyList<AskOption> Choices)` [options], `PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IReadOnlyList<Guid> Targets, int Amount)` [allocation], `Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds, IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(int MaxTokens)` [token_spend], `Confirmation` [confirmation]; `MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin)`; `abstract record AskAnswer` with `Chosen(string OptionId)` [chosen], `SelectedPieces(IReadOnlyList<Guid> PieceIds)` [selected_pieces], `Allocated(IReadOnlyDictionary<Guid, int> Counts)` [allocated], `Assigned(IReadOnlyDictionary<string, Guid> Targets)` [assigned], `Destinations(IReadOnlyList<ModelRelocation> Moves)` [destinations], `TokensSpent(int Tokens)` [tokens_spent], `Confirmed` [confirmed], `Passed` [passed]; `static class AskQuestions` with `Activate = "activate"`, `ActOrEndPhase = "act_or_end_phase"`, `Deploy = "deploy"`, `DeployScouts = "deploy_scouts"`, `DeployAmbusher = "deploy_ambusher"`, `EndRound = "end_round"`, `Confirm = "confirm"`, `React = "react"`, `SpendTokens = "spend_tokens"`.
+- Produces: `Ask(Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)`; `AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces)`; `abstract record LegalSet` with `Options(IReadOnlyList<AskOption> Choices)` [options], `PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IReadOnlyList<Guid> Targets, int Amount)` [allocation], `Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds, IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(IReadOnlyDictionary<Guid, int> MaxByModel)` [token_spend], `Confirmation` [confirmation]; `MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin)`; `abstract record AskAnswer` with `Chosen(string OptionId)` [chosen], `SelectedPieces(IReadOnlyList<Guid> PieceIds)` [selected_pieces], `Allocated(IReadOnlyDictionary<Guid, int> Counts)` [allocated], `Assigned(IReadOnlyDictionary<string, Guid> Targets)` [assigned], `Destinations(IReadOnlyList<ModelRelocation> Moves)` [destinations], `TokensSpent(IReadOnlyDictionary<Guid, int> Counts)` [tokens_spent], `Confirmed` [confirmed], `Passed` [passed]; `static class AskQuestions` with `Activate = "activate"`, `ActOrEndPhase = "act_or_end_phase"`, `Deploy = "deploy"`, `DeployScouts = "deploy_scouts"`, `DeployAmbusher = "deploy_ambusher"`, `EndRound = "end_round"`, `Confirm = "confirm"`, `React = "react"`, `SpendTokens = "spend_tokens"`.
 - The **legal set's shape** is the closed set the client renders from; the **question** is a name: the engine's own in `AskQuestions`, a ruleset's (e.g. `shoot_or_not`, `strike_back`, `remove_casualties`) supplied by `GameRules` the way action names are. Action sequences constraint 9 (who answers differs per ruleset) is why the question is not an enum.
+- `PieceSelection.Eligible` holds **either grain**. Unit ids are deploy, an Ambusher and a charge target; model ids are a spell whose `effect.target_grain` is `model`, and a `Sniper` choosing which model of the target unit takes the wound (Grimdark Future p.13, owner ruling of 2026-09-06). Nothing in the type distinguishes them, and `LegalSetMembership` checks only the count bounds, distinctness and presence in `Eligible`, so a `Sniper` target Ask is `PieceSelection(models, 1, 1)` under a `GameRules` question name with no Protocol change. The wound that follows is `WoundsSet` on the chosen model id, which already names a model; what the sequence bypasses is the `assign` `Allocation` Ask, and with it p.14's wounded-`Tough`-first and heroes-last ordering, which live in the predicate that builds `Allocation.Targets` rather than on the wire.
+- `TokenSpend` is a **map keyed by model**, not one total (owner ruling of 2026-09-06). p.13's `Caster(X)`: *"Models within 18" in line of sight of the caster's unit may spend any number of spell tokens at the same time before rolling, to give the caster +1/-1 to the roll per token."* The player chooses which model pays what, so `MaxByModel` names every model that may pay with its own token count as its cap, the caster's own model included with what it holds after the spell's cost, and a team's maximum is the sum of its own entries. `TokensSpent.Counts` answers per model; an absent key paid nothing and an empty map is what `Passed` already says. Membership is keys within `MaxByModel` and values within each key's cap, with no total, because a spend is any number up to a maximum. One map covers every addressed team's models, since an Ask has one legal set for all of its teams, and it reveals nothing already hidden: `ModelInPlay.SpellTokens` is in every client's projection. `Allocation(Targets, Amount)` was rejected for this: `Allocated` is legal only when its counts sum to `Amount`, which wound assignment needs and a spend contradicts, and `Allocation` carries no per-target cap, which cannot be recovered from a total. The two kinds keep their wire slots, so `LegalSet` still has seven members and `AskAnswer` eight.
 - The move Ask carries the allowance and the impassable volume ids (`architecture.md` → Continuous actions); its answer is destinations, whose `To` positions carry the client's settled Z and are overwritten by the server's event. It also carries **what containment allows**, because `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire but nothing told the client where one is legal: `MoveRegion.Containment` is non-null exactly when this move may embark or is disembarking (game flow → Inside a container; rulebook p.14 `Transport(X)`, p.20 solid buildings). `Enterable` are the containers a model reaching one embarks the whole unit into — *"only one model needs to reach the Transport for everyone to embark"* — so the answer is a `Destinations` whose `To` is `Inside(thatContainer)` for every model, not one relocation per reachable model. `ExitingId` and `ExitWithin` are the container the unit is inside and the distance its models must be placed **fully** within of it (OPR: 6"), which is `Tabletop.Geometry.Containment.BaseFullyWithin`; the client draws that region instead of `Movement.Region`, since an occupant has no position to move from, and `Allowance` is then the action's remaining distance and binds nothing. Enterable and exiting are never both set, because a unit may not embark and disembark in one activation. `Containment` is optional so that a move with no container in play — every move on open table, and the charge close-in, fall-back and consolidation Asks — is constructed exactly as before.
 
-Spec: action sequences → Asks, Windows (offered, invoked, sealed; pass is a real answer); scheduler → The turn is an Ask (options = unit × action), Deployment, The round boundary (Ambushers), player-turn phases; client shell → Asks and windows (the panel's seven renderings, muting by window kind, sealed simultaneous token spends, confirm gates); spell effects → Target selection (one to `target_count` targets); game flow → Inside a container (enter or exit with any move action, never both in one activation, exit within 6").
+Spec: action sequences → Asks, Windows (offered, invoked, sealed; pass is a real answer), The token economy (a counter per model, spent by casting and by the token spend); scheduler → The turn is an Ask (options = unit × action), Deployment, The round boundary (Ambushers), player-turn phases; client shell → Asks and windows (the panel's seven renderings, muting by window kind, sealed simultaneous token spends, confirm gates); spell effects → Target selection (one to `target_count` targets); game flow → Inside a container (enter or exit with any move action, never both in one activation, exit within 6"). The per-model spend and the model-grain `Sniper` target are the owner's rulings of 2026-09-06.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1083,12 +1085,34 @@ public class AskTests
     }
 
     [Fact]
-    public void A_sealed_token_spend_is_addressed_to_several_teams()
+    public void A_sealed_token_spend_caps_every_spender_at_its_own_tokens()
     {
-        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Guid.CreateVersion7(), Guid.CreateVersion7()],
-            new TokenSpend(3), AllowPass: true, Sealed: true, WindowKind: "casting", FrameId: Guid.CreateVersion7());
+        // p.13 Caster(X): each model spends any number of the tokens it holds, so the cap is per model and
+        // a team's maximum is the sum of its own entries. One legal set serves both addressed teams.
+        Guid a1 = Guid.CreateVersion7(), a2 = Guid.CreateVersion7(), b1 = Guid.CreateVersion7();
+        var teamA = Guid.CreateVersion7(); var teamB = Guid.CreateVersion7();
+        var spend = new TokenSpend(new Dictionary<Guid, int> { [a1] = 2, [a2] = 3, [b1] = 1 });
+        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [teamA, teamB],
+            spend, AllowPass: true, Sealed: true, WindowKind: "casting", FrameId: Guid.CreateVersion7());
         Assert.Equal(2, ask.Teams.Count);
         Assert.True(ask.Sealed);
+        Assert.Equal(5, new[] { a1, a2 }.Sum(m => spend.MaxByModel[m]));                                    // team A's maximum, carried nowhere else
+        Assert.Equal(1, spend.MaxByModel[b1]);
+        var answer = new TokensSpent(new Dictionary<Guid, int> { [a2] = 3 });                                // a1 kept its two for its own spell
+        Assert.False(answer.Counts.ContainsKey(a1));
+        Assert.Equal(3, answer.Counts.Values.Sum());
+    }
+
+    [Fact]
+    public void A_piece_selection_is_answered_at_either_grain()
+    {
+        // Unit ids for deploy and a charge target; model ids for a model-grain spell and for a Sniper's
+        // target model (p.13). Nothing in the type or its answer distinguishes the two.
+        Guid unit = Guid.CreateVersion7(), model = Guid.CreateVersion7();
+        Assert.Equal([unit], new PieceSelection([unit], 1, 1).Eligible);
+        var sniper = new PieceSelection([model, Guid.CreateVersion7()], 1, 1);
+        Assert.Equal(1, sniper.Max);
+        Assert.Equal([model], new SelectedPieces([model]).PieceIds);
     }
 
     [Fact]
@@ -1150,8 +1174,12 @@ public static class AskQuestions
 [JsonDerivedType(typeof(Confirmation), "confirmation")]
 public abstract record LegalSet;
 public sealed record Options(IReadOnlyList<AskOption> Choices) : LegalSet;
+/// <summary>
+/// Pick between Min and Max of the Eligible ids. The ids are units (deploy, an Ambusher, a charge target) or models
+/// (a model-grain spell, a Sniper's target model — rulebook p.13); nothing here distinguishes the two grains.
+/// </summary>
 public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max) : LegalSet;
-/// <summary>Distribute Amount over Targets (wound assignment, casualty removal).</summary>
+/// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount.</summary>
 public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount) : LegalSet;
 /// <summary>Give each item one target (weapon groups to up to N targets).</summary>
 public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets) : LegalSet;
@@ -1171,9 +1199,14 @@ public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, 
 /// an occupant has no position to move from. Never both — a unit may not embark and disembark in one activation.
 /// </summary>
 public sealed record MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin);
-/// <summary>Spend up to MaxTokens spell tokens at the same time as every other addressed team, each token giving the caster
-/// +1/-1 on the one casting roll (rulebook p.13 Caster(X)).</summary>
-public sealed record TokenSpend(int MaxTokens) : LegalSet;
+/// <summary>
+/// Spend spell tokens at the same time as every other addressed team, each token giving the caster +1/-1 on the one casting
+/// roll (rulebook p.13 Caster(X)). MaxByModel is every model that may pay — on the table, holding tokens, within 18" and in
+/// line of sight of the caster's unit, the caster itself included with what it holds after the spell's cost — keyed to the
+/// tokens it holds, which is its cap. A team's maximum is the sum of its own entries and is carried nowhere else. One map
+/// serves every addressed team, and it discloses nothing: token counts are in every client's projection.
+/// </summary>
+public sealed record TokenSpend(IReadOnlyDictionary<Guid, int> MaxByModel) : LegalSet;
 public sealed record Confirmation : LegalSet;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -1191,13 +1224,14 @@ public sealed record SelectedPieces(IReadOnlyList<Guid> PieceIds) : AskAnswer;
 public sealed record Allocated(IReadOnlyDictionary<Guid, int> Counts) : AskAnswer;
 public sealed record Assigned(IReadOnlyDictionary<string, Guid> Targets) : AskAnswer;
 public sealed record Destinations(IReadOnlyList<ModelRelocation> Moves) : AskAnswer;
-public sealed record TokensSpent(int Tokens) : AskAnswer;
+/// <summary>Tokens paid per model. A model absent from Counts paid nothing; an empty map says what Passed says.</summary>
+public sealed record TokensSpent(IReadOnlyDictionary<Guid, int> Counts) : AskAnswer;
 public sealed record Confirmed : AskAnswer;
 /// <summary>A real answer, logged; only legal when the Ask allows it.</summary>
 public sealed record Passed : AskAnswer;
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 8 passed. Commit: `Define Asks, legal sets and answers`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 9 passed. Commit: `Define Asks, legal sets and answers`.**
 
 ### Task 9: Protocol — events
 
@@ -1348,7 +1382,7 @@ public static class EventKinds
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 10 passed. Commit: `Define the event log's payloads`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 11 passed. Commit: `Define the event log's payloads`.**
 
 ### Task 10: Protocol — commands
 
@@ -1452,7 +1486,7 @@ public sealed record SetDice(Guid FrameId, Guid RollId, IReadOnlyList<DieValue> 
 public sealed record AddModifier(Guid FrameId, string Roll, int Amount) : Command;
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 12 passed. Commit: `Define the commands`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 13 passed. Commit: `Define the commands`.**
 
 ### Task 11: Protocol — presence and edits
 
@@ -1594,7 +1628,7 @@ public sealed record SwapZones(int TeamOrdinalA, int TeamOrdinalB) : SetupEdit;
 public sealed record ReplaceDraft(TableState Draft) : SetupEdit;
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 15 passed. Commit: `Define presence values and the unlogged edits`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 16 passed. Commit: `Define presence values and the unlogged edits`.**
 
 ### Task 12: Protocol — the socket envelope and the wire format
 
@@ -1642,16 +1676,17 @@ public static class Samples
     public static readonly LegalSet[] LegalSets =
     [
         new Options([new AskOption("a", "Advance", [Unit])]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
+        new PieceSelection([Model], 1, 1),                                                                  // model grain: a Sniper's target (p.13)
         new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2), new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([Container], null, null)),                 // may embark
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([], Container, 6)),                        // is disembarking
-        new TokenSpend(3), new Confirmation(),
+        new TokenSpend(new Dictionary<Guid, int> { [Model] = 2 }), new Confirmation(),
     ];
     public static readonly AskAnswer[] Answers =
     [
         new Chosen("a"), new SelectedPieces([Unit]), new Allocated(new Dictionary<Guid, int> { [Model] = 3 }),
         new Assigned(new Dictionary<string, Guid> { ["g1"] = Unit }), new Destinations([Deploy]), new Destinations([Embark]), new Destinations([Disembark]),
-        new TokensSpent(2), new Confirmed(), new Passed(),
+        new TokensSpent(new Dictionary<Guid, int> { [Model] = 2 }), new Confirmed(), new Passed(),
     ];
     public static Ask Ask => new(AskId, AskQuestions.Activate, "Activate", [Team1], LegalSets[0], true, false, null, null);
 
@@ -1661,7 +1696,7 @@ public static class Samples
         new PhaseStarted("deployment"), new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Unit, [Unit], [], "Advance")),
         new StepCompleted(Frame, "roll-to-hit", new Chosen("a"), [Hit], [new WoundsSet(Model, 1)]) { Values = new Dictionary<string, int> { ["attacks"] = 2, ["hits"] = 1 } }, new SequenceFinished(Frame),
         new SequenceAbandoned(Frame), new AskOpened(Ask), new AskAnswered(AskId, Team1, null, false),
-        new AskClosed(AskId, [new TeamAnswer(Team1, new TokensSpent(2))]),
+        new AskClosed(AskId, [new TeamAnswer(Team1, new TokensSpent(new Dictionary<Guid, int> { [Model] = 2 }))]),
         new DiceRerolled(Frame, Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]),
         new DiceEdited(Frame, Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]),
         new ModifierAdded(Frame, "hit", new RollModifier("Clay", 1)), new Undone(3),
@@ -1820,7 +1855,7 @@ public static class WireJson
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 23 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 24 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
 
 ### Task 13: Protocol — the projection
 
@@ -1970,7 +2005,7 @@ public sealed class OpenAsk(Ask ask)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 24 passed. Commit: `Define the projection the client draws from`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 25 passed. Commit: `Define the projection the client draws from`.**
 
 ### Task 14: Protocol — the rules-free event applier
 
@@ -2814,9 +2849,9 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed record Ask(Guid Id, string Question, string Prompt, IRL<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)` | |
 | `sealed record AskOption(string Id, string Label, IRL<Guid> Pieces)` | |
 | `static class AskQuestions` | `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`, `Confirm`, `React`, `SpendTokens` (snake_case strings) |
-| `abstract record LegalSet` | `Options(IRL<AskOption> Choices)` [options], `PieceSelection(IRL<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IRL<Guid> Targets, int Amount)` [allocation], `Assignment(IRL<AskOption> Items, IRL<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IRL<Guid> ModelIds, double Allowance, IRL<Guid> ImpassableVolumeIds, IRL<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(int MaxTokens)` [token_spend], `Confirmation` [confirmation] |
+| `abstract record LegalSet` | `Options(IRL<AskOption> Choices)` [options], `PieceSelection(IRL<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IRL<Guid> Targets, int Amount)` [allocation], `Assignment(IRL<AskOption> Items, IRL<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IRL<Guid> ModelIds, double Allowance, IRL<Guid> ImpassableVolumeIds, IRL<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(IRD<Guid,int> MaxByModel)` [token_spend], `Confirmation` [confirmation] |
 | `sealed record MoveContainment(IRL<Guid> Enterable, Guid? ExitingId, double? ExitWithin)` | not a union member; `MoveRegion.Containment`, null unless the move may embark or is disembarking |
-| `abstract record AskAnswer` | `Chosen(string OptionId)`, `SelectedPieces(IRL<Guid> PieceIds)`, `Allocated(IRD<Guid,int> Counts)`, `Assigned(IRD<string,Guid> Targets)`, `Destinations(IRL<ModelRelocation> Moves)`, `TokensSpent(int Tokens)`, `Confirmed`, `Passed` — kinds snake_case of the type name |
+| `abstract record AskAnswer` | `Chosen(string OptionId)`, `SelectedPieces(IRL<Guid> PieceIds)`, `Allocated(IRD<Guid,int> Counts)`, `Assigned(IRD<string,Guid> Targets)`, `Destinations(IRL<ModelRelocation> Moves)`, `TokensSpent(IRD<Guid,int> Counts)`, `Confirmed`, `Passed` — kinds snake_case of the type name |
 | `abstract record Command` | `AnswerAsk(Guid AskId, AskAnswer Answer)`, `MoveModels(IRL<ModelRelocation> Moves)`, `PlaceMarker(Marker Marker)`, `MoveMarker(Guid MarkerId, Point3 Position, Yaw Yaw)`, `RemoveMarker(Guid MarkerId)`, `SetWounds(Guid ModelId, int Wounds)`, `SetCondition(Subject Subject, string Condition, bool Present)`, `RecordAction(Guid UnitId, string Action)`, `ClearActionRecord(Guid UnitId)`, `AddGrant(Guid UnitId, Grant Grant)`, `RemoveGrant(Guid UnitId, Guid GrantId)`, `SetSpellTokens(Guid ModelId, int Tokens)`, `SetWoundsThisActivation(Guid UnitId, int Wounds)`, `SetScore(Guid TeamId, int Score)`, `SetActiveTeam(Guid TeamId)`, `SetRound(int Round)`, `Undo(long ToSeq)`, `AbandonSequence(Guid FrameId)`, `RerollDice(Guid FrameId, Guid RollId, IRL<int> DiceIndices)`, `SetDice(Guid FrameId, Guid RollId, IRL<DieValue> Dice)`, `AddModifier(Guid FrameId, string Roll, int Amount)` — kinds snake_case of the type name |
 | `sealed record DieValue(int Index, int Raw)` | |
 | `sealed record Presence(Guid ParticipantId, Cursor? Cursor, Selection? Selection, IRL<PresencePlacement> Placements, Measurement? Measurement)` | |
@@ -2878,8 +2913,8 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `deploy_ambusher` → `pieces`, pass allowed | | scheduler → The round boundary |
 | `confirm` → `confirmation` | | action sequences → One roll primitive (the confirm gate) |
 | `react` → `options`, pass allowed, `WindowKind` set | | action sequences → Windows |
-| `spend_tokens` → `token_spend`, `Sealed` | | action sequences → Windows (sealed simultaneous variant) |
-| ruleset questions → `options` / `pieces` / `allocation` / `assignment` / `move_region` | e.g. shoot or not, strike back, remove casualties, weapon groups and targets, charge target, move destination, embark, disembark, spell and tokens, spell targets, consolidation | action sequences → Grimdark Future's sequences; spell effects → Target selection; game flow → Inside a container (`move_region.containment`); `architecture.md` → Continuous actions (move parameters) |
+| `spend_tokens` → `token_spend`, `Sealed` | one cap per spending model | action sequences → Windows (sealed simultaneous variant); owner spend ruling of 2026-09-06 |
+| ruleset questions → `options` / `pieces` / `allocation` / `assignment` / `move_region` | e.g. shoot or not, strike back, remove casualties, weapon groups and targets, charge target, move destination, embark, disembark, spell and tokens, spell targets, a `Sniper`'s target model, consolidation | action sequences → Grimdark Future's sequences; spell effects → Target selection; game flow → Inside a container (`move_region.containment`); `architecture.md` → Continuous actions (move parameters) |
 | **Setup edits** | | |
 | `create_team`, `pick_team`, `pick_army`, `set_configuration` | LobbyEdit | whole-design review ruling 4 and 5; setup phase → Joining, The lifecycle |
 | `start_setup`, `end_setup` | LobbyEdit | setup phase → The lifecycle (creator only) |
@@ -2933,18 +2968,38 @@ None consumed. Obligations this plan places on later plans, stated as the signat
 
 - **Geometry plan**: implement every body in `libs/Tabletop.Geometry/Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests.
 - **Every plan that constructs `GameInfo`**: `RngSeed` is positional and last among the scalars, so every construction supplies it. See the note under *Spec corrections proposed* 12 for why it is positional rather than an init-only property: an init-only property would leave the six consuming plans' constructions compiling untouched, but a construction that forgot the seed would silently get `0`, and a `0` seed is a real game whose dice match every other game that forgot. Nothing is implemented yet, so the compile error costs a text edit in each plan and buys the guarantee that no game can be built without a seed.
-- **Game server plan**: read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types. Send `AtRest(Seq)` to every socket on the game once it has finished processing an inbound `connect`, `command` or `edit`, after the last frame that processing produced, with `Seq` the last sequence number in the log and no frame for a relayed `presence` or `ping`. Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild throws again at the same event.
+- **Game server plan**: check a `TokensSpent` against `TokenSpend` by keys and per-key caps — every key of `Counts` is a key of `MaxByModel`, every value between zero and that key's cap — and by no total, since a spend is any number up to a maximum; leave which team owns a key to the spend step, as `MoveRegion`'s distances are left to the move step. Read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; own the `Properties` catalog types. Send `AtRest(Seq)` to every socket on the game once it has finished processing an inbound `connect`, `command` or `edit`, after the last frame that processing produced, with `Seq` the last sequence number in the log and no frame for a relayed `presence` or `ping`. Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild throws again at the same event.
 - **Management API plan**: write `rng_seed` on `POST /v1/games`, generated in application code (`Random.Shared.NextInt64()` is enough — the seed is not a secret, since editing dice is already a first-class command) and never updated; return it in the game representation the game server and client read. Adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing.
-- **Interpreter plan**: set `GameState.RngSeed` from `GameInfo.RngSeed` — `unchecked((ulong)info.RngSeed)` keeps `GameState.RngSeed : ulong`, so `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 are untouched — and delete the SHA-256-of-`Info.Id` derivation and the test that asserts two game ids give two seeds.
-- **Simulation plan**: set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`; `SimIds.Of` and the UUIDv7 exception are withdrawn. Wait for `at_rest` as the end of a step and delete the 250 millisecond quiet window: a socket run's pacing is the frame, not a timer.
+- **Interpreter plan**: build `TokenSpend.MaxByModel` from p.13's eligibility predicate over every addressed team's models, each keyed to the tokens it holds, the caster's own model included with what is left after the spell's cost; read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model; sum every team's counts for the roll modifier. `TokenSpend` no longer carries a single maximum, so the largest-team-maximum-clamped-per-team arrangement and its open question are void. Open a `Sniper`'s target as a `PieceSelection(models, 1, 1)` under a `GameRules` question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask: p.14's wounded-`Tough`-first and heroes-last ordering is consulted only when one is opened. Also set `GameState.RngSeed` from `GameInfo.RngSeed` — `unchecked((ulong)info.RngSeed)` keeps `GameState.RngSeed : ulong`, so `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 are untouched — and delete the SHA-256-of-`Info.Id` derivation and the test that asserts two game ids give two seeds.
+- **Simulation plan**: answer a `TokenSpend` with a count per model within that model's own cap, rather than one integer within a single maximum. Set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`; `SimIds.Of` and the UUIDv7 exception are withdrawn. Wait for `at_rest` as the end of a step and delete the 250 millisecond quiet window: a socket run's pacing is the frame, not a timer.
 - **Viewer plan**: ignore `at_rest`, and ignore any other `SocketMessage` kind it does not handle without faulting. It reads the log and has nothing to do at a rest point.
-- **Client shell plan**: catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect and rebuild from the log — never skip the event and carry on; ignore `at_rest`, and any other kind it does not handle, without faulting. Add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
+- **Client shell plan**: render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map — the mode stays, only its two shapes changed; keep resolving a clicked piece's own id before the unit its selection widened to, because a `PieceSelection` may be model-grain. Catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect and rebuild from the log — never skip the event and carry on; ignore `at_rest`, and any other kind it does not handle, without faulting. Add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
 
 ## Questions for the project owner
 
 **None open.**
 
 1. ~~**How is a departed presence signalled?**~~ **Answered 2026-09-06 by owner protocol ruling 1.** The server sends `PresenceEnded` when a participant's last socket closes. The assumption this plan took is confirmed: the frame stays in `SocketMessage`, no mechanism changes, and no client owns a presence timeout. Spec correction 13 strikes presence's open item.
+
+### The spend rulings of 2026-09-06, and the two reuses they proposed
+
+Both rulings asked for an existing legal set rather than a new one. One holds and one does not.
+
+| Ruling | Proposed reuse | Outcome |
+| --- | --- | --- |
+| A team allocates its token spend across its own models | `Allocation(Targets, Amount)` with `Allocated` | **Rejected.** `Allocated` is legal only when its counts sum to `Amount`, which is what wound assignment and casualty removal need and the contrary of a spend of any number up to a maximum; and `Allocation` carries no per-target cap, which a total cannot supply, since five tokens over models holding one and four is a different legal set from five over models holding three and two. `TokenSpend` and `TokensSpent` keep their wire slots and become maps keyed by model, so no kind is added and none is deleted |
+| A `Sniper` picks its target model | `PieceSelection(Eligible, 1, 1)` with `SelectedPieces`, over model ids | **Confirmed.** Nothing on the wire or in the applier reads `Eligible` as units: membership is count bounds, distinctness and presence in `Eligible`; `SelectedPieces` carries bare ids; the client resolves a clicked piece's own id before the unit its selection widened to, and `Names.Piece` labels either; a model-grain `PieceSelection` is already how a spell with `effect.target_grain = 'model'` selects. The one unit-shaped reader is the scheduler's `deploy` answer probe, which is reached only by its own two questions |
+
+The per-model cap is `TokenSpend.MaxByModel`'s value, and there is no second cap: a team's maximum is
+the sum of its own entries, and membership never checks a total. Ownership of a key is the spend
+step's check rather than `LegalSetMembership`'s, which has no state to answer it with, on the
+standing precedent that `MoveRegion` checks model ids only and leaves distance to the move step.
+
+A targeted wound needs nothing new. `WoundsSet(Guid ModelId, int Wounds)` already names a model and
+sets an absolute count, and it rides in `StepCompleted.Changes` like any other state change. The
+bypass is an absence in the sequence: p.14's rule that a wounded `Tough` model takes wounds until it
+dies and its rule that heroes are assigned last are properties of the predicate that builds
+`Allocation.Targets`, so a step that opens no `assign` Ask consults neither.
 
 ### Answered from the specs, 2026-09-05 (design review)
 

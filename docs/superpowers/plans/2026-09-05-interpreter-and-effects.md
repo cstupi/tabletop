@@ -2195,9 +2195,9 @@ public class InterpreterTests
 
 **Interfaces:**
 - Consumes: Task 8; `AskQuestions.React`, `AskQuestions.SpendTokens`, `TokenSpend`, `TokensSpent`, `Passed`, `Chosen` (Protocol); `Projection.Scheduler.Order`.
-- Produces: `static class Windows` with `IRL<Guid> ReactionOrder(GameState state, Guid? actorTeam, IRL<Guid> reactingTeams)` (**the one reaction-ordering policy**, reconciled with the scheduler plan's Task 8: `state.Rules.OrderReactions(state, actorTeam, reactingTeams)` when it returns non-null; otherwise the scheduler's order rotated to start after the actor's team — the actor's own team last, since OPR's casting window is offered to it — teams missing from the order following in `Info.Teams` order, restricted to `reactingTeams`, with teams in `Projection.Scheduler.Passed` dropped; scheduler → Windows), `StepOutcome? Run(StepContext ctx, string point)` (null when the window is done: nobody can react, or every eligible team has passed or its reaction finished; otherwise `OpenAsks` of the next team's react-or-pass Ask, or `Push` of the next chosen reaction), `StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IRD<Guid,int> maxByTeam, string prompt)` (one sealed Ask to every team with a positive max; null once it is closed), `IRD<Guid,int> Spends(StepContext ctx, string windowKind)` (each team's `TokensSpent.Tokens` clamped to its max, 0 for a pass); `StepContext.SealedAsk(string question, string prompt, IRL<Guid> teams, LegalSet legal, string windowKind)`.
+- Produces: `static class Windows` with `IRL<Guid> ReactionOrder(GameState state, Guid? actorTeam, IRL<Guid> reactingTeams)` (**the one reaction-ordering policy**, reconciled with the scheduler plan's Task 8: `state.Rules.OrderReactions(state, actorTeam, reactingTeams)` when it returns non-null; otherwise the scheduler's order rotated to start after the actor's team — the actor's own team last, since OPR's casting window is offered to it — teams missing from the order following in `Info.Teams` order, restricted to `reactingTeams`, with teams in `Projection.Scheduler.Passed` dropped; scheduler → Windows), `StepOutcome? Run(StepContext ctx, string point)` (null when the window is done: nobody can react, or every eligible team has passed or its reaction finished; otherwise `OpenAsks` of the next team's react-or-pass Ask, or `Push` of the next chosen reaction), `StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam, string prompt)` (one sealed `TokenSpend` Ask to every team with an eligible model; null once it is closed), `IRD<Guid,IRD<Guid,int>> Spends(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam)` (each team's revealed `TokensSpent.Counts`, keys the team does not own dropped and each count cut to the Ask's own cap for that model, empty for a pass); `StepContext.SealedAsk(string question, string prompt, IRL<Guid> teams, LegalSet legal, string windowKind)`.
 - A window is one Ask per eligible team, `WindowKind = point`, `AllowPass = true`, `Options` = that team's reactions; teams are asked in `ReactionOrder`, one at a time, and a chosen reaction is pushed before the next team is asked, so reactions resolve in turn order after the actor (scheduler → Windows). The k-th chosen reaction is the k-th child in the step's history — that is how a re-run step knows which reactions have been pushed. Nothing is asked when `ReactionsAt` is empty (action sequences → Windows: "If nothing can react, no window opens").
-- The simultaneous token spend is one Ask addressed to every eligible team with `Sealed = true`; the dispatcher withholds answers until all have answered and closes with every answer (skeleton Task 5–6). `TokenSpend.MaxTokens` is one number for the whole Ask, so it carries the largest team maximum and `Spends` clamps each team to its own; question 6 records this.
+- The simultaneous token spend is one Ask addressed to every eligible team with `Sealed = true`; the dispatcher withholds answers until all have answered and closes with every answer (skeleton Task 5–6). Its legal set is `TokenSpend(MaxByModel)`, a cap per model rather than one number: p.13 lets a player choose which of its models pays, so the answer is `TokensSpent.Counts` keyed by model (owner ruling of 2026-09-06 on question 14; contracts → the two kinds keep their wire slots and become maps). One map covers every addressed team, since an Ask has one legal set for all of its teams, and it hides nothing, because `ModelInPlay.SpellTokens` is in every client's projection. **The per-team maximum is gone**, and with it the largest-team-maximum-clamped-per-team arrangement, `Windows.MaxFor` and `Values["tokens_max_<team>"]`: a team's maximum is the sum of its own entries, so no clamp derives it and no Ask carries another team's total. Two checks remain the step's rather than `LegalSetMembership`'s, on the precedent that `MoveRegion` checks model ids and leaves distance to the move step: a key belongs to the answering team, and a count is within that key's recorded cap. Both are applied whatever the enforcement setting, because spending tokens a model does not hold would drive its counter below zero. The caps are read back off the Ask itself, which the log holds, rather than recomputed.
 
 Spec: action sequences → Windows (offered, invoked, sealed; passing is a real answer, logged; the window closes when every offered team has passed or its reaction has finished); scheduler → Windows (ordering: turn order from the team after the actor; muting is the client's); `architecture.md` → per-player filtered streams (the simultaneous token spend is their one use).
 
@@ -2219,11 +2219,21 @@ public class WindowTests
     static readonly Tabletop.Content.Unit A = Unit("A", "4+", "4+", [], 2, []), B = Unit("B", "4+", "4+", [], 2, []);
     static Sequence Main() => new("main", [new LambdaStep("window", ctx => Windows.Run(ctx, "charge-declared") ?? new Complete([]))]);
     static Sequence Reaction() => new("overwatch", [new LambdaStep("shoot", _ => new Complete([new ScoreSet(Samples.Team2, 1)]))]);
-    static readonly Dictionary<Guid, int> Max = new() { [Samples.Team1] = 2, [Samples.Team2] = 3 };
+    /// <summary>p.13's cap is each model's own token count, per team, which is what GfCasting.SpendCapacity answers (Task 17).</summary>
+    static readonly Dictionary<Guid, IReadOnlyDictionary<Guid, int>> Caps = new()
+    {
+        [Samples.Team1] = new Dictionary<Guid, int> { [A.Models[0].Id] = 1, [A.Models[1].Id] = 2 },
+        [Samples.Team2] = new Dictionary<Guid, int> { [B.Models[0].Id] = 3 },
+    };
+    static StepOutcome Spent(StepContext ctx)
+    {
+        var spends = Windows.Spends(ctx, "casting", Caps);
+        var values = spends.ToDictionary(t => t.Key.ToString("N"), t => t.Value.Values.Sum());
+        foreach (var (_, counts) in spends) foreach (var (model, tokens) in counts) values[model.ToString("N")] = tokens;
+        return new Complete([], values);
+    }
     static Sequence Spending() => new("spending", [
-        new LambdaStep("declare", _ => new Complete([], Max.ToDictionary(kv => $"tokens_max_{kv.Key:N}", kv => kv.Value))),   // the per-team maxima the spend reads back
-        new LambdaStep("spend-tokens", ctx => Windows.SimultaneousSpend(ctx, "casting", Max, "Spend tokens")
-            ?? new Complete([], Windows.Spends(ctx, "casting").ToDictionary(kv => kv.Key.ToString("N"), kv => kv.Value)))]);
+        new LambdaStep("spend-tokens", ctx => Windows.SimultaneousSpend(ctx, "casting", Caps, "Spend tokens") ?? Spent(ctx))]);
 
     static StubRules Rules(bool reactive) => new(Main(), Reaction(), Spending())
     {
@@ -2277,10 +2287,30 @@ public class WindowTests
         var i = new SequenceInterpreter(Rules(reactive: false), TestProperties.Core, new ScriptedDice(1));
         Append(state, i.Start(state, "spending", new SequenceContext(A.Id, [], [], null)));
         var ask = ((AskOpened)Run(state, i).Last()).Ask;
-        Assert.True(ask.Sealed); Assert.Equal(2, ask.Teams.Count); Assert.Equal(3, ((TokenSpend)ask.Legal).MaxTokens); Assert.Equal("casting", ask.WindowKind);
-        Close(state, ask, (Samples.Team1, new TokensSpent(3)), (Samples.Team2, new Passed()));
+        var legal = Assert.IsType<TokenSpend>(ask.Legal);
+        Assert.True(ask.Sealed); Assert.Equal(2, ask.Teams.Count); Assert.Equal("casting", ask.WindowKind);
+        Assert.Equal([1, 2, 3], legal.MaxByModel.Values.OrderBy(v => v));                                              // one cap per model, both teams in one map, no total
+        Close(state, ask, (Samples.Team1, new TokensSpent(new Dictionary<Guid, int> { [A.Models[0].Id] = 1 })), (Samples.Team2, new Passed()));
         var done = (StepCompleted)Run(state, i)[0];
-        Assert.Equal((2, 0), (done.Values![Samples.Team1.ToString("N")], done.Values[Samples.Team2.ToString("N")]));   // team 1 clamped to its own max
+        Assert.Equal((1, 0), (done.Values![Samples.Team1.ToString("N")], done.Values[Samples.Team2.ToString("N")]));   // one of the two it could have spent; a pass spends nothing
+        Assert.Equal(1, done.Values[A.Models[0].Id.ToString("N")]);
+        Assert.False(done.Values.ContainsKey(A.Models[1].Id.ToString("N")));                                            // the model that kept its tokens for its own spell
+    }
+
+    [Fact]
+    public void A_spend_naming_another_teams_model_or_more_than_a_model_holds_is_dropped_and_cut()
+    {
+        var state = State([A], [B]);
+        var i = new SequenceInterpreter(Rules(reactive: false), TestProperties.Core, new ScriptedDice(1));
+        Append(state, i.Start(state, "spending", new SequenceContext(A.Id, [], [], null)));
+        var ask = ((AskOpened)Run(state, i).Last()).Ask;
+        // Appended straight to the log, so nothing judged membership: these are the answers warn or silent would accept.
+        Close(state, ask,
+            (Samples.Team1, new TokensSpent(new Dictionary<Guid, int> { [A.Models[0].Id] = 3, [B.Models[0].Id] = 3 })),
+            (Samples.Team2, new TokensSpent(new Dictionary<Guid, int> { [B.Models[0].Id] = 3 })));
+        var done = (StepCompleted)Run(state, i)[0];
+        Assert.Equal((1, 3), (done.Values![Samples.Team1.ToString("N")], done.Values[Samples.Team2.ToString("N")]));   // 3 cut to that model's cap of 1; the enemy model dropped
+        Assert.Equal(3, done.Values[B.Models[0].Id.ToString("N")]);                                                     // spent by the team that owns it
     }
 }
 ```
@@ -2332,25 +2362,49 @@ public static class Windows
         return null;
     }
 
-    public static StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IReadOnlyDictionary<Guid, int> maxByTeam, string prompt)
+    /// <summary>
+    /// p.13's spend: one sealed Ask to every team holding an eligible model, whose legal set is a cap per model — the tokens that
+    /// model holds — for every addressed team's models in one map. There is no total to carry, so nothing here reads a team's own
+    /// maximum: it is the sum of that team's entries.
+    /// </summary>
+    public static StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, int>> capsByTeam, string prompt)
     {
-        var teams = maxByTeam.Where(kv => kv.Value > 0).Select(kv => kv.Key).ToList();
+        var teams = capsByTeam.Where(kv => kv.Value.Any(c => c.Value > 0)).Select(kv => kv.Key).ToList();
         if (teams.Count == 0) return null;
         var existing = ctx.History.Asks.FirstOrDefault(a => a.Ask.WindowKind == windowKind && a.Ask.Question == AskQuestions.SpendTokens);
-        if (existing is null) return new OpenAsks([ctx.SealedAsk(AskQuestions.SpendTokens, prompt, teams, new TokenSpend(maxByTeam.Values.Max()), windowKind)]);
+        if (existing is null)
+        {
+            var caps = teams.SelectMany(t => capsByTeam[t]).Where(c => c.Value > 0).ToDictionary(c => c.Key, c => c.Value);
+            return new OpenAsks([ctx.SealedAsk(AskQuestions.SpendTokens, prompt, teams, new TokenSpend(caps), windowKind)]);
+        }
         return existing.Closed ? null : new OpenAsks([]);
     }
 
-    public static IReadOnlyDictionary<Guid, int> Spends(StepContext ctx, string windowKind)
+    /// <summary>
+    /// Every team's revealed spend, per model. Two checks are the step's rather than LegalSetMembership's, which has no state to
+    /// answer them with (the MoveRegion precedent): a key the answering team does not own is dropped, and a count is cut to the
+    /// cap the Ask recorded for that key. The caps come off the Ask, which the log holds, so a replay never recomputes them.
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, int>> Spends(StepContext ctx, string windowKind, IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, int>> capsByTeam)
     {
+        var result = new Dictionary<Guid, IReadOnlyDictionary<Guid, int>>();
         var ask = ctx.History.Asks.LastOrDefault(a => a.Ask.WindowKind == windowKind && a.Ask.Question == AskQuestions.SpendTokens && a.Closed);
-        if (ask is null) return new Dictionary<Guid, int>();
-        var max = ((TokenSpend)ask.Ask.Legal).MaxTokens;
-        return ask.Ask.Teams.ToDictionary(t => t, t => ask.Answers!.GetValueOrDefault(t) is TokensSpent spent ? Math.Clamp(spent.Tokens, 0, Math.Min(max, MaxFor(ctx, windowKind, t))) : 0);
+        if (ask is null) return result;
+        var caps = ((TokenSpend)ask.Ask.Legal).MaxByModel;
+        foreach (var team in ask.Ask.Teams)
+        {
+            var owned = capsByTeam.GetValueOrDefault(team) ?? new Dictionary<Guid, int>();
+            var counts = new Dictionary<Guid, int>();
+            if (ask.Answers!.GetValueOrDefault(team) is TokensSpent spent)
+                foreach (var (model, asked) in spent.Counts.Where(c => owned.ContainsKey(c.Key)))
+                {
+                    var take = Math.Clamp(asked, 0, caps.GetValueOrDefault(model));
+                    if (take > 0) counts[model] = take;
+                }
+            result[team] = counts;
+        }
+        return result;
     }
-
-    /// <summary>The per-team maximum is not in the Ask, so the step that opened the spend records it: Values["tokens_max_" + team] (Task 17 writes them).</summary>
-    static int MaxFor(StepContext ctx, string windowKind, Guid team) => ctx.Frame.Value($"tokens_max_{team:N}", int.MaxValue);
 }
 ```
 
@@ -2360,9 +2414,9 @@ public static class Windows
         new(Guid.CreateVersion7(), question, prompt, teams, legal, true, true, windowKind, Frame.Id);
 ```
 
-`SimultaneousSpend` records nothing itself: the step before it writes each team's maximum as `Values["tokens_max_<team>"]` (the test's `declare` step; casting's spell step in Task 17), which is what lets `Spends` clamp without the Ask carrying per-team numbers.
+`SimultaneousSpend` records nothing itself and no step records a maximum for it: the caps travel in the Ask, and the caller passes the same per-team map to both calls so that ownership of a key has an answer. `Windows` therefore reads no game state for the spend, and `Values["tokens_max_<team>"]` and `MaxFor` are gone with the single-maximum shape.
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter WindowTests`; expect 3 passed. Commit: `Open windows: react-or-pass Asks in reaction order, and the simultaneous token spend`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter WindowTests`; expect 4 passed. Commit: `Open windows: react-or-pass Asks in reaction order, and the simultaneous token spend`.**
 
 ### Task 10: `RulesEngine` — the one `IRulesEngine`, and the scheduler's seam
 
@@ -2667,7 +2721,7 @@ builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
 **Interfaces:**
 - Consumes: Tasks 6–10; geometry plan's `Distance.EdgeToEdge/Vertical/InRange`, `LineOfSight.Check`, `LineOfSight.VisibleModels` (the per-unit visibility the geometry plan added 2026-09-06), `Containment.VolumesContaining`, `Bodies.AsBlockingVolume`, `Movement.Check`, `Settling.SurfaceHeightAt`; `TerrainPlacement.WorldVolumes()` (Content).
 - Produces (namespace `Tabletop.GameServer.Interpreter`): `static class Battlefield` with `PlacedModel? Placed(GameState, Guid modelId)` (null off the table — on the shelf or inside a container), `PlacedModel At(GameState, Guid modelId, Placement)` (the body at a placement it does not hold yet: how a destination is judged, and the only way to place an occupant), `bool? InsideReach(GameState, Guid fromUnit, Guid toUnit)` (p.14: false when one is inside and the other out, true when both are in one container or the reaching unit is inside the other's container model, null when neither is inside and the answer is a measurement), `IRL<WorldVolume> Terrain(GameState)`, `IRL<WorldVolume> Blockers(GameState, Guid exceptUnitId)` (terrain plus every other unit's models as sight blockers — rulebook p.8 and p.11), `bool CanSee(GameState, Guid fromModel, Guid toModel)`, `double Distance(GameState, Guid modelA, Guid modelB)`, `double Vertical(GameState, Guid modelA, Guid modelB)`, `double? UnitDistance(GameState, Guid unitA, Guid unitB)` (closest pair of living models), `int ModelsInCoverTerrain(GameState, Guid unitId)` (living models whose base centre is inside a `Cover` volume) and `int ModelsVisibleFrom(GameState, Guid targetUnit, IRL<Guid> fromModels)` (how many of the unit's living models at least one of those models can see) — two counts, with the fraction they are compared against left to the ruleset, `IRL<string> TerrainUnder(GameState, Guid unitId)` (declaration names of volumes containing any living model — the `position_terrain` predicate's values), `Placement Settle(GameState, Placement clientPlacement)` (the server's Z from `Settling.SurfaceHeightAt`).
-- Produces (namespace `Tabletop.GameServer.Rules.GrimdarkFuture`): `static class GfNames` (`Quality`, `Defense`, `Range`, `Attacks`; actions `Hold`, `Advance`, `Rush`, `Charge`; rolls `Hit = "hit"`, `DefenseRoll = "defense"`, `Morale = "morale"`, `Casting = "casting"`, `RollOff = "roll-off"`; conditions `Shaken = "shaken"`, `Fatigued = "fatigued"`, `Moved = "moved"`; window point `BeforeAttacking = "before-attacking"`; sequence names `HoldSeq = "hold"`, `AdvanceSeq = "advance"`, `RushSeq = "rush"`, `ChargeSeq = "charge"`, `Shooting = "shooting"`, `Melee = "melee"`, `AttackSequence = "attack-sequence"`, `ResolveHits = "resolve-hits"`, `DealWounds = "deal-wounds"`, `MoraleTest = "morale-test"`, `DangerousTerrain = "dangerous-terrain"`, `CastingSeq = "casting"`, `RollOffSeq = "roll-off"`; roll-off step names `RollOffRollStep = "roll-off"`, `RollOffOrderStep = "order"`; melee reach `MeleeHorizontal = 2`, `MeleeVertical = 4`; `ChargeCloseIn = 3`, `Consolidate = 3`, `FallBack = 1`, `Separation = 1`; `DifficultCap = 6`; `ExitWithin = 6` (p.14's *"fully within 6\" of it"*); `TokenCap = 6`; `CastRange = 18`; `AmbushDistance = 9`; and the scheduler plan's names, so there is one names class: phases `Deployment = "deployment"`, `Scouts = "scouts"`, `Rounds = Scheduler.SchedulerBase.RoundsPhase`; `Deploy = "Deploy"` (the `Activation.Action` of a deployment answer); rules `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`; condition `SetAside = "set-aside"`; sequence name `TransportDestroyedSeq = "transport-destroyed"` (Task 19)); `GrimdarkFutureRules` (the partial in `GfRules.Sequences.cs`) implementing `Sequence`, `ActionSequence` (`Hold→hold`, …, null otherwise), `RollSpec`, `HitRoll`, `ReactionsAt`, `EndOfTurnSequences`, `OnRoundStarted`, `OnTurnEnded`; `static class GfRolls` with `RollSpec Spec(string roll)`, `RollPlan HitPlan(StepContext, LiveSet, AttackKind)` (threshold from Quality; fatigued in melee → `RequiredRaw = 6` and threshold 6 with no modifiers, p.9), `RollPlan DefensePlan(StepContext, LiveSet, bool inCover)` (base modifier `cover +1` when shooting into cover, p.11), `bool InCover(GameState, Guid targetUnit, IRL<Guid> attackerModels)` (the 50% threshold over the unit's models, owner ruling of 2026-09-06), `RollPlan MoralePlan(StepContext, LiveSet)`, `RollPlan CastingPlan(StepContext, int netTokens)` (4+, modifier `tokens` ±), `Sequence RollOffSequence()` (**the roll-off, owned here and consumed by the scheduler**: two steps, `roll-off` then `order`. `roll-off` rolls one die per team in ordinal order and any teams still tied roll again among themselves until every team is ordered — p.49 needs the whole descending order, not just a winner. `order` ranks them from the recorded dice and writes `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]` = team ordinals best first, which the scheduler's `RollOff.Order` reads into `round_started.Order`. The boundary between the two is the every-team confirm gate that makes the dice editable, Task 8); `static class GfHooks` with the three hook bodies — `OnRoundStarted(GameState, PropertySet)`, `OnTurnEnded(GameState, PropertySet, TurnContext)`, `EndOfTurnSequences(GameState, PropertySet, Guid? actor)` — and `IRL<Guid> UnitsToTestAtEndOfActivation(GameState, PropertySet, Guid? actor)` (took wounds this activation, now at half or less of starting size — or Tough value for a single model — and did not fight a melee this activation; p.10), `bool AtHalfOrLess(GameState, PropertySet, Guid unitId)`, `int StartingSize(GameState, Guid unitId)` (models in the snapshot), `bool FoughtMeleeThisActivation(GameState, Guid? actor, Guid unitId)` (the actor bounds the activation; no activation frame means false).
+- Produces (namespace `Tabletop.GameServer.Rules.GrimdarkFuture`): `static class GfNames` (`Quality`, `Defense`, `Range`, `Attacks`; actions `Hold`, `Advance`, `Rush`, `Charge`; rolls `Hit = "hit"`, `DefenseRoll = "defense"`, `Morale = "morale"`, `Casting = "casting"`, `RollOff = "roll-off"`; conditions `Shaken = "shaken"`, `Fatigued = "fatigued"`, `Moved = "moved"`; window point `BeforeAttacking = "before-attacking"`; sequence names `HoldSeq = "hold"`, `AdvanceSeq = "advance"`, `RushSeq = "rush"`, `ChargeSeq = "charge"`, `Shooting = "shooting"`, `Melee = "melee"`, `AttackSequence = "attack-sequence"`, `ResolveHits = "resolve-hits"`, `DealWounds = "deal-wounds"`, `MoraleTest = "morale-test"`, `DangerousTerrain = "dangerous-terrain"`, `CastingSeq = "casting"`, `RollOffSeq = "roll-off"`; roll-off step names `RollOffRollStep = "roll-off"`, `RollOffOrderStep = "order"`; melee reach `MeleeHorizontal = 2`, `MeleeVertical = 4`; `ChargeCloseIn = 3`, `Consolidate = 3`, `FallBack = 1`, `Separation = 1`; `DifficultCap = 6`; `ExitWithin = 6` (p.14's *"fully within 6\" of it"*); `TokenCap = 6`; `CastRange = 18`; `AmbushDistance = 9`; and the scheduler plan's names, so there is one names class: phases `Deployment = "deployment"`, `Scouts = "scouts"`, `Rounds = Scheduler.SchedulerBase.RoundsPhase`; `Deploy = "Deploy"` (the `Activation.Action` of a deployment answer); rules `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`, `Sniper`; condition `SetAside = "set-aside"`; sequence name `TransportDestroyedSeq = "transport-destroyed"` (Task 19)); `GrimdarkFutureRules` (the partial in `GfRules.Sequences.cs`) implementing `Sequence`, `ActionSequence` (`Hold→hold`, …, null otherwise), `RollSpec`, `HitRoll`, `ReactionsAt`, `EndOfTurnSequences`, `OnRoundStarted`, `OnTurnEnded`; `static class GfRolls` with `RollSpec Spec(string roll)`, `RollPlan HitPlan(StepContext, LiveSet, AttackKind)` (threshold from Quality; fatigued in melee → `RequiredRaw = 6` and threshold 6 with no modifiers, p.9), `RollPlan DefensePlan(StepContext, LiveSet, bool inCover)` (base modifier `cover +1` when shooting into cover, p.11), `bool InCover(GameState, Guid targetUnit, IRL<Guid> attackerModels)` (the 50% threshold over the unit's models, owner ruling of 2026-09-06), `RollPlan MoralePlan(StepContext, LiveSet)`, `RollPlan CastingPlan(StepContext, int netTokens)` (4+, modifier `tokens` ±), `Sequence RollOffSequence()` (**the roll-off, owned here and consumed by the scheduler**: two steps, `roll-off` then `order`. `roll-off` rolls one die per team in ordinal order and any teams still tied roll again among themselves until every team is ordered — p.49 needs the whole descending order, not just a winner. `order` ranks them from the recorded dice and writes `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]` = team ordinals best first, which the scheduler's `RollOff.Order` reads into `round_started.Order`. The boundary between the two is the every-team confirm gate that makes the dice editable, Task 8); `static class GfHooks` with the three hook bodies — `OnRoundStarted(GameState, PropertySet)`, `OnTurnEnded(GameState, PropertySet, TurnContext)`, `EndOfTurnSequences(GameState, PropertySet, Guid? actor)` — and `IRL<Guid> UnitsToTestAtEndOfActivation(GameState, PropertySet, Guid? actor)` (took wounds this activation, now at half or less of starting size — or Tough value for a single model — and did not fight a melee this activation; p.10), `bool AtHalfOrLess(GameState, PropertySet, Guid unitId)`, `int StartingSize(GameState, Guid unitId)` (models in the snapshot), `bool FoughtMeleeThisActivation(GameState, Guid? actor, Guid unitId)` (the actor bounds the activation; no activation frame means false).
 - One flagged interpretation is a constant here, visibly: `GfRules.OneTryPerSpellScope = "activation"` (question 2, **confirmed by the owner 2026-09-06**). Question 3's constant is gone — the owner overturned the recount on 2026-09-06 and the settled behaviour is unconditional, so nothing branches on a flag (Task 13).
 
 Spec: action sequences → One roll primitive (the split), Grimdark Future's sequences (fatigue read by the melee hit roll; the End-of-activation hook; the token economy: +X a round, capped at 6, even off the table), Rulings; scheduler → The round boundary (clear round-scoped conditions, spell tokens), The line (end-of-turn hook), Deployment (roll-off: null threshold, ties rerolled); rulebook p.7–11, p.13 (`Caster`, cover).
@@ -2984,6 +3038,7 @@ public static class GfNames
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough";
     public const string Transport = "Transport";                                                                        // p.14; its (X) is carried and never read — game flow: capacity is not enforced
+    public const string Sniper = "Sniper";                                                                              // p.13; a weapon property, read by GfAttack.IsSniperGroup
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit
     public const double AmbushDistance = 9;
 }
@@ -3257,10 +3312,10 @@ public static class GfHooks
 - Test: `tests/Tabletop.GameServer.Tests/GfDealWoundsTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 6–11; `Allocation`, `Allocated`, `WoundsSet`, `ModelsMoved`, `WoundsThisActivationSet` (Protocol).
-- Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.14: a wounded Tough model first, until it dies; heroes last — over `Lookup.AliveModels`, so a unit inside a container is wounded like any other).
+- Consumes: Tasks 6–11; `Allocation`, `Allocated`, `SelectedPieces`, `WoundsSet`, `ModelsMoved`, `WoundsThisActivationSet` (Protocol).
+- Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.14: a wounded Tough model first, until it dies; heroes last — over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? SnipedModel(FrameView frame)` (the model a `Sniper` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
 - **Task 19 comes back to this sequence.** `DealWounds()` gains a second step, `disgorge`, and `assign`'s casualty line gains one condition: a model at its capacity that is a container holding somebody is *not* shelved here, because p.14 places its occupants *"before removal"*. Nothing else in this task changes, and a container with nobody inside is an ordinary casualty.
-- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Poison`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team; the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on that model → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
+- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Poison`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team; the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A sniped wound opens no Ask**: when `SnipedModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.13 `Sniper`; owner ruling of 2026-09-06 on question 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.14's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and wounds past that capacity are lost exactly as they are when a defender over-allocates to one model. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on that model → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
 
 Spec: action sequences → Grimdark Future's sequences (deal-wounds: `Tough` stacking, heroes last, `Deadly` first and no carry-over, `Regeneration` per wound unless suppressed, casualties to the shelf, wounds-this-activation); rulebook p.8 ("the defending player may remove models from the target in any order"), p.13 `Deadly`, p.14 `Regeneration`, `Tough`, `Hero`.
 
@@ -3277,13 +3332,14 @@ namespace Tabletop.GameServer.Tests;
 
 public class GfDealWoundsTests
 {
-    /// <summary>Starts deal-wounds under a parent frame that recorded the wounds, the way resolve-hits does.</summary>
-    static Sim Start(Tabletop.Content.Unit attacker, Tabletop.Content.Unit target, int wounds, int[] dice, params Guid[] weapons)
+    /// <summary>Starts deal-wounds under a parent frame that recorded the wounds, the way resolve-hits does. A named model makes that parent an attack-sequence whose pick-target-model step answered, which is what a Sniper group leaves behind (Task 13).</summary>
+    static Sim Start(Tabletop.Content.Unit attacker, Tabletop.Content.Unit target, int wounds, int[] dice, Guid? sniped = null, params Guid[] weapons)
     {
         var sim = Sim.Gf(State([attacker], [target]), dice);
         var parent = Guid.CreateVersion7();
-        sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(attacker.Id, [target.Id], weapons, GfNames.Hold)),
+        sim.Append([new SequenceStarted(parent, sniped is null ? "test-parent" : GfNames.AttackSequence, new SequenceContext(attacker.Id, [target.Id], weapons, GfNames.Hold)),
             new StepCompleted(parent, "wounds", null, [], []) { Values = new Dictionary<string, int> { ["wounds"] = wounds } }]);
+        if (sniped is { } model) sim.Append([new StepCompleted(parent, "pick-target-model", new SelectedPieces([model]), [], [])]);
         sim.Start(GfNames.DealWounds, new SequenceContext(attacker.Id, [target.Id], weapons, GfNames.Hold));
         return sim;
     }
@@ -3314,7 +3370,7 @@ public class GfDealWoundsTests
         var a = Unit("A", "4+", "4+", [], 1, [], gun);
         var t = Unit("T", "4+", "4+", [], 2, []) with { Models = [Unit("T", "4+", "4+", [], 1, []).Models[0], Unit("H", "4+", "4+", [], 1, [P("Hero"), P("Tough", 3)]).Models[0] with { Ordinal = 2 }] };
         var weapons = a.Models[0].Weapons.Select(w => w.Id).ToArray();
-        var sim = Start(a, t, 1, [1], weapons);
+        var sim = Start(a, t, 1, [1], null, weapons);
         Assert.Equal([t.Models[0].Id], Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Targets);      // the hero waits
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [t.Models[0].Id] = 1 }));
         Assert.Equal(1, sim.Alive(t.Id));
@@ -3334,10 +3390,38 @@ public class GfDealWoundsTests
         Assert.Equal(1, sim.Model(troll.Models[0].Id).Wounds);
         Assert.Equal(1, sim.Unit(troll.Id).WoundsThisActivation);
         var poisoner = Unit("B", "4+", "4+", [], 1, [], Gun("Dart", "24\"", 1, P("Poison")));
-        var sim2 = Start(poisoner, troll, 2, [5, 5], poisoner.Models[0].Weapons.Select(w => w.Id).ToArray());
+        var sim2 = Start(poisoner, troll, 2, [5, 5], null, poisoner.Models[0].Weapons.Select(w => w.Id).ToArray());
         sim2.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [troll.Models[0].Id] = 2 }));
         Assert.Empty(sim2.Steps("assign").Single().Rolls);
         Assert.Equal(2, sim2.Model(troll.Models[0].Id).Wounds);
+    }
+
+    [Fact]
+    public void A_sniped_wound_names_its_model_and_opens_no_prompt_so_no_ordering_is_consulted()
+    {
+        var gun = Gun("Long Rifle", "30\"", 1, P("Sniper"), P("Deadly", 3));
+        var a = Unit("A", "4+", "4+", [], 1, [], gun);
+        var t = Unit("T", "4+", "4+", [], 2, []) with { Models = [Unit("T", "4+", "4+", [], 1, []).Models[0], Unit("H", "4+", "4+", [], 1, [P("Hero"), P("Tough", 3)]).Models[0] with { Ordinal = 2 }] };
+        var (plain, hero) = (t.Models[0].Id, t.Models[1].Id);
+        var sim = Start(a, t, 1, [1], hero, a.Models[0].Weapons.Select(w => w.Id).ToArray());
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                     // heroes-last is decided while building the prompt's targets, and there is no prompt
+        Assert.IsType<OnShelf>(sim.Model(hero).Location);                                                 // Deadly(3) still multiplies, into a Tough(3) hero
+        Assert.Equal(0, sim.Model(plain).Wounds);
+        Assert.Equal(3, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void Wounds_past_the_named_models_capacity_are_lost_and_a_name_outside_the_target_falls_back_to_the_prompt()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 2, []);
+        var sim = Start(a, t, 2, [1], t.Models[0].Id);
+        Assert.Null(sim.AskForOrNull(Samples.Team2));
+        Assert.Equal((1, 0), (sim.Alive(t.Id), sim.Model(t.Models[1].Id).Wounds));                        // the second wound is lost, as an over-allocation to one model is
+        Assert.Equal(1, sim.Unit(t.Id).WoundsThisActivation);
+        var stray = Start(a, t, 1, [1], a.Models[0].Id);                                                  // not a living model of the target: only a menu edit writes this
+        Assert.Equal(2, Assert.IsType<Allocation>(stray.AskFor(Samples.Team2).Legal).Targets.Count);
     }
 
     [Fact]
@@ -3380,6 +3464,18 @@ public static partial class GfAttack
         return defense.Count > 0 ? defense.Sum(Dice.RollOutcome.Failures) : parent.Value("wounds");
     }
 
+    /// <summary>
+    /// The model a Sniper group named for its wound (p.13). Values holds ints only and SequenceContext has no model, so the choice is
+    /// read back off the nearest ancestor attack-sequence frame, the way HitsFrom reads the parent's rolls. Null for every other group.
+    /// </summary>
+    public static Guid? SnipedModel(FrameView frame)
+    {
+        for (var f = frame; f is not null; f = f.Parent)
+            if (f.Frame.Sequence == GfNames.AttackSequence)
+                return f.Frame.Steps.FirstOrDefault(s => s.Step == "pick-target-model")?.Answer is SelectedPieces { PieceIds.Count: 1 } p ? p.PieceIds[0] : null;
+        return null;
+    }
+
     /// <summary>p.14: keep wounding the most-wounded Tough model until it dies; heroes are assigned wounds last. The in-play reading, so a unit inside a wrecked transport can be wounded before it is placed (Task 19).</summary>
     public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
     {
@@ -3399,8 +3495,16 @@ public static partial class GfAttack
             var wounds = WoundsToDeal(ctx.Frame);
             if (wounds <= 0) return new Finish([]);
             var team = ctx.TeamOf(target) ?? throw new InvalidOperationException("target unit has no team");
-            if (ctx.History.LastClosed() is not { Single: { } answer })
-                return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(EligibleForNextWound(ctx.State, ctx.Properties, target), wounds))]);
+            // A Sniper group named its model, so nothing is asked and no ordering is consulted: p.14's Tough-first and heroes-last
+            // decide the prompt's targets, and there is no prompt (p.13; question 7).
+            var sniped = SnipedModel(ctx.Frame) is { } named && Lookup.AliveModels(ctx.State, target).Contains(named) ? named : (Guid?)null;
+            AskAnswer? answer = null;
+            if (sniped is null)
+            {
+                if (ctx.History.LastClosed() is not { Single: { } closed })
+                    return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(EligibleForNextWound(ctx.State, ctx.Properties, target), wounds))]);
+                answer = closed;
+            }
 
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, null, ctx.Frame.Context.Action);
@@ -3410,7 +3514,8 @@ public static partial class GfAttack
             // Regeneration is aggregation none: one live instance per model, keyed here by model; its threshold is the effect row's.
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .Where(x => x.Source.ModelId is not null).ToDictionary(x => x.Source.ModelId!.Value, x => x.Roll);
-            var allocation = answer is Allocated a ? a.Counts : new Dictionary<Guid, int> { [EligibleForNextWound(ctx.State, ctx.Properties, target)[0]] = wounds };
+            var allocation = sniped is { } one ? new Dictionary<Guid, int> { [one] = wounds }
+                : answer is Allocated a ? a.Counts : new Dictionary<Guid, int> { [EligibleForNextWound(ctx.State, ctx.Properties, target)[0]] = wounds };
 
             var changes = new List<StateChange>(); var landed = 0; var moves = new List<ModelRelocation>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
@@ -3438,7 +3543,7 @@ public static partial class GfAttack
 
 `GfRules._sequences` gains `GfAttack.DealWounds()`. A property's own roll is recorded under the entry's name (`Regeneration`) with the effect row's threshold, so nothing here knows the number 5 (spec correction 3).
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfDealWoundsTests`; expect 4 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfDealWoundsTests`; expect 6 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**
 
 ### Task 13: attack-sequence and resolve-hits — the four steps of pages 8 and 9
 
@@ -3447,9 +3552,10 @@ public static partial class GfAttack
 - Test: `tests/Tabletop.GameServer.Tests/GfAttackTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 7, 11, 12.
-- Produces: `GfAttack.AttackSequence()` (`attack-sequence`: `determine-attacks`, `roll-to-hit`, `resolve`), `GfAttack.ResolveHits()` (`resolve-hits`: `roll-to-block`, `deal`); `static AttackKind KindOf(GameState, IRL<Guid> weapons)` (a group with a `Range` stat shoots, otherwise melee — content values → a melee weapon has no range); `static IRL<Guid> EligibleModels(GameState, LiveSet, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (shooting: line of sight to a target model and a weapon in range of it, p.8; melee: within 2" horizontally and 4" vertically, p.9; `Battlefield.InsideReach` first, so containment short-circuits both — p.14: no sight into or out of a container, but an occupant may target a fellow occupant and the container itself, with nothing to measure); `static int HitsFrom(FrameView parent)` (successes of the parent's `hit` rolls plus its `extra_hits`, times its `hit_multiplier`; `parent.Value("hits")` when the parent rolled no hit roll — `Impact`); `static int AttacksAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (p.8's Determine Attacks, callable before the group's own frame exists — what `fire-groups` settles each group's count with).
+- Consumes: Tasks 7, 11, 12; `PieceSelection`, `SelectedPieces` (Protocol).
+- Produces: `GfAttack.AttackSequence()` (`attack-sequence`: `determine-attacks`, `pick-target-model`, `roll-to-hit`, `resolve`), `GfAttack.ResolveHits()` (`resolve-hits`: `roll-to-block`, `deal`); `static bool IsSniperGroup(GameState, IRL<Guid> weapons)` (a weapon in the group carries `Sniper`, p.13 — the one predicate, which `GfShooting.Groups` reads for `WeaponGroup.Sniper` in Task 14); `static AttackKind KindOf(GameState, IRL<Guid> weapons)` (a group with a `Range` stat shoots, otherwise melee — content values → a melee weapon has no range); `static IRL<Guid> EligibleModels(GameState, LiveSet, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (shooting: line of sight to a target model and a weapon in range of it, p.8; melee: within 2" horizontally and 4" vertically, p.9; `Battlefield.InsideReach` first, so containment short-circuits both — p.14: no sight into or out of a container, but an occupant may target a fellow occupant and the container itself, with nothing to measure); `static int HitsFrom(FrameView parent)` (successes of the parent's `hit` rolls plus its `extra_hits`, times its `hit_multiplier`; `parent.Value("hits")` when the parent rolled no hit roll — `Impact`); `static int AttacksAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (p.8's Determine Attacks, callable before the group's own frame exists — what `fire-groups` settles each group's count with).
 - Context of an `attack-sequence` frame: `ActorUnitId` = the attacker, `TargetUnitIds = [target]`, `WeaponIds` = one weapon group (one weapon type), `Action` = the action the attacker took this activation (null for a strike-back). `roll-to-hit` records `Values`: `extra_hits` (`Furious`/`Relentless` per unmodified 6), `hit_multiplier` (`Blast(X)` capped at `blast_cap_<i>` on the pushing frame — p.13's models in the target, settled with the attack counts), and `granted_<entry>_<amount>` counts for per-die grants (`Rending`'s 6s), so `roll-to-block` rolls one defense roll per grant group with that property folded into the live set. Cover: `GfRolls.InCover(target, eligible attacker models)` — the whole eligible set, not one vantage model, because `LineOfSight.VisibleModels` takes observers and p.11 reads sight as the attacking unit's.
+- **A `Sniper` group names the model its wounds go to**, in `pick-target-model`, a `PieceSelection(Lookup.AliveModels(target), 1, 1)` addressed to the **attacker's** team (p.13: *"each model with Sniper may pick any model in the target unit as its individual target"*; owner ruling of 2026-09-06 on question 7). It sits **after `determine-attacks` and before `roll-to-hit`**: p.8 declares targets before any roll, so the pick cannot be informed by the hits, and a group whose models are all out of range has already finished. **Once per group, not per shot**, because a group is one weapon type and `roll-to-hit` pools its dice into one roll, so no shot has an identity to hang a choice on. The step completes with no Ask for anything else: a melee group (`KindOf`), a group no weapon of which carries `Sniper`, and a target with one living model, whose only model the ordinary allocation reaches anyway. Every other `attack-sequence` therefore records one empty `pick-target-model` step, as `deal-wounds` records an empty `disgorge`. `deal-wounds` reads the answer through `GfAttack.SnipedModel` (Task 12) and opens no allocation for it.
 - **Every group's attack count is settled once, before any group fires** — the owner's ruling of 2026-09-06 on question 3, which overturned the recount this plan had assumed. `fire-groups` records `attacks_<i>` for every assigned group on the `shooting` frame before it pushes the first one, and `determine-attacks` reads the count for its own group back off the pushing frame, so a group that fires after another group's casualties rolls as if nobody had died. p.8's *"all weapons are fired simultaneously"* wins over the order the groups are pushed in. `determine-attacks` counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 orders melee by hand — `Counter` strikes first, the defender strikes back with what survives — so a melee push is already at the moment the rulebook fires it. `eligible_models` stays the live figure, so the log distinguishes a group that fired at a target none of its models could still reach. **`Blast`'s cap is frozen with the counts**, by the owner's second ruling of 2026-09-06: `fire-groups` records `blast_cap_<i>` beside `attacks_<i>` and `roll-to-hit` reads it, so p.13's *"as many hits as models in the target unit"* is counted when the action starts rather than when the group fires. `GfAttack.Pushed(frame, prefix)` is the one reader for both keys, and it falls back to counting living models when the pusher recorded nothing.
 
 Spec: action sequences → Grimdark Future's sequences (attack-sequence, resolve-hits), Shooting and melee are one sequence; rulebook p.8 (the worked example: 3 attacks, Quality 4+, rolls 3/4/5 → 2 hits; Defense 4+, rolls 3/4 → 1 wound), p.9 (melee reach), p.13 `Blast`, `Furious`, p.14 `Rending`.
@@ -3539,14 +3645,55 @@ public class GfAttackTests
         hold.Start(GfNames.AttackSequence, Attack(berserkers, t, GfNames.Hold));
         Assert.Equal(0, hold.Steps("roll-to-hit").Single().Values!.GetValueOrDefault("extra_hits"));
     }
+
+    [Fact]
+    public void A_sniper_group_names_its_model_before_the_hit_roll_and_the_wound_lands_on_it()
+    {
+        var sniper = Unit("Sniper", "5+", "4+", [], 1, [], Gun("Long Rifle", "30\"", 1, P("Sniper")));
+        var t = Unit("T", "4+", "6+", [], 2, []) with { Models = [Unit("T", "4+", "6+", [], 1, []).Models[0], Unit("H", "4+", "6+", [], 1, [P("Hero")]).Models[0] with { Ordinal = 2 }] };
+        var (plain, hero) = (t.Models[0].Id, t.Models[1].Id);
+        var sim = Sim.Gf(State([sniper], [t], x1: -6, x2: 6), 3, 1);
+        sim.Start(GfNames.AttackSequence, Attack(sniper, t, GfNames.Hold));
+        var pick = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal((1, 1, 2), (pick.Min, pick.Max, pick.Eligible.Count));
+        Assert.Empty(sim.Steps("roll-to-hit"));                                                        // the pick precedes the hit roll (p.8)
+        sim.Answer(Samples.Team1, new SelectedPieces([hero]));
+        Assert.Equal(2, sim.Steps("roll-to-hit").Single().Rolls.Single().Threshold);                   // Sniper shoots at Quality 2+ (p.13)
+        Assert.Null(sim.AskForOrNull(Samples.Team2));                                                  // no allocation, so heroes-last never applies
+        Assert.IsType<OnShelf>(sim.Model(hero).Location);
+        Assert.Equal(0, sim.Model(plain).Wounds);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void No_model_is_picked_for_a_plain_group_or_a_single_model_target()
+    {
+        var riflemen = Unit("Riflemen", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
+        var pair = Unit("Pair", "4+", "2+", [], 2, []);
+        var plain = Sim.Gf(State([riflemen], [pair], x1: -6, x2: 6), 5, 6);
+        plain.Start(GfNames.AttackSequence, Attack(riflemen, pair, GfNames.Hold));
+        Assert.Null(plain.Steps("pick-target-model").Single().Answer);                                 // the step runs and asks nothing
+        Assert.Single(plain.Steps("roll-to-hit"));
+
+        var sniper = Unit("Sniper", "5+", "4+", [], 1, [], Gun("Long Rifle", "30\"", 1, P("Sniper")));
+        var lone = Unit("Lone", "4+", "2+", [], 1, []);
+        var single = Sim.Gf(State([sniper], [lone], x1: -6, x2: 6), 3, 6);
+        single.Start(GfNames.AttackSequence, Attack(sniper, lone, GfNames.Hold));
+        Assert.Null(single.AskForOrNull(Samples.Team1));                                               // one living model: nothing to choose
+        Assert.Equal(2, single.Steps("roll-to-hit").Single().Rolls.Single().Threshold);
+    }
 }
 ```
 
 - [ ] **Step 2: Run; expect compile errors. Add to `GfAttack.cs`**
 
 ```csharp
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
+    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
+
+    /// <summary>p.13 Sniper is a weapon property, so a group carries it when one of its weapons does. GfShooting.Groups reads this for WeaponGroup.Sniper.</summary>
+    public static bool IsSniperGroup(GameState state, IReadOnlyList<Guid> weapons) =>
+        state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Sniper));
 
     public static AttackKind KindOf(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => weapons.Contains(w.Id))?.Stats.ContainsKey(GfNames.Range) == true ? AttackKind.Shooting : AttackKind.Melee;
@@ -3639,6 +3786,26 @@ public class GfAttackTests
     static int? Pushed(FrameView frame, string prefix) =>
         frame.Parent is { History.Children.Count: > 0 } parent && parent.Values.TryGetValue($"{prefix}_{parent.History.Children.Count - 1}", out var n) ? n : null;
 
+    /// <summary>
+    /// p.13 Sniper: the group names one model in the target unit as the target of its wounds. A target declaration, so it is made
+    /// before this group's hit roll (p.8), and after determine-attacks, so a group with nothing in range never asks. One pick per
+    /// group and not per shot: the group is one weapon type whose dice roll-to-hit pools into one roll. deal-wounds reads the answer
+    /// back through SnipedModel and assigns to that model without opening an allocation.
+    /// </summary>
+    sealed class PickTargetModelStep : IStep
+    {
+        public string Name => "pick-target-model";
+        public StepOutcome Run(StepContext ctx)
+        {
+            if (ctx.History.LastClosed() is not null) return new Complete([]);
+            var (weapons, target) = (ctx.Frame.Context.WeaponIds, ctx.Frame.Context.TargetUnitIds[0]);
+            if (KindOf(ctx.State, weapons) != AttackKind.Shooting || !IsSniperGroup(ctx.State, weapons)) return new Complete([]);
+            var models = Lookup.AliveModels(ctx.State, target);
+            if (models.Count < 2) return new Complete([]);   // one model to choose from: the ordinary allocation reaches it anyway
+            return new OpenAsks([ctx.Ask("snipe_target", "Pick the model this Sniper group targets", ctx.ActorTeam!.Value, new PieceSelection(models, 1, 1))]);
+        }
+    }
+
     sealed class RollToHitStep : IStep
     {
         public string Name => "roll-to-hit";
@@ -3689,7 +3856,7 @@ public class GfAttackTests
 
 `GfRules._sequences` gains `GfAttack.AttackSequence()` and `GfAttack.ResolveHits()`. `deal-wounds` (Task 12) reads the defense rolls back from the parent, so a reroll of a block die between `roll-to-block` and `assign` (wait-between-steps on) changes the wounds asked for.
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfAttackTests`; expect 4 passed. Commit: `Add the attack sequence and resolve-hits: determine, hit, block, deal`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfAttackTests`; expect 6 passed. Commit: `Add the attack sequence and resolve-hits: determine, hit, block, deal`.**
 
 ### Task 14: Shooting, the move step with its casting checkpoint, embarking and disembarking, dangerous terrain, and the four actions
 
@@ -3753,7 +3920,9 @@ public class GfShootingTests
         var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
         Assert.Equal(b.Id, attacks[0].Context.TargetUnitIds[0]);                                          // Sniper first
         Assert.Equal(GfNames.Advance, attacks[0].Context.Action);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [b.Models[0].Id] = 3 }));       // three sniper wounds (Quality 2+, sixes)
+        sim.Answer(Samples.Team1, new SelectedPieces([b.Models[0].Id]));                                    // the Sniper group names its model (p.13)
+        Assert.IsType<OnShelf>(sim.Model(b.Models[0].Id).Location);                                         // three sniper wounds (Quality 2+, sixes) with no allocation asked
+        Assert.Equal(1, sim.Alive(b.Id));                                                                   // the second model of B is untouched
         Assert.Equal(a.Id, sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).Last().Context.TargetUnitIds[0]);
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [a.Models[0].Id] = 3 }));
         Assert.Empty(sim.State.Projection.Stack);
@@ -3954,7 +4123,7 @@ public static class GfShooting
         var used = EventApplier.EffectiveLog(state.Applier.Log).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
         return Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
             .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id)))
-            .GroupBy(w => w.Name).Select(g => new WeaponGroup(g.Key, g.Select(w => w.Id).ToList(), g.First().Properties.Any(p => p.Name == "Sniper"))).ToList();
+            .GroupBy(w => w.Name).Select(g => new WeaponGroup(g.Key, g.Select(w => w.Id).ToList(), GfAttack.IsSniperGroup(state, g.Select(w => w.Id).ToList()))).ToList();
     }
 
     public static IReadOnlyList<Guid> ValidTargets(StepContext ctx, Guid unit, WeaponGroup group)
@@ -4256,7 +4425,7 @@ public static class GfMoves
 }
 ```
 
-`GfAttack.PushStep` gains an optional `Func<StepContext, SequenceContext>? context` and pushes `context?.Invoke(ctx) ?? ctx.Frame.Context`. `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Sniper`'s per-model pick (p.14) is not modelled — a Sniper group resolves first at Quality 2+ against the unit; question 7.
+`GfAttack.PushStep` gains an optional `Func<StepContext, SequenceContext>? context` and pushes `context?.Invoke(ctx) ?? ctx.Frame.Context`. `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Sniper` resolves first, at Quality 2+, and its group names the model its wounds land on in `attack-sequence`'s `pick-target-model` step (Task 13; owner ruling of 2026-09-06 on question 7). `WeaponGroup.Sniper` and that step read one predicate, `GfAttack.IsSniperGroup`, so a group cannot be ordered first without also being offered the pick.
 
 - [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfShootingTests`; expect 10 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**
 
@@ -4733,8 +4902,8 @@ public static class GfMelee
 
 **Interfaces:**
 - Consumes: Tasks 9, 11–13; `GrantAdded`, `GrantRemoved`, `Grant`, `SpellTokensSet`, `PieceSelection`, `SelectedPieces`, `TokenSpend`, `TokensSpent` (Protocol); `CatalogEntry.Targeting`, `EffectDuration.Once`.
-- Produces: `GfCasting.Casting()` (`casting`: `pick-spell`, `spend-tokens`, `roll`, `targets`, `effects`) and `GfCasting.SpellHits()` (`spell-hits`: `hit`, `resolve`); `static IRL<Guid> Casters(GameState, Guid unit)` (models with `Caster(X)` and tokens); `static IRL<string> TriedThisActivation(GameState, Guid unit)` (spells named by a closed `pick-spell` since the activation's `sequence_started` — `OneTryPerSpellScope = "activation"`); `static IRL<ModelInPlay> EligibleSpenders(GameState, Guid casterModel)` (p.13's per-model test: on the table, holding tokens, within 18" and in line of sight of the caster's unit, the caster excluded, nearest the caster first) and `static IRD<Guid,int> SpendCapacity(GameState, Guid casterModel)` (the same models' tokens summed per team); `static IRL<Guid> SpellTargets(StepContext, Guid casterModel, CatalogEntry spell)`; `RollEffects.ConsumeGrants(LiveSet live, Side side, RollPlan plan) : IRL<StateChange>` (a `GrantRemoved` for every granted instance whose entry contributed a modifier to the plan and has one use left).
-- The option id of `pick-spell` is `"{spell}|{casterModelId}"`, so the paying model is in the Answer; its `Changes` deduct the cost (`SpellTokensSet`) and its `Values` record `tokens_max_<team>` for every team `SpendCapacity` finds. `spend-tokens` is `Windows.SimultaneousSpend` then `Windows.Spends`: tokens are deducted from the spending team's eligible models nearest the caster first, which is the server choosing the payers rather than the player (question 14); `net_tokens` = own team's tokens − others'. `roll` is `GfRolls.CastingPlan(net_tokens)`, one die; a failure `Finish`es. `targets`: the spell's four columns — `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the selection maximum (minimum 1), `Range` from the caster model, line of sight from the caster model (p.13) — as a `PieceSelection`. `effects` runs once per chosen target (`Values["target_index"]`, `Repeat`): every effect of the spell entry whose conditions hold, in ordinal order — `AddHit` with no `RollResult` condition → `Push(spell-hits, (casterUnit, [target unit], [], null))`, whose `hit` step rolls `amount` dice on threshold 1 (every die a hit, so `on rolls of 6` rules read a real die) and writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`; any effect with `Duration = Once` → `GrantAdded(targetUnit, new Grant(id, effect.Id, effect.TargetEntry ?? spell.Name, casterUnit, 1))` (a model-grain target's grant lands on its unit — the grants store is the unit's). Nothing else can appear: `Validate` (Task 2) refuses a spell whose top-level effect is neither `add_hit` nor `duration = once`, which is what spell effects read in all forty-eight — *"always with one duration: once"*.
+- Produces: `GfCasting.Casting()` (`casting`: `pick-spell`, `spend-tokens`, `roll`, `targets`, `effects`) and `GfCasting.SpellHits()` (`spell-hits`: `hit`, `resolve`); `static IRL<Guid> Casters(GameState, Guid unit)` (models with `Caster(X)` and tokens); `static IRL<string> TriedThisActivation(GameState, Guid unit)` (spells named by a closed `pick-spell` since the activation's `sequence_started` — `OneTryPerSpellScope = "activation"`); `static IRL<ModelInPlay> EligibleSpenders(GameState, Guid casterModel)` (p.13's per-model test: on the table, holding tokens, within 18" and in line of sight of the caster's unit, **the caster included**, admitted without measurement) and `static IRD<Guid,IRD<Guid,int>> SpendCapacity(GameState, Guid casterModel)` (the same models grouped by team, each keyed to the tokens it holds, which is `TokenSpend.MaxByModel` per team); `static IRL<Guid> SpellTargets(StepContext, Guid casterModel, CatalogEntry spell)`; `RollEffects.ConsumeGrants(LiveSet live, Side side, RollPlan plan) : IRL<StateChange>` (a `GrantRemoved` for every granted instance whose entry contributed a modifier to the plan and has one use left).
+- The option id of `pick-spell` is `"{spell}|{casterModelId}"`, so the paying model is in the Answer, and its `Changes` deduct the cost (`SpellTokensSet`). It records nothing else: the spend's caps are built by the step that opens the spend and travel in the Ask. `spend-tokens` is `Windows.SimultaneousSpend` then `Windows.Spends`, over `SpendCapacity`: the player names which of its own models pays what and each named model is deducted its own count, rather than the server taking them nearest the caster first (owner ruling of 2026-09-06 on question 14). **`SpendCapacity` runs in `spend-tokens`, after `pick-spell`'s `SpellTokensSet` is applied**, so the caster's cap is what it holds with the spell paid for and no step subtracts the cost twice; a caster whose tokens exactly paid the cost holds none and is not an entry (ruling 2 of the same day). `net_tokens` = own team's counts summed − everyone else's. `roll` is `GfRolls.CastingPlan(net_tokens)`, one die; a failure `Finish`es. `targets`: the spell's four columns — `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the selection maximum (minimum 1), `Range` from the caster model, line of sight from the caster model (p.13) — as a `PieceSelection`. `effects` runs once per chosen target (`Values["target_index"]`, `Repeat`): every effect of the spell entry whose conditions hold, in ordinal order — `AddHit` with no `RollResult` condition → `Push(spell-hits, (casterUnit, [target unit], [], null))`, whose `hit` step rolls `amount` dice on threshold 1 (every die a hit, so `on rolls of 6` rules read a real die) and writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`; any effect with `Duration = Once` → `GrantAdded(targetUnit, new Grant(id, effect.Id, effect.TargetEntry ?? spell.Name, casterUnit, 1))` (a model-grain target's grant lands on its unit — the grants store is the unit's). Nothing else can appear: `Validate` (Task 2) refuses a spell whose top-level effect is neither `add_hit` nor `duration = once`, which is what spell effects read in all forty-eight — *"always with one duration: once"*.
 - Consumption: a granted instance (`LiveProperty.GrantId` set) whose entry contributed to a roll plan is consumed by that roll's step (`RollEffects.ConsumeGrants` in `roll-to-hit`/`roll-to-block`); a granted `Regeneration` is consumed by `assign` when it rolls. `Grant.RemainingUses` is 1 for every once-effect (spell effects → The grants store: "remaining uses (one)").
 
 Spec: action sequences → Grimdark Future's sequences (Casting, The token economy), Windows (sealed simultaneous; invoked by the actor); spell effects → Duration, The grants store (written by the effect step's `step_completed`, consumed by the consuming step's, read by both passes and by name checks), Damage spells need nothing new (kind 6 with a nested grant; a hit roll that cannot fail), Target selection (one to `target_count`, each target independently); rulebook p.13 `Caster`.
@@ -4782,9 +4951,11 @@ public class GfCastingTests
         sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
         Assert.Equal(1, sim.Model(wizard.Models[0].Id).SpellTokens);
         var spend = sim.State.Projection.OpenAsks.Values.Single().Ask;
-        Assert.True(spend.Sealed); Assert.Equal([Samples.Team2], spend.Teams);                            // the wizard has no other caster in range; the warlock does
-        Assert.Equal(2, sim.Steps("pick-spell").Single().Values![$"tokens_max_{Samples.Team2:N}"]);
-        sim.Answer(Samples.Team2, new TokensSpent(1));
+        var caps = Assert.IsType<TokenSpend>(spend.Legal).MaxByModel;
+        Assert.True(spend.Sealed); Assert.Equal(2, spend.Teams.Count);                                    // the wizard's own remaining token, and the warlock's two
+        Assert.Equal((1, 2), (caps[wizard.Models[0].Id], caps[enemyCaster.Models[0].Id]));                // the caster's cap is what the cost left it (p.13; ruling 2)
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team2, new TokensSpent(new Dictionary<Guid, int> { [enemyCaster.Models[0].Id] = 1 }));
         Assert.Equal(1, sim.Model(enemyCaster.Models[0].Id).SpellTokens);
         var roll = sim.Steps("roll").Single().Rolls.Single();
         Assert.Equal((GfNames.Casting, 4, 5, 4, true), (roll.Roll, roll.Threshold, roll.Dice[0].Raw, roll.Dice[0].Modified, roll.Dice[0].Success));
@@ -4808,7 +4979,9 @@ public class GfCastingTests
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var sim = Casting(wizard, [], [Unit("G", "4+", "4+", [], 2, [])], 2);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
-        sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));                    // nobody can spend: straight to the roll
+        sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
+        Assert.Equal([Samples.Team1], sim.AskFor(Samples.Team1).Teams);                              // no enemy caster in range: only the caster itself may spend
+        sim.Answer(Samples.Team1, new Passed());
         Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
         Assert.Empty(sim.State.Projection.Stack);                                                     // casting finished; no activation frame in this test, so the scan covers the whole log
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
@@ -4823,6 +4996,7 @@ public class GfCastingTests
         var sim = Casting(wizard, [a, b], [Unit("G", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1))], 4, 6, 1);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Ward|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());                                                          // the caster declines to add its own two
         var targets = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((1, 2), (targets.Min, targets.Max)); Assert.Equal(new HashSet<Guid> { wizard.Id, a.Id, b.Id }, targets.Eligible.ToHashSet());
         sim.Answer(Samples.Team1, new SelectedPieces([a.Id, b.Id]));
@@ -4837,6 +5011,43 @@ public class GfCastingTests
         Assert.Equal("Regeneration", sim.Steps("assign").Single().Rolls.Single().Roll);
         Assert.Equal(2, sim.Alive(a.Id));
         Assert.Empty(sim.Unit(a.Id).Grants); Assert.Single(sim.Unit(b.Id).Grants);
+    }
+
+    [Fact]
+    public void The_caster_adds_its_own_tokens_left_after_the_cost_to_its_own_roll()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = Casting(wizard, [], [Unit("G", "4+", "4+", [], 1, [])], 2);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Ward|{wizard.Models[0].Id}"));                             // Ward costs 1 of 3
+        var spend = sim.AskFor(Samples.Team1);
+        Assert.Equal([Samples.Team1], spend.Teams);
+        Assert.Equal(new Dictionary<Guid, int> { [wizard.Models[0].Id] = 2 }, Assert.IsType<TokenSpend>(spend.Legal).MaxByModel);
+        sim.Answer(Samples.Team1, new TokensSpent(new Dictionary<Guid, int> { [wizard.Models[0].Id] = 2 }));
+        Assert.Equal(0, sim.Model(wizard.Models[0].Id).SpellTokens);
+        Assert.Equal(2, sim.Steps("spend-tokens").Single().Values!["net_tokens"]);
+        var roll = sim.Steps("roll").Single().Rolls.Single();
+        Assert.Equal((2, 4, true), (roll.Dice[0].Raw, roll.Dice[0].Modified, roll.Dice[0].Success));      // +1 per token spent (p.13)
+        sim.Answer(Samples.Team1, new SelectedPieces([wizard.Id]));
+        Assert.Single(sim.Unit(wizard.Id).Grants);
+    }
+
+    [Fact]
+    public void The_team_names_which_of_its_models_pays_and_the_others_keep_their_tokens()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var acolyte = Unit("Acolyte", "4+", "4+", [], 1, [P("Caster", 1)]);
+        var sim = Casting(wizard, [acolyte], [Unit("G", "4+", "4+", [], 1, [])], 2);
+        sim.Append([new SpellTokensSet(acolyte.Models[0].Id, 2)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Ward|{wizard.Models[0].Id}"));
+        Assert.Equal([2, 2], Assert.IsType<TokenSpend>(sim.AskFor(Samples.Team1).Legal).MaxByModel.Values);
+        sim.Answer(Samples.Team1, new TokensSpent(new Dictionary<Guid, int> { [acolyte.Models[0].Id] = 2 }));
+        Assert.Equal(0, sim.Model(acolyte.Models[0].Id).SpellTokens);
+        Assert.Equal(2, sim.Model(wizard.Models[0].Id).SpellTokens);                                      // kept for its own spell: no nearest-first payer takes them
+        Assert.Equal(2, sim.Steps("spend-tokens").Single().Values!["net_tokens"]);
+        sim.Answer(Samples.Team1, new SelectedPieces([wizard.Id]));
+        Assert.Single(sim.Unit(wizard.Id).Grants);
     }
 }
 ```
@@ -4870,27 +5081,32 @@ public static class GfCasting
     }
 
     /// <summary>
-    /// p.13: models within 18" in line of sight of the caster's unit may spend tokens, both sides; the caster itself does not spend,
-    /// which is a reading — it is trivially within 18" of its own unit and p.13 does not say whether it may add to its own roll.
-    /// The positioned reading on both ends, deliberately: an occupant has no line of sight out (p.14), so a caster inside a container
-    /// draws no tokens at all — `mine` is empty — and a model inside one never spends on a cast outside. A cast from inside still happens;
-    /// it is simply unmodified.
+    /// p.13's caps, grouped by the team that owns them: every eligible model keyed to the tokens it holds, which is one team's slice of
+    /// TokenSpend.MaxByModel, and whose keys are that team's own models for the spend step's ownership check. Called from spend-tokens,
+    /// so the caster's entry is already net of the spell's cost.
     /// </summary>
-    public static IReadOnlyDictionary<Guid, int> SpendCapacity(GameState state, Guid casterModel) =>
+    public static IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, int>> SpendCapacity(GameState state, Guid casterModel) =>
         EligibleSpenders(state, casterModel).GroupBy(m => Teams.Of(state, m.UnitId)).Where(g => g.Key is not null)
-            .ToDictionary(g => g.Key!.Value, g => g.Sum(m => m.SpellTokens));
+            .ToDictionary(g => g.Key!.Value, g => (IReadOnlyDictionary<Guid, int>)g.ToDictionary(m => m.Id, m => m.SpellTokens));
 
     /// <summary>
-    /// The per-model eligibility test itself, nearest the caster first. Capacity sums it and the spend step deducts from it, so one
-    /// predicate answers both: a model out of range or without a sight line neither raises a team's maximum nor pays for it.
+    /// The per-model eligibility test itself, the caster first and the rest nearest the caster next — an order the log and the Ask
+    /// list their models in, and nothing more, since the player names its own payers. The caster's own model is an entry whenever it
+    /// still holds a token: p.13 does not exclude it, and it is admitted without measurement, being a model of the caster's own unit
+    /// (owner ruling of 2026-09-06). That is the one exception to a test positional on both ends, and it is deliberate: an occupant has
+    /// no line of sight out (p.14), so for a caster inside a container `mine` is empty and no other model's tokens reach the roll, while
+    /// its own still do. A model inside a container never spends on a cast outside.
     /// </summary>
     public static IReadOnlyList<ModelInPlay> EligibleSpenders(GameState state, Guid casterModel)
     {
-        var unit = state.Projection.Models[casterModel].UnitId;
-        var mine = Lookup.LivingModels(state, unit);
-        return state.Projection.Models.Values.Where(m => m.Id != casterModel && m.Location is OnTable && m.SpellTokens > 0
+        var self = state.Projection.Models[casterModel];
+        var mine = Lookup.LivingModels(state, self.UnitId);
+        var spenders = new List<ModelInPlay>();
+        if (self.SpellTokens > 0) spenders.Add(self);
+        spenders.AddRange(state.Projection.Models.Values.Where(m => m.Id != casterModel && m.Location is OnTable && m.SpellTokens > 0
                 && mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && Battlefield.CanSee(state, m.Id, c)))
-            .OrderBy(m => Battlefield.Distance(state, casterModel, m.Id)).ToList();
+            .OrderBy(m => Battlefield.Distance(state, casterModel, m.Id)));
+        return spenders;
     }
 
     public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell)
@@ -4916,8 +5132,8 @@ public static class GfCasting
             {
                 var (spellName, caster) = (chosen.OptionId.Split('|')[0], Guid.Parse(chosen.OptionId.Split('|')[1]));
                 var cost = ctx.Properties.Entry(spellName)!.Cost ?? 0;
-                var values = SpendCapacity(ctx.State, caster).ToDictionary(kv => $"tokens_max_{kv.Key:N}", kv => kv.Value);
-                return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))], values);
+                // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
+                return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
             var tried = TriedThisActivation(ctx.State, unit);
             var options = Casters(ctx.State, unit).SelectMany(m => ctx.Properties.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains(e.Name) && e.Cost <= ctx.Projection.Models[m].SpellTokens)
@@ -4931,16 +5147,14 @@ public static class GfCasting
         public string Name => "spend-tokens";
         public StepOutcome Run(StepContext ctx)
         {
-            var max = ctx.Frame.Values.Where(kv => kv.Key.StartsWith("tokens_max_")).ToDictionary(kv => Guid.ParseExact(kv.Key["tokens_max_".Length..], "N"), kv => kv.Value);
-            if (Windows.SimultaneousSpend(ctx, GfNames.CastingSeq, max, "Spend tokens for or against the casting roll") is { } open) return open;
             var (_, caster) = Picked(ctx);
+            var caps = SpendCapacity(ctx.State, caster);   // after pick-spell's deduction: the caster's own cap is what the cost left it
+            if (Windows.SimultaneousSpend(ctx, GfNames.CastingSeq, caps, "Spend tokens for or against the casting roll") is { } open) return open;
             var own = ctx.ActorTeam; var net = 0; var changes = new List<StateChange>();
-            foreach (var (team, tokens) in Windows.Spends(ctx, GfNames.CastingSeq).Where(kv => kv.Value > 0))
+            foreach (var (team, counts) in Windows.Spends(ctx, GfNames.CastingSeq, caps))
             {
-                net += team == own ? tokens : -tokens;
-                var payers = EligibleSpenders(ctx.State, caster).Where(m => Teams.Of(ctx.State, m.UnitId) == team).ToList();
-                var left = tokens;
-                foreach (var m in payers) { if (left == 0) break; var spend = Math.Min(left, m.SpellTokens); changes.Add(new SpellTokensSet(m.Id, m.SpellTokens - spend)); left -= spend; }
+                net += (team == own ? 1 : -1) * counts.Values.Sum();
+                foreach (var (model, tokens) in counts) changes.Add(new SpellTokensSet(model, ctx.Projection.Models[model].SpellTokens - tokens));
             }
             return new Complete(changes, new Dictionary<string, int> { ["net_tokens"] = net });
         }
@@ -5034,7 +5248,7 @@ public static class GfCasting
 
 `RollToHitStep` returns `new Complete(RollEffects.ConsumeGrants(live, Side.Attacker, plan), values)` and `RollToBlockStep` accumulates `ConsumeGrants(live, Side.Defender, plan)` per defense roll into its `Changes`. `AssignStep`: a granted `Regeneration` instance has no `ModelId` (it is the unit's), so the `regen` dictionary is built as: per-model instances by model id, plus, when a unit-level instance exists, every living model of the target maps to it; when a unit-level instance rolls, `GrantRemoved(target, grantId)` joins the changes. `GrantAdded` carries no parameter; `Lookup.UnitProperties` reads the granting effect's `Amount` (Task 6), which is null for `Ward`'s `Regeneration` and `1` for a *"gets AP(1)"* grant.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfCastingTests`; expect 3 passed, and the whole project still green. Commit: `Add casting: spell and tokens, the simultaneous spend, the roll, targets, hits that cannot miss, once-grants`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfCastingTests`; expect 5 passed, and the whole project still green. Commit: `Add casting: spell and tokens, the simultaneous spend, the roll, targets, hits that cannot miss, once-grants`.**
 
 ### Task 19: A destroyed container disgorges its occupants
 
@@ -5263,7 +5477,7 @@ and the new step goes beside it:
 
 `GfRules._sequences` gains `GfContainers.TransportDestroyed()`.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect `GfContainersTests` 2 passed and every earlier sequence test still green — `deal-wounds` now has a second step, so `GfDealWoundsTests` gains a `step_completed` named `disgorge` with no changes in each of its four cases. Commit: `Disgorge a destroyed container: the occupants test, are shaken, are placed within 6", and the wreck goes last`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect `GfContainersTests` 2 passed and every earlier sequence test still green — `deal-wounds` now has a second step, so `GfDealWoundsTests` gains a `step_completed` named `disgorge` with no changes in each of its six cases. Commit: `Disgorge a destroyed container: the occupants test, are shaken, are placed within 6", and the wreck goes last`.**
 
 ### Task 18: The nine constraints as tests, and the record in `CLAUDE.md`
 
@@ -5367,7 +5581,7 @@ find server tests -path '*/obj/*' -maxdepth 3 -type d | grep -v Unix
 git status --short
 ```
 
-Expected: build clean; every test project green (this plan adds 80 tests to `Tabletop.GameServer.Tests`); the `find` prints nothing.
+Expected: build clean; every test project green (this plan adds 87 tests to `Tabletop.GameServer.Tests`); the `find` prints nothing.
 
 - [ ] **Step 4: Commit: `Pin the interpreter's nine constraints and record the engine in CLAUDE.md`.**
 
@@ -5424,7 +5638,7 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 
 ### `Tabletop.GameServer.Rules.GrimdarkFuture`
 
-`GfNames` (every OPR name), `GfRolls` (`Spec`, `HitPlan`, `DefensePlan`, `InCover`, `MoralePlan`, `CastingPlan`, `RollOffSequence`), `GfHooks` (`OnRoundStarted`, `OnTurnEnded`, `EndOfTurnSequences`, `UnitsToTestAtEndOfActivation`, `AtHalfOrLess`, `StartingSize`, `FoughtMeleeThisActivation`, `ReactionsAt`), `GfAttack` (`DealWounds`, `ResolveHits`, `AttackSequence`, `AttackInteraction`, `WoundsToDeal`, `EligibleForNextWound`, `KindOf`, `EligibleModels`, `HitsFrom`, `AttacksAgainst`, `PushStep`), `GfShooting` (`Shooting`, `Groups`, `ValidTargets`, `WeaponGroup`), `GfMoves` (`Hold`, `Advance`, `Rush`, `DangerousTerrain`, `MoveStep`, `ShootOrNotStep`, `CastingWindowStep`, `ActivationTerrainStep`, `DangerousTestStep`, `DangerousDice`, `StandingInDangerous`, `IsContainer`, `ContainerMovesThisActivation`, `ContainersInReach`, `ExitPlacement`), `GfMelee` (`Charge`, `Melee`, `MeleeWeapons`, `WoundsCaused`), `GfMorale` (`MoraleTest`), `GfCasting` (`Casting`, `SpellHits`, `Casters`, `TriedThisActivation`, `EligibleSpenders`, `SpendCapacity`, `SpellTargets`), `GfContainers` (`TransportDestroyed`, `Wrecks`). Sequence names: `hold`, `advance`, `rush`, `charge`, `shooting`, `melee`, `attack-sequence`, `resolve-hits`, `deal-wounds`, `morale-test`, `dangerous-terrain`, `transport-destroyed`, `casting`, `spell-hits`, `roll-off`. Ask questions a client may see: `move`, `shoot_or_not`, `declare_targets`, `remove_casualties`, `charge_target`, `strike_back`, `disembark`, `cast`, `spell_targets`, plus the engine's `confirm`, `react`, `spend_tokens`.
+`GfNames` (every OPR name), `GfRolls` (`Spec`, `HitPlan`, `DefensePlan`, `InCover`, `MoralePlan`, `CastingPlan`, `RollOffSequence`), `GfHooks` (`OnRoundStarted`, `OnTurnEnded`, `EndOfTurnSequences`, `UnitsToTestAtEndOfActivation`, `AtHalfOrLess`, `StartingSize`, `FoughtMeleeThisActivation`, `ReactionsAt`), `GfAttack` (`DealWounds`, `ResolveHits`, `AttackSequence`, `AttackInteraction`, `WoundsToDeal`, `EligibleForNextWound`, `SnipedModel`, `IsSniperGroup`, `KindOf`, `EligibleModels`, `HitsFrom`, `AttacksAgainst`, `PushStep`), `GfShooting` (`Shooting`, `Groups`, `ValidTargets`, `WeaponGroup`), `GfMoves` (`Hold`, `Advance`, `Rush`, `DangerousTerrain`, `MoveStep`, `ShootOrNotStep`, `CastingWindowStep`, `ActivationTerrainStep`, `DangerousTestStep`, `DangerousDice`, `StandingInDangerous`, `IsContainer`, `ContainerMovesThisActivation`, `ContainersInReach`, `ExitPlacement`), `GfMelee` (`Charge`, `Melee`, `MeleeWeapons`, `WoundsCaused`), `GfMorale` (`MoraleTest`), `GfCasting` (`Casting`, `SpellHits`, `Casters`, `TriedThisActivation`, `EligibleSpenders`, `SpendCapacity`, `SpellTargets`), `GfContainers` (`TransportDestroyed`, `Wrecks`). Sequence names: `hold`, `advance`, `rush`, `charge`, `shooting`, `melee`, `attack-sequence`, `resolve-hits`, `deal-wounds`, `morale-test`, `dangerous-terrain`, `transport-destroyed`, `casting`, `spell-hits`, `roll-off`. Ask questions a client may see: `move`, `shoot_or_not`, `declare_targets`, `snipe_target`, `remove_casualties`, `charge_target`, `strike_back`, `disembark`, `cast`, `spell_targets`, plus the engine's `confirm`, `react`, `spend_tokens`.
 
 ### Test infrastructure (`tests/Tabletop.GameServer.Tests/Infrastructure`)
 
@@ -5439,7 +5653,7 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 3. **`docs/superpowers/specs/2026-08-29-effect-grammar-design.md` → `Roll` nests.** Add: *"A property's own roll (kind 5) is recorded as a `RollRecord` whose name is the entry's — `Regeneration`, `Impact`, `Fearless` — with the effect row's threshold. It is not a `roll` row because nothing targets it; `AddModifier` therefore cannot name it."*
 4. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → The resolution stack**, after *"`step_completed` — the step's name, plus everything it produced: choices made, rolls, state changes applied"*. Add: *"and `values`, a flat map of named integers holding the step's settled parameters — attacks counted, a hit multiplier once capped, extra hits, a distance used, a token spend, who lost — so that a later step or a nested frame reads them without re-deriving, and so a reroll between steps changes what the next step reads (it reads the record) without changing what was settled (it reads the value). There is no schema per step kind."* And strike the *Still open* item *"Whether `step_completed` payloads need a schema per step kind"* with *"Settled 2026-09-05 by the interpreter plan: a flat `values` map, no per-kind schema."*
 5. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → A step ends one of four ways.** Add: *"A step may also complete and run again — the same step, a fresh history, the same position — which is how a move takes a second segment after a mid-move cast. In the log this is a second `step_completed` with the same step name; a sequence never lists one name twice in a row."*
-6. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → Windows**, the sealed variant. Add: *"One sealed Ask is addressed to every eligible team; its `TokenSpend` legal set carries one maximum — the largest team's — and the casting step records each team's own maximum in its values and clamps the revealed spends to it."*
+6. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → Windows**, the sealed variant. Add: *"One sealed Ask is addressed to every eligible team; its `TokenSpend` legal set carries a cap per model — the tokens that model holds — for every addressed team's models, and the casting step checks that a team spent only from its own."*
 7. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → One roll primitive.** Add: *"The RNG is a counter-based generator: the seed is the game's stored `rng_seed`, written once when the game is created and never changed, and the cursor is the number of dice drawn in the effective log, so no RNG state is stored and an undo rewinds the dice with the log. A forced reroll (`Poison`) is a `dice_rerolled` payload following the `step_completed`, so the record shows the replaced die and the cursor counts the extra draw."*
 8. **`docs/superpowers/specs/2026-09-04-spell-effects-design.md` → The grants store.** Add: *"A grant on a model-grain target lands on the model's unit — the store is the unit's. A grant's parameter (`gets AP(1)`) is the granting effect's `amount`, read from the pinned set by `effect_id`; the grant row itself carries none."* And to **Duration**, after *"always with one duration: **once**"*: *"That is a closed reading of the whole corpus, so it is validated rather than assumed: a `spell` entry's top-level effect must be `add_hit` (a damage spell) or carry `duration = once` (a grant). Anything else would be applied nowhere, and the authored-document validator refuses it."*
 9. **`docs/superpowers/plans/2026-09-05-game-server-skeleton.md` → Interfaces needed → Scheduler and interpreter plans.** Applied 2026-09-05 (the skeleton plan now says it): the scheduler's seam is `Tabletop.GameServer.Engine.IScheduler` (interpreter plan, Task 10), implemented by the scheduler plan and registered through `ISchedulerFactory` in place of `NoSchedulerFactory`.
@@ -5449,12 +5663,12 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 
 ## Interfaces needed from other modules
 
-1. **Contracts plan (`Tabletop.Protocol`) — applied 2026-09-05 by the compatibility review.** `StepCompleted` gains a non-positional init property `IReadOnlyDictionary<string, int>? Values { get; init; }` (serialised as `values`, omitted when null), and `CompletedStep` in `Projection.cs` gains `IReadOnlyDictionary<string, int>? Values` copied by `EventApplier.ApplyTo`. Assumed exact shape: `new StepCompleted(frameId, step, answer, rolls, changes) { Values = … }`. `FrameReader` reads values from the effective log, so only the event needs it; the projection copy is for the client's log panel. **Applied 2026-09-06 by owner ruling 1:** `GameInfo` carries `long RngSeed`, positional and last among the scalars, after `WaitsBetweenSteps` — the game's stored dice seed, from `management.game.rng_seed bigint not null`. Task 5 consumes it as `GameState.RngSeed = unchecked((ulong)info.RngSeed)`, which keeps `GameState.RngSeed : ulong` and leaves `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 untouched. Every `GameInfo` this plan builds is a `Samples.Game with { … }` (`DiceTests.State`, `Armies.State`, the `RulesEngineFactory` test), so the new positional member reaches them without an edit.
+1. **Contracts plan (`Tabletop.Protocol`) — applied 2026-09-05 by the compatibility review.** `StepCompleted` gains a non-positional init property `IReadOnlyDictionary<string, int>? Values { get; init; }` (serialised as `values`, omitted when null), and `CompletedStep` in `Projection.cs` gains `IReadOnlyDictionary<string, int>? Values` copied by `EventApplier.ApplyTo`. Assumed exact shape: `new StepCompleted(frameId, step, answer, rolls, changes) { Values = … }`. `FrameReader` reads values from the effective log, so only the event needs it; the projection copy is for the client's log panel. **Applied 2026-09-06 by owner ruling 1:** `GameInfo` carries `long RngSeed`, positional and last among the scalars, after `WaitsBetweenSteps` — the game's stored dice seed, from `management.game.rng_seed bigint not null`. Task 5 consumes it as `GameState.RngSeed = unchecked((ulong)info.RngSeed)`, which keeps `GameState.RngSeed : ulong` and leaves `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 untouched. Every `GameInfo` this plan builds is a `Samples.Game with { … }` (`DiceTests.State`, `Armies.State`, the `RulesEngineFactory` test), so the new positional member reaches them without an edit. **Applied 2026-09-06 by the owner's ruling on question 14:** `TokenSpend(IRD<Guid,int> MaxByModel)` and `TokensSpent(IRD<Guid,int> Counts)` are maps keyed by model, replacing the single maximum and the single count. `LegalSetMembership` checks the keys and each key's cap and no total, and leaves ownership of a key to `GfCasting`'s spend step, on the precedent that `MoveRegion` checks model ids and leaves distance to `GfMoves`. `Allocation`/`Allocated` were rejected for this by the contracts plan and are unchanged: an `Allocated` must sum to `Amount`, which is what `deal-wounds` needs and the contrary of a spend of any number up to a cap. `Sniper` needs nothing new — `PieceSelection` over model ids, `SelectedPieces` in reply, and a wound written by `WoundsSet` on the named model.
 2. **Geometry plan (`Tabletop.Geometry`)** — consumed as its Produces table states: `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Containment.VolumesContaining`, `Settling.SurfaceHeightAt(Point3, …)`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed(PlacedModel, Point2, IRL<WorldVolume>)`, `Containment.BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` (added by the geometry plan 2026-09-06 — p.14's *"fully within 6\" of it"*, which `GfMoves.ExitPlacement` is the only caller of). The last two discharge the obligation the geometry plan states of this one: a dangerous terrain test is owed for `Movement.VolumesCrossed(start, destination, dangerousVolumes)` rather than for the landing position, since p.11 says *"moves in or through"*, and `Containment.VolumesContaining` is *"is activated in it"* (Task 14). `MoveRegion` carries six parameters (contracts plan Task 8; the fifth applied 2026-09-05, the sixth 2026-09-06): `MoveStep` passes the difficult volume ids, `GfNames.DifficultCap` (`null` for `Strider`/`Flying`) and `MoveStep.Containers(…)`; the charge close-in, fall-back and consolidation Asks pass `[]`, `null` and nothing, since no terrain parameter and no container binds them. `MoveContainment(IRL<Guid> Enterable, Guid? ExitingId, double? ExitWithin)` is the sixth parameter's type. **The owner's 50% cover ruling of 2026-09-06 adds one consumed member**, which the geometry plan has since declared: `static IRL<bool> LineOfSight.VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume> volumes)`, index-aligned with `unit`, true where at least one observer's `Check` is clear. `Battlefield.ModelsVisibleFrom` is the only caller. It calls it once per target model with that model's own body removed from the blockers, because p.11 keeps the unit's **other** models blocking and the signature takes no per-target exclusion; the ray count is the same as one batched call. The ruling also ends this plan's use of `Cover.InsideCoverVolumes` and `Cover.SightBlockersBetween`, which the geometry plan's own reading of the ruling agrees with: terrain cover is a base centre inside the volume (`Containment.VolumesContaining` filtered to `Cover`) rather than a whole base inside it, and sight cover is *not seen* rather than *seen past a blocker*.
 3. **Skeleton (`server/game/`)** — settled: the skeleton's Task 6 already declares `GrimdarkFutureRules` as `sealed partial` in `Rules/GrimdarkFuture/GfRules.cs`, so nothing moves; this plan adds `GfRules.Sequences.cs`. This plan itself modifies three skeleton files, each named in the task that does it: `ConnectionHandshake.RunAsync`'s hydrate catch gains `Engine.PropertiesNotFoundException` (Task 10, close `1011`); `PostgresFixture` gains `DeletePropertiesAsync(string hash)` (Task 4); `Program.cs` registrations (Tasks 4 and 10).
 4. **Scheduler plan** — reconciled 2026-09-05: implements `Engine.IScheduler` and `Engine.ISchedulerFactory` (`Create(IGameRules, GameInfo, PropertySet)`) and registers `Scheduler.SchedulerFactory` in place of `NoSchedulerFactory`; adds its own `IGameRules` members (`PhasesBeforeRounds`, `PhasesInTurn`, `FirstTeam`, `LegalTurn`, `ReadAnswer`, `ActivationComplete`, `RoundBoundaryStep`, `OrderReactions`) beside this plan's, and its former `EndOfTurn`/`RoundStartChanges`/`TurnEndChanges` are this plan's `EndOfTurnSequences`/`OnRoundStarted`/`OnTurnEnded` with a `TurnContext` parameter; consumes `ISequenceStarter.Start`, `GfRolls.RollOffSequence` by the name `FirstTeamDecision.RollOffNeeded(GfNames.RollOffSeq)` carries and reads `Values["place_k"]` back, `PropertySet.Actions` for the turn Ask's action rows, `Lookup.UnitHas` for `Immobile`/`Aircraft` legality, `GfNames` (one names class; its `GrimdarkFutureNames` is gone); writes `ActionRecorded` when it starts an action; its `OrderReactions` hook is what `Windows.ReactionOrder` consults — the scheduler plan defines no ordering class of its own. Its `SchedulerHarness` runs the real `RulesEngine` over `TestProperties.Core`. **The owner's roll-off ruling of 2026-09-06 changes three things it must do** (interpreter design → Produced for other modules; question 8 above). The roll-off no longer resolves in the batch that starts it: the boundary before its `order` step is a confirm gate to every team, so `RollOff.Advance` must report `Waiting` across batches and must not read an order that is not there yet. `RulesEngine.Advance` returns `[]` while that framed Ask is open, so the scheduler is not called at all in between and no progress on a call is not a failure. The order now sits on the `step_completed` named `GfNames.RollOffOrderStep` (`"order"`), not the one named `roll-off`, so whatever `RollOff.Advance` hands to `RollOff.Order` must select that step; the keys are unchanged (`winner_ordinal`, `place_1..place_n`). `RollOff.Order`'s existing tolerance of a hand-edited log is still wanted, because `place_*` now derives from dice a player may have edited at the gate, and a residual tie falls to team ordinal.
 5. **Management plan** — `GET /v1/properties` already lists the seeded set; `PropertiesSummary.GameRules = "grimdark-future"` matches `GrimdarkFutureRules.RulesId`. The import's stat names `Quality`, `Defense`, `Range`, `Attacks` match `Content/grimdark-future-core.properties.json`. **Its joined-hero ruling of 2026-09-06 (its question 2) placed two obligations here, both discharged above.** First, `Content/grimdark-future-core.properties.json` now declares `Quality` and `Defense` at `model` level beside their `unit` declarations (Task 3), because a joined hero's slots carry both as `slot_stat` rows and `slot_stat` has no foreign key to `stat_definition` to reject a stat at an undeclared level. Nothing here reads a slot's `Quality` or `Defense`: `StatReader.TargetNumber` resolves `StatLevel.Unit` only, so a joined hero fights at its host squad's quality and defence, which question 13 records with the cost of changing it. The two declarations change the document, so they change its hash — no game pins the old one yet. Second, a `unit`-kind entry on a model slot now means **the unit has the rule**, in `Lookup.UnitHas` and in `LiveProperties.Gather` alike (Task 6): both read it off the unit's definition rather than its living models, so a joined hero's `Ambush` reaches the scheduler's deployment set and `Aircraft`'s two effects act on the whole unit. `Aircraft`, `Ambush` and `Scout` are the only `unit`-kind entries in the core set. **This plan therefore also seeds the two model-level `stat_definition` rows the management plan's *Interfaces needed → Game-server plan* bullet asks for**, since `PropertiesSeeder` is what writes that table.
-6. **Client shell plan** — renders the ruleset questions listed in Produces (`move`, `shoot_or_not`, `declare_targets`, `remove_casualties`, `charge_target`, `strike_back`, `disembark`, `cast`, `spell_targets`) from their legal-set shapes; the `Ask.Prompt` is display text; `WindowKind` values a player may mute: `before-attacking`, `casting`. Containment adds three things to the `Move` rendering of a `move_region` Ask (contracts plan Task 8, `MoveRegion.Containment`): a listed `Enterable` container is a click target whose answer is a `Destinations` with `To = Inside(container)` for **every** model of the unit, not just the one that reached it; a non-null `ExitingId` means the region is `Containment.BaseFullyWithin` about that container rather than `Movement.Region`, and the models being dragged out have no start position to drag from — their ghosts start on the container; and `Allowance` is not the constraint on a disembark, so the ruler's remaining-allowance readout does not apply. An occupant is not drawn on the table at all: `Location.Inside` has no `Placement`.
+6. **Client shell plan** — renders the ruleset questions listed in Produces (`move`, `shoot_or_not`, `declare_targets`, `snipe_target`, `remove_casualties`, `charge_target`, `strike_back`, `disembark`, `cast`, `spell_targets`) from their legal-set shapes; the `Ask.Prompt` is display text; `WindowKind` values a player may mute: `before-attacking`, `casting`. Containment adds three things to the `Move` rendering of a `move_region` Ask (contracts plan Task 8, `MoveRegion.Containment`): a listed `Enterable` container is a click target whose answer is a `Destinations` with `To = Inside(container)` for **every** model of the unit, not just the one that reached it; a non-null `ExitingId` means the region is `Containment.BaseFullyWithin` about that container rather than `Movement.Region`, and the models being dragged out have no start position to drag from — their ghosts start on the container; and `Allowance` is not the constraint on a disembark, so the ruler's remaining-allowance readout does not apply. An occupant is not drawn on the table at all: `Location.Inside` has no `Placement`.
 7. **Scheduler plan, a second item, from the same joined-hero ruling.** `Lookup.UnitHas` now answers true for a `unit`-kind entry found on one of the unit's model slots, so the deployment set it builds from `Ambush` and `Scout` and the `Immobile`/`Aircraft` activation legality it reads widen: a unit with one such model is the whole unit's case. No signature moves and no call site changes. It reads the entry off the unit's definition rather than its living models, which is what makes `Ambush` and `Scout` answerable at all — both are read before any model has a position.
 
 ## Questions for the project owner
@@ -5464,8 +5678,8 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 3. **Are a later weapon group's attacks recomputed after an earlier group's casualties? Closed 2026-09-06 by the owner, overturning the assumption:** no. Every weapon group's attack count is fixed when the action starts, so a group that fires after casualties rolls as if nobody had died. p.8's *"all weapons are fired simultaneously"* beats the order `fire-groups` pushes the groups in. Applied in Tasks 13 and 14: `fire-groups` records `attacks_<i>` for every assigned group on the `shooting` frame before it pushes the first, and `determine-attacks` reads the count for its own group off the pushing frame. `RecomputeAttacksPerGroup` is **deleted** rather than set to `false` — nothing branched on it, so `false` would advertise a switch that does not exist and name the settled behaviour by its negation. A melee push records no count and `determine-attacks` counts live there, which is what p.9 asks for: melee is sequenced by hand, `Counter` striking first and the defender striking back with what survives, so each push is already at the moment the rulebook fires it. `Impact`'s *−1 per defending model with `Counter`* is the same case — the `impact` step follows the `counter` step by the rulebook's own order. **`Blast`'s cap was the one live read left, and the owner ruled it the same way on 2026-09-06:** p.13 caps hits at *"as many hits as models in the target unit"* without saying when they are counted, and they are counted with the attack counts. `fire-groups` records `blast_cap_<i>` beside `attacks_<i>`, `roll-to-hit` reads it through the same `GfAttack.Pushed(frame, prefix)` reader, and the live count survives only as that reader's fallback for a push that recorded nothing. No live read of the target's size is left in the shooting path.
 4. **Catalog kinds and aggregation for the core rules the specs do not fix** (Task 3). Settled already and not in question: `Stealth` is `all` and `Tough` is `none` ([identity and enumerations](../specs/2026-08-29-identity-and-enumerations-design.md) → The Stealth case), and `Fearless` is `majority` because its own text says *"a unit where most models have this rule"*. Assumed for the rest: `Fast`/`Slow`/`Flying`/`Strider`/`Immobile`/`Furious`/`Relentless` as `model` with `all`; **`Entrenched` `any`**, which is the loosest of the readings and the one worth confirming — the rulebook says *"models with this special rule"* where `Stealth` says *"units where all models have this rule"*, so `all` is the alternative and `none` is not available (a per-model instance would add its −2 once per entrenched model to a unit-pooled hit roll); `Regeneration`/`Impact`/`Caster`/`Hero`/`Fear`/`Transport` `none`; `Aircraft`/`Ambush`/`Scout` `unit`. Army Forge lists most of these as unit rules; the management plan's import puts a name on every slot when the catalog says `model`, so the choice only changes where the import writes them, not what the engine reads. If any should change, the document changes and the hash with it. **The three `unit`-kind readings now carry a consequence they did not before**, because the joined-hero ruling makes a `unit`-kind name on a model slot ordinary: it is read as the unit's rule, so a single joined hero with `Ambush` sets the whole squad aside. Question 13 states that cost against the alternative.
 5. **May the generic `Effects/` know the two weapon stat names?** `StatReader` reads `Range` and `Attacks` because `StatKind.Distance`/`Count` need a *which* (Task 7; Task 18 whitelists them). Assumed acceptable while OPR is the only ruleset. If not, `IGameRules` gains `StatRef RangeStat` and `StatRef AttacksStat` and `StatReader` takes them.
-6. **One sealed `TokenSpend` legal set for every team.** Assumed the largest team maximum in the Ask and per-team clamping in the step (Task 9; spec correction 6). If each team must see its own maximum, `TokenSpend` needs a per-team map — a Protocol change — or one sealed Ask per team with the engine holding all answers until the last closes, which the dispatcher does not do today.
-7. **`Sniper`'s per-model target.** Assumed not modelled: a Sniper group resolves first at Quality 2+ against the target unit (Task 14). Modelling it needs a model-grain `PieceSelection` per Sniper model and `AttackInteraction` over one model as a unit of 1 — the same path a model-grain spell takes — about a task of work.
+6. **One sealed `TokenSpend` legal set for every team.** **Closed 2026-09-06 by the owner's ruling on question 14, which voided the question:** `TokenSpend` is a cap per model, so there is no per-team maximum to place in the Ask, no clamp to derive one, and nothing of another team's total to leak. One Ask still serves every team, since a sealed Ask closes when its addressed teams have all answered and one Ask per team would reveal the first answer to the last. `Windows.MaxFor` and `Values["tokens_max_<team>"]` are deleted with the shape they served.
+7. **`Sniper`'s per-model target.** **Closed 2026-09-06 by the owner, overturning the assumption:** a Sniper group picks the model its wounds land on. `attack-sequence` gains `pick-target-model`, a `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the attacker's team, after `determine-attacks` and before `roll-to-hit` (Task 13), and `deal-wounds` assigns every wound of that group to the named model without opening its allocation (Task 12). Two parts of p.13's sentence are still not modelled, and are the residue rather than a reopening: the pick is **per group** rather than per Sniper model, because a group is one weapon type and `roll-to-hit` pools its dice, so two Sniper models sharing a weapon type name one model between them; and *"resolved as if it was a unit of 1"* is not, so cover, `Blast`'s cap and the defence roll still read the whole target unit, and only the wound is redirected.
 8. **Confirm gates and the actor. Closed 2026-09-06 by the owner, overturning the assumption for the actorless case:** the roll-off's dice are gated like any other roll. The gate still goes to the acting unit's team where there is one, and `SequenceInterpreter.Advance` now also gates a frame with **no actor and no parent** at every boundary past position 0, whatever `WaitsBetweenSteps` says, with one unsealed `Confirm` Ask **addressed to every team** (Task 8's `GateTeams`). Every team is the addressee because the roll-off has no acting unit and its result fixes turn order for all of them, so no team has a better claim to release it; the Ask is unsealed, so the dispatcher closes it on the first answer rather than waiting on every team being present before the first round. A nested actorless frame — the terrain-wounds `deal-wounds` — stays ungated, since its own `assign` Ask already suspends it and the target's team would be the obvious addressee there. Two consequences. `GfRolls.RollOffSequence` is **two** steps, `roll-off` then `order` (Task 11): `dice_edited` reaches back into a `RollRecord` and never rewrites a `step_completed`'s `Values`, so the ranking has to be derived after the gate or an edit would change nothing. And the roll-off spans batches, which the scheduler plan must absorb — recorded under Interfaces needed 4. **Residue rather than a reopening:** a root frame *with* an actor and a single step, which is the end-of-turn `morale-test`, still pops before any boundary can gate it, so that die is unreachable once the frame is gone. Gating a root frame's terminal boundary would close that too, at the price of a confirm after every morale test.
 9. **Can a unit embark into an enemy's transport, or a unit inside one target its own container? Closed 2026-09-06 by the owner**, who confirmed the behaviour and said the question was badly framed. The first half is a **rule**, not an assumption: a unit cannot enter an enemy transport, and only friendly containers are ever offered. p.20 says a solid building's occupants *"must be from the same army"* and a `Transport` carries its owner's units. `ContainersInReach` lists friendly containers only, which is what the plan already assumed, so nothing changes. **A consequence, recorded here rather than left as an open thread:** p.14's clause about occupants targeting *"the Transport itself"* is not reachable today. `ValidTargets` offers enemy units only and a unit's own container is friendly, so no Ask ever presents it, and no legal move puts a unit inside an enemy container either. `Battlefield.InsideReach` still implements p.14 as written — a fellow occupant, or the container model — because the predicate is the faithful half of the pair; the only way to reach that branch is a menu-written state.
 10. **May a caster inside a container cast?** Assumed yes, at what is in there with it: `GfHooks.ReactionsAt` reads `Lookup.AliveModels`, so the window opens, and `GfCasting.SpellTargets` goes through `Battlefield.InsideReach`. But `SpendCapacity` stays positional on both ends — p.13 needs *"line of sight of the caster's unit"* and p.14 denies an occupant any — so such a cast draws no tokens in either direction and resolves at a flat 4+. If a cast from inside should be impossible instead, `ReactionsAt` and `GfCasting.Casters` go back to `LivingModels` and two lines disappear. One edge stays open either way: `SpellTargets`' **model-grain** branch measures per model and an occupant has no position, so a model-grain spell cast inside a container finds nothing to hit. Closing it means the same containment branch a second time, which is not worth writing until a model-grain spell exists.
@@ -5474,4 +5688,4 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 13. **A joined hero is a model of the unit it joined (the management plan's owner ruling of 2026-09-06). Two things follow, and this plan took one answer for each.**
     **Its quality and defence: the squad's, not its own.** `Content/grimdark-future-core.properties.json` declares `Quality` and `Defense` at `model` level as well as `unit` level, so a hero's `slot_stat` rows are declared values rather than rows no declaration covers, and a `replace_stat` at `model` level has something to resolve against. `StatReader.TargetNumber` still resolves `StatLevel.Unit` only and throws for any other level, so nothing reads them and a joined hero hits and blocks on its host squad's numbers. Three reasons. `Hero`'s own rulebook clause says a joined hero *"must use the unit's Defense until all other models have been killed"*, so the unit's defence is the book's answer for every case but one. A defence roll is thrown per hit in `roll-to-block` before `deal` assigns any wound to a model, so at the moment the threshold is chosen there is no model whose slot `Defense` could be read — model-level defence would mean assigning wounds before blocking, reversing pages 8 and 9. And quality, which the rulebook does leave to the model, costs a change of roll shape rather than a change of reader: one `RollRequest` carries one `Threshold`, so a unit of mixed quality needs `roll-to-hit` split into one roll per distinct quality, plus a rule for which model owns each die when the hero and the squad carry the same weapon type and `fire-groups` has merged them into one group. That is a change to the roll, the log and the Ask. **If the owner wants the hero's own quality**, the smallest honest version is `GfRolls.HitPlan` taking the attacking models and emitting one roll per distinct `StatLevel.Model` `Quality` among them, falling back to the unit's for a slot that declares none — about a task, and it makes `RollRecord` per-quality rather than per-group everywhere the log is read. `Hero`'s *until all other models have been killed* stays unimplemented either way, and is worth its own decision.
     **A `unit`-kind entry on a model slot: the unit has the rule.** `Aircraft`, `Ambush` and `Scout` are the only `unit`-kind entries in the core set, and every rule a joined hero carries lands on its slot whatever its kind, so the case is now routine rather than the corner a rule with `count < size` used to reach. `Lookup.UnitHas` and `LiveProperties.Gather` both read such an entry off the unit's definition, holder-less, so the name lookup and the effect pass agree — before this they disagreed, `Gather` treating it as live for the whole unit through its `_ => true` arm while `UnitHas` answered false, which made a joined hero with `Ambush` invisible to the scheduler's deployment set while its effects still applied to the squad. **The cost is that one model grants the whole unit a unit-scoped rule**: a captain with `Ambush` sets a ten-model squad aside, and `Aircraft` on one slot gives every model shooting at the unit −12" range and −1 to hit. **The alternative was to answer false in both**, which costs the opposite: a joined hero's own `Ambush` and `Scout` do nothing at all, and `Aircraft`'s two effect rows apply nowhere, with no diagnostic anywhere — data stored, read by nothing. Reading it off the definition rather than the living models is deliberate too: a unit-scoped rule does not stop being the unit's when the model carrying it dies, and `Ambush` and `Scout` are read before any model has a position, so a positional reading would have answered false for exactly the case the rule exists for.
-14. **Who chooses which eligible model pays a team's token spend?** Assumed the server, nearest the caster first (Task 17). p.13's eligibility is per model — *"models within 18\" in line of sight of the caster's unit may spend any number of spell tokens at the same time"* — and this plan asks each team for one number, then deducts it from that team's eligible models nearest the caster first. The number is all the roll needs, since the modifier is ±1 per token spent, and `GfCasting.EligibleSpenders` is one predicate for both a team's maximum and its payers, so no model out of range or without a sight line either raises the maximum or pays. What the player loses is the choice of *which* of its eligible models pays, and every token holder is a `Caster(X)` model: nearest-first can spend the tokens a player was holding for that model's own spell. Letting the player choose costs an `Allocation` legal set over the team's eligible models, which is a Protocol change and a second decision at every cast, or one sealed Ask per eligible model, for which the dispatcher has no group.
+14. **Who chooses which eligible model pays a team's token spend?** **Closed 2026-09-06 by the owner, overturning the assumption:** the player does. `TokenSpend` is a cap per model and `TokensSpent` a count per model, so a team distributes its spend across its own eligible models and the step deducts each named model's own count (Task 9, Task 17). Nearest-first payer selection is deleted, and with it the loss it recorded: every token holder is a `Caster(X)` model, and no spend now takes the tokens a player was holding for that model's own spell. `EligibleSpenders` is still the one predicate, now supplying the caps as well as the eligibility, and it gained the caster's own model (ruling 2 of the same day): p.13 does not exclude it, it is admitted without measurement as a model of the caster's own unit, and its cap is what the spell's cost left it, because the caps are built in `spend-tokens`, after `pick-spell` deducted the cost.

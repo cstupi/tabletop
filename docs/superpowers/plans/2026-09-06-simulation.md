@@ -720,9 +720,14 @@ public class AnswerPolicyTests
     }
 
     [Fact]
-    public void A_token_spend_stays_within_the_cap_and_confirmation_confirms()
+    public void A_token_spend_stays_within_every_model_own_cap_and_confirmation_confirms()
     {
-        Assert.InRange(Assert.IsType<TokensSpent>(Policy().Answer(With(new TokenSpend(3)), EmptyView())).Tokens, 0, 3);
+        // p.13: any number of tokens up to what each model holds, so the bound is per model and not a total (ruled 2026-09-06).
+        var spend = new TokenSpend(new Dictionary<Guid, int> { [A] = 1, [B] = 4 });
+        var answer = Assert.IsType<TokensSpent>(Policy().Answer(With(spend), EmptyView()));
+        Assert.Equal(new HashSet<Guid> { A, B }, answer.Counts.Keys.ToHashSet());   // one entry per model the map named, whatever order Guid comparison puts them in
+        Assert.InRange(answer.Counts[A], 0, 1);
+        Assert.InRange(answer.Counts[B], 0, 4);
         Assert.IsType<Confirmed>(Policy().Answer(With(new Confirmation()), EmptyView()));
     }
 
@@ -755,7 +760,7 @@ public class AnswerPolicyTests
             new PieceSelection([A], 1, 1),
             new Allocation([A], 1),
             new Assignment([new AskOption("g", "", [])], [A], 1),
-            new TokenSpend(1),
+            new TokenSpend(new Dictionary<Guid, int> { [A] = 1 }),
             new Confirmation(),
         ];
         foreach (var legal in all) Assert.NotNull(policy.Answer(With(legal), EmptyView()));
@@ -946,7 +951,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
         Allocation a => AnswerAllocation(ask, a),
         Assignment a => AnswerAssignment(ask, a),
         MoveRegion m => AnswerMove(ask, m, view),
-        TokenSpend t => Pass(ask) ?? new TokensSpent(chooser.Next(t.MaxTokens + 1)),
+        TokenSpend t => AnswerSpend(ask, t),
         Confirmation => new Confirmed(),
         _ => throw new NotSupportedException($"legal set {ask.Legal.GetType().Name} has no policy; add it to AnswerPolicy and to ShapeNames"),
     };
@@ -960,6 +965,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
         return Pass(ask) ?? new Chosen(chooser.Pick(o.Choices).Id);
     }
 
+    /// <summary>Ids out of the list the server handed over, whatever they name: units for a deploy, one model of a unit for a Sniper's pick (p.13).</summary>
     private AskAnswer AnswerPieces(Ask ask, PieceSelection p)
     {
         var max = Math.Min(p.Max, p.Eligible.Count);
@@ -978,6 +984,22 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
             counts[target] = counts.GetValueOrDefault(target) + 1;
         }
         return new Allocated(counts);
+    }
+
+    /// <summary>
+    /// p.13's spend: any number of tokens, per model, up to what that model holds. One draw per entry in the map, each
+    /// uniform in [0, that model's maximum], which is what makes a model's own bound the thing under test — a single
+    /// draw against the sum could never produce the answer "one from the model holding four and none from the other".
+    /// Entries are taken in id order so one seed answers one run identically. An empty map is nothing to spend.
+    /// </summary>
+    private AskAnswer AnswerSpend(Ask ask, TokenSpend t)
+    {
+        if (t.MaxByModel.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
+        if (Pass(ask) is { } passed) return passed;
+        var counts = new Dictionary<Guid, int>();
+        foreach (var (modelId, max) in t.MaxByModel.OrderBy(kv => kv.Key))
+            counts[modelId] = chooser.Next(Math.Max(max, 0) + 1);
+        return new TokensSpent(counts);
     }
 
     private AskAnswer AnswerAssignment(Ask ask, Assignment a)
@@ -1952,6 +1974,9 @@ public sealed record RecordedMarkerState(
 /// <param name="LegalKind">The legal set's wire kind: options, pieces, allocation, assignment, move_region, token_spend, confirmation.</param>
 /// <param name="Answered">The teams that have already answered — a sealed Ask's answers stay hidden until it closes.</param>
 /// <param name="Options">Present for an options or assignment set: the choice ids, their labels and the pieces they name.</param>
+/// <param name="Pieces">The pieces the set names: eligible, targets, models, or a token spend's spender models (p.13).</param>
+/// <param name="Allowance">A move region's allowance in inches, or a token spend's total maximum. The spend's per-model
+/// maxima are not carried: every frame already holds each model's SpellTokens.</param>
 public sealed record RecordedAsk(
     Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams,
     bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId,
@@ -2089,7 +2114,7 @@ public static class LogLines
         Allocated a => $"{a.Counts.Values.Sum()} allocated",
         Assigned a => $"{a.Targets.Count} assignment(s)",
         Destinations d => $"{d.Moves.Count} destination(s)",
-        TokensSpent t => $"{t.Tokens} token(s) spent",
+        TokensSpent t => $"{t.Counts.Values.Sum()} token(s) spent",
         Confirmed => "yes",
         Passed => "a pass",
         _ => answer.GetType().Name,
@@ -2175,7 +2200,7 @@ public sealed class FrameProjector(CompiledScenario scenario)
             Allocation a => ("allocation", [], a.Targets, null),
             Assignment a => ("assignment", a.Items.Select(OptionOf).ToList(), a.Targets, null),
             MoveRegion m => ("move_region", [], m.ModelIds, m.Allowance),
-            TokenSpend t => ("token_spend", [], [], (double)t.MaxTokens),
+            TokenSpend t => ("token_spend", [], t.MaxByModel.Keys.ToList(), (double)t.MaxByModel.Values.Sum()),
             Confirmation => ("confirmation", [], [], null),
             _ => (ask.Legal.GetType().Name, [], [], null),
         };
@@ -2265,7 +2290,7 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 
 **A cap of *n* means *n* whole rounds.** The boundary condition is not a detail: `Round >= RoundCap` **and every open Ask is the round-boundary Ask** stops the run at the end of round *n*, where `Round > RoundCap` alone would let round *n* + 1 start and stop part-way through it. A cap of two therefore ends after the second round, not during the third. Two reasons for that reading. A cap is a maximum number of rounds, so exceeding it by a fraction of a round is a cap that does not hold; and stopping on the boundary Ask leaves the recording ending on a whole round, which is what a viewer's round scrubber and every `ReachedRound` expectation assume. The boundary Ask always arrives, so the loop cannot sail past the cap waiting for it: the scheduler cannot advance a round except through an answered `end_round` Ask, which is invariant 5, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` (Task 7). This is the condition the design document records (`docs/design/simulation/design.md` → *The run loop and the four outcomes*); the table above and `RunLoop.DriveAsync` state it identically, and `A_cap_of_two_stops_at_the_end_of_the_second_round` pins it.
 
-**Why the loop places models by hand.** Deployment's Ask is `deploy` over a `PieceSelection` of units; the scheduler spec's phase ends "when the last model of that unit has a placement", and moving models by hand is an ordinary `MoveModels` command, not an Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). So after a `deploy` answer the loop puts that unit's models on the table itself, inside the team's own deployment zone, using `ZoneStyles.Resolve` — geometry from a library, not a rules outcome the engine should have computed. Nothing checks whether the placement is *good*; placement is free under every enforcement setting (`architecture.md` → Rules enforcement: "free placement, with base overlap, terrain intersection, and broken coherency flagged rather than prevented").
+**Why the loop places models by hand.** Deployment's Ask is `deploy` over a `PieceSelection` of units — and it is the question name that says so, not the shape, which is what keeps a `PieceSelection` of model ids such as a Sniper's pick (p.13) out of this path; the scheduler spec's phase ends "when the last model of that unit has a placement", and moving models by hand is an ordinary `MoveModels` command, not an Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). So after a `deploy` answer the loop puts that unit's models on the table itself, inside the team's own deployment zone, using `ZoneStyles.Resolve` — geometry from a library, not a rules outcome the engine should have computed. Nothing checks whether the placement is *good*; placement is free under every enforcement setting (`architecture.md` → Rules enforcement: "free placement, with base overlap, terrain intersection, and broken coherency flagged rather than prevented").
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2527,7 +2552,7 @@ public sealed record AskFingerprint(string Question, string Teams, string Legal,
         Allocation a => $"allocation:{a.Amount}:{string.Join(",", a.Targets.Select(i => i.ToString("N")).Order())}",
         Assignment a => $"assignment:{a.MaxDistinctTargets}:{string.Join(",", a.Items.Select(i => i.Id).Order())}:{string.Join(",", a.Targets.Select(i => i.ToString("N")).Order())}",
         MoveRegion m => $"move:{m.Allowance}:{string.Join(",", m.ModelIds.Select(i => i.ToString("N")).Order())}",
-        TokenSpend t => $"token_spend:{t.MaxTokens}",
+        TokenSpend t => $"token_spend:{string.Join(",", t.MaxByModel.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key:N}={kv.Value}"))}",
         Confirmation => "confirmation",
         _ => legal.GetType().Name,
     };
@@ -4684,6 +4709,8 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 4. **Contracts plan** — `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client. **Landed 2026-09-06** as `public sealed record AtRest(long Seq) : SocketMessage` with `[JsonDerivedType(typeof(AtRest), "at_rest")]`, the eighth of thirteen kinds; this plan consumes it and adds nothing to it. Also `EventApplier.EffectiveLog(IReadOnlyList<GameEvent>)` as a public static, which the undo invariant and invariant 4 both call; `Projection.Initial(Board, GameInfo)`; `WireJson.Serialize<T>(T)` accepting an enum, which is how `sim/` prints `alternating-activation` rather than inventing a second spelling. Also **`GameInfo.RngSeed`**, the stored RNG seed the project owner ruled on 2026-09-06, together with the `management.game` column it comes from. That plan owns the name, the SQL type and the C# type; this one consumes its choice.
 
    **Landed 2026-09-06, and this plan follows it: `long RngSeed`, positional and last among `GameInfo`'s scalars — after `WaitsBetweenSteps`, before `Teams` and `Participants` — over a `management.game.rng_seed bigint not null` column with no default** (contracts plan → *Interfaces → Produces* and spec correction 12). Positional on purpose, so a construction that forgets the seed fails to compile rather than silently getting `0`. `long` because `bigint` is signed, so `ScenarioCompiler` writes `unchecked((long)s.Seed)` from the scenario's `ulong Seed`; the reverse cast (`unchecked((ulong)info.RngSeed)`, where `GameState.RngSeed : ulong` is set) belongs to the interpreter plan, not this one. `SocketRowSeeder` passes `info.RngSeed` straight into the insert. The four places this plan spells the seed are `ScenarioCompiler.Compile`, `SocketRowSeeder.SeedAsync`, and the seed assertions in `ScenarioTests` and `RunLoopTests`.
+   **The two shapes the rulings of 2026-09-06 landed, consumed as stated:** `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)` answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)`, still wire kinds `token_spend` and `tokens_spent`, still seven legal-set kinds and eight answer kinds, so `AnswerPolicy.ShapeNames` is unchanged and `AnswerSpend` draws once per entry (p.13). And a Sniper's chosen model as a `PieceSelection` over model ids, which needs nothing at all here: `AnswerPieces` picks ids out of the list it is handed without asking what they name, and the deployment loop keys on the question name rather than the answer shape.
+
 5. **Geometry plan** — `Movement.Check(PlacedModel, Point2, double, IReadOnlyList<WorldVolume>, IReadOnlyList<WorldVolume>, double?, TableSize?) → MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`; `ZoneStyles.ShapesOf(string)`, `ZoneStyles.Resolve(string, TableSize)`, `ZoneStyles.Contains(string, TableSize, Point2)`, and the style constants `Frontline` and `FreeForAll`; `Settling.SurfaceHeightAt(Point2, IReadOnlyList<WorldVolume>)`.
 
    `Resolve` is assumed to be `IReadOnlyList<Polygon> Resolve(string shapeId, TableSize)` with `sealed record Polygon(IReadOnlyList<Point2> Vertices)` (geometry design → *Interfaces → Produces*; contracts design → the `Polygon` row), answering in the corner frame, and to return no polygons for a shape id it does not know rather than throwing. `RecordedZone.Polygons` is that list flattened to `Vertices`, so if `Resolve` throws on an unknown id instead, `BuildBoard` wraps the call and records `[]`.
@@ -4698,7 +4725,7 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 1. **How does a socket run get its session JWTs? Answered by the project owner on 2026-09-06, ruling 4: from a development-only endpoint that mints one.** Hand-pasting is rejected. The endpoint is `POST /v1/dev/sessions` on the **management API**, not the game server, because management holds the Stytch project secret and already creates users and authenticates sessions; the game server holds no credential and could not mint anything real. It takes a name, finds or creates the Stytch user and the `account` row, and returns a real Stytch session JWT, so the socket driver stays on the production verification path. It is gated on `IHostEnvironment.IsDevelopment()` rather than on a configuration flag, and it is absent from the route table a production build serves. Applied in Task 8: `SocketCredentials.MintAsync` replaces `FromEnvironment`, `AccountOf` reads the account id from the mint's response instead of decoding the token, `NameFor` makes the account names stable per scenario and participant, and `--driver socket` has no token variable. The cost is that a console socket run now needs network access to the Stytch test project; the in-process driver and `DriverAgreementTests` still need none. See the management API plan, Task 5, for the endpoint and its absence test.
 2. **Should a `stuck` run fail the console's exit code?** Assumed yes: `RunReport.Passed` is false for `stuck` and `failed`, so `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the exit code changes; the frames are still dumped either way.
 3. **Should `sim/` be in `Tabletop.sln`?** Assumed yes, in a `sim` solution folder, so `dotnet build` at the root builds it and `dotnet test` runs its tests — which is what makes it part of the whole-tree check every plan ends with. If it should be excluded so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands section grows a line; nothing in the code changes.
-4. **How many scenarios should the catalog ship with, and are these the right five?** Assumed `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change.
+4. **How many scenarios should the catalog ship with, and are these the right five?** Assumed `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change. **One candidate sixth, raised 2026-09-06 and not added:** a casting scenario. Casting now holds two player decisions rather than one — the caster's spell and target, then a simultaneous per-model token spend by both teams (p.13) — and it is the only sealed window a full game reaches, so nothing in the present five exercises `TokenSpend`, the sealed reveal, or a window addressed to more than one team. Adding it is a `Scenario` with two casters per side and a `--script` for the spend, not a change to anything else.
 5. **Is 250 ms the right quiet window for the socket driver? Answered by the project owner on 2026-09-06: it is replaced by a rest frame.** The game server sends `AtRest(long Seq)` when it has finished processing an inbound `connect` or `command`, carrying the log's high-water mark, broadcast when the batch appended and sent to the provoking client alone when it did not. `SocketDriver.StepAsync` waits for that frame instead of for silence, and `RestTimeout` (30 seconds) replaces `QuietWindow` as a guard on a hung server rather than as a guess at quiescence; expiry is `RestTimeoutException`, which `RunLoop` turns into a `Failed` run. Task 8 is rewritten accordingly, and `DriverAgreementTests` compares the two drivers run for run again. In process is unaffected and stays exact.
 
 ---

@@ -363,7 +363,12 @@ addressee per team with whether it has answered, the teams still being waited on
 description of the legal set, and a note list. `describeLegal` covers the seven wire kinds
 (`options`, `pieces`, `allocation`, `assignment`, `move_region`, `token_spend`, `confirmation`)
 and returns an unknown kind's own string rather than throwing, so a new legal kind degrades to
-its name.
+its name. The seven survived the rulings of 2026-09-06 unchanged. What moved is inside one of
+them: a token spend is now one maximum per eligible model (p.13), so the recording carries the
+spender models in `Pieces` and the sum of their maxima in `Allowance`, and the line reads *"a
+token spend of up to 3 over 2 models"*. The per-model figures are not recorded twice, because
+every frame already carries each model's `SpellTokens`. A `tokens_spent` answer is a count per
+model and its log line sums them, which is the same sentence the C# `LogLines` writes.
 
 The panel is display only. It exists because the recording carries the open Ask at every frame, and
 showing it is what makes the seam visible without being built on.
