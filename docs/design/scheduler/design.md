@@ -20,8 +20,9 @@ Ask through the interpreter's own Ask machinery; one activation cycle read from 
 phases before round one (deployment, Scouts) and the flip into round one; the first-team policy
 and the roll-off started through the interpreter; the round boundary, its confirmation Ask and
 the interactive boundary hook (Ambushers); reaction *ordering* as a policy hook; the eight
-`IGameRules` members the scheduler adds and their Grimdark Future bodies; the factory and its
-registration in `Program.cs`.
+`IGameRules` members the scheduler adds and their Grimdark Future bodies; one clause in the
+skeleton's `CommandDispatcher.Answer` putting an unreadable turn answer on the enforcement dial;
+the factory and its registration in `Program.cs`.
 
 **Not in scope.**
 
@@ -103,10 +104,14 @@ the `EventApplier` and `IGameRules`), the `ISequenceStarter` it is handed on eve
 returns `[]`. Every Ask the interpreter opens carries a `FrameId`. A non-empty resolution stack
 runs `Interpreter.Advance`. Otherwise it calls `IScheduler.Advance(state, Interpreter)`. The
 scheduler therefore runs only *between* sequences, never while a frame is live, so `TurnCycle`'s
-`Running` and `WaitingCompletion` states are reachable from unit tests but never from the real
-engine. Unframed Asks are the scheduler's own, and it is still called while one is open. It
-returns `[]` to wait. It is the one thing in the engine allowed to emit an `ask_closed`, with an
-empty answer list, for an Ask of its own that a menu edit superseded. The session's loop calls
+`Running` and `WaitingCompletion` states and `RollOff.Waiting` are reachable from unit tests but
+never from the real engine. That one property of the ladder is the whole reason for all three, and
+it is a property of another module: each of the three is the correct answer for a state the game
+really occupies — a gated roll-off occupies `Waiting` for as long as a player takes to confirm —
+so the readers answer it rather than assuming the ladder. Unframed Asks are the scheduler's own,
+and it is still called while one is open. It returns `[]` to wait. It is the one thing in the
+engine allowed to emit an `ask_closed`, with an empty answer list, for an Ask of its own that a
+menu edit superseded. The session's loop calls
 `Advance` after every appended batch until it returns nothing, capped at 10 000 iterations.
 
 **The ruleset seam.** The scheduler never reads a unit's action record, conditions or properties
@@ -381,7 +386,7 @@ stateDiagram-v2
     NoAsk --> AskOpen : LegalTurn non-null - emit ask_opened
     NoAsk --> [*] : CycleEmpty (legal set empty)
     AskOpen --> AskOpen : CycleWaiting (hand moves change nothing)
-    AskOpen --> PassAnswered : ask_closed with Passed, or an unreadable answer
+    AskOpen --> PassAnswered : ask_closed with Passed, or an unreadable answer under warn or silent
     AskOpen --> NeedsStart : ask_closed names a unit and an action
     NeedsStart --> Running : emit action_recorded, then starter.Start
     NeedsStart --> WaitingCompletion : no sequence - emit changes only
@@ -405,9 +410,10 @@ stateDiagram-v2
    transitions above. Deployment is the one exception, where `ActivationComplete` is a question
    about placements. Even there the answer that opened the activation was an Ask answer, not a
    move.
-5. **An answer that names nothing is a pass.** `ReadAnswer` returns null for an option id that
-   does not parse or a unit that does not exist, and `TurnCycle.Read` maps that to
-   `PassAnswered`. This is the plan's open question 3.
+5. **An answer that names nothing follows the enforcement dial.** `ReadAnswer` returns null for an
+   option id that does not parse or a unit that does not exist. Under `warn` and `silent` that is
+   a pass: `TurnCycle.Read` maps it to `PassAnswered`. Under `strict` it never reaches the reader,
+   because `CommandDispatcher.Answer` refuses it. Ruled 2026-09-06 on the plan's question 3.
 6. **An out-of-set action with no sequence is recorded and nothing more.** `ActionSequence("Teleport")`
    is null, so the cycle emits `ActionRecorded(unit, "Teleport")` and completes. That is
    enumeration-not-validation carried through to the end.
@@ -453,9 +459,15 @@ Deployment is not special-cased machinery. It is the same scheduler running a ph
 ruleset supplies. `IGameRules.PhasesBeforeRounds` is `[deployment, scouts]` for Grimdark Future
 and `[]` for a ruleset that starts at round one. The sequence of logged facts is:
 
-`roll-off sequence` → `round_started(0, order, [])` → `phase_started("deployment")` → alternating
-`turn_started` / deploy Ask / `models_moved` / `turn_ended` → `phase_started("scouts")` → the same
-again → `round_started(1, order, changes)` → `phase_started("rounds")`.
+`roll-off sequence` (rolled, gated, confirmed, ranked) → `round_started(0, order, [])` →
+`phase_started("deployment")` → alternating `turn_started` / deploy Ask / `models_moved` /
+`turn_ended` → `phase_started("scouts")` → the same again → `round_started(1, order, changes)` →
+`phase_started("rounds")`.
+
+The confirm gate inside the roll-off is the one place that list pauses for a player before
+deployment. `round_started(0, …)` and `phase_started("deployment")` are still one batch, emitted
+by the `Advance` that reads the resolved order; the gate moves when that `Advance` happens, not
+what it emits.
 
 Round 0 carries the deployment order on `round_started.Order`, because `SchedulerPosition` has no
 other field for it and hydration must find it in the log. This is the plan's spec correction 1.
@@ -554,22 +566,38 @@ Four states, all read from the log since the round anchor:
 | Log since `round_started` | `RollOff.Progress` |
 | --- | --- |
 | no `sequence_started` for that name | `Emit(starter.Start(...))` |
-| started, frame still on `Projection.Stack` | `Waiting` |
 | started, then `sequence_abandoned` | `Emit(...)`, start again |
-| started, frame gone | `Resolved(Order(state, lastStepCompleted))` |
+| started, no `sequence_finished` | `Waiting` |
+| started and finished | `Resolved(Order(state, lastStepCarryingPlace1))` |
 
-The `Waiting` case is defensive rather than reachable. `RulesEngine.Advance` runs the interpreter
-while any frame is on the stack and does not call the scheduler, so in the real engine the
-scheduler only ever sees the roll-off's frame gone. It is kept because `RollOff.Advance` is also a
-unit-testable function over a hand-built log, and because *the scheduler must not assume its last
-output is still true*.
+**The roll-off is confirm-gated, ruled 2026-09-06.** `GfRolls.RollOffSequence` is two steps,
+`roll-off` then `order`, and the boundary between them is an unsealed `Confirm` Ask to every team,
+opened whatever `waits_between_steps` says, because the frame has no actor and no parent. Every
+team is the addressee because no acting unit has a better claim to release a result that fixes
+turn order for all of them, and the first answer closes it. So the dice are editable exactly where
+a player would want them — rolled, visible, and not yet ranked — and the `order` step ranks
+whatever stands when the gate is released. Nothing rewrites a logged `step_completed`, which is
+why the ranking is a second step rather than a recomputation.
+
+Three consequences for this reader. It spans dispatches: the start, the confirm, and the `Advance`
+after `sequence_finished` that writes `round_started`. Every branch is therefore read from the log
+and nothing is carried across — the wait is *no `sequence_finished` for the started frame*, not
+*the frame is on `Projection.Stack`*, which is the same question today and a weaker thing to
+depend on. And `Resolved` reads the last completed step of the frame **that carries `place_1`**,
+which is the `order` step: keying on `sequence_finished` rather than on any `step_completed` is
+what stops an order being written from dice a player may still edit, and keying on `place_1`
+rather than on a step name keeps the ruleset's step names out of the engine.
+
+`Waiting` is what holds for the whole gated interval. `RulesEngine.Advance` does not call the
+scheduler during it — a framed Ask open returns `[]` and a live frame runs the interpreter — so
+the engine's own wait shows up as the engine resting, and the branch is exercised from
+`RollOffTests` over a hand-built log. It is not dead code with no state behind it, which is what
+it was while the roll-off resolved in one batch.
 
 `RollOff.Order` tolerates a hand-edited log. Unknown or duplicate ordinals are skipped, and teams
 the values do not name follow in ordinal order. A menu-mangled roll-off therefore yields a total
-order rather than an exception. A frame with no actor is never confirm-gated (interpreter plan,
-question 8), so the roll-off finishes in the same `Advance` batch that started it under either
-wait setting. Its dice cannot be edited afterwards, because `RerollDice`/`SetDice` need the frame
-on the stack. That is recorded as an open question.
+order rather than an exception. That tolerance matters more now than when it was written, because
+`place_*` is derived from dice a player may have edited at the gate.
 
 ### The round boundary
 
@@ -617,6 +645,9 @@ The whole lifecycle, both shapes:
 stateDiagram-v2
     [*] --> RollingOff : status flips to playing
     RollingOff : roll-off frame runs in the interpreter
+    RollingOff --> Gated : one die per team, then the every-team confirm gate
+    Gated : the engine rests - the dice are editable here
+    Gated --> RollingOff : first confirm - the order step ranks what stands
     RollingOff --> Deployment : round_started(0), phase_started(deployment)
     Deployment --> Scouts : every team skipped - phase_started(scouts)
     Scouts --> RoundOpen : every team skipped - round_started(1), phase_started(rounds)
@@ -683,6 +714,29 @@ an unknown action is recorded and runs nothing, an unknown unit is a pass. The s
 legality check of its own. The legal set is the legality. It has no command of its own either. A
 pass is an Ask answer, not a `Pass` command.
 
+An answer the ruleset cannot read takes the same three positions, ruled 2026-09-06. The two used
+to differ — an out-of-set answer was refused under `strict` while an unreadable one was a pass
+whatever the dial said — and one clause in `CommandDispatcher.Answer` makes them one rule:
+
+```csharp
+var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
+var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
+```
+
+The dispatcher is the only place the decision fits. It already holds `state.Info.Enforcement` and
+the `GameState` `ReadAnswer` needs, so nothing is threaded to reach it, and it is the last point
+at which a refusal leaves the Ask open: it closes an unsealed Ask on the first answer, so a
+refusal from the scheduler afterwards would face a closed turn Ask it will not read, with nothing
+open to answer and nothing but the menu to move the game on. `TurnCycle.Read` therefore keeps
+mapping a null `ReadAnswer` to `PassAnswered` with no dial in it, which is also what keeps a state
+rebuilt from the log independent of a setting the players may have changed since.
+
+`IsTurnAsk` is the scope: the four questions whose answers go through `ReadAnswer`. A pass is
+exempt, the boundary confirmation is not a turn Ask, and an Ambusher Ask is read by
+`RoundBoundaryStep` instead. For every answer a real game can produce the two conditions coincide,
+since a legal set only ever offers well-formed ids for units the log has, so the clause changes
+behaviour in exactly one case: a legal set that offers an id its own ruleset cannot read.
+
 ## Key decisions
 
 **(reversed)** marks a contested and re-decided decision. **(plan)** marks a decision the plan
@@ -708,9 +762,10 @@ took because no spec spoke.
 | Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | **(plan)** spec correction 7 |
 | Free-for-all is a first-team policy (`teams.Count > 2` inside the ruleset hook), not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.49 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
+| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | ruled by the project owner 2026-09-06 **(reversed:** the plan assumed one batch and marked `Waiting` dead; struck correction 9**)** |
 | Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window is the interpreter's mechanism | an `IReactionOrdering` type in `Scheduler/` (drafted, then merged away) | scheduler → Windows; reconciled with the interpreter plan 2026-09-05 |
 | Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement **(reversed** by whole-design review ruling 1**)** |
-| An unreadable turn answer is a pass | it arises under `warn`/`silent` and from the menu, and no spec spoke | ending the turn without passing; refusing regardless of enforcement | **(plan)** spec correction 4, open question 3 |
+| An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases that were different; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | ruled by the project owner 2026-09-06 **(reversed:** the plan assumed a pass; spec correction 4**)** |
 | A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; an Ask is never withdrawn | leaving it open, or having the dispatcher close unframed Asks | **(plan)** spec correction 4; skeleton plan correction 10 |
 | The option id is `"{unitId:N}/{action}"` | an out-of-set `Chosen` must still name a unit and an action | an opaque id resolved server-side | **(plan)** scheduler → Enforcement |
 | `ActivationOption.Idle` is not an action row and runs no sequence | p.10's Shaken activation is an activation with no action | a real `Idle` action row in `Properties` | **(plan)** p.10 |
@@ -730,7 +785,7 @@ took because no spec spoke.
 | `abstract record HookResult` | `HookDone`, `HookWaiting`, `HookEmit(IRL<EventPayload> Events)`, `HookStartSequences(IRL<SequenceStart> Sequences)` |
 | `abstract record FirstTeamDecision` | `OrderedTeams(IRL<Guid> Order)`, `RollOffNeeded(string Sequence)` |
 | `static class ActivationOption` | `const string Idle = "Idle"`; `string Id(Guid unitId, string action)`; `bool TryParse(string id, out Guid unitId, out string action)`; `AskOption For(UnitInPlay unit, string action)` |
-| `sealed class SchedulerLog` | `static SchedulerLog Of(GameState)`; `IRL<GameEvent> Effective`; `long LastSeq`; `GameEvent? Last(Func<EventPayload,bool>)`; `IRL<GameEvent> After(long)`; `long RoundStartedAt`, `PhaseStartedAt`, `TurnStartedAt`, `RotationStartAt`, `CycleStartAt`; `IRL<GameEvent> SinceRound`, `SinceRotation`, `SinceTurn`, `SinceCycle`; `static bool IsSchedulerAsk(Ask)`; `LastSchedulerAsk(slice)`; `LastTurnEndedByTeam(slice)`; `Guid? LastTurnEndedTeam(slice)` |
+| `sealed class SchedulerLog` | `static SchedulerLog Of(GameState)`; `IRL<GameEvent> Effective`; `long LastSeq`; `GameEvent? Last(Func<EventPayload,bool>)`; `IRL<GameEvent> After(long)`; `long RoundStartedAt`, `PhaseStartedAt`, `TurnStartedAt`, `RotationStartAt`, `CycleStartAt`; `IRL<GameEvent> SinceRound`, `SinceRotation`, `SinceTurn`, `SinceCycle`; `static bool IsSchedulerAsk(Ask)`; `static bool IsTurnAsk(Ask)`; `LastSchedulerAsk(slice)`; `LastTurnEndedByTeam(slice)`; `Guid? LastTurnEndedTeam(slice)` |
 | `static class TeamUnits` | `Guid? TeamOf(GameState, Guid participantId)`; `IRL<UnitInPlay> Of(GameState, Guid teamId)`; `IRL<ModelInPlay> ModelsOf(GameState, UnitInPlay)`; `bool AllShelved(...)`; `bool AnyOnTable(...)`; `int IndexOf(IRL<Guid>, Guid)` |
 | `static class RollOff` | `Progress` = `Emit(IRL<EventPayload>)` / `Waiting` / `Resolved(IRL<Guid> Order)`; `Progress Advance(GameState, SchedulerLog, string sequence, ISequenceStarter)`; `IRL<Guid> Order(GameState, StepCompleted?)` |
 | `abstract record CycleState` | `NoAsk`, `AskOpen(Ask)`, `PassAnswered(long AnsweredAt)`, `NeedsStart(Activation, long)`, `Running(Activation, long, Guid FrameId)`, `WaitingCompletion(Activation, long)`, `ActivationEnded(Activation, long, long)` |
@@ -752,7 +807,7 @@ skeleton's. Nothing is added to `GfNames`.
 | `IRL<string> PhasesInTurn { get; }` | `[]` |
 | `FirstTeamDecision FirstTeam(GameState, int round, IRL<Guid> teams)` | roll off at round 0 and for more than two teams; else the previous order at round 1, finished-first from round 2 |
 | `TurnAsk? LegalTurn(GameState, PropertySet, Guid teamId)` | deploy/scout `PieceSelection`, or `activate` `Options` of unit × action; null when empty |
-| `Activation? ReadAnswer(GameState, Guid teamId, AskAnswer)` | `SelectedPieces` → deploy; `Chosen` → parsed unit and action with `ActionRecorded`; else null |
+| `Activation? ReadAnswer(GameState, Guid teamId, AskAnswer)` | `SelectedPieces` → deploy; `Chosen` → parsed unit and action with `ActionRecorded`; else null, which is also the dispatcher's readability probe |
 | `bool ActivationComplete(GameState, Activation)` | true unless a deploy still has a shelved model |
 | `HookResult RoundBoundaryStep(GameState, PropertySet, int round, IRL<Guid> order)` | the Ambusher loop from round 2; `HookDone` before |
 | `IRL<Guid>? OrderReactions(GameState, Guid? actorTeamId, IRL<Guid> reactingTeams)` | null; the default stands |
@@ -775,6 +830,8 @@ Plus two internals the tests reach directly:
 | interpreter | `Properties.PropertySet.Actions` (`ActionDefinition.Name`) | the action rows the turn Ask offers |
 | interpreter | `Effects.Lookup.UnitHas(GameState, PropertySet, Guid, string)` | `Immobile`, `Aircraft`, `Scout`, `Ambush`; reads the grants store |
 | interpreter | `GfNames`, `GfRolls.RollOffSequence`, `Interpreter.Windows.ReactionOrder` | names; the roll-off body; the one ordering policy |
+| interpreter | the roll-off's confirm gate: an unsealed framed `Confirm` to every team between the `roll-off` and `order` steps, opened whatever the wait setting says | why `RollOff.Advance` waits across dispatches, why `place_1` arrives only with `sequence_finished`, and why the gate is never a stale scheduler Ask |
+| skeleton | `LegalSetMembership.Contains`, `Legality`, `EnforcementPolicy.Decide`, `GameInfo.Enforcement` | the one clause that puts an unreadable turn answer on the dial |
 | interpreter | `Rules.SequenceStart(string Sequence, SequenceContext Context)` | `HookStartSequences`, `EndOfTurnSequences` |
 | skeleton | `GameState`, `Actor`, `IGameRules`, `EventApplier.EffectiveLog`, `CommandDispatcher`, `InMemoryEventLog` | state, the log, the drive loop |
 | contracts | `Ask`, `AskOption`, `LegalSet` (`Options`, `PieceSelection`, `Confirmation`), `AskAnswer` (`Chosen`, `SelectedPieces`, `Passed`, `Confirmed`), `AskQuestions` | the Asks |
@@ -786,14 +843,22 @@ Plus two internals the tests reach directly:
 
 1. **Contracts plan:** `AskQuestions.EndRound`. One string constant and one table row; the Ask
    itself is the existing `Ask` with a `Confirmation` legal set and `FrameId` null.
-2. **Interpreter plan:** `GfHooks.OnTurnEnded` clears `shaken` only when
+2. **Skeleton plan:** `CommandDispatcher.Answer` gains the readability clause above, and its
+   `CommandDispatcherTests` fixture gains a real activation option id — its `activate` sample
+   offers `"a"`, which is in that Ask's legal set and unreadable, so under `strict` it would be
+   refused where the file expects `Applied`. No test is added or removed there.
+3. **Interpreter plan:** `GfRolls.RollOffSequence` derives the ranking in a step *after* the gate,
+   so an edited die changes the order. `RollOff.Order` reads values rather than dice and cannot
+   rank a roll-off itself; if the ranking were recorded before the gate, the order written would
+   be the pre-edit one. That plan's Task 11 does this as two steps for exactly this reason.
+4. **Interpreter plan:** `GfHooks.OnTurnEnded` clears `shaken` only when
    `turn.Activation.Action == ActivationOption.Idle`. Page 13 says an Aircraft's mandatory
    `Advance` *"doesn't break the staying idle requirement"*, and `ActionsFor` offers a Shaken
    Aircraft exactly that. The condition belongs in `GfHooks`, not here.
-3. **Client shell plan:** nothing new. The boundary Ask is an unframed `Confirmation` addressed to
+5. **Client shell plan:** nothing new. The boundary Ask is an unframed `Confirmation` addressed to
    several teams, which the Ask panel already renders. That plan relabels the confirm button
    "End the round" and the log line "confirmed for Team 1". Window mutes stay client-side.
-4. **`Program.cs`:** replace `AddSingleton<ISchedulerFactory, NoSchedulerFactory>()` with
+6. **`Program.cs`:** replace `AddSingleton<ISchedulerFactory, NoSchedulerFactory>()` with
    `SchedulerFactory`. `NoScheduler`/`NoSchedulerFactory` stay in the tree for the interpreter
    plan's own tests.
 
@@ -868,7 +933,12 @@ sequenceDiagram
     Sc->>R: FirstTeam(state, round 0, teams)
     R-->>Sc: RollOffNeeded('roll-off')
     Sc->>I: Start('roll-off', no actor)
-    Note over I: one die per team, ties rerolled - step_completed.Values place_1..n
+    Note over I: step 'roll-off': one die per team, ties rerolled among the tied
+    I-->>S: step_completed('roll-off'), ask_opened(confirm to every team)
+    Note over S,B: the engine rests - SetDice and RerollDice land here
+    B->>S: AnswerAsk(Confirmed)
+    Note over I: step 'order': ranks the dice that stand - Values place_1..n
+    I-->>S: step_completed('order'), sequence_finished
     Sc->>Sc: RollOff.Resolved: order = [B, A]
     Sc-->>S: round_started(0, [B, A], []), phase_started('deployment')
     Sc-->>B: turn_started(B), ask_opened(deploy, shelf minus set-aside)
@@ -914,6 +984,7 @@ sequenceDiagram
     D-->>Sc: [ask_answered, ask_closed] (unsealed: first answer closes it)
     Sc->>R: FirstTeam(state, round 2, teams)
     R-->>Sc: OrderedTeams: whoever finished first (p.7) or a fresh roll-off (p.49)
+    Note over Sc,B: a fresh roll-off waits at its own confirm gate before any of the following
     Sc->>R: OnRoundStarted(state, properties, 2)
     R-->>Sc: [fatigue cleared, Caster tokens +X capped at 6]
     Sc-->>D: round_started(2, order, shape changes + hook changes)
@@ -1006,7 +1077,9 @@ The scheduler's contribution to that risk is any state where `Advance` returns a
 whose effect does not change what the next call reads. Three candidates. A `RoundBoundaryStep`
 that returns `HookEmit` for the same Ask forever; the Ambusher loop guards against it by reading
 its own Asks in the round's slice. `RollOff.Advance` returning `Emit` repeatedly because the
-started frame is not found, guarded by matching on the sequence name since the round anchor. And
+started frame is not found, guarded by matching on the sequence name since the round anchor —
+which is the guard the confirm gate leans on, since the frame is now started and unfinished for
+as long as a player takes to answer. And
 `NextTeam` returning a team whose `LegalTurn` is null, which is impossible because `IsFinished`
 calls the same hook. Each of these is a hook contract, so a badly written ruleset can hang the
 game. Nothing in the engine can detect it.
@@ -1038,7 +1111,8 @@ already emitted. The game then gains a duplicate `turn_started` or a second `rou
 **Undo across a boundary.** `Undo(seq)` is replay to `seq`. The effective log drops the undone
 range, so undoing past the `end_round` answer un-ends the round and re-opens the boundary Ask.
 Round two's record clearing goes with it. Undoing past a roll-off re-rolls the same dice, because
-the RNG is counter-based over the effective log. Both are tested.
+the RNG is counter-based over the effective log; undoing back into one leaves the frame live and
+the gate to answer again. Both are tested.
 
 **Left to break.** A `set_round` to an arbitrary number is followed without question. There is no
 clamp, no maximum, and no check that the round is not already past. A unit hand-moved onto the
@@ -1061,11 +1135,11 @@ Godot and no socket.
 
 | Level | Files | What it pins |
 | --- | --- | --- |
-| Unit, no engine | `ActivationOptionTests`, `SchedulerLogTests`, `GrimdarkFutureRulesTests`, `RollOffTests`, `TurnCycleTests` | the option id round trip and its malformed cases; the five anchors and the scheduler-Ask predicate; every OPR hook against hand-built logs; the roll-off's four states and a mangled values map; the cycle's whole state machine, including the `Running`/`WaitingCompletion` states the real engine never reaches |
-| Through the real engine | `AlternatingSchedulerTests`, `DeploymentTests`, `RoundBoundaryTests`, `PlayerTurnSchedulerTests`, `SchedulerConstraintTests` | both shapes for two teams and for N teams of one; roll-off, deployment, Scouts, Ambushers, the boundary Ask, passes, re-entry, menu overrides, `strict` refusal; the six interface constraints |
+| Unit, no engine | `ActivationOptionTests`, `SchedulerLogTests`, `GrimdarkFutureRulesTests`, `RollOffTests`, `TurnCycleTests` | the option id round trip and its malformed cases; the five anchors and the scheduler-Ask predicate; every OPR hook against hand-built logs; the roll-off's four states, its wait across the confirm gate and a mangled values map; the cycle's whole state machine, including the `Running`/`WaitingCompletion` states the real engine never reaches |
+| Through the real engine | `AlternatingSchedulerTests`, `DeploymentTests`, `RoundBoundaryTests`, `PlayerTurnSchedulerTests`, `SchedulerConstraintTests` | both shapes for two teams and for N teams of one; roll-off, its gate and a die edited there, deployment, Scouts, Ambushers, the boundary Ask, passes, re-entry, menu overrides, the enforcement dial over an out-of-set and an unreadable answer; the six interface constraints |
 | Ordering policy | `ReactionOrderingTests` | `Windows.ReactionOrder` from the scheduler's side: turn order after the actor, the actor last, passed teams dropped, the hook replacing it |
 | Composition | `SchedulerFactoryTests` | the shape comes from `GameInfo`, and `RulesEngineFactory` composes it |
-| Socket, Docker Postgres | `SchedulerEndToEndTests` (collection `Postgres`) | `Program.cs`'s real registrations: ending setup rolls off, opens deployment, and a deploy answer plus hand moves end the turn; and a second process rehydrates mid-deployment, re-serves the open Ask and adds no events |
+| Socket, Docker Postgres | `SchedulerEndToEndTests` (collection `Postgres`) | `Program.cs`'s real registrations: ending setup rolls off, waits at the gate over the socket, opens deployment once a team confirms, and a deploy answer plus hand moves end the turn; and a second process rehydrates mid-deployment, re-serves the open Ask and adds no events |
 
 **The harness.** `SchedulerHarness` wraps the interpreter plan's `Sim` over the real
 `RulesEngine(rules, TestProperties.Core, QueueDice, scheduler)` and drives it as the session does:
@@ -1089,6 +1163,11 @@ part that is.
 a roll-off outcome is chosen by the test (`h.Dice.Enqueue(6); h.Dice.Enqueue(1)`). `Rehydrate`
 must redraw nothing, which the counter-based RNG over the effective log makes true.
 
+**Every roll-off waits.** Its confirm gate is not conditional on the wait setting, so
+`h.ConfirmRollOff()` releases one and `h.SkipDeployment()` releases any it meets — deployment's,
+and a free-for-all's every round. A test that drives `Run()` by hand and then asserts on a deploy
+Ask calls it explicitly, which is also the assertion that the gate was there.
+
 **Needs Docker.** Only `SchedulerEndToEndTests`, for the Postgres event log and management rows.
 Everything else runs on `dotnet test` with nothing up.
 
@@ -1107,29 +1186,28 @@ the game: the Ask panel's confirm button and the log line for the boundary answe
   the frame side.
 - The 10 000-iteration cap is not exercised. A hook that loops forever is caught by the session's
   log line, not by a test.
-- `RollOff.Order`'s tolerance for a hand-edited values map is unit-tested. Nothing tests the path
-  where the players edit a roll-off's dice, because they cannot (open question 2).
+- `RollOff.Order`'s tolerance for a hand-edited values map is unit-tested, and `DeploymentTests`
+  edits a die at the roll-off's gate and asserts the order follows it. What no test here covers is
+  a roll-off with three or more teams whose dice are edited into a tie, where the ranking falls
+  back to team ordinal inside the ruleset's own step.
 
 ## Open questions and deferred work
 
-### The plan's own questions
+### The plan's own questions, both ruled 2026-09-06
 
-**1. What does an unreadable turn answer mean?** *Assumed: a pass.* `ReadAnswer` returns null and
-`TurnCycle.Read` yields `PassAnswered`, so the turn ends with `turn_ended.Passed = true` and the
-team is not re-asked this round. It arises under `warn`/`silent` and from a modified client. If it
-should end the turn *without* passing, `TurnCycle.Read` returns `ActivationEnded` with a null
-activation instead. That is a two-line change. If it should be refused regardless of enforcement,
-the dispatcher gains a `Legality.Illegal` check the scheduler exposes. That touches the skeleton's
-`CommandDispatcher.Answer` and is a much larger change.
+**1. What does an unreadable turn answer mean?** *Ruled: it follows the enforcement dial* —
+refused under `strict`, a pass under `warn` and `silent`, with a warning logged under `warn`. The
+plan had assumed a pass whatever the dial said, which left it inconsistent with the out-of-set
+case; one clause in `CommandDispatcher.Answer` makes the two one rule. See *Menu overrides, stale
+Asks, and enforcement* for the clause and for why the dispatcher is the only place it fits.
 
-**2. Should the roll-off's dice be editable?** *Assumed no.* The roll-off is a one-step sequence
-with no actor, and the interpreter never confirm-gates an actor-less frame, so it finishes in the
-batch that started it. `RerollDice`/`SetDice` then find no frame and are refused, and undo
-re-rolls the same dice. That is an exception to the scheduler spec's *"every roll result is
-editable from the menu"*, recorded as spec correction 9. Option (b) is for the interpreter to gate
-actor-less frames with a `Confirm` to every team before position 0, keeping the frame open until
-all confirm. That is about ten lines in the interpreter's Task 8, plus one test here where
-`RollOff.Advance` must read the order only after the frame has finished.
+**2. Should the roll-off's dice be editable?** *Ruled: yes — it is gated like any other roll.* The
+interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
+`roll-off` and `order` steps, whatever the wait setting says, and ranks the dice that stand when a
+team releases it. The scheduler's side is the reader: `RollOff.Advance` waits across dispatches,
+keys `Resolved` on `sequence_finished`, and reads the completed step carrying `place_1`. Spec
+correction 9, which had written the un-editable roll-off into the spec, is struck. See *First
+team: policy and roll-off*.
 
 ### Questions answered from the specs
 
@@ -1159,8 +1237,9 @@ all confirm. That is about ten lines in the interpreter's Task 8, plus one test 
 ### The plan
 
 - [`docs/superpowers/plans/2026-09-05-scheduler.md`](../../superpowers/plans/2026-09-05-scheduler.md):
-  ten tasks, the file structure, the `Interfaces → Produces` tables, eleven spec corrections, ten
-  interfaces needed from other modules, seven questions (five struck).
+  ten tasks, the file structure, the `Interfaces → Produces` tables, eleven spec corrections (two
+  struck), eleven interfaces needed from other modules, seven questions — four answered from the
+  specs, three ruled by the owner.
 
 ### Specs
 

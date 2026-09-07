@@ -32,13 +32,21 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 
 Not in scope:
 
-- **The rules.** No legality decision, no majority-of-models rule, no `+1 to Defense`, no
-  6" difficult cap of its own. `architecture.md` → Rules enforcement: flagged, never prevented.
+- **The rules.** No legality decision, no majority-of-models rule, neither of the owner's two
+  50% cover thresholds, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
+  per model and the caller counts. `architecture.md` → Rules enforcement: flagged, never
+  prevented.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
   four planet tables with the client, and the server never reads them. The client shell plan
   owns `TerrainGenerators` and `BuiltinContent` in `client/src/Core/`. The zone styles are the
   one piece of built-in setup content that does come into the library, because the server
   checks a deployment against them too.
+- **Small tables.** The owner ruled on 2026-09-06: *"We don't need to support skirmish at
+  all."* The seven built-in zone styles therefore assume a table near 72×48, and the 30×22
+  skirmish size the first pass argued from is not a target. `Table` and `TableSize` still take
+  any positive size; it is the styles' absolute insets that stop working, at the thresholds
+  named under Failure modes. Spec correction 11 records this against `architecture.md` →
+  Table and layout, whose `Table` bullet reads *"Arbitrary sizes … Never a constant"*.
 - **Geodesic movement**, **exact ellipse math**, **polygon clipping** (area coverage),
   **convex hulls**, and **unit conversion**. Each is recorded in Open questions with the
   assumption taken instead.
@@ -278,7 +286,8 @@ A model's Z never enters its outline; it is the vertical range. A volume's yaw i
 the piece's yaw and the volume's own.
 
 `Bodies` also supplies the three vertical facts a body has. `Bottom()` is the settled Z,
-`Top()` is `Bottom + Height`, and `Eye()` is `(X, Y, Top)`. It supplies one adapter,
+`Top()` is `Bottom + Height`, and `Eye()` is `(X, Y, Bottom + Height / 2)`, the centre of the
+body. It supplies one adapter,
 `AsBlockingVolume(Guid id, PlacedModel m)`, which expresses rulebook p.11's *"other units are
 sight blockers"* without the library knowing what a unit is. The caller passes the models it
 wants treated as blockers, so p.8's *"models may always ignore friendly models from their own
@@ -374,40 +383,69 @@ When the two bases overlap, `DistanceTo(centre)` is 0 and the circular form degr
 `Radius <= inches`. That is an upper bound. It can only refuse a placement already touching the
 container, never admit one that is too far.
 
-### 8. Line of sight: sampled rays between an eye and a rim
+### 8. Line of sight: centre to any part of the target
 
-The plan records this as question 2, not as a settled fact. The specs pin only what it runs
-**against**: *"Line of sight is settled against the cylinder that the base and height describe.
-The visual mesh is never tested"* (table domain model), and *"blocking is declared, not
-derived"* (geometry values → Declarations). The declaration says the volume is **opaque**, and
-geometry answers whether a given line passes through it. No spec pinned how many lines to draw.
+The owner ruled the policy on 2026-09-06: *"Center to any part of target."* The specs pin what
+it runs **against**: *"Line of sight is settled against the cylinder that the base and height
+describe. The visual mesh is never tested"* (table domain model), and *"blocking is declared,
+not derived"* (geometry values → Declarations). The declaration says the volume is **opaque**,
+and geometry answers whether a given line passes through it. Neither the specs nor the ruling
+fix how many lines approximate *any part*.
 
-The policy: the eye is the shooter's **top centre**, the target is sampled at its top centre
-plus up to eight rim points at **both** its top and its base, and sight is clear when **any
-one** line reaches its point unobstructed.
+The shooter end is a single point at the **centre of its body**: the base centre raised half
+the height. That is the only point that is the centre in all three axes; the top centre is the
+centre of the top face. Half height keeps the eye inside the body, so a blocker as tall as the
+shooter is opaque to it and one of half its height cuts the centre line while leaving the upper
+lines clear. It also puts the centre-to-centre line in the sample set of both directions, so
+mutual visibility does not depend on which model is shooting.
+
+The target end samples the body at three heights, its base, half height and its top, with the
+centre and up to eight rim points at each. Sight is clear when **any one** line reaches its
+point unobstructed.
 
 ```mermaid
 flowchart LR
-    E(("eye = shooter top centre")) --> TC(("target top centre"))
-    E --> RT(("8 rim points at target top"))
-    E --> RB(("8 rim points at target base"))
-    TC --> J{"any line unobstructed?"}
-    RT --> J
+    E(("eye = centre of the shooter's body, half height")) --> RT(("centre + 8 rim points at the target's top"))
+    E --> RM(("centre + 8 rim points at half height"))
+    E --> RB(("centre + 8 rim points at the base"))
+    RT --> J{"any line unobstructed?"}
+    RM --> J
     RB --> J
     J -->|yes| CLR["LineOfSightResult(true, [])"]
     J -->|no| OBS["LineOfSightResult(false, every blocker that stopped a line, input order)"]
 ```
 
-Seventeen rays for a circular or oval base, nine for a square whose four vertices are its whole
-rim. Partial exposure counts as visible. `ObstructedBy` is the union over all failed rays, not
-the blockers of any one ray.
+Twenty-seven rays for a circular or oval base, fifteen for a square whose four vertices are its
+whole rim. Partial exposure counts as visible. `ObstructedBy` is the union over all failed rays,
+not the blockers of any one ray.
 
-`Rim(Outline)` supplies the sample points: `BoundaryPoints(8)` evenly around a circle, all
-vertices of a polygon with eight or fewer, and every n-th vertex of a larger one. An oval's
-64-gon is therefore sampled at 8 of its 64 vertices. Sampling both the top and the base rim is
-what makes a low wall behave. A `0-1` wall leaves the target's top rim visible and its base rim
-hidden, so sight is clear and `Cover.SightBlockersBetween` is non-empty. That is p.11's
-*behind a sight blocker*.
+`Rim(Outline)` supplies the horizontal sample points: `BoundaryPoints(8)` evenly around a
+circle, all vertices of a polygon with eight or fewer, and every n-th vertex of a larger one. An
+oval's 64-gon is therefore sampled at 8 of its 64 vertices. Sampling the base as well as the top
+is what makes a low wall behave. A `0-1` wall leaves the target's upper points visible and its
+base points hidden, so sight is clear and `Cover.SightBlockersBetween` is non-empty. That is
+p.11's *behind a sight blocker*.
+
+**Why three rings and not two.** Every sample is a real point of the target's body, so a `Clear`
+result is never wrong: the error is one-sided, under-reporting visibility when the only visible
+part falls between samples. Two rings left that error unbounded vertically. A target standing
+behind a wall with a canopy above it is visible only through the band between them, and with
+samples at the top and the base alone that band is missed however tall it is. A ring at half
+height bounds the vertical gap by half the model's height. The horizontal gap needed no such
+fix: eight rim points on a 1.26" base subtend 2.8° at 10", so the sliver that slips between
+adjacent rays is under 0.24" wide at mid-range, finer than any terrain a table carries. The cost
+is 27 rays a pair rather than 17, each a segment-prism test against every blocker, and there is
+still no broad phase.
+
+**Counting visible models.** The owner's companion rule of 2026-09-06 is *"Seeing less than 50%
+of models in a unit gives cover"*. Cover was served only by a blocker list from one model to one
+model, so `LineOfSight` gained
+`VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume> volumes) : IRL<bool>`,
+index-aligned with `unit`, true at `i` when at least one observer's `Check` against `unit[i]` is
+clear. A single shooter is a one-element `observers` list. The caller counts and compares; no
+member of this library takes a fraction. The cost is `observers.Count × unit.Count × 27` rays,
+which for ten models against ten with forty blocking volumes is 108,000 segment-prism tests per
+query, on the server, once per Ask.
 
 `SeeInAndOut` is a **modifier on blocking**, not an independent property. It means nothing on a
 volume that is not opaque. `Obstructions` implements it by skipping a blocker when either
@@ -420,19 +458,23 @@ each other (rulebook p.12).
 - **How much of the target is visible.** The result is a boolean plus a blocker list. Any rule
   phrased as *"more than half obscured"* has nothing to read. OPR does not have one; a
   Warhammer ruleset might.
-- **Which part is visible.** Seventeen booleans are discarded down to one. A rule that cared
+- **Which part is visible.** Twenty-seven booleans are discarded down to one. A rule that cared
   whether the *head* was exposed would need the per-point results kept.
-- **Anything between the samples.** A blocker narrower than the angular gap between adjacent
-  rays, positioned to cover a rim point without covering its neighbours, is not seen. With 8
-  rim points the gap at 10" range for a 1.26" base is wide.
-- **Non-vertical occlusion of the eye itself.** The eye is a single point at the top centre. A
-  model standing so that its own base is inside a blocker still shoots from its top centre.
-- **The lower body as a firing position.** There is no eye at the base, so a model cannot see
-  under an overhang it is standing beneath if the overhang covers its top centre.
+- **A gap narrower than the angular resolution.** A blocker narrower than 0.24" at mid-range,
+  positioned to cover one rim point without covering its neighbours, is not seen, and a target
+  visible only through a slit that narrow reads as hidden.
+- **Occlusion of the eye itself.** The eye is a single point, so a model whose own body is half
+  inside a blocker still shoots from the centre of it. `Obstructions` skips a `SeeInAndOut`
+  blocker containing the eye, and nothing else consults the eye's surroundings.
+- **The upper and lower body as firing positions.** There is one eye, not three. A model cannot
+  duck under an overhang that covers its centre, nor shoot over a wall that reaches half its
+  height, whatever the target.
 
-A single centre-to-centre line is simpler and stricter. It was rejected: a low wall would hide
-a model wholly or not at all, and *behind a sight blocker* would have nothing to measure. A
-denser sample, or sampling the shooter's rim as well, changes only `TargetPoints` and `Eye`.
+A single centre-to-centre line is what the ruling's first half names, and the second half is
+what rules it out: *any part of target* means the whole body is a valid endpoint, and one line
+to the target's centre makes a low wall hide a model wholly or not at all, leaving *behind a
+sight blocker* nothing to measure. A denser sample changes only `TargetPoints`; sampling the
+shooter's rim as well would contradict the ruling's *center*.
 
 ### 9. Cover
 
@@ -446,9 +488,17 @@ blockers (for single-model units), they get +1 to Defense rolls"*.
 | *fully inside a piece of cover terrain* | `Cover.InsideCoverVolumes` non-empty | geometry |
 | *behind a sight blocker* | `LineOfSight.Check` clear **and** `Cover.SightBlockersBetween` non-empty | geometry |
 | *mostly inside cover terrain* | `Containment.VolumesContaining` filtered to `Cover` | geometry |
-| *the majority of models*, *+1 to Defense* | — | `GameRules` |
+| seeing fewer than half a unit's models (owner, 2026-09-06) | `LineOfSight.VisibleModels` count against the list length | geometry counts, `GameRules` compares |
+| *the majority of models*, the owner's two 50% thresholds, *+1 to Defense* | — | `GameRules` |
 
-`SightBlockersBetween` draws the same seventeen rays as `Check` and returns every blocker that
+The owner ruled the two thresholds on 2026-09-06: *"50% models in unit in cover for it to
+count"* and *"Seeing less than 50% of models in a unit gives cover"*. Every fact above is per
+model, and no member of this library takes a fraction, so the counting and the comparison are
+the ruleset's. Containment needed nothing new, since `InsideCoverVolumes` and
+`VolumesContaining` are already called per model; visibility did, and `LineOfSight.VisibleModels`
+is section 8's answer.
+
+`SightBlockersBetween` draws the same twenty-seven rays as `Check` and returns every blocker that
 stopped at least one of them, whether or not sight is clear overall. That is the only way to
 express *behind*. A wall that blocks nothing is not cover, and a wall that blocks everything is
 a failed shot rather than cover.
@@ -626,10 +676,22 @@ Three facts the rulebook settles, all from geometry values → Deployment shapes
    volumes this costs nothing: a zone is *"a flat point-in-polygon test with no collision, no
    settling and no height"*.
 3. **Measurements are anchored, not absolute and not normalized.** The rulebook writes absolute
-   inches on an assumed table: 12", 24", 36", 54". Those do not survive a 30×22 skirmish table.
-   Normalized fractions would scale 12" on a 48" table into 11" on a 44" one, which the rules
-   do not say either. Anchoring to table features reads as the rulebook writes it and works at
-   any size.
+   inches on an assumed table: 12", 24", 36", 54". Normalized fractions would scale 12" on a
+   48" table into 11" on a 44" one, which the rules do not say. Anchoring to table features
+   reads as the rulebook writes it. **Side Battle is the one exception**, ruled proportional by
+   the owner on 2026-09-06 and recorded as spec correction 10. Six of the seven styles remain
+   anchored.
+
+**The zone styles assume a table near 72×48.** The owner ruled on 2026-09-06: *"We don't need
+to support skirmish at all."* Every argument about absolute versus proportional insets was an
+argument about small tables, and the 30×22 skirmish table the first pass argued from is not a
+target. That ruling is what makes the split between one proportional style and six anchored
+ones acceptable rather than merely tolerated. Side Battle's fractions were chosen to reproduce
+the p.21 diagram's 54" and 30" legs on 72×48, so at 72×48 the two conventions are the same
+polygon, and they part company in proportion to the table's departure from it. The tables where
+the divergence is large are the tables that are out of scope. What the absolute insets do below
+their own size is an accepted limit, listed under Failure modes with the threshold per style,
+and no longer an open thread.
 
 **The dimensions came from the page's diagrams, not its text.** Grimdark Future v3.4.1 p.21
 names the six basic styles, Frontline, Ground War, Side Battle, Disordered, Spearhead and
@@ -637,8 +699,8 @@ Opposing Forces, and gives their dimensions only as labels on six figures. The p
 them as read from the six extracted diagram images on a 72×48 table (re-extracted with pypdf
 and re-read 2026-09-06, every figure a label on its own diagram). One diagram is internally
 inconsistent. Side Battle's 54" and 30" legs put the perpendicular gap between the two
-hypotenuses at 24.5", not the 24" its arrow says. The plan takes the legs as the shape and the
-band as illustration (question 6).
+hypotenuses at 24.5", not the 24" its arrow says. The legs are the shape and the band is
+illustration (question 6, ruled 2026-09-06).
 
 A shape id is `"<style>/<n>"`, `n` the team ordinal the setup phase assigns in order.
 `ShapesOf(style)` is the list `SetZoneStyle.Shapes` carries. The server's `DraftEditor` writes
@@ -653,18 +715,21 @@ longer dimension. A square table takes X as long.
 ```mermaid
 flowchart TD
     subgraph tbl["Side Battle on 72 x 48, u along the long edge"]
-        C0(("0,0")) -->|"Leg(a) = a - 18 = 54"| P1(("54,0"))
-        C0 -->|"Leg(b) = b - 18 = 30"| P2(("0,30"))
+        C0(("0,0")) -->|"0.75a = 54"| P1(("54,0"))
+        C0 -->|"0.625b = 30"| P2(("0,30"))
         P1 -.->|"hypotenuse: side-battle/1"| P2
-        C1(("72,48")) -->|"54"| P3(("18,48"))
-        C1 -->|"30"| P4(("72,18"))
+        C1(("72,48")) -->|"0.75a = 54"| P3(("18,48"))
+        C1 -->|"0.625b = 30"| P4(("72,18"))
         P3 -.->|"hypotenuse: side-battle/2"| P4
     end
 ```
 
-Side Battle's hypotenuse ends 18" short of the far corner along each edge, which reproduces the
-diagram and shrinks with the table. A fixed 54"/30" would overrun a 30×22 table.
-`Leg(edge) = max(0, edge - 18)` degenerates rather than scales when a dimension approaches 18".
+Side Battle **scales with the table**, ruled by the owner on 2026-09-06: its legs are `0.75`
+of the long edge and `0.625` of the short, which is the diagram's 54" and 30" on 72×48 and
+45" and 27.5" on a 60×44 table. The ruling overrides fact 3 above for this style
+alone, which is why it carries a spec correction rather than a note. The anchored reading it
+replaces, `Leg(edge) = max(0, edge - 18)`, had to invent a constant no page states, and
+degenerated to a zero-area triangle at 18"; a fraction of a positive edge is always positive.
 
 The seven styles as implemented:
 
@@ -672,7 +737,7 @@ The seven styles as implemented:
 | --- | --- | --- |
 | `frontline` | 1 | 12" bands along both long edges. Also p.6's core deployment, *"fully within 12" of their table edge"* |
 | `ground-war` | 1 | 24" bands along both short edges |
-| `side-battle` | 1 | a triangle in each of two opposite corners, legs `a-18` and `b-18` |
+| `side-battle` | 1 | a triangle in each of two opposite corners, legs `0.75a` and `0.625b`. The only proportional style |
 | `disordered` | 2 | a diamond through the four edge midpoints; each team keeps the two triangles on its long edge |
 | `spearhead` | 1 | a triangle on each short edge, apex 24" in at the edge's centre |
 | `opposing-forces` | 1 | a 24"×24" square in two diagonally opposite corners |
@@ -698,7 +763,7 @@ What that buys this design:
   1e-6; }`, used for boundary inclusion, interval overlap, SAT slack, on-segment tests and
   range inclusivity alike. Tests compare with `Assert.Equal(expected, actual, 6)`.
 - **Approximations may be visible.** A 64-gon oval, a 0.25"-quantised region boundary,
-  seventeen sampled sight lines, 180 rays. Each would be a correctness bug in a lockstep
+  twenty-seven sampled sight lines, 180 rays. Each would be a correctness bug in a lockstep
   architecture. Here each is a tuning constant.
 - **Both sides may disagree.** Turn-based play means no rollback netcode
   (`architecture.md` → Undo and the presence design). If the client says 4.7399", the server
@@ -718,6 +783,7 @@ Contested or reversed decisions first.
 | --- | --- | --- | --- |
 | **Origin at a table corner**, X along Width `0..W`, Y along Length `0..L`, Z up from the slab top; yaw 0 faces +Y, positive yaw counter-clockwise | The game server plan's `DraftEditor.OnSlab` and the contracts plan's wire samples already used it; one frame on the wire, in the library and in both runtimes removes a conversion layer | **Table centre**, which this plan assumed first | Ruled 2026-09-05 by the compatibility review, ratified by the owner 2026-09-06; plan question 1, spec correction 4 |
 | **Zone style resolution lives in the library** | The server checks a deployment against a zone (`BaseFullyWithin`); a client-side resolver cannot be called by the server | Contracts plan's explicit *"Not here, by decision … the client shell plan owns it"* | Reversed by geometry plan spec correction 1, applied to the contracts plan |
+| **The built-in zone styles assume a table near 72×48**, so one proportional style beside six anchored ones is the shipped set | The owner ruled *"We don't need to support skirmish at all"*; the only place the two conventions disagree materially is a small table, and Side Battle's fractions reproduce the diagram exactly at 72×48 | Making all seven proportional, which would move 12", 24" and 36" off the numbers the rulebook prints; making Side Battle absolute, which needs a constant no page states | Ruled 2026-09-06; question 6a, spec correction 11, the thresholds under Failure modes |
 | **`MoveRegion` carries `DifficultVolumeIds` and `DifficultCap`** | `architecture.md` names "terrain effects" among the parameters and says the cap is whatever `GameRules` computes; the three-field record could not carry it | The declared three-field `MoveRegion` | Spec correction 5, applied 2026-09-05 |
 | **`MoveRegion.Containment` (optional)** | `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire, but nothing told the client *where* one is legal | Leaving embark/disembark undrawable | Spec correction 9, the containment coverage gap of 2026-09-06 |
 | **Convex hulls dropped** | Every test becomes a 2D intersection plus a vertical range; no hull math, and moving a model through terrain stays cheap | `architecture.md`'s original boxes, cylinders **and convex hulls** | geometry values → Collision volumes |
@@ -725,20 +791,21 @@ Contested or reversed decisions first.
 | **`impassable` is a declaration of its own** | Without it a hill and a building are indistinguishable | The earlier five-declaration set | geometry values → Declarations |
 | **"What it is resting on" is not stored** | Settling re-derives it; terrain is locked after setup, so nothing a model stands on ever moves | The table domain model's stored surface reference | geometry values → Height, position, facing |
 | **Enforcement is advisory here** | Every result is a measurement, a flag or a region; `strict` refusal lives in the server | Geometry returning legality | Ruled 2026-09-04 in the whole-design review, ruling 1 |
+| **`LineOfSight.VisibleModels`**, one boolean per model of a unit | The owner's *"Seeing less than 50% of models in a unit gives cover"* is a count over a unit, and cover was served only by a blocker list from one model to one model | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | Ruled 2026-09-06; Task 8, section 9 |
 
-Decisions the plan took because **no spec said anything**. Each is also a question for the
-owner under *Open questions*:
+Decisions the plan took because **no spec said anything**. The owner ruled on four of them on
+2026-09-06; the rest remain questions under *Open questions*:
 
 | Decision | Reason | Alternative rejected | Where |
 | --- | --- | --- | --- |
-| Sight lines: eye at the shooter's top centre; target sampled at top centre plus 8 rim points at top and base; clear if any line is clear | A single line makes a low wall all-or-nothing and leaves *behind a sight blocker* nothing to measure | One centre-to-centre line; a denser sample; sampling the shooter's rim too | Task 8, question 2 |
-| *Mostly inside* (single models) = base centre inside the volume | The whole-base test already serves *fully inside*; a centre test is exact and needs no new primitive | More-than-half-the-area, which needs polygon clipping and a `BaseCoverage` member | Task 6, question 3 |
+| Sight lines: eye at the centre of the shooter's body, half height; target sampled at its centre and 8 rim points at base, half height and top; clear if any line is clear | The owner's *"Center to any part of target"*; the mid-height ring bounds the vertical sampling error that two rings left unbounded | One centre-to-centre line; two rings; sampling the shooter's rim, which the ruling's *center* excludes | Ruled 2026-09-06; Task 8, question 2 closed |
+| *Mostly inside* (single models) = base centre inside the volume | The whole-base test already serves *fully inside*; a centre test is exact and needs no new primitive | More-than-half-the-area, which needs polygon clipping and a `BaseCoverage` member | Confirmed by the owner 2026-09-06; Task 6, question 3 closed |
 | The movement region is **star-shaped** about the start | It is a cosmetic prediction; the server judges the landed move, and the ruler measures displacement | Geodesic reach via a visibility graph; a plain disc | Task 12, question 4 |
 | Ovals are convex 64-gons | Error under 0.2% of the radius, inside the tolerance the architecture allows | Exact ellipse-ellipse distance: no closed form, needs an iterative solver on both sides | Task 3, question 7 |
-| Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.49 gives no orientation | The other way round, a two-number change per corner | Task 13, question 5 |
-| Side Battle legs are `edge - 18` | Reproduces the p.21 diagram on 72×48 and shrinks sensibly | Fixed 54"/30" legs (overrun a 30×22 table); proportional legs (the normalisation the spec rejects) | Task 13, question 6 |
+| Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.49 gives no orientation | The other way round, a two-number change per corner | Confirmed by the owner 2026-09-06; Task 13, question 5 closed |
+| Side Battle legs are `0.75` of the long edge and `0.625` of the short | The owner ruled the style proportional to the table; those fractions are the p.21 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which the ruling overrides and which overrun any table shorter than 54" or narrower than 30" | Ruled 2026-09-06; Task 13, question 6 closed, spec correction 10 |
 | `Rays = 180`, `Step = 0.25` | 2° angular resolution and a quarter-inch radial one, for a region redrawn once per Ask | Fewer rays with interpolation; a bisection refinement pass | Task 12 |
-| `RimSamples = 8`, `OvalVertices = 64` | Eight rim points are enough at tabletop ranges; 64 keeps the ellipse error negligible | Any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
+| `RimSamples = 8`, `OvalVertices = 64` | Eight rim points subtend 2.8° on a 1.26" base at 10", so the sliver between adjacent rays is under 0.24" at mid-range; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand | A `WorldVolume` overload: five lines and one test if a building must offer the same region | Task 6, question 8 |
 
 ## Interfaces
@@ -756,7 +823,7 @@ plan.
 | `static class WorldVolumes` *added* | ext. `double WorldBottom(this WorldVolume)`, `double WorldTop(this WorldVolume)`, `Point2 WorldCentre(this WorldVolume)`, `Yaw WorldYaw(this WorldVolume)` |
 | `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)`; *added:* `double EdgeToEdge(PlacedModel, WorldVolume)`, `double EdgeToMarker(PlacedModel, Point2 centre, double diameter)`, `(Point3 OnA, Point3 OnB) ClosestPoints(PlacedModel, PlacedModel)`, `bool InRange(PlacedModel, PlacedModel, double range)`, `double Vertical(PlacedModel, PlacedModel)` |
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | unchanged |
-| `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`; *added:* `const int RimSamples = 8` |
+| `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`; *added:* `IRL<bool> VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)`, `const int RimSamples = 8` |
 | `static class Cover` *added* | `IRL<Guid> InsideCoverVolumes(PlacedModel, IRL<WorldVolume>)`, `IRL<Guid> SightBlockersBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
 | `static class Settling` | `double SurfaceHeightAt(Point2, IRL<WorldVolume>)`; *added:* `double SurfaceHeightAt(Point3 from, IRL<WorldVolume>)` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)`; *added:* `IRL<Guid> VolumesFullyContaining(PlacedModel, IRL<WorldVolume>)`, `bool BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` |
@@ -789,7 +856,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); settle a `Destinations` answer with the `Point3` overload using the client's `To.Z`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; supply every OPR constant from `GameRules` |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); settle a `Destinations` answer with the `Point3` overload using the client's `To.Z`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply the owner's two 50% cover thresholds itself, counting `Cover.InsideCoverVolumes` per model and `LineOfSight.VisibleModels` over the target unit; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `Movement.Region(...).Boundary`; show `Movement.Check(...).Distance` as the readout and `EffectiveAllowance - Distance` as the remainder; settle a dragged model with the `Point3` overload |
 
 ## Sequences
@@ -841,13 +908,16 @@ sequenceDiagram
     Geo-->>GR: blocker ids, in input order
     GR->>Geo: Cover.InsideCoverVolumes(target, volumes)
     Geo-->>GR: cover volume ids
-    GR->>GR: majority of models rule, then +1 to Defense
+    GR->>Geo: LineOfSight.VisibleModels(shooters, target unit, volumes)
+    Geo-->>GR: one boolean per model of the unit
+    GR->>GR: the two 50% thresholds, then +1 to Defense
     GR-->>Seq: target legal, with its cover modifier
 ```
 
-Both calls redraw the same seventeen rays. Two hazards. The cost is quadratic in models when
-every model of every other unit is converted to a blocking volume, and the two calls double it.
-And `SightBlockersBetween` is permissive, so scatter terrain near the line grants cover.
+The first two calls redraw the same twenty-seven rays, and `VisibleModels` redraws them once
+per model of the unit per shooter. Two hazards. The cost is quadratic in models when every model
+of every other unit is converted to a blocking volume, and the three calls multiply it. And
+`SightBlockersBetween` is permissive, so scatter terrain near the line grants cover.
 
 ### Settling during a drag
 
@@ -911,7 +981,8 @@ model to move.
 **The library holds no state.** Every class is `static` and every method is a pure function of
 its arguments. There is no cache, no spatial index and no mutable field. `Tolerance.Distance`,
 `Bodies.OvalVertices`, `LineOfSight.RimSamples`, `Movement.Rays` and `Movement.Step` are the
-only constants, and `ZoneStyles.All` is the only static collection. The event log rebuilds the
+only public constants; `ZoneStyles`' two Side Battle fractions are private, and `ZoneStyles.All`
+is the only static collection. The event log rebuilds the
 *placements* that this library then measures.
 
 The values it measures come from `schema.md`.
@@ -984,14 +1055,16 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | --- | --- | --- |
 | Client and server disagree on a measurement near a threshold | The server's answer stands. The client resyncs and a model snaps | Yes, `architecture.md` → Geometry |
 | A non-convex `PolygonOutline` is constructed | `Contains` and SAT return wrong answers. Convexity is an unchecked precondition | Accepted: every producer inside the library builds a convex shape, and the type is `internal` |
-| A degenerate zone triangle on a small table (a dimension near or below 18") | `Leg` clamps at 0, so Side Battle's triangle collapses; `PolygonOutline`'s `Axes` then normalises a zero-length edge and produces `NaN` in SAT, and `Polygon.Contains` on collinear vertices is meaningless | **No.** A latent bug, listed under Open questions |
+| A degenerate zone triangle | Unreachable from the built-in styles since Side Battle became proportional: a fraction of a positive edge is positive, and no other style has a diagonal. A degenerate polygon from anywhere else still normalises a zero-length edge in `PolygonOutline.Axes` and yields `NaN` in SAT | **No.** A latent bug with no caller, listed under Open questions |
+| A zone style's absolute inset on a table dimension smaller than the inset | Per style: `frontline`'s two 12" bands overlap below a 24" short edge, and each covers the whole board at 12" or under; `ground-war`'s two 24" bands overlap below a 48" long edge, and each covers the whole board at 24" or under; `spearhead`'s two apexes cross below a 48" long edge, and sit on or past the opposite short edge at 24" or under; `opposing-forces`' 24"×24" squares overrun the short edge below 24", and the two overlap when both edges are under 48"; `free-for-all`'s four corners overlap along the long edge below 48" and along the short edge below 24". `side-battle` and `disordered` are fractions of the edges and of the edge midpoints, so neither degenerates at any positive size | **Accepted limit**, not a bug: small tables are out of scope, ruled by the owner 2026-09-06. Every polygon stays well formed, so nothing throws, nothing divides by zero, and the only symptom is a zone that overlaps its opponent's or the whole board |
 | A base outline with fewer than three vertices | `PolygonOutline`'s constructor throws `ArgumentException` | Yes, loudly |
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.style` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
 | Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list. The server warns under `warn` and refuses only under `strict` | Yes, flagged never prevented |
 | A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, question 4's straight-line reach |
-| A blocker between two adjacent sight rays | Not detected. The target is called visible | Yes, sampling, question 2 |
+| A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling, question 2 as ruled 2026-09-06 |
+| A target visible only through a gap narrower than the sampling | Called hidden, and `VisibleModels` under-counts, which biases toward granting cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
 | A model dragged into a wall by the client | The client's region already excluded it, but nothing stops a hand-placed model overlapping a Solid. `Overlap.WithSolid` flags it | Yes |
 | Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list | **Trap.** Nothing in this library compares polygons, but a consumer might |
 
@@ -1007,12 +1080,12 @@ reentrant. The two remaining hazards are **ordering** and **cost**:
   do full work on every pair, with no bounding-circle rejection. Three places this bites:
   `Movement.Region` (180 rays × up to 24 samples × every volume), `Coherency.Check` (O(n²) full
   separations, 64-gons for ovals) and `Cover` plus `LineOfSight` called back to back on the
-  same pair. No test would catch a performance regression here, because every test uses one or
-  two volumes.
+  same pair, now at 27 rays each and multiplied again by `VisibleModels` over a whole unit. No
+  test would catch a performance regression here, because every test uses one or two volumes.
 
 ## Testing
 
-Thirteen test classes in `tests/Tabletop.Geometry.Tests`, one per subject, roughly 110 facts,
+Thirteen test classes in `tests/Tabletop.Geometry.Tests`, one per subject, roughly 112 facts,
 all headless and all `dotnet test` with no infrastructure. **Nothing in this module needs
 Docker, a database, a socket or Godot.** `architecture.md`'s build-order note gives geometry
 *"headless tests, zero dependencies"*.
@@ -1034,12 +1107,12 @@ What the tests are for, by class:
 | `SettlingTests` | Area passed through, highest Solid from above, **dropping from below a slab landing beneath it**, scale and Z raising the top, a rotated footprint |
 | `ContainmentTests` | centre versus whole base, a model on a hill under a canopy in both, ground beneath a second storey in neither, `BaseFullyWithin` measured from the container's *edge* |
 | `OverlapTests` | touching is not overlapping, different storeys, standing on a hill, a tall model reaching a slab, Area never intersecting |
-| `LineOfSightTests` | a low wall shot over, blocking declared not derived, a forest blocking through but not in/out/within, the first of two forests, a wall off the line, tall versus short bodies, another unit as a blocker, partly hidden still clear, the 17/9 sample counts |
+| `LineOfSightTests` | a low wall shot over, blocking declared not derived, a forest blocking through but not in/out/within, the first of two forests, a wall off the line, tall versus short bodies, another unit as a blocker, partly hidden still clear, the 27/15 sample counts with the centre among them, `VisibleModels` reporting one boolean per model, a second observer seeing what the first cannot |
 | `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one |
 | `CoherencyTests` | a straggler, equal groups keeping the earliest, a long chain breaking the spread, exactly one inch counting |
 | `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a square base rotated 45° off it** |
 | `MovementTests` | a full circle on open ground, an impassable volume stopping short, the difficult cap, no cap changing nothing, the table edge, a non-multiple allowance, displacement versus allowance, `VolumesCrossed` naming what containment cannot |
-| `ZoneStyleTests` | every style resolving, each style's diagram dimensions, the long-edge rule on a portrait table, `fully within` needing the whole base, malformed ids throwing |
+| `ZoneStyleTests` | every style resolving, each style's diagram dimensions, Side Battle's legs scaling to a 60×44 table, the long-edge rule on a portrait table, `fully within` needing the whole base, malformed ids throwing |
 
 Coverage gaps:
 
@@ -1060,35 +1133,44 @@ Coverage gaps:
   the only fixture puts the forest at 3", where the cap binds immediately.
 - **`AsBlockingVolume`'s bounding-rectangle inflation for oval bases** has no test asserting the
   size of the error.
-- **Nothing tests a table smaller than 72×48 for the zone styles** except the portrait 48×72
-  case, so the Side Battle degeneracy is not exercised.
+- **The zone styles are tested at three sizes only**: 72×48, the portrait 48×72 for the
+  long-edge rule, and 60×44 for Side Battle's fractions. The six anchored styles are untested
+  below their own insets, which is no longer a gap: small tables are out of scope by the
+  owner's ruling of 2026-09-06, and a test there would freeze the degenerate output named
+  under Failure modes as if it were wanted behaviour.
+- **`VisibleModels` has no test at unit scale.** Both facts use one or two models and one wall,
+  so the cost that the 50% rules impose on a shooting Ask is unmeasured.
 
 ## Open questions and deferred work
 
-The plan's eight questions. Question 1 is closed by ruling. The other seven carry the
-assumption taken and what changes if the answer differs.
+The plan's eight questions, plus 6a, the follow-up the review raised once question 6 split the
+styles into one proportional and six anchored. Six are closed by ruling: question 1 on
+2026-09-05, ratified by the owner 2026-09-06, and questions 2, 3, 5, 6 and 6a by the owner on
+2026-09-06. The other three carry the assumption taken and what changes if the answer differs.
 
 | # | Question | Assumption taken | If the answer differs |
 | --- | --- | --- | --- |
 | 1 | Where is the origin? | **Closed: the corner**, ruled 2026-09-05 by the compatibility review and ratified by the owner 2026-09-06 | Nothing. The frame is settled on the wire, in the library, in both servers and in the client |
-| 2 | What is the sight-line policy? | Eye at the shooter's top centre; 17 target points (9 for a square); clear if any line is clear | A denser or shooter-rim sample changes only `TargetPoints` and `Eye`. A single centre line is simpler and stricter but leaves *behind a sight blocker* nothing to measure |
-| 3 | What does *mostly inside* mean for a single model? | Base centre inside the volume | Area coverage needs polygon clipping in `Outline` and a new `BaseCoverage(PlacedModel, WorldVolume) : double` |
+| 2 | What is the sight-line policy? | **Closed: *"Center to any part of target"***, ruled by the owner 2026-09-06. Eye at the centre of the shooter's body, half height; 27 target points, 15 for a square; clear if any line is clear | The eye moved from the top centre and the target gained a mid-height ring, 17 points to 27. A denser sample still changes only `TargetPoints`; a shooter-rim sample now contradicts the ruling |
+| 3 | What does *mostly inside* mean for a single model? | **Closed: the base centre inside the volume**, confirmed by the owner 2026-09-06, who added *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the companion rule about seeing a unit added `LineOfSight.VisibleModels` |
 | 4 | Is straight-line reach enough? | Yes. The region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
-| 5 | Free-for-all's *2'x1'*, which way round? | 24" along the long edge, 12" along the short | Two numbers per corner |
-| 6 | Side Battle's anchoring | `Leg(edge) = edge - 18`, reproducing the p.21 diagram. The diagram's own three labels are inconsistent: 54"/30" legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Fixed 54"/30" legs overrun a 30×22 table; proportional legs are the normalisation the spec rejects |
+| 5 | Free-for-all's *2'x1'*, which way round? | **Closed: 24" along the long edge, 12" along the short**, confirmed by the owner 2026-09-06 | Nothing |
+| 6 | Side Battle's anchoring | **Closed: proportional to the table**, ruled by the owner 2026-09-06. Legs are `0.75` of the long edge and `0.625` of the short, the p.21 diagram's 54" and 30" on 72×48. The diagram's own three labels stay inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | `Leg(edge) = edge - 18` is dropped, and the degeneracy it carried with it. The ruling contradicts geometry values → Deployment shapes, so it carries spec correction 10; the other six styles stay anchored |
+| 6a | Should every style scale with the table, so the split is not inconsistent? | **Closed: no**, ruled by the owner 2026-09-06: *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions were chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. What the ruling changes is scope: the small-table behaviour the split would have hurt is an accepted limit under Failure modes, and spec correction 11 records that the built-in styles assume a table near 72×48 |
 | 7 | Ovals as 64-gons? | Accepted: error under 0.2% of the radius | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
 | 8 | Is a terrain container needed as well as a model container? | No. Only `Transport(X)` is automated. A building holds models through the client's menu, which places by hand | One overload, `BaseFullyWithin(PlacedModel, WorldVolume, double)` over `WorldOutline()`, five lines and one test. `MoveContainment.ExitingId` then names a `TerrainVolume` id, which the bare `Guid` already permits |
 
 Two further items the plan does not ask about:
 
-- **The Side Battle degeneracy is a bug, not a question.** `Leg` clamps at zero, but a
-  zero-area triangle reaches `PolygonOutline`, whose `Axes` divides an edge vector by its own
-  zero length. The guard belongs either in `Leg` (refuse a table with a dimension at or below
-  18" for this style) or in `PolygonOutline` (reject collinear vertices as it already rejects
-  fewer than three).
+- **`PolygonOutline` still accepts a degenerate polygon.** Its `Axes` divides an edge vector by
+  its own length, so a zero-area or collinear triangle divides by zero. The Side Battle
+  degeneracy that used to reach it is gone, since a fraction of a positive edge is positive, and
+  no built-in style can now produce one. The guard belongs in `PolygonOutline`, which rejects
+  fewer than three vertices but not three collinear ones.
 - **No broad phase.** A bounding-circle rejection at the top of `InteriorsIntersect` and
   `Separation` would be a handful of lines and would change the cost of `Movement.Region` and
-  `Coherency.Check` by an order of magnitude. It is not in the plan.
+  `Coherency.Check` by an order of magnitude. Line of sight would gain the most: 27 rays a pair
+  since 2026-09-06, multiplied again by `VisibleModels` over a unit. It is not in the plan.
 
 Deferred, with where it is recorded:
 
@@ -1105,17 +1187,21 @@ Deferred, with where it is recorded:
 | A combined `Check` + `SightBlockersBetween` call | section 9 |
 | A bisection pass on the movement region's rays | section 12 |
 
-The plan proposes nine **spec corrections**. Five are already applied to another plan (1, 5, 8
-and 9 to the contracts plan, 1 also to the client shell obligations). Four are still owed to
-specs: corrections 2, 4 and 7 to `2026-08-29-geometry-values-design.md`, correction 3 to
-`2026-08-29-setup-content-design.md`, and correction 6 to
-`2026-09-04-client-shell-design.md`. None is applied here, since this design may only write
-under `docs/design/geometry/`.
+The plan proposes eleven **spec corrections**. Four are already applied to another plan (1, 5,
+8 and 9 to the contracts plan, 1 also to the client shell obligations). Seven are still owed:
+corrections 2, 4, 7 and 10 to `2026-08-29-geometry-values-design.md`, correction 3 to
+`2026-08-29-setup-content-design.md`, correction 6 to `2026-09-04-client-shell-design.md`, and
+correction 11 to `architecture.md` → Table and layout with a companion line in
+`2026-08-29-setup-content-design.md`. Corrections 10 and 11 are the two that override a spec
+rather than filling a gap in it: the owner's proportional Side Battle contradicts *"anchored,
+not absolute and not normalized"*, and the scope ruling of 2026-09-06 narrows *"Arbitrary
+sizes … Never a constant"* for the built-in zone styles. None is applied here, since this
+design may only write under `docs/design/geometry/`.
 
 ## References
 
 **The plan.** `docs/superpowers/plans/2026-09-05-geometry.md`: thirteen tasks, the
-`Interfaces → Produces` table, nine spec corrections, eight questions.
+`Interfaces → Produces` table, eleven spec corrections, nine questions of which six are closed.
 
 **Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`: Task 2
 (the value types), Task 3 (the frozen API surface), Task 5 (`DeploymentZone`,

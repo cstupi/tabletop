@@ -1052,11 +1052,11 @@ public sealed record MarkerRemoved(Guid MarkerId) : StateChange;
 
 **Interfaces:**
 - Consumes: `ModelRelocation` (Task 6).
-- Produces: `Ask(Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)`; `AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces)`; `abstract record LegalSet` with `Options(IReadOnlyList<AskOption> Choices)` [options], `PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IReadOnlyList<Guid> Targets, int Amount)` [allocation], `Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds, IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `Bid(int MaxTokens)` [bid], `Confirmation` [confirmation]; `MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin)`; `abstract record AskAnswer` with `Chosen(string OptionId)` [chosen], `SelectedPieces(IReadOnlyList<Guid> PieceIds)` [selected_pieces], `Allocated(IReadOnlyDictionary<Guid, int> Counts)` [allocated], `Assigned(IReadOnlyDictionary<string, Guid> Targets)` [assigned], `Destinations(IReadOnlyList<ModelRelocation> Moves)` [destinations], `BidPlaced(int Tokens)` [bid_placed], `Confirmed` [confirmed], `Passed` [passed]; `static class AskQuestions` with `Activate = "activate"`, `ActOrEndPhase = "act_or_end_phase"`, `Deploy = "deploy"`, `DeployScouts = "deploy_scouts"`, `DeployAmbusher = "deploy_ambusher"`, `EndRound = "end_round"`, `Confirm = "confirm"`, `React = "react"`, `Bid = "bid"`.
+- Produces: `Ask(Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)`; `AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces)`; `abstract record LegalSet` with `Options(IReadOnlyList<AskOption> Choices)` [options], `PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IReadOnlyList<Guid> Targets, int Amount)` [allocation], `Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds, IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(int MaxTokens)` [token_spend], `Confirmation` [confirmation]; `MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin)`; `abstract record AskAnswer` with `Chosen(string OptionId)` [chosen], `SelectedPieces(IReadOnlyList<Guid> PieceIds)` [selected_pieces], `Allocated(IReadOnlyDictionary<Guid, int> Counts)` [allocated], `Assigned(IReadOnlyDictionary<string, Guid> Targets)` [assigned], `Destinations(IReadOnlyList<ModelRelocation> Moves)` [destinations], `TokensSpent(int Tokens)` [tokens_spent], `Confirmed` [confirmed], `Passed` [passed]; `static class AskQuestions` with `Activate = "activate"`, `ActOrEndPhase = "act_or_end_phase"`, `Deploy = "deploy"`, `DeployScouts = "deploy_scouts"`, `DeployAmbusher = "deploy_ambusher"`, `EndRound = "end_round"`, `Confirm = "confirm"`, `React = "react"`, `SpendTokens = "spend_tokens"`.
 - The **legal set's shape** is the closed set the client renders from; the **question** is a name: the engine's own in `AskQuestions`, a ruleset's (e.g. `shoot_or_not`, `strike_back`, `remove_casualties`) supplied by `GameRules` the way action names are. Action sequences constraint 9 (who answers differs per ruleset) is why the question is not an enum.
 - The move Ask carries the allowance and the impassable volume ids (`architecture.md` → Continuous actions); its answer is destinations, whose `To` positions carry the client's settled Z and are overwritten by the server's event. It also carries **what containment allows**, because `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire but nothing told the client where one is legal: `MoveRegion.Containment` is non-null exactly when this move may embark or is disembarking (game flow → Inside a container; rulebook p.14 `Transport(X)`, p.20 solid buildings). `Enterable` are the containers a model reaching one embarks the whole unit into — *"only one model needs to reach the Transport for everyone to embark"* — so the answer is a `Destinations` whose `To` is `Inside(thatContainer)` for every model, not one relocation per reachable model. `ExitingId` and `ExitWithin` are the container the unit is inside and the distance its models must be placed **fully** within of it (OPR: 6"), which is `Tabletop.Geometry.Containment.BaseFullyWithin`; the client draws that region instead of `Movement.Region`, since an occupant has no position to move from, and `Allowance` is then the action's remaining distance and binds nothing. Enterable and exiting are never both set, because a unit may not embark and disembark in one activation. `Containment` is optional so that a move with no container in play — every move on open table, and the charge close-in, fall-back and consolidation Asks — is constructed exactly as before.
 
-Spec: action sequences → Asks, Windows (offered, invoked, sealed; pass is a real answer); scheduler → The turn is an Ask (options = unit × action), Deployment, The round boundary (Ambushers), player-turn phases; client shell → Asks and windows (the panel's seven renderings, muting by window kind, sealed bids, confirm gates); spell effects → Target selection (one to `target_count` targets); game flow → Inside a container (enter or exit with any move action, never both in one activation, exit within 6").
+Spec: action sequences → Asks, Windows (offered, invoked, sealed; pass is a real answer); scheduler → The turn is an Ask (options = unit × action), Deployment, The round boundary (Ambushers), player-turn phases; client shell → Asks and windows (the panel's seven renderings, muting by window kind, sealed simultaneous token spends, confirm gates); spell effects → Target selection (one to `target_count` targets); game flow → Inside a container (enter or exit with any move action, never both in one activation, exit within 6").
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1083,10 +1083,10 @@ public class AskTests
     }
 
     [Fact]
-    public void A_sealed_bid_is_addressed_to_several_teams()
+    public void A_sealed_token_spend_is_addressed_to_several_teams()
     {
-        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.Bid, "Bid tokens", [Guid.CreateVersion7(), Guid.CreateVersion7()],
-            new Bid(3), AllowPass: true, Sealed: true, WindowKind: "casting", FrameId: Guid.CreateVersion7());
+        var ask = new Ask(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Guid.CreateVersion7(), Guid.CreateVersion7()],
+            new TokenSpend(3), AllowPass: true, Sealed: true, WindowKind: "casting", FrameId: Guid.CreateVersion7());
         Assert.Equal(2, ask.Teams.Count);
         Assert.True(ask.Sealed);
     }
@@ -1137,7 +1137,7 @@ public static class AskQuestions
     public const string EndRound = "end_round";
     public const string Confirm = "confirm";
     public const string React = "react";
-    public const string Bid = "bid";
+    public const string SpendTokens = "spend_tokens";
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -1146,7 +1146,7 @@ public static class AskQuestions
 [JsonDerivedType(typeof(Allocation), "allocation")]
 [JsonDerivedType(typeof(Assignment), "assignment")]
 [JsonDerivedType(typeof(MoveRegion), "move_region")]
-[JsonDerivedType(typeof(Bid), "bid")]
+[JsonDerivedType(typeof(TokenSpend), "token_spend")]
 [JsonDerivedType(typeof(Confirmation), "confirmation")]
 public abstract record LegalSet;
 public sealed record Options(IReadOnlyList<AskOption> Choices) : LegalSet;
@@ -1171,7 +1171,9 @@ public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, 
 /// an occupant has no position to move from. Never both — a unit may not embark and disembark in one activation.
 /// </summary>
 public sealed record MoveContainment(IReadOnlyList<Guid> Enterable, Guid? ExitingId, double? ExitWithin);
-public sealed record Bid(int MaxTokens) : LegalSet;
+/// <summary>Spend up to MaxTokens spell tokens at the same time as every other addressed team, each token giving the caster
+/// +1/-1 on the one casting roll (rulebook p.13 Caster(X)).</summary>
+public sealed record TokenSpend(int MaxTokens) : LegalSet;
 public sealed record Confirmation : LegalSet;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -1180,7 +1182,7 @@ public sealed record Confirmation : LegalSet;
 [JsonDerivedType(typeof(Allocated), "allocated")]
 [JsonDerivedType(typeof(Assigned), "assigned")]
 [JsonDerivedType(typeof(Destinations), "destinations")]
-[JsonDerivedType(typeof(BidPlaced), "bid_placed")]
+[JsonDerivedType(typeof(TokensSpent), "tokens_spent")]
 [JsonDerivedType(typeof(Confirmed), "confirmed")]
 [JsonDerivedType(typeof(Passed), "passed")]
 public abstract record AskAnswer;
@@ -1189,7 +1191,7 @@ public sealed record SelectedPieces(IReadOnlyList<Guid> PieceIds) : AskAnswer;
 public sealed record Allocated(IReadOnlyDictionary<Guid, int> Counts) : AskAnswer;
 public sealed record Assigned(IReadOnlyDictionary<string, Guid> Targets) : AskAnswer;
 public sealed record Destinations(IReadOnlyList<ModelRelocation> Moves) : AskAnswer;
-public sealed record BidPlaced(int Tokens) : AskAnswer;
+public sealed record TokensSpent(int Tokens) : AskAnswer;
 public sealed record Confirmed : AskAnswer;
 /// <summary>A real answer, logged; only legal when the Ask allows it.</summary>
 public sealed record Passed : AskAnswer;
@@ -1299,7 +1301,7 @@ public sealed record PhaseStarted(string Phase) : EventPayload;
 public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context) : EventPayload;
 /// <summary>
 /// Everything the step produced: the answer that resumed it, its rolls, the state changes it applied, and Values — a flat map of
-/// named integers holding the step's settled parameters (attacks counted, a capped multiplier, a distance used in tenths, a bid,
+/// named integers holding the step's settled parameters (attacks counted, a capped multiplier, a distance used in tenths, a token spend,
 /// a winner's ordinal) so a later step or nested frame reads them without re-deriving. No schema per step kind; omitted when null.
 /// A step may complete and run again (the same name twice in a row) — a second step_completed, a fresh history.
 /// </summary>
@@ -1643,13 +1645,13 @@ public static class Samples
         new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2), new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([Container], null, null)),                 // may embark
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([], Container, 6)),                        // is disembarking
-        new Bid(3), new Confirmation(),
+        new TokenSpend(3), new Confirmation(),
     ];
     public static readonly AskAnswer[] Answers =
     [
         new Chosen("a"), new SelectedPieces([Unit]), new Allocated(new Dictionary<Guid, int> { [Model] = 3 }),
         new Assigned(new Dictionary<string, Guid> { ["g1"] = Unit }), new Destinations([Deploy]), new Destinations([Embark]), new Destinations([Disembark]),
-        new BidPlaced(2), new Confirmed(), new Passed(),
+        new TokensSpent(2), new Confirmed(), new Passed(),
     ];
     public static Ask Ask => new(AskId, AskQuestions.Activate, "Activate", [Team1], LegalSets[0], true, false, null, null);
 
@@ -1659,7 +1661,7 @@ public static class Samples
         new PhaseStarted("deployment"), new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Unit, [Unit], [], "Advance")),
         new StepCompleted(Frame, "roll-to-hit", new Chosen("a"), [Hit], [new WoundsSet(Model, 1)]) { Values = new Dictionary<string, int> { ["attacks"] = 2, ["hits"] = 1 } }, new SequenceFinished(Frame),
         new SequenceAbandoned(Frame), new AskOpened(Ask), new AskAnswered(AskId, Team1, null, false),
-        new AskClosed(AskId, [new TeamAnswer(Team1, new BidPlaced(2))]),
+        new AskClosed(AskId, [new TeamAnswer(Team1, new TokensSpent(2))]),
         new DiceRerolled(Frame, Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]),
         new DiceEdited(Frame, Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]),
         new ModifierAdded(Frame, "hit", new RollModifier("Clay", 1)), new Undone(3),
@@ -2811,10 +2813,10 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |
 | `sealed record Ask(Guid Id, string Question, string Prompt, IRL<Guid> Teams, LegalSet Legal, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId)` | |
 | `sealed record AskOption(string Id, string Label, IRL<Guid> Pieces)` | |
-| `static class AskQuestions` | `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`, `Confirm`, `React`, `Bid` (snake_case strings) |
-| `abstract record LegalSet` | `Options(IRL<AskOption> Choices)` [options], `PieceSelection(IRL<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IRL<Guid> Targets, int Amount)` [allocation], `Assignment(IRL<AskOption> Items, IRL<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IRL<Guid> ModelIds, double Allowance, IRL<Guid> ImpassableVolumeIds, IRL<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `Bid(int MaxTokens)` [bid], `Confirmation` [confirmation] |
+| `static class AskQuestions` | `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`, `Confirm`, `React`, `SpendTokens` (snake_case strings) |
+| `abstract record LegalSet` | `Options(IRL<AskOption> Choices)` [options], `PieceSelection(IRL<Guid> Eligible, int Min, int Max)` [pieces], `Allocation(IRL<Guid> Targets, int Amount)` [allocation], `Assignment(IRL<AskOption> Items, IRL<Guid> Targets, int MaxDistinctTargets)` [assignment], `MoveRegion(IRL<Guid> ModelIds, double Allowance, IRL<Guid> ImpassableVolumeIds, IRL<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null)` [move_region], `TokenSpend(int MaxTokens)` [token_spend], `Confirmation` [confirmation] |
 | `sealed record MoveContainment(IRL<Guid> Enterable, Guid? ExitingId, double? ExitWithin)` | not a union member; `MoveRegion.Containment`, null unless the move may embark or is disembarking |
-| `abstract record AskAnswer` | `Chosen(string OptionId)`, `SelectedPieces(IRL<Guid> PieceIds)`, `Allocated(IRD<Guid,int> Counts)`, `Assigned(IRD<string,Guid> Targets)`, `Destinations(IRL<ModelRelocation> Moves)`, `BidPlaced(int Tokens)`, `Confirmed`, `Passed` — kinds snake_case of the type name |
+| `abstract record AskAnswer` | `Chosen(string OptionId)`, `SelectedPieces(IRL<Guid> PieceIds)`, `Allocated(IRD<Guid,int> Counts)`, `Assigned(IRD<string,Guid> Targets)`, `Destinations(IRL<ModelRelocation> Moves)`, `TokensSpent(int Tokens)`, `Confirmed`, `Passed` — kinds snake_case of the type name |
 | `abstract record Command` | `AnswerAsk(Guid AskId, AskAnswer Answer)`, `MoveModels(IRL<ModelRelocation> Moves)`, `PlaceMarker(Marker Marker)`, `MoveMarker(Guid MarkerId, Point3 Position, Yaw Yaw)`, `RemoveMarker(Guid MarkerId)`, `SetWounds(Guid ModelId, int Wounds)`, `SetCondition(Subject Subject, string Condition, bool Present)`, `RecordAction(Guid UnitId, string Action)`, `ClearActionRecord(Guid UnitId)`, `AddGrant(Guid UnitId, Grant Grant)`, `RemoveGrant(Guid UnitId, Guid GrantId)`, `SetSpellTokens(Guid ModelId, int Tokens)`, `SetWoundsThisActivation(Guid UnitId, int Wounds)`, `SetScore(Guid TeamId, int Score)`, `SetActiveTeam(Guid TeamId)`, `SetRound(int Round)`, `Undo(long ToSeq)`, `AbandonSequence(Guid FrameId)`, `RerollDice(Guid FrameId, Guid RollId, IRL<int> DiceIndices)`, `SetDice(Guid FrameId, Guid RollId, IRL<DieValue> Dice)`, `AddModifier(Guid FrameId, string Roll, int Amount)` — kinds snake_case of the type name |
 | `sealed record DieValue(int Index, int Raw)` | |
 | `sealed record Presence(Guid ParticipantId, Cursor? Cursor, Selection? Selection, IRL<PresencePlacement> Placements, Measurement? Measurement)` | |
@@ -2876,7 +2878,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `deploy_ambusher` → `pieces`, pass allowed | | scheduler → The round boundary |
 | `confirm` → `confirmation` | | action sequences → One roll primitive (the confirm gate) |
 | `react` → `options`, pass allowed, `WindowKind` set | | action sequences → Windows |
-| `bid` → `bid`, `Sealed` | | action sequences → Windows (sealed simultaneous variant) |
+| `spend_tokens` → `token_spend`, `Sealed` | | action sequences → Windows (sealed simultaneous variant) |
 | ruleset questions → `options` / `pieces` / `allocation` / `assignment` / `move_region` | e.g. shoot or not, strike back, remove casualties, weapon groups and targets, charge target, move destination, embark, disembark, spell and tokens, spell targets, consolidation | action sequences → Grimdark Future's sequences; spell effects → Target selection; game flow → Inside a container (`move_region.containment`); `architecture.md` → Continuous actions (move parameters) |
 | **Setup edits** | | |
 | `create_team`, `pick_team`, `pick_army`, `set_configuration` | LobbyEdit | whole-design review ruling 4 and 5; setup phase → Joining, The lifecycle |

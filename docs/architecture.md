@@ -10,10 +10,18 @@ Four things ship, and they have different target platforms:
 
 | Deliverable | Directory | Platform |
 | --- | --- | --- |
-| Game client | `client/` | Windows (Godot export) |
+| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) |
 | Game server | `server/game/` | Linux (container) |
 | Management API | `server/management/` | Linux (container) |
 | Web app | `web/` | Static (Svelte SPA) |
+
+**The client's platform was corrected on 2026-09-06.** This table originally gave it as Windows
+outright, and the client plan and its design document repeated that as settled. Windows is the
+first target, not the only one — the same Godot project exports to Linux and macOS, so the
+correction is about intent rather than capability. What follows from it is a constraint on
+design, not a schedule: **the client may not take a Windows-only dependency**, and where one was
+assumed (the remembered session in Windows data protection) it was replaced with a portable
+mechanism. No work is planned for the other platforms, and no export preset for them exists yet.
 
 There is no mesh prep tool. This document originally listed one at `tools/mesh-prep/`,
 shipping to users' machines; [mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md)
@@ -277,7 +285,7 @@ correct. It is a prediction of what the server will say. If the two disagree, th
 the client resyncs from server state — a model snaps back, and that is the entire cost.
 
 This is why bit-exact cross-platform determinism is *not* a requirement here, even though the
-client is Windows and the server is Linux. Divergence cannot compound, because the client holds
+client is a desktop build and the server is Linux. Divergence cannot compound, because the client holds
 no authoritative state to diverge *into*. That constraint belongs to lockstep architectures,
 which this deliberately is not.
 
@@ -526,9 +534,11 @@ client rather than needing to be designed in later.
 
 Its original two justifications are both gone: there are no victory conditions, so secret
 objectives do not exist, and hidden deployment is `Ambush`, a `GameRules` hook. One thing does
-use it: casting's sealed token bid, where every eligible team answers concurrently and the
-answers are withheld until the window closes
-([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)).
+use it: casting's simultaneous token spend, where every eligible team answers concurrently and
+the answers are withheld until the window closes
+([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)). *Corrected
+2026-09-06.* This read "sealed token bid"; there is no bid in the rule, and the note in action
+sequences quotes p.13.
 
 ## Web frontend
 

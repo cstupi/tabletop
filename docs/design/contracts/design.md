@@ -474,8 +474,9 @@ tests read.
 Two shapes in this table need more than a table row.
 
 **`StepCompleted.Values` is an `IReadOnlyDictionary<string, int>?`.** It is a flat map of named
-integers holding a step's settled parameters: attacks counted, a capped multiplier, a bid, a winner's
-ordinal, "a distance used in tenths". A later step or a nested frame reads them without re-deriving.
+integers holding a step's settled parameters: attacks counted, a capped multiplier, a token spend,
+a winner's ordinal, "a distance used in tenths". A later step or a nested frame reads them without
+re-deriving.
 It is a non-positional `init` property, wire name `values`, omitted when null. It is the one open
 string bag in a design whose governing principle is the opposite, and action sequences left it open:
 *"Whether `step_completed` payloads need a schema per step kind, or stay free-form."* It is
@@ -516,7 +517,7 @@ string? WindowKind, Guid? FrameId)`. Teams is a list because a sealed window add
 once. `FrameId` is null for the scheduler's own Asks. `WindowKind` is the name a player mutes by and
 is null when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
 `activate`, `act_or_end_phase`, `deploy`, `deploy_scouts`, `deploy_ambusher`, `end_round`,
-`confirm`, `react`, `bid`. Every other name comes from `GameRules`, including `shoot_or_not`,
+`confirm`, `react`, `spend_tokens`. Every other name comes from `GameRules`, including `shoot_or_not`,
 `strike_back`, `remove_casualties`, a charge target and a spell's targets.
 
 | `LegalSet` | Answer | Used for |
@@ -526,7 +527,7 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 | `Allocation(Targets, Amount)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal |
 | `Assignment(Items, Targets, MaxDistinctTargets)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8) |
 | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
-| `Bid(MaxTokens)` | `BidPlaced(Tokens)` | casting's sealed token bid (p.13) |
+| `TokenSpend(MaxTokens)` | `TokensSpent(Tokens)` | casting's simultaneous token spend (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
 | any, when `AllowPass` | `Passed` | a window's pass, a team passing its turn |
 
@@ -1277,7 +1278,7 @@ designed cost. `MoveRegion.ImpassableVolumeIds` are ids the client resolves agai
 `TerrainPlacement.WorldVolumes()`, and an id the board does not contain is silently ignored rather
 than surfaced.
 
-### 4. A sealed bid
+### 4. A simultaneous token spend
 
 ```mermaid
 sequenceDiagram
@@ -1285,21 +1286,21 @@ sequenceDiagram
     participant S as Game server
     participant B as Team 2 client
 
-    S-->>A: AskOpened(Ask bid, Sealed=true, Teams=[1,2], Bid(maxTokens))
+    S-->>A: AskOpened(Ask spend_tokens, Sealed=true, Teams=[1,2], TokenSpend(maxTokens))
     S-->>B: AskOpened(same Ask)
-    A->>S: AnswerAsk(askId, BidPlaced(2))
-    S-->>A: AskAnswered(askId, team1, BidPlaced(2), false)
+    A->>S: AnswerAsk(askId, TokensSpent(2))
+    S-->>A: AskAnswered(askId, team1, TokensSpent(2), false)
     S-->>B: AskAnswered(askId, team1, null, false)
     Note over B: OpenAsks[askId].Answers[team1] = null<br/>"answered, but not what"
-    B->>S: AnswerAsk(askId, BidPlaced(1))
-    S-->>A: AskClosed(askId, [team1 = BidPlaced(2), team2 = BidPlaced(1)])
+    B->>S: AnswerAsk(askId, TokensSpent(1))
+    S-->>A: AskClosed(askId, [team1 = TokensSpent(2), team2 = TokensSpent(1)])
     S-->>B: AskClosed(askId, same)
     Note over A,B: both projections drop the OpenAsk;<br/>the reveal is one event
 ```
 
-The only use of `architecture.md`'s per-player filtered streams (casting's token bid, Grimdark Future
-p.13). The filtering nulls a field rather than withholding an event, so both clients show "Team 1 has
-answered" from the same event kind.
+The only use of `architecture.md`'s per-player filtered streams (casting's simultaneous token spend,
+Grimdark Future p.13). The filtering nulls a field rather than withholding an event, so both clients
+show "Team 1 has answered" from the same event kind.
 
 `AskAnswered` indexes `OpenAsksMut[a.AskId]` and throws if the Ask is not open, so the server must
 never filter out an `ask_opened`. Only answers are filtered. A frame carrying an open Ask that is
@@ -1448,11 +1449,13 @@ hydrated. Two cases fall on the wrong side of it, and both are now a typed desyn
   `MarkerRemoved` look in `Projection.Markers`, which holds only tokens dropped in play. Two id
   spaces, one `MarkerId` field, and a renderer that has to union the two collections anyway.
 - **Editing a roll after its sequence has finished throws.** The scheduler says *"every roll result
-  is editable from the menu, as any roll is"*, and the deployment roll-off is a sequence that
-  finishes. `SetDice`/`DiceEdited` carry a `FrameId`, and `ReplaceDice` calls `FrameOf`, which
-  throws once the frame has been popped. The roll lookup throws in the same way when no step in a
-  live frame holds that roll. The menu affordance the scheduler promises is unreachable for any roll
-  in a completed sequence.
+  is editable from the menu, as any roll is"*. `SetDice`/`DiceEdited` carry a `FrameId`, and
+  `ReplaceDice` calls `FrameOf`, which throws once the frame has been popped. The roll lookup throws
+  in the same way when no step in a live frame holds that roll. So the menu affordance the scheduler
+  promises is unreachable for any roll in a completed sequence. The end-of-turn morale test is the
+  remaining example: a root frame with an actor and one step, which pops before any boundary can
+  gate it. The deployment roll-off used to be the clearest case and no longer is, because the owner
+  ruled on 2026-09-06 that it is gated, so its frame is live while the gate is open.
 
 The typed exception makes both cases recoverable on the client and loud on the server rather than
 fatal on both, and `EventApplierTests` now asserts each of them. It does not make either case
@@ -1675,7 +1678,8 @@ players roll their own dice, what a roll records);
 `2026-08-30-presence-design.md` (the presence value, the cursor, drag and ghost as one value, a
 measurement is two points, a ping is not a field);
 `2026-09-03-action-sequences-design.md` (the resolution stack, four event kinds, abandonment, one
-roll primitive, Asks, windows, the sealed bid, the nine interface constraints, rolls become rows);
+roll primitive, Asks, windows, the simultaneous token spend, the nine interface constraints, rolls
+become rows);
 `2026-09-04-scheduler-design.md` (the line, state, nothing is an invariant, the turn is an Ask, the
 two shapes, deployment, the round boundary, re-entering a round);
 `2026-09-04-setup-phase-design.md` (joining at any status, the lifecycle, editing is free for all,
@@ -1695,9 +1699,9 @@ header answered by `426`.
 
 **Rulebook.** Grimdark Future v3.4.1: p. 6 (objectives, the deployment roll-off), p. 7 (rounds,
 turns, activations, movement measured from each base's start), p. 8 (weapon groups and up to two
-targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the sealed bid), p. 14 (`Transport(X)`,
-`Sniper`, `Scout`), pp. 16-20 (terrain types, placement styles, solid buildings and the 6" exit),
-p. 49 (free-for-all and team games).
+targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the simultaneous token spend),
+p. 14 (`Transport(X)`, `Sniper`, `Scout`), pp. 16-20 (terrain types, placement styles, solid
+buildings and the 6" exit), p. 49 (free-for-all and team games).
 
 **Sibling design documents** under `docs/design/`: `geometry/`, `management-api/`, `web-app/`,
 `game-server/`, `client/`, `scheduler/`, `interpreter/`. All of them consume these three

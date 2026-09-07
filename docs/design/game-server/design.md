@@ -444,7 +444,7 @@ functions read it:
 - `LegalSetMembership.Contains(Ask, AskAnswer)` is rules-free set membership over the seven
   closed `LegalSet` shapes. `Options` by option id, `PieceSelection` by count bounds,
   distinctness and eligibility, `Allocation` by targets and a sum equal to `Amount`,
-  `Assignment` by total coverage and `MaxDistinctTargets`, `Bid` by `0 <= Tokens <= MaxTokens`,
+  `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by `0 <= Tokens <= MaxTokens`,
   `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
   against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for
@@ -453,7 +453,7 @@ functions read it:
 
 Validation falls out of enumeration and not the reverse, and the client needs enumeration to
 render affordances. `EnumerateLegalCommands` covers two of the seven `LegalSet` shapes.
-`PieceSelection`, `Allocation`, `Assignment`, `Bid` and `MoveRegion` are parameters the client
+`PieceSelection`, `Allocation`, `Assignment`, `TokenSpend` and `MoveRegion` are parameters the client
 renders, not lists the server can expand. A move region is not enumerable by construction, which
 is `architecture.md`'s continuous-action argument. A piece selection is enumerable, and this
 method does not expand it. `architecture.md`'s claim that "an AI opponent later gets its action
@@ -603,13 +603,13 @@ participant did (`GameEvent.Actor`). The dispatcher enforces two things and no m
 The team must not already have an answer recorded, so two members of one team racing produces one
 answer and one refusal rather than two.
 
-The sealed variant is the one place the design uses per-viewer filtered streams. Casting's token
-bid has every eligible team answer concurrently, and online a sequential reveal hands the last
-mover an advantage the tabletop does not. `EventFilter.ForViewer(events, viewerTeamId,
-sealedOpenBefore)` walks a batch or a whole log tracking which sealed Asks are open. It rewrites
-`AskAnswered` to `Answer = null` when the Ask is sealed, still open, and the answer belongs to
-another team. `AskClosed` carries every answer and is never filtered. It is the reveal. Three
-properties:
+The sealed variant is the one place the design uses per-viewer filtered streams. Casting's
+simultaneous token spend (p.13) has every eligible team answer concurrently, and online a
+sequential reveal hands the last mover an advantage the tabletop does not.
+`EventFilter.ForViewer(events, viewerTeamId, sealedOpenBefore)` walks a batch or a whole log
+tracking which sealed Asks are open. It rewrites `AskAnswered` to `Answer = null` when the Ask is
+sealed, still open, and the answer belongs to another team. `AskClosed` carries every answer and is
+never filtered. It is the reveal. Three properties:
 
 - **withholding is positional.** On a replayed log the answer stays hidden *where it happened*
   and appears *where the window closed*. A reconnecting client's projection converges to the
@@ -943,13 +943,13 @@ sequenceDiagram
     S->>L: AskOpened(Ask sealed, teams 1 and 2)
     S-->>T1: ask_opened
     S-->>T2: ask_opened
-    T1->>D: AnswerAsk(BidPlaced 2)
+    T1->>D: AnswerAsk(TokensSpent 2)
     D->>D: team addressed? already answered? in the legal set?
-    D-->>S: Applied([AskAnswered(ask, team1, bid 2)])
+    D-->>S: Applied([AskAnswered(ask, team1, tokens spent 2)])
     S->>L: append
     S-->>T1: ask_answered with the answer
     S-->>T2: ask_answered with Answer = null
-    T2->>D: AnswerAsk(BidPlaced 1)
+    T2->>D: AnswerAsk(TokensSpent 1)
     D-->>S: Applied([AskAnswered(team2), AskClosed(both answers)])
     S->>L: append
     S-->>T1: team 2's answer nulled, then ask_closed revealing both
@@ -959,7 +959,7 @@ sequenceDiagram
 Withholding is per viewer on the way out, and the log holds one canonical history. The reveal is
 `AskClosed`, emitted by the dispatcher the moment every addressed team has answered. A spectator
 sees `Answer = null` for both. A sealed Ask whose frame is abandoned reveals through the
-`AskClosed` the abandon path emits, so `AbandonSequence` on a sealed window is a way to see a bid
+`AskClosed` the abandon path emits, so `AbandonSequence` on a sealed window is a way to see a spend
 early. Nothing in the skeleton restricts who may abandon, and any participant may.
 
 ## State and data

@@ -24,9 +24,9 @@ edges and the free-for-all roll-off.
 | `morale-test` | `test` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
-| `casting` | `pick-spell`, `bid`, `roll`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
+| `casting` | `pick-spell`, `spend-tokens`, `roll`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
 | `spell-hits` | `hit`, `resolve` | `GfCasting` | `casting`'s `effects` |
-| `roll-off` | `roll-off` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
+| `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid
 flowchart TD
@@ -94,8 +94,8 @@ for a strike-back.
 
 | Step | Does |
 | --- | --- |
-| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]`. `RecomputeAttacksPerGroup = true`, so it counts the target's living models when **its own** group starts, and a later group reflects an earlier group's casualties (question 3) |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at models in the target), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
+| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]` and `Values["eligible_models"]`. The count comes from `Values["attacks_<i>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["blast_cap_<i>"]` on the pushing frame, which is p.13's models in the target counted with the attack counts rather than when this group fires), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
 | `resolve` | `Push(resolve-hits, ...)` |
 
 `GfAttack.HitsFrom(parent)` is what `resolve-hits` reads back. It is the successes of the
@@ -113,8 +113,12 @@ at all. Content values: a melee weapon has no range, and *an absent range is abs
 `roll-to-block` rolls `GfRolls.DefensePlan` once **per grant group**: the hits that carry a
 per-die grant are rolled separately with that property folded into the live set by
 `LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(4)* reaches the defence
-roll. Cover is a base modifier of +1, from `Battlefield.InCover(target, first eligible attacker
-model)` (p.11). `deal` pushes `deal-wounds`.
+roll. Cover is a base modifier of +1, from `GfRolls.InCover(target, eligible attacker models)`
+(p.11). The owner's two 50% thresholds live in that call: at least half the target's living models
+with a base centre in a `Cover` volume, or fewer than half of them seen. `Battlefield` supplies
+only the two counts, `ModelsInCoverTerrain` and `ModelsVisibleFrom`, because the fraction is a
+ruleset number. Sight is measured from the whole eligible attacker set, not from one vantage
+model. `deal` pushes `deal-wounds`.
 
 `Impact` hits enter here directly, skipping the hit roll. Spell hits enter after a hit roll that
 cannot fail, so *on rolls of 6* rules read a real die.
@@ -133,7 +137,9 @@ dangerous-terrain path.
 target's team. p.8 gives the defending player free choice of removal order. p.14 constrains it
 twice: a wounded `Tough` model takes wounds until it dies, and heroes are assigned last.
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
-wounded like any other. The answer is applied as given. An out-of-set allocation under
+wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
+its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
+That is the one clause of `Hero` a joined hero's slot property does reach. The answer is applied as given. An out-of-set allocation under
 `warn`/`silent` is applied too, because nothing is an invariant.
 
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
@@ -217,7 +223,9 @@ and push: the activation, the move, and transport destruction (proposed spec cor
 
 `declare-targets` opens `Assignment(Items = GfShooting.Groups(...), Targets = valid target units,
 MaxDistinctTargets = 2)`. p.8: targets are declared *before any roll*, and up to two different
-targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, pushes
+targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
+every group's attack count and `Blast` cap as `Values["attacks_<i>"]` and `Values["blast_cap_<i>"]`
+before it pushes anything, pushes
 one `attack-sequence` per group with `Sniper` groups first (p.14), and completes when the last has
 finished.
 
@@ -323,9 +331,9 @@ still takes its test.
 
 | Step | Does |
 | --- | --- |
-| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and `Values["bid_max_<team:N>"]` for every team `BidCapacity` finds |
-| `bid` | `Windows.SealedBid` then `Windows.Bids`. Tokens are deducted from the bidding team's eligible models nearest the caster first. `Values["net_bid"]` is the own team's tokens less everyone else's |
-| `roll` | `GfRolls.CastingPlan(net_bid)`: one die at 4+ with the bid as a signed modifier (p.13). A failure `Finish`es |
+| `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and `Values["tokens_max_<team:N>"]` for every team `SpendCapacity` finds |
+| `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`. Tokens are deducted from the spending team's eligible models nearest the caster first. `Values["net_tokens"]` is the own team's tokens less everyone else's |
+| `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13). A failure `Finish`es |
 | `targets` | `PieceSelection` from the spell entry's four columns: `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the maximum with a minimum of 1, `Range` from the caster model, and line of sight from the caster model |
 | `effects` | Once per chosen target, via `Values["target_index"]` and `Repeat`: every effect of the spell whose conditions hold, in ordinal order |
 
@@ -339,18 +347,28 @@ shape:
   effect.TargetEntry ?? spell.Name, casterUnit, 1))`. A model-grain target's grant lands on its
   unit, because the grants store is the unit's.
 
-`BidCapacity` is p.13's *models with tokens within 18 inches and line of sight of the caster's
-unit*, both sides, the caster excluded, grouped by team. It stays **positional on both ends**:
-`LivingModels` on the caster's side and `Location is OnTable` on the bidder's. A cast from inside
-a container therefore draws no bids in either direction and resolves at a flat 4+ (question 10).
+`EligibleSpenders` is p.13's per-model test — *models with tokens within 18 inches and line of
+sight of the caster's unit*, both sides, the caster excluded — and `SpendCapacity` sums it per
+team. One predicate serves the maximum and the payers, so an ineligible model neither raises a
+team's maximum nor pays for it. Excluding the caster is a reading rather than a quotation: the
+caster model is trivially within 18 inches of its own unit, and p.13 does not say whether it may
+add its remaining tokens to its own roll. The test stays **positional on both ends**: `LivingModels` on the
+caster's side and `Location is OnTable` on the spender's. A cast from inside a container therefore
+draws no token spend in either direction and resolves at a flat 4+ (question 10).
+
+The per-model test is answered as one number per team, which the roll does not care about: the
+modifier is ±1 per token spent, so the sum is the whole input. The player's choice of which
+eligible model pays is what the aggregation drops, and every token holder is a `Caster(X)` model,
+so nearest-first can spend the tokens held for that model's own spell (question 14).
 
 The token economy is a per-model counter: `+X` at the start of each round for a model with
 `Caster(X)`, **even off the table** (p.13), capped at `GfNames.TokenCap = 6`, spent by casting and
-by bidding. It is ordinary editable game state, granted by `OnRoundStarted`, and needs nothing in
-`Properties` beyond the parameter the entry already carries.
+by the simultaneous spend on another model's casting roll. It is ordinary editable game state,
+granted by `OnRoundStarted`, and needs nothing in `Properties` beyond the parameter the entry
+already carries.
 
 `TriedThisActivation` scans the effective log back to the activation's `sequence_started` for
-closed `pick-spell` steps. That is the *one try per spell* scope, assumed to be the activation
+closed `pick-spell` steps. That is the *one try per spell* scope, ruled to be the activation
 (question 2). It keys on the sequence context's `Action` being one of the four action names, so a
 cast reached by any other route would not bound correctly.
 
@@ -405,8 +423,11 @@ inches of the transport before removal."*
    `dangerous-terrain`, p.11's third trigger, reusing the same `DangerousTestStep`.
 4. `place` opens a `disembark` Ask: a `MoveRegion` whose `MoveContainment(Enterable: [], ExitingId:
    wreck, ExitWithin: 6)` tells the client to draw the same region a disembark draws. It then
-   sets `shaken` on the unit and moves each survivor to its placement, or to the shelf when the
-   answer gave none or gave one outside the radius (question 12).
+   sets `shaken` on the unit and moves each survivor to its placement. A survivor the answer left
+   no legal placement for is **destroyed** rather than parked off the table. The step writes what
+   `assign` writes for a casualty: wounds at the model's capacity, the model removed to the shelf,
+   and those wounds on the unit's activation tally, so a unit cut to half or less this way still
+   owes p.10's end-of-activation test. The frame reports `Values["destroyed"]` (question 12).
 
 **A nested `deal-wounds` never disgorges.** The occupants' own dangerous terrain test pushes a
 `deal-wounds`, whose `disgorge` would find the very wreck the frame above it is emptying. The
@@ -417,16 +438,31 @@ the module.
 
 ## The roll-off
 
-One step named `roll-off`, owned here and consumed by the scheduler. One die per team in ordinal
-order, null threshold, with any teams still tied rolling again among themselves until every team
-is ordered. p.49 needs the whole descending order for a free-for-all, not just a winner. The step
-writes `Values["winner_ordinal"]` and `Values["place_1"] .. ["place_n"]`, team ordinals best
-first, which the scheduler's `RollOff.Order` reads into `round_started.Order`.
+Two steps, owned here and consumed by the scheduler. `roll-off` rolls one die per team in ordinal
+order at a null threshold, with any teams still tied rolling again among themselves until every
+team is ordered. Roll k's dice belong, in ordinal order, to the teams still tied after rolls 0 to
+k-1. `order` ranks the teams from those recorded dice and writes
+`Values["winner_ordinal"]` and `Values["place_1"] .. ["place_n"]`, team ordinals best first, which
+the scheduler's `RollOff.Order` reads into `round_started.Order`. p.49 needs the whole descending
+order for a free-for-all, not just a winner.
 
 A null threshold means `Die.Success` is `false` for every die and raw results are compared. The
-roll primitive admits that case. The whole-design review filled the gap. The frame has no actor,
-so it is never confirm-gated and finishes in the batch that started it. Its dice are therefore
-never editable from the menu, because `RerollDice` needs the frame on the stack (question 8).
+roll primitive admits that case. The whole-design review filled the gap.
+
+The boundary between the two steps is a confirm gate, and it is the only gate in the module that
+does not depend on `game.waits_between_steps`. The frame therefore stays on the stack after the
+dice are recorded, which is what `RerollDice` and `SetDice` need, so the roll-off's dice are
+editable from the menu like every other roll (the owner's ruling of 2026-09-06 on question 8).
+The gate is **addressed to every team**: the roll-off has no acting unit, and its result fixes
+turn order for all of them, so there is no team with a better claim to release it. One unsealed
+`Confirm` Ask carries every team, and the dispatcher closes an unsealed Ask on the first answer,
+so any team may release it.
+
+`order` never rolls. A menu edit that leaves two teams on equal dice is therefore settled by team
+ordinal rather than by a fresh die, which is the same tolerance `RollOff.Order` already has for a
+hand-edited log. Splitting the ranking out of the rolling step is what makes an edit take effect
+at all: `dice_edited` reaches back into a recorded `RollRecord` and never rewrites a
+`step_completed`'s `Values`, so a one-step roll-off would have offered an edit the order ignored.
 
 ## Roll specs
 
@@ -435,25 +471,35 @@ which is 1D6 with no modifier cap. The specs differ only in threshold derivation
 
 | Roll | Threshold | Notes |
 | --- | --- | --- |
-| `hit` | `Quality`, read through `StatReader.TargetNumber` | fatigued in melee: `RequiredRaw = 6`, threshold 6, no modifiers (p.9) |
-| `defense` | `Defense` | base modifier `cover +1` when shooting into cover (p.11) |
-| `morale` | `Quality` | a `Shaken` unit rolls no die at all |
-| `casting` | 4, fixed | the net bid as a signed `bid` modifier (p.13) |
+| `hit` | `Quality` at unit level, read through `StatReader.TargetNumber` | fatigued in melee: `RequiredRaw = 6`, threshold 6, no modifiers (p.9) |
+| `defense` | `Defense` at unit level | base modifier `cover +1` when shooting into cover (p.11) |
+| `morale` | `Quality` at unit level | a `Shaken` unit rolls no die at all |
+| `casting` | 4, fixed | the net token spend as a signed `tokens` modifier (p.13) |
 | `roll-off` | none | raw comparison, ties rerolled |
+
+All three target numbers are the unit's, and every one is the whole roll's: a `RollRequest`
+carries one `Threshold`. `Quality` and `Defense` are declared at `model` level as well, because a
+hero joined to another unit is a model of it and its slot carries its own two, and neither
+declaration is read. A joined hero therefore hits and blocks on its host squad's numbers, which
+is what `Hero`'s own clause asks for on the defence side and what the roll shape imposes on the
+hit side. Interpreter design → question 13 prices the change.
 
 The dangerous-terrain test and every kind-5 property roll (`Regeneration`, `Impact`, `Fearless`)
 borrow a convention from a spec but are **not** `roll` rows. Nothing targets them, so they exist
 only as `RollRecord.Roll` names.
 
-## The two flagged interpretations
+## The one flagged interpretation
 
-Recorded as visible constants on `GrimdarkFutureRules` rather than as silent behaviour, as
+Recorded as a visible constant on `GrimdarkFutureRules` rather than as silent behaviour, as
 action sequences asked:
 
 ```csharp
 public const string OneTryPerSpellScope = "activation";   // question 2
-public const bool RecomputeAttacksPerGroup = true;        // question 3
 ```
 
-`Counter` before `Impact` is the third ambiguity. The 09-03 session ruled it rather than flagging
+`RecomputeAttacksPerGroup` was the second such constant. The owner ruled question 3 on 2026-09-06
+and it is **deleted** rather than set to `false`: nothing branched on it, so `false` would
+advertise a switch that does not exist and name the settled behaviour by its negation.
+
+`Counter` before `Impact` is the other ambiguity. The 09-03 session ruled it rather than flagging
 it, so it is ordinary code in `GfMelee`.

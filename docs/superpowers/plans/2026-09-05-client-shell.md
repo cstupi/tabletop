@@ -6,7 +6,7 @@
 
 **Architecture:** `client/src/Core/**` is Godot-free C# (`Tabletop.Client.Core`): `Session` owns `ManagementClient`, `IGameSocket`, the `EventApplier`, the draft and a `PresenceTable`, and raises events through an `IDispatcher` so Godot code runs on its main thread. `tests/Tabletop.Client.Tests` compiles those sources directly against the three `libs/`, which is what proves they are Godot-free. Godot code (`Tabletop.Client.Screens`, `.Table`, `.Panels`) is thin: it draws from the projection, converts frames with `WorldFrame`, and forwards input to `Session`. Godot physics is not in the scene; picking is ray-versus-AABB over proxy bounds, and every measurement is `Tabletop.Geometry`'s.
 
-**Tech Stack:** Godot 4.7.2 Mono (Windows host), .NET 10 (`net10.0`, C# 12), `System.Net.Http`, `System.Net.WebSockets.ClientWebSocket`, `System.Security.Cryptography.ProtectedData` (DPAPI), xUnit 2.9.3; `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol` from the contracts and geometry plans.
+**Tech Stack:** Godot 4.7.2 Mono (Windows host), .NET 10 (`net10.0`, C# 12), `System.Net.Http`, `System.Net.WebSockets.ClientWebSocket`, xUnit 2.9.3; `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol` from the contracts and geometry plans.
 
 **Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.4.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api.md`, `2026-09-05-game-server-skeleton.md`. `docs/workstreams/05-client-shell.md` is stale and not followed.
 
@@ -22,7 +22,8 @@
 - Every HTTP request carries `Tabletop-Client-Version: {ProtocolVersion.Current}`; a `426` shows the update-required screen and nothing else runs (management API → The version check). The JWT is refreshed with `POST /v1/auth/session/refresh` every 60 s (management plan → Interfaces needed → Client-shell plan).
 - Server wins, always: a `models_moved` event snaps the piece; `Undo` shows `EventApplier.ProjectTo(n)` until the server's `undone` or `refused` arrives; reconnect discards the projection and rebuilds from `Welcome`/`Board`/`Events` (client shell → The connection and the projection). A `ProjectionDesyncException` discards it the same way and resyncs immediately, once per sequence position, and the bound sends the player Home with the reason (owner ruling 2, 2026-09-06).
 - Presence is sent at 20 Hz while something changed and never logged; setup drags stream `held` placements and the drop is one edit; play drags the same and the drop is one `MoveModels` (presence; setup phase → The draft is the row).
-- Local settings (animate, muted window kinds, remember me, server URLs) live in `user://settings.json`; the remembered session in `user://session.bin` (DPAPI); the mesh cache in `user://cache/` keyed by SHA-256 hash.
+- Local settings (animate, muted window kinds, remember me, server URLs) live in `user://settings.json`; the remembered session in `user://session.bin` (a plain file, owner-only where the platform has file modes — no Windows-only mechanism, per the owner ruling of 2026-09-06); the mesh cache in `user://cache/` keyed by SHA-256 hash.
+- **The client is not Windows-only.** Windows is the first export target and the only one this plan builds a preset for, but no design decision here may depend on Windows: `architecture.md` → Deliverables was corrected on 2026-09-06 to say so. `OS.GetUserDataDir()` and `res://`/`user://` are already portable; the one Windows-only mechanism this plan had assumed, `ProtectedData` for the remembered session, is gone (Task 2). WSL plus a Windows Godot editor stays as the description of the development machine, which is a fact about the current machine and not a platform commitment.
 - Identifiers are `Guid.CreateVersion7()` (client-generated ids for terrain placements, markers, commands, edits).
 - Local only: management at `http://localhost:5100`, the game server at `ws://localhost:5200/ws`, MinIO presigned URLs at `http://localhost:9000`, all over WSL's forwarded localhost (contracts plan → Local development).
 - Test-driven for everything with logic: xUnit in `tests/Tabletop.Client.Tests` over `client/src/Core/**`; the Godot layer is tested by running `./scripts/godot` against the local servers. Commit after every task, one-line imperative message, with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
@@ -32,14 +33,14 @@
 ## File Structure
 
 ```
-client/Tabletop.csproj                       modified: ProjectReferences to the three libs; ProtectedData package
+client/Tabletop.csproj                       modified: ProjectReferences to the three libs
 client/scenes/Main.tscn                      modified: root Node (Main.cs) that swaps screens
 client/scenes/Login.tscn  Home.tscn  Game.tscn  UpdateRequired.tscn  TableView.tscn   minimal: root + script
 client/src/Main.cs                           modified: owns Session, builds the dispatcher, swaps screens
 client/src/Core/                             Godot-free; compiled into the test project by source inclusion
   IDispatcher.cs           where Session raises events; ImmediateDispatcher for tests
   ClientSettings.cs        settings.json: animate, muted window kinds, remember me, URLs
-  SessionStore.cs          session.bin: the remembered JWT behind protect/unprotect delegates
+  SessionStore.cs          session.bin: the remembered JWT in an owner-only file, no keystore
   ManagementDtos.cs        the management API's request/response shapes the client reads
   ManagementClient.cs      HttpClient over /v1/*: version header, bearer, 426 -> UpdateRequiredException
   IGameSocket.cs           the socket seam: Send, frames in, close reason
@@ -60,7 +61,7 @@ client/src/Table/    WorldFrame.cs  TableView.cs  SlabNode.cs  PieceNode.cs  Ter
                      ZoneNode.cs  OrbitCamera.cs  MeshLoader.cs  TableInput.cs  RulerNode.cs  MoveRegionNode.cs  PresenceOverlay.cs
                      Palette.cs  Animator.cs
 client/src/Panels/   LobbyPanel.cs  SetupToolbar.cs  AskPanel.cs  LogPanel.cs  PieceMenu.cs  TeamPanel.cs
-client/content/builtin/                      textures/*.png and terrain/*.glb when art exists; absence draws the proxy
+client/content/builtin/                      textures/*.png (5) and terrain/*.glb (10 group meshes); absence draws the proxy
 tests/Tabletop.Client.Tests/                 xUnit; <Compile Include="../../client/src/Core/**/*.cs" />
 scripts/check-client                         the two greps: no physics body in a scene, no rules type in a script
 scripts/client                               runs the client (./scripts/godot) after building the libs
@@ -82,7 +83,7 @@ Files split by responsibility: `Core/` holds every decision that can be tested w
 
 Spec: `architecture.md` → What is actually shared (the client consumes the three libs); client shell → Testing (two greps). The table frame is one frame — origin at the table's corner — on the wire and in `Tabletop.Geometry` (compatibility ruling of 2026-09-05; geometry plan → Global Constraints; game server plan → `DraftEditor.OnSlab`), so the client converts nothing; the first tests pin that the library's `Table` and `ZoneStyles` answer in the wire frame.
 
-- [ ] **Step 1: Add the ProjectReferences and the DPAPI package to `client/Tabletop.csproj`** (inside `<Project>`, after the `PropertyGroup`)
+- [ ] **Step 1: Add the ProjectReferences to `client/Tabletop.csproj`** (inside `<Project>`, after the `PropertyGroup`)
 
 ```xml
   <ItemGroup>
@@ -90,12 +91,12 @@ Spec: `architecture.md` → What is actually shared (the client consumes the thr
     <ProjectReference Include="..\libs\Tabletop.Content\Tabletop.Content.csproj" />
     <ProjectReference Include="..\libs\Tabletop.Protocol\Tabletop.Protocol.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
-  </ItemGroup>
 ```
 
-(Use the newest `10.0.x` on nuget.org if `10.0.11` does not resolve.)
+The client takes no `PackageReference` at all. An earlier draft of this plan added
+`System.Security.Cryptography.ProtectedData` for the remembered session; that package is
+Windows-only and the client may not be (owner ruling, 2026-09-06), so Task 2 uses the BCL's file
+APIs instead and nothing outside the three project references is needed.
 
 - [ ] **Step 2: Write the test project**
 
@@ -216,8 +217,10 @@ git commit -m "Reference the contract libraries from the client and test its God
 - Test: `tests/Tabletop.Client.Tests/SettingsTests.cs`
 
 **Interfaces:**
-- Produces: `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)` with `static ClientSettings Default`, `static ClientSettings Load(string path)` (defaults when the file is missing or unreadable), `void Save(string path)`, `ClientSettings Mute(string windowKind)`, `ClientSettings Unmute(string windowKind)`; `sealed class SessionStore(string path, Func<byte[], byte[]> protect, Func<byte[], byte[]> unprotect)` with `string? Read()` (null when absent or undecodable), `void Write(string jwt)`, `void Clear()`.
-- The Godot side passes `ProtectedData.Protect/Unprotect(bytes, null, DataProtectionScope.CurrentUser)`; tests pass identity functions. The JWT lives five minutes; what the store keeps alive is the Stytch session behind it — on launch the stored JWT goes to `POST /v1/auth/session/refresh` (Task 3), and a `401` shows the login screen.
+- Produces: `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)` with `static ClientSettings Default`, `static ClientSettings Load(string path)` (defaults when the file is missing or unreadable), `void Save(string path)`, `ClientSettings Mute(string windowKind)`, `ClientSettings Unmute(string windowKind)`; `sealed class SessionStore(string path)` with `string? Read()` (null when absent, unreadable, or not JWT-shaped), `void Write(string jwt)`, `void Clear()`.
+- **The store is a plain file with owner-only permissions, not an OS keystore** (owner ruling, 2026-09-06: "We may run on other operating systems"). `Write` creates the file with `UnixFileMode.UserRead | UnixFileMode.UserWrite` on any platform that has file modes, and relies on the user profile's own ACL on Windows, where `OS.GetUserDataDir()` already resolves under `%APPDATA%`. **What that protects against:** another local account on a shared machine reading the token, and the file being picked up by a backup or sync of a directory that would otherwise be group- or world-readable. **What it does not protect against:** anything running as the same user, which can read the file, and the file being copied to another machine, where it still refreshes until the Stytch session behind it expires. Windows data protection would have stopped the second of those, at the cost of being Windows-only. The exposure is bounded by the token being a five-minute JWT whose only power is `POST /v1/auth/session/refresh`, by `Clear()` on logout and on a `401`, and by anything running as the user being able to drive the client itself regardless.
+- **Rejected: a per-platform store behind one interface** (`ProtectedData` on Windows, libsecret on Linux, Keychain on macOS). Three implementations, two of which cannot be exercised on the development machine, and libsecret needs a session keyring that a minimal or headless Linux desktop may not have — a hard failure mode where the file has none. The seam is still `SessionStore`: three methods and one call site in `Main._Ready`, so a keystore can replace it later without touching `Session`.
+- The JWT lives five minutes; what the store keeps alive is the Stytch session behind it — on launch the stored JWT goes to `POST /v1/auth/session/refresh` (Task 3), and a `401` shows the login screen.
 
 Spec: client shell → Screens → Login ("holds the JWT in memory and, if the player chooses, in the OS credential store so the next launch skips the screen"), Asks and windows ("A mute list per player, in local settings"), Animation ("the player's own animate setting, kept in local settings"; whole-design review ruling 3).
 
@@ -257,25 +260,30 @@ public class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void Session_store_protects_and_clears()
+    public void Session_store_round_trips_owner_only_and_clears()
     {
-        static byte[] Flip(byte[] b) => b.Select(x => (byte)~x).ToArray();
-        var store = new SessionStore(Path.Combine(_dir, "session.bin"), Flip, Flip);
+        var path = Path.Combine(_dir, "session.bin");
+        var store = new SessionStore(path);
         Assert.Null(store.Read());
         store.Write("eyJ.jwt.here");
-        Assert.NotEqual("eyJ.jwt.here", File.ReadAllText(Path.Combine(_dir, "session.bin")));
         Assert.Equal("eyJ.jwt.here", store.Read());
+        if (!OperatingSystem.IsWindows())
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
         store.Clear();
         Assert.Null(store.Read());
-        Assert.False(File.Exists(Path.Combine(_dir, "session.bin")));
+        Assert.False(File.Exists(path));
     }
 
     [Fact]
-    public void A_corrupt_session_file_reads_as_null()
+    public void A_session_file_that_is_not_a_jwt_reads_as_null()
     {
         var path = Path.Combine(_dir, "session.bin");
+        var store = new SessionStore(path);
         File.WriteAllBytes(path, [1, 2, 3]);
-        var store = new SessionStore(path, b => b, _ => throw new System.Security.Cryptography.CryptographicException("bad"));
+        Assert.Null(store.Read());
+        File.WriteAllText(path, "");
+        Assert.Null(store.Read());
+        File.WriteAllText(path, "eyJ.only-two-segments");
         Assert.Null(store.Read());
     }
 }
@@ -333,19 +341,36 @@ using System.Text;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>The remembered session JWT, protected by the OS (DPAPI on Windows, supplied by the caller). Absent or unreadable reads as null.</summary>
-public sealed class SessionStore(string path, Func<byte[], byte[]> protect, Func<byte[], byte[]> unprotect)
+/// <summary>The remembered session JWT, in a file only its owner can read. Absent, unreadable, or not JWT-shaped reads as null.
+/// Deliberately not an OS keystore: the client may run on more than one operating system (owner ruling, 2026-09-06), and a
+/// portable file is honest about being weaker. It keeps the token from other local accounts; it does not keep it from anything
+/// running as this user, nor from being copied to another machine, where it refreshes until the Stytch session expires.</summary>
+public sealed class SessionStore(string path)
 {
     public string? Read()
     {
-        try { return File.Exists(path) ? Encoding.UTF8.GetString(unprotect(File.ReadAllBytes(path))) : null; }
-        catch (Exception e) when (e is IOException or System.Security.Cryptography.CryptographicException or ArgumentException) { return null; }
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var text = Encoding.UTF8.GetString(File.ReadAllBytes(path));
+            // A JWT is three non-empty dot-separated segments. Anything else is a truncated write or an unrelated
+            // file, and must not reach an Authorization header: refusing it here is what "a corrupt session reads as null" means
+            // now that nothing decrypts.
+            var parts = text.Split('.');
+            return parts.Length == 3 && parts.All(p => p.Length > 0) ? text : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     public void Write(string jwt)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllBytes(path, protect(Encoding.UTF8.GetBytes(jwt)));
+        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
+        // Set the mode at creation, so there is no instant where the file is readable by anyone else. Windows has no
+        // file modes and throws on this property; there the user profile directory's own ACL is the protection.
+        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        using var file = new FileStream(path, options);
+        file.Write(Encoding.UTF8.GetBytes(jwt));
     }
 
     public void Clear() { if (File.Exists(path)) File.Delete(path); }
@@ -819,16 +844,18 @@ public class SessionTests : IDisposable
     // and the account id on every access, so two reads are two different games.
     static readonly GameInfo Game = Samples.Game;
     static readonly AccountRow Clay = new(Game.Participants[0].AccountId, "Clay");
+    // Three dot-separated segments, because SessionStore.Read refuses anything that is not JWT-shaped (Task 2).
+    const string Jwt1 = "a.jwt-1.z";
 
     public SessionTests()
     {
-        var store = new SessionStore(Path.Combine(_dir, "session.bin"), b => b, b => b);
+        var store = new SessionStore(Path.Combine(_dir, "session.bin"));
         _s = new Session(new ManagementClient(new HttpClient(_http), new Uri("http://localhost:5100")), _sockets, store,
             ClientSettings.Default with { RememberMe = true }, _persisted.Add, new ImmediateDispatcher(), _ => TimeSpan.Zero);
     }
     public void Dispose() => Directory.Delete(_dir, true);
 
-    async Task LoggedIn() { _http.Answer(HttpStatusCode.OK, new SessionResponse("jwt-1", Clay)); await _s.LoginWithPasswordAsync("c@example.com", "pw"); }
+    async Task LoggedIn() { _http.Answer(HttpStatusCode.OK, new SessionResponse(Jwt1, Clay)); await _s.LoginWithPasswordAsync("c@example.com", "pw"); }
     async Task<FakeGameSocket> ConnectedAtPlaying()
     {
         await LoggedIn();
@@ -845,11 +872,11 @@ public class SessionTests : IDisposable
     {
         await LoggedIn();
         Assert.Equal((SessionPhase.LoggedIn, "Clay"), (_s.Phase, _s.Account!.Name));
-        Assert.Equal("jwt-1", new SessionStore(Path.Combine(_dir, "session.bin"), b => b, b => b).Read());
-        _http.Answer(HttpStatusCode.OK, new SessionResponse("jwt-2", Clay));
+        Assert.Equal(Jwt1, new SessionStore(Path.Combine(_dir, "session.bin")).Read());
+        _http.Answer(HttpStatusCode.OK, new SessionResponse("a.jwt-2.z", Clay));
         Assert.True(await _s.TryResumeAsync());
         Assert.Equal("/v1/auth/session/refresh", _http.Requests[^1].RequestUri!.AbsolutePath);
-        Assert.Contains("jwt-1", _http.Bodies[^1]);
+        Assert.Contains(Jwt1, _http.Bodies[^1]);
         _http.Answer(HttpStatusCode.Unauthorized, "{\"title\":\"Unauthorized\"}", "application/problem+json");
         Assert.False(await _s.TryResumeAsync());
         Assert.Equal(SessionPhase.LoggedOut, _s.Phase);
@@ -868,7 +895,7 @@ public class SessionTests : IDisposable
     {
         var sock = await ConnectedAtPlaying();
         var connect = Assert.IsType<Connect>(sock.Sent[0]);
-        Assert.Equal(("jwt-1", Game.Id, ProtocolVersion.Current), (connect.SessionJwt, connect.GameId, connect.ClientVersion));
+        Assert.Equal((Jwt1, Game.Id, ProtocolVersion.Current), (connect.SessionJwt, connect.GameId, connect.ClientVersion));
         Assert.Equal(new Uri("ws://localhost:5200/ws"), sock.Url);
         Assert.Equal((SessionPhase.Connected, Samples.P1, Samples.Team1), (_s.Phase, _s.ParticipantId, _s.MyTeamId));
         Assert.Equal(2, _s.Projection!.Scores[Samples.Team1]);
@@ -1356,11 +1383,14 @@ A resync is that same path, so the projection, the draft, the undo prediction an
 **Files:**
 - Create: `client/src/Core/BuiltinContent.cs`, `client/src/Core/TerrainGenerators.cs`
 - Test: `tests/Tabletop.Client.Tests/BuiltinContentTests.cs`, `tests/Tabletop.Client.Tests/TerrainGeneratorTests.cs`
+- Author (art, not code — Step 4): `client/content/builtin/terrain/{hill,woods,ruins,building,wall,rock,field,water,pad,haze}.glb`, `client/content/builtin/textures/{grass,desert,urban,snow,ash}.png`
 
 **Interfaces:**
 - Consumes: `Volume`, `VolumeKind`, `Footprint`, `TerrainDeclarations`, `Point2`, `Point3`, `Yaw`, `TableSize`, `ZoneStyles` (Geometry); `TerrainPlacement`, `TerrainVolume`, `VisualRef` (Content); `AddTerrain` (Protocol).
-- Produces: `sealed record BuiltinTerrain(string Name, string Label, Volume Volume, string? MeshFile)`; `static class BuiltinContent` — `IReadOnlyDictionary<string, BuiltinTerrain> Terrain`, `IReadOnlyList<string> Textures` (`grass`, `desert`, `urban`, `snow`, `ash`), `IReadOnlyList<string> MarkerVisuals` (`objective-ring`, `chip`), `IReadOnlyList<string> ZoneStyleIds => ZoneStyles.All`, `TerrainPlacement Place(string name, Point3 position, Yaw yaw, double scale = 1)` (volumes copied from the built-in — the placement's rows are the volumes), `IReadOnlyList<TerrainVolume> VolumesOf(string name)` (what "clear overrides" re-copies), `string TextureFile(string name)`, `string? TerrainMeshFile(string name)`; `enum Planet { Generic, Hospitable, Wasteland, Death }`; `static class TerrainGenerators` — `IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng)` (nine fixed pieces then 4D3 rolled on 2D6, placed off the slab beside the long edge at `x = width + 4`, in rows 8" apart), `IReadOnlyList<string> Fixed(Planet)`, `IReadOnlyList<string> Rolled(Planet, int twoD6)` (the alternatives an entry names).
-- Built-in mesh files are optional: `MeshFile` names `res://content/builtin/terrain/<name>.glb`, drawn when present, the volumes' proxy when not (asset library → the proxy; setup phase → "the hitbox is the data and the mesh only decorates it"). Declarations follow the tables literally; conditional clauses ("dangerous when using Rush/Charge", "difficult for units moving up", "units on top may ignore one unit/terrain for line of sight") are `Notes`, never flags (geometry values → Declarations: "Everything else OPR does with terrain is free text").
+- Produces: `sealed record BuiltinTerrain(string Name, string Label, Volume Volume, string? MeshFile)`; `static class BuiltinContent` — `IReadOnlyDictionary<string, BuiltinTerrain> Terrain`, `IReadOnlyList<string> Textures` (`grass`, `desert`, `urban`, `snow`, `ash`), `IReadOnlyList<string> MarkerVisuals` (`objective-ring`, `chip`), `IReadOnlyList<string> TerrainMeshGroups` (the ten shared mesh basenames), `IReadOnlyList<string> ZoneStyleIds => ZoneStyles.All`, `TerrainPlacement Place(string name, Point3 position, Yaw yaw, double scale = 1)` (volumes copied from the built-in — the placement's rows are the volumes), `IReadOnlyList<TerrainVolume> VolumesOf(string name)` (what "clear overrides" re-copies), `string TextureFile(string name)`, `string? TerrainMeshFile(string name)`; `enum Planet { Generic, Hospitable, Wasteland, Death }`; `static class TerrainGenerators` — `IReadOnlyList<AddTerrain> Generate(Planet planet, TableSize table, Random rng)` (nine fixed pieces then 4D3 rolled on 2D6, placed off the slab beside the long edge at `x = width + 4`, in rows 8" apart), `IReadOnlyList<string> Fixed(Planet)`, `IReadOnlyList<string> Rolled(Planet, int twoD6)` (the alternatives an entry names).
+- **A minimal art set ships, grouped ten ways** (owner ruling, 2026-09-06). 35 distinct meshes is not minimal, and the pieces fall into ten shapes that differ only by footprint, height, scale and yaw: `hill` (hill, large-hill, steep-hill, hill-small, small-dunes, beast-lair — 6), `woods` (forest, large-forest, plantation, dense-vegetation, deadly-vegetation — 5), `ruins` (ruins, large-ruins, overgrown-ruins, ruin — 4), `building` (large-building, small-buildings, large-sight-blocker — 3), `wall` (wall-or-fence, barricade — 2), `rock` (large-rock, crumbly-rock — 2), `field` (large-field, tall-crops-field — 2), `water` (large-lake, deep-river, shallow-river, toxic-river, sludge-stream — 5), `pad` (crater, sludge-field, mine-field, death-marsh, quicksand — 5), `haze` (toxic-smog — 1). Ten meshes, 35 pieces. Each built-in's `MeshFile` names its group's file, so `TerrainMeshFile` returns the group path; the per-name fallback `res://content/builtin/terrain/<name>.glb` stays for a built-in whose `MeshFile` is null, which lets one piece be given bespoke art later without a code change.
+- **Every mesh file is still optional, and a missing one still draws the hitbox.** `MeshLoader.LoadBuiltin` returns null when the file is absent and `TerrainNode` keeps its per-volume proxy visible (asset library → the proxy; setup phase → "the hitbox is the data and the mesh only decorates it"). That is the degraded path, not the plan: it is what happens for whichever of the fifteen files has not been made yet, and it is kept rather than deleted so a build with no `content/builtin/` at all still renders a playable table.
+- Declarations follow the tables literally; conditional clauses ("dangerous when using Rush/Charge", "difficult for units moving up", "units on top may ignore one unit/terrain for line of sight") are `Notes`, never flags (geometry values → Declarations: "Everything else OPR does with terrain is free text").
 
 Spec: setup phase → Terrain: imported, built-in, generated (built-ins ship with the client; generators are the rulebook's four tables, nine fixed plus 4D3 on 2D6; a batch of adds; land beside the table; the client rolls; the tables ship with the client and the server never reads them); Grimdark Future p.17–18 (the tables, read above); p.17 size classes (scatter 1–3", large 4–8", up to 12").
 
@@ -1406,6 +1436,12 @@ public class BuiltinContentTests
         Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
+        // Every piece names one of the ten group meshes, so the art set is ten files and not 35.
+        Assert.Equal(10, BuiltinContent.TerrainMeshGroups.Count);
+        Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(t.MeshFile, BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
+        Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
+        Assert.Equal("res://content/builtin/terrain/water.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
+        Assert.Null(BuiltinContent.TerrainMeshFile("no-such-piece"));
     }
 
     [Fact]
@@ -1478,7 +1514,9 @@ public static class BuiltinContent
     const string Solid = "solid", Area = "area";
     static Volume V(string kind, Footprint f, double top, TerrainDeclarations d, string? notes = null) =>
         new(kind == Solid ? VolumeKind.Solid : VolumeKind.Area, f, new Point2(0, 0), new Yaw(0), 0, top, d, notes);
-    static BuiltinTerrain T(string name, string label, Volume v) => new(name, label, v, null);
+    // A built-in names its group's mesh, not one of its own: ten meshes cover the 35 pieces, differing by footprint,
+    // height, scale and yaw. MeshLoader.LoadBuiltin fits the group mesh to the placement's volume (Task 11).
+    static BuiltinTerrain T(string name, string label, Volume v, string group) => new(name, label, v, $"res://content/builtin/terrain/{group}.glb");
     const string RushCharge = "Dangerous terrain when using Rush/Charge actions";
     const string OnTop = "Units on top may ignore one unit/terrain for line of sight";
     const string MovingUp = "Difficult terrain for units moving up";
@@ -1486,46 +1524,49 @@ public static class BuiltinContent
     static readonly BuiltinTerrain[] All =
     [
         // Generic (p.17)
-        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | Cover)),        // as Wall or Fence, p.17: Cover, and Difficult when moving through it
-        T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut)),
-        T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover)),
-        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight)),
-        T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, Cover, OnTop)),
-        T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge)),
-        T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable)),
+        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | Cover), "wall"),        // as Wall or Fence, p.17: Cover, and Difficult when moving through it
+        T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover), "field"),
+        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight), "building"),
+        T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, Cover, OnTop), "hill"),
+        T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
+        T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable), "water"),
         // Hospitable (p.17)
-        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | Cover)),   // p.17: "Cover, as well as Difficult terrain when moving through it"
-        T("hill", "Hill", V(Solid, Footprint.Circle(3), 2, Cover, OnTop)),
-        T("plantation", "Plantation", V(Area, Footprint.Rect(6, 6), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut)),
-        T("forest", "Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut)),
-        T("large-building", "Large Building", V(Solid, Footprint.Rect(6, 6), 8, Impassable | BlocksLineOfSight)),
-        T("deep-river", "Deep River or Lake", V(Area, Footprint.Rect(3, 12), 0.5, Impassable)),
-        T("shallow-river", "Shallow River or Stream", V(Area, Footprint.Rect(3, 12), 0.5, Difficult, "Optionally one 3\"-6\" wide bridge per full 24\"")),
-        T("tall-crops-field", "Tall Crops Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover)),
-        T("ruins", "Ruins or Debris", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge)),
-        T("small-buildings", "Group of Small Buildings", V(Solid, Footprint.Rect(6, 6), 4, Impassable | BlocksLineOfSight)),
-        T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, Cover, $"{MovingUp}. {OnTop}")),
+        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | Cover), "wall"),   // p.17: "Cover, as well as Difficult terrain when moving through it"
+        T("hill", "Hill", V(Solid, Footprint.Circle(3), 2, Cover, OnTop), "hill"),
+        T("plantation", "Plantation", V(Area, Footprint.Rect(6, 6), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("forest", "Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("large-building", "Large Building", V(Solid, Footprint.Rect(6, 6), 8, Impassable | BlocksLineOfSight), "building"),
+        T("deep-river", "Deep River or Lake", V(Area, Footprint.Rect(3, 12), 0.5, Impassable), "water"),
+        T("shallow-river", "Shallow River or Stream", V(Area, Footprint.Rect(3, 12), 0.5, Difficult, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
+        T("tall-crops-field", "Tall Crops Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover), "field"),
+        T("ruins", "Ruins or Debris", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
+        T("small-buildings", "Group of Small Buildings", V(Solid, Footprint.Rect(6, 6), 4, Impassable | BlocksLineOfSight), "building"),
+        T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, Cover, $"{MovingUp}. {OnTop}"), "hill"),
         // Wasteland (p.18)
-        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, Cover, OnTop)),
-        T("large-rock", "Large Rock or Two to Three Small Rocks", V(Solid, Footprint.Rect(4, 4), 4, Impassable | BlocksLineOfSight)),
-        T("crater", "Crater", V(Area, Footprint.Circle(3), 1, Cover)),
-        T("toxic-smog", "Toxic Smog", V(Area, Footprint.Circle(4), 6, Cover | Dangerous | BlocksLineOfSight | SeeInAndOut)),
-        T("toxic-river", "Toxic River", V(Area, Footprint.Rect(3, 12), 0.5, Difficult | Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\"")),
-        T("sludge-stream", "Sludge Stream or Canal", V(Area, Footprint.Rect(2, 12), 0.5, Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\"")),
-        T("sludge-field", "Sludge Field", V(Area, Footprint.Rect(6, 6), 0.5, Difficult)),
-        T("mine-field", "Mine Field", V(Area, Footprint.Rect(6, 6), 0.1, Dangerous)),
+        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, Cover, OnTop), "hill"),
+        T("large-rock", "Large Rock or Two to Three Small Rocks", V(Solid, Footprint.Rect(4, 4), 4, Impassable | BlocksLineOfSight), "rock"),
+        T("crater", "Crater", V(Area, Footprint.Circle(3), 1, Cover), "pad"),
+        T("toxic-smog", "Toxic Smog", V(Area, Footprint.Circle(4), 6, Cover | Dangerous | BlocksLineOfSight | SeeInAndOut), "haze"),
+        T("toxic-river", "Toxic River", V(Area, Footprint.Rect(3, 12), 0.5, Difficult | Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
+        T("sludge-stream", "Sludge Stream or Canal", V(Area, Footprint.Rect(2, 12), 0.5, Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
+        T("sludge-field", "Sludge Field", V(Area, Footprint.Rect(6, 6), 0.5, Difficult), "pad"),
+        T("mine-field", "Mine Field", V(Area, Footprint.Rect(6, 6), 0.1, Dangerous), "pad"),
         // Death (p.18)
-        T("overgrown-ruins", "Overgrown Ruins", V(Area, Footprint.Rect(6, 6), 4, Difficult | Cover)),
-        T("deadly-vegetation", "Deadly Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | Dangerous)),
-        T("dense-vegetation", "Dense Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut)),
-        T("death-marsh", "Death Marsh", V(Area, Footprint.Rect(6, 6), 0.2, Difficult | Dangerous)),
-        T("crumbly-rock", "Crumbly Rock", V(Solid, Footprint.Rect(4, 4), 2, Difficult)),
-        T("beast-lair", "Beast Lair", V(Solid, Footprint.Circle(2), 2, Dangerous)),
-        T("quicksand", "Quicksand", V(Area, Footprint.Rect(4, 4), 0.1, None, RushCharge)),
+        T("overgrown-ruins", "Overgrown Ruins", V(Area, Footprint.Rect(6, 6), 4, Difficult | Cover), "ruins"),
+        T("deadly-vegetation", "Deadly Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | Dangerous), "woods"),
+        T("dense-vegetation", "Dense Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("death-marsh", "Death Marsh", V(Area, Footprint.Rect(6, 6), 0.2, Difficult | Dangerous), "pad"),
+        T("crumbly-rock", "Crumbly Rock", V(Solid, Footprint.Rect(4, 4), 2, Difficult), "rock"),
+        T("beast-lair", "Beast Lair", V(Solid, Footprint.Circle(2), 2, Dangerous), "hill"),
+        T("quicksand", "Quicksand", V(Area, Footprint.Rect(4, 4), 0.1, None, RushCharge), "pad"),
         // Names the contracts plan's samples use
-        T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None)),
-        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, Cover | BlocksLineOfSight | SeeInAndOut)),
+        T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None), "hill"),
+        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),
     ];
+
+    /// <summary>The ten mesh files the 35 built-ins share, by their basename under res://content/builtin/terrain/.</summary>
+    public static IReadOnlyList<string> TerrainMeshGroups { get; } = ["hill", "woods", "ruins", "building", "wall", "rock", "field", "water", "pad", "haze"];
 
     public static IReadOnlyDictionary<string, BuiltinTerrain> Terrain { get; } = All.ToDictionary(t => t.Name);
     public static IReadOnlyList<string> Textures { get; } = ["grass", "desert", "urban", "snow", "ash"];
@@ -1591,7 +1632,18 @@ public static class TerrainGenerators
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Client.Tests`; expect 35 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.**
+- [ ] **Step 4: Author the fifteen art files.** **This step is not code, and no code in this plan produces its output.** It is a person with a modelling tool and an image editor making fifteen files and copying them into `client/content/builtin/`. Nothing else in the plan depends on it: every step before and after passes with the directory empty, and the table renders as its hitboxes until the files exist. The owner ruled on 2026-09-06 that a minimal art set ships, so a generated table looks like a table; the minimum is these fifteen.
+
+  **`client/content/builtin/terrain/{group}.glb` — ten meshes**, one per group above. Format glTF 2.0 binary, one mesh, one `BaseColor`-only PBR material with no texture (the material carries the colour; the slab owns the only image), no animation, no skin, no camera, no light, under 2000 triangles and under 256 KB each. **Authored in the unit box, in the table frame:** x and y in [−0.5, 0.5], z in [0, 1], z up, origin at the footprint centre and the base at z = 0 — `MeshLoader.LoadBuiltin` scales that box onto each placement's volume (Task 11), so one file serves a group with no per-piece variant. Each must read correctly at both extremes of its group: `water` is stretched from a 4"-radius lake to a 3"×12" river, `hill` from a 2"-radius mound to 6"×6", `pad` from 0.1" to 1" tall. Silhouette matters and detail does not, since the camera is a table-height orbit at 24"–96".
+  - `hill` a smooth dome with a flat walkable crown; `woods` a ring of trunks with canopies above the crown, hollow in the middle so a base placed inside is visible (these carry `SeeInAndOut`); `ruins` two or three broken wall stubs on a rubble pad; `building` a closed box with a pitched roof and cut window and door reliefs; `wall` a straight low barrier along +x with posts; `rock` an angular boulder cluster; `field` a low mat of crop rows; `water` a flat surface inset just below z = 1 with a lipped bank around it; `pad` a shallow flat dish, which is the crater and every ground hazard; `haze` a soft cloud of two or three nested translucent shells.
+
+  **`client/content/builtin/textures/{name}.png` — five tables**, `grass`, `desert`, `urban`, `snow`, `ash`, matching `BuiltinContent.Textures`. Seamless and tileable, 1024×1024, sRGB, no alpha, under 1.5 MB each. `SlabNode.Set` sets `Uv1Scale` from `width/12`, so one tile is a 12"×12" square of table: author them at that scale, not as a whole table.
+
+  **What is not needed.** No mesh for a marker: `MarkerNode` builds its disc and `Label3D` procedurally, so `objective-ring` and `chip` are ids and not files. No mesh and no texture for a zone: `ZoneNode` builds flat `ArrayMesh` fans from `ZoneStyles.Resolve`. No mesh for a model: army models come from the player's own assets through the manifest and the cache.
+
+  **These ship with the build and never enter the asset cache.** They are `res://` resources bundled into the export's `.pck`, read by `GltfDocument`/`ResourceLoader` from the local file (Task 11), with no hash, no manifest entry, no presigned URL and no `user://cache/` write. The content-addressed cache is only for a player's uploaded assets, which arrive over HTTP and are keyed by SHA-256. Adding a built-in therefore means shipping a new client build, which is the trade the ruling accepts.
+
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.Client.Tests`; expect 35 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.** The art files, if Step 4 has produced them, are a separate commit: `Add the built-in terrain meshes and table textures`.
 
 ### Task 7: The content-addressed asset cache
 
@@ -1717,7 +1769,7 @@ public sealed class AssetCache(string root, HttpClient http)
 
 **Interfaces:**
 - Consumes: `Projection`, `UnitInPlay`, `ModelInPlay`, `Frame`, `OpenAsk`, `Ask`, `LegalSet` kinds, `AskAnswer` kinds, `GameEvent`, every `EventPayload`, `Command` kinds, `MoveRegion` (with `DifficultVolumeIds`, `DifficultCap` and `Containment`) and `MoveContainment` (contracts plan Task 8), `Inside` (Protocol); `GameInfo` (Protocol); `Movement`, `Containment.BaseFullyWithin`, `PlacedModel`, `ModelBody`, `Base`, `WorldVolume`, `Point2`, `TableSize` (Geometry).
-- Produces: `sealed class Names(GameInfo game, Projection? projection)` — `string Participant(Guid?)`, `string Team(Guid)` (`"Team {ordinal}"`), `string Unit(Guid)`, `string Model(Guid)`, `string Piece(Guid)` (unit, model, marker or the id's first eight characters); `static class LogText` — `string Describe(GameEvent, Names)`, `string Answer(AskAnswer)` (the sealed reveal's words), `IReadOnlyList<Guid> Touched(GameEvent)`; `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, Bid, Confirm }`; `sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams, bool AutoPass)`; `static class AskViewModel` — `AskView? Mine(Projection, GameInfo, Guid? myTeam, IReadOnlySet<string> muted)` (the first open Ask addressed to my team that my team has not answered), `string? WaitingFor(Projection, GameInfo, Guid? myTeam)` (the teams other open Asks name), `string? AnsweredBy(IReadOnlyList<GameEvent> log, Guid askId, Names)`, `AskMode ModeOf(LegalSet)`, `string ConfirmLabel(Ask)` (`"End the round"` for `AskQuestions.EndRound`, else `"Continue"`); `enum MenuInput { None, Integer, Text, PieceId, TablePoint }` (`TablePoint` is the next left click on the table, handed to `Build` as `"x,y,z"`); `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`; `static class MenuModel` — `ForModel(Projection, Guid modelId, IReadOnlyList<string> actionNames)`, `ForUnit(Projection, Guid unitId, IReadOnlyList<string> actionNames)`, `ForTeam(GameInfo, Projection, Guid teamId)`, `ForMarker(Guid markerId)`, `ForFrame(Projection)`, `IReadOnlyList<string> KnownActionNames(Projection, IReadOnlyList<GameEvent>)`; `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`; `static class MoveRuler` — `RulerReadout Read(Point2 start, Point2 current, double? allowance)`, `double UsedInFrame(Frame, Guid modelId)`, `IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize)` (the `Movement.Region` boundary from the Ask's allowance, impassable and difficult ids and cap), `IReadOnlyList<Point2> ExitRegion(ModelBody body, PlacedModel container, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize)` (the disembark region: the container's base grown by `Containment.ExitWithin`, one vertex per `Movement.Rays` ray, marched out in `Movement.Step` increments and bisected at the first refusal), `bool IsDisembark(MoveRegion legal)` (`legal.Containment?.ExitingId is not null`); `sealed class AnimationQueue` — `void Enqueue(IReadOnlyList<GameEvent>)`, `IReadOnlyList<GameEvent> Take(bool animate)` (everything when not animating, one when animating), `int Count`.
+- Produces: `sealed class Names(GameInfo game, Projection? projection)` — `string Participant(Guid?)`, `string Team(Guid)` (`"Team {ordinal}"`), `string Unit(Guid)`, `string Model(Guid)`, `string Piece(Guid)` (unit, model, marker or the id's first eight characters); `static class LogText` — `string Describe(GameEvent, Names)`, `string Answer(AskAnswer)` (the sealed reveal's words), `IReadOnlyList<Guid> Touched(GameEvent)`; `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`; `sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams, bool AutoPass)`; `static class AskViewModel` — `AskView? Mine(Projection, GameInfo, Guid? myTeam, IReadOnlySet<string> muted)` (the first open Ask addressed to my team that my team has not answered), `string? WaitingFor(Projection, GameInfo, Guid? myTeam)` (the teams other open Asks name), `string? AnsweredBy(IReadOnlyList<GameEvent> log, Guid askId, Names)`, `AskMode ModeOf(LegalSet)`, `string ConfirmLabel(Ask)` (`"End the round"` for `AskQuestions.EndRound`, else `"Continue"`); `enum MenuInput { None, Integer, Text, PieceId, TablePoint }` (`TablePoint` is the next left click on the table, handed to `Build` as `"x,y,z"`); `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`; `static class MenuModel` — `ForModel(Projection, Guid modelId, IReadOnlyList<string> actionNames)`, `ForUnit(Projection, Guid unitId, IReadOnlyList<string> actionNames)`, `ForTeam(GameInfo, Projection, Guid teamId)`, `ForMarker(Guid markerId)`, `ForFrame(Projection)`, `IReadOnlyList<string> KnownActionNames(Projection, IReadOnlyList<GameEvent>)`; `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`; `static class MoveRuler` — `RulerReadout Read(Point2 start, Point2 current, double? allowance)`, `double UsedInFrame(Frame, Guid modelId)`, `IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize)` (the `Movement.Region` boundary from the Ask's allowance, impassable and difficult ids and cap), `IReadOnlyList<Point2> ExitRegion(ModelBody body, PlacedModel container, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize)` (the disembark region: the container's base grown by `Containment.ExitWithin`, one vertex per `Movement.Rays` ray, marched out in `Movement.Step` increments and bisected at the first refusal), `bool IsDisembark(MoveRegion legal)` (`legal.Containment?.ExitingId is not null`); `sealed class AnimationQueue` — `void Enqueue(IReadOnlyList<GameEvent>)`, `IReadOnlyList<GameEvent> Take(bool animate)` (everything when not animating, one when animating), `int Count`.
 - Action names are not on the wire (the `action` rows never reach the client); `KnownActionNames` reads them from the activate Ask's option labels and from `ActionRecorded` events, and the menu falls back to free text — *Interfaces needed* item 5.
 - **`Region` cannot serve a disembark, so there are two region functions.** `MoveRegion.Containment.ExitingId` non-null means the unit is *inside* the container and its models have no `Placement` (game flow → Inside a container: *"an occupant has no table position of its own"*), so there is no `start` to sweep rays from and `Movement.Region` is meaningless — `Allowance` is the action's remaining distance and binds nothing here (contracts plan Task 8). `IsDisembark(legal)` is that test, and `ExitRegion` answers instead: the legal area is every placement `Containment.BaseFullyWithin(candidate, container, ExitWithin)` admits, taken about the container's own `PlacedModel`. It is expressed as a **boundary**, not a predicate, so `MoveRegionNode` (Task 14) draws it with no change: `Movement.Rays` rays out of the container's base centre, each marched outward in `Movement.Step` increments and bisected eight times at the first refusal — the same loop shape `Movement.Region` uses, which is what keeps a ring of impassable terrain from re-admitting placements beyond it. Every candidate is also refused when it would leave the slab or touch an impassable volume, asked through `Movement.Check(candidate, its own centre, 0, impassable, [], null, size)`: distance zero, so `Check` samples exactly that placement and answers `CrossesImpassable` and `LeavesTable` for it. No new geometry primitive. The client draws; the server re-checks every model with `GfMoves.ExitPlacement` and leaves a model placed too far inside (interpreter plan Task 14), so this is rendering an offer, not a legality check.
 - The region is drawn for **one** body — the lead model's, as `Region` already is. A unit whose models have different bases gets the lead's region and the server refuses the outliers individually; `ExitRegion` therefore takes a `ModelBody` rather than a `PlacedModel`, because an occupant has no placement to pass.
@@ -1740,7 +1792,7 @@ public class ViewModelTests
     static EventApplier Applier(params EventPayload[] history) { var a = new EventApplier(Samples.Board, Game); a.ApplyAll(history.Select((p, i) => new GameEvent(i + 1, Samples.P1, p, null))); return a; }
     static readonly Ask Activate = new(Samples.AskId, AskQuestions.Activate, "Activate a unit", [Samples.Team1],
         new Options([new AskOption($"{Samples.Unit}:Advance", "Advance", [Samples.Unit]), new AskOption($"{Samples.Unit}:Hold", "Hold", [Samples.Unit])]), true, false, null, null);
-    static readonly Ask Bid = new(Guid.CreateVersion7(), AskQuestions.Bid, "Bid tokens", [Samples.Team1, Samples.Team2], new Bid(3), true, true, "casting", Samples.Frame);
+    static readonly Ask SpendTokens = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", Samples.Frame);
     /// <summary>The scheduler's round boundary (ruled 2026-09-06): unframed, unsealed, no pass, every team that has a participant.</summary>
     static readonly Ask EndRound = new(Guid.CreateVersion7(), AskQuestions.EndRound, "End the round", [Samples.Team1, Samples.Team2], new Confirmation(), false, false, null, null);
 
@@ -1783,15 +1835,15 @@ public class ViewModelTests
     }
 
     [Fact]
-    public void A_muted_window_auto_passes_and_a_sealed_bid_shows_who_answered_without_what()
+    public void A_muted_window_auto_passes_and_a_simultaneous_spend_shows_who_answered_without_what()
     {
-        var a = Applier(new AskOpened(Bid), new AskAnswered(Bid.Id, Samples.Team2, null, false));
+        var a = Applier(new AskOpened(SpendTokens), new AskAnswered(SpendTokens.Id, Samples.Team2, null, false));
         var mine = AskViewModel.Mine(a.Projection, Game, Samples.Team1, new HashSet<string> { "casting" })!;
         Assert.True(mine.AutoPass);
-        Assert.Equal(AskMode.Bid, mine.Mode);
+        Assert.Equal(AskMode.TokenSpend, mine.Mode);
         Assert.Equal(["Team 2"], mine.AnsweredTeams);
         Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2, new HashSet<string>()));     // already answered
-        Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, Bid.Id, new Names(Game, a.Projection)));
+        Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, new Names(Game, a.Projection)));
         Assert.Equal(AskMode.Confirm, AskViewModel.ModeOf(new Confirmation()));
         Assert.Equal(AskMode.Move, AskViewModel.ModeOf(new MoveRegion([Samples.Model], 6, [], [], null)));
         // A containment offer is still a move: the mode is the legal set's kind, and the containers it names are highlights too (p.14).
@@ -2006,7 +2058,7 @@ public static class LogText
         Allocated al => $"allocated {al.Counts.Values.Sum()}",
         Assigned => "assigned targets",
         Destinations d => $"moved {d.Moves.Count} model{(d.Moves.Count == 1 ? "" : "s")}",
-        BidPlaced b => $"bid {b.Tokens}",
+        TokensSpent t => $"spent {t.Tokens}",
         Confirmed => "confirmed",
         Passed => "passed",
         _ => "answered",
@@ -2044,7 +2096,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-public enum AskMode { Choose, PickPieces, Allocate, Assign, Move, Bid, Confirm }
+public enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }
 
 /// <summary>What the one Ask panel renders. Highlights are the pieces the legal set names.</summary>
 public sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams, bool AutoPass);
@@ -2054,7 +2106,7 @@ public static class AskViewModel
     public static AskMode ModeOf(LegalSet legal) => legal switch
     {
         Options => AskMode.Choose, PieceSelection => AskMode.PickPieces, Allocation => AskMode.Allocate,
-        Assignment => AskMode.Assign, MoveRegion => AskMode.Move, Bid => AskMode.Bid, Confirmation => AskMode.Confirm,
+        Assignment => AskMode.Assign, MoveRegion => AskMode.Move, TokenSpend => AskMode.TokenSpend, Confirmation => AskMode.Confirm,
         _ => throw new ArgumentOutOfRangeException(nameof(legal)),
     };
 
@@ -2373,7 +2425,6 @@ public sealed class GodotDispatcher : IDispatcher
 ```
 
 ```csharp
-using System.Security.Cryptography;
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Screens;
@@ -2396,8 +2447,7 @@ public partial class Main : Node
         var userDir = OS.GetUserDataDir();
         _settingsPath = Path.Combine(userDir, "settings.json");
         var settings = ClientSettings.Load(_settingsPath);
-        var store = new SessionStore(Path.Combine(userDir, "session.bin"),
-            b => ProtectedData.Protect(b, null, DataProtectionScope.CurrentUser), b => ProtectedData.Unprotect(b, null, DataProtectionScope.CurrentUser));
+        var store = new SessionStore(Path.Combine(userDir, "session.bin"));
         Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), new GodotDispatcher());
         Cache = new AssetCache(Path.Combine(userDir, "cache"), Http);
         Session.PhaseChanged += Route;
@@ -2435,7 +2485,7 @@ public partial class Main : Node
 }
 ```
 
-`ProtectedData` is Windows-only; the client ships to Windows (`architecture.md` → Deliverables). Running the client elsewhere is not a target.
+Nothing in `Main` is platform-specific. `OS.GetUserDataDir()` resolves under `%APPDATA%` on Windows, `~/.local/share` on Linux and `~/Library/Application Support` on macOS, and `SessionStore` is the same file on all three (Task 2). Windows is the first export target; other desktop platforms are possible and no decision here forecloses them (`architecture.md` → Deliverables, corrected 2026-09-06).
 
 - [ ] **Step 3: Write `LoginScreen.cs` and `UpdateRequiredScreen.cs`**
 
@@ -2637,7 +2687,7 @@ public partial class HomeScreen : Control
 
 **Interfaces:**
 - Consumes: `Session` (`Game`, `Draft`, `Projection`, `BoardChanged`, `EventsApplied`, `GameChanged`), `AssetCache`, `BuiltinContent`, `ManagementClient.GetManifest/GetDownload` (Tasks 1–7); `Projection`, `ModelInPlay`, `Location`, `OnTable` (Protocol); `TableState`, `TerrainPlacement`, `Marker`, `DeploymentZone`, `VisualRef` (Content); `Base`, `BaseShape`, `Volume`, `Footprint`, `FootprintKind`, `ZoneStyles`, `Settling`, `TableSize`, `Point3`, `Yaw` (Geometry).
-- Produces (namespace `Tabletop.Client.Table`): `static class WorldFrame` — `Vector3 ToGodot(Point3)`, `Point3 FromGodot(Vector3)`, `float Radians(Yaw)`, `Yaw YawFrom(float radians)`; `static class Palette` — `Color Team(int ordinal)`, `Color ForDeclarations(TerrainDeclarations)`, `Color Proxy`, `Color Selected`, `Color Ghost`; `partial class SlabNode : Node3D` (`Set(TableSize, VisualRef texture)`); `partial class PieceNode : Node3D` (`Guid ModelId`, `Guid UnitId`, `void SetBody(Base, double height)`, `void SetMesh(Node3D? scene)`, `void SetHighlight(Color?)`, `Aabb Bounds`, the proxy is a `MeshInstance3D` of a `CylinderMesh`/`BoxMesh`/scaled cylinder for circle/square/oval with a translucent material); `partial class TerrainNode : Node3D` (`Guid PlacementId`, `void Set(TerrainPlacement)`: one proxy `MeshInstance3D` per volume, offset, yaw, scale and heights applied, coloured by declaration; `SetMesh`); `partial class MarkerNode : Node3D` (`Guid MarkerId`, `Set(Marker)`: a disc of the diameter, a label); `partial class ZoneNode : Node3D` (`Set(DeploymentZone zone, TableSize size, Color colour)`: `ZoneStyles.Resolve(zone.Shape, size)` → flat `ArrayMesh` fans at 0.02" above the slab, with no frame conversion — `ZoneStyles` already answers in the wire frame; an unknown shape id draws nothing and logs a warning); `partial class OrbitCamera : Camera3D` (orbit with the right mouse button, pan with the middle, zoom with the wheel; `Home` snaps top-down over the table centre; `End` drops to table level; `FocusOn(TableSize)`); `sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId)` — `Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)` (the manifest by asset id → cache → `GltfDocument.AppendFromFile` + `GenerateScene` on the main thread; nearest-first through a priority queue keyed by distance to the camera; two downloads in flight; a failure logs and returns null so the proxy stays), `Node3D? LoadBuiltin(string name)` (`res://content/builtin/terrain/{name}.glb` when the file exists), `void RefreshManifest()`; `partial class TableView : Node3D` — `void Bind(Session)`, `PieceNode? PieceAt(Guid modelId)`, `TerrainNode? TerrainAt(Guid)`, `MarkerNode? MarkerAt(Guid)`, `IReadOnlyList<WorldVolume> Volumes` (wire frame, from the board or draft), `TableSize Size`, `void Redraw()` (diff the projection or draft against the nodes: add, move, remove), `void ShowExitGhosts(IReadOnlyList<Guid> modelIds, Guid containerId)` and `void ClearExitGhosts()` (the disembark's draggable stand-ins, Task 14), `bool IsExitGhost(Guid modelId)`, `OrbitCamera Camera`.
+- Produces (namespace `Tabletop.Client.Table`): `static class WorldFrame` — `Vector3 ToGodot(Point3)`, `Point3 FromGodot(Vector3)`, `float Radians(Yaw)`, `Yaw YawFrom(float radians)`; `static class Palette` — `Color Team(int ordinal)`, `Color ForDeclarations(TerrainDeclarations)`, `Color Proxy`, `Color Selected`, `Color Ghost`; `partial class SlabNode : Node3D` (`Set(TableSize, VisualRef texture)`); `partial class PieceNode : Node3D` (`Guid ModelId`, `Guid UnitId`, `void SetBody(Base, double height)`, `void SetMesh(Node3D? scene)`, `void SetHighlight(Color?)`, `Aabb Bounds`, the proxy is a `MeshInstance3D` of a `CylinderMesh`/`BoxMesh`/scaled cylinder for circle/square/oval with a translucent material); `partial class TerrainNode : Node3D` (`Guid PlacementId`, `void Set(TerrainPlacement)`: one proxy `MeshInstance3D` per volume, offset, yaw, scale and heights applied, coloured by declaration; `SetMesh`); `partial class MarkerNode : Node3D` (`Guid MarkerId`, `Set(Marker)`: a disc of the diameter, a label); `partial class ZoneNode : Node3D` (`Set(DeploymentZone zone, TableSize size, Color colour)`: `ZoneStyles.Resolve(zone.Shape, size)` → flat `ArrayMesh` fans at 0.02" above the slab, with no frame conversion — `ZoneStyles` already answers in the wire frame; an unknown shape id draws nothing and logs a warning); `partial class OrbitCamera : Camera3D` (orbit with the right mouse button, pan with the middle, zoom with the wheel; `Home` snaps top-down over the table centre; `End` drops to table level; `FocusOn(TableSize)`); `sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId)` — `Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)` (the manifest by asset id → cache → `GltfDocument.AppendFromFile` + `GenerateScene` on the main thread; nearest-first through a priority queue keyed by distance to the camera; two downloads in flight; a failure logs and returns null so the proxy stays), `Node3D? LoadBuiltin(string name, Volume? fit = null)` (the group mesh `BuiltinContent.TerrainMeshFile` names, when the file exists, wrapped in a node that scales its unit box onto `fit`), `void RefreshManifest()`; `partial class TableView : Node3D` — `void Bind(Session)`, `PieceNode? PieceAt(Guid modelId)`, `TerrainNode? TerrainAt(Guid)`, `MarkerNode? MarkerAt(Guid)`, `IReadOnlyList<WorldVolume> Volumes` (wire frame, from the board or draft), `TableSize Size`, `void Redraw()` (diff the projection or draft against the nodes: add, move, remove), `void ShowExitGhosts(IReadOnlyList<Guid> modelIds, Guid containerId)` and `void ClearExitGhosts()` (the disembark's draggable stand-ins, Task 14), `bool IsExitGhost(Guid modelId)`, `OrbitCamera Camera`.
 - **A piece is drawn as its hitbox first**: `PieceNode.SetBody` builds the proxy at once; `SetMesh` adds the loaded scene as a child and keeps the proxy at 25% alpha beneath it; the scene arrives from `MeshLoader` already scaled and rotated by the asset's `Scale` and `Orientation` (`ManifestEntry` for any participant's asset, `AssetDto` for an own asset outside the manifest — `MeshLoader.Orient`). Terrain and markers come from `Draft` during setup and from `Projection.Board.Table` (plus `Projection.Markers` for tokens) from playing on.
 - **A model that is not `OnTable` is absent, not drawn somewhere wrong.** `Redraw` syncs `_pieces` against `Projection.Models.Values.Where(m => m.Location is OnTable)`, so a model on the shelf or **inside a container** has no node at all, and `Sync` frees the node the moment an event moves it there. `Location` is the only source: `OnShelf` and `Inside` carry no `Placement` (game flow → Inside a container: *"an occupant has no table position of its own"*), so there is no stale or default position to draw at, and `PieceAt` answering null is what keeps the ruler, the log's highlight and the Ask panel's highlights silently correct for an occupant. **The one exception is a disembark**, and it is deliberately not part of the projection's diff: `ShowExitGhosts` puts `PieceNode`s in a separate `_ghosts` child at the container's placement so the player has something to drag out, `Redraw` never touches that child, and `ClearExitGhosts` frees them when the Ask is answered.
 
@@ -2926,12 +2976,25 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         finally { _inFlight.Release(); }
     }
 
-    public Node3D? LoadBuiltin(string name)
+    public Node3D? LoadBuiltin(string name, Volume? fit = null)
     {
         var file = BuiltinContent.TerrainMeshFile(name);
         // The res:// path is passed through unchanged: GltfDocument reads it with Godot's FileAccess, so it works from
-        // the editor and from an exported .pck alike, which GlobalizePath would not. Built-ins are authored in the table frame.
-        return file is not null && FileAccess.FileExists(file) ? Build(file, 1, default) : null;
+        // the editor and from an exported .pck alike, which GlobalizePath would not. Built-ins ship inside the build and
+        // never enter the cache. A missing file returns null, and TerrainNode keeps its proxies visible.
+        if (file is null || !FileAccess.FileExists(file) || Build(file, 1, default) is not Node3D scene) return null;
+        if (fit is null) return scene;
+        // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
+        // [-0.5, 0.5], z in [0, 1] — and fitted here to the volume it is decorating. A circle footprint's A is a radius,
+        // a rect's A and B are extents. The scale goes on a wrapping node, because Node3D.Scale would rebuild the basis
+        // Orient set. Built-in volumes have no offset and no yaw of their own; an override that gives one moves the
+        // proxy and not this mesh, which is the same looseness a swapped asset mesh already has.
+        var span = fit.Footprint.Kind == FootprintKind.Circle
+            ? new Vector3((float)fit.Footprint.A * 2, 0, (float)fit.Footprint.A * 2)
+            : new Vector3((float)fit.Footprint.A, 0, (float)fit.Footprint.B);
+        var box = new Node3D { Scale = span with { Y = (float)Math.Max(fit.Top - fit.Bottom, 0.01) }, Position = new Vector3(0, (float)fit.Bottom, 0) };
+        box.AddChild(scene);
+        return box;
     }
 
     /// <summary>Main thread only: GltfDocument builds a scene tree, then the asset's corrections are applied to its root.</summary>
@@ -3035,7 +3098,8 @@ public partial class TableView : Node3D
     }
 
     async void LoadPieceMesh(PieceNode n, ModelInPlay m) { if (m.Slot.AssetId is { } asset) n.SetMesh(await _meshes.LoadAssetAsync(asset, Camera.GlobalPosition, n.GlobalPosition)); }
-    async void LoadTerrainMesh(TerrainNode n, TerrainPlacement t) { n.SetMesh(t.Mesh.IsBuiltin ? _meshes.LoadBuiltin(t.Mesh.Builtin!) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, n.GlobalPosition)); }
+    // A built-in's group mesh is fitted to the placement's first volume; an asset's mesh carries its own scale.
+    async void LoadTerrainMesh(TerrainNode n, TerrainPlacement t) { n.SetMesh(t.Mesh.IsBuiltin ? _meshes.LoadBuiltin(t.Mesh.Builtin!, t.Volumes.Count > 0 ? t.Volumes[0].Volume : null) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, n.GlobalPosition)); }
 
     /// <summary>
     /// A disembark's draggable stand-ins. An occupant has no placement and therefore no piece node (game flow → Inside a
@@ -3076,7 +3140,7 @@ public partial class TableView : Node3D
 
 `IHasId` is declared in `TableView.cs` as `public interface IHasId { Guid Id { get; } }`; `PieceNode` implements it with `public Guid Id => ModelId;`, `TerrainNode` with `=> PlacementId`, `MarkerNode` with `=> MarkerId`, and `ZoneNode` gains `public Guid Id { get; private set; }` set from `zone.Id` in `Set`. Add the `: IHasId` and the property to each node class in Step 3 and Step 4.
 
-- [ ] **Step 7: Run it.** The Game screen does not exist yet; add a temporary line in `Main.Route` mapping `Connected` to `res://scenes/TableView.tscn` and, in `TableView._Ready`, `if (Main.Instance.Session.GameId is not null) Bind(Main.Instance.Session);`. Create a game, start setup from a second client (or with Task 13's lobby panel later): the slab appears at 72×48 with the `grass` colour; orbit, pan, zoom, Home and End work. Remove the temporary line before committing. `./scripts/check-client` prints nothing. Commit: `Draw the table: slab, hitbox proxies, terrain, markers, zones, camera, runtime GLB loading`.
+- [ ] **Step 7: Run it.** The Game screen does not exist yet; add a temporary line in `Main.Route` mapping `Connected` to `res://scenes/TableView.tscn` and, in `TableView._Ready`, `if (Main.Instance.Session.GameId is not null) Bind(Main.Instance.Session);`. Create a game, start setup from a second client (or with Task 13's lobby panel later): the slab appears at 72×48 with the `grass` texture tiled every 12", or its flat colour if `content/builtin/textures/grass.png` has not been authored yet; orbit, pan, zoom, Home and End work. If Task 6 Step 4's meshes exist, add a built-in of each of the ten groups at both extremes of its footprint and check that the fitted mesh covers its hitbox without poking through the slab; if they do not, every piece shows its proxy and that is the expected degraded picture. Remove the temporary line before committing. `./scripts/check-client` prints nothing. Commit: `Draw the table: slab, hitbox proxies, terrain, markers, zones, camera, runtime GLB loading`.
 
 ### Task 12: Input and presence — select, drag, drop, the ruler, measure, ping, others' cursors and ghosts
 
@@ -3428,7 +3492,7 @@ public partial class PresenceOverlay : Node3D
 
 `Remove` reads `_drawn`, not `Session.Others`: the session has already replaced the value by the time `PresenceChanged` fires, and the overlay must release what it drew last.
 
-- [ ] **Step 4: Run it with two clients** (two Windows accounts or one account plus a second Windows user): each sees the other's cursor cone in the team colour, a dragged piece moving live with a ruler, a measurement line, and a ping ring; the drop snaps to where the `models_moved` event says; a Home-button disconnect on one client makes its cursor vanish on the other. `./scripts/check-client` prints nothing. Commit: `Add selection, drag with held presence, the ruler, measuring, pings and others' presence`.
+- [ ] **Step 4: Run it with two clients** (two desktop accounts on the development machine, or one account plus a second local user): each sees the other's cursor cone in the team colour, a dragged piece moving live with a ruler, a measurement line, and a ping ring; the drop snaps to where the `models_moved` event says; a Home-button disconnect on one client makes its cursor vanish on the other. `./scripts/check-client` prints nothing. Commit: `Add selection, drag with held presence, the ruler, measuring, pings and others' presence`.
 
 ### Task 13: The Game screen — status routing, the lobby panel and the setup toolbar
 
@@ -3713,8 +3777,8 @@ Editing a volume's footprint and heights is the same `OverrideTerrainVolumes` wi
 - Create: `client/src/Panels/AskPanel.cs`, `client/src/Table/MoveRegionNode.cs`, `client/src/Screens/GameScreen.Play.cs`
 
 **Interfaces:**
-- Consumes: `AskViewModel`, `AskView`, `AskMode`, `MoveRuler` (`Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark`), `Names` (Core); `Session` (`Projection`, `Game`, `MyTeamId`, `Settings.MutedWindowKinds`, `SendCommandAsync`, `EventsApplied`, `Log`); `TableView` (with `ShowExitGhosts`/`ClearExitGhosts`, Task 11), `TableInput` (with `PieceLeftClicked` and `CancelDrag`, Task 12), `RulerNode`, `PieceNode` (Table); `Ask`, `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `MoveContainment`, `Bid`, `Confirmation`, `AnswerAsk`, `Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `BidPlaced`, `Confirmed`, `Passed`, `ModelRelocation`, `OnTable`, `Inside`, `Placement` (Protocol); `PlacedModel`, `ModelBody`, `Yaw`, `WorldVolume` (Geometry).
-- Produces: `partial class AskPanel : PanelContainer` — `void Bind(Session, TableView, TableInput)`; renders `AskViewModel.Mine(...)` by mode: `Choose` → one button per option (highlighting each option's pieces on hover), `PickPieces` → click eligible pieces on the table (highlighted), a counter `n of min–max`, "Done" → `SelectedPieces`; `Allocate` → a `SpinBox` per target summing to `Amount`, "Done" → `Allocated`; `Assign` → an `OptionButton` per item over the targets, "Done" → `Assigned`; `Move` → the region drawn (`MoveRegionNode`), the models draggable with the ruler showing distance and remaining allowance (`MoveRuler.Read(start, current, Allowance − UsedInFrame)`), positions streamed as `proposed` ghosts, "Commit" → `Destinations` with the settled positions — and, when the legal set's `Containment` says so, two more things: any `Enterable` container is a click target whose click answers `Destinations` with `Inside(container)` for **every** model of the unit, and a non-null `ExitingId` switches the whole mode to a disembark, where the region is `MoveRuler.ExitRegion` about the container's own base, the drag ghosts are `TableView.ShowExitGhosts` on the container's node, and the remaining-allowance readout is suppressed; `Bid` → a private `SpinBox` 0–`MaxTokens`, "Bid" → `BidPlaced`, plus `AnsweredTeams` as "Team 2 has answered" and, once the server closes the sealed Ask, every team's answer at once from `ask_closed` (`LogText.Answer`); `Confirm` → one button labelled `AskViewModel.ConfirmLabel` ("Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask) → `Confirmed`; a "Pass" button whenever `AllowPass`; an `AutoPass` view sends `Passed` at once and shows "auto-passed (muted: {kind})" with an "Unmute" link; `WaitingFor` renders as "Waiting for Team N…"; `AnsweredBy` shows under a sealed Ask. A `Refused` for the panel's last command shows in the panel (`strict` enforcement: "the server refused: outside the legal set"). `partial class MoveRegionNode : Node3D` — `Show(IReadOnlyList<Point2> boundaryWire, Color)`, `Hide()`. `GameScreen.Play.cs` — `partial void ShowPlayPanels(bool)` creating the `AskPanel` (and Task 15's `LogPanel`) at `playing`/`ended`.
+- Consumes: `AskViewModel`, `AskView`, `AskMode`, `MoveRuler` (`Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark`), `Names` (Core); `Session` (`Projection`, `Game`, `MyTeamId`, `Settings.MutedWindowKinds`, `SendCommandAsync`, `EventsApplied`, `Log`); `TableView` (with `ShowExitGhosts`/`ClearExitGhosts`, Task 11), `TableInput` (with `PieceLeftClicked` and `CancelDrag`, Task 12), `RulerNode`, `PieceNode` (Table); `Ask`, `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `MoveContainment`, `TokenSpend`, `Confirmation`, `AnswerAsk`, `Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `TokensSpent`, `Confirmed`, `Passed`, `ModelRelocation`, `OnTable`, `Inside`, `Placement` (Protocol); `PlacedModel`, `ModelBody`, `Yaw`, `WorldVolume` (Geometry).
+- Produces: `partial class AskPanel : PanelContainer` — `void Bind(Session, TableView, TableInput)`; renders `AskViewModel.Mine(...)` by mode: `Choose` → one button per option (highlighting each option's pieces on hover), `PickPieces` → click eligible pieces on the table (highlighted), a counter `n of min–max`, "Done" → `SelectedPieces`; `Allocate` → a `SpinBox` per target summing to `Amount`, "Done" → `Allocated`; `Assign` → an `OptionButton` per item over the targets, "Done" → `Assigned`; `Move` → the region drawn (`MoveRegionNode`), the models draggable with the ruler showing distance and remaining allowance (`MoveRuler.Read(start, current, Allowance − UsedInFrame)`), positions streamed as `proposed` ghosts, "Commit" → `Destinations` with the settled positions — and, when the legal set's `Containment` says so, two more things: any `Enterable` container is a click target whose click answers `Destinations` with `Inside(container)` for **every** model of the unit, and a non-null `ExitingId` switches the whole mode to a disembark, where the region is `MoveRuler.ExitRegion` about the container's own base, the drag ghosts are `TableView.ShowExitGhosts` on the container's node, and the remaining-allowance readout is suppressed; `TokenSpend` → a private `SpinBox` 0–`MaxTokens`, "Spend" → `TokensSpent`, plus `AnsweredTeams` as "Team 2 has answered" and, once the server closes the sealed Ask, every team's answer at once from `ask_closed` (`LogText.Answer`); `Confirm` → one button labelled `AskViewModel.ConfirmLabel` ("Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask) → `Confirmed`; a "Pass" button whenever `AllowPass`; an `AutoPass` view sends `Passed` at once and shows "auto-passed (muted: {kind})" with an "Unmute" link; `WaitingFor` renders as "Waiting for Team N…"; `AnsweredBy` shows under a sealed Ask. A `Refused` for the panel's last command shows in the panel (`strict` enforcement: "the server refused: outside the legal set"). `partial class MoveRegionNode : Node3D` — `Show(IReadOnlyList<Point2> boundaryWire, Color)`, `Hide()`. `GameScreen.Play.cs` — `partial void ShowPlayPanels(bool)` creating the `AskPanel` (and Task 15's `LogPanel`) at `playing`/`ended`.
 - The move button of the spec is the activate Ask's option (`{unit}:{Action}`): choosing it starts the sequence, whose move step opens the `MoveRegion` Ask (contracts plan spec correction 8). "Hand moves arrange models and never end a turn" is the plain drag of Task 12.
 - **The panel keys on the legal set, never on the question name**, which is why a second ruleset question needs no new branch. Two of them arrive carrying a `move_region`: **`move`**, opened by the move step of `hold`/`advance`/`rush`/`charge` (interpreter plan Task 14), and — added 2026-09-06 — **`disembark`**, opened by `transport-destroyed`'s `place` step when a wrecked container's survivors must be placed fully within 6" of it before it is removed (interpreter plan Task 19, rulebook p.14). `disembark` always carries `Containment.ExitingId`, sets `AllowPass` false, and puts the exit distance itself in `Allowance` — which `MoveRuler.IsDisembark` makes the panel ignore, so it renders exactly as a disembark move does and shares every line of `RenderMove`. Neither name belongs in `AskQuestions`: those are the engine's own eight, and a ruleset's question names are plain strings (`move`, `disembark`, `shoot-or-not`, `declare-targets`, `charge-target`, …) that this panel never switches on. The one place a question name is read at all is `AskViewModel.ConfirmLabel`, and it only ever compares against `AskQuestions.EndRound`.
 
@@ -3824,9 +3888,9 @@ public partial class AskPanel : PanelContainer
                 _box.AddChild(Btn("Done", () => _ = Answer(mine.Ask, new Assigned(picks.ToDictionary(kv => kv.Key, kv => asg.Targets[kv.Value.Selected])))));
                 break;
             case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); break;
-            case AskMode.Bid:
-                var bid = new SpinBox { MinValue = 0, MaxValue = ((Bid)mine.Ask.Legal).MaxTokens }; _box.AddChild(bid);
-                _box.AddChild(Btn("Bid", () => _ = Answer(mine.Ask, new BidPlaced((int)bid.Value))));
+            case AskMode.TokenSpend:
+                var spend = new SpinBox { MinValue = 0, MaxValue = ((TokenSpend)mine.Ask.Legal).MaxTokens }; _box.AddChild(spend);
+                _box.AddChild(Btn("Spend", () => _ = Answer(mine.Ask, new TokensSpent((int)spend.Value))));
                 if (mine.AnsweredTeams.Count > 0) _box.AddChild(new Label { Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered")) });
                 break;
             case AskMode.Confirm: _box.AddChild(Btn(AskViewModel.ConfirmLabel(mine.Ask), () => _ = Answer(mine.Ask, new Confirmed()))); break;   // "Continue" for a step gate, "End the round" at the round boundary
@@ -3979,7 +4043,7 @@ public partial class GameScreen
 }
 ```
 
-- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens, so exercise the panel with the skeleton's test engine: temporarily register `FixedAskEngineFactory` with an activate Ask in `server/game/Program.cs` (or run the scheduler plan's server once it exists). Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a sealed bid. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.
+- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens, so exercise the panel with the skeleton's test engine: temporarily register `FixedAskEngineFactory` with an activate Ask in `server/game/Program.cs` (or run the scheduler plan's server once it exists). Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a simultaneous token spend. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.
 
 ### Task 15: The log panel with undo-to-here, the right-click menu, animation, Leave
 
@@ -3989,7 +4053,7 @@ public partial class GameScreen
 
 **Interfaces:**
 - Consumes: `LogText`, `Names`, `MenuModel`, `MenuItem`, `MenuInput`, `AnimationQueue` (Core); `Session` (`Log`, `Projection`, `PendingUndoTo`, `UndoToAsync`, `SendCommandAsync`, `EventsApplied`, `Settings.Animate`, `UpdateSettings`, `LeaveAsync`); `TableView`, `TableInput.PieceRightClicked`, `TeamPanel.RightClicked`, `PieceNode` (Table); `GameEvent`, `ModelsMoved`, `StepCompleted`, `PlaceMarker`, `Marker`, `MarkerKind`, `RerollDice`, `SetDice`, `AddModifier` (Protocol).
-- Produces: `partial class LogPanel : PanelContainer` — `Bind(Session, TableView)`; one row per event in `Session.Log` (`#{seq}  {LogText.Describe}`), newest at the bottom, auto-scrolled; the `undone` markers shown and the undone range struck through (`EventApplier.EffectiveLog`); clicking a row highlights `LogText.Touched`; "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above it until `PendingUndoTo` clears; a row with rolls offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die…" (`SetDice`) and "Add modifier…" (`AddModifier`) for the roll it shows. `partial class PieceMenu : PopupMenu` — `Open(IReadOnlyList<MenuItem>, Vector2 screen)`: one entry per item; `Integer`/`Text` items pop a one-field dialog, `PieceId` items wait for the next click on a piece; the built command goes to `SendCommandAsync`; no confirmation dialog anywhere. Wired: right-click on a model → `MenuModel.ForModel` + `ForFrame`; Shift-right-click on a model → `ForUnit`; a marker → `ForMarker`; a team panel → `ForTeam`; Alt-right-click on the table → "Drop a token here" (`PlaceMarker` of a `Token` at the point) and "Leave the game" (`LeaveAsync`). `sealed class Animator(Session, TableView)` — subscribes to `EventsApplied`, enqueues into `AnimationQueue`, and each frame takes `Take(Settings.Animate)`: for a `ModelsMoved` (alone or inside a `StepCompleted`) the piece tweens from its drawn position to the projection's over 0.4 s; for rolls a transient `Label3D` of the dice results over the actor unit for 1.5 s; everything else redraws at once. Presence is never animated. An "Animate" checkbox in the side panel writes `Settings.Animate`.
+- Produces: `partial class LogPanel : PanelContainer` — `Bind(Session, TableView)`; one row per event in `Session.Log` (`#{seq}  {LogText.Describe}`), newest at the bottom, auto-scrolled; the `undone` markers shown and the undone range struck through (`EventApplier.EffectiveLog`); clicking a row highlights `LogText.Touched`; "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above it until `PendingUndoTo` clears; a row with rolls offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die…" (`SetDice`) and "Add modifier…" (`AddModifier`) for the roll it shows. `partial class PieceMenu : PopupMenu` — `Open(IReadOnlyList<MenuItem>, Vector2 screen)`: one entry per item; `Integer`/`Text` items pop a one-field dialog, `PieceId` items wait for the next click on a piece; the built command goes to `SendCommandAsync`; no confirmation dialog anywhere. Wired: right-click on a model → `MenuModel.ForModel` + `ForFrame`; Shift-right-click on a model → `ForUnit`; a marker → `ForMarker`; a team panel → `ForTeam`; Alt-right-click on the table → "Drop a token here" (`PlaceMarker` of a `Token` at the point) and "Leave the game" (`LeaveAsync`). `sealed class Animator(Session, TableView)` — subscribes to `EventsApplied`, enqueues into `AnimationQueue`, and each frame takes `Take(Settings.Animate)`: for a `ModelsMoved` (alone or inside a `StepCompleted`) the piece tweens from its drawn position to the projection's over 0.4 s; for rolls a transient `Label3D` over the actor unit for 1.5 s carrying the whole readout — the roll's name, its threshold, the faces with the passing dice in brackets, and each modifier by source — and no die object of any kind (owner ruling, 2026-09-06); everything else redraws at once. Presence is never animated. An "Animate" checkbox in the side panel writes `Settings.Animate`.
 
 Spec: client shell → The log, undo and the menu (every event with actor and sequence; newest at the bottom; clicking highlights; undo-to-here greys until confirmed; presence never appears; the menu is every property editable, each item one command, no admin mode, no confirmation; Leave is a menu action), Animation (the player's setting; a queue between projection and renderer; may lag, never delays an Ask; presence never animated), Screens → Game (Leave calls `/leave`); resolution → Players roll their own dice (reroll per roll; a hand-added modifier); scheduler → Deployment (every roll result editable from the menu); game flow → Nothing is an invariant; whole-design review → Tokens had no home in the log (a token dropped in play is a logged command).
 
@@ -4134,7 +4198,12 @@ public sealed class Animator
                 var anchor = actor is { } a ? _view.Pieces.OfType<PieceNode>().FirstOrDefault(p => p.UnitId == a) : null;
                 if (anchor is not null)
                 {
-                    var label = new Label3D { Text = string.Join(" ", roll.Dice.Select(d => d.Success ? $"[{d.Raw}]" : $"{d.Raw}")), Position = new Vector3(0, 3, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 64, PixelSize = 0.01f };
+                    // The whole readout of a roll, which is all the client ever shows of one (owner ruling, 2026-09-06,
+                    // question 5): the faces, which dice passed in brackets, the threshold, and every modifier by source.
+                    // No die is placed on the table and nothing tumbles; Godot physics is not in the scene.
+                    var faces = string.Join(" ", roll.Dice.Select(d => d.Success ? $"[{d.Raw}]" : $"{d.Raw}"));
+                    var mods = roll.Modifiers.Count == 0 ? "" : "\n" + string.Join(", ", roll.Modifiers.Select(m => $"{m.Amount:+#;-#;0} {m.Source}"));
+                    var label = new Label3D { Text = $"{roll.Roll}{(roll.Threshold is { } t ? $" {t}+" : "")}\n{faces}{mods}", Position = new Vector3(0, 3, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 64, PixelSize = 0.01f };
                     anchor.AddChild(label); anchor.GetTree().CreateTimer(1.5).Timeout += label.QueueFree;
                 }
             }
@@ -4191,7 +4260,7 @@ In **Layout**, replace the `client/` bullet's children with:
   - `src/Screens/`, `src/Table/`, `src/Panels/` — the Godot layer; thin over `Core` and `Tabletop.Geometry`.
   - `scenes/` — `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
     Scenes are written minimal by hand and owned by the editor afterwards.
-  - `content/builtin/` — built-in textures and terrain meshes; a missing mesh draws the piece's volumes.
+  - `content/builtin/` — the five table textures and the ten grouped terrain meshes; a missing file draws the piece's volumes.
 ```
 
 In the `tests/` bullet, replace "`Tabletop.Management.Tests`, `Tabletop.GameServer.Tests`." with "`Tabletop.Management.Tests`, `Tabletop.GameServer.Tests`, `Tabletop.Client.Tests` (the client's `src/Core/` compiled from source)." (rewrap the bullet as needed).
@@ -4227,7 +4296,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 | Type | Members |
 | --- | --- |
 | `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)` | `static Default`, `static Load(path)`, `Save(path)`, `Mute(kind)`, `Unmute(kind)` |
-| `sealed class SessionStore(path, protect, unprotect)` | `string? Read()`, `Write(jwt)`, `Clear()` |
+| `sealed class SessionStore(string path)` | `string? Read()`, `Write(jwt)`, `Clear()` |
 | management DTO mirrors | `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` (Task 3 shapes); `ManagementException(Status, Title, Detail)`, `UpdateRequiredException` |
 | `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload` |
 | `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)`; `interface IGameSocket`; `interface IGameSocketFactory` | `FrameReceived`, `Closed`, `ConnectAsync(Uri, ct)`, `SendAsync(SocketMessage)`, `CloseAsync()`; `Create()` |
@@ -4236,7 +4305,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 | `interface IDispatcher { Post(Action) }`; `ImmediateDispatcher` | |
 | `enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnecting, UpdateRequired }` | |
 | `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings> persist, IDispatcher, Func<int,TimeSpan>? backoff)` | state: `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection` (prediction while undo pending), `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events: `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IRL<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool willReconnect)`; `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
-| `sealed record BuiltinTerrain(Name, Label, Volume, MeshFile?)`; `static class BuiltinContent` | `Terrain` (35 names, Task 6), `Textures`, `MarkerVisuals`, `ZoneStyleIds`, `Place(name, Point3, Yaw, scale)`, `VolumesOf(name)`, `TextureFile(name)`, `TerrainMeshFile(name)` |
+| `sealed record BuiltinTerrain(Name, Label, Volume, MeshFile?)`; `static class BuiltinContent` | `Terrain` (35 names, Task 6), `Textures` (5), `MarkerVisuals`, `TerrainMeshGroups` (10), `ZoneStyleIds`, `Place(name, Point3, Yaw, scale)`, `VolumesOf(name)`, `TextureFile(name)`, `TerrainMeshFile(name)` |
 | `enum Planet { Generic, Hospitable, Wasteland, Death }`; `static class TerrainGenerators` | `Generate(Planet, TableSize, Random) : IRL<AddTerrain>`, `Fixed(Planet)`, `Rolled(Planet, int twoD6)` |
 | `sealed class AssetCache(root, HttpClient)`; `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
 | `sealed class Names(GameInfo, Projection?)` | `Participant(Guid?)`, `Team`, `Unit`, `Model`, `UnitOfModel`, `Piece`, `static Short` |
@@ -4257,7 +4326,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 | `static class Palette` | `Team(ordinal)`, `ForDeclarations`, `Proxy`, `Selected`, `Ghost`, `Unassigned`, `Translucent(Color)` |
 | `TableView : Node3D` | `Bind(Session)`, `Redraw()`, `PieceAt`, `TerrainAt`, `MarkerAt`, `Pieces`, `Volumes`, `Size`, `Camera`, `ShowExitGhosts(IRL<Guid>, Guid container)`, `ClearExitGhosts()`, `IsExitGhost(Guid)` |
 | `SlabNode`, `PieceNode`, `TerrainNode`, `MarkerNode`, `ZoneNode`, `RulerNode`, `MoveRegionNode`, `OrbitCamera`, `PresenceOverlay` | Tasks 11, 12, 14 |
-| `sealed class MeshLoader(AssetCache, ManagementClient, Guid gameId)` | `RefreshManifest()`, `LoadAssetAsync(assetId, camera, piece)`, `LoadBuiltin(name)` |
+| `sealed class MeshLoader(AssetCache, ManagementClient, Guid gameId)` | `RefreshManifest()`, `LoadAssetAsync(assetId, camera, piece)`, `LoadBuiltin(name, fit)` |
 | `TableInput : Node` | `Bind(TableView, Session)`, `Tool`, `Selected`, `Proposing`, `Allowance`, `PieceRightClicked`, `TableRightClicked`, `SelectionChanged`, `PieceLeftClicked`, `ModelDragged`, `PickNextPiece`, `PickNextPoint`, `CancelDrag()` |
 | `LobbyPanel`, `SetupToolbar(GameScreen)`, `TeamPanel(Team)`, `AskPanel`, `LogPanel`, `PieceMenu(Session)` | Tasks 13–15 |
 | `sealed class Animator(Session, TableView)` | Task 15 |
@@ -4270,10 +4339,10 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 
 ## Spec corrections proposed
 
-1. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Screens → Login.** Current: *"On success the client holds the JWT in memory and, if the player chooses, in the OS credential store so the next launch skips the screen."* Add: *"The stored JWT is the five-minute session token; on launch it goes to `POST /v1/auth/session/refresh`, which accepts an expired JWT while the Stytch session lives, and a `401` shows the login screen. On Windows the store is DPAPI (`ProtectedData`, current user) over `user://session.bin`."* (The refresh interval is not proposed here: the management API spec already gives *"five minutes, refreshed every minute"*.)
+1. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Screens → Login.** Current: *"On success the client holds the JWT in memory and, if the player chooses, in the OS credential store so the next launch skips the screen."* Add: *"The stored JWT is the five-minute session token; on launch it goes to `POST /v1/auth/session/refresh`, which accepts an expired JWT while the Stytch session lives, and a `401` shows the login screen. The store is not an OS credential store: it is `user://session.bin`, a file created owner-only where the platform has file modes, because the client may run on more than one operating system (owner ruling, 2026-09-06). It keeps the token from other local accounts, not from anything running as this user."* (The refresh interval is not proposed here: the management API spec already gives *"five minutes, refreshed every minute"*.)
 2. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → The connection and the projection.** Add after *"Reconnect is connect."*: *"The client reconnects with backoff after any close it did not ask for, except a `rejected` frame and a `1000` close after `welcome` — the server closes a replaced socket that way, and reconnecting would fight the newer one. The socket's first frame is `connect`, within the server's ten-second handshake window."*
 3. ~~**Client shell → Screens → Home**, that `POST /v1/games` takes no army and the pick is a lobby edit.~~ **Struck: already answered.** [The whole-design review](../specs/2026-09-04-whole-design-review.md) → Gaps filled ruled *"`POST /v1/games` takes name, hash, shape, enforcement and the wait setting"*, and [the setup phase](../specs/2026-09-04-setup-phase-design.md) → Editing is free for all lists *"pick an army"* among the lobby commands sent over the socket. Task 10 implements exactly that; no spec needs changing.
-4. **`docs/superpowers/specs/2026-09-04-setup-phase-design.md` → Terrain: imported, built-in, generated** (*"a set of meshes with their volumes and declarations"*). Add: *"A built-in ships as its volume and declarations; its mesh file is optional (`client/content/builtin/terrain/<name>.glb`) and, absent, the piece draws as its volumes — the same degrade path as a missing asset."* (The notes-not-flags half is **not** proposed: the same section already says the declarations are *"as the text gives them … with notes for what the six cannot say, such as* dangerous when using Rush or Charge*"*. Task 6 follows that, and reads *"Difficult terrain when moving through it"* as the `Difficult` flag, since that is what the flag means.)
+4. **`docs/superpowers/specs/2026-09-04-setup-phase-design.md` → Terrain: imported, built-in, generated** (*"a set of meshes with their volumes and declarations"*). Add: *"A built-in ships as its volume and declarations plus a shared mesh: the 35 pieces group into ten meshes under `client/content/builtin/terrain/`, differing by footprint, height, scale and yaw, and a piece that finds no mesh file draws as its volumes — the same degrade path as a missing asset."* (The ten-way grouping and the fifteen-file art set are the owner's ruling of 2026-09-06; the sentence proposed here is what the spec needs so it does not read as one mesh per name.) (The notes-not-flags half is **not** proposed: the same section already says the declarations are *"as the text gives them … with notes for what the six cannot say, such as* dangerous when using Rush or Charge*"*. Task 6 follows that, and reads *"Difficult terrain when moving through it"* as the `Difficult` flag, since that is what the flag means.)
 5. **`docs/superpowers/specs/2026-09-04-setup-phase-design.md` → Zones** and **`2026-09-04-client-shell-design.md` → The table view** (*"deployment zones as flat polygons"*). Add: *"During setup every zone row is drawn — in its team's colour when a team with that ordinal exists, grey otherwise — so a group can see and swap zones before every team has formed; from playing on only zones with a team are drawn."* (The game server plan's spec correction 4 says the client draws zones "whose ordinal has a team"; this narrows that to play.)
 6. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Testing.** Current: *"The projection applier and the geometry library are headless and get the tests. The Godot layer is thin over them and is tested by running the game."* Add: *"Everything Godot-free in the client — the session object, the management client, the socket seam, the cache, the built-in content and generators, the view models — lives under `client/src/Core/` and is compiled from source into `tests/Tabletop.Client.Tests`, which is what proves it needs no engine."*
 7. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Deliberately not decided.** Strike *"Which socket frames carry which message kind — the protocol contract."* with: *"Settled 2026-09-05 by the contracts plan (`Tabletop.Protocol.SocketMessage`) and the game server plan (the connect sequence)."*
@@ -4283,6 +4352,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 11. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → The table view**, after *"A missing, deleted or still-downloading mesh leaves a translucent proxy and the game is fully playable"*. Add: *"A model that is not on the table is not drawn at all — nothing for a model on the shelf, and nothing for a model inside a container, since neither location carries a placement to draw at. The single exception lasts as long as one Ask: while a unit is disembarking, the client puts one draggable ghost per model on the container's own node so the player has something to place. Those ghosts are not part of the projection and vanish when the answer is sent."* Reason: the section says how a piece is drawn but not that some are not, and the third location was added to the domain after this spec's table-view section was written.
 
 12. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → The connection and the projection.** Add after the reconnect sentences: *"A `ProjectionDesyncException` from the applier is a desync of this client's copy of the projection, not a network fault. The client drops the projection, reopens the socket and rebuilds from the log, which is the reconnect path with no backoff. It does not skip the change and carry on, because a client that silently diverges from the server is worse than one that visibly resets. One attempt per sequence position: a fault that has made no progress past the last one is an event in the server's own log, and the player goes to the home screen with the reason rather than replaying it forever."* Reason: owner ruling 2 of 2026-09-06; the spec's connection section covers a lost socket and says nothing about a projection that cannot be applied.
+13. **`docs/superpowers/specs/2026-09-04-client-shell-design.md` → Animation**, which names *"dice rolling on the table and models falling"*. Narrow the dice half: *"A roll is a readout, not an object. Text beside the unit gives the faces rolled, the threshold, the modifiers applied and which dice passed; no die is placed on the table and nothing tumbles. Models falling stays as written, by tween."* Reason: owner ruling of 2026-09-06 (question 5). Godot physics is out of the scene (`architecture.md` → The load-bearing seam), so any die on the table would be a canned animation pretending to be a roll whose result the server has already decided; the readout says more, because it shows the threshold and the modifiers a tumbling die cannot. The spec would otherwise assert something the client will not do.
 
 ## Interfaces needed from other modules
 
@@ -4291,7 +4361,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 3. **Management plan, `ManifestEntry`.** Provided (compatibility review, 2026-09-05): `ManifestEntry(Guid AssetId, AssetKind Kind, string Hash, Uri Url, double Scale, Orientation Orientation)`, read from the owner's `asset` row by management plan Task 12. The client needs the import corrections to draw another participant's mesh, which `GET /v1/assets/{id}` (owner-only) cannot supply; `MeshLoader.Orient` applies them (Task 11).
 4. **Management plan, the client's endpoints.** Its *Client-shell plan* obligations now list everything this plan calls: `/v1/auth/*`, `/v1/account`, `/v1/games*` and the manifest, `/v1/properties`, `/v1/armies` (list and get), `/v1/layouts` (list, get, save), plus `GET /v1/assets?kind=terrain|texture` (the setup toolbar's "Add my terrain", own textures), `GET /v1/assets/{id}/volumes` (a library terrain's volumes on add and on "Reset volumes") and `GET /v1/assets/{id}/download` (an own asset not yet in the manifest) — all owner-only. The DTO mirrors in `ManagementDtos.cs` must stay byte-compatible with `Tabletop.Management`'s records under `ContentJson`; a shared DTO assembly is not proposed.
 5. **Contracts plan, action names.** The `action` rows (name, distance) never reach the client, so the menu's "mark as having taken …" derives names from `AskOption.Label` on the activate Ask and from `ActionRecorded`. Assumed the activate Ask's option `Label` is the action name (the contracts plan's `AskTests` sample: `AskOption($"{unit}:Advance", "Advance", [unit])`). Proposed for the scheduler plan to honour that shape, or for `GameInfo` to gain `IRL<string> Actions`.
-6. **Contracts plan, `AskQuestions.EndRound`.** Needed by the 2026-09-06 ruling that a player ends the round (scheduler plan, question 4): one more engine-owned question name, `EndRound = "end_round"`, beside `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `Confirm`, `React`, `Bid`. The client reads it in exactly two places — `AskViewModel.ConfirmLabel` (the button says "End the round", not "Continue") and nothing else, since `LogText`'s new line keys on the `Confirmed` answer rather than the question. Nothing else in the Protocol changes: the Ask is the existing `Ask` with a `Confirmation` legal set, `AllowPass` false, `Sealed` false, `FrameId` null, addressed to every team that has a participant.
+6. **Contracts plan, `AskQuestions.EndRound`.** Needed by the 2026-09-06 ruling that a player ends the round (scheduler plan, question 4): one more engine-owned question name, `EndRound = "end_round"`, beside `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `Confirm`, `React`, `SpendTokens`. The client reads it in exactly two places — `AskViewModel.ConfirmLabel` (the button says "End the round", not "Continue") and nothing else, since `LogText`'s new line keys on the `Confirmed` answer rather than the question. Nothing else in the Protocol changes: the Ask is the existing `Ask` with a `Confirmation` legal set, `AllowPass` false, `Sealed` false, `FrameId` null, addressed to every team that has a participant.
 7. **Game server plan, consumed as stated:** `Connect` first within ten seconds; `Welcome`, then `BoardMessage` from `setup` on, then `EventsMessage`s (an empty one when the log is empty), then live frames; `Rejected` then close; `1000` on a replaced socket; `Refused.MessageId` echoing `CommandId`/`EditId`; `PresenceEnded`; lobby edits refused with `WrongStatus` from `playing` on; `BoardMessage` with the whole draft after every setup edit; the default draft 72×48 with texture `grass` (which `BuiltinContent.Textures` therefore ships).
 8. **Management plan, consumed as stated:** `Tabletop-Client-Version` on every request, `426` as `application/problem+json`; `POST /v1/auth/session/refresh` accepting an expired JWT; `Page<T>(Items, Next)` with `?limit&after`; another owner's row is `404`.
 9. **Geometry plan, consumed as stated:** `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; `ZoneStyles.Resolve(shape, size)` for drawing; `Distance.ClosestPoints` for measurements; `Movement.Region(...).Boundary`; `Movement.Check(...)`'s `CrossesImpassable` and `LeavesTable`, asked of a single placement by passing that placement as both start and destination; `Containment.BaseFullyWithin(model, container, inches)` — edge to edge from the container's base, not a circle about its centre (geometry plan Task 6), which `MoveRuler.ExitRegion` marches into a boundary; `Settling.SurfaceHeightAt(Point3, volumes)` for a dragged model; yaw 0 faces +Y, counter-clockwise positive; an oval's length along the facing axis.
@@ -4302,13 +4372,17 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 
 ## Questions for the project owner
 
+Six of the ten were ruled on 2026-09-06 and are closed in place below: questions 2 and 3 changed
+the design, and questions 4, 5, 6 and 7 confirmed the assumption as written. Questions 1, 8, 9
+and 10 remain open.
+
 1. **Presence sample rate.** Assumed 20 Hz for the client's own samples (`TableInput`'s timer), matching the game server plan's relay rate and `architecture.md`'s figure — which the whole-design review named a first-pass assertion, and which presence deliberately left open. A different figure changes one `Timer.WaitTime`. **This is the same question as the game server plan's question 4; one answer settles both.**
-2. **Where the remembered session lives.** Assumed DPAPI (`ProtectedData`, current user) over `user://session.bin` — the OS protects it, nothing else can read it. If the Windows Credential Manager is required, `SessionStore`'s two delegates become P/Invoke to `CredWrite`/`CredRead` and nothing else changes.
-3. **Built-in art.** Assumed no meshes or textures are produced by this plan: built-in terrain draws as its volumes and textures fall back to a flat colour until files are added under `client/content/builtin/`. If the first playable needs art, that is a content task with no code change (`MeshLoader.LoadBuiltin` and `SlabNode.Set` already look for the files).
-4. **Generator entries with alternatives** (*"Hill, Forest, or Field"*, *"2 Large Forests / Large Fields"*). Assumed the client's RNG picks one alternative, since the players may swap the mesh afterwards. If the player should choose, `TerrainGenerators.Generate` returns the alternatives and the toolbar asks.
-5. **Dice on the table.** The client shell spec's Animation section names *"dice rolling on the table and models falling"*; with Godot physics out of the scene, any dice roll is a scripted animation rather than a simulated one. Assumed for the first playable: models fall by tween (done) and a roll's results appear as a transient label over the actor. If the dice must visibly roll now, `Animator` gains a dice scene with a canned tumble and the queue paces it the same way — `Animator` is the only file that changes.
-6. **The game list's filters.** Assumed status, name and "created by me" (all from `GameSummary`); "games I am in" would need a participant lookup per game (`GET /v1/games/{id}` each) or a `Mine` flag on `GameSummary`. If wanted, the latter is a one-column change in the management plan.
-7. **Zones for ordinals with no team.** Assumed drawn grey during setup (spec correction 5). If they should be hidden until a team exists, `TableView.ZoneColour` returns transparent for them.
+2. **Where the remembered session lives — ruled 2026-09-06, no longer open.** DPAPI was the assumed answer; the owner ruled *"We may run on other operating systems"*, which rules out a Windows-only mechanism. The store is `user://session.bin`, a plain file created owner-only (`UnixFileMode.UserRead | UserWrite`) where the platform has file modes, and covered by the user profile's ACL on Windows. It protects the token from other local accounts on a shared machine and from a group- or world-readable directory being backed up; it does not protect it from anything running as the same user, nor from the file being copied to another machine, where it refreshes until the Stytch session expires — the one property DPAPI had and this does not. A per-platform store behind one interface was rejected in Task 2 for cost and for libsecret's keyring dependency. If an OS keystore is required later, `SessionStore` is three methods with one call site.
+3. **Built-in art — ruled 2026-09-06, no longer open.** The assumption was that no art ships. The owner ruled that a minimal set does, so a generated table looks like a table. **The files are art, and this plan cannot produce them**: ten `.glb` group meshes and five `.png` textures under `client/content/builtin/`, listed with their format and budget in Task 6 Step 4, which is a step for a person with a modelling tool and not a step code performs. What the plan does produce is the grouping (each of the 35 built-ins names one of the ten meshes through `BuiltinTerrain.MeshFile`) and the fit-to-volume scaling in `MeshLoader.LoadBuiltin` (Task 11) that lets one mesh serve a group. Hitbox-first rendering stays as the degraded path for every file that is missing, unchanged.
+4. **Generator entries with alternatives** (*"Hill, Forest, or Field"*, *"2 Large Forests / Large Fields"*) **— ruled 2026-09-06, the assumption confirmed, no longer open.** The client's RNG picks one alternative: rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup, which the toolbar already offers (`SwapTerrainMesh`, `RemoveTerrain`). No mechanism changes — `TerrainGenerators.Rolled` keeps returning the alternatives an entry names and `Generate` keeps choosing from them. Had the player been asked instead, `Generate` would have returned the alternatives unresolved and the toolbar would have prompted per entry.
+5. **Dice on the table — ruled 2026-09-06, the assumption confirmed, no longer open.** A roll is a readout, not dice objects: text beside the unit gives the faces rolled, the threshold, the modifiers applied and which dice passed, and nothing tumbles. Models still fall by tween. No mechanism changes; `Animator` is unaffected. The client shell spec's Animation section does name *"dice rolling on the table"*, so **spec correction 13** narrows that sentence rather than leaving the spec asserting something the client will not do. Had visible dice been wanted, `Animator` would gain a dice scene with a canned tumble and the queue would pace it the same way, and `Animator` would be the only file that changes.
+6. **The game list's filters — ruled 2026-09-06, the assumption confirmed, no longer open.** Status, name and "created by me", all three read off the `GameSummary` rows `GET /v1/games` already returns, so the filtering is client-side over a list the browser has. **"Games I am in" is not built, and the reason is worth stating: `GameSummary` carries no participants**, so the filter would need either a new field on it or a `GET /v1/games/{id}` per row to look the participants up. The first is a one-column change in the management plan and the second is a request per row; neither is taken.
+7. **Zones for ordinals with no team — ruled 2026-09-06, the assumption confirmed, no longer open.** Drawn grey during setup (spec correction 5). A four-zone style in a two-player lobby therefore shows two coloured zones and two grey, so the table shows what the style laid out rather than hiding half of it until teams form. No mechanism changes. Hiding them would have `TableView.ZoneColour` return transparent for those ordinals.
 8. **The facing a disembarking model takes.** Nothing in the specs or in rulebook p.14 says, and something must: an oval base's footprint depends on its yaw, so the exit region cannot be drawn without one. Assumed **the container's yaw**, for the ghost, for `MoveRuler.ExitRegion`'s candidate placement, and for the `Destinations` answer (`AskPanel.YawOf`) — a unit pouring out of a transport faces the way the transport faces. If a model should instead keep the facing it had when it embarked, `Location.Inside` would have to carry a yaw, which is a wire change in the contracts plan, and `YawOf` would read it; if the player should turn each model, the drag needs a rotate control, which no spec asks for.
 9. **Whose base the disembark region is drawn for.** Assumed the **lead** model's, exactly as `MoveRuler.Region` already is: one polygon, from `ModelIds[0]`. A unit with mixed base sizes therefore sees the lead's region, and the server refuses an outlier individually (`GfMoves.ExitPlacement` leaves it inside). If every distinct base should get its own boundary, `MoveRegionNode.Show` takes a list of polygons and nothing else changes.
 10. **Whether an offered container is a click target or a button.** Assumed a **click** on the container, which is already highlighted because `AskViewModel.Mine` puts `Enterable` in `Highlights` — *"the legal set from the server becomes the panel's choices and the table's highlights"* — with the container's name in the panel's note so the affordance is discoverable. A button per container in the panel would be the alternative; it was not taken because it is a second control for the same command, which this plan rejected for the round boundary on the same grounds. If buttons are wanted, `OfferEmbark` adds one `Btn` per container and drops the `PieceLeftClicked` hook, and `TableInput.CancelDrag` is then unused.

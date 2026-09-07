@@ -292,7 +292,7 @@ hole rather than a runtime one.
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
 | `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets`, then one pick per item |
 | `MoveRegion` | `Destinations` | see below |
-| `Bid` | `BidPlaced` | `Chooser.Next(MaxTokens + 1)` |
+| `TokenSpend` | `TokensSpent` | `Chooser.Next(MaxTokens + 1)` |
 | `Confirmation` | `Confirmed` | always |
 
 A pass is taken only where `Ask.AllowPass` is set and `Chooser.Chance(PassProbability)` fires.

@@ -415,6 +415,12 @@ Two details inside pass one:
   model. `Gather` computes the count of distinct models carrying the entry and applies
   `all | any | majority | none`. `majority` has no tie rule beyond `count * 2 > models.Count`;
   identity and enumerations left that open.
+- **A `unit`-kind entry on a model slot is the unit's rule.** Aggregation is declared exactly when
+  the kind is `model`, so a `unit`-kind entry carries none and aggregation cannot answer for it.
+  Import produces the shape two ways: a rule whose count is smaller than the unit, and a hero
+  joined to another unit, whose rules all land on its slot whatever their kind. `Gather` and
+  `Lookup.UnitHas` both read such an entry off the unit's definition, holder-less, so the effect
+  pass and the name lookup agree. `Aircraft`, `Ambush` and `Scout` are the entries it can be.
 - **Duplicates collapse unless the entry takes a parameter** (p.13: instances of the same rule
   do not stack unless it has (X)). The grouping key is `(entry name, model id when aggregation is
   none, weapon *name* when it is a weapon rule, grant id)`. It keys on weapon name rather than
@@ -502,6 +508,7 @@ step and ends the sequence early, and `Repeat`, an addition to the spec (correct
 stateDiagram-v2
     [*] --> Ready: frame on top, no open Ask
     Ready --> Gate: WaitsBetweenSteps, past position 0, actor team, no closed confirm
+    Ready --> Gate: no actor and no parent, past position 0, no closed confirm - every team
     Gate --> Ready: confirm answered
     Ready --> Running: IStep.Run(ctx)
     Running --> Completed: Complete: step_completed, position + 1
@@ -538,12 +545,12 @@ an explicit `Values["phase"]` machine. `GfContainers.WreckTestStep` guards it wi
 `Frame.Value("dangerous_dice") > 0`. There is no interpreter-level loop bound.
 
 `StepCompleted.Values` is a flat `IReadOnlyDictionary<string, int>`: attacks counted, a capped
-hit multiplier, extra hits, a distance in tenths of an inch, a bid, who lost. Spec correction 4
+hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who lost. Spec correction 4
 settles action sequences' open question *whether `step_completed` payloads need a schema per step
 kind*: no, one flat map. It buys two things. A later step or a nested frame reads a settled
 parameter without re-deriving it. A reroll between steps changes what the next step reads, which
 is the record, without changing what was settled, which is the value. The cost is untyped string
-keys with no registry. `dangerous_dice`, `net_bid`, `bid_max_<team>`, `phase`, `hits`,
+keys with no registry. `dangerous_dice`, `net_tokens`, `tokens_max_<team>`, `phase`, `hits`,
 `hit_multiplier`, `distance_used_tenths`, `place_1..place_n` and `loser` are conventions held in
 `GfNames`' vicinity and in prose, not in a type.
 
@@ -558,13 +565,27 @@ that observes an abandoned child treats it the same as a finished one. `ShootOrN
 **Confirm gates.** When `game.waits_between_steps` is on, every step boundary past position 0 is
 a gate. The interpreter opens its own `Ask` with question `AskQuestions.Confirm` and a
 `Confirmation` legal set, addressed to the acting unit's team. Pausing is an Ask, so confirming
-is answering it, and there is one input path rather than two. A frame with **no actor** is never
-gated, which is how the roll-off finishes in the batch that started it. The roll-off is a
-one-step, actor-less sequence. Its dice can therefore never be edited from the menu, because
-`RerollDice` needs the frame still on the stack. That is open question 8. The scheduler module
-records the same consequence as its own question.
+is answering it, and there is one input path rather than two.
 
-### Asks, windows and the sealed bid
+A frame with **no actor and no parent** is gated at every boundary past position 0 whatever
+`game.waits_between_steps` says, and its gate is addressed to **every team** in `Info.Teams`. The
+roll-off is the only such frame. Nothing else holds its log open: with no actor there is no team
+to address, and with no parent there is no enclosing frame left on the stack once it finishes, so
+its rolls would be out of reach of `RerollDice` and `SetDice` forever. Every team has the same
+claim on a roll that fixes turn order for all of them, so the Ask carries all of them. It is
+unsealed, and the dispatcher closes an unsealed Ask on the first answer, so any team releases the
+gate. Waiting for all of them would need a sealed Ask, which exists to withhold and reveal
+answers, and would make the first round wait on every team being present.
+
+An **actorless nested** frame stays ungated, which is the terrain-wounds `deal-wounds` case. Its
+`assign` opens the defender's Ask, so the frame is already suspended and its dice are already
+editable, and the target's team would be the addressee if a gate were ever wanted there.
+
+The gate on the roll-off is the owner's ruling of 2026-09-06, closing question 8's actorless half.
+`GfRolls.RollOffSequence` gained a second step, `order`, so the gate has a boundary to sit on and
+so an edit made at the gate is read back into the order.
+
+### Asks, windows and the simultaneous token spend
 
 An Ask is addressed to a **team** and carries a question name and a server-computed `LegalSet`.
 It is the only way input enters resolution. The interpreter never emits `ask_answered` or
@@ -595,19 +616,20 @@ actor. OPR core barely uses them. 40k's Fire Overwatch pushes a whole shooting s
 enemy move step. **Invoked** windows are opened by the actor inside its own step. That is
 casting, *at any point before attacking*, mid-move included.
 
-One variant is **sealed and simultaneous**, for one OPR rule: casting's token bid. Every eligible
-team answers the same Ask concurrently and the answers are withheld until the window closes.
+One variant is **sealed and simultaneous**, for one OPR rule: casting's token spend (p.13).
+Every eligible team answers the same Ask concurrently and the answers are withheld until the
+window closes.
 Sequential reveal online would hand the last mover an advantage the tabletop does not. This is
 the only use of the per-player filtered event streams `architecture.md` kept available. The
 skeleton's `EventFilter.ForViewer` does the withholding.
 
-`Bid` is one number for the whole Ask, so it carries the **largest** team maximum, and
-`Windows.Bids` clamps each team to its own. Per-team maxima are not in the Ask. The step before
-the bid writes them as `Values["bid_max_<team:N>"]`, and `Windows.MaxFor` reads them back off the
-frame. That is open question 6. The alternatives are a per-team map in `Bid`, which is a Protocol
-change, or one sealed Ask per team with the engine holding answers until the last closes, which
-the dispatcher does not do today. As it stands a team can see a maximum larger than its own,
-which leaks the largest opposing pool. The clamp is server-side, so it cannot over-bid.
+`TokenSpend` is one number for the whole Ask, so it carries the **largest** team maximum, and
+`Windows.Spends` clamps each team to its own. Per-team maxima are not in the Ask. The step before
+the spend writes them as `Values["tokens_max_<team:N>"]`, and `Windows.MaxFor` reads them back off
+the frame. That is open question 6. The alternatives are a per-team map in `TokenSpend`, which is
+a Protocol change, or one sealed Ask per team with the engine holding answers until the last
+closes, which the dispatcher does not do today. As it stands a team can see a maximum larger than
+its own, which leaks the largest opposing pool. The clamp is server-side, so it cannot overspend.
 
 ### The engine seam
 
@@ -685,6 +707,11 @@ Containment is asked **before** any measurement. `null`, not `false`, is the ord
 every caller must handle a nullable answer. `GfAttack.EligibleModels` and
 `GfCasting.SpellTargets` both short-circuit on it.
 
+The *target the transport itself* half of p.14 is not reachable in a game. `GfShooting.ValidTargets`
+offers enemy units only, a unit's own container is friendly, and no unit may enter an enemy
+container. The branch is written for faithfulness to p.14 and is reached only from a
+menu-written state.
+
 **A unit's models mean two different things.** Game flow says a model is in exactly one of three
 places, and that *"a transported model is very much in play"* while the shelf is out of play. The
 plans originally had one predicate doing both jobs. That made a carried unit read as destroyed,
@@ -692,11 +719,27 @@ and left its occupants unable to be wounded when their transport was.
 
 | Reader | Means | Used by |
 | --- | --- | --- |
-| `Lookup.LivingModels` | models **with a position**: on the table | every distance, sight line, cover and blocker question; `BidCapacity` on both ends |
+| `Lookup.LivingModels` | models **with a position**: on the table | every distance, sight line, cover and blocker question; `SpendCapacity` on both ends |
 | `Lookup.AliveModels` | models **still in play**: on the table or inside a container | how many models a unit has, who may be assigned a wound, whether a unit is destroyed, at-half-or-less, `Party.Whole`, the morale test |
 
 Every use of either is a decision. Getting one wrong produces a bug that only shows up with a
 transport on the table.
+
+**Cover is a fraction of the unit, and the fraction is the ruleset's.** The owner ruled one 50%
+threshold on 2026-09-06, applied to two facts. Terrain cover is at least half the unit's models
+with a base centre inside a volume declared `Cover`. Sight cover is the attacker seeing fewer than
+half of them. Either clause is enough. A single-model unit reduces to that model's own base centre
+under the first. `Battlefield` therefore returns counts, `ModelsInCoverTerrain` and
+`ModelsVisibleFrom`, and `GfRolls.InCover` compares them against the fraction, because a fraction
+is a ruleset number and no ruleset number belongs outside `Rules/GrimdarkFuture/`.
+
+Cover is read from every eligible attacker model, not from one of them.
+`LineOfSight.VisibleModels` takes a list of observers and reports a target model as seen when any
+observer sees it, which is how p.11 reads sight: the attacking unit's, not one model's.
+`Battlefield.ModelsVisibleFrom` calls it once per target model, so the target's own body leaves
+the blocker list while the unit's other models stay in it. An earlier draft measured from the
+first eligible attacker model, which made the answer depend on the order models sit in the army
+snapshot.
 
 ### The generalisation budget: nine constraints
 
@@ -763,17 +806,22 @@ what it held.
 | A fifth step outcome: complete and run again | A move takes a second segment after a mid-move cast, and one window per activation would allow only one spell | A separate *checkpoint* primitive; a sequence listing the move step twice | spec correction 5 |
 | The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the effective log | The seed is written once at creation and never again, and no RNG state is stored, so an undo rewinds the dice with the log | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | owner ruling 1 of 2026-09-06; spec correction 7 |
 | A property's own roll is a `RollRecord` named after the entry, with the effect row's threshold | Nothing targets it, so it needs no `roll` row, and `AddModifier` therefore cannot name it | A `roll` row per property that rolls | spec correction 3 |
-| One sealed `Bid` legal set carrying the largest team maximum, clamped per team in the step | `Bid.MaxTokens` is one number for the whole Ask | A per-team map in the Protocol; one sealed Ask per team | spec correction 6, question 6 |
+| One sealed `TokenSpend` legal set carrying the largest team maximum, clamped per team in the step | `TokenSpend.MaxTokens` is one number for the whole Ask | A per-team map in the Protocol; one sealed Ask per team | spec correction 6, question 6 |
+| p.13's spend is a per-model eligibility test answered as one number per team, and the server picks which eligible model pays | The modifier is the count of tokens spent, so summing eligible models loses nothing on the roll itself, and one Ask per team is what the sealed window already is. `GfCasting.EligibleSpenders` is the per-model test, used by both `SpendCapacity`'s sum and the spend step's payers, so a model out of range or without a sight line neither raises a team's maximum nor pays for it. What is lost is the player's choice of *which* eligible model pays: the step takes them nearest the caster first, and every token holder is a `Caster`, so a spend can drain the tokens a player was keeping for that model's own spell | One Ask per eligible model, which is a model-grain `Ask` the dispatcher has no sealed group for; an `Allocation` legal set over the team's eligible models, which is a Protocol change and a second decision for the player at every cast | question 14 |
 | A `spell` entry's top-level effect must be `add_hit` or `duration = once`, validated | Reading all forty-eight spells found nothing else; anything else would apply nowhere | Accepting it and silently doing nothing | spec correction 8 |
 | Transport destruction is its own sequence, `transport-destroyed`, one frame per occupant unit, pushed by `deal-wounds`' `disgorge` | p.14 places survivors *before removal*, so the container must still have a placement while they are placed | Shelving the container in `assign` and placing survivors relative to a remembered position | spec correction 12 |
 | `Effects/StatReader` may name `"Range"` and `"Attacks"` | `StatKind.Distance` and `StatKind.Count` need a *which* | `IGameRules.RangeStat` and `AttacksStat` as `StatRef` members | question 5 |
-| `OneTryPerSpellScope = "activation"` and `RecomputeAttacksPerGroup = true`, as visible constants | The book is ambiguous and action sequences asked for flagged interpretations rather than silent guesses | The round scope; recording each group's attack count up front | questions 2 and 3 |
-| A frame with no actor is never confirm-gated | The roll-off has no actor and there is no obvious team to gate on | A confirm Ask to every team, waiting for all | question 8 |
-| `ContainersInReach` offers **friendly** containers only, while `InsideReach` implements p.14 as written | The rulebook's containment text is written for the same-army case (p.20) | Offering enemy transports; forbidding the inside-to-inside clause outright | question 9 |
-| A caster inside a container may cast, unmodified | `ReactionsAt` reads `AliveModels`, so the window opens; `BidCapacity` stays positional, so no bids reach it | Barring it by reading `LivingModels` in `ReactionsAt` and `Casters` | question 10 |
+| `OneTryPerSpellScope = "activation"`, as a visible constant | The book is ambiguous and action sequences asked for flagged interpretations rather than silent guesses. A caster that failed a spell this activation may try it again in a later one | The round scope | question 2; owner ruling of 2026-09-06, as assumed |
+| Every weapon group's attack count and `Blast` cap are settled before any group fires, and no constant flags it | p.8 fires a unit's weapons simultaneously, so a group pushed later must not be shortened, or capped lower, by an earlier group's casualties. `fire-groups` records `attacks_<i>` and `blast_cap_<i>`; `determine-attacks` and `roll-to-hit` read them through `GfAttack.Pushed`. Nothing branched on the old flag, so `false` would advertise a switch that does not exist | Recomputing per group, which was the assumption. `RecomputeAttacksPerGroup = false` as a kept constant. Leaving `Blast`'s cap live, which the first ruling did | question 3; owner rulings of 2026-09-06, overturning the assumption |
+| A frame with no actor and no parent is confirm-gated at every boundary past position 0, whatever the wait setting, by one unsealed `Confirm` Ask addressed to every team | The roll-off is the only such frame, and nothing else keeps its log open, so its dice would never be reachable by `RerollDice`. Its result fixes turn order for every team, so every team is the addressee. An actorless nested frame stays ungated, since its own Ask already suspends it | Never gating an actorless frame, which was the assumption; naming the roll-off inside the generic interpreter as an exception; a sealed Ask waiting for every team | question 8; owner ruling of 2026-09-06, overturning the assumption |
+| A unit cannot enter an enemy transport. `ContainersInReach` offers **friendly** containers only, while `InsideReach` implements p.14 as written | The rulebook's containment text is written for the same-army case (p.20). p.14's *target the Transport itself* is therefore unreachable, since valid targets are enemies and a unit's own container is friendly | Offering enemy transports; forbidding the inside-to-inside clause outright | question 9; owner ruling of 2026-09-06, as assumed and as a rule |
+| A caster inside a container may cast, unmodified | `ReactionsAt` reads `AliveModels`, so the window opens; `SpendCapacity` stays positional, so no tokens reach it | Barring it by reading `LivingModels` in `ReactionsAt` and `Casters` | question 10 |
 | The disembark radius is `GfNames.ExitWithin = 6`, measured edge to edge from the container's base | Every other distance in the system is edge to edge | A 6-inch circle about the hull centre | question 11 |
-| A survivor with nowhere legal to stand is shelved | The container is removed in the same step, so `Inside` would dangle | Leaving them inside a removed container; auto-placing them | question 12 |
-| `Hero`'s *must use the unit's Defense* needs no effect row | `Defense` is declared at unit level, so every model already rolls the unit's | A `replace_stat` row restating it | Task 3 |
+| A survivor with nowhere legal to stand is destroyed | The rulebook does not cover the case and the owner ruled removal. `PlaceSurvivorsStep` writes what `assign` writes for a casualty: wounds at capacity, the model to the shelf, the wounds on the unit's activation tally | Shelving them unwounded, which was the assumption; leaving them inside a removed container; auto-placing them | question 12; owner ruling of 2026-09-06, overturning the assumption |
+| Cover is one 50% threshold over the target unit's models: at least half with a base centre in a `Cover` volume, or fewer than half of them seen by the attacker | The owner's words on 2026-09-06: *seeing less than 50% of models in a unit gives cover*, and *base center in terrain, 50% models in unit in cover for it to count*. `Battlefield` counts and `GfRolls.InCover` holds the fraction, since a fraction is a ruleset number | A strict majority of models fully inside a `Cover` volume or behind a sight blocker, judged as a boolean between two models | owner ruling of 2026-09-06 |
+| `Hero`'s *must use the unit's Defense* needs no effect row | `StatReader.TargetNumber` reads `Defense` at unit level, so every model already blocks with the unit's. The clause's *until all other models have been killed* is unimplemented and no effect row could implement it: `roll-to-block` throws one roll per hit before `deal` assigns a wound to any model, so the threshold is chosen while there is no model to read a slot `Defense` from | A `replace_stat` row restating it | Task 3; question 13 |
+| `Quality` and `Defense` are declared at `model` level as well as `unit` level, and nothing reads the model-level pair | A joined hero is a model of the unit it joined (management ruling, 2026-09-06) and its slot carries its own two as `slot_stat` rows. `slot_stat` has no foreign key to `stat_definition`, so the declaration is the only thing keeping a stored stat a declared one, and it gives a `model`-level `replace_stat` somewhere to resolve. Reading it costs a change of roll shape, not of reader: one `RollRequest` carries one `Threshold`, so mixed quality splits `roll-to-hit` into a roll per quality and needs a rule for which model owns a die when hero and squad share a weapon type | Leaving the two undeclared, which stores a stat at a level the ruleset denies. Resolving `StatLevel.Model` in `StatReader`, which makes a joined hero fight at its own numbers and reverses pages 8 and 9 for defence | Task 3; question 13 |
+| A `unit`-kind entry on a model slot means the unit has the rule, read off the definition in both `Lookup.UnitHas` and `LiveProperties.Gather` | The two readers disagreed: `Gather` treated it as live for the whole unit through its `_ => true` arm while `UnitHas` answered false, so a joined hero with `Ambush` was invisible to the scheduler's deployment set while its effects applied to the squad. The definition rather than the living models, because a unit-scoped rule does not lapse when the model carrying it dies, and `Ambush` and `Scout` are read before any model has a position. One model therefore grants the whole unit a unit-scoped rule | Answering false in both, which makes a joined hero's own `Ambush` and `Scout` do nothing and applies `Aircraft`'s two effect rows nowhere, with no diagnostic | Task 6; question 13 |
 
 ## Interfaces
 
@@ -804,8 +852,8 @@ what it held.
 | `static class FrameReader` | `IRL<FrameView> Read(GameState)`, bottom first |
 | `sealed class StepContext` | `State`, `Properties`, `Rules`, `Frame`, `History`, `Projection`, `ActorTeam`, `TeamOf`, `Roll`, `Rolls`, `ForcedRerolls`, `Plan`, `Ask`, `SealedAsk` |
 | `sealed class SequenceInterpreter(IGameRules, PropertySet, IDiceSource) : ISequenceStarter` | `Advance(GameState)`, `Start(...)` |
-| `static class Windows` | `ReactionOrder`, `Run`, `SealedBid`, `Bids` |
-| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `Blockers`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `InCover`, `TerrainUnder`, `Settle` |
+| `static class Windows` | `ReactionOrder`, `Run`, `SimultaneousSpend`, `Spends` |
+| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `Blockers`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain`, `ModelsVisibleFrom`, `TerrainUnder`, `Settle` |
 | `static class Teams` | `Of(GameState, Guid unitId)`, `Others(GameState, Guid? team)` |
 
 `Tabletop.GameServer.Rules`, the eight members added to `IGameRules` beside the scheduler's
@@ -833,20 +881,25 @@ through four names: `PropertySet.Actions` for the turn Ask's action rows, `Looku
 by the name `FirstTeamDecision.RollOffNeeded` carries, and `ScriptedDice`/`InMemoryPropertiesStore`
 in tests.
 
+The roll-off's gate changes what the scheduler may assume about it. It no longer resolves in the
+batch that started it, so the scheduler is re-entered only after the gate closes, and the order
+now sits on the `step_completed` named `order` (`GfNames.RollOffOrderStep`) rather than the one
+named `roll-off`. The key names are unchanged: `winner_ordinal` and `place_1 .. place_n`.
+
 Ask questions a client may see, which the client-shell module renders from their legal-set
 shapes: `move`, `shoot_or_not`, `declare_targets`, `remove_casualties`, `charge_target`,
 `strike_back`, `disembark`, `cast`, `spell_targets`, plus the engine's `confirm`, `react` and
-`bid`. Window kinds a player may mute: `before-attacking`, `casting`.
+`spend_tokens`. Window kinds a player may mute: `before-attacking`, `casting`.
 
 ### Consumed from other modules
 
 | From | Exact names |
 | --- | --- |
 | Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog`, `GameInfo.RngSeed : long` (owner ruling 1 of 2026-09-06) |
-| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed` |
+| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `LineOfSight.VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)` (added by the geometry plan 2026-09-06 for the cover ruling; it replaces `Cover.InsideCoverVolumes` and `Cover.SightBlockersBetween`, which this module no longer reads), `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed` |
 | Skeleton (`server/game/`) | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult` (`Emit`, `RefuseCommand`), `Legality`, `CommandDispatcher`, `RowMapping.EnumText/EnumFrom`, `IEventLog`, `InMemoryEventLog`, `PostgresFixture`, `RecordingClient`, `FixedAskEngine`, `GrimdarkFutureRules` as `sealed partial` |
 | Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `IGameRules.OrderReactions`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
-| Management | nothing new: `GET /v1/properties` already lists the seeded sets, and the Army Forge import's stat names `Quality`, `Defense`, `Range`, `Attacks` must match `grimdark-future-core.properties.json` |
+| Management | `GET /v1/properties` already lists the seeded sets, and the Army Forge import's stat names `Quality`, `Defense`, `Range`, `Attacks` must match `grimdark-future-core.properties.json`. Its joined-hero ruling of 2026-09-06 obliges this module in two places, both discharged: the document declares `Quality` and `Defense` at `model` level as well as `unit` level, so a joined hero's `slot_stat` rows are declared ones, and a `unit`-kind entry on a model slot is read as the unit's rule in both readers. Neither model-level stat is resolved, so a joined hero fights at its host squad's quality and defence |
 
 Two geometry obligations are discharged by this module rather than by geometry. A dangerous
 terrain test is owed `Movement.VolumesCrossed`, because p.11 says *"moves in or through"* rather
@@ -898,7 +951,7 @@ of recognising its closed record loops forever. Every asking step therefore test
 is empty is the skeleton's, so a step that always returns a non-empty batch hangs the session,
 not just the frame.
 
-### The sealed token bid
+### The sealed token spend
 
 ```mermaid
 sequenceDiagram
@@ -906,23 +959,23 @@ sequenceDiagram
     participant B as Other team
     participant S as GameSession
     participant D as CommandDispatcher
-    participant K as GfCasting BidStep
+    participant K as GfCasting TokenSpendStep
     participant W as Windows
 
-    K->>K: read Values[bid_max_team] set by pick-spell
-    K->>W: SealedBid(ctx, casting, maxByTeam, prompt)
-    W-->>K: OpenAsks: one Ask, Sealed = true, Teams = every team with a positive max, Bid(largest max)
+    K->>K: read Values[tokens_max_team] set by pick-spell
+    K->>W: SimultaneousSpend(ctx, casting, maxByTeam, prompt)
+    W-->>K: OpenAsks: one Ask, Sealed = true, Teams = every team with a positive max, TokenSpend(largest max)
     S->>A: ask_opened
     S->>B: ask_opened
-    A->>D: BidPlaced(2)
+    A->>D: TokensSpent(2)
     D->>D: log ask_answered - EventFilter withholds it from B
-    B->>D: BidPlaced(3)
+    B->>D: TokensSpent(3)
     D->>D: every team answered: log ask_closed with all answers
-    S->>A: ask_closed, both bids revealed
-    S->>B: ask_closed, both bids revealed
-    K->>W: Bids(ctx, casting)
+    S->>A: ask_closed, both spends revealed
+    S->>B: ask_closed, both spends revealed
+    K->>W: Spends(ctx, casting)
     W-->>K: each team clamped to min(Ask max, its own Values max)
-    K->>K: net_bid = own tokens minus others - SpellTokensSet nearest payers first
+    K->>K: net_tokens = own tokens minus others - SpellTokensSet nearest payers first
 ```
 
 One Ask goes to many teams, withheld until all have answered, then revealed together. The
@@ -978,10 +1031,11 @@ sequenceDiagram
     participant Def as Defender team
     participant TD as transport-destroyed frame
 
-    AS->>AS: determine-attacks: Values[attacks]
-    AS->>AS: roll-to-hit: RollRecord(hit) - Values[extra_hits], [hit_multiplier], [granted_Rending_4]
+    AS->>AS: determine-attacks: Values[attacks] read off the pushing frame, Values[eligible_models] counted now
+    AS->>AS: roll-to-hit: RollRecord(hit) - Values[extra_hits], [hit_multiplier] from blast_cap on the pushing frame, [granted_Rending_4]
     AS->>RH: resolve: Push
     RH->>RH: roll-to-block: one defense roll per grant group, cover as a base modifier
+    RH->>RH: cover: GfRolls.InCover over the target unit's models, seen from every eligible attacker model
     RH->>DW: deal: Push
     DW->>Def: assign: Allocation(eligible models, wounds)
     Def-->>DW: Allocated: counts per model
@@ -991,12 +1045,14 @@ sequenceDiagram
     TD->>TD: wreck-test: Values[dangerous_dice], then Push dangerous-terrain
     TD->>Def: place: MoveRegion with MoveContainment(ExitingId = wreck, ExitWithin = 6)
     Def-->>TD: Destinations
-    TD->>TD: condition_set shaken - models_moved, or shelved when outside the radius
+    TD->>TD: condition_set shaken - models_moved, or destroyed when there is no legal placement
     DW->>DW: disgorge re-reads Wrecks - shelves them when none holds anybody
 ```
 
-The three shared sub-sequences chain by `Push`. The defender answers twice on one attack:
-allocation, then placement. The wreck outlives its own destruction until the last occupant is
+The three shared sub-sequences chain by `Push`. `determine-attacks` reads a count `fire-groups`
+settled before any group fired, and `roll-to-hit` reads the `Blast` cap it settled beside it, so a
+group that shoots after casualties rolls what it had when the action started. A survivor the answer leaves nowhere legal to stand is destroyed rather than parked
+off the table. The defender answers twice on one attack: allocation, then placement. The wreck outlives its own destruction until the last occupant is
 out. The occupants' dangerous terrain test pushes a `deal-wounds` of its own, whose `disgorge`
 would find the wreck the frame above it is emptying and push `transport-destroyed` for a unit
 already being processed. The guard is a walk up `FrameView.Parent`, this frame's own ancestors
@@ -1105,7 +1161,7 @@ worst case is a duplicate-key error on one of the two.
 
 Test-driven throughout, in `tests/Tabletop.GameServer.Tests`. Every task starts with a failing
 xUnit test. Every OPR sequence has either the rulebook's own worked example or a constructed case
-with scripted dice. 74 new tests are expected.
+with scripted dice. 80 new tests are expected, which is the figure the plan's final step checks.
 
 | Suite | Covers | Needs Docker |
 | --- | --- | --- |
@@ -1113,8 +1169,8 @@ with scripted dice. 74 new tests are expected.
 | `CoreContentTests` | the authored OPR core set parses, validates and builds | no |
 | `PropertiesStoreTests` | eight tables in, eight tables out; `SeedAsync` idempotent by hash | **yes**: `[Collection("Postgres")]`, `PostgresFixture` |
 | `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, undo reproducing dice | no |
-| `LivePropertiesTests`, `RollEffectsTests` | aggregation, collapse-unless-parameter, the four pass-one kinds in ordinal order, plan modifiers, suppression, per-die grants, capped multipliers | no |
-| `InterpreterTests`, `WindowTests` | the five outcomes, position and history from the log, confirm gates, reaction order, the sealed bid | no |
+| `LivePropertiesTests`, `RollEffectsTests` | aggregation, a `unit`-kind entry on a model slot read the same way by both readers, collapse-unless-parameter, the four pass-one kinds in ordinal order, plan modifiers, suppression, per-die grants, capped multipliers | no |
+| `InterpreterTests`, `WindowTests` | the five outcomes, position and history from the log, confirm gates, reaction order, the simultaneous spend | no |
 | `RulesEngineTests` | the three-line `Advance` split, the three dice commands, `PropertiesNotFoundException` | no |
 | `GfRollsTests` and the seven `Gf*Tests` | every OPR sequence against the rulebook, including p.8's and p.9's worked examples | no |
 | `InterfaceConstraintTests` | seven of the nine constraints, by source scan and reflection | no |
@@ -1137,7 +1193,7 @@ Notable gaps:
   concatenation and fail on an innocent comment mentioning `Tough`. Constraints 5 and 8 have no
   assertion at all.
 - **No test bounds a repeating step.** The hang described above is not covered.
-- **No test covers a disconnect during a sealed bid or an open window.**
+- **No test covers a disconnect during a simultaneous spend or an open window.**
 - **The two-module integration is covered only by the scheduler module's `SchedulerHarness`,**
   which runs the real `RulesEngine`. There is no test in this module that exercises the
   scheduler-to-interpreter handover.
@@ -1147,23 +1203,26 @@ Notable gaps:
 
 ## Open questions and deferred work
 
-Twelve questions. Question 1 is closed by ruling. The other eleven carry the assumption taken
-and the cost of the other answer.
+Fourteen questions. Five are closed by owner ruling: 1, 2, 3, 9 and 12. Questions 2 and 9 were
+confirmed as assumed. Questions 3 and 12 overturned the assumption. The other nine carry the
+assumption taken and the cost of the other answer.
 
 | # | Question | Assumed | If the answer differs |
 | --- | --- | --- | --- |
 | 1 | Who seeds `Properties`, and when? | **Closed 2026-09-06 by the owner:** the game server, at startup, from embedded documents, idempotently by hash | Nothing. The mechanism was confirmed as assumed |
-| 2 | *One try per spell*: activation or round? | The activation. `OneTryPerSpellScope = "activation"`, and `TriedThisActivation` scans from the activation's `sequence_started` | The scan starts at the last `round_started` and the constant reads `"round"`. Nothing else changes |
-| 3 | Are a later weapon group's attacks recomputed after an earlier group's casualties? | Yes. `RecomputeAttacksPerGroup = true` | `fire-groups` records each group's attack count before pushing and `determine-attacks` reads it. *All weapons are fired simultaneously* then wins over group order |
-| 4 | Catalog kinds and aggregation for the core rules no spec fixes | `Entrenched` is `any`, the loosest reading. `Fast`/`Slow`/`Flying`/`Strider`/`Immobile`/`Furious`/`Relentless` are `model` with `all`. The per-model rules are `none`. `Aircraft`/`Ambush`/`Scout` are `unit` | The document changes and the hash with it. `all` is `Entrenched`'s alternative. `none` is not available, since a per-model instance would add its −2 once per entrenched model to a unit-pooled hit roll |
+| 2 | *One try per spell*: activation or round? | **Closed 2026-09-06 by the owner, as assumed:** the activation. `OneTryPerSpellScope = "activation"`, and `TriedThisActivation` scans from the activation's `sequence_started`, so a caster that failed a spell may try it again in a later activation | Nothing. The scope was confirmed as assumed |
+| 3 | Are a later weapon group's attacks recomputed after an earlier group's casualties? | **Closed 2026-09-06 by the owner, overturning the assumption:** no. Counted once, before any group fires, because p.8 fires the weapons simultaneously. `fire-groups` records `attacks_<i>`, `determine-attacks` reads it, and `RecomputeAttacksPerGroup` is deleted. A second ruling the same day fixed `Blast`'s cap at the same moment: `fire-groups` records `blast_cap_<i>` beside the count and `roll-to-hit` reads it | Nothing. The live count of the target's models survives only as `GfAttack.Pushed`'s fallback for a push that recorded nothing, which is every melee push |
+| 4 | Catalog kinds and aggregation for the core rules no spec fixes | `Entrenched` is `any`, the loosest reading. `Fast`/`Slow`/`Flying`/`Strider`/`Immobile`/`Furious`/`Relentless` are `model` with `all`. The per-model rules are `none`. `Aircraft`/`Ambush`/`Scout` are `unit` | The document changes and the hash with it. `all` is `Entrenched`'s alternative. `none` is not available, since a per-model instance would add its −2 once per entrenched model to a unit-pooled hit roll. The three `unit` readings now decide more than where import writes the name: such an entry on a model slot is the whole unit's rule, so one joined hero with `Ambush` sets the squad aside (question 13) |
 | 5 | May generic `Effects/` know the two weapon stat names? | Yes, while OPR is the only ruleset. `StatReader` reads `"Range"` and `"Attacks"`, whitelisted by the constraint test | `IGameRules` gains `StatRef RangeStat` and `StatRef AttacksStat` and `StatReader` takes them |
-| 6 | One sealed `Bid` legal set for every team? | Yes. The largest team maximum goes in the Ask, and the step clamps per team | `Bid` needs a per-team map, which is a Protocol change, or one sealed Ask per team with the engine holding answers until the last closes, which the dispatcher does not do |
+| 6 | One sealed `TokenSpend` legal set for every team? | Yes. The largest team maximum goes in the Ask, and the step clamps per team | `TokenSpend` needs a per-team map, which is a Protocol change, or one sealed Ask per team with the engine holding answers until the last closes, which the dispatcher does not do |
 | 7 | `Sniper`'s per-model target | Not modelled. A Sniper group resolves first at Quality 2+ against the target unit | A model-grain `PieceSelection` per Sniper model, and `AttackInteraction` over one model as a unit of 1. That is the path a model-grain spell takes. About a task of work |
-| 8 | Confirm gates and the actor | The `Confirm` Ask goes to the acting unit's team. An actor-less frame is never gated | The gate becomes one Ask per team and waits for all, and `SequenceInterpreter.Advance` gates position 0 for actor-less frames too. About ten lines here, plus the scheduler reading the roll-off order only after the gate closes. As assumed, the roll-off's dice are never editable and undo re-rolls the same dice |
-| 9 | Can a unit embark into an enemy's transport, or an occupant target its own container? | The narrow reading for the offer, the faithful one for the predicate. `ContainersInReach` lists friendly containers only. `InsideReach` implements p.14 as written, leaving the clause latent | For a captured building or two armies in one container, nothing changes. To forbid it, `InsideReach` returns false for two units on the same team and the clause disappears |
-| 10 | May a caster inside a container cast? | Yes, at what is in there with it, but unmodified. `BidCapacity` is positional on both ends, so such a cast draws no bids and resolves at a flat 4+ | `ReactionsAt` and `GfCasting.Casters` go back to `LivingModels` and two lines disappear. Either way the model-grain edge stays open |
+| 8 | Confirm gates and the actor | **Closed 2026-09-06 by the owner, overturning the assumption for the actorless case:** the gate still goes to the acting unit's team where there is one, and a frame with no actor and no parent is gated at every boundary past position 0 whatever the wait setting, by one unsealed `Confirm` Ask to every team. The roll-off is the only such frame; it gained an `order` step for the gate to sit on, and its dice are editable from the menu like any other roll | Residue rather than a reopening: a root frame *with* an actor and one step, which is the end-of-turn `morale-test`, pops before any boundary can gate it, so that die is unreachable once the frame is gone. Gating a root frame's terminal boundary would close that too, at the price of a confirm after every morale test |
+| 9 | Can a unit embark into an enemy's transport, or an occupant target its own container? | **Closed 2026-09-06 by the owner, as assumed and as a rule:** a unit cannot enter an enemy transport, and only friendly containers are offered. `ContainersInReach` lists friendly containers only. p.14's *target the Transport itself* is consequently unreachable, since valid targets are enemies and a unit's own container is friendly | Nothing. `InsideReach` keeps p.14's predicate as written, which only a menu-written state reaches |
+| 10 | May a caster inside a container cast? | Yes, at what is in there with it, but unmodified. `SpendCapacity` is positional on both ends, so such a cast draws no tokens and resolves at a flat 4+ | `ReactionsAt` and `GfCasting.Casters` go back to `LivingModels` and two lines disappear. Either way the model-grain edge stays open |
 | 11 | Where does the disembark radius come from, and is it edge to edge? | `GfNames.ExitWithin = 6` for every container, edge to edge from its base, so the region is the footprint grown by 6 inches | Nothing else changes. `Containment.BaseFullyWithin` is the only place the number is applied |
-| 12 | A survivor with nowhere legal to stand | Shelved. The container is removed in the same step, so `Inside` would dangle | Leaving them inside a removed container or auto-placing them needs a rule the rulebook does not give |
+| 12 | A survivor with nowhere legal to stand | **Closed 2026-09-06 by the owner, overturning the assumption:** destroyed. `PlaceSurvivorsStep` writes the casualty changes `assign` writes, and reports `Values["destroyed"]` | Nothing. The rulebook does not cover the case, so removal is a ruling rather than a reading |
+| 13 | A joined hero's quality and defence, and a `unit`-kind entry on its slot | The squad's quality and defence. `Quality` and `Defense` are declared at `model` level so the hero's `slot_stat` rows are declared ones, and `StatReader.TargetNumber` resolves `StatLevel.Unit` only, throwing for any other level. `Hero`'s own clause makes the unit's defence the book's answer, and a defence roll is thrown before any wound is assigned to a model. A `unit`-kind entry on a model slot is the unit's rule in both readers, so one joined hero with `Ambush` sets the whole squad aside | For quality: `GfRolls.HitPlan` takes the attacking models and emits one roll per distinct model-level `Quality`, falling back to the unit's. About a task, and `RollRecord` becomes per-quality rather than per-group everywhere the log is read. For the entry: answering false in both readers, which makes a joined hero's own `Ambush` and `Scout` do nothing and applies `Aircraft`'s effect rows nowhere. `Hero`'s *until all other models have been killed* stays unimplemented either way |
+| 14 | Who chooses which eligible model pays a team's token spend? | The server, nearest the caster first. p.13's test is per model, the Ask is one number per team, and `GfCasting.EligibleSpenders` answers both the team's maximum and its payers, so no model out of range or without a sight line either raises the maximum or pays. The count is all the roll needs, since the modifier is ±1 per token spent | The player picks the payers: an `Allocation` legal set over the team's eligible models, which is a Protocol change and a second decision at every cast, or one sealed Ask per eligible model, for which the dispatcher has no group. Until then a spend can take the tokens a player was holding for that model's own spell |
 
 ### Deferred
 

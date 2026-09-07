@@ -239,7 +239,7 @@ rulebook. The interpreter is a **resolution stack**: frames rebuilt from the log
 action record, never stored; a step completes, **asks** a team for input against a
 server-computed legal set, **pushes** a nested sequence, or **opens a window** — an Ask about
 interrupting, offered to other teams or invoked by the actor (casting can checkpoint a move
-mid-path). One sealed-simultaneous window variant exists for casting's token bid. One roll
+mid-path). One sealed-simultaneous window variant exists for casting's simultaneous token spend. One roll
 primitive: the engine owns the seeded RNG, per-die raw and modified results, and the effect
 grammar's two passes in `ordinal` order; `GameRules` supplies each roll's dice convention,
 threshold derivation and modifier cap. Grimdark Future's shooting and melee are **one
@@ -394,7 +394,7 @@ assets load at runtime through `GLTFDocument` into a content-addressed disk cach
 the shared library and **Godot physics is not in the scene**. Dragging streams `held` presence
 and drops one move command; **moving shows its distance** as a ruler per model with the remaining
 allowance, drawn for other participants from presence against the start they already hold. One
-Ask panel renders whatever is addressed to the player's team, with per-player mutes, sealed bids
+Ask panel renders whatever is addressed to the player's team, with per-player mutes, sealed token spends
 and confirm gates in the same place. The log panel is undo-to-here; the right-click menu is
 where every property is editable, with no admin mode. **No social login**: email plus password
 or email one-time code through management, and the client has its own login screen, which

@@ -4,7 +4,7 @@
 
 **Goal:** Build the scheduler in `server/game/`: the two shapes behind one interface selected by `game.scheduler_shape`, the turn as an Ask, deployment as the phase before round one after a logged roll-off, the round boundary — which a player ends, ruled 2026-09-06 — and its hooks, reaction ordering, and every hook `GameRules` supplies for Grimdark Future — all state rebuilt from the log, carried by `round_started`, `turn_started`, `turn_ended` and `phase_started`.
 
-**Architecture:** `IScheduler.Advance(GameState)` is the scheduler's side of the one shared `IRulesEngine`; it reads `state.Projection` and the effective log on every call, never holds state of its own, and returns payloads the session appends. A shared `SchedulerBase` runs the phases before round one (alternating, one unit a turn), the round boundary (a player's `end_round` answer, then the first-team policy, roll-off, `round_started`, the interactive boundary hook) and one *activation cycle* (Ask → answer → activation → sequence → end-of-turn hook → `turn_ended`); `AlternatingActivationScheduler` and `PlayerTurnScheduler` differ only in what happens after a cycle completes and in when the action record clears. Everything ruleset-specific is a member added to `IGameRules` and implemented on `GrimdarkFutureRules`. **Reconciled with the interpreter plan 2026-09-05:** the scheduler implements the interpreter plan's seam `Tabletop.GameServer.Engine.IScheduler { Advance(GameState, ISequenceStarter) }` and `Engine.ISchedulerFactory { Create(IGameRules, GameInfo, PropertySet) }`; the one `IRulesEngine` is the interpreter plan's `Engine.RulesEngine`, which calls the scheduler when no framed Ask is open and the resolution stack is empty. The scheduler starts sequences — the declared action's, the end-of-turn ones, the roll-off — through `ISequenceStarter.Start`, reads the pinned `PropertySet` for the action rows' names and hands it to the three `IGameRules` hooks the interpreter plan declares (`OnRoundStarted`, `EndOfTurnSequences`, `OnTurnEnded`), and reads the roll-off's result from its `step_completed.Values`. It defines no `RulesEngine`, no interpreter interface and no roll primitive of its own.
+**Architecture:** `IScheduler.Advance(GameState)` is the scheduler's side of the one shared `IRulesEngine`; it reads `state.Projection` and the effective log on every call, never holds state of its own, and returns payloads the session appends. A shared `SchedulerBase` runs the phases before round one (alternating, one unit a turn), the round boundary (a player's `end_round` answer, then the first-team policy, roll-off, `round_started`, the interactive boundary hook) and one *activation cycle* (Ask → answer → activation → sequence → end-of-turn hook → `turn_ended`); `AlternatingActivationScheduler` and `PlayerTurnScheduler` differ only in what happens after a cycle completes and in when the action record clears. Everything ruleset-specific is a member added to `IGameRules` and implemented on `GrimdarkFutureRules`. **Reconciled with the interpreter plan 2026-09-05:** the scheduler implements the interpreter plan's seam `Tabletop.GameServer.Engine.IScheduler { Advance(GameState, ISequenceStarter) }` and `Engine.ISchedulerFactory { Create(IGameRules, GameInfo, PropertySet) }`; the one `IRulesEngine` is the interpreter plan's `Engine.RulesEngine`, which calls the scheduler when no framed Ask is open and the resolution stack is empty. The scheduler starts sequences — the declared action's, the end-of-turn ones, the roll-off — through `ISequenceStarter.Start`, reads the pinned `PropertySet` for the action rows' names and hands it to the three `IGameRules` hooks the interpreter plan declares (`OnRoundStarted`, `EndOfTurnSequences`, `OnTurnEnded`), and reads the roll-off's result from its `step_completed.Values` — after the confirm gate the interpreter now holds that frame behind, ruled 2026-09-06, so the roll-off spans dispatches and the reader waits across them. It defines no `RulesEngine`, no interpreter interface and no roll primitive of its own.
 
 **Tech Stack:** .NET 10 (`net10.0`, C# 12), xUnit 2.9.3, the skeleton's `InMemoryEventLog`, `EventApplier` and `CommandDispatcher`; the Docker Postgres for one end-to-end test.
 
@@ -19,7 +19,7 @@
 - **The round does not advance on its own. A player ends it** — ruled by the project owner 2026-09-06, to avoid an accidental auto-advance. Under both shapes the scheduler reaches the end of a round, opens one unframed Ask (question `AskQuestions.EndRound`, `Confirmation`, `AllowPass` false) addressed to every team that has a participant, and waits; the first answer to it is what emits the next round's `round_started`. Nothing else about the boundary moves: `round_started` still carries `OnRoundStarted`'s changes, `RoundBoundaryStep` still runs after it, and deployment's phases and its flip into round one are untouched (Task 5).
 - Only OPR's `GameRules` is built: `GrimdarkFutureRules`, id `grimdark-future`, runs under both shapes. 40k is a constraint on the interface, tested through a fake `IGameRules`, never implemented.
 - The engine never appends or broadcasts; it returns payloads, and never emits `ask_answered` or an `ask_closed` for an answer — the dispatcher does. The one exception, named in the skeleton (→ Interfaces needed 2) and reserved for the scheduler: an unframed Ask of its own that a menu edit (`set_active_team`, `set_round`) superseded is closed with an **empty** answer list, because the dispatcher only closes Asks that carry a `FrameId`.
-- Enumeration, not validation: legality is the Ask's legal set; an out-of-set answer that reaches the scheduler under `warn`/`silent` is acted on as if legal (scheduler → Enforcement).
+- Enumeration, not validation: legality is the Ask's legal set; an out-of-set answer that reaches the scheduler under `warn`/`silent` is acted on as if legal (scheduler → Enforcement). **An answer the ruleset cannot read follows the same dial** — ruled 2026-09-06 (question 3): the dispatcher refuses it under `strict`, and under `warn`/`silent` it is logged (with a warning under `warn`) and read as a pass. Both decisions are `EnforcementPolicy.Decide` over `Legality.OutsideLegalSet` in `CommandDispatcher.Answer`, so the unreadable case and the out-of-set case are one rule and not two (Task 4).
 - Identifiers are `Guid.CreateVersion7()`. One world unit = one inch. C# only.
 - Tests: xUnit, headless, over `InMemoryEventLog`/`EventApplier` and the real `RulesEngine` driven through the interpreter plan's `Sim` with a queue-fed `IDiceSource` and `FakeRules` (Grimdark Future's hooks, empty action sequences, so an activation's frame finishes at once); both shapes tested for two teams and for N teams of one; one socket end-to-end test against the Docker Postgres (collection `Postgres`).
 - Commit after every task, one-line imperative message, with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
@@ -31,6 +31,7 @@
 ```
 server/game/
   Rules/IGameRules.cs                               modified: the scheduler's hook members, added beside the interpreter plan's
+  Dispatch/CommandDispatcher.cs                     modified: Answer probes a turn answer's readability, so the dial decides an unreadable one (Task 4)
   Rules/GrimdarkFuture/GfRules.Scheduling.cs        this plan's partial of the skeleton's GrimdarkFutureRules: phases, first team, activatable units and their actions, answer reading
   Rules/GrimdarkFuture/GfRules.Deployment.cs        deploy and scout legal sets, the Ambusher round-boundary loop
   Program.cs                                        modified: SchedulerFactory registered as Engine.ISchedulerFactory in place of NoSchedulerFactory
@@ -38,7 +39,7 @@ server/game/
   Scheduler/ActivationOption.cs                     the activate option id: "{unitId:N}/{action}"
   Scheduler/TeamUnits.cs                            which units are a team's, through the participant; shelf and table checks
   Scheduler/SchedulerLog.cs                         effective-log slices: since round, since phase, since turn; scheduler Asks
-  Scheduler/RollOff.cs                              starts the ruleset's roll-off sequence through the interpreter and reads the order back from its Values
+  Scheduler/RollOff.cs                              starts the ruleset's roll-off sequence through the interpreter and reads the order back from its Values once the frame has finished
   Scheduler/TurnCycle.cs                            one activation cycle read from the log and driven forward
   Scheduler/SchedulerBase.cs                        Engine.IScheduler: phases before round one, the round boundary, next team, the shared Advance
   Scheduler/AlternatingActivationScheduler.cs
@@ -67,9 +68,9 @@ CLAUDE.md                                           modified: one Layout child b
 
 **Interfaces:**
 - Consumes: `GameState` (skeleton); `Ask`, `LegalSet`, `AskAnswer`, `StateChange`, `EventPayload`, `GameEvent`, `EventApplier.EffectiveLog`, `SequenceContext`, `AskQuestions`, `AskOpened`, `AskClosed`, `RoundStarted`, `TurnStarted`, `TurnEnded`, `PhaseStarted` (Protocol); `SequenceStart` (interpreter plan Task 8, `Tabletop.GameServer.Rules` — a record with no other dependency; add it from that plan if it has not landed). The scheduler's side of the engine is the interpreter plan's `Engine.IScheduler` (its Task 10), not a type of this plan's.
-- Produces (namespace `Tabletop.GameServer.Scheduler`): `sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass)`; `sealed record Activation(Guid UnitId, string Action, bool RunsSequence, IReadOnlyList<StateChange> Changes)`; `sealed record TurnContext(Guid TeamId, Activation? Activation, long AnsweredAtSeq, long ActivationEndedAtSeq)`; `abstract record HookResult` with `HookDone`, `HookWaiting`, `HookEmit(IReadOnlyList<EventPayload> Events)`, `HookStartSequences(IReadOnlyList<SequenceStart> Sequences)`; `abstract record FirstTeamDecision` with `OrderedTeams(IReadOnlyList<Guid> Order)` and `RollOffNeeded(string Sequence)` (the ruleset sequence that decides the order — OPR's `GfNames.RollOffSeq`; Task 3 starts it and reads its result); `static class ActivationOption { const string Idle = "Idle"; string Id(Guid unitId, string action); bool TryParse(string id, out Guid unitId, out string action); AskOption For(UnitInPlay unit, string action); }`; `sealed class SchedulerLog` with `static SchedulerLog Of(GameState state)`, `IReadOnlyList<GameEvent> Effective`, `long LastSeq`, `GameEvent? Last(Func<EventPayload, bool> match)`, `IReadOnlyList<GameEvent> After(long seq)`, `long RoundStartedAt`, `long PhaseStartedAt`, `long TurnStartedAt`, `long RotationStartAt` (the later of round and phase start), `IReadOnlyList<GameEvent> SinceRound`, `IReadOnlyList<GameEvent> SinceRotation`, `IReadOnlyList<GameEvent> SinceTurn`, `long CycleStartAt`, `IReadOnlyList<GameEvent> SinceCycle`, `static bool IsSchedulerAsk(Ask ask)`, `(AskOpened Opened, long OpenedAt, AskClosed? Closed, long ClosedAt)? LastSchedulerAsk(IReadOnlyList<GameEvent> slice)`, `IReadOnlyDictionary<Guid, long> LastTurnEndedByTeam(IReadOnlyList<GameEvent> slice)`, `Guid? LastTurnEndedTeam(IReadOnlyList<GameEvent> slice)`.
+- Produces (namespace `Tabletop.GameServer.Scheduler`): `sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass)`; `sealed record Activation(Guid UnitId, string Action, bool RunsSequence, IReadOnlyList<StateChange> Changes)`; `sealed record TurnContext(Guid TeamId, Activation? Activation, long AnsweredAtSeq, long ActivationEndedAtSeq)`; `abstract record HookResult` with `HookDone`, `HookWaiting`, `HookEmit(IReadOnlyList<EventPayload> Events)`, `HookStartSequences(IReadOnlyList<SequenceStart> Sequences)`; `abstract record FirstTeamDecision` with `OrderedTeams(IReadOnlyList<Guid> Order)` and `RollOffNeeded(string Sequence)` (the ruleset sequence that decides the order — OPR's `GfNames.RollOffSeq`; Task 3 starts it and reads its result); `static class ActivationOption { const string Idle = "Idle"; string Id(Guid unitId, string action); bool TryParse(string id, out Guid unitId, out string action); AskOption For(UnitInPlay unit, string action); }`; `sealed class SchedulerLog` with `static SchedulerLog Of(GameState state)`, `IReadOnlyList<GameEvent> Effective`, `long LastSeq`, `GameEvent? Last(Func<EventPayload, bool> match)`, `IReadOnlyList<GameEvent> After(long seq)`, `long RoundStartedAt`, `long PhaseStartedAt`, `long TurnStartedAt`, `long RotationStartAt` (the later of round and phase start), `IReadOnlyList<GameEvent> SinceRound`, `IReadOnlyList<GameEvent> SinceRotation`, `IReadOnlyList<GameEvent> SinceTurn`, `long CycleStartAt`, `IReadOnlyList<GameEvent> SinceCycle`, `static bool IsSchedulerAsk(Ask ask)`, `static bool IsTurnAsk(Ask ask)` (the four turn questions `TurnCycle` reads an answer for, which is the scope of the readability check `CommandDispatcher.Answer` gains in Task 4), `(AskOpened Opened, long OpenedAt, AskClosed? Closed, long ClosedAt)? LastSchedulerAsk(IReadOnlyList<GameEvent> slice)`, `IReadOnlyDictionary<Guid, long> LastTurnEndedByTeam(IReadOnlyList<GameEvent> slice)`, `Guid? LastTurnEndedTeam(IReadOnlyList<GameEvent> slice)`.
 
-Spec: scheduler → The line (generic component, hooks), State (rebuilt from the log), The turn is an Ask (the answer names a unit and an action; the Ask is the interpreter's Ask type; `FrameId = null` per the contracts plan's `Ask` doc-comment), Events. A scheduler Ask is one whose `FrameId` is null and whose question is one of the engine-owned `AskQuestions` the scheduler issues: `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`. `EndRound` is the round boundary's, ruled 2026-09-06 (Task 5); it is a scheduler Ask for the same reason the others are — a menu edit that supersedes it closes it with no answers, and only `IsSchedulerAsk` finds it. The option id convention `"{unitId:N}/{action}"` exists so an out-of-set `Chosen` under `warn`/`silent` still names a unit and an action (scheduler → Enforcement).
+Spec: scheduler → The line (generic component, hooks), State (rebuilt from the log), The turn is an Ask (the answer names a unit and an action; the Ask is the interpreter's Ask type; `FrameId = null` per the contracts plan's `Ask` doc-comment), Events. A scheduler Ask is one whose `FrameId` is null and whose question is one of the engine-owned `AskQuestions` the scheduler issues: `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`. The first four are also the *turn* questions, `IsTurnAsk`: the ones whose answer goes through `ReadAnswer`, and so the ones the dispatcher probes for readability under the enforcement dial (Task 4, question 3 ruled 2026-09-06). `EndRound` is the round boundary's, ruled 2026-09-06 (Task 5); it is a scheduler Ask for the same reason the others are — a menu edit that supersedes it closes it with no answers, and only `IsSchedulerAsk` finds it. The option id convention `"{unitId:N}/{action}"` exists so an out-of-set `Chosen` under `warn`/`silent` still names a unit and an action (scheduler → Enforcement).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -155,6 +156,9 @@ public class SchedulerLogTests
         Assert.False(SchedulerLog.IsSchedulerAsk(Framed(AskA, Samples.Team1)));
         Assert.False(SchedulerLog.IsSchedulerAsk(Activate(AskA, Samples.Team1) with { Question = "shoot_or_not" }));
         Assert.True(SchedulerLog.IsSchedulerAsk(EndRound(AskB, [Samples.Team1, Samples.Team2])));                        // the round boundary's own Ask (Task 5 emits it)
+        Assert.True(SchedulerLog.IsTurnAsk(Activate(AskA, Samples.Team1)));
+        Assert.False(SchedulerLog.IsTurnAsk(EndRound(AskB, [Samples.Team1])));                                           // a confirmation, not a turn: ReadAnswer is not asked about it (Task 4)
+        Assert.False(SchedulerLog.IsTurnAsk(Framed(AskA, Samples.Team1)));
         var log = SchedulerLog.Of(State(new TurnStarted(Samples.Team1),
             new AskOpened(Activate(AskA, Samples.Team1)), new AskAnswered(AskA, Samples.Team1, new Passed(), false),
             new AskClosed(AskA, [new TeamAnswer(Samples.Team1, new Passed())]), new AskOpened(Framed(AskB, Samples.Team1))));
@@ -254,7 +258,8 @@ namespace Tabletop.GameServer.Scheduler;
 /// <summary>The effective log (undone ranges removed) cut at the scheduler's anchors. Built afresh every call; nothing is cached across calls.</summary>
 public sealed class SchedulerLog
 {
-    static readonly HashSet<string> Questions = [AskQuestions.Activate, AskQuestions.ActOrEndPhase, AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.EndRound];
+    static readonly HashSet<string> TurnQuestions = [AskQuestions.Activate, AskQuestions.ActOrEndPhase, AskQuestions.Deploy, AskQuestions.DeployScouts];
+    static readonly HashSet<string> Questions = [..TurnQuestions, AskQuestions.DeployAmbusher, AskQuestions.EndRound];
 
     private SchedulerLog(IReadOnlyList<GameEvent> effective) { Effective = effective; }
 
@@ -279,6 +284,9 @@ public sealed class SchedulerLog
 
     /// <summary>An Ask the scheduler issued: unframed, and one of the engine questions it owns.</summary>
     public static bool IsSchedulerAsk(Ask ask) => ask.FrameId is null && Questions.Contains(ask.Question);
+
+    /// <summary>A scheduler Ask whose answer TurnCycle reads through IGameRules.ReadAnswer: the activate and deploy questions. The Ambusher Ask is read by RoundBoundaryStep and the boundary Ask is a confirmation, so neither is one.</summary>
+    public static bool IsTurnAsk(Ask ask) => ask.FrameId is null && TurnQuestions.Contains(ask.Question);
 
     public (AskOpened Opened, long OpenedAt, AskClosed? Closed, long ClosedAt)? LastSchedulerAsk(IReadOnlyList<GameEvent> slice)
     {
@@ -761,10 +769,10 @@ public sealed partial class GrimdarkFutureRules
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/ScriptedStarter.cs`, `tests/Tabletop.GameServer.Tests/RollOffTests.cs`
 
 **Interfaces:**
-- Consumes: `ISequenceStarter.Start` (interpreter plan Task 8); `SchedulerLog` (Task 1); `SequenceStarted`, `StepCompleted` (with `Values`), `SequenceFinished`, `SequenceAbandoned`, `SequenceContext` (Protocol); `GameInfo.Teams` (`Team.Ordinal`). The roll-off sequence itself is the interpreter plan's `GfRolls.RollOffSequence` (its Task 11): one die per team in ordinal order, ties rerolled among the tied until every team is ordered, `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]` — team ordinals, best first. This plan rolls no dice.
-- Produces: `static class RollOff` with `abstract record Progress` and `Emit(IReadOnlyList<EventPayload> Events)`, `Waiting`, `Resolved(IReadOnlyList<Guid> Order)`; `static Progress Advance(GameState state, SchedulerLog log, string sequence, ISequenceStarter starter)`; `static IReadOnlyList<Guid> Order(GameState state, StepCompleted? step)`. Test infrastructure `ScriptedStarter : ISequenceStarter` with `List<(string Sequence, SequenceContext Context)> Started` (records and emits one `sequence_started`, validating nothing — for the `TurnCycle` and `RollOff` unit tests; the harness in Task 5 uses the real interpreter).
+- Consumes: `ISequenceStarter.Start` (interpreter plan Task 8); `SchedulerLog` (Task 1); `SequenceStarted`, `StepCompleted` (with `Values`), `SequenceFinished`, `SequenceAbandoned`, `SequenceContext` (Protocol); `GameInfo.Teams` (`Team.Ordinal`). The roll-off sequence itself is the interpreter plan's `GfRolls.RollOffSequence` (its Task 11): two steps, `GfNames.RollOffRollStep` (`"roll-off"`) — one die per team in ordinal order, ties rerolled among the tied until every team is ordered — and `GfNames.RollOffOrderStep` (`"order"`), which ranks them and carries `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]`, team ordinals best first. The confirm gate sits between the two. This plan rolls no dice and names neither step: it takes the frame's last completed step carrying `place_1`.
+- Produces: `static class RollOff` with `abstract record Progress` and `Emit(IReadOnlyList<EventPayload> Events)`, `Waiting`, `Resolved(IReadOnlyList<Guid> Order)`; `static Progress Advance(GameState state, SchedulerLog log, string sequence, ISequenceStarter starter)`; `static IReadOnlyList<Guid> Order(GameState state, StepCompleted? step)`. Every branch is read from the effective log — `Waiting` is *no `sequence_finished` for the started frame*, not *the frame is on `Projection.Stack`* — so the reader answers the same way whoever calls it and however the engine's ladder routes a gated frame. Test infrastructure `ScriptedStarter : ISequenceStarter` with `List<(string Sequence, SequenceContext Context)> Started` (records and emits one `sequence_started`, validating nothing — for the `TurnCycle` and `RollOff` unit tests; the harness in Task 5 uses the real interpreter).
 
-Spec: scheduler → Deployment ("The roll-off is the roll primitive with no threshold — one die per team, raw results compared, ties rerolled among the tied"; "an ordinary sequence on the roll primitive, logged"), Events (replay applies `round_started.Order`; the roll-off is never re-derived on replay). Page 6: "the players roll-off and the winner must start deploying"; page 49: "starting with the player that got the highest score, and then alternating in descending order". The scheduler starts the sequence `FirstTeamDecision.RollOffNeeded` names with no actor, is not called again while its frame is on the stack (`RulesEngine.Advance` runs the interpreter first), and on the next call finds the finished frame since the round anchor and reads its `place_k` values into the order. A frame with no actor is never confirm-gated (interpreter plan Task 8, question 9), so the roll-off finishes in one interpreter step under either wait setting; a roll-off abandoned from the menu is started again. Spec correction 9 records what this means for editing its dice.
+Spec: scheduler → Deployment ("The roll-off is the roll primitive with no threshold — one die per team, raw results compared, ties rerolled among the tied"; "an ordinary sequence on the roll primitive, logged"), Events (replay applies `round_started.Order`; the roll-off is never re-derived on replay). Page 6: "the players roll-off and the winner must start deploying"; page 49: "starting with the player that got the highest score, and then alternating in descending order". The scheduler starts the sequence `FirstTeamDecision.RollOffNeeded` names with no actor and reads its `place_k` values into the order on a later call. **The roll-off is gated like any other roll — ruled 2026-09-06 (question 7), and the interpreter plan has landed its half.** `GfRolls.RollOffSequence` is two steps, `roll-off` then `order`; the boundary between them is an unsealed `Confirm` Ask to every team, opened whatever the wait setting says, because the frame has no actor and no parent (interpreter plan Task 8, `GateTeams`; its question 8 and its Interfaces needed 4). So the roll-off spans three dispatches rather than one batch: the one that starts the sequence and rolls, the confirm — with any number of `SetDice` edits before it, which is the point of the gate — and the `Advance` after `sequence_finished` that writes `round_started`. The `order` step ranks the dice that stand at the confirm, so the edit decides the order without anything rewriting a logged `step_completed`. The reader carries nothing between the three and re-derives its answer from the log every time: `Advance` keys `Resolved` on `sequence_finished`, never on the presence of a `step_completed`, and hands `Order` the frame's last completed step **that carries `place_1`**, which is the `order` step and never the `roll-off` step. A roll-off abandoned from the menu is started again.
 
 - [ ] **Step 1: Write `ScriptedStarter.cs`**
 
@@ -801,8 +809,11 @@ namespace Tabletop.GameServer.Tests;
 public class RollOffTests
 {
     static TestGames.Built Three() => TestGames.Build([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1), TestArmies.Build("C", 1, 1)]);
+    /// <summary>The ranking step, which runs after the gate and carries the values (GfNames.RollOffOrderStep).</summary>
     static StepCompleted Places(Guid frame, params int[] ordinals) =>
-        new(frame, "roll-off", null, [], []) { Values = ordinals.Select((o, i) => ($"place_{i + 1}", o)).Append(("winner_ordinal", ordinals[0])).ToDictionary(x => x.Item1, x => x.Item2) };
+        new(frame, GfNames.RollOffOrderStep, null, [], []) { Values = ordinals.Select((o, i) => ($"place_{i + 1}", o)).Append(("winner_ordinal", ordinals[0])).ToDictionary(x => x.Item1, x => x.Item2) };
+    /// <summary>The rolling step, which carries dice and no values: the reader must not mistake it for the ranking (GfNames.RollOffRollStep).</summary>
+    static StepCompleted Rolled(Guid frame) => new(frame, GfNames.RollOffRollStep, null, [], []);
     static SchedulerLog Log(TestGames.Built g) => SchedulerLog.Of(g.State);
 
     [Fact]
@@ -831,7 +842,7 @@ public class RollOffTests
         var g = Three(); var t = g.Teams; var starter = new ScriptedStarter();
         var frame = Guid.CreateVersion7();
         TestGames.Apply(g, new SequenceStarted(frame, GfNames.RollOffSeq, new SequenceContext(null, [], [], null)));
-        Assert.IsType<RollOff.Waiting>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));   // the interpreter has not finished it (RulesEngine would not call us here)
+        Assert.IsType<RollOff.Waiting>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));   // started and unfinished: the whole interval a confirm gate holds
         TestGames.Apply(g, Places(frame, 3, 1, 2), new SequenceFinished(frame));
         Assert.Equal([t[2], t[0], t[1]], Assert.IsType<RollOff.Resolved>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter)).Order);
         TestGames.Apply(g, new RoundStarted(0, [t[2], t[0], t[1]], []));
@@ -840,6 +851,21 @@ public class RollOffTests
         TestGames.Apply(g, new SequenceStarted(again, GfNames.RollOffSeq, new SequenceContext(null, [], [], null)), new SequenceAbandoned(again));
         Assert.IsType<RollOff.Emit>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));      // abandoned from the menu: start over
         Assert.Equal(3, starter.Started.Count);
+    }
+
+    [Fact]
+    public void A_gated_roll_off_waits_behind_its_confirm_and_resolves_from_the_ranking_step_when_the_frame_finishes()
+    {
+        var g = Three(); var t = g.Teams; var starter = new ScriptedStarter();
+        var frame = Guid.CreateVersion7();
+        var gate = new Ask(Guid.CreateVersion7(), AskQuestions.Confirm, "Confirm", g.Teams, new Confirmation(), false, false, null, frame);
+        TestGames.Apply(g, new SequenceStarted(frame, GfNames.RollOffSeq, new SequenceContext(null, [], [], null)), Rolled(frame), new AskOpened(gate));
+        Assert.IsType<RollOff.Waiting>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));    // rolled, and the gate holds the frame with the dice editable
+        TestGames.Apply(g, new AskClosed(gate.Id, [new TeamAnswer(t[0], new Confirmed())]), Places(frame, 3, 1, 2));
+        Assert.IsType<RollOff.Waiting>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));    // confirmed and ranked, but the frame has not finished: still nothing to read
+        TestGames.Apply(g, new SequenceFinished(frame));
+        Assert.Equal([t[2], t[0], t[1]], Assert.IsType<RollOff.Resolved>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter)).Order);   // the ranking step, not the rolling one
+        Assert.Empty(starter.Started);                                                                    // waiting starts nothing, so no second roll-off is ever begun
     }
 }
 ```
@@ -858,50 +884,59 @@ namespace Tabletop.GameServer.Scheduler;
 /// interpreter like any other. The scheduler starts it with no actor and, once its frame has finished, reads the descending order
 /// from its step_completed.Values place_1..place_n — team ordinals, best first (scheduler → Deployment; p.49). Replay applies
 /// round_started.Order and never reads the values again.
+/// It is confirm-gated like any other roll (ruled 2026-09-06): the sequence is two steps, and the boundary before the second is an
+/// every-team Confirm the interpreter opens whatever the wait setting says, so the frame stays open with its dice editable and the
+/// order is read only once sequence_finished stands. Waiting is that whole interval. The values live on the step that carries
+/// place_1 — the ranking step, which runs after the gate — so an edited die decides the order and no logged step is ever rewritten.
 /// </summary>
 public static class RollOff
 {
+    /// <summary>The one key convention between a ruleset's roll-off and this reader: place_1..place_n, team ordinals best first (interfaces needed 5). It also identifies the ranking step among the frame's completed steps.</summary>
+    static string Place(int k) => $"place_{k}";
+
     public abstract record Progress;
     public sealed record Emit(IReadOnlyList<EventPayload> Events) : Progress;
     public sealed record Waiting : Progress;
     public sealed record Resolved(IReadOnlyList<Guid> Order) : Progress;
 
-    /// <summary>Since the last round_started (the whole log before the first): no roll-off → start one; live → wait; abandoned → start again; finished → its order.</summary>
+    /// <summary>Since the last round_started (the whole log before the first): no roll-off → start one; abandoned → start again; started and unfinished → wait, which is where a confirm gate holds it; finished → its order.</summary>
     public static Progress Advance(GameState state, SchedulerLog log, string sequence, ISequenceStarter starter)
     {
         var since = log.SinceRound.Select(e => e.Payload).ToList();
         var started = since.OfType<SequenceStarted>().LastOrDefault(s => s.Sequence == sequence);
         if (started is null || since.Any(p => p is SequenceAbandoned a && a.FrameId == started.FrameId))
             return new Emit(starter.Start(state, sequence, new SequenceContext(null, [], [], null)));
-        if (state.Projection.Stack.Any(f => f.Id == started.FrameId)) return new Waiting();
-        return new Resolved(Order(state, since.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == started.FrameId)));
+        if (!since.Any(p => p is SequenceFinished f && f.FrameId == started.FrameId)) return new Waiting();
+        return new Resolved(Order(state, since.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == started.FrameId && s.Values?.ContainsKey(Place(1)) is true)));
     }
 
-    /// <summary>place_1..place_n as team ids; ordinals the values do not name (a hand-edited log; the team list itself cannot change after the flip to playing) follow in ordinal order.</summary>
+    /// <summary>place_1..place_n as team ids; ordinals the values do not name (a hand-edited log; the team list itself cannot change after the flip to playing) follow in ordinal order.
+    /// The step handed in is the frame's last completed step carrying place_1 — the ranking step, which the interpreter runs after the confirm gate, over whatever dice stand then.</summary>
     public static IReadOnlyList<Guid> Order(GameState state, StepCompleted? step)
     {
         var teams = state.Info.Teams.OrderBy(t => t.Ordinal).ToList();
         var placed = new List<Guid>();
-        for (var k = 1; step?.Values is { } values && values.TryGetValue($"place_{k}", out var ordinal); k++)
+        for (var k = 1; step?.Values is { } values && values.TryGetValue(Place(k), out var ordinal); k++)
             if (teams.FirstOrDefault(t => t.Ordinal == ordinal) is { } team && !placed.Contains(team.Id)) placed.Add(team.Id);
         return placed.Concat(teams.Select(t => t.Id).Where(t => !placed.Contains(t))).ToList();
     }
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter RollOff`; expect 3 passed. Commit: `Start the ruleset's roll-off through the interpreter and read the order back`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter RollOff`; expect 4 passed. Commit: `Start the ruleset's roll-off through the interpreter and read the order back`.**
 
 ### Task 4: The activation cycle — Ask, answer, activation, sequence, end-of-turn hook
 
 **Files:**
 - Create: `server/game/Scheduler/TurnCycle.cs`
-- Test: `tests/Tabletop.GameServer.Tests/TurnCycleTests.cs`
+- Modify: `server/game/Dispatch/CommandDispatcher.cs` (the skeleton's, Task 6 there) — `Answer` probes a turn answer's readability, so the enforcement dial decides an unreadable one (ruled 2026-09-06, question 3)
+- Test: `tests/Tabletop.GameServer.Tests/TurnCycleTests.cs`; modify `tests/Tabletop.GameServer.Tests/CommandDispatcherTests.cs` (its `activate` fixture's option id, Step 3)
 
 **Interfaces:**
-- Consumes: `SchedulerLog`, `Activation`, `TurnAsk`, `TurnContext` (Task 1); `IGameRules.LegalTurn/ReadAnswer/ActivationComplete` (Task 2); the interpreter plan's `IGameRules.ActionSequence` (null: no sequence) and `EndOfTurnSequences(state, properties, turn)`, `ISequenceStarter.Start`, `PropertySet`; test infrastructure `ScriptedStarter` (Task 3), `TestProperties.Core`.
-- Produces: `abstract record CycleState` with `NoAsk`, `AskOpen(Ask Ask)`, `PassAnswered(long AnsweredAt)`, `NeedsStart(Activation Activation, long AnsweredAt)`, `Running(Activation Activation, long AnsweredAt, Guid FrameId)`, `WaitingCompletion(Activation Activation, long AnsweredAt)`, `ActivationEnded(Activation Activation, long AnsweredAt, long EndedAt)`; `abstract record CycleStep` with `CycleEmit(IReadOnlyList<EventPayload> Events)`, `CycleWaiting`, `CycleEmpty`, `CyclePassed(TurnContext Turn)`, `CycleComplete(TurnContext Turn)`; `sealed class TurnCycle(PropertySet properties)` with `CycleState Read(GameState state, Guid teamId, SchedulerLog log)` and `CycleStep Step(GameState state, Guid teamId, SchedulerLog log, ISequenceStarter starter, Func<TurnAsk, TurnAsk>? shape = null)`; `static Ask TurnCycle.AskFor(Guid teamId, TurnAsk ask)`.
+- Consumes: `SchedulerLog`, `Activation`, `TurnAsk`, `TurnContext` (Task 1); `IGameRules.LegalTurn/ReadAnswer/ActivationComplete` (Task 2); the interpreter plan's `IGameRules.ActionSequence` (null: no sequence) and `EndOfTurnSequences(state, properties, turn)`, `ISequenceStarter.Start`, `PropertySet`; the skeleton's `LegalSetMembership.Contains`, `Legality`, `Verdict`, `EnforcementPolicy.Decide` and `GameInfo.Enforcement`; test infrastructure `ScriptedStarter` (Task 3), `TestProperties.Core`.
+- Produces: `abstract record CycleState` with `NoAsk`, `AskOpen(Ask Ask)`, `PassAnswered(long AnsweredAt)`, `NeedsStart(Activation Activation, long AnsweredAt)`, `Running(Activation Activation, long AnsweredAt, Guid FrameId)`, `WaitingCompletion(Activation Activation, long AnsweredAt)`, `ActivationEnded(Activation Activation, long AnsweredAt, long EndedAt)`; `abstract record CycleStep` with `CycleEmit(IReadOnlyList<EventPayload> Events)`, `CycleWaiting`, `CycleEmpty`, `CyclePassed(TurnContext Turn)`, `CycleComplete(TurnContext Turn)`; `sealed class TurnCycle(PropertySet properties)` with `CycleState Read(GameState state, Guid teamId, SchedulerLog log)` and `CycleStep Step(GameState state, Guid teamId, SchedulerLog log, ISequenceStarter starter, Func<TurnAsk, TurnAsk>? shape = null)`; `static Ask TurnCycle.AskFor(Guid teamId, TurnAsk ask)`. One modified member: `CommandDispatcher.Answer` computes `Legality` from set membership **and** readability, so an unreadable turn answer follows the dial.
 
-Spec: scheduler → The turn is an Ask (the answer names a unit and an action; the scheduler starts that sequence; the activation is written to the record when the sequence starts, so an abandoned sequence still counts; when the sequence finishes the end-of-turn hook runs, then the turn ends; hand moves are not an answer; passing is a real answer; out-of-set answers proceed as if legal), Deployment (the turn ends when the last model has a placement). Action sequences → End-of-activation hook (a morale sequence the scheduler waits for). Everything is read from the effective log since the last `turn_started` (or a `phase_started` inside the turn, under player-turn phases): the last scheduler Ask, its close, what was written after it, whether the root frame is still on the stack, whether a hook sequence started after the activation ended. An answer that names nothing is treated as a pass (question 3). Under the player-turn shape the same reader serves each activation in the turn, because the *last* scheduler Ask since `turn_started` is always the current cycle's. The round boundary's `end_round` Ask (Task 5) is a scheduler Ask too, but it can never fall in this slice: it is opened only when no turn is open, and the one thing that opens a turn over it — `set_active_team` — logs a `turn_started` that moves `CycleStartAt` past it (and closes it as stale in the same `Advance`). So `TurnCycle` needs no case for it.
+Spec: scheduler → The turn is an Ask (the answer names a unit and an action; the scheduler starts that sequence; the activation is written to the record when the sequence starts, so an abandoned sequence still counts; when the sequence finishes the end-of-turn hook runs, then the turn ends; hand moves are not an answer; passing is a real answer; out-of-set answers proceed as if legal), Deployment (the turn ends when the last model has a placement). Action sequences → End-of-activation hook (a morale sequence the scheduler waits for). Everything is read from the effective log since the last `turn_started` (or a `phase_started` inside the turn, under player-turn phases): the last scheduler Ask, its close, what was written after it, whether the root frame is still on the stack, whether a hook sequence started after the activation ended. **An answer that names nothing follows the enforcement dial** — question 3, ruled 2026-09-06, exactly as an out-of-set answer already did. The decision is one line in `CommandDispatcher.Answer` rather than a branch in `TurnCycle`: the dispatcher already holds `state.Info.Enforcement` and is the only place a refusal can still leave the Ask open, so under `strict` an unreadable answer is refused before `ask_answered` is written, and under `warn`/`silent` it is written (with `OutOfSet = true` under `warn`, which is the warning) and the scheduler reads it as a pass. `TurnCycle.Read` therefore maps `ReadAnswer` returning null to `PassAnswered` whatever the dial says, which is what keeps a rebuilt state independent of a setting a player may since have changed. Under the player-turn shape the same reader serves each activation in the turn, because the *last* scheduler Ask since `turn_started` is always the current cycle's. The round boundary's `end_round` Ask (Task 5) is a scheduler Ask too, but it can never fall in this slice: it is opened only when no turn is open, and the one thing that opens a turn over it — `set_active_team` — logs a `turn_started` that moves `CycleStartAt` past it (and closes it as stale in the same `Advance`). So `TurnCycle` needs no case for it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -920,9 +955,9 @@ public class TurnCycleTests
     static Subject U(Guid id) => new(SubjectKind.Unit, id);
 
     /// <summary>Two teams of two three-model units, everything on the table, round one in progress, team 0's turn started.</summary>
-    static TestGames.Built InRounds(out Guid team, out IReadOnlyList<Guid> units)
+    static TestGames.Built InRounds(out Guid team, out IReadOnlyList<Guid> units, Enforcement enforcement = Enforcement.Warn)
     {
-        var g = TestGames.Build([TestArmies.Build("A", 2, 3), TestArmies.Build("B", 2, 3)]);
+        var g = TestGames.Build([TestArmies.Build("A", 2, 3), TestArmies.Build("B", 2, 3)], enforcement: enforcement);
         foreach (var u in g.State.Projection.Units.Keys.ToList()) TestGames.Apply(g, TestGames.Place(g.State, u));
         TestGames.Apply(g, new RoundStarted(1, g.Teams, []), new PhaseStarted(GfNames.Rounds), new TurnStarted(g.Teams[0]));
         team = g.Teams[0]; units = TeamUnits.Of(g.State, team).Select(u => u.Id).ToList();
@@ -969,7 +1004,11 @@ public class TurnCycleTests
         TestGames.Apply(g, new TurnStarted(team));
         var again = Opened(Step(g, team, Cycle)); TestGames.Apply(g, new AskOpened(again));
         Answer(g, again, team, new Chosen("not-an-option"));
-        Assert.IsType<CyclePassed>(Step(g, team, Cycle));
+        Assert.IsType<CyclePassed>(Step(g, team, Cycle));                                                 // under warn and silent: logged, then read as a pass (ruled 2026-09-06)
+        var strict = InRounds(out var st, out _, Enforcement.Strict);                                      // the same logged answer, in a game since switched to strict
+        var third = Opened(Step(strict, st, Cycle)); TestGames.Apply(strict, new AskOpened(third));
+        Answer(strict, third, st, new Chosen("not-an-option"));
+        Assert.IsType<CyclePassed>(Step(strict, st, Cycle));                                               // the reader does not consult the dial: a rebuilt state cannot depend on a setting a player may have changed since
     }
 
     [Fact]
@@ -1097,7 +1136,7 @@ public sealed class TurnCycle(PropertySet properties)
         var answer = (closed.Answers.FirstOrDefault(a => a.TeamId == teamId) ?? closed.Answers.FirstOrDefault())?.Answer;
         if (answer is null or Passed) return new PassAnswered(closedAt);
         var act = state.Rules.ReadAnswer(state, teamId, answer);
-        if (act is null) return new PassAnswered(closedAt);                                                // names nothing: a pass
+        if (act is null) return new PassAnswered(closedAt);                                                // names nothing: a pass, and under strict the dispatcher refused it, so nothing like this is ever in the log of a strict game
 
         var after = slice.Where(e => e.Seq > closedAt).ToList();
         var started = act.Changes.Count == 0 || act.Changes.Any(c => after.Any(e => e.Payload.Equals(c)));
@@ -1150,7 +1189,25 @@ public sealed class TurnCycle(PropertySet properties)
 
 "The end-of-turn sequences ran" is read from the log as a `sequence_started` after the activation ended, so `EndOfTurnSequences` is called once per turn; an empty answer completes the turn at once. The `Running`/`WaitingCompletion` states are reached only from these unit tests — `RulesEngine.Advance` runs the interpreter while a frame exists and never calls the scheduler then.
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter TurnCycle`; expect 6 passed. Commit: `Drive one activation from Ask to end-of-turn hook by reading the log`.**
+- [ ] **Step 3: Put the enforcement dial in front of an unreadable turn answer.** In the skeleton's `Dispatch/CommandDispatcher.cs`, `Answer` computes one `Legality` from two questions instead of one (ruled 2026-09-06, question 3):
+
+```csharp
+        var inSet = LegalSetMembership.Contains(ask, command.Answer);
+        // An answer to a turn Ask that the ruleset cannot read — an option id that does not parse, a unit the log no longer has —
+        // is outside the legal set as much as an unknown option is, so it takes the same three positions (scheduler plan, question 3).
+        // Passing is a real answer and is never probed; a framed Ask, an Ambusher Ask and the boundary confirmation are not turn Asks.
+        var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
+        var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
+        var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
+        if (verdict is Refuse r) return new Refused(r.Reason, r.Detail);
+        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable) };
+```
+
+The file gains `using Tabletop.GameServer.Scheduler;` for `SchedulerLog`. Nothing else in `Answer` changes, and no signature does: the enforcement setting is already there as `state.Info.Enforcement`, and `ReadAnswer` needs `GameState` and the answering team, which are the arguments the method already has — so there is nothing to thread. `ask_answered.OutsideLegalSet` carries the `warn` warning for both halves, which is what the client already renders. Under `strict` nothing is appended and the Ask stays open, so a client that keeps sending an unreadable answer keeps being refused and the same turn stands; nothing waits on a turn ending, because the round boundary is a player's own Ask (Task 5) and the engine rests while an unframed Ask of the scheduler's is live.
+
+One fixture in the skeleton's `CommandDispatcherTests` moves with it, and must: its `Activate` sample offers the option id `"a"`, which is in its legal set and unreadable, so under `strict` it would now be refused where that file expects `Applied`. Give the sample a real activation option id — `new Options([new AskOption(Samples.Unit.ToString("N") + "/Advance", "Advance", [Samples.Unit])])` — and let the two `new Chosen("a")` answers in `An_in_set_answer_answers_and_closes_an_unsealed_ask` follow it. `Chosen("zzz")` stays as it is: out of set under either reading. No test is added or removed there, and the fixture is truer for it, since an `activate` Ask's option ids are the scheduler's.
+
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter TurnCycle`; expect 6 passed. Then run `--filter CommandDispatcher`; expect all green with the fixture above. Commit: `Drive one activation from Ask to end-of-turn hook by reading the log`.**
 
 ### Task 5: `SchedulerBase` and the alternating-activation shape
 
@@ -1160,9 +1217,9 @@ public sealed class TurnCycle(PropertySet properties)
 
 **Interfaces:**
 - Consumes: Tasks 1–4; `CommandDispatcher`, `Applied`, `Refused`, `Actor` (skeleton); `RoundStarted`, `TurnStarted`, `TurnEnded`, `PhaseStarted`, `ActionRecordCleared` (Protocol); the interpreter plan's `Engine.IScheduler`, `Engine.RulesEngine`, `Interpreter.ISequenceStarter`, `Properties.PropertySet`, `Dice.IDiceSource`, `IGameRules.OnRoundStarted/OnTurnEnded`, and its test infrastructure `Sim`, `TestProperties.Core`, `LambdaStep`, `StubRules` (the shape `FakeRules` follows).
-- Produces: `abstract class SchedulerBase(PropertySet properties) : Engine.IScheduler` with `const string RoundsPhase = "rounds"`, `IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter)`, protected `PropertySet Properties`, `TurnCycle Cycle`, `Guid? NextTeam(GameState, SchedulerLog, IReadOnlyList<Guid> order)`, `IReadOnlyList<EventPayload> EndTurn(GameState, TurnContext turn, bool passed)`, virtual `bool IsFinished(GameState, SchedulerLog, Guid teamId)` (passed this round, or empty legal set), virtual `IReadOnlyList<StateChange> ShapeRoundStartChanges(GameState, int round)` and `ShapeTurnEndChanges(GameState, TurnContext)` (empty), virtual `IReadOnlyList<EventPayload> BeforeFirstAsk(GameState, SchedulerLog, Guid teamId)` (empty), `TurnAsk ShapeAsk(GameState, TurnAsk)` (identity), `IReadOnlyList<EventPayload> OnEmpty(GameState, SchedulerLog, TurnContext)` (ends the turn), abstract `IReadOnlyList<EventPayload> OnPassed(GameState, SchedulerLog, TurnContext)` and `OnComplete(GameState, SchedulerLog, TurnContext)`, and — the 2026-09-06 ruling — `static Ask EndRoundAsk(IReadOnlyList<Guid> teams)` with the private `bool RoundEnded(GameState, SchedulerLog, IReadOnlyList<Guid> teams, out IReadOnlyList<EventPayload> gate)` that opens it and reads its answer; `sealed class AlternatingActivationScheduler(PropertySet) : SchedulerBase`. Test infrastructure `FakeRules : IGameRules` — the whole merged interface: Grimdark Future's bodies by default, except `PhasesBeforeRounds`/`PhasesInTurn` (settable, default empty), the settable hooks `FirstTeamHook` (default: the teams as given), `LegalTurnHook`, `RoundBoundaryHook` (default `HookDone`), `EndOfTurnHook`, `OrderReactionsHook`, and `SequenceHook` (default: the roll-off is Grimdark Future's real sequence; every other name is an **empty** `Sequence`, which the interpreter finishes in one `Advance` with no `step_completed`, so the harness's kind lists hold), plus `static FakeRules Gf()` — the same with Grimdark Future's `PhasesBeforeRounds`, `FirstTeam` and `RoundBoundaryStep`, the harness's default; `QueueDice : IDiceSource` (`Queue<int> Dice`; dequeues per draw, then a seeded `Random`); and `SchedulerHarness(IReadOnlyList<Army?> armies, Func<PropertySet, IScheduler>? scheduler = null, Enforcement enforcement = Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, SchedulerShape shape = AlternatingActivation)` — a `Sim` over the real `RulesEngine(rules, TestProperties.Core, QueueDice, scheduler)` — with `GameState State`, `Queue<int> Dice`, `IReadOnlyList<Guid> Teams`, `IReadOnlyList<Guid> Units(int team)`, `IReadOnlyList<EventPayload> Run()`, `IReadOnlyList<EventPayload> Dispatch(Command command, int? team = null)`, `IReadOnlyList<EventPayload> Answer(int team, AskAnswer answer)`, `IReadOnlyList<EventPayload> Deploy(Guid unitId)`, `Ask? OpenAsk(int team)`, `Ask Open`, `IReadOnlyList<EventPayload> EndRound(int team = 0)` (answers the boundary Ask with `Confirmed`), `void SkipDeployment()`, `void Rehydrate()`, `IReadOnlyList<string> Kinds(long afterSeq)`, `IReadOnlyList<GameEvent> Log`, `Projection P`. Its default rules are `FakeRules.Gf()` — Grimdark Future's scheduling hooks with every action sequence empty, so an activation's frame finishes in the same `Advance` it starts and the kind lists below hold.
+- Produces: `abstract class SchedulerBase(PropertySet properties) : Engine.IScheduler` with `const string RoundsPhase = "rounds"`, `IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter)`, protected `PropertySet Properties`, `TurnCycle Cycle`, `Guid? NextTeam(GameState, SchedulerLog, IReadOnlyList<Guid> order)`, `IReadOnlyList<EventPayload> EndTurn(GameState, TurnContext turn, bool passed)`, virtual `bool IsFinished(GameState, SchedulerLog, Guid teamId)` (passed this round, or empty legal set), virtual `IReadOnlyList<StateChange> ShapeRoundStartChanges(GameState, int round)` and `ShapeTurnEndChanges(GameState, TurnContext)` (empty), virtual `IReadOnlyList<EventPayload> BeforeFirstAsk(GameState, SchedulerLog, Guid teamId)` (empty), `TurnAsk ShapeAsk(GameState, TurnAsk)` (identity), `IReadOnlyList<EventPayload> OnEmpty(GameState, SchedulerLog, TurnContext)` (ends the turn), abstract `IReadOnlyList<EventPayload> OnPassed(GameState, SchedulerLog, TurnContext)` and `OnComplete(GameState, SchedulerLog, TurnContext)`, and — the 2026-09-06 ruling — `static Ask EndRoundAsk(IReadOnlyList<Guid> teams)` with the private `bool RoundEnded(GameState, SchedulerLog, IReadOnlyList<Guid> teams, out IReadOnlyList<EventPayload> gate)` that opens it and reads its answer; `sealed class AlternatingActivationScheduler(PropertySet) : SchedulerBase`. Test infrastructure `FakeRules : IGameRules` — the whole merged interface: Grimdark Future's bodies by default, except `PhasesBeforeRounds`/`PhasesInTurn` (settable, default empty), the settable hooks `FirstTeamHook` (default: the teams as given), `LegalTurnHook`, `RoundBoundaryHook` (default `HookDone`), `EndOfTurnHook`, `OrderReactionsHook`, and `SequenceHook` (default: the roll-off is Grimdark Future's real sequence; every other name is an **empty** `Sequence`, which the interpreter finishes in one `Advance` with no `step_completed`, so the harness's kind lists hold), plus `static FakeRules Gf()` — the same with Grimdark Future's `PhasesBeforeRounds`, `FirstTeam` and `RoundBoundaryStep`, the harness's default; `QueueDice : IDiceSource` (`Queue<int> Dice`; dequeues per draw, then a seeded `Random`); and `SchedulerHarness(IReadOnlyList<Army?> armies, Func<PropertySet, IScheduler>? scheduler = null, Enforcement enforcement = Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, SchedulerShape shape = AlternatingActivation)` — a `Sim` over the real `RulesEngine(rules, TestProperties.Core, QueueDice, scheduler)` — with `GameState State`, `Queue<int> Dice`, `IReadOnlyList<Guid> Teams`, `IReadOnlyList<Guid> Units(int team)`, `IReadOnlyList<EventPayload> Run()`, `IReadOnlyList<EventPayload> Dispatch(Command command, int? team = null)`, `IReadOnlyList<EventPayload> Answer(int team, AskAnswer answer)`, `IReadOnlyList<EventPayload> Deploy(Guid unitId)`, `Ask? OpenAsk(int team)`, `Ask Open`, `IReadOnlyList<EventPayload> EndRound(int team = 0)` (answers the boundary Ask with `Confirmed`), `IReadOnlyList<EventPayload> ConfirmRollOff(int team = 0)` (releases the roll-off's confirm gate, which every roll-off now waits at), `void SkipDeployment()` (which releases any gate it meets), `void Rehydrate()`, `IReadOnlyList<string> Kinds(long afterSeq)`, `IReadOnlyList<GameEvent> Log`, `Projection P`. Its default rules are `FakeRules.Gf()` — Grimdark Future's scheduling hooks with every action sequence empty, so an activation's frame finishes in the same `Advance` it starts and the kind lists below hold.
 
-Spec: scheduler → The two shapes (alternating: one activation per turn; the order from the first-team policy at `round_started`; turns rotate skipping finished teams; a team finishes when its legal set is empty or it passes; the round ends when every team has finished; the record clears at `round_started`), Deployment (one unit a turn, alternating; a team with nothing to deploy is skipped; the phase ends when every team is skipped — the spec describes the phase once, not per shape, so the alternation is the same under both), The round boundary (hooks after the order is set and before the first turn), Re-entering a round, Nothing is an invariant (`SetActiveTeam`'s `turn_started` opens an Ask; `SetRound`'s `round_started` runs the boundary), There is no round limit, Enforcement (`strict` refuses an out-of-set answer at the dispatcher, so the scheduler never sees it and the turn stands; `warn`/`silent` let it through and the scheduler acts as if it were legal — Task 4 covers that half); a scheduler Ask left open by a menu edit that started another turn or round closes with no answers (the one `ask_closed` the engine emits, and never for an answer). **The round does not advance on its own — a player ends it** (ruled 2026-09-06; question 4): when no team can take another turn the scheduler opens the `end_round` Ask to every team that has a participant and waits, and the first answer is what makes `BeginRound(round + 1)` run. That is one rule for both the ordinary boundary and the degenerate one — a round nobody could act in waits at the same Ask, so rounds never count up on their own and the engine still rests. A menu edit while that Ask is open does not withdraw it (an Ask stands as logged); `set_active_team` supersedes it with a turn and `set_round` with a round, closing it with no answers, and if it was closed unanswered the next boundary opens a fresh one. Rotation restarts from `Order[0]` at a round or phase start (page 14: Scouts "starting with the player that activates next"), otherwise continues after the last `turn_ended`.
+Spec: scheduler → The two shapes (alternating: one activation per turn; the order from the first-team policy at `round_started`; turns rotate skipping finished teams; a team finishes when its legal set is empty or it passes; the round ends when every team has finished; the record clears at `round_started`), Deployment (one unit a turn, alternating; a team with nothing to deploy is skipped; the phase ends when every team is skipped — the spec describes the phase once, not per shape, so the alternation is the same under both), The round boundary (hooks after the order is set and before the first turn), Re-entering a round, Nothing is an invariant (`SetActiveTeam`'s `turn_started` opens an Ask; `SetRound`'s `round_started` runs the boundary), There is no round limit, Enforcement (`strict` refuses an out-of-set answer at the dispatcher, so the scheduler never sees it and the turn stands; `warn`/`silent` let it through and the scheduler acts as if it were legal — Task 4 covers that half, and an unreadable answer follows the same dial by the same route, ruled 2026-09-06, proved here as a theory over the three positions); a scheduler Ask left open by a menu edit that started another turn or round closes with no answers (the one `ask_closed` the engine emits, and never for an answer). **The round does not advance on its own — a player ends it** (ruled 2026-09-06; question 4): when no team can take another turn the scheduler opens the `end_round` Ask to every team that has a participant and waits, and the first answer is what makes `BeginRound(round + 1)` run. That is one rule for both the ordinary boundary and the degenerate one — a round nobody could act in waits at the same Ask, so rounds never count up on their own and the engine still rests. A menu edit while that Ask is open does not withdraw it (an Ask stands as logged); `set_active_team` supersedes it with a turn and `set_round` with a round, closing it with no answers, and if it was closed unanswered the next boundary opens a fresh one. Rotation restarts from `Order[0]` at a round or phase start (page 14: Scouts "starting with the player that activates next"), otherwise continues after the last `turn_ended`.
 
 - [ ] **Step 1: Write `FakeRules.cs` — the merged `IGameRules`, Grimdark Future's bodies except where a test replaces a hook**
 
@@ -1297,19 +1354,23 @@ public sealed class SchedulerHarness
     /// <summary>Ends the round: the boundary Ask is addressed to every team that has a participant, and any one of them may confirm it (ruled 2026-09-06).</summary>
     public IReadOnlyList<EventPayload> EndRound(int team = 0) => Answer(team, new Confirmed());
 
+    /// <summary>Releases the roll-off's confirm gate. The interpreter gates an actor-less root frame past position 0 whatever the wait setting says, with one unsealed Confirm to every team, so every roll-off waits here and any team may release it (interpreter plan Task 8, ruled 2026-09-06). Its dice are editable until it is answered.</summary>
+    public IReadOnlyList<EventPayload> ConfirmRollOff(int team = 0) => Answer(team, new Confirmed());
+
     public IReadOnlyList<EventPayload> Deploy(Guid unitId)
     {
         var team = Teams.ToList().IndexOf(TeamUnits.TeamOf(State, P.Units[unitId].ParticipantId)!.Value);
         return Dispatch(TestGames.Move(State, unitId), team);
     }
 
-    /// <summary>Answers every deploy Ask with its first eligible unit and places it, until round one starts.</summary>
+    /// <summary>Answers every deploy Ask with its first eligible unit and places it, until round one starts — releasing any roll-off gate it meets on the way, since deployment's roll-off and a free-for-all's round-one roll-off both wait at one.</summary>
     public void SkipDeployment()
     {
         Run();
         for (var i = 0; i < 200 && P.Scheduler.Round == 0; i++)
         {
             var ask = Open;
+            if (ask.FrameId is not null) { ConfirmRollOff(); continue; }          // the interpreter's gate, not a deploy Ask
             var unit = ((PieceSelection)ask.Legal).Eligible[0];
             Answer(Teams.ToList().IndexOf(ask.Teams[0]), new SelectedPieces([unit]));
             Deploy(unit);
@@ -1348,7 +1409,10 @@ public class AlternatingSchedulerTests
     {
         var h = TwoTeams(); h.Dice.Enqueue(1); h.Dice.Enqueue(6);
         h.Run();
-        Assert.Equal(["sequence_started", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(0));
+        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], h.Kinds(0));                   // the roll-off waits at its confirm gate (ruled 2026-09-06)
+        Assert.Equal((AskQuestions.Confirm, 0, (Guid?)null), (h.Open.Question, h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));
+        var gate = h.P.LastSeq; h.ConfirmRollOff(team: 1);
+        Assert.Equal(["ask_answered", "ask_closed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(gate));
         Assert.Equal((0, "deployment", h.Teams[1]), (h.P.Scheduler.Round, h.P.Scheduler.Phase, h.P.Scheduler.ActiveTeamId));    // B rolled 6
         Assert.Equal([h.Teams[1], h.Teams[0]], h.P.Scheduler.Order);
         var b = h.Units(1)[0]; var a = h.Units(0);
@@ -1470,12 +1534,43 @@ public class AlternatingSchedulerTests
         Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
     }
 
+    /// <summary>
+    /// Question 3, ruled 2026-09-06: an answer the ruleset cannot read takes the same three positions as an out-of-set one, because it is
+    /// decided in the same place. The id here is both — which is what a real game produces, since a legal set only ever offers well-formed
+    /// ids for units the log has. What the readability clause adds on its own is a legal set offering an id its own ruleset cannot read.
+    /// </summary>
+    [Theory]
+    [InlineData(Enforcement.Strict, false)] [InlineData(Enforcement.Warn, true)] [InlineData(Enforcement.Silent, true)]
+    public void An_unreadable_answer_follows_the_enforcement_dial(Enforcement enforcement, bool applied)
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 2, 2), TestArmies.Build("B", 1, 2)], enforcement: enforcement);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
+        var ask = h.Open; var seq = h.P.LastSeq;
+        if (!applied)
+        {
+            Assert.Throws<InvalidOperationException>(() => h.Answer(0, new Chosen("not-an-option")));
+            Assert.Equal(seq, h.P.LastSeq);                                                                    // refused before anything was written
+            Assert.Equal((ask.Id, h.Teams[0]), (h.Open.Id, h.P.Scheduler.ActiveTeamId!.Value));                 // the same Ask stands and the turn is still A's: nothing is waiting on it
+            Assert.Throws<InvalidOperationException>(() => h.Answer(0, new Chosen("not-an-option")));           // and again, as often as the client likes
+            h.Answer(0, new Chosen(Activate(h.Units(0)[0])));                                                   // a readable answer moves the game on
+            Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
+            return;
+        }
+        h.Answer(0, new Chosen("not-an-option"));
+        Assert.True(((AskAnswered)h.Log.First(e => e.Seq > seq && e.Payload is AskAnswered).Payload).OutsideLegalSet);   // the warn warning rides on this; the string itself is the dispatcher's, pinned by CommandDispatcherTests
+        var ended = (TurnEnded)h.Log.First(e => e.Seq > seq && e.Payload is TurnEnded).Payload;
+        Assert.Equal((h.Teams[0], true), (ended.TeamId, ended.Passed));                                        // read as a pass, which stands for the round
+        Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
+        h.Answer(1, new Chosen(Activate(h.Units(1)[0])));
+        Assert.Equal((AskQuestions.EndRound, 1), (h.Open.Question, h.P.Scheduler.Round));                      // A passed and B is done: the round waits for a player, not for A's turn
+    }
+
     [Fact]
     public void Teams_with_nothing_are_skipped_spectators_are_never_asked_and_a_round_nobody_can_act_in_waits_to_be_ended()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), null], spectators: 1);
         h.Dice.Enqueue(3); h.Dice.Enqueue(5);
-        h.Run();
+        h.Run(); h.ConfirmRollOff();
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                  // B won the roll-off but has nothing to deploy
         h.SkipDeployment();
         var a0 = h.Units(0)[0];
@@ -1493,7 +1588,7 @@ public class AlternatingSchedulerTests
         var asked = h.Log.Select(e => e.Payload).OfType<AskOpened>().Select(o => o.Ask).ToList();
         Assert.All(asked.Where(a => a.Question != AskQuestions.EndRound), a => Assert.Equal([h.Teams[0]], a.Teams));   // only A is ever asked to deploy or activate
         Assert.All(asked.Where(a => a.Question == AskQuestions.EndRound), a => Assert.Equal(h.Teams, a.Teams));        // both teams may end a round; the spectator has no team and is in no Ask
-        var empty = new SchedulerHarness([null, null]); empty.Run();
+        var empty = new SchedulerHarness([null, null]); empty.Run(); empty.ConfirmRollOff();
         Assert.Equal((1, AskQuestions.EndRound), (empty.P.Scheduler.Round, empty.Open.Question));          // round one began and stopped at its boundary
         Assert.Empty(empty.Run());
         empty.EndRound();
@@ -1696,7 +1791,7 @@ public sealed class AlternatingActivationScheduler(PropertySet properties) : Sch
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter AlternatingScheduler`; expect 7 passed. Commit: `Add the scheduler base and the alternating-activation shape`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter AlternatingScheduler`; expect 10 passed (7 facts + the dial's 3 theory cases). Commit: `Add the scheduler base and the alternating-activation shape`.**
 
 ### Task 6: Deployment and the round boundary end to end — Scouts, Ambushers, the confirm gate, free-for-all
 
@@ -1707,7 +1802,7 @@ public sealed class AlternatingActivationScheduler(PropertySet properties) : Sch
 - Consumes: Tasks 2–5 (no new production code: this task proves the base, the OPR hooks and the roll-off compose as the spec says, and fixes whatever does not).
 - Produces: nothing new.
 
-Spec: scheduler → Deployment (Scouts deploy after every other unit, alternating, "starting with the player that activates next" — the roll-off winner; a second deploy Ask over the set-aside Scouts), The round boundary (hooks in order; Ambushers from round two, alternating, until every team passes; deploying an Ambusher writes nothing to the record), Windows/Enforcement unaffected; action sequences → One roll primitive (the confirm gate when waits is on). The 2026-09-06 ruling sits in front of all of it: the `end_round` Ask precedes `round_started`, so the fatigue and token changes, the first-team roll-off and the Ambusher loop all still happen after the new round has begun, and these tests pin that — round one's fatigue is still set while the boundary Ask is open. Rulebook page 49: free-for-all rolls off at the beginning of each round, including the first; page 13 `Ambush`; page 14 `Scout`.
+Spec: scheduler → Deployment (Scouts deploy after every other unit, alternating, "starting with the player that activates next" — the roll-off winner; a second deploy Ask over the set-aside Scouts), The round boundary (hooks in order; Ambushers from round two, alternating, until every team passes; deploying an Ambusher writes nothing to the record), Windows/Enforcement unaffected; action sequences → One roll primitive (the confirm gate when waits is on). **The roll-off is gated like any other roll** (ruled 2026-09-06), which the interpreter plan has applied: `GfRolls.RollOffSequence` is two steps, `roll-off` then `order`, and the boundary between them is one unsealed `Confirm` Ask to every team, opened whatever the wait setting says because the frame has no actor and no parent (its Task 8, question 8, Interfaces needed 4). So **every** roll-off in this file waits at a gate — deployment's, and a free-for-all's every round — which is why `SkipDeployment` releases one and the tests that drive `Run()` by hand call `ConfirmRollOff`. The gated test below is the one that pins the shape: the dice are editable while the frame waits, and the `order` step ranks whatever stands when a team confirms, so nothing ever rewrites a logged `step_completed` and the reader keys on `sequence_finished` alone. The 2026-09-06 ruling sits in front of all of it: the `end_round` Ask precedes `round_started`, so the fatigue and token changes, the first-team roll-off and the Ambusher loop all still happen after the new round has begun, and these tests pin that — round one's fatigue is still set while the boundary Ask is open. Rulebook page 49: free-for-all rolls off at the beginning of each round, including the first; page 13 `Ambush`; page 14 `Scout`.
 
 - [ ] **Step 1: Write `DeploymentTests.cs`**
 
@@ -1729,7 +1824,7 @@ public class DeploymentTests
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1, unitRules: [(2, Scout, null)]), TestArmies.Build("B", 2, 1, unitRules: [(1, Scout, null)])]);
         h.Dice.Enqueue(2); h.Dice.Enqueue(5);                                    // B wins
-        h.Run();
+        h.Run(); h.ConfirmRollOff();                                             // the roll-off's gate, released with the dice as rolled
         var a = h.Units(0); var b = h.Units(1);
         h.Dispatch(new SetCondition(U(a[1]), SetAside, true)); h.Dispatch(new SetCondition(U(b[0]), SetAside, true));   // set aside from the menu
         Assert.Equal([b[0], b[1]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                 // B's Ask opened before the set-aside and stands as logged; B picks b[1]
@@ -1750,24 +1845,37 @@ public class DeploymentTests
     }
 
     [Fact]
-    public void With_waits_on_the_roll_off_has_no_actor_so_it_is_never_gated_and_the_order_is_read_from_its_values()
+    public void The_roll_off_waits_at_a_confirm_gate_to_every_team_and_a_die_edited_there_decides_the_order()
     {
-        var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)], waits: true);
+        var h = new SchedulerHarness([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1)]);
         h.Dice.Enqueue(2); h.Dice.Enqueue(5);
         h.Run();
-        Assert.Equal(["sequence_started", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(0));   // no confirm gate: interpreter plan Task 8, question 9
-        var step = h.Log.Select(e => e.Payload).OfType<StepCompleted>().Single();
-        Assert.Equal((2, 2, 1), (step.Values!["winner_ordinal"], step.Values["place_1"], step.Values["place_2"]));
-        Assert.Equal([h.Teams[1], h.Teams[0]], h.P.Scheduler.Order);                                       // B's 5 beats A's 2: what round_started.Order read from place_1, place_2
+        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], h.Kinds(0));                    // rolled, then held: no order and no round_started yet (ruled 2026-09-06)
+        Assert.Equal((AskQuestions.Confirm, 0, (Guid?)null), (h.Open.Question, h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));
+        Assert.Equal(h.Teams, h.Open.Teams); Assert.False(h.Open.Sealed);                                  // every team, unsealed: no acting unit has a better claim to release it
+        Assert.NotNull(h.Open.FrameId);                                                                    // the interpreter's Ask, so StaleAsks never touches it
+        Assert.Single(h.P.Stack);
+        var rolled = h.Log.Select(e => e.Payload).OfType<StepCompleted>().Single();
+        Assert.Equal(GfNames.RollOffRollStep, rolled.Step); Assert.Null(rolled.Values);                    // the rolling step carries dice and no ranking
+        var seq = h.P.LastSeq;
+        h.Dispatch(new SetDice(rolled.FrameId, rolled.Rolls[0].Id, [new DieValue(0, 6)]), team: 0);        // A's 2 edited to a 6 while the frame is live and the roll is in a completed step
+        Assert.Equal(["dice_edited"], h.Kinds(seq));
+        Assert.Equal(0, h.P.Scheduler.Round);                                                              // the edit changed no order, because no order has been derived
+        seq = h.P.LastSeq;
+        h.ConfirmRollOff(team: 1);                                                                         // B releases A's edit: any team may
+        Assert.Equal(["ask_answered", "ask_closed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(seq));
+        var order = h.Log.Select(e => e.Payload).OfType<StepCompleted>().Last();
+        Assert.Equal((GfNames.RollOffOrderStep, 1, 1, 2), (order.Step, order.Values!["winner_ordinal"], order.Values["place_1"], order.Values["place_2"]));
+        Assert.Equal([h.Teams[0], h.Teams[1]], h.P.Scheduler.Order);                                       // the edited die decided it: A first, where the raw dice had B
         Assert.Empty(h.P.Stack);
-        Assert.Throws<InvalidOperationException>(() => h.Dispatch(new SetDice(step.FrameId, step.Rolls[0].Id, [new DieValue(0, 6)]), team: 0));   // the frame is gone: Illegal → refused
+        h.Rehydrate(); Assert.Empty(h.Run());                                                              // and the same order comes back out of the log, with no die re-rolled
     }
 
     [Fact]
     public void A_set_aside_unit_that_is_neither_scout_nor_ambusher_is_simply_never_offered()
     {
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 1), TestArmies.Build("B", 1, 1)]);
-        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run(); h.ConfirmRollOff();
         var a = h.Units(0);
         h.Dispatch(new SetCondition(U(a[1]), SetAside, true));
         h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
@@ -1859,9 +1967,11 @@ public class RoundBoundaryTests
         Assert.Equal((1, AskQuestions.EndRound), (h.P.Scheduler.Round, h.Open.Question));
         Assert.Equal(2, h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq));   // the next round's roll-off waits for the answer too
         h.EndRound(team: 1);
+        Assert.Equal((1, AskQuestions.Confirm), (h.P.Scheduler.Round, h.Open.Question));                  // round two's roll-off is gated like round zero's: the round has not started yet
+        Assert.Equal(3, h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq));
+        h.ConfirmRollOff(team: 2);
         Assert.Equal(2, h.P.Scheduler.Round);
         Assert.Equal([h.Teams[2], h.Teams[0], h.Teams[1]], h.P.Scheduler.Order);
-        Assert.Equal(3, h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq));
         Assert.Equal(h.Teams[2], h.P.Scheduler.ActiveTeamId);
         h.Answer(2, new Chosen(Activate(h.Units(2)[0]))); h.Answer(0, new Chosen(Activate(h.Units(0)[0])));
         h.Answer(1, new Chosen(Activate(h.Units(1)[0])));
@@ -1904,7 +2014,7 @@ public class PlayerTurnSchedulerTests
     [Fact]
     public void Deployment_still_alternates_one_unit_a_turn_and_the_winner_opens_round_one()
     {
-        var h = Game(); h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run();
+        var h = Game(); h.Dice.Enqueue(1); h.Dice.Enqueue(6); h.Run(); h.ConfirmRollOff();
         Assert.Equal(AskQuestions.Deploy, h.Open.Question); Assert.Equal(h.Teams[1], h.Open.Teams.Single());
         h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                  // alternation, not "B deploys everything"
@@ -1993,6 +2103,7 @@ public class PlayerTurnSchedulerTests
         foreach (var d in new[] { 2, 6, 4 }) h.Dice.Enqueue(d);                                // round two B, C, A
         h.Answer(2, new Chosen(Activate(h.Units(2)[0])));
         Assert.Equal(AskQuestions.EndRound, h.Open.Question); h.EndRound(team: 2);
+        h.ConfirmRollOff();                                                                               // three teams roll off every round, and every roll-off waits at its gate
         Assert.Equal((2, h.Teams[1]), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));
         Assert.Equal([h.Teams[1], h.Teams[2], h.Teams[0]], h.P.Scheduler.Order);
         Assert.Equal(3, h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq));
@@ -2375,13 +2486,20 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
         Assert.Empty((await other.ExpectAsync<EventsMessage>()).Events);
 
         var batches = new List<GameEvent>();
-        while (batches.Count < 7) batches.AddRange((await other.ExpectAsync<EventsMessage>()).Events);         // the engine advanced after the flip
-        Assert.Equal(["sequence_started", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], batches.Select(e => e.Kind));
+        while (batches.Count < 3) batches.AddRange((await other.ExpectAsync<EventsMessage>()).Events);         // the engine advanced after the flip and stopped at the roll-off's gate
+        Assert.Equal(["sequence_started", "step_completed", "ask_opened"], batches.Select(e => e.Kind));
         Assert.All(batches, e => Assert.Null(e.Actor));                                                       // the engine acted
-        var ask = ((AskOpened)batches[6].Payload).Ask;
+        var gate = ((AskOpened)batches[2].Payload).Ask;
+        Assert.Equal((AskQuestions.Confirm, 2, false), (gate.Question, gate.Teams.Count, gate.Sealed));       // both teams may release it, and the first answer does (ruled 2026-09-06)
+        Assert.NotNull(gate.FrameId);
+        await other.SendAsync(Cmd(new AnswerAsk(gate.Id, new Confirmed())));                                  // the team that lost the roll-off releases it
+        var released = new List<GameEvent>();
+        while (released.Count < 8) released.AddRange((await other.ExpectAsync<EventsMessage>()).Events);
+        Assert.Equal(["ask_answered", "ask_closed", "step_completed", "sequence_finished", "round_started", "phase_started", "turn_started", "ask_opened"], released.Select(e => e.Kind));
+        var ask = ((AskOpened)released[7].Payload).Ask;
         Assert.Equal((AskQuestions.Deploy, seeded.TeamIds[0]), (ask.Question, ask.Teams.Single()));           // the creator's team rolled 6
         var unit = Assert.Single(Assert.IsType<PieceSelection>(ask.Legal).Eligible);
-        Assert.Equal(7, await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId));
+        Assert.Equal(11, await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId));
 
         await other.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         Assert.Equal(RefusalReason.NotPermitted, (await other.ExpectAsync<Refused>()).Reason);                // not their team
@@ -2410,7 +2528,10 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
             await c.SendAsync(Edit(new PickArmy(army.Id))); await c.ExpectAsync<GameInfoMessage>();
             await c.SendAsync(Edit(new StartSetup())); await c.ExpectAsync<BoardMessage>();
             await c.SendAsync(Edit(new EndSetup())); await c.ExpectAsync<GameInfoMessage>(); await c.ExpectAsync<BoardMessage>();
-            var got = 0; while (got < 7) got += (await c.ExpectAsync<EventsMessage>()).Events.Count;
+            var opened = new List<GameEvent>();
+            while (opened.Count < 3) opened.AddRange((await c.ExpectAsync<EventsMessage>()).Events);           // the roll-off's gate
+            await c.SendAsync(Cmd(new AnswerAsk(((AskOpened)opened[2].Payload).Ask.Id, new Confirmed())));
+            var got = 0; while (got < 8) got += (await c.ExpectAsync<EventsMessage>()).Events.Count;
         }
         var before = await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId);
         using var second = Factory();
@@ -2459,9 +2580,9 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`.
 | `abstract record HookResult` | `HookDone`, `HookWaiting`, `HookEmit(IRL<EventPayload>)`, `HookStartSequences(IRL<SequenceStart>)` (`SequenceStart` is the interpreter plan's record beside `IGameRules`) |
 | `abstract record FirstTeamDecision` | `OrderedTeams(IRL<Guid> Order)`, `RollOffNeeded(string Sequence)` |
 | `static class ActivationOption` | `const string Idle = "Idle"`; `string Id(Guid unitId, string action)`; `bool TryParse(string, out Guid, out string)`; `AskOption For(UnitInPlay, string action)` |
-| `sealed class SchedulerLog` | `static Of(GameState)`; `Effective`, `LastSeq`, `Last(Func<EventPayload,bool>)`, `After(long)`, `RoundStartedAt`, `PhaseStartedAt`, `TurnStartedAt`, `RotationStartAt`, `CycleStartAt`, `SinceRound`, `SinceRotation`, `SinceTurn`, `SinceCycle`; `static bool IsSchedulerAsk(Ask)`; `LastSchedulerAsk(slice)`; `LastTurnEndedByTeam(slice)`; `LastTurnEndedTeam(slice)` |
+| `sealed class SchedulerLog` | `static Of(GameState)`; `Effective`, `LastSeq`, `Last(Func<EventPayload,bool>)`, `After(long)`, `RoundStartedAt`, `PhaseStartedAt`, `TurnStartedAt`, `RotationStartAt`, `CycleStartAt`, `SinceRound`, `SinceRotation`, `SinceTurn`, `SinceCycle`; `static bool IsSchedulerAsk(Ask)`; `static bool IsTurnAsk(Ask)`; `LastSchedulerAsk(slice)`; `LastTurnEndedByTeam(slice)`; `LastTurnEndedTeam(slice)` |
 | `static class TeamUnits` | `Guid? TeamOf(GameState, Guid participantId)`; `IRL<UnitInPlay> Of(GameState, Guid teamId)`; `IRL<ModelInPlay> ModelsOf(GameState, UnitInPlay)`; `bool AllShelved(GameState, UnitInPlay)`; `bool AnyOnTable(GameState, UnitInPlay)`; `int IndexOf(IRL<Guid>, Guid)` |
-| `static class RollOff` | `Progress` = `Emit(events)` / `Waiting` / `Resolved(order)`; `Progress Advance(GameState, SchedulerLog, string sequence, ISequenceStarter)`; `IRL<Guid> Order(GameState, StepCompleted?)` — reads `Values["place_k"]` from the ruleset's roll-off sequence (interpreter plan `GfRolls.RollOffSequence`) |
+| `static class RollOff` | `Progress` = `Emit(events)` / `Waiting` / `Resolved(order)`; `Progress Advance(GameState, SchedulerLog, string sequence, ISequenceStarter)`; `IRL<Guid> Order(GameState, StepCompleted?)` — reads `Values["place_k"]` from the ruleset's roll-off sequence (interpreter plan `GfRolls.RollOffSequence`), off the completed step carrying `place_1` and only once `sequence_finished` stands, because the frame waits at a confirm gate with its dice editable |
 | `abstract record CycleState` | `NoAsk`, `AskOpen(Ask)`, `PassAnswered(long)`, `NeedsStart(Activation, long)`, `Running(Activation, long, Guid FrameId)`, `WaitingCompletion(Activation, long)`, `ActivationEnded(Activation, long, long)` |
 | `abstract record CycleStep` | `CycleEmit(IRL<EventPayload>)`, `CycleWaiting`, `CycleEmpty`, `CyclePassed(TurnContext)`, `CycleComplete(TurnContext)` |
 | `sealed class TurnCycle(PropertySet)` | `static Ask AskFor(Guid teamId, TurnAsk)`; `CycleState Read(GameState, Guid teamId, SchedulerLog)`; `CycleStep Step(GameState, Guid teamId, SchedulerLog, ISequenceStarter, Func<TurnAsk,TurnAsk>? shape = null)` |
@@ -2482,12 +2603,12 @@ Reaction ordering has no type here: `Interpreter.Windows.ReactionOrder(GameState
 1. **`docs/superpowers/specs/2026-09-04-scheduler-design.md` → Events.** Current: *"`round_started` — round number, and the order over teams"*. Add: *"Deployment's order is carried the same way: the roll-off before the first phase is followed by `round_started` with round `0`, and `phase_started` names the phase. Round one's `round_started` follows the last phase before rounds and is itself followed by `phase_started("rounds")`."* Reason: the projection's `SchedulerPosition` has no other field for the deployment order, and hydration must find it in the log.
 2. **Same file → Deployment**, the Scouts paragraph: *"A second deploy Ask over the set-aside Scouts, same phase, same mechanics."* Replace with: *"A second phase, `scouts`, logged as `phase_started("scouts")`; a phase start restarts the rotation from the first team of the order, which is how 'starting with the player that activates next' — the roll-off winner — is a logged fact rather than a special case. Same Ask mechanics, question `deploy_scouts`."* Reason: without a phase boundary the rotation would continue after whichever team deployed last, contradicting page 14.
 3. **Same file → State**, the sentence *"phase is `deployment`, `rounds`, or a `GameRules` phase name inside a turn"*. Add: *"`scouts` between `deployment` and `rounds`. Under the player-turn shape a `GameRules` phase name replaces `rounds` for the rest of the round; OPR lists no phases inside a turn, so its phase stays `rounds`."* And, same file → The line, the row *"the list of phases inside a turn — empty for OPR"* against The two shapes' *"OPR under this shape has one phase"*: replace the latter with *"OPR lists no phases, which the player-turn scheduler runs as one unnamed phase, activating every unit in a row"*.
-4. **Same file → The turn is an Ask.** Add after *"Passing is a real answer"*: *"An answer that names nothing the ruleset can read — an option id that does not parse, a unit that does not exist — is treated as a pass. A team asked while its turn is open by a menu edit (`set_active_team`, `set_round`) has its superseded Ask closed with no answers; that is the one `ask_closed` the engine writes, and it is never an answer."* Reason: both cases arise under `warn`/`silent` and from the menu and the spec is silent.
+4. **Same file → The turn is an Ask.** *Rewritten 2026-09-06 by the owner's ruling on question 3; the earlier wording — an unreadable answer "is treated as a pass" full stop — is withdrawn.* Add after *"Passing is a real answer"*: *"An answer that names nothing the ruleset can read — an option id that does not parse, a unit that does not exist — **follows the enforcement dial, exactly as an out-of-set answer does**: refused under `strict`, and under `warn`/`silent` logged (with a warning under `warn`) and read as a pass. The two are one rule because they are decided in one place, `CommandDispatcher.Answer`, before anything is written: that is the only point at which a refusal can leave the Ask open. Ruled 2026-09-06. A team asked while its turn is open by a menu edit (`set_active_team`, `set_round`) has its superseded Ask closed with no answers; that is the one `ask_closed` the engine writes, and it is never an answer."* Reason: both cases arise under `warn`/`silent` and from the menu and the spec is silent.
 5. **Same file → There is no round limit.** *Rewritten 2026-09-06 by the owner's ruling on question 4; the earlier wording — "the scheduler idles, and the menu moves the game on" — is withdrawn.* Current: *"There is no round limit. Rounds count up."* Add after it: *"**Rounds count up only when a player says so.** The round does not advance on its own: when no team can take another turn the scheduler stops at the boundary and opens an Ask — question `end_round`, a confirmation, no pass — addressed to every team that has a participant, and the next round's `round_started` follows the first answer to it. Any player on any team may answer, because the boundary belongs to the table rather than to a turn. Ruled 2026-09-06 to avoid an accidental auto-advance. This is one rule for the ordinary boundary and the degenerate one: a wiped or idle table waits at the same Ask instead of counting up. The Ask sits **before** `round_started`, so the round-boundary hooks — fatigue, spell tokens, Ambushers — and the first-team roll-off all still run after it, in the new round; and it is one of the scheduler's own unframed Asks, so `set_active_team` or `set_round` supersedes it and closes it with no answers."* Reason: the two specs pulled opposite ways (game flow's automatic advance against this file's unbounded count), and the owner closed it here.
 6. ~~**Same file → The two shapes / Deployment.** Add: *"Deployment alternates one unit a turn under both shapes; the shape governs rounds only."*~~ **Struck 2026-09-06: the spec already says it.** Scheduler → Deployment describes the phase once, not per shape — *"a phase whose Ask is deploy one unit ... the turn ends when the last model of that unit has a placement. A team with nothing left to deploy is skipped; the phase ends when every team is skipped"* — and page 6 is *"the players continue alternating in placing one unit each"*. The shape sections describe rounds and turns, never deployment. No correction is needed; the plan follows the spec as written.
 7. **Same file → The round boundary**, the Ambushers bullet. Add: *"Ambusher Asks are not turns: no `turn_started`/`turn_ended` is written, and a pass there stands for the boundary only, so it cannot mark the team as passed for the round."* Reason: `turn_ended.passed` is round-scoped in the projection; reusing it at the boundary would skip the team's activations.
 8. ~~**Same file → Deployment**, the set-aside sentence *"Set-aside is a condition on the shelved unit"*. Add: *"named `set-aside`, written from the menu ..."*~~ **Struck 2026-09-06: two documents already say it.** Scheduler → Deployment makes set-aside a condition, and game flow → Nothing is an invariant makes every property *"addressable and editable at any time, through a menu, as an ordinary command"* — so the players write it with `set_condition`, and there is nothing for the spec to add. The spelling `set-aside` is this plan's constant (`GfNames.SetAside`), not a spec decision. That an Ask already open stands as logged is scheduler → Nothing is an invariant read straight: the scheduler reads state on every step, and a step is an Ask.
-9. **`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → One roll primitive** and **the scheduler → Deployment** ("Every roll result is editable from the menu, as any roll is"). Add: *"A roll in a frame that has already finished is not editable, because the frame is gone. The roll-off is a one-step sequence with no actor, and a frame with no actor is never confirm-gated (the interpreter plan, question 9), so under either wait setting it finishes in the batch that started it and its dice cannot be edited afterwards; undo rewinds it, but the counter-based RNG re-rolls the same dice."* Reason: reconciled 2026-09-05 with the interpreter plan, which owns the confirm gate; see the question the two plans leave for the owner (Questions, 7).
+9. ~~**`docs/superpowers/specs/2026-09-03-action-sequences-design.md` → One roll primitive** and **the scheduler → Deployment** ("Every roll result is editable from the menu, as any roll is"). Add: *"A roll in a frame that has already finished is not editable ... a frame with no actor is never confirm-gated ..."*~~ **Struck 2026-09-06 by the owner's ruling on question 7: the roll-off's dice are editable, so the spec needs no exception.** The roll-off is gated like any other roll — with `waits_between_steps` on, the interpreter opens a confirm gate on its actor-less frame, the frame stays open after `step_completed`, and `RerollDice`/`SetDice` land while it does. What remains true needs no spec change: a roll in a frame that has *finished* is not editable, because the frame is gone, and that is a property of frames rather than of the roll-off. The scheduler's side of the ruling is that `RollOff.Advance` keys `Resolved` on `sequence_finished` and reads the last `step_completed`, so an edited die decides the order and the order is never read from dice a player may still change (Task 3).
 10. **`docs/superpowers/plans/2026-09-05-game-server-skeleton.md` → Interfaces needed 2**, *"the engine must not emit those for answers (it reads `ask_closed`)"*. Applied 2026-09-05: the skeleton plan now says the scheduler emits `ask_closed` with an empty answer list for one of its own unframed Asks superseded by a menu edit.
 11. **`docs/superpowers/specs/2026-08-28-game-flow-design.md` → Flow.** *Added 2026-09-06 by the owner's ruling.* Current: *"**Rounds advance automatically** when no unspent units remain. The player does not have to declare it."* Replace with: *"**A player ends the round.** When no unspent units remain — every team having activated all it can, passed, or nothing left to activate — the scheduler stops at the round boundary and asks every team that has a participant whether to end it; the next round starts on the first answer. The player does have to declare it, and that is deliberate: ruled 2026-09-06 to avoid an accidental auto-advance. Which teams may answer is not a turn-order question — any player on any team may end the round. See [the scheduler](2026-09-04-scheduler-design.md) → There is no round limit."* Reason: this sentence is the one place any spec says the advance is automatic, and the ruling contradicts it in as many words; the scheduler spec's correction 5 is the same ruling from the other side.
 
@@ -2499,16 +2620,23 @@ Reconciled 2026-09-05 with the **interpreter plan**, whose names are used as the
 2. `Interpreter.ISequenceStarter.Start(GameState, string sequence, SequenceContext)` → `[sequence_started]` (its Task 8) — how the declared action's sequence, the end-of-turn sequences and the roll-off are started. Steps run in the interpreter's `Advance`.
 3. `IGameRules.ActionSequence(string) → string?` — the action row's sequence, null for a name with none (an out-of-set answer under `warn`/`silent`), which the scheduler records and treats as an activation that ran nothing. `PropertySet.Actions` (`ActionDefinition.Name`) are the action rows the turn Ask offers.
 4. `IGameRules.OnRoundStarted(GameState, PropertySet, int round)`, `EndOfTurnSequences(GameState, PropertySet, TurnContext)`, `OnTurnEnded(GameState, PropertySet, TurnContext)` with their `GfHooks` bodies (its Task 11) — fatigue and tokens at the round boundary (round 0 → none), the end-of-activation morale tests (units named as actor or target of a `melee` frame this activation excepted), the wounds-this-activation reset and Idle-clears-Shaken at turn end. This plan's first draft had `RoundStartChanges`, `EndOfTurn` and `TurnEndChanges` for these; they are gone. **One thing for that plan to settle, noted here rather than changed there:** `GfHooks.OnTurnEnded` clears `shaken` only when `turn.Activation.Action == ActivationOption.Idle`, but page 13 says an Aircraft's mandatory Advance "doesn't break the staying idle requirement to stop being Shaken", so a Shaken Aircraft — which `ActionsFor` offers `Advance` (Task 2) — stops being Shaken too. The condition belongs in `GfHooks`, not here; `ActivationOption.Idle` stays a `const string` either way, as that plan's pattern match requires.
-5. `GfRolls.RollOffSequence()` (its Task 11): one die per team in ordinal order, ties rerolled among the tied until every team is ordered, `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]` (team ordinals, best first) on its one `step_completed`. `FirstTeamDecision.RollOffNeeded(GfNames.RollOffSeq)` names it; `RollOff.Order` reads the values. A frame with no actor is never confirm-gated, so the roll-off finishes in one interpreter step.
-6. `Interpreter.Windows.ReactionOrder(GameState, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams)` (its Task 9) — the one reaction-ordering policy, consulting this plan's `IGameRules.OrderReactions` first; this plan defines no ordering type.
-7. `Effects.Lookup.UnitHas(GameState, PropertySet, Guid unitId, string entry)` (its Task 6) — the name check `LegalTurn`, `DeployAsk` and `Ambushers` use for `Immobile`, `Aircraft`, `Scout`, `Ambush`, so the grants store counts.
-8. `GfNames` (its Task 11) — the one names class, and it already declares every name this plan reads: `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside`. This plan adds none of them; `GfNames.Rounds = Scheduler.SchedulerBase.RoundsPhase` is that file's one dependency on this one (Task 5). Conditions the interpreter writes and the scheduler reads: `shaken` and `fatigued` on the **unit** subject; `set-aside` is the scheduler's (menu-written).
-9. `GrimdarkFutureRules` is the skeleton's `sealed partial class` in `Rules/GrimdarkFuture/GfRules.cs`; this plan adds `GfRules.Scheduling.cs` and `GfRules.Deployment.cs`, the interpreter plan `GfRules.Sequences.cs`; nobody redeclares `RulesId`, `Instance` or `Id`.
-10. Test infrastructure `Sim`, `TestProperties.Core`, `LambdaStep`, `ScriptedDice`, `InMemoryPropertiesStore` (its Tasks 3, 8, 10) — `SchedulerHarness` wraps a `Sim`; `FakeRules` implements the whole merged `IGameRules`.
+5. `GfRolls.RollOffSequence()` (its Task 11, reshaped 2026-09-06 by the owner's roll-off ruling): **two** steps, `GfNames.RollOffRollStep` (`"roll-off"`) — one die per team in ordinal order, ties rerolled among the tied until every team is ordered — and `GfNames.RollOffOrderStep` (`"order"`), which ranks the dice that stand and carries `Values["winner_ordinal"]` and `Values["place_1"]..["place_n"]` (team ordinals, best first). `FirstTeamDecision.RollOffNeeded(GfNames.RollOffSeq)` names the sequence; `RollOff.Order` reads the values off the completed step that carries `place_1`, so neither step name appears in this plan's code.
+6. **The roll-off's confirm gate** (that plan's Task 8 and its question 8, both landed 2026-09-06). The scheduler consumes exactly four facts about it:
+   - The boundary between the two steps is an unsealed `Confirm` Ask **to every team**, opened whatever `waits_between_steps` says, because the frame has no actor and no parent. So every roll-off waits — deployment's and a free-for-all's every round — and any one team releases it.
+   - The frame **stays open until that answer arrives**. `RollOff.Advance` returns `Waiting` for the whole interval and starts nothing more.
+   - `sequence_finished` for the frame is the signal that the order stands. The scheduler reads `place_k` only on the first `Advance` after it, so no `round_started.Order` is ever written from dice a player may still edit.
+   - The gate's Ask is **framed** (`Ask.FrameId` non-null), so `SchedulerLog.IsSchedulerAsk` never claims it and `SchedulerBase.StaleAsks` never closes it.
+   The one obligation running the other way is recorded in that plan's Interfaces needed 4: the ranking must be derived **after** the gate, which is why the sequence is two steps. `RollOff.Order` reads values rather than dice and cannot rank a roll-off itself, so a ranking recorded before the gate would leave the scheduler writing the pre-edit order — `dice_edited` reaches into a `RollRecord` and never rewrites a logged `step_completed`.
+   Two consequences of `RulesEngine.Advance`'s ladder are worth stating, since they are that plan's to keep: while the gate's framed Ask is open the scheduler is not called at all (branch 1), and while the frame is on the stack the interpreter runs instead of the scheduler (branch 2). So the engine's own wait during a gated roll-off shows up as the engine resting, not as `RollOff.Waiting` — the reader is what answers correctly whenever it *is* asked, which is the property that matters for undo, rehydration and any later change to that ladder.
+7. `Interpreter.Windows.ReactionOrder(GameState, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams)` (its Task 9) — the one reaction-ordering policy, consulting this plan's `IGameRules.OrderReactions` first; this plan defines no ordering type.
+8. `Effects.Lookup.UnitHas(GameState, PropertySet, Guid unitId, string entry)` (its Task 6) — the name check `LegalTurn`, `DeployAsk` and `Ambushers` use for `Immobile`, `Aircraft`, `Scout`, `Ambush`, so the grants store counts.
+9. `GfNames` (its Task 11) — the one names class, and it already declares every name this plan reads: `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside`. This plan adds none of them; `GfNames.Rounds = Scheduler.SchedulerBase.RoundsPhase` is that file's one dependency on this one (Task 5). Conditions the interpreter writes and the scheduler reads: `shaken` and `fatigued` on the **unit** subject; `set-aside` is the scheduler's (menu-written).
+10. `GrimdarkFutureRules` is the skeleton's `sealed partial class` in `Rules/GrimdarkFuture/GfRules.cs`; this plan adds `GfRules.Scheduling.cs` and `GfRules.Deployment.cs`, the interpreter plan `GfRules.Sequences.cs`; nobody redeclares `RulesId`, `Instance` or `Id`.
+11. Test infrastructure `Sim`, `TestProperties.Core`, `LambdaStep`, `ScriptedDice`, `InMemoryPropertiesStore` (its Tasks 3, 8, 10) — `SchedulerHarness` wraps a `Sim`; `FakeRules` implements the whole merged `IGameRules`.
 
-From the **contracts plan** (2026-09-06, the owner's round-boundary ruling): `AskQuestions` gains one more engine-owned question, `EndRound = "end_round"`, beside `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `Confirm`, `React`, `Bid`. It is one string constant and one row of that plan's `AskQuestions` table; nothing else in the Protocol changes, because question names are free strings by decision (identity and enumerations → question names; confirmed by that plan's review) and the Ask itself is the existing `Ask` with a `Confirmation` legal set, `FrameId` null. Both the server (`SchedulerLog.Questions`, `SchedulerBase.EndRoundAsk`) and the client (the client-shell plan's confirm-button label and log line) read it from there, which is why it is not a constant of this plan's.
+From the **contracts plan** (2026-09-06, the owner's round-boundary ruling): `AskQuestions` gains one more engine-owned question, `EndRound = "end_round"`, beside `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `Confirm`, `React`, `TokenSpend` (renamed 2026-09-06 from `Bid`, per the note in [action sequences](../specs/2026-09-03-action-sequences-design.md)). It is one string constant and one row of that plan's `AskQuestions` table; nothing else in the Protocol changes, because question names are free strings by decision (identity and enumerations → question names; confirmed by that plan's review) and the Ask itself is the existing `Ask` with a `Confirmation` legal set, `FrameId` null. Both the server (`SchedulerLog.Questions`, `SchedulerBase.EndRoundAsk`) and the client (the client-shell plan's confirm-button label and log line) read it from there, which is why it is not a constant of this plan's.
 
-From the **skeleton plan**: `ConnectionHandshake`, `PostgresFixture` and `Program.cs` are modified by the interpreter plan (its Tasks 4 and 10), not here; this plan's one `Program.cs` change replaces the `NoSchedulerFactory` registration.
+From the **skeleton plan**: `ConnectionHandshake`, `PostgresFixture` and `Program.cs` are modified by the interpreter plan (its Tasks 4 and 10), not here; this plan's one `Program.cs` change replaces the `NoSchedulerFactory` registration. Two more of its files move here, both in Task 4 and both from the 2026-09-06 ruling on question 3: `Dispatch/CommandDispatcher.cs`, whose `Answer` computes `Legality` from set membership **and** readability so an unreadable turn answer follows the dial (no signature changes: `state.Info.Enforcement` and `GameState` are already its arguments), and `CommandDispatcherTests`, whose `activate` fixture offers the option id `"a"` — in that Ask's legal set and unreadable, so under `strict` it would be refused where the file expects `Applied`. It becomes `Samples.Unit.ToString("N") + "/Advance"`, with the two `Chosen("a")` answers following; `Chosen("zzz")` stays out of set, no test is added or removed, and the fixture is truer for it.
 
 From the **client shell plan**, nothing the server depends on. The boundary Ask needs no new client mechanism — it is an unframed `Confirmation` addressed to several teams, which the Ask panel already renders — but that plan does two things about it, in its own Tasks 8 and 14 (applied 2026-09-06): the confirm button reads "End the round" instead of "Continue", and the answer's log line reads "confirmed for Team 1" instead of "answered for Team 1". Window mutes stay client-side (client shell → Asks and windows; action sequences → Windows), so the server filters nothing per player. The activate option id is `"{unitId:N}/{action}"`; the client renders `AskOption.Label` and `Pieces` and never parses it.
 
@@ -2516,8 +2644,8 @@ From the **client shell plan**, nothing the server depends on. The boundary Ask 
 
 1. ~~**Does deployment alternate one unit a turn under the player-turn shape?**~~ **Answered from the specs 2026-09-06, not a question for the owner.** Scheduler → Deployment describes the phase once and shape-independently — one unit per Ask, the turn ending when that unit's last model has a placement, a team with nothing left skipped — and page 6 is *"the players continue alternating in placing one unit each, until all units have been deployed"*. The shape sections govern rounds and turns only. The plan does what the spec says; nothing is assumed.
 2. ~~**Who sets a unit aside as a Scout or Ambusher, and when?**~~ **Answered from the specs 2026-09-06.** Scheduler → Deployment makes set-aside a condition on the shelved unit; game flow → Nothing is an invariant makes every property editable from the menu as an ordinary command, through the same path automation writes. So the players write it with `set_condition`, whenever they like, and the deploy Ask's legal set simply excludes it — which is what the plan builds. Nothing in any spec asks for a *set aside or deploy* Ask, and adding one would be a phase the scheduler spec does not list.
-3. **What does an unreadable turn answer mean?** Assumed a pass (the turn ends, `turn_ended.passed = true`, the team is not re-asked this round). If it should end the turn without passing, `TurnCycle.Read` returns `ActivationEnded` with a null activation instead of `PassAnswered`; if it should be refused regardless of enforcement, the dispatcher gains a `Legality.Illegal` check the scheduler exposes — a larger change touching the skeleton's `CommandDispatcher.Answer`.
+3. ~~**What does an unreadable turn answer mean?** Assumed a pass.~~ **Ruled by the project owner 2026-09-06: it follows the enforcement dial** — refused under `strict`, and under `warn` and `silent` treated as a pass, with a warning logged under `warn`. This makes the unreadable case consistent with the out-of-set case, which the two were not before: an out-of-set answer already took all three positions while an unreadable one was a pass whatever the dial said. Both are now one clause in `CommandDispatcher.Answer` (Task 4, Step 3), which adds a readability probe beside `LegalSetMembership.Contains` and hands the same `Legality.OutsideLegalSet` to `EnforcementPolicy.Decide`. The dispatcher is where it has to be: it already holds `state.Info.Enforcement` and `GameState`, so nothing is threaded, and it is the only point at which a refusal still leaves the Ask open — a refusal after the answer was logged could not, because the dispatcher closes an unsealed Ask on the first answer, and the scheduler would then face a closed turn Ask it refuses to read with no open Ask to answer. Under `strict` the turn Ask stands and the same team may answer as often as it likes, each unreadable answer refused; nothing waits on the turn ending, because the round boundary is a player's own `end_round` Ask and the engine rests while an unframed Ask of the scheduler's is live. `TurnCycle.Read` keeps mapping `ReadAnswer` → null to `PassAnswered` with no dial in it, which is what makes a state rebuilt from the log independent of a setting the players may have changed since. One thing the ruling leaves worth knowing: for every answer a real game can produce the two conditions coincide, because a legal set only ever offers well-formed ids for units the log has, so the probe changes behaviour only for an in-set answer the ruleset cannot read — a ruleset that offered a model id where a unit id belongs.
 4. ~~**Should a round nobody can act in end on its own?** The two specs pull opposite ways: game flow → Flow says *"Rounds advance automatically when no unspent units remain"*, and scheduler → There is no round limit says *"Rounds count up"* — together, a table where every unit is dead counts rounds up without bound.~~ **Ruled by the project owner 2026-09-06: the round does not advance on its own. A player ends it** — the reason given, to avoid an accidental auto-advance. So the question is wider than the degenerate case and is answered for every round: the scheduler reaches the end of a round and stops, visibly waiting, with one unframed Ask of its own — question `AskQuestions.EndRound`, a `Confirmation`, `AllowPass` false, addressed to every team that has a participant — and the first answer to it is what emits the next round's `round_started`. Any player on any team may answer; the Ask is unsealed, so the dispatcher closes it on that first answer. It is the same rule for a wiped or idle table, which is why the degenerate case needs no cap: nothing counts up while nobody has said to. The Ask sits before `round_started`, so `OnRoundStarted`'s changes still ride on the new round's event and `RoundBoundaryStep` still runs after it — fatigue and spell tokens land in the round they belong to. `SetRound` and `SetActiveTeam` stay the menu overrides that supersede a live scheduler Ask, and deployment's phases and its flip into round one are untouched (they are the round-0 branch, which never reaches the gate). Applied in Task 5 (`SchedulerBase.EndRoundAsk`, `RoundEnded`), and the ruling is spec correction 5 for the scheduler spec and 11 for game flow.
 5. ~~**Does an abandoned action end the turn?**~~ **Answered from the specs 2026-09-06.** Scheduler → The turn is an Ask: *"the activation is written to the unit's action record when the sequence starts, not when it ends, so an abandoned sequence still counts as the unit having gone"* — and under the alternating shape a turn is one activation, so a unit that has gone ends it. Action sequences → abandonment agrees: pop the frames, applied effects stay. The plan's behaviour is the spec's.
 6. ~~**Under the player-turn shape, what is the first team from round two?**~~ **Answered from the specs 2026-09-06.** The first-team policy is a `GameRules` hook, and scheduler → The two shapes ends *"Only OPR's `GameRules` is built, and it runs under both shapes"* — the hook is handed the round and the teams, never the shape, and page 7's finished-first rule is the only rule OPR has. A `FirstTeam` that branched on `SchedulerShape` would be `GameRules` knowing about the scheduler, which the whole seam exists to prevent. The plan's one reading stands for both shapes.
-7. **Should the roll-off's dice be editable?** Left open by the reconciliation with the interpreter plan (2026-09-05). The roll-off is now the ruleset's one-step sequence with no actor, and the interpreter never confirm-gates a frame with no actor (its question 9), so under either wait setting it finishes in the batch that started it: `RerollDice`/`SetDice` then find no frame, and undo re-rolls the same dice because the RNG is counter-based. Option (a), as planned: accept it — the scheduler spec's "every roll result is editable" gains the exception in spec correction 9. Option (b): the interpreter gates actor-less frames with a `Confirm` to every team (before position 0 too), the frame stays open until all confirm, `SetDice` lands, and `RollOff.Advance` reads the order only once the frame has finished — about ten lines in the interpreter plan's Task 8 and one test here.
+7. ~~**Should the roll-off's dice be editable?**~~ **Ruled by the project owner 2026-09-06: yes — the roll-off is gated like any other roll**, so option (b). The interpreter owns the gate and adds it; the scheduler's side is the reader. `RollOff.Advance` now keys `Resolved` on `sequence_finished` rather than on the frame leaving the stack, returns `Waiting` for the whole interval between the two, and hands `Order` the frame's last completed step carrying `place_1` — the ranking step, which the interpreter runs after the gate — so a die edited behind the gate decides the order and the order is never read from dice a player may still change (Task 3, Task 6's gated test). Three things follow. The roll-off spans three dispatches rather than one batch — the start, the confirm, and the `Advance` after the frame finishes — and nothing is carried between them, because every branch is re-derived from the log. `Waiting` is no longer the dead branch it was recorded as: the reason given for that mark was that the roll-off finishes in the batch that starts it, and that reason is gone. And the deployment phase is unaffected in shape: `round_started(0, order, [])` and `phase_started("deployment")` are still one batch, emitted by the `Advance` that reads the resolved order, only later than before. Spec correction 9 is struck accordingly.

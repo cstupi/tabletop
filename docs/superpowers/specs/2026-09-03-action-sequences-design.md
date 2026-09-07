@@ -156,9 +156,18 @@ Two ways a window opens, one suspension:
 
 **One window variant is simultaneous and sealed**: every eligible team answers the same Ask
 concurrently, answers withheld from the other teams until the window closes, then revealed
-together. It exists for one OPR rule — casting's token bid — because online, sequential reveal
-hands the last mover an advantage the tabletop does not. It is the first real use of the
-per-player filtered streams `architecture.md` kept available.
+together. It exists for one OPR rule — casting's simultaneous token spend — because online,
+sequential reveal hands the last mover an advantage the tabletop does not. It is the first real
+use of the per-player filtered streams `architecture.md` kept available.
+
+*Renamed 2026-09-06.* "Sealed bid", "token bid" and "bidding" were invented for this document;
+the rule has no bid, no auction and no winner. The rulebook has models spending tokens at the
+same time, p.13, `Caster(X)`: *"Models within 18" in line of sight of the caster's unit may
+spend any number of spell tokens at the same time before rolling, to give the caster +1/-1 to the
+roll per token."* The behaviour designed here is unchanged, and "at the same time" is why the
+answers are withheld until the window closes. The names are `SimultaneousSpend` for the window
+variant, `TokenSpend` for the legal set, `TokensSpent` for the answer and `spend_tokens` for the
+question. Every other document that named this mechanic points here.
 
 When several teams want to react in one window, who goes first is the **scheduler's**
 question, not the sequence's. That seam is left for the scheduler session.
@@ -215,21 +224,21 @@ The actions:
   destruction.
 - **Casting** (p.13) — an invoked window on the activation, any point before attacking,
   mid-move included → Ask: spell and tokens, cost equal to the spell's value, one try per
-  spell → sealed bid window: models with tokens within 18" and line of sight of the caster's
-  unit, **both sides**, ±1 per token → 1D6 against 4+, modified → on success Ask the targets in
-  line of sight, one to `target_count` of them from the spell's four target columns → spell
-  effects per target: hits push resolve-hits after a hit roll that cannot fail, grants with
-  `duration = once` write the grants store. *Corrected 2026-09-04 by
+  spell → simultaneous token spend window: models with tokens within 18" and line of sight of
+  the caster's unit, **both sides**, ±1 per token → 1D6 against 4+, modified → on success Ask
+  the targets in line of sight, one to `target_count` of them from the spell's four target
+  columns → spell effects per target: hits push resolve-hits after a hit roll that cannot fail,
+  grants with `duration = once` write the grants store. *Corrected 2026-09-04 by
   [spell effects](2026-09-04-spell-effects-design.md): this read "Ask the target" and "grants
   write a condition".*
 
 **The token economy.** A counter per model with `Caster(X)`: +X at the start of each round,
-even off the table (p.13); capped at 6; spent by casting and by bidding. The counter is
+even off the table (p.13); capped at 6; spent by casting and by the token spend. The counter is
 ordinary editable game state, logged like everything else — no schema change, and nothing in
 `Properties` beyond the parameter the entry already carries. Round-start grant is a
 `GameRules` hook on the round boundary. Two edge sources exist and need nothing new: army
 terrain granting a token on activation nearby (p.18), and the hero upgrade that holds one
-token only spendable as a bid (p.30).
+token only spendable in a token spend (p.30).
 
 **The four actions are sequences too**, which this document left implicit and the review of
 09-04 made explicit: `Hold` is no move, then an Ask *shoot or not* that pushes Shooting;

@@ -2268,7 +2268,7 @@ public static class FolderEndpoints
 
 **Interfaces:**
 - Consumes: `Tabletop.Content.Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`; `Tabletop.Geometry.Base`.
-- Produces: `AfList(string Id, string Name, string GameSystem, List<AfUnit> Units)`, `AfUnit(string SelectionId, string Name, int Size, JsonElement Quality, JsonElement Defense, List<AfRule>? Rules, List<AfLoadoutItem>? Loadout, AfBases? Bases, bool Combined, string? JoinToUnit)`, `AfRule(string Name, JsonElement? Rating)`, `AfLoadoutItem(string Name, string Type, int Count, JsonElement? Range, int? Attacks, List<AfRule>? SpecialRules, List<AfRule>? Content)`, `AfBases(string? Round, string? Square)`; `ArmyForgeClient(HttpClient)` with `HttpClientName = "army-forge"`, `static string? ListId(string source)` (a share URL's `id=` or a bare id), `Task<AfList> Fetch(string listId)` throwing `ArmyForgeException(int Status)`; `PropertyLevel { Unit, Model }`; `ArmyForgeImport.ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog) : Army` throwing `UnsupportedGameSystemException(string gameSystem)`; `ArmyForgeImport.GameRules = { ["gf"] = "grimdark-future" }`; `ArmyForgeImport.DefaultBase = Base.Circle(32 / 25.4)`, `DefaultHeight = 1.5`.
+- Produces: `AfList(string Id, string Name, string GameSystem, List<AfUnit> Units)`, `AfUnit(string SelectionId, string Name, int Size, JsonElement Quality, JsonElement Defense, List<AfRule>? Rules, List<AfLoadoutItem>? Loadout, AfBases? Bases, bool Combined, string? JoinToUnit)`, `AfRule(string Name, JsonElement? Rating)`, `AfLoadoutItem(string Name, string Type, int Count, JsonElement? Range, int? Attacks, List<AfRule>? SpecialRules, List<AfRule>? Content)`, `AfBases(string? Round, string? Square)`; `ArmyForgeClient(HttpClient)` with `HttpClientName = "army-forge"`, `static string? ListId(string source)` (a share URL's `id=` or a bare id), `Task<AfList> Fetch(string listId)` throwing `ArmyForgeException(int Status)`; `PropertyLevel { Unit, Model }`; `ArmyForgeImport.ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog) : Army` throwing `UnsupportedGameSystemException(string gameSystem)`; `ArmyForgeImport.GameRules = { ["gf"] = "grimdark-future", ["aof"] = "grimdark-future" }`; `ArmyForgeImport.DefaultBase = Base.Circle(32 / 25.4)`, `HeightScale = 1.5`, `static double HeightFromBase(Base) => HeightScale * b.A`.
 - Read from a real export, re-verified live on 2026-09-06 (`GET https://army-forge.onepagerules.com/api/tts?id=c2-6YsWRH3py` → `200`, 26 KB, `access-control-allow-origin: *`; saved as the fixture). What the export actually holds, and what import therefore reads:
   - Top level: `id`, `name`, `gameSystem` (`"gf"` on this list), `units`, plus `points`, `pointsLimit`, `listPoints`, `specialRules`, `modified` and eight more this project ignores. **`gameSystem` is the list's own field and the only signal import uses** — a list may carry content from another army book and still report `"gf"`, and nothing here resolves the book.
   - A unit carries 27 keys. Read: `selectionId` (the unique one — `id` repeats across duplicated units), `name`, `size`, `quality`, `defense` (**plain integers**, `4` not `"4+"` and never objects), `rules`, `loadout`, `bases`, `combined`, `joinToUnit`. Ignored: `id`, `cost`, `items`, `weapons`, `upgrades`, `selectedUpgrades`, `xp`, `traits`, `notes`, `armyId`, `genericName`, `valid` and the rest. **There is no `customName`** — `name` is the only name field import uses.
@@ -2276,11 +2276,12 @@ public static class FolderEndpoints
   - A rule is `{id, name, label}` plus `rating` **only when it takes one** — absent, not null, on most rules. `label` is the pre-rendered display string (`"AP(3)"`) and is not stored.
   - A loadout entry has only `name`, `type` and `count` universally. `ArmyBookWeapon` adds `range`, `attacks`, `specialRules`, `weaponId`, `attacksMultiplier`; `ArmyBookItem` adds `content[]` of `ArmyBookRule` entries (`{name, rating, count}`). **`range` is `0` on some melee weapons and `null` on others in the same payload**, so the melee test is `(range ?? 0) == 0`; ranged is an integer of inches. `attacksMultiplier` is `1` on every entry observed and is **not** read — the `Attacks` stat is `attacks` alone; if a list ever carries a multiplier other than 1 the stat is wrong and the fix is one term in `Unit`.
   - `bases` is `{round, square}`, both **strings** of millimetres, both always present: a bare number is a circle (`"32"`), `WxH` an oval (`"60x35"`, `"120x92"`). `bases` also appears on loadout entries — a different field, not read.
-  - Two entries with `combined: true` where one's `joinToUnit` names the other's `selectionId` are one unit of double size. `joinToUnit` is also how a hero joins, so it does not imply `combined`.
-- Mapping decisions (the spec leaves import mechanics open; questions 2–5 record them): `gf` → `game_system = "grimdark-future"`, any other system → `422`; combined pairs merge; a hero's `joinToUnit` is not recorded (no column) and the hero imports as its own unit; `Quality`/`Defense` become unit stats `"4+"`; every unit rule and every item rule with `count >= size` attaches at unit level unless the catalog says the name is a `model` property, in which case it goes onto every slot; a rule with `count < size` goes onto `count` slots; weapons with `count >= size` go on every slot, otherwise onto the next `count` slots from an advancing cursor (so `9× Rifle, 1× Flamer` puts the flamer on slot 10, not slot 1); weapon stats are `Attacks` and, when `range > 0`, `Range = "{range}\""`; a melee weapon has no `Range` (content values → A weapon lives on the model slot); base from `bases.round` — `"32"` → `Base.Circle(32/25.4)`, `"60x35"` → `Base.Oval(60/25.4, 35/25.4)`; absent → `DefaultBase`; height `DefaultHeight`; slot name `"{unit name} {ordinal}"`; `AssetId` null.
-- Stat names `Quality`, `Defense`, `Range`, `Attacks` must match the OPR `stat_definition` names the game-server plan seeds — recorded under *Interfaces needed from other modules*.
+  - Two entries with `combined: true` where one's `joinToUnit` names the other's `selectionId` are one unit of double size. `joinToUnit` is also how a hero joins, so it does not imply `combined`: an entry that carries `joinToUnit` and is not a `combined` partner is a hero joining, and its models become models of the unit it names (ruled 2026-09-06). This list has no joined hero — the four `combined` entries are the two Blood Warriors pairs, and the other three carry `joinToUnit: null` — so the join path is tested against hand-written lists.
+- Mapping decisions (the spec leaves import mechanics open; questions 3–5 and the 09-06 ruling on question 2 record them): `gf` and `aof` → `game_system = "grimdark-future"`, any other system → `422` (ruled 2026-09-06: one rules implementation serves both, so both list kinds carry the same `GameRules` identifier); combined pairs merge, and then a joining entry becomes a **section** of the entry it names, its slots appended to that unit; `Quality`/`Defense` become unit stats `"4+"` from the host entry, and a joined entry's own `Quality`/`Defense` become slot stats on the slots it contributes; every unit rule and every item rule with `count >= size` attaches at unit level unless the catalog says the name is a `model` property, in which case it goes onto every slot; on a joined entry every such rule goes onto that entry's own slots whatever level the catalog gives it, because the unit's properties stay the host's; a rule with `count < size` goes onto `count` slots of its own section; weapons with `count >= size` go on every slot of their section, otherwise onto the next `count` slots from a cursor that advances within that section (so `9× Rifle, 1× Flamer` puts the flamer on slot 10, not slot 1, and a joined hero's weapon can never land on a host slot); weapon stats are `Attacks` and, when `range > 0`, `Range = "{range}\""`; a melee weapon has no `Range` (content values → A weapon lives on the model slot); base from each section's own `bases.round` — `"32"` → `Base.Circle(32/25.4)`, `"60x35"` → `Base.Oval(60/25.4, 35/25.4)`; absent → `DefaultBase`; height `HeightFromBase(base)` = `1.5 ×` the base's longest dimension (ruled 2026-09-06), so a 25.4 mm circle is 1.5" as before, a 32 mm circle 1.89", a 60×35 mm oval 3.54" and a 120×92 mm oval 7.09" — no ruleset supplies a height and Army Forge publishes none, so this is a starting guess scaled off the one physical dimension the export does give, and the player corrects it per slot with `SlotPatch.Height`; slot name `"{entry name} {index within that entry}"`, and `Ordinal` counts over the merged unit, so the two coincide unless something joined; `AssetId` null.
+- Join resolution runs as one pass over what the combined pass left. An absorbed `combined` partner's `selectionId` resolves to the entry that absorbed it, so a hero naming either half of a combined pair joins the merged unit of ten. **A `joinToUnit` no surviving entry answers, and one whose entry itself carries `joinToUnit`, both leave the joining entry as its own unit** — the pre-ruling behaviour, and no `422`, because an unresolvable reference still describes a model the user paid for. Joins are therefore never chained and a cycle needs no walk: each side of a cycle names an entry that itself joins.
+- Stat names `Quality`, `Defense`, `Range`, `Attacks` must match the OPR `stat_definition` names the game-server plan seeds. A joined entry's slots carry `Quality` and `Defense` as **slot** stat keys, a level the OPR properties document does not declare them at, and every rule a joined hero carries is a slot property whatever its catalog kind — both recorded under *Interfaces needed from other modules*.
 
-Spec: management API → Army import ("Management fetches the list … The parser lives in one place"); the army → Where the values come from, Binding, Base shape and height ("defaulting to whatever the ruleset says" — no ruleset default exists yet, hence `DefaultBase`/`DefaultHeight`); content values → Stats are typed, A weapon lives on the model slot, `upgrades` is dropped, `list_entry` is dropped, The army's own two fields; data model → "Nothing carries a count … Import does that expansion once, at the boundary."
+Spec: management API → Army import ("Management fetches the list … The parser lives in one place"); the army → Where the values come from, Binding, Base shape and height ("defaulting to whatever the ruleset says" — no ruleset default exists yet, hence `DefaultBase` and a height scaled off the base); content values → Stats are typed, A weapon lives on the model slot, `upgrades` is dropped, `list_entry` is dropped, The army's own two fields; data model → "Nothing carries a count … Import does that expansion once, at the boundary."
 
 - [ ] **Step 1: Save the fixture and write the failing tests**
 
@@ -2331,7 +2332,7 @@ public class ArmyForgeImportTests
         {
             Assert.Equal([new Tabletop.Content.PropertyInstance("Tough", 3)], m.Properties);
             Assert.Equal(Base.Oval(60 / 25.4, 35 / 25.4), m.Base);
-            Assert.Equal(ArmyForgeImport.DefaultHeight, m.Height);
+            Assert.Equal(1.5 * 60 / 25.4, m.Height);                                            // scaled off the base's long axis, not a constant
             Assert.Null(m.AssetId);
         });
         var claws = riders.Models[0].Weapons.Single(w => w.Name == "Heavy Claws");
@@ -2363,9 +2364,56 @@ public class ArmyForgeImportTests
     }
 
     [Fact]
+    public void A_joined_hero_becomes_a_model_of_the_unit_it_joined()
+    {
+        var json = """{"id":"t","name":"T","gameSystem":"gf","units":[
+          {"selectionId":"sq","name":"Squad","size":5,"quality":4,"defense":5,"rules":[{"name":"Fearless"}],"combined":false,"joinToUnit":null,
+           "bases":{"round":"25","square":"20"},"loadout":[{"name":"Rifle","type":"ArmyBookWeapon","count":5,"range":24,"attacks":1,"specialRules":[]}]},
+          {"selectionId":"champ","name":"Champion","size":1,"quality":3,"defense":4,"combined":false,"joinToUnit":"sq",
+           "rules":[{"name":"Hero"},{"name":"Tough","rating":3},{"name":"Fast"}],"bases":{"round":"40","square":"40"},
+           "loadout":[{"name":"Great Weapon","type":"ArmyBookWeapon","count":1,"range":0,"attacks":3,"specialRules":[{"name":"AP","rating":2}]}]}]}""";
+        var unit = Assert.Single(ArmyForgeImport.ToArmy(ArmyForgeClient.Parse(json), "x", Catalog).Units);
+        Assert.Equal(("Squad", 6), (unit.Name, unit.Models.Count));
+        Assert.Equal(new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" }, unit.Stats);         // the squad's, not the hero's
+        Assert.Equal(["Fearless"], unit.Properties.Select(p => p.Name));
+        Assert.Equal(Enumerable.Range(1, 6), unit.Models.Select(m => m.Ordinal));
+        Assert.Equal(["Squad 1", "Squad 2", "Squad 3", "Squad 4", "Squad 5", "Champion 1"], unit.Models.Select(m => m.Name));
+        var hero = unit.Models[5];
+        Assert.Equal(new Dictionary<string, string> { ["Quality"] = "3+", ["Defense"] = "4+" }, hero.Stats);        // its own, on its slot
+        Assert.Empty(unit.Models[0].Stats);
+        Assert.Equal(["Hero", "Tough", "Fast"], hero.Properties.Select(p => p.Name));                               // Fast is `unit` in Catalog and still lands here
+        Assert.Equal(3, hero.Properties.Single(p => p.Name == "Tough").Parameter);
+        Assert.Empty(unit.Models[0].Properties);
+        Assert.Equal((Base.Circle(40 / 25.4), 1.5 * 40 / 25.4), (hero.Base, hero.Height));                           // base and height from the hero's own entry
+        Assert.Equal((Base.Circle(25 / 25.4), 1.5 * 25 / 25.4), (unit.Models[0].Base, unit.Models[0].Height));
+        Assert.Equal(["Great Weapon"], hero.Weapons.Select(w => w.Name));                                           // a cursor per section
+        Assert.Equal(["Rifle"], unit.Models[0].Weapons.Select(w => w.Name));
+        Assert.False(hero.Weapons[0].Stats.ContainsKey("Range"));
+    }
+
+    [Fact]
+    public void A_join_resolves_through_a_combined_pair_and_an_unresolvable_join_stays_its_own_unit()
+    {
+        var json = """{"id":"t","name":"T","gameSystem":"gf","units":[
+          {"selectionId":"a","name":"A","size":2,"quality":4,"defense":4,"rules":[],"combined":true,"joinToUnit":null,"bases":{"round":"25","square":"20"},"loadout":[]},
+          {"selectionId":"b","name":"A","size":2,"quality":4,"defense":4,"rules":[],"combined":true,"joinToUnit":"a","bases":{"round":"25","square":"20"},"loadout":[]},
+          {"selectionId":"h1","name":"H1","size":1,"quality":3,"defense":3,"rules":[],"combined":false,"joinToUnit":"b","bases":{"round":"40","square":"40"},"loadout":[]},
+          {"selectionId":"h2","name":"H2","size":1,"quality":3,"defense":3,"rules":[],"combined":false,"joinToUnit":"gone","bases":{"round":"40","square":"40"},"loadout":[]},
+          {"selectionId":"h3","name":"H3","size":1,"quality":3,"defense":3,"rules":[],"combined":false,"joinToUnit":"h2","bases":{"round":"40","square":"40"},"loadout":[]}]}""";
+        var army = ArmyForgeImport.ToArmy(ArmyForgeClient.Parse(json), "x", Catalog);
+        Assert.Equal(["A", "H2", "H3"], army.Units.Select(u => u.Name));                        // nothing answers "gone", and h3 names an entry that itself joins
+        Assert.Equal(Enumerable.Range(1, 3), army.Units.Select(u => u.Ordinal));
+        Assert.Equal(["A 1", "A 2", "A 3", "A 4", "H1 1"], army.Units[0].Models.Select(m => m.Name));   // h1 named the absorbed partner
+        Assert.Equal("4+", army.Units[0].Stats["Quality"]);
+        Assert.Equal("3+", army.Units[0].Models[4].Stats["Quality"]);
+        Assert.All(army.Units.Skip(1), u => Assert.Single(u.Models));
+    }
+
+    [Fact]
     public void Other_game_systems_are_refused_and_ids_are_read_from_share_links()
     {
-        Assert.Throws<UnsupportedGameSystemException>(() => ArmyForgeImport.ToArmy(Fixture() with { GameSystem = "aof" }, "x", Catalog));
+        Assert.Equal("grimdark-future", ArmyForgeImport.ToArmy(Fixture() with { GameSystem = "aof" }, "x", Catalog).GameSystem);   // one rules implementation, two list kinds
+        Assert.Throws<UnsupportedGameSystemException>(() => ArmyForgeImport.ToArmy(Fixture() with { GameSystem = "aofs" }, "x", Catalog));
         Assert.Equal("c2-6YsWRH3py", ArmyForgeClient.ListId("https://army-forge.onepagerules.com/share?id=c2-6YsWRH3py&name=Wormhole"));
         Assert.Equal("c2-6YsWRH3py", ArmyForgeClient.ListId("c2-6YsWRH3py"));
         Assert.Null(ArmyForgeClient.ListId("https://example.com/nothing"));
@@ -2435,7 +2483,7 @@ namespace Tabletop.Management.Content.Armies;
 
 public enum PropertyLevel { Unit, Model }
 
-public sealed class UnsupportedGameSystemException(string gameSystem) : Exception($"Only Grimdark Future lists import; this list is '{gameSystem}'.")
+public sealed class UnsupportedGameSystemException(string gameSystem) : Exception($"Only Grimdark Future and Age of Fantasy lists import; this list is '{gameSystem}'.")
 {
     public string GameSystem { get; } = gameSystem;
 }
@@ -2443,48 +2491,82 @@ public sealed class UnsupportedGameSystemException(string gameSystem) : Exceptio
 /// <summary>Army Forge's list → a self-contained Army. Expansion to one slot per model happens here and nowhere else.</summary>
 public static class ArmyForgeImport
 {
-    public static readonly IReadOnlyDictionary<string, string> GameRules = new Dictionary<string, string> { ["gf"] = "grimdark-future" };
+    // Grimdark Future and Age of Fantasy are the same mechanics on different content, so both map to the one rules implementation (ruled 2026-09-06).
+    public static readonly IReadOnlyDictionary<string, string> GameRules = new Dictionary<string, string> { ["gf"] = "grimdark-future", ["aof"] = "grimdark-future" };
     public static readonly Base DefaultBase = Base.Circle(32 / 25.4);
-    public const double DefaultHeight = 1.5;
+    public const double HeightScale = 1.5;
+
+    /// <summary>A starting height, scaled off the base's long axis, because nothing publishes a height: 1.5" for a 25.4 mm circle,
+    /// 3.54" for a 60x35 mm oval. The player corrects it per slot (ruled 2026-09-06).</summary>
+    public static double HeightFromBase(Base b) => HeightScale * b.A;
 
     public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog)
     {
         if (!GameRules.TryGetValue(list.GameSystem, out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem);
-        var units = Merge(list.Units).Select((u, i) => Unit(u, i + 1, catalog)).ToList();
+        var units = Merge(list.Units).Select((m, i) => Unit(m, i + 1, catalog)).ToList();
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
     }
 
-    /// <summary>Two combined entries are one unit: sizes add, loadout counts add. Anything else stays as it came.</summary>
-    private static List<AfUnit> Merge(List<AfUnit> units)
+    /// <summary>A unit as it will be built: the host entry, then the entries whose models join it.</summary>
+    private sealed record Merged(AfUnit Host, List<AfUnit> Joined);
+
+    /// <summary>Two combined entries are one unit: sizes add, loadout counts add. Then a joining entry becomes a section of the entry
+    /// it names, an absorbed partner's id resolving to the entry that absorbed it. A name nothing answers, and a name whose entry
+    /// itself joins, leave the joining entry as its own unit — which is also what breaks a cycle without walking one.</summary>
+    private static List<Merged> Merge(List<AfUnit> units)
     {
-        var result = new List<AfUnit>();
-        var absorbed = new HashSet<string>();
+        var survivors = new List<AfUnit>();
+        var absorbed = new Dictionary<string, string>();          // a combined partner's selectionId → the id that absorbed it
         foreach (var u in units)
         {
-            if (absorbed.Contains(u.SelectionId)) continue;
+            if (absorbed.ContainsKey(u.SelectionId)) continue;
             var partner = u.Combined ? units.FirstOrDefault(o => o.Combined && o.SelectionId != u.SelectionId && (o.JoinToUnit == u.SelectionId || u.JoinToUnit == o.SelectionId)) : null;
-            if (partner is null) { result.Add(u); continue; }
-            absorbed.Add(partner.SelectionId);
+            if (partner is null) { survivors.Add(u); continue; }
+            absorbed[partner.SelectionId] = u.SelectionId;
             var loadout = (u.Loadout ?? []).Concat(partner.Loadout ?? [])
                 .GroupBy(l => (l.Type, l.Name))
                 .Select(g => g.First() with { Count = g.Sum(l => l.Count) }).ToList();
-            result.Add(u with { Size = u.Size + partner.Size, Loadout = loadout, JoinToUnit = null });
+            survivors.Add(u with { Size = u.Size + partner.Size, Loadout = loadout, JoinToUnit = null });
         }
+
+        var byId = survivors.ToDictionary(u => u.SelectionId);
+        AfUnit? Host(string id) => byId.GetValueOrDefault(absorbed.GetValueOrDefault(id, id));
+        bool Joins(AfUnit u) => u.JoinToUnit is not null && Host(u.JoinToUnit) is { JoinToUnit: null };
+
+        var result = survivors.Where(u => !Joins(u)).Select(u => new Merged(u, [])).ToList();
+        var hosts = result.ToDictionary(m => m.Host.SelectionId);
+        foreach (var j in survivors.Where(Joins)) hosts[Host(j.JoinToUnit!)!.SelectionId].Joined.Add(j);
         return result;
     }
 
-    private static Unit Unit(AfUnit u, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog)
+    private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog)
     {
-        var name = u.Name;
-        var stats = new Dictionary<string, string> { ["Quality"] = TargetNumber(u.Quality), ["Defense"] = TargetNumber(u.Defense) };
+        var host = m.Host;
+        var stats = new Dictionary<string, string> { ["Quality"] = TargetNumber(host.Quality), ["Defense"] = TargetNumber(host.Defense) };
         var unitProps = new List<PropertyInstance>();
+        var models = new List<ModelSlot>();
+        Section(host, catalog, unitProps, models);
+        foreach (var joined in m.Joined) Section(joined, catalog, null, models);
+        return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, unitProps, models);
+    }
+
+    /// <summary>One entry's slots, appended to the unit being built. `unitProps` is null for a joined entry: every rule of it goes on
+    /// its own slots whatever level the catalog gives the name, and its Quality and Defense become slot stats, because the unit's own
+    /// stats and properties stay the host's. The cursor is per section, so a joined hero's loadout never reaches a host slot.</summary>
+    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, List<PropertyInstance>? unitProps, List<ModelSlot> into)
+    {
         var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
         var cursor = 0;
 
         void Place(PropertyInstance p, int count)
         {
-            if (count >= u.Size) { if (catalog.GetValueOrDefault(p.Name) == PropertyLevel.Model) slotProps.ForEach(s => s.Add(p)); else unitProps.Add(p); return; }
+            if (count >= u.Size)
+            {
+                if (unitProps is null || catalog.GetValueOrDefault(p.Name) == PropertyLevel.Model) slotProps.ForEach(s => s.Add(p));
+                else unitProps.Add(p);
+                return;
+            }
             for (var i = 0; i < count; i++) slotProps[(cursor + i) % u.Size].Add(p);
             cursor += count;
         }
@@ -2507,9 +2589,12 @@ public static class ArmyForgeImport
         }
 
         var @base = ParseBase(u.Bases?.Round) ?? DefaultBase;
-        var models = Enumerable.Range(0, u.Size).Select(i => new ModelSlot(Guid.CreateVersion7(), i + 1, $"{name} {i + 1}", new Dictionary<string, string>(),
-            slotProps[i], @base, DefaultHeight, null, slotWeapons[i])).ToList();
-        return new Unit(Guid.CreateVersion7(), ordinal, name, stats, unitProps, models);
+        var slotStats = unitProps is null
+            ? new Dictionary<string, string> { ["Quality"] = TargetNumber(u.Quality), ["Defense"] = TargetNumber(u.Defense) }
+            : new Dictionary<string, string>();
+        for (var i = 0; i < u.Size; i++)
+            into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
+                slotProps[i], @base, HeightFromBase(@base), null, slotWeapons[i]));
     }
 
     /// <summary>"32" → circle 32 mm; "60x35" → oval 60×35 mm; anything else → null. Inches out.</summary>
@@ -2540,7 +2625,7 @@ public static class ArmyForgeImport
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Management.Tests --filter ArmyForgeImportTests`; expect 5 passed. Commit: `Parse Army Forge exports and expand them into self-contained armies`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Management.Tests --filter ArmyForgeImportTests`; expect 7 passed. Commit: `Parse Army Forge exports and expand them into self-contained armies`.**
 
 ### Task 10: Armies — import, list, get, patch, delete
 
@@ -2791,7 +2876,7 @@ public static class ArmyEndpoints
             try { list = await forge.Fetch(listId); }
             catch (ArmyForgeException e) { return Problems.BadGateway($"Army Forge answered {e.Status} for list {listId}"); }
             catch (HttpRequestException e) { return Problems.BadGateway($"Army Forge unreachable: {e.Message}"); }
-            if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem, out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future lists import; this list is '{list.GameSystem}'.");
+            if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem, out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{list.GameSystem}'.");
             var army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules));
             await armies.Insert(CurrentAccount.Id(u), army);
             return Results.Created($"/v1/armies/{army.Id}", army);
@@ -2811,7 +2896,7 @@ public static class ArmyEndpoints
 
 - [ ] **Step 4: Wire `Program.cs`** — `builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName); builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName))); builder.Services.AddSingleton<CatalogKinds>(); builder.Services.AddSingleton<ArmyRepository>();` and `app.MapArmies();`.
 
-- [ ] **Step 5: Run `dotnet test tests/Tabletop.Management.Tests`; expect 49 passed. Commit: `Import armies from Army Forge and edit their bindings and bases`.**
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.Management.Tests`; expect 51 passed. Commit: `Import armies from Army Forge and edit their bindings and bases`.**
 
 ### Task 11: Layouts
 
@@ -3024,7 +3109,7 @@ public static class LayoutEndpoints
 }
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<LayoutRepository>()`, `app.MapLayouts()`); run `dotnet test`; expect 51 passed. Commit: `Save and load layouts as copies of a table state`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<LayoutRepository>()`, `app.MapLayouts()`); run `dotnet test`; expect 53 passed. Commit: `Save and load layouts as copies of a table state`.
 
 ### Task 12: Properties, games, the public browser and the manifest
 
@@ -3039,7 +3124,7 @@ public static class LayoutEndpoints
 - Rows management writes here: `game` insert (`status = 'lobby'`, `game_rules` copied from the chosen `properties` row, `rng_seed` generated here, `created_by`, `created_at`); `participant` insert (`team_id null`, `army_id null`, `army_snapshot null`) on create and join, delete on leave; `game.status = 'ended'` on `/end` and on the last leave; whole-game delete. Management never inserts `team`, never sets `participant.team_id/army_id/army_snapshot`, never writes a `table_state` with `game_id` — the game server does, while status is `lobby` or `setup`.
 - **`rng_seed` is generated here, in `Create`, and never written again.** It is not in `CreateGameRequest`: the client does not choose a game's dice. The value is `Random.Shared.NextInt64()` — any `bigint` is valid and the seed is not a secret, since editing a roll is already a first-class command — and it goes into the same `insert` as the rest of the configuration, inside the same transaction, so a game row cannot exist without one. `management.game.rng_seed` is `bigint not null` with **no default** (contracts plan Task 15), so an insert that forgets it fails rather than quietly seeding every such game alike. `Get` reads it back into `GameInfo.RngSeed`, which is how it reaches the game server at hydration and the interpreter after that. No endpoint updates it: not `/join`, not `/leave`, not `/end`, and there is no configuration `PATCH` on a game — the game server rewrites the other configuration columns on `set_configuration` and leaves this one alone. Owner ruling 1 of 2026-09-06.
 - **`POST /v1/games/{id}/join` joins the game. It does not take a team.** The two are separate operations on separate paths, and conflating them is what has kept the question alive. Joining is this endpoint and it inserts a `participant` row with `team_id null`; it is allowed at any status, including `playing` and `ended`, and that is unchanged. Taking a team is a lobby edit on the game server's socket, allowed only while the game is `lobby` or `setup`, and there is no route for it here. So an account that joins a `playing` game gets a row and no team, which is the definition of a spectator, while a player who already had a slot rejoins it by reconnecting rather than by joining again. The canonical statement of the team model is game flow → *Teams are frozen at the flip, and a team is a slot*.
-- `/end` and `DELETE` require participation (question 6). `GET /v1/games/{id}` needs only a login: games are public. The manifest is the one cross-owner read: for every participant it takes the slots' `asset_id` from the picked army (`participant.army_id`, before the snapshot) or from the frozen `army_snapshot` (after), plus the game's `table_state` texture, terrain `asset_id`s and marker `visual_asset_id`s, joins `asset`/`blob` where `uploaded`, and presigns one GET per asset for 60 minutes. Nothing is copied and no row is created.
+- `/end` and `DELETE` are the creator's alone, and remain so after the creator leaves (question 6, ruled 2026-09-06); `/leave` still needs only a participant row. `GET /v1/games/{id}` needs only a login: games are public. The manifest is the one cross-owner read: for every participant it takes the slots' `asset_id` from the picked army (`participant.army_id`, before the snapshot) or from the frozen `army_snapshot` (after), plus the game's `table_state` texture, terrain `asset_id`s and marker `visual_asset_id`s, joins `asset`/`blob` where `uploaded`, and presigns one GET per asset for 60 minutes. Nothing is copied and no row is created.
 
 Spec: management API → The game manifest ("Authorised by being a participant. Returns presigned GET URLs for every mesh and texture in play, whoever owns them"), The rest of the surface (games; `POST /v1/games name, properties_hash, scheduler_shape, enforcement, waits_between_steps`; `GET /v1/properties`); accounts → A game is a lobby ("Games are public … anyone logged in may join"; "creates the game and the participant row that puts them in it — on no team until they pick one"), Ending is a flag ("A game ends when someone ends it explicitly, or when the last participant leaves"), Still open ("joinable at every status"); setup phase → Joining is allowed at any status, The lifecycle (`game.created_by`); whole-design review rulings 4 and 5; `schema.md` → GAME, TEAM, PARTICIPANT, "Deleting an account is application logic" (the same cross-schema delete, per game); owner ruling 1 of 2026-09-06 and contracts-plan spec correction 12 (`game.rng_seed`, written once here).
 
@@ -3101,13 +3186,14 @@ public class GameTests : IClassFixture<ManagementFactory>
         Assert.Equal(2, (await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { })).Participants.Count);   // idempotent
         Assert.Equal(HttpStatusCode.NoContent, (await a.PostAsync($"/v1/games/{game.Id}/leave", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await a.PostAsync($"/v1/games/{game.Id}/leave", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await a.DeleteAsync($"/v1/games/{game.Id}")).StatusCode);         // not a participant any more
+        Assert.Equal(HttpStatusCode.NotFound, (await b.DeleteAsync($"/v1/games/{game.Id}")).StatusCode);         // a participant, not the creator
+        Assert.Equal(HttpStatusCode.NotFound, (await b.PostAsync($"/v1/games/{game.Id}/end", null)).StatusCode);  // same rule on both routes
         Assert.Equal(HttpStatusCode.NoContent, (await b.PostAsync($"/v1/games/{game.Id}/leave", null)).StatusCode);
         Assert.Equal(GameStatus.Ended, (await a.GetJson<GameInfo>($"/v1/games/{game.Id}")).Status);
         await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
         await c.ExecuteAsync("insert into game.game_event (game_id, seq, kind, payload) values (@id, 1, 'turn_started', '{}')", new { id = game.Id });
         var again = await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { });
-        Assert.Equal(HttpStatusCode.NoContent, (await b.DeleteAsync($"/v1/games/{game.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await a.DeleteAsync($"/v1/games/{game.Id}")).StatusCode);         // the creator, who left, still may
         Assert.Equal(0, await c.ExecuteScalarAsync<int>("select count(*) from game.game_event where game_id = @id", new { id = game.Id }));
         Assert.Equal(HttpStatusCode.NotFound, (await b.GetAsync($"/v1/games/{game.Id}")).StatusCode);
     }
@@ -3266,6 +3352,13 @@ public sealed class GameRepository(Database db)
         return await c.ExecuteScalarAsync<bool>("select exists(select 1 from participant where game_id = @id and account_id = @accountId)", new { id, accountId });
     }
 
+    /// <summary>Ending and deleting are the creator's, and stay the creator's after they leave: created_by has no on-delete action and outlives the participant row (ruled 2026-09-06).</summary>
+    public async Task<bool> IsCreator(Guid id, Guid accountId)
+    {
+        await using var c = await db.Open();
+        return await c.ExecuteScalarAsync<bool>("select exists(select 1 from game where id = @id and created_by = @accountId)", new { id, accountId });
+    }
+
     /// <summary>Joining the game is a participant row with no team, at any status; joining twice is the same row (unique (game_id, account_id)).</summary>
     /// <remarks>Taking a team is a game-server lobby edit before play, not this. See the game-flow spec, "Teams are frozen at the flip, and a team is a slot".</remarks>
     public async Task<GameInfo?> Join(Guid id, Guid accountId)
@@ -3358,9 +3451,9 @@ public static class GameEndpoints
         g.MapPost("/{id:guid}/join", async (ClaimsPrincipal u, Guid id, GameRepository games) => await games.Join(id, CurrentAccount.Id(u)) is { } game ? Results.Ok(game) : Problems.NotFound());
         g.MapPost("/{id:guid}/leave", async (ClaimsPrincipal u, Guid id, GameRepository games) => await games.Leave(id, CurrentAccount.Id(u)) ? Results.NoContent() : Problems.NotFound());
         g.MapPost("/{id:guid}/end", async (ClaimsPrincipal u, Guid id, GameRepository games) =>
-            await games.IsParticipant(id, CurrentAccount.Id(u)) && await games.End(id) ? Results.NoContent() : Problems.NotFound());
+            await games.IsCreator(id, CurrentAccount.Id(u)) && await games.End(id) ? Results.NoContent() : Problems.NotFound());
         g.MapDelete("/{id:guid}", async (ClaimsPrincipal u, Guid id, GameRepository games) =>
-            await games.IsParticipant(id, CurrentAccount.Id(u)) && await games.Delete(id) ? Results.NoContent() : Problems.NotFound());
+            await games.IsCreator(id, CurrentAccount.Id(u)) && await games.Delete(id) ? Results.NoContent() : Problems.NotFound());
     }
 }
 ```
@@ -3388,7 +3481,7 @@ public static class ManifestEndpoint
 }
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<GameRepository>()`, `app.MapProperties(); app.MapGames(); app.MapManifest();`); run `dotnet test`; expect 54 passed. Commit: `Add games, the public browser, join and leave, and the asset manifest`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<GameRepository>()`, `app.MapProperties(); app.MapGames(); app.MapManifest();`); run `dotnet test`; expect 56 passed. Commit: `Add games, the public browser, join and leave, and the asset manifest`.
 
 ### Task 13: The account — rename, and total deletion
 
@@ -3530,7 +3623,7 @@ group.MapDelete("", async (ClaimsPrincipal user, AccountDeleter deleter) =>
 });
 ```
 
-- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<AccountDeleter>()`); run `dotnet test`; expect 56 passed. Commit: `Rename the account, and delete it with everything it owns and every game it played in`.
+- [ ] **Step 4: Wire `Program.cs`** (`AddSingleton<AccountDeleter>()`); run `dotnet test`; expect 58 passed. Commit: `Rename the account, and delete it with everything it owns and every game it played in`.
 
 ### Task 14: Run script, CLAUDE.md, and the whole-tree check
 
@@ -3629,7 +3722,8 @@ Namespace `Tabletop.Management` unless stated. Later plans (game server, web app
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` (`RngSeed` is generated server-side, not requested) | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer (public) |
 | `POST /v1/games/{id}/join` | → `GameInfo` | bearer |
-| `POST /v1/games/{id}/leave`, `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}` | → `204` | participant |
+| `POST /v1/games/{id}/leave` | → `204` | participant |
+| `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}` | → `204` | creator |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets: ManifestEntry(AssetId, Kind, Hash, Url, Scale, Orientation)[], ExpiresAt)` | participant |
 | **`POST /v1/dev/sessions`** — **development only, not a product endpoint** | `DevSessionRequest(Name)` → `SessionResponse` | none, and the route exists only when `IHostEnvironment.IsDevelopment()` |
 
@@ -3655,9 +3749,9 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
 | `Content.Assets.IBlobStore`, `S3BlobStore` | `Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Delete` |
 | `Content.Assets.GlbHeader` | `IsGlb`, `JsonChunkLength`, `CountTriangles`, `HeaderBytes = 20`, `WarnAbove = 100_000` |
 | `Content.Assets.AssetRepository`, `FolderRepository` | per Tasks 7 and 8 |
-| `Content.Armies.ArmyForgeClient`, `ArmyForgeImport`, `CatalogKinds`, `ArmyRepository` | `ListId`, `Parse`, `Fetch`; `ToArmy(list, source, catalog)`, `ParseBase`, `GameRules`, `DefaultBase`, `DefaultHeight`; `For(gameRules)`; `Insert/Get/List/Patch/Delete` |
+| `Content.Armies.ArmyForgeClient`, `ArmyForgeImport`, `CatalogKinds`, `ArmyRepository` | `ListId`, `Parse`, `Fetch`; `ToArmy(list, source, catalog)`, `ParseBase`, `GameRules`, `DefaultBase`, `HeightScale`, `HeightFromBase`; `For(gameRules)`; `Insert/Get/List/Patch/Delete` |
 | `Content.Layouts.LayoutRepository` | `Save/Get/List/Patch/Delete`, `static ReadTree` |
-| `Games.GameRepository` | `ListProperties/Create/List/Get/IsParticipant/Join/Leave/End/Delete/ManifestAssets` |
+| `Games.GameRepository` | `ListProperties/Create/List/Get/IsParticipant/IsCreator/Join/Leave/End/Delete/ManifestAssets` |
 
 ### Migrations
 
@@ -3696,14 +3790,16 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
    ```
    and add after it: *"Every session-returning call ends the same way: the account row is created or found by `external_id`. The JWT carries our id because the project's Stytch custom claim template maps `{{ user.external_id }}` to the claim `account_id` and Stytch evaluates it on every mint — Stytch's own JWT names the user by its `sub` and does not carry `external_id`. Management sends `session_custom_claims` nowhere. On the one login where `external_id` is first written the session was minted a moment too early, so that login re-mints the JWT once; no other login and no refresh does. Refresh exists because the JWT lives five minutes and only management holds the project secret."*
 3. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → "Deliberately not decided".** Strike *"Whether `PATCH` on an army takes a whole document or a patch."* with: *"Settled 2026-09-05 by the management API plan: a patch — a name, unit-default bindings (`UnitPatch`), and per-slot binding, base and height (`SlotPatch`)."* Strike *"Error shapes and status code conventions."* with: *"RFC 7807 `application/problem+json`; another owner's row is `404`."*
-4. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → Army import.** Add after *"a change to Army Forge's format is a server deploy rather than a client release"*: *"The source is a share link (`https://army-forge.onepagerules.com/share?id=…`) or a bare list id; management fetches `GET /api/tts?id={id}`. Only Grimdark Future (`gameSystem: "gf"`) imports while OPR's is the only `GameRules`. Two `combined` entries are one unit; a hero's `joinToUnit` is not recorded. Weapons with a count below the unit's size are dealt onto successive models from an advancing cursor; a rule's level comes from the `catalog_entry` rows for the game rules (model-level rules go onto every slot), and a name no catalog knows is a unit rule."*
+4. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → Army import.** Add after *"a change to Army Forge's format is a server deploy rather than a client release"*: *"The source is a share link (`https://army-forge.onepagerules.com/share?id=…`) or a bare list id; management fetches `GET /api/tts?id={id}`. Grimdark Future (`gameSystem: "gf"`) and Age of Fantasy (`"aof"`) both import and both carry `game_system = "grimdark-future"`, because one rules implementation serves both and only the content differs; the skirmish and regiment variants are refused. Two `combined` entries are one unit, and an entry whose `joinToUnit` names another becomes models of that unit, carrying its own quality, defence and rules on its own slots; a `joinToUnit` that names nothing, or names an entry which itself joins, imports as its own unit. Weapons with a count below the unit's size are dealt onto successive models from an advancing cursor; a rule's level comes from the `catalog_entry` rows for the game rules (model-level rules go onto every slot), and a name no catalog knows is a unit rule."*
 5. **`docs/superpowers/specs/2026-08-28-army-design.md` → Base shape and height** (*"defaulting to whatever the ruleset says"*). Add: *"Army Forge publishes a recommended round base per unit (`bases.round`, e.g. `32` or `60x35` mm), which import uses as the default; a unit without one gets a 32 mm circle. No ruleset supplies a height; import writes 1.5" and the user corrects it per slot."*
-6. **`docs/superpowers/specs/2026-08-29-accounts-design.md` → Ending is a flag.** Add: *"`/end` and `DELETE /v1/games/{id}` are open to any participant, and to nobody else; a non-participant sees `404`."*
+6. **`docs/superpowers/specs/2026-08-29-accounts-design.md` → Ending is a flag.** Add: *"`/end` and `DELETE /v1/games/{id}` are the creator's alone, and stay the creator's after they leave the game; anyone else sees `404`. An account deletion destroys every game the account created, so a game whose creator is gone is gone with them."*
 7. **`docs/superpowers/specs/2026-08-29-management-api-design.md` → The version check.** Add: *"A request with no version header is accepted — the web app is deployed with the API and does not send one; the Godot client always does."*
 
 ## Interfaces needed from other modules
 
-- **Game-server plan** — must match, not consume: verify the session JWT exactly as Task 4 does (JWKS `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}`, no auth; `iss = stytch.com/{project_id}`; `aud = project_id`; RS256; 30 s clock skew; the account id is the top-level claim `account_id`, a GUID string — `StytchAuthentication.AccountClaim`), reading `TABLETOP_STYTCH_PROJECT_ID` and `TABLETOP_STYTCH_BASE_URL` from the same `.env`; it verifies at connect only — a socket outlives the five-minute JWT and is never re-verified, and a reconnect presents whatever JWT the client then holds; write only the rows in *Rows by writer* above and set `participant.army_id` on `pick_army` (the manifest reads it before the snapshot exists); read `game.rng_seed` into `GameInfo.RngSeed` at hydration and never write it — this project generates it once in `GameRepository.Create` and the column has no default, so it is a value the game server can rely on being there; on `replace_draft` from a loaded layout, regenerate every child id, because `terrain_placement`, `terrain_volume`, `marker` and `deployment_zone` ids are global primary keys and the layout's rows keep theirs; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)` (the manifest deserialises it with `ContentJson`); seed the OPR `stat_definition` names `Quality` and `Defense` (unit) and `Range` and `Attacks` (weapon), which import writes as stat keys; load at least one `properties` row, without which `POST /v1/games` answers `422` and no game can be created.
+- **Game-server plan** — must match, not consume: verify the session JWT exactly as Task 4 does (JWKS `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}`, no auth; `iss = stytch.com/{project_id}`; `aud = project_id`; RS256; 30 s clock skew; the account id is the top-level claim `account_id`, a GUID string — `StytchAuthentication.AccountClaim`), reading `TABLETOP_STYTCH_PROJECT_ID` and `TABLETOP_STYTCH_BASE_URL` from the same `.env`; it verifies at connect only — a socket outlives the five-minute JWT and is never re-verified, and a reconnect presents whatever JWT the client then holds; write only the rows in *Rows by writer* above and set `participant.army_id` on `pick_army` (the manifest reads it before the snapshot exists); read `game.rng_seed` into `GameInfo.RngSeed` at hydration and never write it — this project generates it once in `GameRepository.Create` and the column has no default, so it is a value the game server can rely on being there; on `replace_draft` from a loaded layout, regenerate every child id, because `terrain_placement`, `terrain_volume`, `marker` and `deployment_zone` ids are global primary keys and the layout's rows keep theirs; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)` (the manifest deserialises it with `ContentJson`); seed the OPR `stat_definition` names `Quality` and `Defense` (unit, and at model level too — the interpreter bullet below says why) and `Range` and `Attacks` (weapon), which import writes as stat keys; load at least one `properties` row, without which `POST /v1/games` answers `422` and no game can be created.
+- **Interpreter plan** — **no Age of Fantasy content set exists.** `aof` lists import as of the 2026-09-06 ruling, and a game pins a content set by `properties.content_hash`, so a player can import an Age of Fantasy army and then have nothing to play it with: the only authored document is `grimdark-future-core.properties.json`, whose catalog is Grimdark Future's army books and spells, and that plan owns both the documents and `PropertiesSeeder`. Age of Fantasy's units, rules and spells differ even though its mechanics do not, so the set is content to author, not code to write, and nothing in this plan can stand in for it. This project does not detect the mismatch either: `army.game_system` and `properties.game_rules` are both `grimdark-future` for an Age of Fantasy army, which is exactly what makes one rules implementation serve both, so `pick_army` sees no conflict. Recorded, not solved.
+- **Interpreter plan** — two consequences of the joined-hero ruling for the OPR properties document (`grimdark-future-core.properties.json`, its Task 3) and the readers over it. First, `Quality` and `Defense` are declared there at `unit` level only, and a joined hero's slots now carry both as slot stats, so the document should declare the same two names at `model` level as well: `stat_definition` is where a stat's kind at a level is declared, and `slot_stat` has no foreign key to it, so nothing catches the gap. Nothing reads a slot's `Quality` today — `GfAttack` resolves `StatRef(StatLevel.Unit, …)` and its `TargetNumber` throws `NotSupportedException` for a model-level ref — so the hero fights at the squad's quality and defence until a rule reads the slot, and the declaration is what keeps a stored stat a declared one. Second, every rule a joined hero carries lands on its slot whatever its catalog kind, and a `unit`-kind entry sitting on a slot is read two ways: `LiveProperties.Gather` treats it as live for the whole unit (its aggregation switch falls to `_ => true`), while `Lookup.UnitHas` answers false (`_ => false`, the case its `TestArmies` doc-comment warns about). `Aircraft`, `Ambush` and `Scout` are the only `unit`-kind entries in the OPR core set, so a joined hero with `Ambush` is invisible to the scheduler's deployment set. Import already produced that shape for a rule with `count < size`; a hero merge makes it ordinary.
 - **Web-app plan** — consumes the HTTP surface above; hosts `/reset-password` at `TABLETOP_WEB_URL` and reads `?token=` from Stytch's redirect, then calls `POST /v1/auth/password/reset/complete`; computes the SHA-256 before `POST /v1/assets`; PUTs the bytes to `UploadUrl` with the same `Content-Type` it declared; calls `/confirm` and shows `Warning`; writes the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Gets CORS for `TABLETOP_WEB_URL` from Task 3 (its request). Does not get a way to rename units or model slots: the army spec gives the user "everything about appearance and physical presence" and the list "composition and loadout"; names are the list's, so `UnitPatch` and `SlotPatch` stay without `Name?` and the editor shows them read-only (compatibility review ruling, 2026-09-05; a one-column change in `ArmyRepository.Patch` if the owner wants it).
 - **Client-shell plan** — consumes `/v1/auth/*`, `/v1/account`, `/v1/games*` including the manifest `GET /v1/games/{id}/assets` (whose `ManifestEntry.Scale/Orientation` it applies to another participant's mesh), `/v1/properties`, `/v1/armies` (list and get only), `/v1/layouts` (list, get, `POST` to save), and three owner-only asset routes for the setup toolbar: `GET /v1/assets?kind=terrain|texture&limit=200`, `GET /v1/assets/{id}/volumes`, `GET /v1/assets/{id}/download`; sends `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; refreshes with `POST /v1/auth/session/refresh` before the five-minute JWT lapses (once a minute, per the management API's working figures). Its `ManagementDtos.cs` mirrors `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member; a change to any of these here is a change there.
 - **Simulation plan** — consumes `POST /v1/dev/sessions` for `--driver socket`. `SocketCredentials` calls it once per team plus once for the recorder, and `SocketRowSeeder` inserts `participant` rows for the account ids it comes back with. It therefore needs the management API running under `ASPNETCORE_ENVIRONMENT=Development` with the Stytch secret set, which `./scripts/management` does, and it needs network access to the Stytch test project, which the in-process driver does not.
@@ -3717,10 +3813,10 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
 ~~1. **Is a request with no `Tabletop-Client-Version` header accepted?**~~ Struck 09-06: the specs answer it. The management API's version check exists *"because the Godot client is a downloaded desktop application and a user can be months behind"* (management API → `/v1` in the path), and the client shell is the document that says *"the client sends its version on every request"* — the web app is deployed with the API and is not the case the mechanism was built for. A missing header is accepted, which is what `ClientVersion.Decide` does; spec correction 7 records it in the spec.
 
 ~~1. **Should the account id go into the JWT by a per-login `session_custom_claims` or by a Stytch dashboard "custom claim template"?**~~ **Ruled 09-06: the template**, `{"account_id": "{{ user.external_id }}"}`. The plan's reason for the code path — visible, testable, no dashboard state — did not survive the cost the whole-design review had already measured: an extra Stytch call on every login *and* on every refresh, and refresh runs once a minute per client. Stytch's custom-claim-templates page, re-read 09-06, lists `{{ user.external_id }}` among the supported variables and says the rendered object "will be used as the initial set of custom claims for all of that user's sessions", so the claim costs nothing at run time. Consequences, all now written into Tasks 4 and 5: `StytchClient.RefreshSession` loses its `customClaims` parameter and `Sessions.Complete` makes no second call on a returning login or a refresh; `external_id = account.id` stops being incidental and becomes the mechanism; the template is recorded under *Interfaces needed from other modules → Stytch dashboard*, with what its absence breaks; and the one case the template cannot cover on its own — the first login, where the session is minted before `external_id` is written — is handled by re-minting the JWT once on that login only, which `AuthTests` asserts happens exactly once there and not at all afterwards.
-2. **Do joined heroes (`joinToUnit` on a non-combined entry) import as their own unit?** Assumed yes, and the join is lost, because no army table records it and content values dropped `list_entry`. If the hero should become a model of the unit it joined, it needs slot-level `Quality`/`Defense` stats on that slot and `Hero`/`Tough` as slot properties — a change to `ArmyForgeImport.Merge` only.
-3. **Default base and height when Army Forge gives none.** Assumed `Base.Circle(32/25.4)` and `1.5"` (`ArmyForgeImport.DefaultBase/DefaultHeight`); the army spec says "the ruleset's values" and no ruleset value exists. If the defaults should come from `Properties`, they need a table (there is none), or a `GameRules`-keyed constant in this project.
+~~2. **Do joined heroes (`joinToUnit` on a non-combined entry) import as their own unit?**~~ **Ruled 2026-09-06: the hero is a model of the unit it joined.** The assumption had been that the join was lost, because no army table records it and content values dropped `list_entry`. Nothing had to be added to hold the hero: `ModelSlot` already carries `Stats` and `Properties`, and `slot_stat` and `slot_property` are already written and read by `ArmyRepository`, so the hero's quality and defence go on its own slot and its rules go there with them. Consequences, all in Task 9: `Merge` returns a host plus the entries joining it, one `Section` per entry appends that entry's slots with its own base, its own cursor and its own stats, the unit's stats and properties stay the host's, and a `joinToUnit` that resolves to nothing or to another joining entry keeps the old behaviour of a unit of its own. Two facts follow that no code enforces: `Quality` and `Defense` are declared at unit level in the OPR properties document and are now stored at model level too, and a joined hero's `unit`-kind rules sit where `Lookup.UnitHas` cannot see them — both under *Interfaces needed from other modules*.
+~~3. **Default base and height when Army Forge gives none.**~~ **Ruled 2026-09-06: the height is scaled from the base.** The base default stands at `Base.Circle(32/25.4)` for an entry with no `bases.round`; the height is `HeightFromBase(base)`, `1.5 ×` the base's long axis, replacing the flat 1.5" every slot used to get. A 60 mm cavalry oval therefore starts at 3.54" and a 120 mm oval at 7.09", where both used to start the height of an infantryman. It stays a guess and is meant to read as one: nothing in either ruleset publishes a height, Army Forge publishes none, and the base is the only physical dimension the export gives, so the scale is arbitrary and the player corrects it per slot through `SlotPatch.Height`. A per-`GameRules` table of heights would be the alternative and no such table exists.
 4. **How are partial weapon counts dealt onto models?** Assumed an advancing cursor (9× Rifle, 1× Flamer → the flamer on the last model). If the user should be asked, import cannot expand deterministically, and the web app needs a per-slot weapon editor plus a `PATCH` shape for weapons — neither designed.
-5. **Which game systems import?** Assumed only `gf` → `grimdark-future`, since only OPR's `GameRules` gets built and Age of Fantasy is not a second ruleset. If `gff`/`aof` lists should import for later use, `ArmyForgeImport.GameRules` gains entries and `army.game_system` carries names no `GameRules` matches yet.
-6. **Who may `/end` and `DELETE` a game?** Assumed any participant (the setup phase says they stay "unowned", meaning not the creator's, and the browser being public does not make destruction public). If anyone logged in may, drop the `IsParticipant` check on those two routes.
+~~5. **Which game systems import?**~~ **Ruled 2026-09-06: Grimdark Future and Age of Fantasy both import**, in the owner's words *"the mechanics are the same. Both future and fantasy should supported."* `GameRules` maps `gf` and `aof` to the one `grimdark-future` rules implementation, which is what the project already records: the scheduler and interpreter plans build one OPR engine, and `architecture.md` → *Rules as data* and the geometry values spec both say Age of Fantasy's terrain rules are word for word identical to Grimdark Future's, which is why it is not a second ruleset. Only the content differs, and that is the consequence recorded against the interpreter plan under *Interfaces needed from other modules*: an Age of Fantasy list can be imported before any content set exists to play it with. The skirmish and regiment variants (`gff`, `aofs`, `aofr`) still answer `422`; they are different mechanics, not different content.
+~~6. **Who may `/end` and `DELETE` a game?**~~ **Ruled 2026-09-06: the creator alone.** The assumption had been any participant, on the reading that the setup phase leaves a game "unowned". The creator already starts and ends setup, so ending and destroying the game belong to the same account. `GameRepository.IsCreator` replaces `IsParticipant` on `POST /v1/games/{id}/end` and `DELETE /v1/games/{id}`, and anyone else gets `404`, the same answer this project gives for any other row that is not the caller's (Task 3's owner-only rule). The right stays with the creator after they leave, because `game.created_by` has no `on delete` action and outlives the participant row. A game does not become undeletable when its creator's account goes: Task 13 deletes every game the account created as well as every game it played in, which is why the game set there is a union.
 7. **Should `GET /v1/games` be newest-first?** Assumed oldest-first ascending by id, the keyset order the spec's cursor mechanism gives. If newest-first, the query becomes `id < @after order by id desc` and `Page<T>.Next` still holds the last id.
 8. **Should the texture kind accept `image/webp`?** Assumed no (PNG and JPEG). Adding one is a value in `AssetRules.ContentTypes` and the `002` check constraint.

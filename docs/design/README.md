@@ -172,7 +172,7 @@ memoisation exists.
 
 Every decision a player makes during play is an `Ask`: a question, the teams it addresses, a
 `LegalSet` computed by the server, and flags for passing, sealing and window kind. A turn is an
-Ask. So are deployment, target selection, wound allocation, casting's sealed token bid, the
+Ask. So are deployment, target selection, wound allocation, casting's simultaneous token spend, the
 confirm gate between steps, an interrupt window, and the round boundary.
 
 ```mermaid

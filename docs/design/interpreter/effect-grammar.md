@@ -138,7 +138,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 3 | `ReplaceStat` | two | `StatReader.TargetNumber`, in ordinal order, last wins | `Reliable`, `Sniper` |
 | 4 | `ForceReroll` | two | `RollEffects.Plan` collects the face into `RollPlan.RerollRaw`; `Roller.Roll` redraws once | `Poison` |
 | 5 | `Roll` | two | `RollEffects.OwnRolls` returns it; the **step** rolls it under the entry's name with the row's threshold | `Regeneration`, `Fearless`, `Impact(X)` |
-| 6 | `AddHit` | two | `RollEffects.PerDie` per die with a `RollResult` condition; unconditional ones are a spell's *takes N hits* and are read by the casting step | `Furious`, `Relentless`, damage spells |
+| 6 | `AddHit` | two | `RollEffects.PerDie` per die with a `RollResult` condition; an unconditional one is a spell's *takes N hits*, which the casting step reads and pushes as a hit roll that cannot fail | `Furious`, `Relentless`, damage spells |
 | 7 | `Multiply` | two | `RollEffects.HitMultiplier`/`WoundMultiplier`, product of amounts, each capped by `CapKind` | `Blast(X)` on hits, `Deadly(X)` on wounds |
 | 8 | `OverrideResult` | two | nobody: it is the child of a kind-5 roll, and the step reads `TargetResult` to know what a success does | `Regeneration` (wound), `Fearless` (morale test) |
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
@@ -161,12 +161,17 @@ hand-modify a `Regeneration` roll (proposed spec correction 3).
 
 Three phases. The order inside each matters.
 
-**Gather, per side.** Four sources. Unit properties from `UnitInPlay.Definition.Properties`.
+**Gather, per side.** Five sources. Unit properties from `UnitInPlay.Definition.Properties`.
 Grants from `UnitInPlay.Grants`, each becoming a `LiveProperty` whose `GrantId` is set and whose
-parameter is read out of the pinned set by `Grant.EffectId`. Model properties, grouped by entry
-name across the party's models, or `Lookup.LivingModels` when the party names none, and admitted
-per the entry's `Aggregation`. Weapon properties per weapon id, carrying both the weapon and the
-model.
+parameter is read out of the pinned set by `Grant.EffectId`. A `unit`-kind catalog entry sitting
+on a model slot, from `Lookup.UnitKindOnSlots` over the unit's definition, holder-less. Model
+properties, grouped by entry name across the party's models, or `Lookup.LivingModels` when the
+party names none, and admitted per the entry's `Aggregation`. Weapon properties per weapon id,
+carrying both the weapon and the model.
+
+The model-property arm skips a `unit`-kind entry, because the source above it added the entry for
+the whole unit. Import produces the shape two ways: a rule whose count is smaller than the unit,
+and a hero joined to another unit, whose rules all land on its slot whatever their kind.
 
 | `Aggregation` | Live when | Instances produced |
 | --- | --- | --- |
@@ -174,6 +179,7 @@ model.
 | `Any` | at least one does | one, unattributed |
 | `Majority` | `count * 2 > models.Count`, with no tie rule | one, unattributed |
 | `None` | always | one **per model**, each carrying its own `ModelId` and parameter |
+| not declared: a `unit`-kind entry on a model slot | always, off the definition rather than the living models | one, unattributed, carrying the slot's parameter |
 
 **Collapse.** Grouped by `(entry name, model id when aggregation is none, weapon *name* when it
 is a weapon rule, grant id)`, first of each group kept. p.13: instances of the same rule do not
@@ -237,13 +243,18 @@ spell's unconditional *takes 4 hits* is not counted once per die.
 
 **`RollEffects.HitMultiplier(live, side, defenderModels)`** is the *product* of `Multiply` amounts
 on hits, each clamped to `Math.Min(x, defenderModels)` when `CapKind.ModelsInTargetUnit` is set,
-with a floor of 1. `WoundMultiplier` is the same with no cap. The product rather than the sum
-matters only if two multiplying rules ever apply at once, and nothing in OPR does.
+with a floor of 1. `defenderModels` is a number the ruleset passes in, not a count read here, so
+when the cap is fixed at some earlier moment the ruleset is what remembers it. `WoundMultiplier`
+is the same with no cap. The product rather than the sum matters only if two multiplying rules
+ever apply at once, and nothing in OPR does.
 
 **`StatReader`** reads a stat as the live properties leave it. Replace runs first, in ordinal
-order, last wins. Modify runs second, summed. It throws `NotSupportedException` for a model-level
-target number, because OPR declares `Quality` and `Defense` at unit level and nothing needed the
-model case yet. That is an explicit hole for a second ruleset rather than a silent wrong answer.
+order, last wins. Modify runs second, summed. It resolves `StatLevel.Unit` only and throws
+`NotSupportedException` for a model-level target number. Grimdark Future declares `Quality` and
+`Defense` at `model` level as well as `unit` level, so the hole is its own rather than a
+second ruleset's: a joined hero's slot carries its own pair as declared values and nothing
+reads them, so the hero fights at its host squad's numbers (design.md → question 13). The
+throw is an explicit hole rather than a silent wrong answer.
 
 ## Worked against the book
 
@@ -292,6 +303,9 @@ too, or a granted hook-name rule would never fire.
 - **`RemainingUses` is 1 for every once-effect.** *"Next time the effect would apply"* read
   literally: a grant that never gets a chance to apply is never consumed.
 - **A model-grain target's grant lands on the model's unit**, because the store is the unit's.
+- **A granted `Regeneration` is consumed by the step that assigns the wound,** not by a roll plan:
+  kind 5 is a roll of its own rather than a modifier, so no plan carries it and `ConsumeGrants`
+  never sees it.
 - **A grant's parameter is the granting effect's `amount`,** read from the pinned set by
   `EffectId`. The grant row carries none, so the id's database-locality matters (design.md →
   Failure modes).
@@ -312,6 +326,7 @@ unit's own properties, the aggregated model properties **and** the grants store.
 | Action legality | `Immobile` |
 | Usage | `Limited` |
 | Melee strike order | `Counter` |
+| Melee result | `Fear` |
 | Interrupt | `Caster` |
 | Wound assignment | `Tough`, `Hero` |
 | Containment | `Transport` |
@@ -324,8 +339,11 @@ effects-as-data stops paying.
 for *"may target enemies that are not in line of sight"*, which is no kind. `Aircraft` carries
 two and is checked by name during movement. `Hero` is the opposite case. Its third clause, *must
 use the unit's Defense until all other models have been killed*, needs **no** effect row at all.
-`Defense` is declared at unit level, so every model already rolls the unit's, and a
-`replace_stat` row would restate it.
+`StatReader.TargetNumber` resolves `Defense` at unit level, so every model already rolls the
+unit's, and a `replace_stat` row would restate it. The reader is the reason, not the declaration:
+`Defense` is declared at both levels. The clause's *until all other models have been killed* half
+is unimplemented, and no effect row could implement it, because `roll-to-block` throws one roll
+per hit before `deal` assigns a wound to any model.
 
 ## Not covered by the grammar
 

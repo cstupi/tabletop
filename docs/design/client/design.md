@@ -41,8 +41,8 @@ Not in:
 - **No truth outside the projection.** A screen keeps only what it draws.
 - **No army editing, no asset upload, no STL conversion.** Those belong to the web app. A wrong
   mesh sends the player to the browser.
-- **No hidden-information handling.** The server filters streams, such as the sealed bid. The
-  client shows what it receives.
+- **No hidden-information handling.** The server filters streams, such as the simultaneous
+  token spend. The client shows what it receives.
 - **No offline mode.** Running the game means running a server.
 - Visual design of any screen, and the Godot scene tree beneath each, are left undecided. The plan
   builds every control tree in `_Ready` and hand-writes `.tscn` files carrying a root node and a
@@ -65,7 +65,7 @@ something to talk to. Tasks 1–8 need no server.
 
 ```mermaid
 flowchart LR
-  subgraph client["client/ - the Godot client, Windows"]
+  subgraph client["client/ - the Godot client, desktop"]
     godot["Screens, Table, Panels<br/>Godot: draws and forwards input"]
     core["Tabletop.Client.Core<br/>Godot-free: holds every decision"]
   end
@@ -109,8 +109,16 @@ or substituted body cannot enter the cache.
 `Tabletop.Geometry` is shared with the game server so the two agree on distance, line of sight and
 settling. The client runs it for a different reason: only the server's answer counts. Client
 geometry is a prediction for responsiveness. A disagreement is resolved by resyncing, never by
-reconciling. Bit-exact cross-platform determinism between Windows and Linux is therefore not a
-requirement here.
+reconciling. Bit-exact cross-platform determinism between the client's desktop build and the
+server's Linux container is therefore not a requirement here.
+
+Windows is the client's first export target and not its only possible one, ruled 2026-09-06 and
+recorded in `architecture.md` → Deliverables. No design decision in this client depends on
+Windows: `OS.GetUserDataDir()`, `res://` and `user://` are portable, and the remembered session is
+a plain owner-only file rather than Windows data protection. The development machine is WSL with
+the Godot editor on the Windows host, which is a fact about the current machine and carries no
+platform commitment. Nothing is planned for the other platforms and no export preset for them
+exists.
 
 ## Design
 
@@ -538,8 +546,10 @@ download per machine. Ordering is by distance to the camera at request time, thr
 queue with two downloads in flight. `Pump` dequeues whichever waiting item is nearest, not the one
 it was called for, so a camera move lets later-requested nearer pieces overtake. Nothing goes
 through Godot's editor import: `.glb` files never appear in the project, only in `user://cache/`,
-which is why an asset can arrive mid-game. Built-in terrain takes the same path from
-`res://content/builtin/terrain/<name>.glb` and never enters the cache.
+which is why an asset can arrive mid-game. Built-in content is the other half of that split: it
+ships inside the build and loads from `res://content/builtin/`, read out of the export's `.pck`
+with no hash, no manifest entry, no presigned URL and no cache write. Adding a built-in means
+shipping a new client build.
 
 `MeshLoader.Orient` is the only place the mesh convention is written on the client. It must change
 together with the web app's `toWorld`/`eulerFor` if the convention ever does. Another
@@ -647,7 +657,7 @@ flowchart TD
   alloc["Allocate: Allocation<br/>-> Allocated"]
   assign["Assign: Assignment<br/>-> Assigned"]
   move["Move: MoveRegion<br/>-> Destinations"]
-  bid["Bid: Bid, private input<br/>-> BidPlaced"]
+  spend["TokenSpend: TokenSpend, private input<br/>-> TokensSpent"]
   confirm["Confirm: Confirmation<br/>-> Confirmed"]
   autopass["AutoPass: WindowKind is muted<br/>-> Passed at once"]
 
@@ -659,7 +669,7 @@ flowchart TD
   legal --> alloc
   legal --> assign
   legal --> move
-  legal --> bid
+  legal --> spend
   legal --> confirm
 ```
 
@@ -684,9 +694,9 @@ Behaviour the specs demand, and where it lives:
 - Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
   `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
   as that player's own. It is a client convenience, not part of the model.
-- Sealed bids render as a private input. The panel shows who has answered without showing what,
-  then reveals every answer at once from `ask_closed`. This is the only consumer of the server's
-  per-player filtered streams.
+- The simultaneous token spend renders as a private input. The panel shows who has answered
+  without showing what, then reveals every answer at once from `ask_closed`. This is the only
+  consumer of the server's per-player filtered streams.
 - Confirm gates (wait-between-steps) are one button in the same panel, labelled by `ConfirmLabel`:
   "Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask.
 - `strict` refusals show in the panel. A `Refused` whose `MessageId` matches the panel's last
@@ -789,9 +799,25 @@ zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
 server never writes an owner-side row.
 
 `BuiltinContent` ships with the client: 35 terrain names with their `Volume` and declarations, five
-textures, two marker visuals, and the zone style ids. A built-in's mesh file is optional.
-`res://content/builtin/terrain/<name>.glb` is drawn when present, and the volumes' proxy when not,
-the same degrade path as a missing asset. For a built-in placement the placement's volume rows are
+textures, two marker visuals, and the zone style ids. A minimal art set ships with it, ruled
+2026-09-06 so that a generated table looks like a table.
+
+The art is fifteen files, not fifty. The 35 pieces group into ten meshes that differ only by
+footprint, height, scale and yaw: `hill` (6 pieces), `woods` (5), `ruins` (4), `building` (3),
+`wall` (2), `rock` (2), `field` (2), `water` (5), `pad` (5, every flat ground hazard including the
+crater), `haze` (1, the toxic smog). Each of the ten is glTF 2.0 binary, under 2000 triangles, one
+colour-only material, and authored in the unit box in the table frame: x and y in [−0.5, 0.5], z in
+[0, 1], base at z = 0. `MeshLoader.LoadBuiltin` scales that box onto the placement's first
+volume, so `water` serves both a 4"-radius lake and a 3"×12" river. The five table textures are
+seamless 1024×1024 PNGs, authored as a 12"×12" tile because `SlabNode.Set` derives `Uv1Scale` from
+`width/12`. Markers and zones need no art: `MarkerNode` builds a disc and a `Label3D`, `ZoneNode`
+builds `ArrayMesh` fans from `ZoneStyles.Resolve`.
+
+These files are art and no code produces them. Every mesh file is still optional, and a missing one
+still draws the hitbox: `LoadBuiltin` returns null and `TerrainNode` keeps its per-volume proxy
+visible, the same degrade path as a missing asset, and a missing texture leaves the slab its flat
+colour. That path is the fallback rather than the plan, kept rather than deleted, so a build with
+no `content/builtin/` at all still renders a playable table. For a built-in placement the placement's volume rows are
 the volumes rather than overrides, because there is no `asset_volume` row to fall through to. They
 are always written on add, and "reset" re-copies the shipped ones.
 
@@ -799,7 +825,9 @@ are always written on add, and "reset" re-copies the shipped ones.
 `Generate(Planet, TableSize, Random)`: nine fixed pieces plus 4D3 rolled on 2D6. They are returned
 as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
 rows 8" apart, for players to drag on. The client rolls, because nothing in setup is logged and no
-seeded RNG is owed. The tables ship with the client and the server never reads them, which keeps
+seeded RNG is owed. An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
+same RNG, ruled 2026-09-06, so rolling a table produces a finished board in one action; a player
+who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
 the game server ruleset-blind during setup. 40k has no such tables. Declarations follow the tables
 literally. Conditional clauses ("dangerous when using Rush or Charge", "units on top may ignore one
 unit for line of sight") go in `Notes` and are never flags. The engine reads a closed set of six
@@ -817,14 +845,17 @@ applies an event the moment it arrives. Whether the table then plays it out is t
 game's `waits_between_steps` is on the game row, because it changes what the server does.
 
 `Take(animate)` returns everything at once when animating is off, and one event at a time when it
-is on. `Animator` tweens a `ModelsMoved` over 0.4 s, shows a roll's dice as a transient `Label3D`
+is on. `Animator` tweens a `ModelsMoved` over 0.4 s, shows a roll as a transient `Label3D`
 over the actor unit for 1.5 s, then pumps the next. The queue may lag the projection and never
-delays an Ask. A player may answer while the dice are still rolling, because the Ask panel reads
+delays an Ask. A player may answer while a roll's readout is still up, because the Ask panel reads
 the projection directly and the queue holds no lock. Presence is never animated, only drawn.
 
-With Godot physics out of the scene, a dice roll is a scripted animation rather than a simulated
-one. The plan takes a transient label for the first playable. A tumbling-dice scene would change
-only `Animator`.
+A roll is a readout and not an object, ruled 2026-09-06. The label carries the roll's name, its
+threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
+`RollRecord` already holds. No die is placed on the table and nothing tumbles. Godot physics is out
+of the scene, so a die on the table would be a canned animation of a result the server has already
+decided, and the readout says more than a tumbling die can. The client shell spec's animation
+section does name dice rolling on the table, which spec correction 13 narrows.
 
 ## Key decisions
 
@@ -853,14 +884,14 @@ Decisions the plan took because a spec was silent:
 | Decision | Assumption taken | Where it is recorded |
 | --- | --- | --- |
 | Everything Godot-free goes under `client/src/Core/` and is compiled into the test project | the spec said only "the projection applier and the geometry library get the tests"; the plan extends that to the session, the management client, the socket seam, the cache, the built-in content and the view models | spec correction 6 |
-| DPAPI over `user://session.bin` for the remembered session | the spec said "the OS credential store"; `ProtectedData` with `DataProtectionScope.CurrentUser` behind two delegates | spec correction 1; question 2 |
+| An owner-only file at `user://session.bin` for the remembered session | the spec said "the OS credential store"; no keystore is portable, so `SessionStore` writes a plain file with `UnixFileMode.UserRead \| UserWrite` where the platform has file modes | spec correction 1; question 2, ruled 2026-09-06 |
 | 20 Hz presence sampling | presence left the rate open; matches the server's relay rate and `architecture.md`'s figure, itself named a first-pass assertion | question 1 (same question as the game server plan's question 4) |
 | Reconnect after any close the client did not ask for, except `Rejected` and `1000` after `welcome` | the spec said only "reconnect is connect" | spec correction 2 |
-| Zones for ordinals with no team are drawn grey during setup | the spec said zones are drawn as flat polygons and said nothing about teamless ordinals | spec correction 5; question 7 |
+| Zones for ordinals with no team are drawn grey during setup | the spec said zones are drawn as flat polygons and said nothing about teamless ordinals; a four-zone style in a two-player lobby shows two coloured and two grey, so the table shows what the style laid out | spec correction 5; question 7, ruled 2026-09-06 |
 | A disembarking model takes the container's yaw | nothing in the specs or p.14 says, and an oval base's footprint depends on yaw | question 8 |
 | The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | question 9 |
 | An enterable container is a click target, not a button | it is already highlighted because the legal set names it | question 10 |
-| Built-in art is optional | the plan produces no meshes or textures; terrain draws as its volumes and textures fall back to a flat colour | question 3 |
+| Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | question 3, ruled 2026-09-06 |
 
 ## Interfaces
 
@@ -872,7 +903,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | Type | Members that matter |
 | --- | --- |
 | `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)` | `static Default`, `static Load(path)`, `Save(path)`, `Mute(kind)`, `Unmute(kind)` |
-| `sealed class SessionStore(path, Func<byte[],byte[]> protect, Func<byte[],byte[]> unprotect)` | `string? Read()`, `Write(jwt)`, `Clear()` |
+| `sealed class SessionStore(string path)` | `string? Read()`, `Write(jwt)`, `Clear()` |
 | `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload` |
 | `interface IGameSocket : IAsyncDisposable` | `event Action<SocketMessage> FrameReceived`, `event Action<SocketClosed> Closed`, `ConnectAsync(Uri, ct)`, `SendAsync(SocketMessage)`, `CloseAsync()` |
 | `interface IGameSocketFactory` | `IGameSocket Create()` |
@@ -887,7 +918,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `sealed class AssetCache(string root, HttpClient)`, `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
 | `sealed class Names(GameInfo, Projection?)` | `Participant`, `Team`, `Unit`, `Model`, `UnitOfModel`, `Piece`, `static Short` |
 | `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer)`, `Touched(GameEvent)` |
-| `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, Bid, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `ConfirmLabel(Ask)` |
+| `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `ConfirmLabel(Ask)` |
 | `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`, `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
 | `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(bool animate)`, `Count` |
@@ -914,7 +945,7 @@ semantics.
 | projection | `EventApplier(Board, GameInfo)`: `Projection`, `Log`, `Apply`, `ApplyAll`, `ProjectTo(seq)`, `static EffectiveLog`; `ProjectionDesyncException`, thrown on an event naming an id the projection does not hold and carrying the event kind and that id; `Projection`: `Board`, `Units`, `Models`, `Markers`, `Scores`, `Scheduler`, `Stack`, `OpenAsks`, `LastSeq`; `UnitInPlay`, `ModelInPlay`, `SchedulerPosition`, `Frame`, `CompletedStep`, `OpenAsk` |
 | location | `Location` = `OnTable(Placement)` \| `OnShelf` \| `Inside(Guid ContainerId)`; `ModelRelocation(ModelId, From, To)` |
 | events | `GameEvent(Seq, Actor, Payload, Warning)`, every `EventPayload` and `StateChange`; the client reads `ModelsMoved`, `StepCompleted`, `ActionRecorded`, `MarkerPlaced`, `AskOpened/Answered/Closed`, `Undone`, `RoundStarted`, `TurnStarted/Ended` by name |
-| asks | `Ask(Id, Question, Prompt, Teams, Legal, AllowPass, Sealed, WindowKind, FrameId)`, `AskOption`, `AskQuestions` (reads `EndRound` only); `LegalSet` = `Options` \| `PieceSelection` \| `Allocation` \| `Assignment` \| `MoveRegion` \| `Bid` \| `Confirmation`; `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment)`, `MoveContainment(Enterable, ExitingId, ExitWithin)`; `AskAnswer` = `Chosen` \| `SelectedPieces` \| `Allocated` \| `Assigned` \| `Destinations` \| `BidPlaced` \| `Confirmed` \| `Passed` |
+| asks | `Ask(Id, Question, Prompt, Teams, Legal, AllowPass, Sealed, WindowKind, FrameId)`, `AskOption`, `AskQuestions` (reads `EndRound` only); `LegalSet` = `Options` \| `PieceSelection` \| `Allocation` \| `Assignment` \| `MoveRegion` \| `TokenSpend` \| `Confirmation`; `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment)`, `MoveContainment(Enterable, ExitingId, ExitWithin)`; `AskAnswer` = `Chosen` \| `SelectedPieces` \| `Allocated` \| `Assigned` \| `Destinations` \| `TokensSpent` \| `Confirmed` \| `Passed` |
 | commands | `AnswerAsk`, `MoveModels`, `PlaceMarker`, `MoveMarker`, `RemoveMarker`, `SetWounds`, `SetCondition`, `RecordAction`, `ClearActionRecord`, `AddGrant`, `RemoveGrant`, `SetSpellTokens`, `SetWoundsThisActivation`, `SetScore`, `SetActiveTeam`, `SetRound`, `Undo`, `AbandonSequence`, `RerollDice`, `SetDice`, `AddModifier` |
 | presence | `Presence(ParticipantId, Cursor?, Selection?, Placements, Measurement?)`, `Cursor(Point, Target)`, `Selection(PieceId, ModelIds)`, `PresencePlacement(PieceId, Position, Yaw, Kind)`, `PlacementKind { Held, Proposed }`, `Measurement(From, To)`, `Ping(Sender, Point, Target)` |
 | edits | lobby: `CreateTeam`, `PickTeam`, `PickArmy`, `SetConfiguration`, `StartSetup`, `EndSetup`; setup: `SetTableSize`, `SetTexture`, `AddTerrain`, `MoveTerrain`, `ScaleTerrain`, `RemoveTerrain`, `OverrideTerrainVolumes`, `SwapTerrainMesh`, `AddSetupMarker`, `MoveSetupMarker`, `RemoveSetupMarker`, `SetZoneStyle`, `SwapZones`, `ReplaceDraft` |
@@ -1151,14 +1182,28 @@ Those asset columns reach it through the per-game manifest rather than the asset
 `GET /v1/assets/{id}` is owner-only. It writes one owner-side row, through management:
 `POST /v1/layouts` from its own copy of the draft.
 
-Local, per-machine state is three files under Godot's `user://`, which on Windows is
-`%APPDATA%\Godot\app_userdata\Tabletop\`:
+Local, per-machine state is three files under Godot's `user://`, which `OS.GetUserDataDir()`
+resolves per platform: `%APPDATA%\Godot\app_userdata\Tabletop\` on Windows, `~/.local/share` on
+Linux, `~/Library/Application Support` on macOS:
 
 | File | Contents | Failure behaviour |
 | --- | --- | --- |
 | `settings.json` | `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl` | missing, unreadable or malformed reads as `ClientSettings.Default`; every field is individually nullable in the DTO, so a partial file loses only its missing fields |
-| `session.bin` | the session JWT, DPAPI-protected for the current user | absent or undecodable reads as null and the login screen shows; a `CryptographicException` is caught, not thrown |
+| `session.bin` | the session JWT, in a file created readable and writable by its owner alone | absent, unreadable or not three dot-separated segments reads as null and the login screen shows; an `IOException` or `UnauthorizedAccessException` is caught, not thrown |
 | `cache/{hash}.bin` | asset blobs, keyed by SHA-256 | a partial download lives in `.part` and never becomes a cache entry; a hash mismatch deletes the part and the piece keeps its proxy |
+
+The remembered session is deliberately not in an OS keystore. Windows data protection was the
+assumed answer and is Windows-only, which the platform ruling of 2026-09-06 rules out, and a
+per-platform store behind one interface costs three implementations of which two cannot be
+exercised on the development machine, with libsecret depending on a session keyring a minimal
+Linux desktop may not have. The file protects the token from other local accounts on a shared
+machine, and from a group- or world-readable directory being backed up. It does not protect the
+token from anything running as the same user, and it does not stop the file being copied to
+another machine, where it refreshes until the Stytch session behind it expires. That last is the
+one property data protection had and this does not. What bounds that is the token itself: a five-minute JWT whose only power is
+`POST /v1/auth/session/refresh`, cleared on logout and on a `401`. `SessionStore` is three methods
+with one call site in `Main._Ready`, so a keystore can replace the file later without touching
+`Session`.
 
 In-memory state, all of it on `Session` except the node dictionaries:
 
@@ -1237,17 +1282,18 @@ Two tiers, split on the Godot dependency.
 Headless, `tests/Tabletop.Client.Tests` (xUnit). The project compiles `client/src/Core/**/*.cs`
 from source and references the three libraries plus `Tabletop.Content.Tests` and
 `Tabletop.Protocol.Tests` for their samples (`TableStateTests.Sample()`, `Samples.Game`,
-`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at roughly 43
-tests. What is covered:
+`Samples.Board`). Every task with logic is test-driven. The plan's running count ends at 44 tests,
+unchanged by the rulings of 2026-09-06: the session store's two facts were rewritten rather than
+replaced, and the mesh grouping is asserted inside a fact that already existed. What is covered:
 
 | Subject | Test infrastructure | What is pinned |
 | --- | --- | --- |
 | references and the table frame | `ReferencesTests` | `ZoneStyles.Resolve` and `Table.ContainsPoint` answer in the wire frame, so nothing converts; the sample table state is on the slab |
-| settings and the session store | temp directory | defaults on a missing or malformed file; round trip; DPAPI delegates faked with a byte flip; a corrupt session reads as null |
+| settings and the session store | temp directory | defaults on a missing or malformed file; round trip; the session file's Unix mode is owner read and write; a file that is not three dot-separated segments reads as null |
 | the management client | `FakeManagement : HttpMessageHandler` scripting responses | the version header and bearer on every request, the exact paths and verbs, `426` → `UpdateRequiredException`, problem+json title and detail, contract types round-tripping under `ContentJson` |
 | the socket seam and presence | `FakeGameSocket`, `FakeSocketFactory` | frames delivered, sends recorded, closes injected; presence set, removed and cleared |
 | the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a reconnect rejoining the same team with no re-pick, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
-| built-in content and generators | seeded `Random` | 35 built-ins present, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
+| built-in content and generators | seeded `Random` | 35 built-ins present, each naming one of the ten group meshes, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
 | the asset cache | temp directory, `HttpMessageHandler` | hash verification, `HashMismatchException`, a cached hash never touching the network |
 | the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
 
@@ -1256,11 +1302,14 @@ delivering a frame.
 
 By running the client. Everything in `Screens/`, `Table/` and `Panels/` needs a window, a
 viewport, a mouse, `GltfDocument`, tweens and a `SubViewport`. Each task ends with a scripted
-manual run against the local servers. Several of them need two clients, either two Windows
+manual run against the local servers. Several of them need two clients, either two desktop
 accounts or one account in two instances. Presence, free-for-all setup editing, Asks addressed to
 another team and "Home disconnects but the seat stays" cannot be observed from one. Docker is
-needed for Postgres and the MinIO stand-in only. Both servers run in WSL and the client runs on the
-Windows host over forwarded localhost.
+needed for Postgres and the MinIO stand-in only. On the development machine both servers run in
+WSL and the client runs on the Windows host over forwarded localhost.
+
+The fitted built-in meshes are among the things verified by eye, at both extremes of each group's
+footprint, and there is no automated check that a mesh file fits the volume it decorates.
 
 `scripts/check-client` is the scripted part of the Godot layer's testing: four greps, exit non-zero
 on any hit. It is the only automated guard on the boundary rule.
@@ -1287,17 +1336,19 @@ Gaps:
 
 ## Open questions and deferred work
 
-The plan's ten questions, the assumption each takes, and what changes if the answer differs:
+The plan's ten questions, the assumption each takes, and what changes if the answer differs. Six
+were ruled on by the owner on 2026-09-06: questions 2 and 3 changed the design, and questions 4, 5,
+6 and 7 confirmed the assumption as written. Four remain open.
 
 | Question | Assumption | If the answer differs |
 | --- | --- | --- |
 | 1. Presence sample rate | 20 Hz, matching the server's relay rate and `architecture.md`'s figure, which the whole-design review named a first-pass assertion and presence left open | one `Timer.WaitTime`. Same question as the game server plan's question 4, and one answer settles both |
-| 2. Where the remembered session lives | DPAPI (`ProtectedData`, current user) over `user://session.bin` | `SessionStore`'s two delegates become P/Invoke to `CredWrite`/`CredRead`; nothing else changes |
-| 3. Built-in art | none is produced; terrain draws as its volumes and textures fall back to a flat colour | a content task with no code change; `MeshLoader.LoadBuiltin` and `SlabNode.Set` already look for the files |
-| 4. Generator entries with alternatives ("Hill, Forest, or Field") | the client's RNG picks one, since players may swap the mesh afterwards | `TerrainGenerators.Generate` returns the alternatives and the toolbar asks |
-| 5. Dice on the table | a roll's results appear as a transient label; models fall by tween | `Animator` gains a dice scene with a canned tumble, and is the only file that changes |
-| 6. The game list's filters | status, name and "created by me", all from `GameSummary` | "games I am in" needs a `GET /v1/games/{id}` per row, or a `Mine` flag on `GameSummary`, which is a one-column change in the management plan |
-| 7. Zones for ordinals with no team | drawn grey during setup | `TableView.ZoneColour` returns transparent for them |
+| 2. Where the remembered session lives | **ruled 2026-09-06**: not an OS keystore. `user://session.bin`, created owner-only where the platform has file modes; DPAPI was the assumed answer and is Windows-only, which the platform ruling excludes | closed. A keystore later replaces `SessionStore`, three methods with one call site |
+| 3. Built-in art | **ruled 2026-09-06**: a minimal set ships, so a generated table looks like a table. Ten grouped `.glb` meshes and five `.png` textures, authored by hand and not produced by the plan; a missing file still draws the hitbox | closed. More art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
+| 4. Generator entries with alternatives ("Hill, Forest, or Field") | **ruled 2026-09-06, as assumed**: the client's RNG picks one, so rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup | closed. Asking the player would have `TerrainGenerators.Generate` return the alternatives and the toolbar prompt |
+| 5. Dice on the table | **ruled 2026-09-06, as assumed**: a readout, not dice objects. Text beside the unit gives the faces, the threshold, the modifiers and which dice passed; nothing tumbles, and models still fall by tween | closed. Visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes. The spec's animation section mentions dice rolling on the table, which spec correction 13 narrows |
+| 6. The game list's filters | **ruled 2026-09-06, as assumed**: status, name and "created by me", all three off the `GameSummary` the browser already returns | closed. "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
+| 7. Zones for ordinals with no team | **ruled 2026-09-06, as assumed**: drawn grey during setup, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | closed. Hiding them would have `TableView.ZoneColour` return transparent |
 | 8. The facing a disembarking model takes | the container's yaw, for the ghost, for `ExitRegion`'s candidate and for the answer | keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
 | 9. Whose base the disembark region is drawn for | the lead model's (`ModelIds[0]`), as `Region` already is | `MoveRegionNode.Show` takes a list of polygons |
 | 10. Is an offered container a click target or a button | a click, since the legal set already highlights it | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
@@ -1331,8 +1382,8 @@ Deferred, with where it is recorded:
 ## References
 
 Plan: `docs/superpowers/plans/2026-09-05-client-shell.md`. 16 tasks, the File Structure block, the
-`Interfaces → Produces` tables, 11 proposed spec corrections, 11 consumed-interface statements and
-10 owner questions.
+`Interfaces → Produces` tables, 12 proposed spec corrections, 11 consumed-interface statements and
+10 owner questions, six of them ruled on 2026-09-06.
 
 Specs, in the order the plan's header names them:
 

@@ -151,9 +151,11 @@ teams show as a waiting indicator naming the team, never as controls.
 
 **Windows** render in the same panel as react or pass. A **mute list per player**, in local
 settings, auto-passes muted window kinds; the pass is still sent as that player's answer, as
-the scheduler ruled. **Sealed bids** render as a private input; the panel shows who has answered
-without showing what, then reveals all at once when the server does. **Confirm gates**, when
-wait-between-steps is on, are one button in the same panel.
+the scheduler ruled. **Sealed token spends** render as a private input; the panel shows who has
+answered without showing what, then reveals all at once when the server does. *Renamed
+2026-09-06: this read "sealed bids"; the note in
+[action sequences](2026-09-03-action-sequences-design.md) records why the name was invented.*
+**Confirm gates**, when wait-between-steps is on, are one button in the same panel.
 
 ## The log, undo and the menu
 

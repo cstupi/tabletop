@@ -1285,15 +1285,15 @@ public class LegalSetMembershipTests
         Assert.True(LegalSetMembership.Contains(ask, new Destinations([Samples.Deploy])));
         Assert.False(LegalSetMembership.Contains(ask, new Destinations([Samples.Deploy with { ModelId = C }])));
     }
-    [Fact] public void Bid_within_max_confirmation_and_pass()
+    [Fact] public void Token_spend_within_max_confirmation_and_pass()
     {
-        Assert.True(LegalSetMembership.Contains(With(new Bid(3)), new BidPlaced(3)));
-        Assert.False(LegalSetMembership.Contains(With(new Bid(3)), new BidPlaced(4)));
-        Assert.False(LegalSetMembership.Contains(With(new Bid(3)), new BidPlaced(-1)));
+        Assert.True(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(3)));
+        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(4)));
+        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new TokensSpent(-1)));
         Assert.True(LegalSetMembership.Contains(With(new Confirmation()), new Confirmed()));
         Assert.False(LegalSetMembership.Contains(With(new Confirmation()), new Chosen("x")));
-        Assert.True(LegalSetMembership.Contains(With(new Bid(3), allowPass: true), new Passed()));
-        Assert.False(LegalSetMembership.Contains(With(new Bid(3)), new Passed()));
+        Assert.True(LegalSetMembership.Contains(With(new TokenSpend(3), allowPass: true), new Passed()));
+        Assert.False(LegalSetMembership.Contains(With(new TokenSpend(3)), new Passed()));
     }
 }
 
@@ -1332,21 +1332,21 @@ public class EventFilterTests
     static GameEvent Ev(long seq, EventPayload p) => new(seq, null, p, null);
     static readonly GameEvent[] Log =
     [
-        Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.Bid, "Bid", [Samples.Team1, Samples.Team2], new Bid(3), true, true, "casting", Samples.Frame))),
+        Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", Samples.Frame))),
         Ev(2, new AskOpened(new Ask(Open, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([]), true, false, null, null))),
-        Ev(3, new AskAnswered(Sealed, Samples.Team1, new BidPlaced(2), false)),
+        Ev(3, new AskAnswered(Sealed, Samples.Team1, new TokensSpent(2), false)),
         Ev(4, new AskAnswered(Open, Samples.Team1, new Passed(), false)),
-        Ev(5, new AskAnswered(Sealed, Samples.Team2, new BidPlaced(1), false)),
-        Ev(6, new AskClosed(Sealed, [new TeamAnswer(Samples.Team1, new BidPlaced(2)), new TeamAnswer(Samples.Team2, new BidPlaced(1))])),
+        Ev(5, new AskAnswered(Sealed, Samples.Team2, new TokensSpent(1), false)),
+        Ev(6, new AskClosed(Sealed, [new TeamAnswer(Samples.Team1, new TokensSpent(2)), new TeamAnswer(Samples.Team2, new TokensSpent(1))])),
     ];
 
     [Fact]
     public void A_sealed_answer_is_withheld_from_other_teams_while_the_window_is_open()
     {
         var forTeam2 = EventFilter.ForViewer(Log[..5], Samples.Team2, new HashSet<Guid>());
-        Assert.Null(((AskAnswered)forTeam2[2].Payload).Answer);        // team 1's bid, hidden from team 2
+        Assert.Null(((AskAnswered)forTeam2[2].Payload).Answer);        // team 1's spend, hidden from team 2
         Assert.NotNull(((AskAnswered)forTeam2[3].Payload).Answer);     // the unsealed ask is never withheld
-        Assert.NotNull(((AskAnswered)forTeam2[4].Payload).Answer);     // team 2's own bid
+        Assert.NotNull(((AskAnswered)forTeam2[4].Payload).Answer);     // team 2's own spend
         var forTeam1 = EventFilter.ForViewer(Log[..5], Samples.Team1, new HashSet<Guid>());
         Assert.NotNull(((AskAnswered)forTeam1[2].Payload).Answer);
         Assert.Null(((AskAnswered)forTeam1[4].Payload).Answer);
@@ -1367,7 +1367,7 @@ public class EventFilterTests
     [Fact]
     public void A_live_batch_uses_the_asks_open_before_it()
     {
-        var batch = new[] { Ev(7, new AskAnswered(Sealed, Samples.Team1, new BidPlaced(2), false)) };
+        var batch = new[] { Ev(7, new AskAnswered(Sealed, Samples.Team1, new TokensSpent(2), false)) };
         Assert.Null(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid> { Sealed })[0].Payload).Answer);
         Assert.NotNull(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid>())[0].Payload).Answer);
     }
@@ -1394,7 +1394,7 @@ public static class LegalSetMembership
         Assigned g => ask.Legal is Assignment asg && asg.Items.All(i => g.Targets.ContainsKey(i.Id)) && g.Targets.Keys.All(k => asg.Items.Any(i => i.Id == k))
                       && g.Targets.Values.All(asg.Targets.Contains) && g.Targets.Values.Distinct().Count() <= asg.MaxDistinctTargets,
         Destinations d => ask.Legal is MoveRegion m && d.Moves.All(x => m.ModelIds.Contains(x.ModelId)),
-        BidPlaced b => ask.Legal is Bid bid && b.Tokens >= 0 && b.Tokens <= bid.MaxTokens,
+        TokensSpent t => ask.Legal is TokenSpend ts && t.Tokens >= 0 && t.Tokens <= ts.MaxTokens,
         Confirmed => ask.Legal is Confirmation,
         _ => false,
     };
@@ -1637,7 +1637,7 @@ public class CommandDispatcherTests
     }
     static CommandDispatcher Dispatcher() => new(new InertEngine());
     static readonly Ask Activate = new(Samples.AskId, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([new AskOption("a", "Advance", [Samples.Unit])]), true, false, null, null);
-    static readonly Ask SealedBid = new(Guid.CreateVersion7(), AskQuestions.Bid, "Bid", [Samples.Team1, Samples.Team2], new Bid(3), true, true, "casting", Samples.Frame);
+    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", Samples.Frame);
 
     public static IEnumerable<object[]> Overrides() =>
         new Command[] { new MoveModels([Samples.Deploy]), new SetWounds(Samples.Model, 2), new SetCondition(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
@@ -1708,26 +1708,26 @@ public class CommandDispatcherTests
     [Fact]
     public void A_sealed_ask_collects_every_team_before_it_closes()
     {
-        var state = State(Enforcement.Strict, new AskOpened(SealedBid));
-        var first = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SealedBid.Id, new BidPlaced(2)), Clay));
+        var state = State(Enforcement.Strict, new AskOpened(SimultaneousSpend));
+        var first = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(2)), Clay));
         Assert.Single(first.Events); Assert.IsType<AskAnswered>(first.Events[0]);
         state.Applier.Apply(new GameEvent(2, Clay.ParticipantId, first.Events[0], null));
-        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(SealedBid.Id, new BidPlaced(1)), Clay)).Reason);
-        var second = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SealedBid.Id, new BidPlaced(1)), Opponent));
+        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1)), Clay)).Reason);
+        var second = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1)), Opponent));
         var closed = Assert.IsType<AskClosed>(second.Events[1]);
         Assert.Equal([Samples.Team1, Samples.Team2], closed.Answers.Select(a => a.TeamId));
-        Assert.Equal([2, 1], closed.Answers.Select(a => ((BidPlaced)a.Answer).Tokens));
+        Assert.Equal([2, 1], closed.Answers.Select(a => ((TokensSpent)a.Answer).Tokens));
     }
 
     [Fact]
     public void Abandoning_closes_the_popped_frames_asks_first()
     {
         var inner = Guid.CreateVersion7();
-        var innerAsk = SealedBid with { Id = Guid.CreateVersion7(), FrameId = inner };
+        var innerAsk = SimultaneousSpend with { Id = Guid.CreateVersion7(), FrameId = inner };
         var state = State(Enforcement.Strict,
             new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null)),
             new SequenceStarted(inner, "resolve-hits", new SequenceContext(Samples.Unit, [], [], null)),
-            new AskOpened(innerAsk), new AskAnswered(innerAsk.Id, Samples.Team1, new BidPlaced(2), false));
+            new AskOpened(innerAsk), new AskAnswered(innerAsk.Id, Samples.Team1, new TokensSpent(2), false));
         var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AbandonSequence(Samples.Frame), Watcher));
         Assert.Equal([typeof(AskClosed), typeof(SequenceAbandoned)], ok.Events.Select(e => e.GetType()));
         Assert.Single(((AskClosed)ok.Events[0]).Answers);
@@ -2301,7 +2301,7 @@ public class GameSessionTests
     static readonly Guid P2 = Guid.CreateVersion7(), Watcher = Guid.CreateVersion7();
     static readonly GameInfo Info = Samples.Game with { Participants =
         [new Participant(Samples.P1, Guid.CreateVersion7(), "Clay", Samples.Team1, null), new Participant(P2, Guid.CreateVersion7(), "Opponent", Samples.Team2, null), new Participant(Watcher, Guid.CreateVersion7(), "Watcher", null, null)] };
-    static readonly Ask SealedBid = new(Guid.CreateVersion7(), AskQuestions.Bid, "Bid", [Samples.Team1, Samples.Team2], new Bid(3), true, true, "casting", null);
+    static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(3), true, true, "casting", null);
     static readonly GameServerOptions Options = new() { DbConnection = "", StytchProjectId = "p", StytchJwksUrl = "u" };
 
     // Rows are never touched on the playing path, so the session tests pass none; Tasks 10-12 test the row paths against Postgres.
@@ -2395,13 +2395,13 @@ public class GameSessionTests
     [Fact]
     public async Task Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer()
     {
-        var (session, log, clay, opponent, watcher) = await PlayingAsync(new FixedAskEngineFactory(SealedBid));
+        var (session, log, clay, opponent, watcher) = await PlayingAsync(new FixedAskEngineFactory(SimultaneousSpend));
         Assert.IsType<AskOpened>((await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Single().Payload);
-        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SealedBid.Id, new BidPlaced(2))));
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(2))));
         Assert.NotNull(clay.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
         Assert.Null(opponent.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
         Assert.Null(watcher.Events.Select(e => e.Payload).OfType<AskAnswered>().Single().Answer);
-        await session.ReceiveAsync(opponent, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SealedBid.Id, new BidPlaced(1))));
+        await session.ReceiveAsync(opponent, new CommandMessage(Guid.CreateVersion7(), new AnswerAsk(SimultaneousSpend.Id, new TokensSpent(1))));
         Assert.Equal(2, watcher.Events.Select(e => e.Payload).OfType<AskClosed>().Single().Answers.Count);
     }
 

@@ -92,7 +92,9 @@ Findings that reversed an earlier decision or added a column went to the user.
   part named: how authored content reaches the tables.
 - **Smaller.** `target_roll` was still listed as an enumeration after becoming a foreign key;
   "two" foreign-key exceptions on `EFFECT` are four; "the four contracts" are three; the
-  filtered-streams paragraph said nothing uses them while the sealed bid does; "served through
+  filtered-streams paragraph said nothing uses them while the simultaneous token spend does
+  (renamed 2026-09-06 from "sealed bid"; the note is in
+  [action sequences](2026-09-03-action-sequences-design.md)); "served through
   the management API" for asset bytes that go by presigned URL; the miniature proxy marked
   "still open" after being settled 08-30; "Linux (Fargate)" and "Postgres on RDS" pre-empting the
   deferred hosting session; "exercised from step 6 onward" for networking that step 4 builds;

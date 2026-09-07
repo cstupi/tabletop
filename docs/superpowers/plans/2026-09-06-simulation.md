@@ -621,7 +621,7 @@ git commit -m "Add the sim project, deterministic ids, the chooser and the scena
 - Test: `tests/Tabletop.Sim.Tests/AnswerPolicyTests.cs`
 
 **Interfaces:**
-- Consumes: `Ask`, `AskOption`, `LegalSet` and its seven members (`Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `Bid`, `Confirmation`), `MoveContainment`, `AskAnswer` and its eight members (`Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `BidPlaced`, `Confirmed`, `Passed`), `ModelRelocation`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Projection`, `ModelInPlay`, `UnitInPlay`, `Board`, `GameInfo` (Protocol); `PropertySet` (game server `Tabletop.GameServer.Properties`); `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Point2`, `Point3`, `Yaw`, `TableSize`, `Movement`, `MoveCheck`, `Settling` (Geometry); `TerrainPlacement.WorldVolumes()` (Content); `Chooser` (Task 1).
+- Consumes: `Ask`, `AskOption`, `LegalSet` and its seven members (`Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `TokenSpend`, `Confirmation`), `MoveContainment`, `AskAnswer` and its eight members (`Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `TokensSpent`, `Confirmed`, `Passed`), `ModelRelocation`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Projection`, `ModelInPlay`, `UnitInPlay`, `Board`, `GameInfo` (Protocol); `PropertySet` (game server `Tabletop.GameServer.Properties`); `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Point2`, `Point3`, `Yaw`, `TableSize`, `Movement`, `MoveCheck`, `Settling` (Geometry); `TerrainPlacement.WorldVolumes()` (Content); `Chooser` (Task 1).
 - Produces: `sealed class PolicyView(Projection projection, Board board, IReadOnlyList<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` with `Projection Projection`, `Board Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IReadOnlyList<WorldVolume> Volumes`, `IReadOnlyList<WorldVolume> VolumesById(IReadOnlyList<Guid> ids)`, `Location LocationOf(Guid modelId)`, `PlacedModel? PlacedOf(Guid modelId)`, `ModelBody BodyOf(Guid modelId)`, `double SurfaceAt(Point2 point)`, `UnitInPlay UnitOf(Guid unitId)`, `ModelInPlay ModelOf(Guid modelId)`, `Guid? TeamOf(Guid unitId)`; `sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24)`; `sealed class NoLegalAnswerException(Ask ask) : Exception`; `sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)` with `AskAnswer Answer(Ask ask, PolicyView view)` and `static IReadOnlyList<string> ShapeNames`.
 
 Spec: spec → *Two ways to answer an Ask* — "A seeded policy. Any Ask, answered from its legal set with a seeded random choice"; "It chooses legally, not well"; "An answer is chosen from what the server offered, whole"; "the default policy stays uniform over the legal set and ignorant of state". Spec → *Deliberately not decided*: "Whether the policy is uniform over the legal set or weighted, and whether it prefers to act over passing" — uniform is the owner's ruling; preferring to act (`PassProbability` defaults to `0`) is this plan's choice, and is question 2.
@@ -720,9 +720,9 @@ public class AnswerPolicyTests
     }
 
     [Fact]
-    public void Bid_stays_within_the_cap_and_confirmation_confirms()
+    public void A_token_spend_stays_within_the_cap_and_confirmation_confirms()
     {
-        Assert.InRange(Assert.IsType<BidPlaced>(Policy().Answer(With(new Bid(3)), EmptyView())).Tokens, 0, 3);
+        Assert.InRange(Assert.IsType<TokensSpent>(Policy().Answer(With(new TokenSpend(3)), EmptyView())).Tokens, 0, 3);
         Assert.IsType<Confirmed>(Policy().Answer(With(new Confirmation()), EmptyView()));
     }
 
@@ -747,7 +747,7 @@ public class AnswerPolicyTests
     [Fact]
     public void Every_legal_set_shape_is_answered()
     {
-        Assert.Equal(["allocation", "assignment", "bid", "confirmation", "move_region", "options", "pieces"], AnswerPolicy.ShapeNames.Order());
+        Assert.Equal(["allocation", "assignment", "confirmation", "move_region", "options", "pieces", "token_spend"], AnswerPolicy.ShapeNames.Order());
         var policy = Policy();
         LegalSet[] all =
         [
@@ -755,7 +755,7 @@ public class AnswerPolicyTests
             new PieceSelection([A], 1, 1),
             new Allocation([A], 1),
             new Assignment([new AskOption("g", "", [])], [A], 1),
-            new Bid(1),
+            new TokenSpend(1),
             new Confirmation(),
         ];
         foreach (var legal in all) Assert.NotNull(policy.Answer(With(legal), EmptyView()));
@@ -937,7 +937,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
 
     /// <summary>Every LegalSet member the Protocol declares. A shape missing here is a compile-time hole, not a runtime one.</summary>
     public static IReadOnlyList<string> ShapeNames { get; } =
-        ["options", "pieces", "allocation", "assignment", "move_region", "bid", "confirmation"];
+        ["options", "pieces", "allocation", "assignment", "move_region", "token_spend", "confirmation"];
 
     public AskAnswer Answer(Ask ask, PolicyView view) => ask.Legal switch
     {
@@ -946,7 +946,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
         Allocation a => AnswerAllocation(ask, a),
         Assignment a => AnswerAssignment(ask, a),
         MoveRegion m => AnswerMove(ask, m, view),
-        Bid b => Pass(ask) ?? new BidPlaced(chooser.Next(b.MaxTokens + 1)),
+        TokenSpend t => Pass(ask) ?? new TokensSpent(chooser.Next(t.MaxTokens + 1)),
         Confirmation => new Confirmed(),
         _ => throw new NotSupportedException($"legal set {ask.Legal.GetType().Name} has no policy; add it to AnswerPolicy and to ShapeNames"),
     };
@@ -1949,7 +1949,7 @@ public sealed record RecordedUnitState(
 public sealed record RecordedMarkerState(
     Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw);
 
-/// <param name="LegalKind">The legal set's wire kind: options, pieces, allocation, assignment, move_region, bid, confirmation.</param>
+/// <param name="LegalKind">The legal set's wire kind: options, pieces, allocation, assignment, move_region, token_spend, confirmation.</param>
 /// <param name="Answered">The teams that have already answered — a sealed Ask's answers stay hidden until it closes.</param>
 /// <param name="Options">Present for an options or assignment set: the choice ids, their labels and the pieces they name.</param>
 public sealed record RecordedAsk(
@@ -2089,7 +2089,7 @@ public static class LogLines
         Allocated a => $"{a.Counts.Values.Sum()} allocated",
         Assigned a => $"{a.Targets.Count} assignment(s)",
         Destinations d => $"{d.Moves.Count} destination(s)",
-        BidPlaced b => $"a bid of {b.Tokens}",
+        TokensSpent t => $"{t.Tokens} token(s) spent",
         Confirmed => "yes",
         Passed => "a pass",
         _ => answer.GetType().Name,
@@ -2175,7 +2175,7 @@ public sealed class FrameProjector(CompiledScenario scenario)
             Allocation a => ("allocation", [], a.Targets, null),
             Assignment a => ("assignment", a.Items.Select(OptionOf).ToList(), a.Targets, null),
             MoveRegion m => ("move_region", [], m.ModelIds, m.Allowance),
-            Bid b => ("bid", [], [], (double)b.MaxTokens),
+            TokenSpend t => ("token_spend", [], [], (double)t.MaxTokens),
             Confirmation => ("confirmation", [], [], null),
             _ => (ask.Legal.GetType().Name, [], [], null),
         };
@@ -2527,7 +2527,7 @@ public sealed record AskFingerprint(string Question, string Teams, string Legal,
         Allocation a => $"allocation:{a.Amount}:{string.Join(",", a.Targets.Select(i => i.ToString("N")).Order())}",
         Assignment a => $"assignment:{a.MaxDistinctTargets}:{string.Join(",", a.Items.Select(i => i.Id).Order())}:{string.Join(",", a.Targets.Select(i => i.ToString("N")).Order())}",
         MoveRegion m => $"move:{m.Allowance}:{string.Join(",", m.ModelIds.Select(i => i.ToString("N")).Order())}",
-        Bid b => $"bid:{b.MaxTokens}",
+        TokenSpend t => $"token_spend:{t.MaxTokens}",
         Confirmation => "confirmation",
         _ => legal.GetType().Name,
     };

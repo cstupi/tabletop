@@ -361,8 +361,9 @@ thousand frames.
 `describeAsk(ask, teamLabels): AskView` turns a `RecordedAsk` into a heading, a prompt, one
 addressee per team with whether it has answered, the teams still being waited on, a one-line
 description of the legal set, and a note list. `describeLegal` covers the seven wire kinds
-(`options`, `pieces`, `allocation`, `assignment`, `move_region`, `bid`, `confirmation`) and returns
-an unknown kind's own string rather than throwing, so a new legal kind degrades to its name.
+(`options`, `pieces`, `allocation`, `assignment`, `move_region`, `token_spend`, `confirmation`)
+and returns an unknown kind's own string rather than throwing, so a new legal kind degrades to
+its name.
 
 The panel is display only. It exists because the recording carries the open Ask at every frame, and
 showing it is what makes the seam visible without being built on.
