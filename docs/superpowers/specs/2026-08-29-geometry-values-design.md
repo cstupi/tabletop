@@ -203,7 +203,7 @@ Three things the OPR rulebook settles about these:
   writes it and works at any size.
 - **One style is proportional** (ruled by the owner 2026-09-06): Side Battle scales with the
   table. Its two legs are fractions of the edges they run along — 3/4 of the long edge and 5/8
-  of the short — which is the p.21 diagram's 54" and 30" on 72×48, and 45" and 27.5" on a
+  of the short — which is the p.22 diagram's 54" and 30" on 72×48, and 45" and 27.5" on a
   60×44 table. A diagonal has no table feature to anchor to: the anchored reading had to invent
   a constant (`Leg(edge) = edge − 18`) that no page states, and it degenerates to nothing at
   18". The other six built-in styles stay anchored in absolute inches. The mixture is

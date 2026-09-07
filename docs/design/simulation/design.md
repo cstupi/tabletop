@@ -302,8 +302,8 @@ the model holding four, none from the other", which is the answer a per-model bu
 The entries are drawn in id order, so one seed answers one run identically.
 
 A `PieceSelection` whose `Eligible` list is model ids needs nothing from the policy: it picks ids
-out of the list it was given without asking what they name, which is what makes a Sniper choosing
-its target model (p.13, ruled 2026-09-06) a zero-change shape here. The deployment loop that
+out of the list it was given without asking what they name, which is what makes a Takedown choosing
+its target model (p.14, ruled 2026-09-06) a zero-change shape here. The deployment loop that
 places models by hand after an answer keys on the question name, not on the answer shape, so a
 model-id selection never reaches it.
 
@@ -1304,11 +1304,11 @@ documentation edits.
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.
 
-### Rulebook: Grimdark Future v3.4.1
+### Rulebook: Grimdark Future v3.5.1
 
 - p.6, deployment alternates one unit a turn, which is what a `deploy` Ask and a hand placement
   reproduce.
-- p.49, free-for-all is N teams, which is the `free-for-all` scenario.
+- p.50, free-for-all is N teams, which is the `free-for-all` scenario.
 
 ### Sibling design documents
 

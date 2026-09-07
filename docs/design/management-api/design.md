@@ -1621,7 +1621,7 @@ fetched live 2026-09-06 (`200`, 26 KB, `access-control-allow-origin: *`) and sav
 **Rulebook.** No page of Grimdark Future is read by this module. It stores content and enforces no
 rule. The one number from the rules side is the triangle warning threshold, 100,000, and that is a
 product decision from mesh conversion rather than a rulebook figure. Pages 6, 16, 17–18, 19 and 49
-of Grimdark Future v3.4.1 are read by the setup phase, whose rows this module stores as layouts but
+of Grimdark Future v3.5.1 are read by the setup phase, whose rows this module stores as layouts but
 never interprets.
 
 **Sibling design documents** in `docs/design/`: `contracts/`, `geometry/`, `game-server/`,

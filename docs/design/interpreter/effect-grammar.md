@@ -45,16 +45,18 @@ sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid
 }
 ```
 
-`Entrenched` needs all of it at once. The property sits on the target model. The effect is −2 to
-the **opponent's** hit roll. The condition, *hasn't moved since the beginning of its last
-activation*, tests **self**.
+`Artillery` needs most of it at once. The property sits on the target model, and the effect is −2
+to the **opponent's** hit roll. `Counter` is the case that also tests **self**: the property is
+the defender's, the effect takes a roll off the *charger's* `Impact`, and the condition is *when
+charged*. 3.4.1's `Entrenched` did both in one rule, and 3.5.1's `Artillery` needs no movement
+condition because it *may only use Hold actions*.
 
 ## The eight predicates
 
 The set is closed. An effect carries a flat list of them and all must hold. Grimdark Future's
 properties contain no *or* and no *not*. `Rush/Charge` looks like an *or* and is set membership
 over action names, which is why a condition's values are rows. `Comparison` includes `neq`
-because a single predicate still has to test a state's absence. `Impact` is *unless fatigued*.
+because a single predicate still has to test a state's absence. `Impact` is *unless fatigued*, which is the one `actor_state` predicate the core set still uses.
 
 | `ConditionKind` | Reads | Subject | Read in `Conditions.Holds` as |
 | --- | --- | --- | --- |
@@ -76,7 +78,7 @@ inches, and lossy for a ruleset that is not. `UsageCount` scanning `SequenceCont
 counts sequences the weapon was in, not shots fired. That is the right reading for *once per
 game* and not clearly right for anything else.
 
-**"Unmodified" is a first-class concept.** `Rending`, `Furious`, `Relentless` and `Poison` all
+**"Unmodified" is a first-class concept.** `Rending`, `Furious`, `Relentless` and `Bane` all
 trigger on the raw die, so `Die` carries `Raw` and `Modified`, and the predicate names which it
 reads.
 
@@ -133,18 +135,18 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 
 | # | `EffectKind` | Pass | Applied by | OPR rules |
 | --- | --- | --- | --- | --- |
-| 1 | `ModifyRoll` | two | `RollEffects.Plan` adds one `RollModifier(entry name, amount)` per effect on this roll | `AP(X)`, `Stealth`, `Entrenched`, `Indirect`, `Lance` |
+| 1 | `ModifyRoll` | two | `RollEffects.Plan` adds one `RollModifier(entry name, amount)` per effect on this roll | `AP(X)`, `Stealth`, `Artillery`, `Indirect`, `Thrust` |
 | 2 | `ModifyStat` | two | `StatReader.TargetNumber`/`WeaponRange`/`ActionDistance`, summed | `Slow`, `Fast`, `Aircraft`'s −12 inches range |
-| 3 | `ReplaceStat` | two | `StatReader.TargetNumber`, in ordinal order, last wins | `Reliable`, `Sniper` |
-| 4 | `ForceReroll` | two | `RollEffects.Plan` collects the face into `RollPlan.RerollRaw`; `Roller.Roll` redraws once | `Poison` |
+| 3 | `ReplaceStat` | two | `StatReader.TargetNumber`, in ordinal order, last wins | `Reliable` |
+| 4 | `ForceReroll` | two | `RollEffects.Plan` collects the face into `RollPlan.RerollRaw`; `Roller.Roll` redraws once | `Bane` |
 | 5 | `Roll` | two | `RollEffects.OwnRolls` returns it; the **step** rolls it under the entry's name with the row's threshold | `Regeneration`, `Fearless`, `Impact(X)` |
 | 6 | `AddHit` | two | `RollEffects.PerDie` per die with a `RollResult` condition; an unconditional one is a spell's *takes N hits*, which the casting step reads and pushes as a hit roll that cannot fail | `Furious`, `Relentless`, damage spells |
 | 7 | `Multiply` | two | `RollEffects.HitMultiplier`/`WoundMultiplier`, product of amounts, each capped by `CapKind` | `Blast(X)` on hits, `Deadly(X)` on wounds |
 | 8 | `OverrideResult` | two | nobody: it is the child of a kind-5 roll, and the step reads `TargetResult` to know what a success does | `Regeneration` (wound), `Fearless` (morale test) |
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
-| 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Poison` and `Rending` ignoring `Regeneration` |
-| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Lance` (`AP(+1)`), `Counter` (−1 `Impact` rolls) |
-| 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Lock-On` |
+| 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Bane`, `Rending` and `Unstoppable` ignoring `Regeneration` |
+| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Thrust` (`AP(+1)`), `Counter` (−1 `Impact` rolls) |
+| 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, `Blast` and `Indirect` for cover |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
 the entry's parameter, whose `Threshold` is the score, and whose `Children` hold the per-success
@@ -190,10 +192,18 @@ sum.
 **Apply the four kinds,** in `Ordinal` order across every effect of both sides whose conditions
 hold and which references no `RollResult`. Two guards inside the loop make ordering meaningful.
 `if (!live.Contains(source) ...)` skips a source another effect has already suppressed this pass.
-Conditions are re-judged at application time rather than at candidate time. `Poison`'s
+Conditions are re-judged at application time rather than at candidate time. `Bane`'s
 `suppress_property` at ordinal 5 therefore removes `Regeneration` before anything at ordinal 50
 can read it, and a rule that suppresses a rule that grants a rule resolves in the order the
 author wrote.
+
+**`ordinal` diverges from p.13's rules priority, deliberately.** 3.5.1 added a tie-break that
+3.4.1 lacked: *"If multiple special rules happen at the same time, and it's not clear which
+should be done first, if all the rules affect only one player, then that player may decide the
+order. If the rules affect multiple players, then the players roll-off and the winner picks the
+order."* The engine never reaches that case, because `ordinal` makes every order explicit in the
+content document, and a deterministic order is what replay needs. The cost is that a player
+cannot choose an order the document already fixed, which no core rule requires.
 
 The candidate list is computed **once, before the loop**, from the initial `live` list. An effect
 belonging to a property *granted* during pass one is therefore never a candidate in the same
@@ -229,7 +239,7 @@ then appended, and two suppressions are applied by removal:
   parameter. That parameter is what keeps `Effects/` free of OPR's roll names.
 
 Matching a base modifier by the string `"cover"` is the weakest join in the module. It couples a
-generic suppressor to a string the ruleset happens to use, and `Lock-On` silently stops working
+generic suppressor to a string the ruleset happens to use, and `Blast` silently stops ignoring cover
 if `GfRolls` ever spells it differently. `RangePenalties` avoids the problem by dropping negative
 amounts in `StatReader.WeaponRange` instead.
 
@@ -266,12 +276,12 @@ parts the first four do not.
 | `AP(X)` | one effect: `subject = opponent`, `kind = modify_roll`, `target_roll = defense`, `amount = -1`, `amount_from_parameter`. No conditions |
 | `Stealth` | `catalog_entry.aggregation = all`; one effect: `subject = opponent`, `modify_roll`, `target_roll = hit`, `amount = -1`. Two conditions: attack kind is shooting, and range `gt` 9 with no subject |
 | `Impact(X)` | one effect: `kind = roll`, `amount_from_parameter`, `threshold = 2`, with a **child** effect `kind = add_hit`, `amount = 1`. Conditions: action taken is charge, actor state `neq` fatigued |
-| `Poison` | **two** effects on one entry. `force_reroll` with `target_roll = defense` on the opponent, conditioned on a raw `defense` result of 6. And `suppress_property` with `target_entry = Regeneration`, unconditional, at a lower `ordinal` so it wins |
+| `Bane` | **two** effects on one entry. `force_reroll` with `target_roll = defense` on the opponent, conditioned on a raw `defense` result of 6. And `suppress_property` with `target_entry = Regeneration`, unconditional, at a lower `ordinal` so it wins |
 | `Rending` | `grant_property` with `target_entry = AP` and `amount = 4`, conditioned on a raw `hit` result of 6, so it is deferred to pass two and folded in per die |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
-| `Lock-On` | two `suppress_modifiers` effects, `target_modifier = cover` and `target_modifier = to_hit_penalties`, plus a `modify_stat` on `Range` that `range_penalties` suppression protects |
+| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` and `Indirect` are what suppress that |
 
-`Poison` shows why conditions belong to the effect and not to the entry. One of its two effects
+`Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
 is conditional and the other is not, and a single condition list on the entry would get it wrong.
 `Indirect` is the same argument with three effects, one conditional and two not.
 

@@ -955,7 +955,7 @@ carries them, and `RollPanel.svelte` shows raw and modified faces with the net m
 
 ### Rulebook
 
-No page of Grimdark Future v3.4.1 is read by this module. The one rules fact it depends on, that
+No page of Grimdark Future v3.5.1 is read by this module. The one rules fact it depends on, that
 OPR's frontline zone is an absolute twelve-inch inset rather than a fraction of the table, reaches
 it as resolved `Point2` rings in `RecordedZone.Polygons`.
 

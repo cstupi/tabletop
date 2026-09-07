@@ -14,7 +14,7 @@ needs.
 
 Two rulesets were read for this session:
 
-- **Grimdark Future v3.4.1**, pages 7–14 (actions, shooting, charge and melee, morale,
+- **Grimdark Future v3.5.1**, pages 7–15 (actions, shooting, charge and melee, morale,
   terrain, every special rule), plus 18, 30–32 and 43 for the token economy's edges.
 - **Warhammer 40,000 10th edition core rules** (Wahapedia), as a **falsifier**: the attack
   sequence, phase structure, Battle-shock, modifier caps, and the core Stratagems' timing
@@ -177,8 +177,8 @@ question, not the sequence's. That seam is left for the scheduler session.
 Three shared sub-sequences do most of the work:
 
 - **deal-wounds** — assign each wound: `Tough` stacking onto the most-wounded tough model
-  until it dies, heroes assigned last (p.14); `Deadly(X)` assigns then multiplies, resolved
-  first, no carry-over (p.13). `Regeneration` roll per wound unless suppressed. Casualties go
+  until it dies, heroes assigned last even if already wounded (p.15); `Deadly(X)` assigns then
+  multiplies, resolved first, no carry-over (p.13). `Regeneration` roll per wound unless suppressed. Casualties go
   to the shelf. Records wounds-this-activation for the morale threshold — a per-unit counter in
   game state, like spell tokens, cleared at `turn_ended` (placed 09-04; it must outlive the
   frame that wrote it).
@@ -195,7 +195,7 @@ Three shared sub-sequences do most of the work:
 The actions:
 
 - **Shooting** (p.8) — Ask: declare weapon groups and up to two targets, *before any roll* →
-  attack-sequence per group, `Sniper` groups first (p.14).
+  attack-sequence per group, `Takedown` groups first (p.14).
 - **Charge** (p.9–10) — Ask target: within charge distance including special-rule movement,
   clear path, no line of sight needed → move, ignoring the 1" restriction → defender's models
   not in contact move up to 3" into contact (their models, their Ask) → push **melee**:
@@ -237,8 +237,8 @@ even off the table (p.13); capped at 6; spent by casting and by the token spend.
 ordinary editable game state, logged like everything else — no schema change, and nothing in
 `Properties` beyond the parameter the entry already carries. Round-start grant is a
 `GameRules` hook on the round boundary. Two edge sources exist and need nothing new: army
-terrain granting a token on activation nearby (p.18), and the hero upgrade that holds one
-token only spendable in a token spend (p.30).
+terrain granting a token on activation nearby (p.19), and the hero upgrade that holds one
+token only spendable in a token spend (p.31).
 
 **The four actions are sequences too**, which this document left implicit and the review of
 09-04 made explicit: `Hold` is no move, then an Ask *shoot or not* that pushes Shooting;
@@ -303,7 +303,7 @@ data.
   `GameRules` hook.
 - 40k's `GameRules`. The core rules were read to falsify the interface, not to build it.
 - Advanced Casting's three optional modules — spell books, the psychic pool, living spells
-  (p.31–32) — same status as action boosting: recorded, not designed.
+  (p.32–33) — same status as action boosting: recorded, not designed.
 - Buildings as targets, unchanged from [game flow](2026-08-28-game-flow-design.md).
 - Spell *content* as data. The casting sequence is designed; the rows for real spells wait on
   the effect grammar follow-up below.

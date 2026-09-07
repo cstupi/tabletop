@@ -181,8 +181,8 @@ top is standable, `Area` is stood inside), `Footprint`, `Offset`, `Yaw`, `Bottom
 (`0–4`, thin footprint) and a second storey (`4–8`, nothing beneath) one mechanism (geometry values →
 Collision volumes). Declarations are the six OPR terrain types as a `[Flags]` enum, beside free
 `Notes` that nothing interprets. That closed-set-plus-open-field split is the rulebook's own:
-players "must agree on what terrain type rules each piece follows" (Grimdark Future v3.4.1 pp. 16,
-20). `Impassable` is orthogonal to `Solid`/`Area` and all four combinations are real, so it is a
+players "must agree on what terrain type rules each piece follows" (Grimdark Future v3.5.1 pp. 17,
+21). `Impassable` is orthogonal to `Solid`/`Area` and all four combinations are real, so it is a
 declaration rather than something implied by `Solid`.
 
 `WorldVolume(Guid Id, Volume Volume, TerrainTransform Transform)` is the placed form. Its `Id` is
@@ -518,12 +518,12 @@ once. `FrameId` is null for the scheduler's own Asks. `WindowKind` is the name a
 is null when the Ask is not a window. `AskQuestions` holds only the engine's own nine names:
 `activate`, `act_or_end_phase`, `deploy`, `deploy_scouts`, `deploy_ambusher`, `end_round`,
 `confirm`, `react`, `spend_tokens`. Every other name comes from `GameRules`, including `shoot_or_not`,
-`strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Sniper`'s target model.
+`strike_back`, `remove_casualties`, a charge target, a spell's targets and a `Takedown`'s target model.
 
 | `LegalSet` | Answer | Used for |
 | --- | --- | --- |
 | `Options(IRL<AskOption> Choices)` | `Chosen(OptionId)` | activate (unit x action), act-or-end-phase, react, ruleset yes/no questions |
-| `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Sniper`'s target model (p.13) |
+| `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
 | `Allocation(Targets, Amount)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly |
 | `Assignment(Items, Targets, MaxDistinctTargets)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8) |
 | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
@@ -546,23 +546,23 @@ is the container the unit is inside. `ExitWithin` is the distance its models mus
 within of it (OPR: 6"), which is `Containment.BaseFullyWithin`. The client draws that region instead
 of `Movement.Region`, because an occupant has no position to move from. `Enterable` and `ExitingId`
 are never both set, which enforces *"never both in one activation"* (game flow → Inside a container;
-Grimdark Future p.14 `Transport(X)`, p.20 solid buildings). `Containment` is optional, so an ordinary
+Grimdark Future p.15 `Transport(X)`, p.21 solid buildings). `Containment` is optional, so an ordinary
 open-table move constructs with five arguments as before. This is **spec correction 11**.
 
 **`PieceSelection.Eligible` holds either grain.** A unit id is the grain for deploy, for an Ambusher
 and for a charge target. A model id is the grain for a spell whose `effect.target_grain` is `model`,
-and for a `Sniper` choosing which model of the target unit takes the wound (Grimdark Future p.13).
+and for a `Takedown` choosing which model of the target unit takes the wound (Grimdark Future p.14).
 Nothing in the contract distinguishes the two. `LegalSetMembership` checks the count bounds, the
 distinctness of the ids and their presence in `Eligible`. The client resolves a clicked piece's own
 id first and the unit its selection widened to second, so a model-grain set is answerable by one
-click, and `Names.Piece` labels a unit, a model or a marker from the same id. A `Sniper` target Ask
+click, and `Names.Piece` labels a unit, a model or a marker from the same id. A `Takedown` target Ask
 is therefore a `PieceSelection(models, 1, 1)` under a `GameRules` question name, and costs nothing
 new on the wire.
 
 **A wound already names its model.** `WoundsSet(Guid ModelId, int Wounds)` sets one model's absolute
 wound count, and it travels inside `StepCompleted.Changes` like every other state change. A
-`Sniper`'s wound is that change on the chosen model id, so a targeted wound needs nothing new on the
-wire. What a sniper sequence bypasses is the `assign` Ask itself: p.14's rule that a wounded `Tough`
+`Takedown`'s wound is that change on the chosen model id, so a targeted wound needs nothing new on the
+wire. What a takedown sequence bypasses is the `assign` Ask itself: p.15's rule that a wounded `Tough`
 model takes wounds until it dies, and its rule that heroes are assigned last, both live in the
 predicate that builds `Allocation.Targets`, and a step that opens no `Allocation` consults neither.
 The bypass is an absence in the sequence rather than a field in the contract.
@@ -575,7 +575,7 @@ because every token holder is itself a caster with its own spell to pay for. A m
 what it holds, and that per-model cap is the map's value; a team's maximum is the sum of its own
 entries and is not carried separately. The caster's own model is in the map with the tokens it has
 left after the spell's cost. The hero upgrade whose single token is spendable only in a token spend
-(p.30) is one more model with a cap of one. `TokensSpent(IRD<Guid,int> Counts)` is the answer, a key
+(p.31) is one more model with a cap of one. `TokensSpent(IRD<Guid,int> Counts)` is the answer, a key
 absent from it paid nothing, and an empty map is the fact `Passed` already carries.
 `LegalSetMembership` checks that every key is a key of `MaxByModel` and every value lies between
 zero and that key's cap. Which team owns a key is the spend step's check and not membership's, on
@@ -1035,7 +1035,7 @@ belongs to the interpreter module (rows, not schema). A freshly composed stack t
 | The 13 `StateChange` leaves are registered on both `StateChange` and `EventPayload` | one `ApplyChange` serves the menu and automation: "the same fields through the same path" | wrap each change in a `StateChanged` payload | game flow → Nothing is an invariant |
 | `TableState` lives in `Content`, not `Protocol` | management stores it as a layout, the game server writes it as the draft, the client saves and loads it over HTTP. The client and both servers, which is `architecture.md`'s own test for `Content` | keep it in `Protocol` and duplicate a layout DTO in management | setup phase → Layouts; whole-design review ruling 4; **spec correction 10** |
 | A placement's `Volumes` are always written on add, never resolved from `asset_volume` | the client and server need every placed volume; an asset's volumes are owner-only over HTTP and the manifest does not carry them | fall through to `asset_volume` when a placement has no override | **spec correction 1**, against `schema.md` and setup content |
-| A move Ask carries `MoveContainment` | `Inside` was already a destination on the wire but nothing said where one was legal, so no plan could offer embark or disembark | infer enterable containers on the client (it has no rules); a separate embark command | **spec correction 11**; game flow → Inside a container; GF p.14, p.20 |
+| A move Ask carries `MoveContainment` | `Inside` was already a destination on the wire but nothing said where one was legal, so no plan could offer embark or disembark | infer enterable containers on the client (it has no rules); a separate embark command | **spec correction 11**; game flow → Inside a container; GF p.15, p.21 |
 | Geometry's API is declared here and implemented later | `architecture.md` names the API surface as a contract to freeze *before* parallel work; two other modules must be able to name the calls | let the geometry module invent the surface with the bodies | `architecture.md` → Contracts to freeze |
 | Free strings for action, stat, condition, roll, sequence, step, phase, window-kind and Ask-question names | a second ruleset must be content, not a Protocol change; the shape the client renders stays closed | enumerate them and migrate the Protocol per ruleset | identity and enumerations → The closed sets; action sequences constraint 9 |
 | `MoveRegion` carries parameters (allowance, impassable ids, difficult ids, cap), not an enumerated destination set | movement is continuous: the server describes the constraint, the client draws the consequence | send legal destinations; round-trip every drag | `architecture.md` → How the client stays responsive |
@@ -1227,12 +1227,12 @@ of `ProjectionDesyncException` is listed here.
 
 ### What the owner spend rulings of 2026-09-06 require of each consumer
 
-`TokenSpend` and `TokensSpent` carry a map keyed by model, and a `Sniper` target is a model-grain
+`TokenSpend` and `TokensSpent` carry a map keyed by model, and a `Takedown` target is a model-grain
 `PieceSelection`. Both changes land in other modules.
 
 | Module | What it must now do |
 | --- | --- |
-| Interpreter | Build `TokenSpend.MaxByModel` from p.13's predicate over every addressed team's models, each with its own token count as its cap, the caster's own model included with the tokens left after the spell's cost. Read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model. Sum every team's counts for the roll modifier, which is what `Values["net_tokens"]` records. Open a `Sniper`'s target as a `PieceSelection(models, 1, 1)` under its own question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask |
+| Interpreter | Build `TokenSpend.MaxByModel` from p.13's predicate over every addressed team's models, each with its own token count as its cap, the caster's own model included with the tokens left after the spell's cost. Read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model. Sum every team's counts for the roll modifier, which is what `Values["net_tokens"]` records. Open a `Takedown`'s target as a `PieceSelection(models, 1, 1)` under its own question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask |
 | Game server | `LegalSetMembership` for a `TokenSpend` checks that every key of `Counts` is a key of `MaxByModel` and every value lies between zero and that key's cap. It checks no total, because a spend is any number up to a maximum. Which team owns a key belongs to the spend step, as `MoveRegion`'s distances belong to the move step |
 | Client shell | Render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map. Keep the mode; only its two shapes changed |
 | Simulation | Choose a count per model within that model's cap and answer `TokensSpent` with the map, rather than one integer within a single maximum |
@@ -1758,12 +1758,13 @@ soft reference);
 `2026-08-29-management-api-design.md` is consulted for one sentence: the version check is a request
 header answered by `426`.
 
-**Rulebook.** Grimdark Future v3.4.1: p. 6 (objectives, the deployment roll-off), p. 7 (rounds,
+**Rulebook.** Grimdark Future v3.5.1: p. 6 (objectives, the deployment roll-off), p. 7 (rounds,
 turns, activations, movement measured from each base's start), p. 8 (weapon groups and up to two
-targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the simultaneous token spend, `Sniper`),
-p. 14 (`Transport(X)`, `Scout`, wounded `Tough` models and heroes assigned last), p. 30 (the hero
-upgrade holding one token spendable only in a token spend), pp. 16-20 (terrain types, placement styles, solid
-buildings and the 6" exit), p. 49 (free-for-all and team games).
+targets), p. 13 (`Caster(X)`, spell tokens capped at 6, the simultaneous token spend),
+p. 14 (`Takedown`, `Scout`), p. 15 (`Transport(X)`, wounded `Tough` models and heroes assigned
+last), p. 31 (the hero upgrade holding one token spendable only in a token spend), pp. 17-21
+(terrain types, placement styles, solid buildings and the 6" exit), p. 50 (free-for-all and team
+games).
 
 **Sibling design documents** under `docs/design/`: `geometry/`, `management-api/`, `web-app/`,
 `game-server/`, `client/`, `scheduler/`, `interpreter/`. All of them consume these three

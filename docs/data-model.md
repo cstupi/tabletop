@@ -324,7 +324,7 @@ which is the one field no property has. Its effects and conditions are the same 
 everything else uses.
 
 **An effect can act on another property**, which is what makes resolution two passes rather
-than one: `Poison` suppresses `Regeneration` and `Lance` changes what `AP` contributes, so
+than one: `Bane` suppresses `Regeneration` and `Thrust` changes what `AP` contributes, so
 which properties are live has to settle before any effect applies. That is also why an effect
 carries an explicit `ordinal` — the rulebook orders several by hand.
 
@@ -339,7 +339,7 @@ lists all of them with their values.
 
 The four exceptions on `EFFECT` are stronger rather than weaker: what a `Grant` or `Suppress`
 names, what a `Replace a stat` names, and which action or roll an effect targets, are
-**references into the same `PROPERTIES` set** — `Poison` cannot suppress a rule that set does
+**references into the same `PROPERTIES` set** — `Bane` cannot suppress a rule that set does
 not define.
 
 ## What is deliberately not here

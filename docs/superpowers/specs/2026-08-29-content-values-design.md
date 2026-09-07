@@ -83,8 +83,8 @@ Future's properties by what they actually do gives four families:
 
 | Family | Examples |
 | --- | --- |
-| Numeric modifiers to a roll | `AP(X)`, `Stealth`, `Entrenched`, `Indirect`, `Lance`, `Slow`, `Fast`, `Reliable`, `Sniper` |
-| Reroll and result reinterpretation | `Poison`, `Regeneration`, `Rending`, `Furious`, `Relentless`, `Fearless` |
+| Numeric modifiers to a roll | `AP(X)`, `Stealth`, `Artillery`, `Indirect`, `Thrust`, `Slow`, `Fast`, `Reliable`, `Takedown` |
+| Reroll and result reinterpretation | `Bane`, `Regeneration`, `Rending`, `Furious`, `Relentless`, `Fearless` |
 | Extra dice and multiplication | `Impact(X)`, `Blast(X)`, `Deadly(X)`, `Counter` |
 | Turn structure and deployment | `Ambush`, `Scout`, `Flying`, `Immobile`, `Aircraft`, `Hero`, `Limited`, `Caster(X)` |
 

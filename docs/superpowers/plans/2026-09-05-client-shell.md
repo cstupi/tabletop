@@ -8,7 +8,7 @@
 
 **Tech Stack:** Godot 4.7.2 Mono (Windows host), .NET 10 (`net10.0`, C# 12), `System.Net.Http`, `System.Net.WebSockets.ClientWebSocket`, xUnit 2.9.3; `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol` from the contracts and geometry plans.
 
-**Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.4.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api.md`, `2026-09-05-game-server-skeleton.md`. `docs/workstreams/05-client-shell.md` is stale and not followed.
+**Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.5.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api.md`, `2026-09-05-game-server-skeleton.md`. `docs/workstreams/05-client-shell.md` is stale and not followed.
 
 ## Global Constraints
 
@@ -48,7 +48,7 @@ client/src/Core/                             Godot-free; compiled into the test 
   PresenceTable.cs         others' presence by participant
   Session.cs               the session object: login, connect sequence, projection, undo prediction, reconnect, edits
   BuiltinContent.cs        built-in terrain (volumes + declarations), textures, marker visuals, zone styles
-  TerrainGenerators.cs     the four planet tables (GF p.17-18) -> a batch of AddTerrain edits beside the slab
+  TerrainGenerators.cs     the four planet tables (GF p.18-19) -> a batch of AddTerrain edits beside the slab
   AssetCache.cs            content-addressed disk cache: download, verify hash, path by hash
   Names.cs                 ids -> words (participants, teams, units, models, pieces)
   LogText.cs               GameEvent -> words, with a naming context
@@ -1392,7 +1392,7 @@ A resync is that same path, so the projection, the draft, the undo prediction an
 - **Every mesh file is still optional, and a missing one still draws the hitbox.** `MeshLoader.LoadBuiltin` returns null when the file is absent and `TerrainNode` keeps its per-volume proxy visible (asset library → the proxy; setup phase → "the hitbox is the data and the mesh only decorates it"). That is the degraded path, not the plan: it is what happens for whichever of the fifteen files has not been made yet, and it is kept rather than deleted so a build with no `content/builtin/` at all still renders a playable table.
 - Declarations follow the tables literally; conditional clauses ("dangerous when using Rush/Charge", "difficult for units moving up", "units on top may ignore one unit/terrain for line of sight") are `Notes`, never flags (geometry values → Declarations: "Everything else OPR does with terrain is free text").
 
-Spec: setup phase → Terrain: imported, built-in, generated (built-ins ship with the client; generators are the rulebook's four tables, nine fixed plus 4D3 on 2D6; a batch of adds; land beside the table; the client rolls; the tables ship with the client and the server never reads them); Grimdark Future p.17–18 (the tables, read above); p.17 size classes (scatter 1–3", large 4–8", up to 12").
+Spec: setup phase → Terrain: imported, built-in, generated (built-ins ship with the client; generators are the rulebook's four tables, nine fixed plus 4D3 on 2D6; a batch of adds; land beside the table; the client rolls; the tables ship with the client and the server never reads them); Grimdark Future p.18–19 (the tables, read above); p.18 size classes (scatter 1–3", large 4–8", up to 12").
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1523,16 +1523,16 @@ public static class BuiltinContent
 
     static readonly BuiltinTerrain[] All =
     [
-        // Generic (p.17)
-        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | Cover), "wall"),        // as Wall or Fence, p.17: Cover, and Difficult when moving through it
+        // Generic (p.18)
+        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | Cover), "wall"),        // as Wall or Fence, p.18: Cover, and Difficult when moving through it
         T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover), "field"),
         T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight), "building"),
         T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, Cover, OnTop), "hill"),
         T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
         T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable), "water"),
-        // Hospitable (p.17)
-        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | Cover), "wall"),   // p.17: "Cover, as well as Difficult terrain when moving through it"
+        // Hospitable (p.18)
+        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | Cover), "wall"),   // p.18: "Cover, as well as Difficult terrain when moving through it"
         T("hill", "Hill", V(Solid, Footprint.Circle(3), 2, Cover, OnTop), "hill"),
         T("plantation", "Plantation", V(Area, Footprint.Rect(6, 6), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("forest", "Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
@@ -1543,7 +1543,7 @@ public static class BuiltinContent
         T("ruins", "Ruins or Debris", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
         T("small-buildings", "Group of Small Buildings", V(Solid, Footprint.Rect(6, 6), 4, Impassable | BlocksLineOfSight), "building"),
         T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, Cover, $"{MovingUp}. {OnTop}"), "hill"),
-        // Wasteland (p.18)
+        // Wasteland (p.19)
         T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, Cover, OnTop), "hill"),
         T("large-rock", "Large Rock or Two to Three Small Rocks", V(Solid, Footprint.Rect(4, 4), 4, Impassable | BlocksLineOfSight), "rock"),
         T("crater", "Crater", V(Area, Footprint.Circle(3), 1, Cover), "pad"),
@@ -1552,7 +1552,7 @@ public static class BuiltinContent
         T("sludge-stream", "Sludge Stream or Canal", V(Area, Footprint.Rect(2, 12), 0.5, Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
         T("sludge-field", "Sludge Field", V(Area, Footprint.Rect(6, 6), 0.5, Difficult), "pad"),
         T("mine-field", "Mine Field", V(Area, Footprint.Rect(6, 6), 0.1, Dangerous), "pad"),
-        // Death (p.18)
+        // Death (p.19)
         T("overgrown-ruins", "Overgrown Ruins", V(Area, Footprint.Rect(6, 6), 4, Difficult | Cover), "ruins"),
         T("deadly-vegetation", "Deadly Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | Dangerous), "woods"),
         T("dense-vegetation", "Dense Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
@@ -1594,7 +1594,7 @@ namespace Tabletop.Client.Core;
 
 public enum Planet { Generic, Hospitable, Wasteland, Death }
 
-/// <summary>Grimdark Future p.17–18: nine fixed pieces, then 4D3 more each rolled on 2D6. Runs on the client; the result is a batch of adds.</summary>
+/// <summary>Grimdark Future p.18–19: nine fixed pieces, then 4D3 more each rolled on 2D6. Runs on the client; the result is a batch of adds.</summary>
 public static class TerrainGenerators
 {
     static readonly Dictionary<Planet, string[]> FixedPieces = new()
@@ -1774,7 +1774,7 @@ public sealed class AssetCache(string root, HttpClient http)
 - **`Region` cannot serve a disembark, so there are two region functions.** `MoveRegion.Containment.ExitingId` non-null means the unit is *inside* the container and its models have no `Placement` (game flow → Inside a container: *"an occupant has no table position of its own"*), so there is no `start` to sweep rays from and `Movement.Region` is meaningless — `Allowance` is the action's remaining distance and binds nothing here (contracts plan Task 8). `IsDisembark(legal)` is that test, and `ExitRegion` answers instead: the legal area is every placement `Containment.BaseFullyWithin(candidate, container, ExitWithin)` admits, taken about the container's own `PlacedModel`. It is expressed as a **boundary**, not a predicate, so `MoveRegionNode` (Task 14) draws it with no change: `Movement.Rays` rays out of the container's base centre, each marched outward in `Movement.Step` increments and bisected eight times at the first refusal — the same loop shape `Movement.Region` uses, which is what keeps a ring of impassable terrain from re-admitting placements beyond it. Every candidate is also refused when it would leave the slab or touch an impassable volume, asked through `Movement.Check(candidate, its own centre, 0, impassable, [], null, size)`: distance zero, so `Check` samples exactly that placement and answers `CrossesImpassable` and `LeavesTable` for it. No new geometry primitive. The client draws; the server re-checks every model with `GfMoves.ExitPlacement` and leaves a model placed too far inside (interpreter plan Task 14), so this is rendering an offer, not a legality check.
 - The region is drawn for **one** body — the lead model's, as `Region` already is. A unit whose models have different bases gets the lead's region and the server refuses the outliers individually; `ExitRegion` therefore takes a `ModelBody` rather than a `PlacedModel`, because an occupant has no placement to pass.
 
-Spec: client shell → The log, undo and the menu (words with actor and sequence; clicking highlights what it touched; every property editable; each item one command; no admin mode, no confirmation dialog), Asks and windows (one panel; the legal set becomes choices and highlights; other teams' Asks are a waiting indicator; mutes auto-pass and the pass is still sent; sealed shows who answered; confirm gates), Input and presence (the ruler: displacement, remaining allowance, distance used from the frame), Animation (a queue between the projection and the renderer that never delays an Ask); scheduler → The turn is an Ask (options are unit × action), There is no round limit (the round advances only when a player answers the `end_round` Ask — ruled 2026-09-06; the client's whole share of it is two words: the button's label and the answer's log line), Nothing is an invariant (menu edits); game flow → Inside a container (a location, not a condition; an occupant has no table position of its own and disembarks relative to the container; enter or exit with any move action, never both in one activation, exit within 6"); geometry plan → `Movement.Region`, `Containment.BaseFullyWithin` and *Interfaces needed → Client shell plan*; rulebook p.14 `Transport(X)` — *"must stay fully within 6\" of it when exiting"* and *"only one model needs to reach the Transport for everyone to embark"*; rulebook p.13 `Caster(X)` — *"Models within 18\" in line of sight of the caster's unit may spend any number of spell tokens at the same time before rolling"* — and `Sniper`, whose shooter picks the model that takes the wound (owner rulings, 2026-09-06). The spend is a sealed `TokenSpend` carrying each eligible model's own maximum and the pick a `PieceSelection` over model ids, so this task's share of both is the mode, the highlights and the words.
+Spec: client shell → The log, undo and the menu (words with actor and sequence; clicking highlights what it touched; every property editable; each item one command; no admin mode, no confirmation dialog), Asks and windows (one panel; the legal set becomes choices and highlights; other teams' Asks are a waiting indicator; mutes auto-pass and the pass is still sent; sealed shows who answered; confirm gates), Input and presence (the ruler: displacement, remaining allowance, distance used from the frame), Animation (a queue between the projection and the renderer that never delays an Ask); scheduler → The turn is an Ask (options are unit × action), There is no round limit (the round advances only when a player answers the `end_round` Ask — ruled 2026-09-06; the client's whole share of it is two words: the button's label and the answer's log line), Nothing is an invariant (menu edits); game flow → Inside a container (a location, not a condition; an occupant has no table position of its own and disembarks relative to the container; enter or exit with any move action, never both in one activation, exit within 6"); geometry plan → `Movement.Region`, `Containment.BaseFullyWithin` and *Interfaces needed → Client shell plan*; rulebook p.15 `Transport(X)` — *"must stay fully within 6\" of it when exiting"* and *"only one model needs to reach the Transport for everyone to embark"*; rulebook p.13 `Caster(X)` — *"Models within 18\" in line of sight of the caster's unit may spend any number of spell tokens at the same time before rolling"* — and `Takedown`, whose shooter picks the model that takes the wound (owner rulings, 2026-09-06). The spend is a sealed `TokenSpend` carrying each eligible model's own maximum and the pick a `PieceSelection` over model ids, so this task's share of both is the mode, the highlights and the words.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1797,8 +1797,8 @@ public class ViewModelTests
     /// <summary>The simultaneous spend (p.13): one maximum per eligible model, over both teams' models, sealed and passable. Team 1 may spend only its own.</summary>
     static readonly Ask SpendTokens = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend spell tokens", [Samples.Team1, Samples.Team2],
         new TokenSpend(new Dictionary<Guid, int> { [Samples.Model] = 2, [Spender] = 1 }), true, true, "casting", Samples.Frame);
-    /// <summary>A Sniper group picking the model it targets (p.13): one model of the target unit, min and max both 1, addressed to the attacker's team (interpreter plan, question `snipe_target`).</summary>
-    static readonly Ask Snipe = new(Guid.CreateVersion7(), "snipe_target", "Pick the model this Sniper group targets", [Samples.Team1], new PieceSelection([Samples.Model], 1, 1), false, false, null, Samples.Frame);
+    /// <summary>A Takedown group picking the model it targets (p.14): one model of the target unit, min and max both 1, addressed to the attacker's team (interpreter plan, question `takedown_target`).</summary>
+    static readonly Ask TakedownAsk = new(Guid.CreateVersion7(), "takedown_target", "Pick the model this Takedown group targets", [Samples.Team1], new PieceSelection([Samples.Model], 1, 1), false, false, null, Samples.Frame);
     /// <summary>The scheduler's round boundary (ruled 2026-09-06): unframed, unsealed, no pass, every team that has a participant.</summary>
     static readonly Ask EndRound = new(Guid.CreateVersion7(), AskQuestions.EndRound, "End the round", [Samples.Team1, Samples.Team2], new Confirmation(), false, false, null, null);
 
@@ -1821,23 +1821,23 @@ public class ViewModelTests
         // Containment names the container: Names.Piece resolves a container that is a model, and degrades to its first eight characters otherwise.
         Assert.Equal($"Clay put Battle Brothers inside {Names.Short(Samples.Container)}", lines[7]);
         Assert.Equal($"Clay took Battle Brothers out of {Names.Short(Samples.Container)}", lines[8]);
-        // p.14 embarks the whole unit when one model reaches the transport, so the answer is one relocation per model — and still one line.
+        // p.15 embarks the whole unit when one model reaches the transport, so the answer is one relocation per model — and still one line.
         Assert.Equal(lines[7], LogText.Describe(new GameEvent(99, Samples.P1,
             new ModelsMoved([Samples.Embark, Samples.Embark with { ModelId = Guid.CreateVersion7() }]), null), names));
         Assert.Equal([Samples.Model], LogText.Touched(a.Log[0]));
         Assert.Equal("the game", new Names(Game, a.Projection).Participant(null));
     }
 
-    /// <summary>The two rulings of 2026-09-06 in the log: who spent what over which models, and which model a Sniper picked (p.13).</summary>
+    /// <summary>The two rulings of 2026-09-06 in the log: who spent what over which models, and which model a Takedown picked (p.14).</summary>
     [Fact]
     public void An_answer_names_the_pieces_it_carries()
     {
-        var a = Applier(new AskOpened(SpendTokens), new AskOpened(Snipe),
-            new AskAnswered(Snipe.Id, Samples.Team1, new SelectedPieces([Samples.Model]), false),
+        var a = Applier(new AskOpened(SpendTokens), new AskOpened(TakedownAsk),
+            new AskAnswered(TakedownAsk.Id, Samples.Team1, new SelectedPieces([Samples.Model]), false),
             new AskClosed(SpendTokens.Id, [new TeamAnswer(Samples.Team1, new TokensSpent(new Dictionary<Guid, int> { [Samples.Model] = 2 })), new TeamAnswer(Samples.Team2, new TokensSpent(new Dictionary<Guid, int> { [Spender] = 1 }))]));
         var names = new Names(Game, a.Projection);
         var lines = a.Log.Select(e => LogText.Describe(e, names)).ToList();
-        // A pick of one model reads as the model, so a sniped model is named on the line that answered (p.13 Sniper).
+        // A pick of one model reads as the model, so a takedown model is named on the line that answered (p.14 Takedown).
         Assert.Equal("Clay answered for Team 1: picked Battle Brothers (Battle Brother)", lines[2]);
         // The sealed spend reads on the line that closed it: each team's total, then the models it came from, ordered by name so the words are stable.
         Assert.Equal("Clay closed the question: Team 1 spent 2 tokens (Battle Brothers (Battle Brother) 2), Team 2 spent 1 token (0198b7ac 1)", lines[3]);
@@ -1943,7 +1943,7 @@ public class ViewModelTests
 
     /// <summary>
     /// A disembark has no start placement, so the region is the container's base grown by the exit distance
-    /// (rulebook p.14: "must stay fully within 6\" of it when exiting") rather than the straight-line reach.
+    /// (rulebook p.15: "must stay fully within 6\" of it when exiting") rather than the straight-line reach.
     /// </summary>
     [Fact]
     public void The_disembark_region_is_the_container_grown_by_the_exit_distance()
@@ -2050,7 +2050,7 @@ public static class LogText
             {
                 Passed => $"passed for {n.Team(a.TeamId)}",
                 Confirmed => $"confirmed for {n.Team(a.TeamId)}",
-                // An unsealed answer is in hand, so it is in words: a sniper's pick has to name the model it picked (p.13).
+                // An unsealed answer is in hand, so it is in words: a takedown's pick has to name the model it picked (p.13).
                 { } answer => $"answered for {n.Team(a.TeamId)}: {Answer(answer, n)}{(a.OutsideLegalSet ? " (outside the legal set)" : "")}",
                 null => $"answered for {n.Team(a.TeamId)}{(a.OutsideLegalSet ? " (outside the legal set)" : "")}",   // withheld: a sealed Ask reveals at ask_closed
             },
@@ -2081,8 +2081,8 @@ public static class LogText
     }
     /// <summary>
     /// An answer in words. A sealed Ask's answers reach the client only inside <c>ask_closed</c>, which is the reveal.
-    /// Names is taken because two answers have to name pieces (both ruled 2026-09-06, both p.13): a one-piece selection is
-    /// a Sniper's chosen model, and a token spend is a count per model rather than one number.
+    /// Names is taken because two answers have to name pieces (both ruled 2026-09-06, both p.14): a one-piece selection is
+    /// a Takedown's chosen model, and a token spend is a count per model rather than one number.
     /// </summary>
     public static string Answer(AskAnswer a, Names n) => a switch
     {
@@ -2120,7 +2120,7 @@ public static class LogText
         SequenceStarted s => new[] { s.Context.ActorUnitId }.Where(x => x is not null).Select(x => x!.Value).Concat(s.Context.TargetUnitIds).ToList(),
         StepCompleted s => s.Changes.SelectMany(c => Touched(new GameEvent(0, null, c, null))).ToList(),
         AskOpened a => a.Ask.Legal is Options o ? o.Choices.SelectMany(c => c.Pieces).Distinct().ToList() : a.Ask.Legal is PieceSelection p ? p.Eligible : [],
-        // An answer names pieces too: the model a Sniper picked, and the models a team spent its tokens from (p.13).
+        // An answer names pieces too: the model a Takedown picked, and the models a team spent its tokens from (p.14).
         AskAnswered a => a.Answer is null ? [] : AnswerPieces(a.Answer),
         AskClosed a => a.Answers.SelectMany(x => AnswerPieces(x.Answer)).Distinct().ToList(),
         _ => [],
@@ -2138,7 +2138,7 @@ public static class LogText
 }
 ```
 
-`Moved` names the unit the first moved model belongs to, through `Names.UnitOfModel`; a unit-wide drag is several relocations and one line. That is what makes the embark line right: p.14 embarks the **whole** unit when one model reaches the transport, so the answer is one relocation per model to the same `Inside`, and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* once, naming the container through `Names.Piece` — a model id, so `Names.Model` resolves it, and an unknown id degrades to its first eight characters like every other name here. The disembark reads *"took … out of …"* rather than falling through to the bare *"moved"*.
+`Moved` names the unit the first moved model belongs to, through `Names.UnitOfModel`; a unit-wide drag is several relocations and one line. That is what makes the embark line right: p.15 embarks the **whole** unit when one model reaches the transport, so the answer is one relocation per model to the same `Inside`, and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* once, naming the container through `Names.Piece` — a model id, so `Names.Model` resolves it, and an unknown id degrades to its first eight characters like every other name here. The disembark reads *"took … out of …"* rather than falling through to the bare *"moved"*.
 
 - [ ] **Step 3: Write `AskViewModel.cs`**
 
@@ -2356,7 +2356,7 @@ public static class MoveRuler
     public static bool IsDisembark(MoveRegion legal) => legal.Containment?.ExitingId is not null;
 
     /// <summary>
-    /// The disembark region: rulebook p.14, "must stay fully within 6\" of it when exiting", measured edge to edge from the
+    /// The disembark region: rulebook p.15, "must stay fully within 6\" of it when exiting", measured edge to edge from the
     /// container's base — so it is the container's footprint grown by the exit distance, not a circle about its centre. One
     /// vertex per ray out of the container's base centre, marched outward in Movement.Step increments and bisected at the
     /// first refusal, which is the loop Movement.Region uses and is what stops a ring of impassable terrain re-admitting
@@ -3846,9 +3846,9 @@ Editing a volume's footprint and heights is the same `OverrideTerrainVolumes` wi
 - Consumes: `AskViewModel` (`Mine`, `SpendableBy`, `ConfirmLabel`), `AskView`, `AskMode`, `MoveRuler` (`Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark`), `Names` (Core); `Session` (`Projection`, `Game`, `MyTeamId`, `Settings.MutedWindowKinds`, `SendCommandAsync`, `EventsApplied`, `Log`); `TableView` (with `ShowExitGhosts`/`ClearExitGhosts`, Task 11), `TableInput` (with `PieceLeftClicked` and `CancelDrag`, Task 12), `RulerNode`, `PieceNode` (Table); `Ask`, `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `MoveContainment`, `TokenSpend`, `Confirmation`, `AnswerAsk`, `Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `TokensSpent`, `Confirmed`, `Passed`, `ModelRelocation`, `OnTable`, `Inside`, `Placement` (Protocol); `PlacedModel`, `ModelBody`, `Yaw`, `WorldVolume` (Geometry).
 - Produces: `partial class AskPanel : PanelContainer` — `void Bind(Session, TableView, TableInput)`; renders `AskViewModel.Mine(...)` by mode: `Choose` → one button per option (highlighting each option's pieces on hover), `PickPieces` → click eligible pieces on the table (highlighted), a counter `n of min–max` that names the piece when `Max` is 1, the consumed click cancelling the drag it started, "Done" → `SelectedPieces`; `Allocate` → a `SpinBox` per target summing to `Amount`, "Done" → `Allocated`; `Assign` → an `OptionButton` per item over the targets, "Done" → `Assigned`; `Move` → the region drawn (`MoveRegionNode`), the models draggable with the ruler showing distance and remaining allowance (`MoveRuler.Read(start, current, Allowance − UsedInFrame)`), positions streamed as `proposed` ghosts, "Commit" → `Destinations` with the settled positions — and, when the legal set's `Containment` says so, two more things: any `Enterable` container is a click target whose click answers `Destinations` with `Inside(container)` for **every** model of the unit, and a non-null `ExitingId` switches the whole mode to a disembark, where the region is `MoveRuler.ExitRegion` about the container's own base, the drag ghosts are `TableView.ShowExitGhosts` on the container's node, and the remaining-allowance readout is suppressed; `TokenSpend` → one private `SpinBox` per entry of `AskViewModel.SpendableBy`, prefixed with the model's name, bounded by that model's own maximum, with no total anywhere (p.13: any number up to what each model holds), "Spend" → `TokensSpent` of the non-zero boxes, plus `AnsweredTeams` as "Team 2 has answered" and, once the server closes the sealed Ask, every team's answer at once from `ask_closed` (`LogText.Answer`); `Confirm` → one button labelled `AskViewModel.ConfirmLabel` ("Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask) → `Confirmed`; a "Pass" button whenever `AllowPass`; an `AutoPass` view sends `Passed` at once and shows "auto-passed (muted: {kind})" with an "Unmute" link; `WaitingFor` renders as "Waiting for Team N…"; `AnsweredBy` shows under a sealed Ask. A `Refused` for the panel's last command shows in the panel (`strict` enforcement: "the server refused: outside the legal set"). `partial class MoveRegionNode : Node3D` — `Show(IReadOnlyList<Point2> boundaryWire, Color)`, `Hide()`. `GameScreen.Play.cs` — `partial void ShowPlayPanels(bool)` creating the `AskPanel` (and Task 15's `LogPanel`) at `playing`/`ended`.
 - The move button of the spec is the activate Ask's option (`{unit}:{Action}`): choosing it starts the sequence, whose move step opens the `MoveRegion` Ask (contracts plan spec correction 8). "Hand moves arrange models and never end a turn" is the plain drag of Task 12.
-- **The panel keys on the legal set, never on the question name**, which is why a second ruleset question needs no new branch. Two of them arrive carrying a `move_region`: **`move`**, opened by the move step of `hold`/`advance`/`rush`/`charge` (interpreter plan Task 14), and — added 2026-09-06 — **`disembark`**, opened by `transport-destroyed`'s `place` step when a wrecked container's survivors must be placed fully within 6" of it before it is removed (interpreter plan Task 19, rulebook p.14). `disembark` always carries `Containment.ExitingId`, sets `AllowPass` false, and puts the exit distance itself in `Allowance` — which `MoveRuler.IsDisembark` makes the panel ignore, so it renders exactly as a disembark move does and shares every line of `RenderMove`. Neither name belongs in `AskQuestions`: those are the engine's own eight, and a ruleset's question names are plain strings (`move`, `disembark`, `shoot-or-not`, `declare-targets`, `charge-target`, …) that this panel never switches on. The one place a question name is read at all is `AskViewModel.ConfirmLabel`, and it only ever compares against `AskQuestions.EndRound`.
+- **The panel keys on the legal set, never on the question name**, which is why a second ruleset question needs no new branch. Two of them arrive carrying a `move_region`: **`move`**, opened by the move step of `hold`/`advance`/`rush`/`charge` (interpreter plan Task 14), and — added 2026-09-06 — **`disembark`**, opened by `transport-destroyed`'s `place` step when a wrecked container's survivors must be placed fully within 6" of it before it is removed (interpreter plan Task 19, rulebook p.15). `disembark` always carries `Containment.ExitingId`, sets `AllowPass` false, and puts the exit distance itself in `Allowance` — which `MoveRuler.IsDisembark` makes the panel ignore, so it renders exactly as a disembark move does and shares every line of `RenderMove`. Neither name belongs in `AskQuestions`: those are the engine's own eight, and a ruleset's question names are plain strings (`move`, `disembark`, `shoot-or-not`, `declare-targets`, `charge-target`, …) that this panel never switches on. The one place a question name is read at all is `AskViewModel.ConfirmLabel`, and it only ever compares against `AskQuestions.EndRound`.
 
-Spec: client shell → Asks and windows (all of it), Input and presence (the move button; the region at the allowance; the checkpoint's remaining distance from the frame; the `proposed` ghost until commit); game flow → Inside a container (an occupant has no table position of its own, moves when the container moves, and disembarks relative to it; enter or exit with any move action, never both in one activation, exit within 6"); rulebook p.14 `Transport(X)` (*"only one model needs to reach the Transport for everyone to embark"*, *"must stay fully within 6” of it when exiting"*); action sequences → Asks (any team member answers), Windows (react or pass; sealed simultaneous), One roll primitive (the confirm gate is an Ask); scheduler → The turn is an Ask, There is no round limit (the `end_round` Ask at the round boundary, ruled 2026-09-06 — one `Confirmation` addressed to every team, rendered by the same panel), Windows (muted kinds per player; the pass is that player's pass); whole-design review ruling 1 (`strict` refuses, the panel says so); geometry plan → *Interfaces needed → Client shell plan* (`Movement.Region(...).Boundary`, `Movement.Check(...).Distance`) and Task 6 (`Containment.BaseFullyWithin`, which `MoveRuler.ExitRegion` turns into the disembark boundary); contracts plan Task 8 (the legal set and answer shapes, `MoveRegion.Containment`, `TokenSpend.MaxByModel`, `TokensSpent.Counts`); interpreter plan Tasks 14 and 19 (what the server offers and expects back); rulebook p.13 `Caster(X)` (the team's simultaneous spend, one input per eligible model, each bounded by what that model holds, no total) and `Sniper` (the shooter picks the model, so the eligible set is model ids and a click on a model answers it).
+Spec: client shell → Asks and windows (all of it), Input and presence (the move button; the region at the allowance; the checkpoint's remaining distance from the frame; the `proposed` ghost until commit); game flow → Inside a container (an occupant has no table position of its own, moves when the container moves, and disembarks relative to it; enter or exit with any move action, never both in one activation, exit within 6"); rulebook p.15 `Transport(X)` (*"only one model needs to reach the Transport for everyone to embark"*, *"must stay fully within 6” of it when exiting"*); action sequences → Asks (any team member answers), Windows (react or pass; sealed simultaneous), One roll primitive (the confirm gate is an Ask); scheduler → The turn is an Ask, There is no round limit (the `end_round` Ask at the round boundary, ruled 2026-09-06 — one `Confirmation` addressed to every team, rendered by the same panel), Windows (muted kinds per player; the pass is that player's pass); whole-design review ruling 1 (`strict` refuses, the panel says so); geometry plan → *Interfaces needed → Client shell plan* (`Movement.Region(...).Boundary`, `Movement.Check(...).Distance`) and Task 6 (`Containment.BaseFullyWithin`, which `MoveRuler.ExitRegion` turns into the disembark boundary); contracts plan Task 8 (the legal set and answer shapes, `MoveRegion.Containment`, `TokenSpend.MaxByModel`, `TokensSpent.Counts`); interpreter plan Tasks 14 and 19 (what the server offers and expects back); rulebook p.13 `Caster(X)` (the team's simultaneous spend, one input per eligible model, each bounded by what that model holds, no total) and `Takedown` (the shooter picks the model, so the eligible set is model ids and a click on a model answers it).
 
 - [ ] **Step 1: Write `MoveRegionNode.cs`**
 
@@ -3932,7 +3932,7 @@ public partial class AskPanel : PanelContainer
                 var sel = (PieceSelection)mine.Ask.Legal; var count = new Label { Text = $"0 of {sel.Min}–{sel.Max}" }; _box.AddChild(count);
                 _input.PieceLeftClicked += OnPick;
                 // The clicked piece's own id first, then the id selection widened to: an Eligible set holds
-                // model ids (a Sniper's chosen model, p.13) or unit ids (a charge target, a deploy), and a bare
+                // model ids (a Takedown's chosen model, p.14) or unit ids (a charge target, a deploy), and a bare
                 // click on a model selects its unit — so keying on Selected.PieceId alone can never match a
                 // model-id set. A click that answered is not also a drag: CancelDrag drops the one OnLeftDown
                 // started, which for a model-id set is a drag of the unit the player was only pointing at.
@@ -3992,7 +3992,7 @@ public partial class AskPanel : PanelContainer
         if (MoveRuler.IsDisembark(legal))
         {
             // The unit is inside, so there is no start placement to reach from and the straight-line region is meaningless:
-            // the offer is p.14's "fully within 6" of it when exiting", drawn about the container's own base. Allowance is the
+            // the offer is p.15's "fully within 6" of it when exiting", drawn about the container's own base. Allowance is the
             // action's remaining distance and binds nothing here, so no remaining-allowance readout goes up and the ruler gets none.
             var containerId = legal.Containment!.ExitingId!.Value;
             if (p.Models.GetValueOrDefault(containerId)?.Location is not OnTable at)
@@ -4026,7 +4026,7 @@ public partial class AskPanel : PanelContainer
     }
 
     /// <summary>
-    /// p.14: "only one model needs to reach the Transport for everyone to embark". The containers the server listed are the
+    /// p.15: "only one model needs to reach the Transport for everyone to embark". The containers the server listed are the
     /// click targets — already highlighted, because <c>AskViewModel.Mine</c> puts them in <c>Highlights</c> — and clicking one
     /// answers the <b>whole unit</b> into it: one relocation per model of the unit to the same <c>Inside</c>, never one per
     /// reaching model. Nothing is dragged and nothing is measured, so the click cancels the drag it just started on the
@@ -4100,7 +4100,7 @@ While a declared move is open the panel fills `TableInput.Proposing`, so the dra
 
 Everything else is shared: `Proposing`, the `proposed` presence stream, the Commit button, `Answer`, the `Refused` line. The ruler still draws — from the container's placement, because `TableInput.Position` resolves an `Inside` model to its container (Task 12) — and it shows a bare distance rather than a remaining allowance, which is right: p.14 constrains where the model may *end*, not how far it travels. The exit distance is on the panel's note instead.
 
-**Embarking answers with the unit, not the model.** `OfferEmbark` sends one `ModelRelocation` per model of the unit, all to the same `Inside(container)`, because p.14 embarks the whole unit when one model reaches the transport; the server's `MoveStep.Apply` takes that as sent and only drops an `Inside` whose container is not on the table (interpreter plan Task 14). There is no per-reaching-model answer and no partial embark.
+**Embarking answers with the unit, not the model.** `OfferEmbark` sends one `ModelRelocation` per model of the unit, all to the same `Inside(container)`, because p.15 embarks the whole unit when one model reaches the transport; the server's `MoveStep.Apply` takes that as sent and only drops an `Inside` whose container is not on the table (interpreter plan Task 14). There is no per-reaching-model answer and no partial embark.
 
 - [ ] **Step 3: Write `GameScreen.Play.cs`**
 
@@ -4123,7 +4123,7 @@ public partial class GameScreen
 }
 ```
 
-- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens, so exercise the panel with the skeleton's test engine: temporarily register `FixedAskEngineFactory` with an activate Ask in `server/game/Program.cs` (or run the scheduler plan's server once it exists). Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a simultaneous token spend. Then, once the interpreter plan's casting is in the server, cast with two token holders in reach: the panel shows one spin box per eligible model of my own team and none for the other team's spenders, each box stops at that model's own token count, there is no total to satisfy, the other team's panel says "Team 2 has answered" without saying what, and the close prints *"Revealed: Team 1 spent 2 tokens (…), Team 2 spent 1 token (…)"* with the same words in the log. A Sniper's shot opens a pick over the target unit's models: the models highlight rather than the unit, one click takes it and drags nothing, the panel names the model it took, and the log line reads *"Clay answered for Team 1: picked"* followed by that model's unit and slot name. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.
+- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens, so exercise the panel with the skeleton's test engine: temporarily register `FixedAskEngineFactory` with an activate Ask in `server/game/Program.cs` (or run the scheduler plan's server once it exists). Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a simultaneous token spend. Then, once the interpreter plan's casting is in the server, cast with two token holders in reach: the panel shows one spin box per eligible model of my own team and none for the other team's spenders, each box stops at that model's own token count, there is no total to satisfy, the other team's panel says "Team 2 has answered" without saying what, and the close prints *"Revealed: Team 1 spent 2 tokens (…), Team 2 spent 1 token (…)"* with the same words in the log. A Takedown's shot opens a pick over the target unit's models: the models highlight rather than the unit, one click takes it and drags nothing, the panel names the model it took, and the log line reads *"Clay answered for Team 1: picked"* followed by that model's unit and slot name. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.
 
 ### Task 15: The log panel with undo-to-here, the right-click menu, animation, Leave
 
@@ -4450,7 +4450,7 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 
 12. **Contracts plan, the two names ruled on 2026-09-06 — settled.** `ProjectionDesyncException`, thrown by `EventApplier` in place of `KeyNotFoundException` and carrying the event kind and the unknown id, is caught in `Session` at the two places that apply events (Task 5). The client reads only the type and `Message`; it does not branch on the kind or the id, and the exception's own members are the contracts plan's to shape. `AtRest(long Seq)`, wire kind `at_rest`, server to client, is a `SocketMessage` this client deserialises and drops: `Handle`'s switch has no default arm. When it is sent, whether it is per connection or broadcast, and what it means when nothing was appended are the game server's to decide, and no client behaviour depends on any of those answers.
 
-13. **Contracts plan, the two shapes the 2026-09-06 rulings need — settled.** A team's spell token spend arrives as `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)`, wire kind `token_spend`, `Sealed`, `AllowPass`, `WindowKind` `casting`, question `spend_tokens`, answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)`, wire kind `tokens_spent` (p.13). Seven legal-set kinds and eight answer kinds, unchanged in number: the contracts plan considered and rejected reusing `Allocation`, because an allocation's counts sum exactly to its amount, which is right for wounds and wrong for *"any number"* up to a maximum, and because one total with no per-target bound cannot distinguish five tokens across two models holding one and four from five across two holding three and two. The client consumes it as stated. The cap is the map's value, the team's maximum is the sum of its own entries, and the map covers every addressed team's models because p.13's window addresses both — the caster's side spends for +1 and the other side for -1. That discloses nothing, since every projection already carries each model's `SpellTokens`; `AskViewModel.SpendableBy` narrows the map to my own team's models for both the spin boxes and the highlights. `AskMode.TokenSpend` therefore stays, and it keeps its own control rather than borrowing `AskMode.Allocate`'s: the allocation widget is one total split exactly across its targets, and this is per-model bounds with no total at all. A Sniper's chosen model arrives as `PieceSelection` over the target unit's model ids with `Min` and `Max` both 1 — no wire change at all, no new type, and no new question name read here, since the panel keys on the legal set and `AskViewModel.ConfirmLabel` is still the only place a question name is read.
+13. **Contracts plan, the two shapes the 2026-09-06 rulings need — settled.** A team's spell token spend arrives as `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)`, wire kind `token_spend`, `Sealed`, `AllowPass`, `WindowKind` `casting`, question `spend_tokens`, answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)`, wire kind `tokens_spent` (p.13). Seven legal-set kinds and eight answer kinds, unchanged in number: the contracts plan considered and rejected reusing `Allocation`, because an allocation's counts sum exactly to its amount, which is right for wounds and wrong for *"any number"* up to a maximum, and because one total with no per-target bound cannot distinguish five tokens across two models holding one and four from five across two holding three and two. The client consumes it as stated. The cap is the map's value, the team's maximum is the sum of its own entries, and the map covers every addressed team's models because p.13's window addresses both — the caster's side spends for +1 and the other side for -1. That discloses nothing, since every projection already carries each model's `SpellTokens`; `AskViewModel.SpendableBy` narrows the map to my own team's models for both the spin boxes and the highlights. `AskMode.TokenSpend` therefore stays, and it keeps its own control rather than borrowing `AskMode.Allocate`'s: the allocation widget is one total split exactly across its targets, and this is per-model bounds with no total at all. A Takedown's chosen model arrives as `PieceSelection` over the target unit's model ids with `Min` and `Max` both 1 — no wire change at all, no new type, and no new question name read here, since the panel keys on the legal set and `AskViewModel.ConfirmLabel` is still the only place a question name is read.
 
 ## Questions for the project owner
 

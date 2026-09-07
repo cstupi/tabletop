@@ -5,7 +5,7 @@ composition is subtle. [design.md](design.md) designs the generic interpreter th
 Everything here lives in `server/game/Rules/GrimdarkFuture/`, the only directory in the module
 allowed to name an OPR rule.
 
-Read against Grimdark Future v3.4.1, pages 7–14 and 20, with 29–34 and 49 for the token economy's
+Read against Grimdark Future v3.5.1, pages 7–15 and 21, with 30–35 and 50 for the token economy's
 edges and the free-for-all roll-off.
 
 ## The catalogue
@@ -95,7 +95,7 @@ for a strike-back.
 | Step | Does |
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]` and `Values["eligible_models"]`. The count comes from `Values["attacks_<i>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
-| `pick-target-model` | Nothing, unless the group shoots and carries `Sniper` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.13). One pick per group, not per shot, and the answer stays on this step for `GfAttack.SnipedModel` to read |
+| `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.13). One pick per group, not per shot, and the answer stays on this step for `GfAttack.TakedownModel` to read |
 | `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["blast_cap_<i>"]` on the pushing frame, which is p.13's models in the target counted with the attack counts rather than when this group fires), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
 | `resolve` | `Push(resolve-hits, ...)` |
 
@@ -113,9 +113,9 @@ at all. Content values: a melee weapon has no range, and *an absent range is abs
 
 `roll-to-block` rolls `GfRolls.DefensePlan` once **per grant group**: the hits that carry a
 per-die grant are rolled separately with that property folded into the live set by
-`LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(4)* reaches the defence
+`LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(+4)* reaches the defence
 roll. Cover is a base modifier of +1, from `GfRolls.InCover(target, eligible attacker models)`
-(p.11). The owner's two 50% thresholds live in that call: at least half the target's living models
+(p.11). Both of p.11's thresholds live in that call: a majority of the target's living models
 with a base centre in a `Cover` volume, or fewer than half of them seen. `Battlefield` supplies
 only the two counts, `ModelsInCoverTerrain` and `ModelsVisibleFrom`, because the fraction is a
 ruleset number. Sight is measured from the whole eligible attacker set, not from one vantage
@@ -127,7 +127,7 @@ cannot fail, so *on rolls of 6* rules read a real die.
 ### `deal-wounds`: the defender's Ask
 
 Frame context: `ActorUnitId` = the attacker (**null** when terrain wounds), `TargetUnitIds =
-[target]`, `WeaponIds` = the attacking group's (so `Deadly`, and `Poison`'s and `Rending`'s
+[target]`, `WeaponIds` = the attacking group's (so `Deadly`, and `Bane`'s and `Rending`'s
 suppression of `Regeneration`, are live), `Action` = the attacker's.
 
 `GfAttack.WoundsToDeal(frame)` is the failures of every `defense` roll in the parent frame's
@@ -135,7 +135,7 @@ completed steps. When the parent rolled none it is the parent's `Values["wounds"
 dangerous-terrain path.
 
 `assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds)` to the
-target's team. p.8 gives the defending player free choice of removal order. p.14 constrains it
+target's team. p.8 gives the defending player free choice of removal order. p.15 constrains it
 twice: a wounded `Tough` model takes wounds until it dies, and heroes are assigned last.
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
@@ -143,14 +143,14 @@ its own slot, and `Hero` is `none` aggregation, so the same per-model predicate 
 That is the one clause of `Hero` a joined hero's slot property does reach. The answer is applied as given. An out-of-set allocation under
 `warn`/`silent` is applied too, because nothing is an invariant.
 
-A **sniped** wound opens no Ask at all. When `GfAttack.SnipedModel` names a living model of the
+A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
 target, every wound this group deals is assigned to that one model and the defender is not asked
-(p.13 `Sniper`). What that skips is precisely what building the prompt's targets decides:
-`EligibleForNextWound`, and so p.8's free choice of removal order, p.14's wounded-`Tough`-model-first
+(p.14 `Takedown`). What that skips is precisely what building the prompt's targets decides:
+`EligibleForNextWound`, and so p.8's free choice of removal order, p.15's wounded-`Tough`-model-first
 and heroes-last, and the per-model read of `Hero` that orders a joined hero last. Nothing after the
 assignment changes: `Deadly` multiplies, `Regeneration` rolls, the `Tough` capacity read shelves the
 model, and `WoundsThisActivation` rises by what landed. `Tough` therefore splits in two: it is not
-consulted as an *ordering* rule, so a sniper may name a fresh model while a wounded `Tough` model
+consulted as an *ordering* rule, so a takedown may name a fresh model while a wounded `Tough` model
 stands, and it is still read as a *capacity*. Wounds past that capacity are lost, exactly as they
 are when a defender allocates more to one model than it can take. A name that is not a living model
 of the target is ignored and the ordinary Ask opens; only a menu edit can produce one, because the
@@ -240,21 +240,21 @@ MaxDistinctTargets = 2)`. p.8: targets are declared *before any roll*, and up to
 targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack count and `Blast` cap as `Values["attacks_<i>"]` and `Values["blast_cap_<i>"]`
 before it pushes anything, pushes
-one `attack-sequence` per group with `Sniper` groups first (p.14), and completes when the last has
+one `attack-sequence` per group with `Takedown` groups first (p.14), and completes when the last has
 finished.
 
-`GfShooting.Groups` is one `WeaponGroup(Name, WeaponIds, Sniper)` per ranged weapon **type** across
+`GfShooting.Groups` is one `WeaponGroup(Name, WeaponIds, Takedown)` per ranged weapon **type** across
 living models, excluding `Limited` weapons already used this game. `ValidTargets` is the enemy
 units with a model still in play that `EligibleModels` admits. A unit inside a container is
 therefore a candidate and is then ruled out, or ruled in for a fellow occupant.
 
-A `Sniper` group resolves first, at Quality 2+, and names one model in the target unit as the
+A `Takedown` group resolves first, at Quality 2+, and names one model in the target unit as the
 target of its wounds in `attack-sequence`'s `pick-target-model` step. The pick precedes the hit
 roll, because p.8 declares targets before any roll, and follows `determine-attacks`, so a group
-with nothing in range never asks. `GfAttack.IsSniperGroup` is the one predicate: `WeaponGroup.Sniper`
+with nothing in range never asks. `GfAttack.IsTakedownGroup` is the one predicate: `WeaponGroup.Takedown`
 and the step read it, so a group cannot be ordered first without also being offered the pick. Two
-parts of p.13's sentence are not modelled. The pick is per **group** rather than per Sniper model,
-because a group is one weapon type whose dice `roll-to-hit` pools into one roll, so two Sniper
+parts of p.14's sentence are not modelled. The pick is per **group** rather than per Takedown model,
+because a group is one weapon type whose dice `roll-to-hit` pools into one roll, so two Takedown
 models sharing a weapon type name one model between them. And *resolved as if it was a unit of 1*
 is not, so cover, `Blast`'s cap and the defence roll still read the whole target unit. That is what
 is left of question 7.
@@ -300,14 +300,14 @@ that causes a wound would be counted twice.
 charger model whose straight path crosses no impassable volume
 (`Movement.Check(...).CrossesImpassable`). Two containment consequences fall out:
 
-- **A charger inside a container measures from the container**, because p.14 says *"units may use
+- **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is
   `GfNames.ExitWithin` from the container it is inside. An enemy within that reach is one the
   charger could be placed fully within 6 inches of and then be in contact with. The step's own
   `move` is then the disembark, because `MoveStep.Containers` offers the exit on a Charge and
   never the enterable list. Charging a transport is an attack on it, not a way into it.
 - **A unit inside a container cannot be charged**, and this needs no rule. The predicate measures
-  to the target's *living* models and an occupant has none, which is p.14's
+  to the target's *living* models and an occupant has none, which is p.15's
   no-line-of-sight-in.
 
 `GfMelee.WoundsCaused` is the target's `WoundsThisActivation` less the value recorded at
@@ -415,8 +415,8 @@ move step's work, not a sequence of their own. `MoveStep.Containers` decides wha
 
 | Answer shape | Meaning | What is measured |
 | --- | --- | --- |
-| `To is Inside` | embarking | **nothing.** p.14: *"only one model needs to reach the Transport for everyone to embark"*, and the 1-inch move restriction is ignored. `distance_used_tenths` does not grow. The one guard is state integrity: an `Inside` whose container is not a model on the table is dropped |
-| `From is Inside`, `To is OnTable` | disembarking | only p.14's *"must stay fully within 6 inches of it when exiting"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. A placement outside the radius is not applied and that model stays inside |
+| `To is Inside` | embarking | **nothing.** p.15: *"only one model needs to reach the Transport for everyone to embark"*, and the 1-inch move restriction is ignored. `distance_used_tenths` does not grow. The one guard is state integrity: an `Inside` whose container is not a model on the table is dropped |
+| `From is Inside`, `To is OnTable` | disembarking | only p.15's *"must stay fully within 6 inches of it when exiting"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. A placement outside the radius is not applied and that model stays inside |
 | table to table | an ordinary move | as before |
 
 Ignoring the 1-inch restriction needs no code, because nothing enforces it in the first place.
@@ -437,7 +437,7 @@ the inside-to-inside clause latent rather than wrong (question 9).
 
 ### A destroyed container's disgorge order
 
-p.14's last clause, and p.20 says the same of a solid building: *"When a transport is destroyed,
+p.15's last clause, and p.21 says the same of a solid building: *"When a transport is destroyed,
 units inside must take a dangerous terrain test, are Shaken, and must be placed fully within 6
 inches of the transport before removal."*
 
@@ -472,7 +472,7 @@ order at a null threshold, with any teams still tied rolling again among themsel
 team is ordered. Roll k's dice belong, in ordinal order, to the teams still tied after rolls 0 to
 k-1. `order` ranks the teams from those recorded dice and writes
 `Values["winner_ordinal"]` and `Values["place_1"] .. ["place_n"]`, team ordinals best first, which
-the scheduler's `RollOff.Order` reads into `round_started.Order`. p.49 needs the whole descending
+the scheduler's `RollOff.Order` reads into `round_started.Order`. p.50 needs the whole descending
 order for a free-for-all, not just a winner.
 
 A null threshold means `Die.Success` is `false` for every die and raw results are compared. The

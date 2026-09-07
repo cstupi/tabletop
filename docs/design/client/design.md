@@ -755,8 +755,8 @@ projection cannot resolve to a team is not mine. The question name `spend_tokens
 window kind are unchanged, so the mute path, `AnsweredTeams` and the `ask_closed` reveal are the
 ones already described.
 
-A Sniper group's target is a `PieceSelection` over the model ids of one target unit, `Min` and
-`Max` both 1, addressed to the attacking team (p.13: *"each model with Sniper may pick any model in
+A Takedown group's target is a `PieceSelection` over the model ids of one target unit, `Min` and
+`Max` both 1, addressed to the attacking team (p.14: *"each model with Takedown may pick any model in
 the target unit as its individual target"*). The wound goes to the model it names rather than
 through the defender's allocation. Nothing on the wire changed for it. Two things follow for the
 table. `Highlights` is that model list, and `TableView.PieceAt` takes a model id already, so the
@@ -871,7 +871,7 @@ no `content/builtin/` at all still renders a playable table. For a built-in plac
 the volumes rather than overrides, because there is no `asset_volume` row to fall through to. They
 are always written on add, and "reset" re-copies the shipped ones.
 
-`TerrainGenerators` implements the rulebook's four planet tables (GF p.17–18) as
+`TerrainGenerators` implements the rulebook's four planet tables (GF p.18–19) as
 `Generate(Planet, TableSize, Random)`: nine fixed pieces plus 4D3 rolled on 2D6. They are returned
 as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
 rows 8" apart, for players to drag on. The client rolls, because nothing in setup is logged and no
@@ -938,7 +938,7 @@ Decisions the plan took because a spec was silent:
 | 20 Hz presence sampling | presence left the rate open; matches the server's relay rate and `architecture.md`'s figure, itself named a first-pass assertion | question 1 (same question as the game server plan's question 4) |
 | Reconnect after any close the client did not ask for, except `Rejected` and `1000` after `welcome` | the spec said only "reconnect is connect" | spec correction 2 |
 | Zones for ordinals with no team are drawn grey during setup | the spec said zones are drawn as flat polygons and said nothing about teamless ordinals; a four-zone style in a two-player lobby shows two coloured and two grey, so the table shows what the style laid out | spec correction 5; question 7, ruled 2026-09-06 |
-| A disembarking model takes the container's yaw | nothing in the specs or p.14 says, and an oval base's footprint depends on yaw | question 8 |
+| A disembarking model takes the container's yaw | nothing in the specs or p.15 says, and an oval base's footprint depends on yaw | question 8 |
 | The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | question 9 |
 | An enterable container is a click target, not a button | it is already highlighted because the legal set names it | question 10 |
 | Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | question 3, ruled 2026-09-06 |
@@ -1335,7 +1335,7 @@ from source and references the three libraries plus `Tabletop.Content.Tests` and
 `Samples.Board`). Every task with logic is test-driven. The plan's running count ends at 45 tests.
 The rulings of 2026-09-06 moved it by one: the session store's two facts were rewritten rather
 than replaced, the mesh grouping is asserted inside a fact that already existed, and the token
-spend and the sniper pick added one fact over the answers' wording. What is covered:
+spend and the takedown pick added one fact over the answers' wording. What is covered:
 
 | Subject | Test infrastructure | What is pinned |
 | --- | --- | --- |
@@ -1411,11 +1411,11 @@ Deferred, with where it is recorded:
   tree in code, so a real scene tree is additive.
 - Whether the client edits armies: open since the web app session, unchanged. A wrong mesh sends
   the player to the browser.
-- Terrain becoming event-driven state, and with it army terrain (GF p.19), buildings as targets,
+- Terrain becoming event-driven state, and with it army terrain (GF p.20), buildings as targets,
   and unlocking terrain mid-game: setup phase → not decided. Nothing in this client obstructs it.
   Terrain would gain events on top of the same snapshot.
-- Placement styles (p.16), objective counts and spacing (p.6), and Generic Planet's dangerous
-  picks (p.17) stay social. The app places markers and does not count or space them. A style helper
+- Placement styles (p.17), objective counts and spacing (p.6), and Generic Planet's dangerous
+  picks (p.18) stay social. The app places markers and does not count or space them. A style helper
   that warns on spacing is a later convenience.
 - Presence timeout versus an explicit stop frame: presence → not decided. The contracts plan's
   question 1 notes that if timing out wins, `PresenceEnded` leaves `SocketMessage` and the client
@@ -1455,12 +1455,12 @@ Also read: `docs/architecture.md`, `docs/schema.md`, `docs/data-model.md`.
 `docs/workstreams/05-client-shell.md` is stale ("table, camera and mouse with no server") and is
 not followed.
 
-Rulebook: Grimdark Future v3.4.1. Page 7 (a move measures the base's displacement: *"no part of
-their bases move further than the total movement distance"*), page 14 (`Transport(X)`: *"only one
+Rulebook: Grimdark Future v3.5.1. Page 7 (a move measures the base's displacement: *"no part of
+their bases move further than the total movement distance"*), page 15 (`Transport(X)`: *"only one
 model needs to reach the Transport for everyone to embark"*, *"must stay fully within 6" of it when
-exiting"*), page 16 (placement styles, social), page 17 (terrain size classes: scatter 1–3", large
-4–8", up to 12"), pages 17–18 (the four planet generator tables), page 19 (army terrain,
-deferred), page 49 (free-for-all deployment).
+exiting"*), page 17 (placement styles, social), page 18 (terrain size classes: scatter 1–3", large
+4–8", up to 12"), pages 18–19 (the four planet generator tables), page 20 (army terrain,
+deferred), page 50 (free-for-all deployment).
 
 Sibling design documents in `docs/design/`: `contracts/`, `geometry/`, `management-api/`,
 `game-server/`, `scheduler/`, `interpreter/`, `web-app/`. The four the client consumes are

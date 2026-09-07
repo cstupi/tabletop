@@ -42,9 +42,11 @@ attacker's weapon and affects the opponent's Defense roll; `Stealth` sits on the
 affects the opponent's hit roll. With `self` and `opponent`, both are written the same way
 and the engine resolves which is which from where the property is attached.
 
-`Entrenched` needs all of this at once: the property is on the target model, the effect is
-−2 to the **opponent's** hit roll, and the condition — *hasn't moved since the beginning of
-its last activation* — tests **self**.
+`Artillery` needs most of this at once: the property is on the target model and the effect is
+−2 to the **opponent's** hit roll. `Counter` is the case that also tests **self**: the property
+is the defender's, the effect takes a roll off the *charger's* `Impact`, and the condition is
+*when charged*. 3.4.1's `Entrenched` combined both in one rule and 3.5.1 replaced it with
+`Artillery`, whose *may only use Hold actions* removes the need for a movement condition.
 
 **Relational predicates take no subject.** A range test is *inherently* about both parties —
 "the distance from self to opponent is over 9 inches" — so naming a subject for it would be
@@ -54,24 +56,24 @@ meaningless. The relationship is what the predicate is, not something it points 
 
 **A flat list, all of which must hold.** Not a boolean expression tree: there is no *or* and
 no *not* anywhere in Grimdark Future's properties. `Rush/Charge` looks like an *or* and is
-set membership over action types. `Entrenched` is the deepest case in the book — shooting
-**and** over 9" **and** hasn't moved.
+set membership over action types. `Impact` is the deepest case in the book — after charging
+**and** unless fatigued **and**, through its child, per success.
 
 **Eight predicate kinds, closed.** Adding a ninth for another ruleset is a code change, which
 is accepted, and is the same trade as the six terrain declarations.
 
 | Kind | From |
 | --- | --- |
-| Action taken | `Slow` *when using Advance*, `Impact` *after charging*, `Relentless` *uses a Hold action* |
-| Attack kind — shooting or melee | `Stealth`, `Lance`, `Furious` |
-| Range | `Stealth` *over 9" away*, `Caster` *within 18"* |
-| Roll result, raw or modified | `Rending` *unmodified rolls of 6*, `Poison` *unmodified Defense rolls of 6* |
-| Actor state | `Impact` *unless fatigued*, `Entrenched` *hasn't moved since its last activation* |
+| Action taken | `Slow` *when using Advance*, `Impact` *after charging*, `Indirect` *when shooting after moving* |
+| Attack kind — shooting or melee | `Stealth`, `Thrust`, `Furious` |
+| Range | `Stealth` *over 9" away*, `Relentless` *at enemies over 9" away*, `Caster` *within 18"* |
+| Roll result, raw or modified | `Rending` *unmodified rolls of 6*, `Bane` *unmodified Defense rolls of 6* |
+| Actor state | `Impact` *unless fatigued* |
 | Position and terrain | cover *fully inside*, difficult *moves in or through* |
 | Round number | `Ambush` *any round after the first* |
 | Usage count | `Limited` *once per game* |
 
-**"Unmodified" is a first-class concept.** `Rending`, `Furious`, `Relentless` and `Poison`
+**"Unmodified" is a first-class concept.** `Rending`, `Furious`, `Relentless` and `Bane`
 all trigger on the raw die rather than the modified result, so a roll carries both.
 
 **Aggregation is not a predicate.** `Stealth`'s *"units where all models have this rule"* is
@@ -93,25 +95,25 @@ different lifetimes. The predicates test exactly those.
 - ignores cover from sight obstructions — **unconditional**
 
 A single condition list on the entry would get it wrong. The cost is repetition when effects
-do share conditions — `Lance`'s +1 to hit and AP(+1) are both *when charging, in melee* —
+do share conditions — `Thrust`'s +1 to hit and AP(+1) are both *when charging, in melee* —
 which is preferable to being wrong.
 
 ## The twelve effect kinds
 
 | | Kind | From |
 | --- | --- | --- |
-| 1 | Modify a roll | `AP(X)`, `Stealth`, `Entrenched`, `Indirect`, `Lance` |
+| 1 | Modify a roll | `AP(X)`, `Stealth`, `Artillery`, `Indirect`, `Thrust` |
 | 2 | Modify a stat | `Slow`, `Fast`, `Aircraft` (−12" range) |
-| 3 | Replace a stat | `Reliable`, `Sniper` (*attacks at Quality 2+*), `Hero` (*must use the unit's Defense*) |
-| 4 | Force a reroll | `Poison` |
+| 3 | Replace a stat | `Reliable` (*attacks at Quality 2+*), `Hero` (*must use the unit's Defense*) |
+| 4 | Force a reroll | `Bane` |
 | 5 | Roll | `Regeneration`, `Fearless`, `Impact(X)` |
 | 6 | Add a hit | `Furious`, `Relentless` |
 | 7 | Multiply hits or wounds | `Blast(X)`, `Deadly(X)` |
 | 8 | Override a result | `Regeneration` (the wound is ignored), `Fearless` (counts as passed) |
-| 9 | Grant a property | `Rending` (unmodified 6s *get AP(4)*) |
-| 10 | Suppress a property | `Poison` and `Rending` (*ignores Regeneration*) |
-| 11 | Modify a property's parameter | `Lance` (*AP(+1)*), `Counter` (*−1 Impact rolls*) |
-| 12 | Suppress modifiers | `Lock-On` (*ignores cover and all negative modifiers to hit rolls and range*) |
+| 9 | Grant a property | `Rending` (unmodified 6s *get AP(+4)*) |
+| 10 | Suppress a property | `Bane` and `Rending` (*ignores Regeneration*) |
+| 11 | Modify a property's parameter | `Thrust` (*AP(+1)*), `Counter` (*−1 Impact rolls*) |
+| 12 | Suppress modifiers | `Unstoppable` (*ignores all negative modifiers to this weapon*), `Blast` and `Indirect` (*ignores cover*) |
 
 ### `Roll` nests
 
@@ -142,7 +144,7 @@ layer.
 
 It has a direct consequence: **resolving an interaction is two passes, not one.** Which
 properties are live and what their parameters are has to be settled *before* any effect is
-applied, because `Poison` deletes `Regeneration` from the interaction and `Lance` changes
+applied, because `Bane` deletes `Regeneration` from the interaction and `Thrust` changes
 what `AP` contributes.
 
 ### This restores explicit ordering

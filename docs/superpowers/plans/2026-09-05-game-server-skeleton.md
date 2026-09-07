@@ -3462,7 +3462,7 @@ public static class DraftEditor
     /// <summary>The corner is the origin: a position is on the slab when 0 ≤ x ≤ width and 0 ≤ y ≤ length.</summary>
     public static bool OnSlab(TableState d, Point3 p) => p.X >= 0 && p.X <= d.Size.Width && p.Y >= 0 && p.Y <= d.Size.Length;
 
-    /// <summary>End-setup's rule: a generated piece never dragged onto the slab is dropped (setup phase → Terrain generators; rulebook p.16, the Random style: "if it's impossible to place the terrain piece, simply remove it").</summary>
+    /// <summary>End-setup's rule: a generated piece never dragged onto the slab is dropped (setup phase → Terrain generators; rulebook p.17, the Random style: "if it's impossible to place the terrain piece, simply remove it").</summary>
     public static TableState DropOffSlab(TableState d) => d with { Terrain = d.Terrain.Where(t => OnSlab(d, t.Position)).ToList() };
 
     static TableState? Terrain(TableState d, Guid id, Func<TerrainPlacement, TerrainPlacement> change, out string? missing)

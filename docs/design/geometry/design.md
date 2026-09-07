@@ -33,7 +33,7 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 Not in scope:
 
 - **The rules.** No legality decision, no majority-of-models rule, neither of the owner's two
-  50% cover thresholds, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
+  cover thresholds, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
   per model and the caller counts. `architecture.md` → Rules enforcement: flagged, never
   prevented.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
@@ -112,7 +112,15 @@ is the one type that never crosses the wire. A deployment zone travels as a shap
 `Movement.Region` takes those as plain parameters, so the library never references the protocol
 record. `GameRules` supplies every OPR constant at the call site: coherency `(1, 9)`, the 1"
 separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectives
-`EdgeToMarker <= 3`, Ambush `> 9`, Scouts `<= 12`.
+`EdgeToMarker <= 3`, Ambush `> 9`, and for Scouts the deployment zone grown by 12", which is
+p.14's *"fully within 12" of their deployment zone"* and not a distance from a placed position:
+3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. No
+placement check reads it yet, in this library or either server plan.
+
+Coherency is one distance for every pair, so p.11's new *"If not all models in a unit can fit on
+elevation, then a coherency of 3" is allowed to models at different elevation"* is not served: a
+per-pair distance keyed on elevation is a signature change, and whether the unit *can fit* is a
+ruleset judgement. Open question 4 of the 3.5.1 rebase holds it.
 
 **Geometry to the client.** The client draws consequences, never answers. It resolves the id
 lists to `WorldVolume`s, calls `Movement.Region`, and draws `.Boundary` as a polygon. It calls
@@ -358,7 +366,7 @@ except through `BaseFullyWithin`.
 | --- | --- | --- |
 | `Containment.VolumesContaining` | footprint contains the base **centre**, vertical range contains the base height | p.11 *mostly inside* (single models); *is activated in it* |
 | `Containment.VolumesFullyContaining` | footprint contains the **whole base** | p.11 *fully inside a piece of cover terrain* (multi-model units) |
-| `Containment.BaseFullyWithin(model, container, inches)` | every point of the base within `inches` of the container's base, edge to edge | p.14 `Transport(X)`, p.20 solid buildings: *"must stay fully within 6" of it when exiting"* |
+| `Containment.BaseFullyWithin(model, container, inches)` | every point of the base within `inches` of the container's base, edge to edge | p.15 `Transport(X)`, p.21 solid buildings: *"must stay fully within 6" of it when exiting"* |
 | `Overlap.Bases` | positive shared area **and** positive shared vertical extent | flagged base overlap |
 | `Overlap.WithSolid` | the same, against a Solid volume only | flagged terrain intersection |
 
@@ -437,8 +445,8 @@ adjacent rays is under 0.24" wide at mid-range, finer than any terrain a table c
 is 27 rays a pair rather than 17, each a segment-prism test against every blocker, and there is
 still no broad phase.
 
-**Counting visible models.** The owner's companion rule of 2026-09-06 is *"Seeing less than 50%
-of models in a unit gives cover"*. Cover was served only by a blocker list from one model to one
+**Counting visible models.** p.11's majority read from the attacker's side: fewer than half of a
+unit's models seen is more than half of them hidden. Cover was served only by a blocker list from one model to one
 model, so `LineOfSight` gained
 `VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume> volumes) : IRL<bool>`,
 index-aligned with `unit`, true at `i` when at least one observer's `Check` against `unit[i]` is
@@ -489,10 +497,10 @@ blockers (for single-model units), they get +1 to Defense rolls"*.
 | *behind a sight blocker* | `LineOfSight.Check` clear **and** `Cover.SightBlockersBetween` non-empty | geometry |
 | *mostly inside cover terrain* | `Containment.VolumesContaining` filtered to `Cover` | geometry |
 | seeing fewer than half a unit's models (owner, 2026-09-06) | `LineOfSight.VisibleModels` count against the list length | geometry counts, `GameRules` compares |
-| *the majority of models*, the owner's two 50% thresholds, *+1 to Defense* | — | `GameRules` |
+| *the majority of models*, both of p.11's thresholds, *+1 to Defense* | — | `GameRules` |
 
-The owner ruled the two thresholds on 2026-09-06: *"50% models in unit in cover for it to
-count"* and *"Seeing less than 50% of models in a unit gives cover"*. Every fact above is per
+Both thresholds are p.11's one majority: a majority of the unit's models inside cover terrain,
+or a majority of them hidden, which is fewer than half of them seen. Every fact above is per
 model, and no member of this library takes a fraction, so the counting and the comparison are
 the ruleset's. Containment needed nothing new, since `InsideCoverVolumes` and
 `VolumesContaining` are already called per model; visibility did, and `LineOfSight.VisibleModels`
@@ -687,13 +695,13 @@ to support skirmish at all."* Every argument about absolute versus proportional 
 argument about small tables, and the 30×22 skirmish table the first pass argued from is not a
 target. That ruling is what makes the split between one proportional style and six anchored
 ones acceptable rather than merely tolerated. Side Battle's fractions were chosen to reproduce
-the p.21 diagram's 54" and 30" legs on 72×48, so at 72×48 the two conventions are the same
+the p.22 diagram's 54" and 30" legs on 72×48, so at 72×48 the two conventions are the same
 polygon, and they part company in proportion to the table's departure from it. The tables where
 the divergence is large are the tables that are out of scope. What the absolute insets do below
 their own size is an accepted limit, listed under Failure modes with the threshold per style,
 and no longer an open thread.
 
-**The dimensions came from the page's diagrams, not its text.** Grimdark Future v3.4.1 p.21
+**The dimensions came from the page's diagrams, not its text.** Grimdark Future v3.5.1 p.22
 names the six basic styles, Frontline, Ground War, Side Battle, Disordered, Spearhead and
 Opposing Forces, and gives their dimensions only as labels on six figures. The plan records
 them as read from the six extracted diagram images on a 72×48 table (re-extracted with pypdf
@@ -741,12 +749,12 @@ The seven styles as implemented:
 | `disordered` | 2 | a diamond through the four edge midpoints; each team keeps the two triangles on its long edge |
 | `spearhead` | 1 | a triangle on each short edge, apex 24" in at the edge's centre |
 | `opposing-forces` | 1 | a 24"×24" square in two diagonally opposite corners |
-| `free-for-all` | 1 | p.49's *"2'x1' area"* in each of four corners, read as 24" along the long edge by 12" along the short |
+| `free-for-all` | 1 | p.50's *"2'x1' area"* in each of four corners, read as 24" along the long edge by 12" along the short |
 
 `Contains(shapeId, table, point)` is the flat test. `BaseFullyWithin(shapeId, table, model)` is
 p.6's *"fully within"*, the whole base inside **one** of the zone's polygons. Unknown styles and
 malformed ids throw `ArgumentException` rather than returning empty, so a typo in a stored
-`deployment_zone.style` fails loudly. The p.22–23 styles are not shipped here.
+`deployment_zone.style` fails loudly. The p.23–24 styles are not shipped here.
 
 ### 16. Determinism and tolerance
 
@@ -791,7 +799,7 @@ Contested or reversed decisions first.
 | **`impassable` is a declaration of its own** | Without it a hill and a building are indistinguishable | The earlier five-declaration set | geometry values → Declarations |
 | **"What it is resting on" is not stored** | Settling re-derives it; terrain is locked after setup, so nothing a model stands on ever moves | The table domain model's stored surface reference | geometry values → Height, position, facing |
 | **Enforcement is advisory here** | Every result is a measurement, a flag or a region; `strict` refusal lives in the server | Geometry returning legality | Ruled 2026-09-04 in the whole-design review, ruling 1 |
-| **`LineOfSight.VisibleModels`**, one boolean per model of a unit | The owner's *"Seeing less than 50% of models in a unit gives cover"* is a count over a unit, and cover was served only by a blocker list from one model to one model | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | Ruled 2026-09-06; Task 8, section 9 |
+| **`LineOfSight.VisibleModels`**, one boolean per model of a unit | p.11's majority, read as *fewer than half of a unit's models seen* is a count over a unit, and cover was served only by a blocker list from one model to one model | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | Ruled 2026-09-06; Task 8, section 9 |
 
 Decisions the plan took because **no spec said anything**. The owner ruled on four of them on
 2026-09-06; the rest remain questions under *Open questions*:
@@ -802,8 +810,8 @@ Decisions the plan took because **no spec said anything**. The owner ruled on fo
 | *Mostly inside* (single models) = base centre inside the volume | The whole-base test already serves *fully inside*; a centre test is exact and needs no new primitive | More-than-half-the-area, which needs polygon clipping and a `BaseCoverage` member | Confirmed by the owner 2026-09-06; Task 6, question 3 closed |
 | The movement region is **star-shaped** about the start | It is a cosmetic prediction; the server judges the landed move, and the ruler measures displacement | Geodesic reach via a visibility graph; a plain disc | Task 12, question 4 |
 | Ovals are convex 64-gons | Error under 0.2% of the radius, inside the tolerance the architecture allows | Exact ellipse-ellipse distance: no closed form, needs an iterative solver on both sides | Task 3, question 7 |
-| Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.49 gives no orientation | The other way round, a two-number change per corner | Confirmed by the owner 2026-09-06; Task 13, question 5 closed |
-| Side Battle legs are `0.75` of the long edge and `0.625` of the short | The owner ruled the style proportional to the table; those fractions are the p.21 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which the ruling overrides and which overrun any table shorter than 54" or narrower than 30" | Ruled 2026-09-06; Task 13, question 6 closed, spec correction 10 |
+| Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.50 gives no orientation | The other way round, a two-number change per corner | Confirmed by the owner 2026-09-06; Task 13, question 5 closed |
+| Side Battle legs are `0.75` of the long edge and `0.625` of the short | The owner ruled the style proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which the ruling overrides and which overrun any table shorter than 54" or narrower than 30" | Ruled 2026-09-06; Task 13, question 6 closed, spec correction 10 |
 | `Rays = 180`, `Step = 0.25` | 2° angular resolution and a quarter-inch radial one, for a region redrawn once per Ask | Fewer rays with interpolation; a bisection refinement pass | Task 12 |
 | `RimSamples = 8`, `OvalVertices = 64` | Eight rim points subtend 2.8° on a 1.26" base at 10", so the sliver between adjacent rays is under 0.24" at mid-range; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand | A `WorldVolume` overload: five lines and one test if a building must offer the same region | Task 6, question 8 |
@@ -910,7 +918,7 @@ sequenceDiagram
     Geo-->>GR: cover volume ids
     GR->>Geo: LineOfSight.VisibleModels(shooters, target unit, volumes)
     Geo-->>GR: one boolean per model of the unit
-    GR->>GR: the two 50% thresholds, then +1 to Defense
+    GR->>GR: p.11's majority on both counts, then +1 to Defense
     GR-->>Seq: target legal, with its cover modifier
 ```
 
@@ -1139,7 +1147,7 @@ Coverage gaps:
   owner's ruling of 2026-09-06, and a test there would freeze the degenerate output named
   under Failure modes as if it were wanted behaviour.
 - **`VisibleModels` has no test at unit scale.** Both facts use one or two models and one wall,
-  so the cost that the 50% rules impose on a shooting Ask is unmeasured.
+  so the cost that the cover rules impose on a shooting Ask is unmeasured.
 
 ## Open questions and deferred work
 
@@ -1155,7 +1163,7 @@ styles into one proportional and six anchored. Six are closed by ruling: questio
 | 3 | What does *mostly inside* mean for a single model? | **Closed: the base centre inside the volume**, confirmed by the owner 2026-09-06, who added *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the companion rule about seeing a unit added `LineOfSight.VisibleModels` |
 | 4 | Is straight-line reach enough? | Yes. The region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
 | 5 | Free-for-all's *2'x1'*, which way round? | **Closed: 24" along the long edge, 12" along the short**, confirmed by the owner 2026-09-06 | Nothing |
-| 6 | Side Battle's anchoring | **Closed: proportional to the table**, ruled by the owner 2026-09-06. Legs are `0.75` of the long edge and `0.625` of the short, the p.21 diagram's 54" and 30" on 72×48. The diagram's own three labels stay inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | `Leg(edge) = edge - 18` is dropped, and the degeneracy it carried with it. The ruling contradicts geometry values → Deployment shapes, so it carries spec correction 10; the other six styles stay anchored |
+| 6 | Side Battle's anchoring | **Closed: proportional to the table**, ruled by the owner 2026-09-06. Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48. The diagram's own three labels stay inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | `Leg(edge) = edge - 18` is dropped, and the degeneracy it carried with it. The ruling contradicts geometry values → Deployment shapes, so it carries spec correction 10; the other six styles stay anchored |
 | 6a | Should every style scale with the table, so the split is not inconsistent? | **Closed: no**, ruled by the owner 2026-09-06: *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions were chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. What the ruling changes is scope: the small-table behaviour the split would have hurt is an accepted limit under Failure modes, and spec correction 11 records that the built-in styles assume a table near 72×48 |
 | 7 | Ovals as 64-gons? | Accepted: error under 0.2% of the radius | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
 | 8 | Is a terrain container needed as well as a model container? | No. Only `Transport(X)` is automated. A building holds models through the client's menu, which places by hand | One overload, `BaseFullyWithin(PlacedModel, WorldVolume, double)` over `WorldOutline()`, five lines and one test. `MoveContainment.ExitingId` then names a `TerrainVolume` id, which the bare `Guid` already permits |
@@ -1180,7 +1188,7 @@ Deferred, with where it is recorded:
 | Rectangular bases | geometry values → Deliberately not decided |
 | Whether a footprint ever needs to be a polygon | geometry values → Still open |
 | Whether the closed six-declaration set survives a different ruleset. Warhammer is the real test | geometry values → Still open |
-| The p.22–23 deployment styles; custom and adjustable zone shapes | geometry plan Task 13; setup content → Deliberately not decided |
+| The p.23–24 deployment styles; custom and adjustable zone shapes | geometry plan Task 13; setup content → Deliberately not decided |
 | How zone styles are organised per game | geometry values → Deployment shapes; spec correction 2 |
 | `climbable` as a declaration | geometry values → Declarations (dropped; a movement rule the pack owns) |
 | The terrain generators and the built-in terrain inventory | setup phase → Terrain; the client shell plan's `TerrainGenerators` |
@@ -1235,14 +1243,14 @@ Client and server responsibilities; Contracts to freeze; Build order.
 **Data.** `docs/data-model.md`; `docs/schema.md` → `table_state`, `terrain_placement`,
 `terrain_volume`, `deployment_zone`, `model`, `asset_volume`.
 
-**Rulebook.** Grimdark Future v3.4.1: p.6 (deployment *fully within 12"*, objectives, within 3"
+**Rulebook.** Grimdark Future v3.5.1: p.6 (deployment *fully within 12"*, objectives, within 3"
 of a marker), p.7 (coherency 1"/9"; no part of a base off the battlefield; *no part of their
 bases move further than the total movement distance*), p.8 (in range, line of sight, ignoring
 friendly models of one's own unit), p.9–10 (charge; within 2" horizontally and 4" vertically),
 p.11 (the terrain types: impassable, cover, difficult, dangerous, sight blockers; *fully inside*
 versus *mostly inside*; *moves in or through*), p.12 (forests: see into and out of, not
-through), p.13–14 (`Transport(X)`), p.20 (solid buildings), p.21 (the six basic deployment
-styles, dimensions from the page's diagrams), p.49 (free-for-all's corner areas). The Age of
+through), p.13–15 (`Transport(X)`), p.21 (solid buildings), p.22 (the six basic deployment
+styles, dimensions from the page's diagrams), p.50 (free-for-all's corner areas). The Age of
 Fantasy advanced rulebook's terrain section is word-for-word identical and is not a second
 example.
 

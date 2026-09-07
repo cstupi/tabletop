@@ -457,7 +457,7 @@ could not check it and nothing said what it may contain:
 
 `Roll` and `Add a hit` act on nothing and leave all seven null.
 
-The three foreign keys are the point. `Poison` suppresses `Regeneration`, and it must not be able
+The three foreign keys are the point. `Bane` suppresses `Regeneration`, and it must not be able
 to name a rule that does not exist in the set it belongs to; `Reliable` replaces `Quality`, which
 must be a stat that set declares. As a string, neither could be checked.
 
@@ -524,9 +524,9 @@ inspection. Four that between them exercise every unusual column:
 | `AP(X)` | one effect: `subject=opponent`, `kind=modify_roll`, `target_roll=defense`, `amount=-1`, `amount_from_parameter`. No conditions. |
 | `Stealth` | `catalog_entry.aggregation=all`; one effect: `subject=opponent`, `modify_roll`, `target_roll=hit`, `amount=-1`. Two conditions — attack kind is shooting, and range `gt` 9 with no subject. |
 | `Impact(X)` | one effect: `kind=roll`, `amount_from_parameter`, `threshold=2`, with a **child** effect `kind=add_hit`, `amount=1`. Conditions: action taken is charge, actor state `neq` fatigued. |
-| `Poison` | **two** effects on one property — `force_reroll` with `target_roll=defense` on the opponent, conditioned on a raw roll result of 6; and `suppress_property` with `target_entry=Regeneration`, unconditional. |
+| `Bane` | **two** effects on one property — `force_reroll` with `target_roll=defense` on the opponent, conditioned on a raw roll result of 6; and `suppress_property` with `target_entry=Regeneration`, unconditional. |
 
-`Poison` is the case that proves conditions belong to the effect and not to the property, and
+`Bane` is the case that proves conditions belong to the effect and not to the property, and
 `Impact(X)` is the one that proves nesting is needed rather than a thirteenth kind.
 
 ### Stats are rows because stats are declared

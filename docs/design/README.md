@@ -484,4 +484,4 @@ them. Where a design document disagrees with its plan, the plan is what an imple
 One world unit is one inch. The table origin is a corner: x along the width, y along the
 length, z up. Identifiers are UUIDv7, generated in application code. C# only in .NET projects,
 `net10.0`, no GDScript. Diagrams are mermaid, as in `../data-model.md`. Rulebook page cites are
-Grimdark Future v3.4.1.
+Grimdark Future v3.5.1.

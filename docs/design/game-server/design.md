@@ -402,7 +402,7 @@ whole contradicts free-for-all editing.
 missing`. The setup phase is therefore headless logic: fourteen edit kinds, no I/O, no clock, no
 session. It also owns two rules that are not edits. `OnSlab` is the corner frame,
 `0 <= x <= width` and `0 <= y <= length`. `DropOffSlab` is used once, by end-setup, to implement
-Grimdark Future page 16's *"if it's impossible to place the terrain piece, simply remove it"* for
+Grimdark Future page 17's *"if it's impossible to place the terrain piece, simply remove it"* for
 generated pieces never dragged onto the table.
 
 ### Enforcement and the override path
@@ -1297,7 +1297,7 @@ command/event spine, rules enforcement, undo, two servers, transport, deployment
 constraints, the game management data model, persistence, contracts to freeze, build order);
 [`docs/schema.md`](../../schema.md); [`docs/data-model.md`](../../data-model.md).
 
-**Rulebook.** Grimdark Future v3.4.1 page 16 covers the placement styles, and *"if it's
+**Rulebook.** Grimdark Future v3.5.1 page 17 covers the placement styles, and *"if it's
 impossible to place the terrain piece, simply remove it"*, which is `DraftEditor.DropOffSlab`.
 Page 6 covers the deployment roll-off the app does not run in setup, reconciled by `SwapZones`.
 No other page is read by this module, because this module holds no rules.

@@ -12,16 +12,16 @@ contradiction between two earlier documents that decides who is in the room whil
 
 ## Read, not reasoned
 
-- **Grimdark Future v3.4.1**, page 6 (objective markers, the deployment roll-off), page 16
-  (the six terrain placement styles), pages 17–18 (the four terrain generators), page 19 (army
-  terrain), page 49 (free-for-all deployment).
+- **Grimdark Future v3.5.1**, page 6 (objective markers, the deployment roll-off), page 17
+  (the six terrain placement styles), pages 18–19 (the four terrain generators), page 20 (army
+  terrain), page 50 (free-for-all deployment).
 - **Warhammer 40,000 10th edition core rules** (Wahapedia). The core rules defer terrain and
   deployment to the mission: *"the mission you have selected will guide you"*, and *"unless the
   mission you are playing instructs you otherwise, you should feel free to create an exciting
   battlefield using any terrain features from your collection."* The mission packs were not
   readable and were not read.
 
-Every OPR placement style on page 16 is a roll-off followed by alternating one piece each
+Every OPR placement style on page 17 is a roll-off followed by alternating one piece each
 under a geometric restriction, except *Full Table*, where the winner places everything and the
 loser picks a side. Page 6 has objectives placed the same way: D3+2 markers, roll off, alternate,
 outside the zones and over 9" apart.
@@ -93,7 +93,7 @@ different board starts a new game, or loads the layout they saved.
 
 Any participant may place, move, remove or override anything, at the same time as anyone else,
 like a shared editor. **There is no per-team permission and no turn.** The rulebook's roll-off
-and alternation are social: a group that wants page 16's *Alternating (Restricted)* reads the
+and alternation are social: a group that wants page 17's *Alternating (Restricted)* reads the
 page and takes turns, the way they pick the style in the first place. Setup is unlogged, so any
 turn structure here would have been a second, unlogged copy of the scheduler.
 
@@ -172,7 +172,7 @@ the edge it wants. **The app runs no roll-off in setup.** The scheduler's logged
 start of deployment decides deployment order only, and yesterday's accepted deviation is
 reconciled by the swap rather than left as a gap.
 
-Free-for-all's zones (page 49: a corner area each) are one of the built-in shapes. Which shapes
+Free-for-all's zones (page 50: a corner area each) are one of the built-in shapes. Which shapes
 ship is setup content's inventory question, unchanged.
 
 ## Terrain: imported, built-in, generated
@@ -195,8 +195,8 @@ visual_asset_id` already use. `terrain_placement.asset_id` becomes nullable and
 `terrain_placement.builtin` is added beside it, with the same check constraint. Which pieces
 ship is the inventory question; it must at least cover every entry the generators name.
 
-**Generators** are the rulebook's four planet tables, pages 17–18: nine fixed pieces plus 4D3
-rolled on 2D6, each entry a name, a size class from page 17 (scatter 1–3", large 4–8", up to
+**Generators** are the rulebook's four planet tables, pages 18–19: nine fixed pieces plus 4D3
+rolled on 2D6, each entry a name, a size class from page 18 (scatter 1–3", large 4–8", up to
 12"), a built-in mesh, and the declarations as the text gives them — *Forest: difficult and
 cover, see in and out; Large Building: impassable and blocking* — with notes for what the six
 cannot say, such as *dangerous when using Rush or Charge*.
@@ -221,13 +221,13 @@ cannot say, such as *dangerous when using Rush or Charge*.
 
 ## What the rulebook has that stays social
 
-- **Placement styles** (page 16). Not run by the app. A style helper that warns on spacing is a
+- **Placement styles** (page 17). Not run by the app. A style helper that warns on spacing is a
   later convenience and nothing here obstructs one.
 - **Objectives** (page 6): D3+2, alternating, outside the zones, over 9" apart. The app places
   markers and does not count or space them.
-- **Generic Planet's dangerous picks** (page 17): after placement, roll off and alternate
+- **Generic Planet's dangerous picks** (page 18): after placement, roll off and alternate
   picking D3 pieces each as dangerous. Players toggle the declaration on the pieces they pick.
-- **Army terrain** (page 19) is placed *during deployment as if it were a regular unit*. That is
+- **Army terrain** (page 20) is placed *during deployment as if it were a regular unit*. That is
   terrain arriving after the snapshot, so it falls with buildings as targets: recorded, not
   designed, additive when it comes.
 

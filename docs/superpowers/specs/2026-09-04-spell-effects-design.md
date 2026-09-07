@@ -40,7 +40,7 @@ Read against the twelve kinds, most of this was already expressible. Four things
   is consumed the first time its effect actually applies. That is *"next time the effect would
   apply"* read literally: a grant that never gets a chance to apply is never consumed.
 
-The optional extra actions (page 29) use two more — *until its next activation*, *this round* —
+The optional extra actions (page 30) use two more — *until its next activation*, *this round* —
 and they are not added until those actions are. Adding a value is a code change, like every
 closed set here.
 
@@ -82,8 +82,8 @@ That is *"roll as many dice as hits to see if 'on rolls of 6' effects trigger"* 
 invented — roll-result predicates read a real die, `Hazardous`'s *rolls of 1* included, and a
 spell with no such rule rolls dice that change nothing. No new roll row and no surrogate concept.
 
-*Resolved as if the target was a unit of 1* is `Sniper`'s rule (page 14) applied to a
-model-grain target, and reuses whatever Sniper's implementation does.
+*Resolved as if the target was a unit of 1* is `Takedown`'s rule (page 14) applied to a
+model-grain target, and reuses whatever Takedown's implementation does.
 
 ## Target selection
 

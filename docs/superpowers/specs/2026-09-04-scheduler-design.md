@@ -10,9 +10,9 @@ closes all three.
 
 ## Read, not reasoned
 
-- **Grimdark Future v3.4.1**, page 6 (deployment roll-off and alternation), page 7 (rounds,
-  turns, activations, and who goes first each round), pages 13–14 (`Ambush`, `Scout`), page 32
-  (the optional `Overwatch` action), page 49 (free-for-all and team games).
+- **Grimdark Future v3.5.1**, page 6 (deployment roll-off and alternation), page 7 (rounds,
+  turns, activations, and who goes first each round), pages 13–15 (`Ambush`, `Scout`), page 33
+  (the optional `Overwatch` action), page 50 (free-for-all and team games).
 - **Warhammer 40,000 10th edition core rules** (Wahapedia), as a **falsifier**: battle round
   structure, the Fight phase's alternation, Reinforcements, and the rule for simultaneous
   effects. **Only OPR's `GameRules` gets built.**
@@ -29,7 +29,7 @@ The scheduler is a generic engine component with two implementations, selected b
 
 | The scheduler owns | `GameRules` supplies |
 | --- | --- |
-| the order over teams, and whose turn it is | who goes first each round: finished-first for two teams, roll-off in descending order for free-for-all (pages 7, 49); 40k, the same team every round |
+| the order over teams, and whose turn it is | who goes first each round: finished-first at any team count (pages 7, 50); 40k, the same team every round |
 | when a turn ends, and when a round ends | which units on a team may activate now — a reading of the action record (OPR: no entry this round; 40k: no entry for this phase) |
 | calling the end-of-turn hook after the sequence finishes | what runs there (OPR: the end-of-activation morale test from action sequences) |
 | skipping a team with nothing to do | which actions a unit may take (`Immobile` means Hold only; Shaken means idle) |
@@ -193,7 +193,7 @@ needs it. With two teams the question never arises.
 convenience, the client renders for one player, and two members of one team may want different
 prompts. The pass is still that player's pass, logged with their name.
 
-The one OPR reaction outside casting is the optional **Overwatch** action (page 32): a unit
+The one OPR reaction outside casting is the optional **Overwatch** action (page 33): a unit
 stays idle and may react once to an enemy activation, at any point as it moves or shoots. It is
 a condition set by the action and read at the interrupt points inside move and shoot steps — a
 window offered to the non-active team, which the interface already allowed for.
@@ -211,8 +211,9 @@ which is replay.
 Each is a constraint on the generic scheduler, with the 40k rule that falsifies the OPR-shaped
 assumption.
 
-1. **The first team each round is a policy.** OPR two-team: whoever finished first. OPR
-   free-for-all: roll off every round. 40k: the same player every round, chosen by the mission.
+1. **The first team each round is a policy.** OPR: whoever finished first, at any team count,
+   with round one following the deployment order (p.50). 40k: the same player every round, chosen
+   by the mission.
 2. **A phase may alternate inside one team's turn.** 40k's Fight phase selects units
    alternately, starting with the active player, inside the active player's turn. A phase
    supplied by `GameRules` must be able to declare its own alternation, and the player-turn
@@ -261,7 +262,7 @@ testing: two shapes, one `GameRules`, scripted logs in and events out.
 - How any of this is expressed in C#.
 - The setup phase: who assigns deployment zones, who places terrain and when. Its own session.
 - 40k's `GameRules`. The core rules were read to falsify the interface, not to build it.
-- Action boosting's *Random* playstyle (page 30), which draws a token "whenever it's a player's
+- Action boosting's *Random* playstyle (page 31), which draws a token "whenever it's a player's
   turn to activate" and would hang off `turn_started`. Undesigned with the rest of boosting.
 
 ## Still open

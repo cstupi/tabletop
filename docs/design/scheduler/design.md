@@ -35,7 +35,7 @@ the factory and its registration in `Program.cs`.
 | Appending, broadcasting, `ask_answered` / `ask_closed` for an answer, authorization | `GameSession`, `CommandDispatcher` (skeleton) |
 | 40k's `GameRules` | never; the interface is falsified against it through `FakeRules` only |
 | Alternation *inside* one team's turn (40k's Fight phase) | not built; scheduler spec, constraint 2 |
-| `Overwatch` (p.32) and action boosting's *Random* playstyle (p.30) | deferred; `handoff.md` |
+| `Overwatch` (p.33) and action boosting's *Random* playstyle (p.31) | deferred; `handoff.md` |
 
 **Code lands in** `server/game/Scheduler/` (ten new files), two partials of the one ruleset in
 `server/game/Rules/GrimdarkFuture/` (`GfRules.Scheduling.cs`, `GfRules.Deployment.cs`), eight
@@ -534,13 +534,17 @@ pages:
 
 - **round 0**, before deployment: roll off (p.6, *"the players roll-off and the winner must start
   deploying"*).
-- **more than two teams**, any round: roll off (p.49, free-for-all rolls off *"at the beginning of
-  each round"*, **including the first**).
-- **round 1** with two teams: the deployment order stands, so the roll-off winner takes the first
-  turn of round one (p.7).
-- **round 2 on** with two teams: whoever finished activating first goes first (p.7), computed as
+- **round 1**, at any team count: the deployment order stands, so the roll-off winner takes the
+  first turn of round one (p.7, and p.50 for 3 and 4 players: *"turn order goes from the player
+  that deployed first to the one that deployed last"*).
+- **round 2 on**, at any team count: whoever finished activating first goes first (p.7, and p.50:
+  *"from the player that finished activating first to the one that finished last"*), computed as
   `previous.OrderBy(t => lastTurnEndedSeq[t])`, reading the round that just finished, with the
   previous order as the tie-break.
+
+3.4.1's page 49 had a free-for-all roll off *"at the beginning of each round"*, including the
+first, and the team count branched on it. 3.5.1 unified multiplayer with the core game, so the
+branch is gone and the roll-off serves deployment only.
 
 `teams` is `Info.Teams`, frozen at the flip to `playing` along with the rest of the setup. Every
 round of a game therefore orders the same team list, and an order rebuilt from the log needs no
@@ -553,8 +557,9 @@ wrong the moment such a team could act again. Nothing in the plan tests it.
 
 Free-for-all is a first-team policy, not a third shape. This answers `architecture.md`'s
 *"Free-for-all = N teams of one, differing in the order over teams and in the first-team policy"*.
-Nothing in the scheduler counts teams except `teams.Count > 2` inside the *ruleset's* hook. The
-engine's rotation is the same code for two teams and for six.
+Nothing in the scheduler counts teams at all, in the engine or in the *ruleset's* hook, since
+3.5.1 orders three players the way it orders two. The engine's rotation is the same code for two
+teams and for six.
 
 The roll-off itself is not a scheduler primitive. `RollOff.Advance` starts the ruleset sequence
 that `RollOffNeeded` named, which for OPR is `GfNames.RollOffSeq`, whose body is the interpreter
@@ -760,7 +765,7 @@ took because no spec spoke.
 | Deployment's order rides on `round_started(0, order, [])` | `SchedulerPosition` has no other field, and hydration must find it in the log | a scheduler-only field | **(plan)** spec correction 1 |
 | Set-aside is the ordinary condition `set-aside`, menu-written | every property is editable through the same path automation uses | a *set aside or deploy* Ask, i.e. a phase no spec lists | scheduler → Deployment; game flow → Nothing is an invariant (plan's struck question 2) |
 | Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | **(plan)** spec correction 7 |
-| Free-for-all is a first-team policy (`teams.Count > 2` inside the ruleset hook), not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.49 |
+| Free-for-all is a first-team policy inside the ruleset hook, not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.50 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
 | The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | ruled by the project owner 2026-09-06 **(reversed:** the plan assumed one batch and marked `Waiting` dead; struck correction 9**)** |
 | Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window is the interpreter's mechanism | an `IReactionOrdering` type in `Scheduler/` (drafted, then merged away) | scheduler → Windows; reconciled with the interpreter plan 2026-09-05 |
@@ -983,7 +988,7 @@ sequenceDiagram
     B->>D: AnswerAsk(Confirmed)
     D-->>Sc: [ask_answered, ask_closed] (unsealed: first answer closes it)
     Sc->>R: FirstTeam(state, round 2, teams)
-    R-->>Sc: OrderedTeams: whoever finished first (p.7) or a fresh roll-off (p.49)
+    R-->>Sc: OrderedTeams: whoever finished first (p.7, p.50)
     Note over Sc,B: a fresh roll-off waits at its own confirm gate before any of the following
     Sc->>R: OnRoundStarted(state, properties, 2)
     R-->>Sc: [fatigue cleared, Caster tokens +X capped at 6]
@@ -1226,10 +1231,10 @@ team: policy and roll-off*.
 | Deferred | Where it is recorded |
 | --- | --- |
 | Alternation inside one team's turn (40k's Fight phase) | scheduler spec, constraint 2, *"Not built"* |
-| `Overwatch` (p.32) as a real action | scheduler → Windows; one of the optional extra actions `handoff.md` defers. The scheduler's whole share of it is constraint 5, already tested |
-| Action boosting's *Random* playstyle (p.30), which would hang off `turn_started` | scheduler → Deliberately not decided |
+| `Overwatch` (p.33) as a real action | scheduler → Windows; one of the optional extra actions `handoff.md` defers. The scheduler's whole share of it is constraint 5, already tested |
+| Action boosting's *Random* playstyle (p.31), which would hang off `turn_started` | scheduler → Deliberately not decided |
 | 40k's `GameRules` | scheduler → Deliberately not decided; the interface is falsified against it and no more |
-| Army terrain placed during deployment *"as if it were a regular unit"* (p.19) | setup phase → What the rulebook has that stays social; needs terrain as event-driven state |
+| Army terrain placed during deployment *"as if it were a regular unit"* (p.20) | setup phase → What the rulebook has that stays social; needs terrain as event-driven state |
 | A round limit or mission round count | scheduler → There is no round limit; players read their book, and ending is a flag they set |
 
 ## References
@@ -1256,7 +1261,7 @@ team: policy and roll-off*.
 | [`docs/architecture.md`](../../architecture.md) | the load-bearing seam, the command/event spine, undo by replay, enforcement, Turn scheduling (*"No engine code branches on ruleset identity"*) |
 | [`docs/schema.md`](../../schema.md) | `game.scheduler_shape`, `game_event (game_id, seq, kind, payload)` |
 
-### Rulebook: Grimdark Future v3.4.1
+### Rulebook: Grimdark Future v3.5.1
 
 | Page | Read for |
 | --- | --- |
@@ -1267,7 +1272,7 @@ team: policy and roll-off*.
 | 14 | `Scout`, deploys after every other unit; `Immobile`, Hold only; wound assignment and the half-strength reading |
 | 21–23 | read while planning, for the special-rule names the action-legality hook checks |
 | 32 | the optional `Overwatch` action, read to size constraint 5, not built |
-| 49 | free-for-all and team games: turn order is team-based, and players *"roll off at the start of every round"*, including the first, activating *"starting with the player that got the highest score, and then alternating in descending order"* |
+| 50 | free-for-all and team games: turn order is team-based, and *"During the first round, turn order goes from the player that deployed first to the one that deployed last. Starting from the second round, turn order goes from the player that finished activating first to the one that finished last."* Deployment order is still a roll-off, taken *"starting with the player that got the highest score, and then alternating in descending order"* |
 
 ### Sibling design documents
 

@@ -9,9 +9,9 @@ module is designed, planned, and documented. Nothing is implemented.
 
 | Layer | Where | Size |
 | --- | --- | --- |
-| Design sessions | `docs/superpowers/specs/`, 22 files | the requirements |
-| Implementation plans | `docs/superpowers/plans/`, 10 files | 37,876 lines |
-| Engineering design docs | `docs/design/`, 10 folders plus an index | 15,060 lines |
+| Design sessions | `docs/superpowers/specs/`, 23 files | the requirements |
+| Implementation plans | `docs/superpowers/plans/`, 10 files | 37,972 lines |
+| Engineering design docs | `docs/design/`, 10 folders plus an index | 15,085 lines |
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, which is the system
 design document and defines the vocabulary. Then `docs/architecture.md`. Then the design document
@@ -24,6 +24,15 @@ document disagrees with its plan, the plan is what an implementer follows.
 `superpowers/specs/2026-09-04-whole-design-review.md` beats every spec written before it, which
 was all of them until `2026-09-06-simulation-design.md`. That one postdates the review and is not
 subordinate to it; it also covers two modules the review never saw.
+
+**`superpowers/specs/2026-09-06-ruleset-3-5-1-design.md` is newer than both** and beats them on
+every point it touches, which is the ruleset alone: the rules text the engine implements, the
+names those rules carry, and the pages they are cited from. The repository was designed against
+Grimdark Future v3.4.1; the owner supplied v3.5.1 for both games on 2026-09-06, and it renames
+five rules the plans were built on, removes two, adds three, changes behaviour in seventeen
+places and shifts every printed page from 15 onward by one. The rebase is propagated: `Sniper` is
+`Takedown`, `Entrenched` is `Artillery`, `Lance` is `Thrust`, `Poison` is `Bane`, `Lock-On` is
+gone, and `Surge` and `Unstoppable` are new.
 
 ## The mode
 
@@ -114,10 +123,10 @@ overturned an assumption the plans had already been written against, that is mar
 | A unit cannot enter an enemy transport | Confirmed. Page 14's clause about occupants targeting the transport itself is therefore unreachable, since valid targets are enemies only |
 | A transport survivor with nowhere legal to stand is destroyed | **Overturned.** It was shelved unwounded; it is now shelved with wounds at capacity and counted on the activation's tally, which is what makes it a casualty rather than a stored model |
 | Sight is centre to any part of the target | **Changed.** The eye is the body's centre. The target is sampled on three rings, base, mid-height and top, which bounds an error that was unbounded vertically |
-| Cover is a fraction of the unit at fifty per cent | **Changed.** Fewer than half the models visible gives cover; half or more inside cover terrain gives cover. A single model uses its base centre. Geometry reports per-model visibility and the ruleset applies the threshold |
+| Cover is a fraction of the unit at fifty per cent | **Changed, then revised the same day to p.11's own word.** Fewer than half the models visible gives cover; a *majority* inside cover terrain gives cover, which is strictly more than half, so five of ten is not enough. A single model uses its base centre. Geometry reports per-model visibility and the ruleset applies the threshold |
 | A team allocates its token spend across its own models | **Overturned.** Was a total the server took from the nearest models. The shape is a map from model to its own cap, with no total |
 | The caster may spend its own leftover tokens on its own roll | **Overturned.** A caster inside a transport therefore now modifies its own roll, where it used to roll a flat 4+ |
-| Sniper picks which model takes the wound | **Overturned.** A sniped wound skips only what building the assignment prompt decides: free choice of who dies, wounded `Tough` first, heroes last. `Deadly`, `Regeneration` and `Tough` as a capacity still apply, and wounds past that capacity are lost |
+| `Takedown` picks which model takes the wound | **Overturned, then overtaken by 3.5.1.** The rule was called `Sniper` in 3.4.1 and the first ruling gave a group one pick between its models; 3.5.1 renamed it `Takedown`, dropped its *Shoots at Quality 2+*, and rewrote the clause as *"This model may pick"*, so the owner ruled the pick **per model** and `GfShooting.Groups` splits a takedown weapon type into one group per model. A takedown wound skips only what building the assignment prompt decides: free choice of who dies, wounded `Tough` first, heroes last. `Deadly`, `Regeneration` and `Tough` as a capacity still apply, and wounds past that capacity are lost |
 | An unreadable turn answer follows the enforcement dial | **Overturned.** Was always a pass. In practice it bites only for a ruleset that offers an id it cannot read |
 | The deployment roll-off is gated like any other roll | **Overturned.** It became two steps, because editing dice rewrites the roll record but never a completed step. It is the one gate that ignores the between-steps wait setting |
 | The round does not advance on its own; a player ends it | **Overturned**, ruled earlier the same day. Any player on any team answers the boundary Ask. This also removed the need to handle a round nobody can act in |
@@ -126,7 +135,7 @@ overturned an assumption the plans had already been written against, that is mar
 
 | Ruling | Note |
 | --- | --- |
-| A joined hero merges into the unit it joined | **Overturned.** Its stats land on its slot. It fights at the squad's quality and defence, because the block roll is thrown before any wound is assigned to a model |
+| A joined hero merges into the unit it joined | **Overturned.** Its stats land on its slot. It attacks at **its own** Quality, ruled 2026-09-06 after p.4's *"the model's Quality value"* and the Hero clause overriding Defense alone, so `roll-to-hit` emits one roll per distinct Quality among the attacking models. It blocks on the unit's Defense until every other model is dead, which is the Hero clause's own sunset and is now implemented. It takes the unit's morale tests whenever its own Quality is better |
 | Height scales from the published base | **Overturned.** Was a flat 1.5 inches |
 | Both Grimdark Future and Age of Fantasy import | **Overturned.** Same mechanics, one rules implementation. **No Age of Fantasy content set exists**, so such a list imports before there is anything to play it with |
 | The table origin is a corner | Ratified, having been ruled by a compatibility review rather than by the owner |
@@ -146,19 +155,27 @@ worth asking are the ones where a late answer means rewriting rather than editin
 
 **Answer these first: a late answer means rewriting rather than editing**
 
-- **Does a joined hero fight at its own quality or the squad's?** Interpreter question 13. It fights
-  at the squad's today, because the block roll is thrown before any wound is assigned to a model.
-  The alternative is about a task's work and makes the roll record per-quality everywhere the log
-  is read. This is the most expensive open item in the repo.
-- **What facing does a disembarking model take?** Client question 8. Nothing in the specs or in
-  page 14 says, and an oval base's footprint depends on it. Keeping the pre-embark facing needs a
-  yaw stored on the location, which is a wire change.
-- **Is `Entrenched` aggregated as `any` or `all`?** Interpreter question 4. The rulebook says
-  "models with this special rule" where `Stealth` says "units where all models have this rule", so
-  `all` is the alternative. It changes what a partly-entrenched unit gets.
-- **Are weapons dealt onto models in order?** Management question 4. Assumed an advancing cursor,
-  so a lone flamer lands on the last model. Asking the player instead means import cannot expand a
+- **What aggregation does `Artillery`'s -2 use?** Interpreter question 4, and the only one of the
+  four originals still open. 3.5.1 deleted `Entrenched` and folded its penalty into `Artillery`,
+  which writes it per model — *"When enemy units shoot at this model from over 9" away"* — while a
+  hit roll is pooled per weapon group. **The owner ruled `all`** on 2026-09-06, after `Stealth`,
+  which is the same penalty at the same range band and says *"all models"*. Recorded here because
+  the alternative, cover's majority, would change what a partly-entrenched unit gets.
+- **Are weapons dealt onto models in order?** Management question 4, and untouched by 3.5.1
+  because it asks about Army Forge data rather than the rules. Assumed an advancing cursor, so a
+  lone flamer lands on the last model. Asking the player instead means import cannot expand a
   unit on its own, which needs a per-slot weapon editor and a patch shape, neither designed.
+- **How is the elevated 3" coherency measured?** New with 3.5.1. Page 11 gained *"If not all
+  models in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
+  elevation."* `Coherency.Check` takes one chain distance for every pair, so a per-pair distance
+  keyed on elevation is a signature change, and whether a unit *can fit* is a ruleset judgement
+  geometry cannot make. The rule states the allowance and not the test.
+
+Three of the four questions that stood here on the morning of 2026-09-06 are now answered:
+
+- **A joined hero fights at its own quality.** Ruled, and the roll record becomes per-quality.
+- **A disembarking model may take any facing that fits.** Ruled, over the container's yaw.
+- **`Entrenched`'s aggregation** dissolved with the rule, and returned as `Artillery`'s above.
 
 **Cheap either way, but still open**
 
@@ -171,8 +188,9 @@ worth asking are the ones where a late answer means rewriting rather than editin
 Three more are worth a look but are **not** open questions, so a plan's question list will not
 surface them. All are residues recorded inside a question the owner already closed:
 
-- Interpreter question 7 is closed, but a sniper group with two Sniper models names one target
-  between them, and page 14's *"resolved as if it was a unit of 1"* is not modelled.
+- Interpreter question 7 is closed twice over, but `Takedown`'s *"resolved as if it was a unit of
+  [1]"* is still not modelled: cover, `Blast`'s cap and the defence roll read the whole target
+  unit, and only the wound is redirected.
 - Interpreter question 3 is closed, but `Impact` and melee still read live model counts mid-action,
   deliberately, because page 9 sequences melee by hand.
 - Interpreter question 8 is closed, but the end-of-turn morale test's die is still unreachable from
@@ -209,8 +227,12 @@ documents cite those paths as the sketch they departed from. **Execute nothing f
 Five things, four of them learned the hard way this session.
 
 - **Read the rulebook; do not reason about the rules.** Ten sessions running, reading has produced
-  better answers than designing. Grimdark Future v3.4.1 and Age of Fantasy v3.5.0 are at
-  `/mnt/c/Users/clays/Downloads/`. Extract with `pypdf` from `./venv`; page numbers below.
+  better answers than designing. Grimdark Future v3.5.1 and Age of Fantasy v3.5.1 are at
+  `/mnt/c/Users/clays/Downloads/`, as `GF - Advanced_Rules_v3_5_1.pdf` and
+  `Age_of_Fantasy_-_Advanced_Rules_v3_5_1_-_Print_Friendly.pdf`. The 3.4.1 and 3.5.0 files sit
+  beside them and are superseded; the repository was rebased off them on 2026-09-06, and
+  `superpowers/specs/2026-09-06-ruleset-3-5-1-design.md` records what moved. Extract with `pypdf`
+  from `./venv`; page numbers below.
 - **Name a mechanic in the rulebook's own words.** Casting's token spend was called a "sealed bid"
   and reached over three hundred occurrences across twenty files, including a wire discriminator
   and generated TypeScript, before the owner caught it. Measurable at `4b2e56b~1` if you want the
@@ -245,21 +267,25 @@ both services down with no error from Stytch; and a registered redirect URL for 
 ```bash
 ./venv/bin/python -c "
 from pypdf import PdfReader
-r = PdfReader('/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf')
+r = PdfReader('/mnt/c/Users/clays/Downloads/GF - Advanced_Rules_v3_5_1.pdf')
 print(r.pages[12].extract_text())"        # prints printed page 13
 ```
 
 `pypdf` indexes from zero and the page numbers below are the rulebook's printed ones, so
-`r.pages[N]` is printed page `N + 1`. Grimdark Future is 68 pages, Age of Fantasy 70. Every
-citation in this repository uses printed numbering.
+`r.pages[N]` is printed page `N + 1`. Grimdark Future 3.5.1 is 71 pages, Age of Fantasy 3.5.1 is
+70. Every citation in this repository uses printed numbering.
 
-Useful pages in Grimdark Future v3.4.1: **6** objectives and the deployment roll-off, **7** rounds
-and action distances, **8-10** shooting, charging and melee, **11-12** terrain, **13-14** every
-special rule, **16** terrain placement styles, **17-18** terrain generators, **19** army terrain,
-**20** buildings, **21-23** deployment styles (the zone dimensions are in the diagrams, not the
-text), **24-26** missions and **27-28** side-missions, **29-35** the advanced modules, which the
-rulebook groups as extra actions, boosting, advanced casting with relic wargear, and hero and
-monster feats, **49** multiplayer.
+Useful pages in Grimdark Future v3.5.1: **6** objectives and the deployment roll-off, **7** rounds
+and action distances, **8-10** shooting, charging and melee, **11-12** terrain, **13-15** every
+special rule (`Aircraft` through `Flying` on 13, `Furious` through `Thrust` on 14, `Tough`,
+`Transport` and `Unstoppable` on 15), **16** pre-made rule packs, **17** terrain placement styles,
+**18-19** terrain generators, **20** army terrain, **21** solid buildings, **22-24** deployment
+styles (the zone dimensions are in the diagrams, not the text), **25-27** missions and **28-29**
+side-missions, **30-36** the advanced modules, which the rulebook groups as extra actions,
+boosting, advanced casting with relic wargear, and hero and monster feats, **50** multiplayer.
+
+Every printed page from 15 onward is one higher than in 3.4.1, and the special rules grew from two
+pages to three, so a citation taken from an older document is wrong by at least one.
 
 Per-faction spells through the Army Forge API:
 `https://army-forge.onepagerules.com/api/army-books?filters=official&gameSystemSlug=grimdark-future`

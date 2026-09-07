@@ -184,8 +184,10 @@ phases inside a turn, the round-boundary hooks. See
 [the scheduler](superpowers/specs/2026-09-04-scheduler-design.md).
 
 - 2 players = two teams of one.
-- Free-for-all = N teams of one, differing in the order over teams and in the first-team policy
-  (a roll-off every round, GF page 49).
+- Free-for-all = N teams of one, differing in the order over teams and in the deployment zones
+  (a 2'x1' corner area each, GF page 50). The first-team policy is the same as for two teams:
+  3.5.1 gives round one to whoever deployed first and every later round to whoever finished
+  activating first, where 3.4.1's page 49 rolled off at the start of every round.
 - Player-turn is the second scheduler shape behind the same interface, chosen per game rather
   than per ruleset — OPR's `GameRules` runs under both.
 
