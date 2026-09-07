@@ -1,3 +1,10 @@
+> **Superseded 2026-09-06 — do not execute.** Written 2026-08-24, before the first design
+> session, and describing a data model that no longer exists. Replaced by
+> `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, which records that this file
+> names `EndActivation`, `DiceRolled` and "terrain multipliers", none of which exist. See
+> [README.md](README.md) for the full fate of this file. Kept only as a record of how the
+> project was first scoped.
+
 # 01 — Contracts
 
 **Owns:** `libs/`

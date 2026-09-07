@@ -1,3 +1,10 @@
+> **Superseded 2026-09-06 — do not execute.** Written 2026-08-24, before the first design
+> session, and describing a data model that no longer exists. Replaced by
+> `docs/superpowers/plans/2026-09-05-client-shell.md`, over
+> `docs/superpowers/specs/2026-09-04-client-shell-design.md`, which supersedes this file by
+> name. See [README.md](README.md) for the full fate of this file. Kept only as a record of how
+> the project was first scoped.
+
 # 05 — Client shell
 
 **Owns:** `client/`

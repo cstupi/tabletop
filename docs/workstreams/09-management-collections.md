@@ -1,3 +1,9 @@
+> **Superseded 2026-09-06 — do not execute.** Written 2026-08-24, before the first design
+> session, and describing a data model that no longer exists. Replaced by
+> `docs/superpowers/plans/2026-09-05-management-api.md` and `2026-09-05-web-app.md`. See
+> [README.md](README.md) for the full fate of this file. Kept only as a record of how the
+> project was first scoped.
+
 # 09 — Management: collections (army management)
 
 **Owns:** `server/management/`, `web/`

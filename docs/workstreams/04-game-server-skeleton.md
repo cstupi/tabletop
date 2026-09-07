@@ -1,3 +1,10 @@
+> **Superseded 2026-09-06 — do not execute.** Written 2026-08-24, before the first design
+> session, and describing a data model that no longer exists. Replaced by
+> `docs/superpowers/plans/2026-09-05-game-server-skeleton.md`. The auth section below was
+> corrected on 2026-08-30, when our own session table was dropped for Stytch's JWT; that
+> correction does not make the file current. See [README.md](README.md) for the full fate of
+> this file. Kept only as a record of how the project was first scoped.
+
 # 04 — Game server skeleton
 
 **Owns:** `server/game/`

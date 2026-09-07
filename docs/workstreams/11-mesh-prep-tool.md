@@ -1,3 +1,10 @@
+> **Superseded 2026-09-06 — do not execute.** Written 2026-08-24, before the first design
+> session, and describing a data model that no longer exists. Replaced by
+> `docs/superpowers/plans/2026-09-05-web-app.md`, and the deliverable itself is gone:
+> `docs/superpowers/specs/2026-09-04-mesh-conversion-design.md` moved STL conversion into the
+> browser, so there is no `tools/mesh-prep/`. See [README.md](README.md) for the full fate of
+> this file. Kept only as a record of how the project was first scoped.
+
 # 11 — Mesh prep tool
 
 **Owns:** `tools/mesh-prep/`

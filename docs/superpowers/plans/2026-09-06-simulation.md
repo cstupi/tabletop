@@ -4410,61 +4410,77 @@ Three kinds of top-level directory:
   content that the editor scans and lists.
 ```
 
-- [ ] **Step 2: Edit `CLAUDE.md` → Layout, the directory list and the closing note**
+- [ ] **Step 2: Edit `CLAUDE.md` → Layout, insert the two bullets**
 
-Before (lines 57–59 and 70–71):
+**This step is an insertion, and it restates none of the neighbouring bullets.** Eight plans edit
+this list before this one, and three of them rewrite the text a "replace these lines" edit would
+have to quote:
+
+- the contracts plan Task 16 replaced the `libs/` bullet — it now names each library and its
+  contents and ends "`net10.0`, Godot-free, persistence-free." — and added a `tests/` bullet after
+  it, which the management, game server skeleton and client shell plans each extended;
+- the geometry plan Task 13 Step 5 rewrote `Tabletop.Geometry`'s parenthesis inside that bullet;
+- the web app plan Task 17 Step 2 replaced the `web/` bullet with the Svelte SPA text, and
+  **deleted** the sentence "`web/` is empty on purpose." from the closing note.
+
+So do not reproduce the `web/` or `libs/` bullets. Insert after the end of the `web/` bullet,
+whose closing clause the web app plan leaves as:
 
 ```markdown
-- `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
-  browser, the account, and login. Does not exist yet.
-- `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
+Node 24 via mise; `npm`, exact versions (`.npmrc`).
 ```
 
-After — insert two bullets after `web/`:
+The two new bullets, inserted between the `web/` bullet and the `libs/` one:
 
 ```markdown
-- `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
-  browser, the account, and login. Does not exist yet.
 - `sim/` — `Tabletop.Sim`, a library plus a console entry point that plays a whole game with no
   Godot client: a scenario, a seeded answer policy over the server's legal sets, two drivers
   (in process and over the socket), the invariant checks, and one recording file per run.
   It reads game state freely but holds no second implementation of the rules: it answers from the
   server's legal sets without narrowing them, and asserts invariants.
 - `viewer/` — a static developer web app that draws a recording top-down. Does not exist yet.
-- `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
 ```
 
-Before (the closing note, as the contracts plan leaves it):
+**The closing note is not touched.** It began as "`server/`, `web/` and `libs/` are empty or absent
+on purpose. Each module is designed before it is built."; the contracts plan narrowed the first
+sentence to `server/` and `web/`, the management plan to `server/game/` and `web/`, the game server
+skeleton plan to `web/` alone, and the web app plan Task 17 Step 2 **deleted it**. By the time this
+plan runs the note reads, in full:
 
 ```markdown
-`server/` and `web/` are empty on purpose. Each module is designed
-before it is built.
+Each module is designed before it is built.
 ```
 
-After:
-
-```markdown
-`server/`, `web/` and `viewer/` are empty or absent on purpose. Each module is designed
-before it is built.
-```
+Leave it exactly so. Nothing in the list is empty any more except `viewer/`, and its own bullet
+says it does not exist yet — which is where the viewer plan Task 12 Step 1 replaces it. Re-adding
+"`server/`, `web/` and `viewer/` are empty or absent on purpose." would contradict the three plans
+that built `server/management/`, `server/game/` and `web/`.
 
 - [ ] **Step 3: Edit `CLAUDE.md` → Commands, and `docs/architecture.md`**
 
-In **Commands**, add after the `dotnet test` line:
+In **Commands**, add two lines at the end of the block. The `dotnet test` line the contracts plan
+Task 16 added has since been re-commented by the management plan Task 14 Step 2 and now reads
+`dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d`,
+and the management, web app, game server skeleton and client shell plans have each appended their
+own run lines after it — so append rather than insert at a quoted anchor, and change no existing
+line:
 
 ```bash
 dotnet run --project sim -- --list                 # the scenarios
 dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
 ```
 
-`docs/architecture.md` → Deliverables, before:
+`docs/architecture.md` → Deliverables, before. **Note the client's platform cell**: the table row
+below is the text as the 2026-09-06 platform correction leaves it (already in the file), not the
+original "Windows (Godot export)" — the After block must carry that wording through unchanged, or
+this step reverts the correction:
 
 ```markdown
 Four things ship, and they have different target platforms:
 
 | Deliverable | Directory | Platform |
 | --- | --- | --- |
-| Game client | `client/` | Windows (Godot export) |
+| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) |
 | Game server | `server/game/` | Linux (container) |
 | Management API | `server/management/` | Linux (container) |
 | Web app | `web/` | Static (Svelte SPA) |
@@ -4477,7 +4493,7 @@ Six things ship. Four go to players; two go to developers.
 
 | Deliverable | Directory | Platform | Audience |
 | --- | --- | --- | --- |
-| Game client | `client/` | Windows (Godot export) | Players |
+| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) | Players |
 | Game server | `server/game/` | Linux (container) | Players |
 | Management API | `server/management/` | Linux (container) | Players |
 | Web app | `web/` | Static (Svelte SPA) | Players |
@@ -4493,7 +4509,13 @@ of the rules. `viewer/` draws a run's recording top-down and is separate from `w
 preparation for players.
 ```
 
-`docs/architecture.md` → Repository layout, before:
+The paragraph that already follows the table, "**The client's platform was corrected on
+2026-09-06.**", is untouched and stays where it is; this ruling paragraph goes before it.
+
+`docs/architecture.md` → Repository layout, before. If the contracts plan's spec correction 9 has
+already landed (it adds `tests/` to the last line and is the coordinator's, not a task in any
+plan), the last line already reads `docs/  scripts/  tests/  repo-level support` and only the
+`sim/` and `viewer/` lines are new:
 
 ```
 client/                  Godot game client (the only Godot dependency)

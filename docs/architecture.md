@@ -26,7 +26,15 @@ mechanism. No work is planned for the other platforms, and no export preset for 
 There is no mesh prep tool. This document originally listed one at `tools/mesh-prep/`,
 shipping to users' machines; [mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md)
 moved STL conversion into the web app's upload flow, running in the browser, and the tool and
-its language exception went with it. `docs/workstreams/11-mesh-prep-tool.md` is a stale sketch.
+its language exception went with it. `docs/workstreams/11-mesh-prep-tool.md` sketched that tool.
+
+**Corrected 2026-09-06.** The line above previously called that one file a stale sketch, which
+implied the other seven in its directory were current. None of them is. Every file in
+`docs/workstreams/` was written on 2026-08-24 — before the first design session — and its README
+is banner-marked superseded as of 2026-09-06: the workstream prompts are history, the ten
+implementation plans in `docs/superpowers/plans/` are what a session executes, and
+`docs/handoff.md` is where a session starts. Nothing in this document points at those prompts as
+work to be done.
 
 The web app exists and owns **preparation** — armies, assets, the account, and its own login.
 The client owns **play**, plus the game list, joining, and its own login screen; both log in

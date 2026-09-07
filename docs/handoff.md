@@ -9,7 +9,7 @@ module is designed, planned, and documented. Nothing is implemented.
 
 | Layer | Where | Size |
 | --- | --- | --- |
-| Design sessions | `docs/superpowers/specs/`, 21 files | the requirements |
+| Design sessions | `docs/superpowers/specs/`, 22 files | the requirements |
 | Implementation plans | `docs/superpowers/plans/`, 10 files | 37,876 lines |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | 15,060 lines |
 
@@ -18,9 +18,12 @@ design document and defines the vocabulary. Then `docs/architecture.md`. Then th
 for whatever you are touching, and its plan beside it.
 
 Precedence, when two documents disagree: **the specs settle behaviour, the plans settle what gets
-written, the design docs settle structure.** A later spec beats an earlier one, and
-`superpowers/specs/2026-09-04-whole-design-review.md` beats every other spec. Where a design
+written, the design docs settle structure.** A later spec beats an earlier one. Where a design
 document disagrees with its plan, the plan is what an implementer follows.
+
+`superpowers/specs/2026-09-04-whole-design-review.md` beats every spec written before it, which
+was all of them until `2026-09-06-simulation-design.md`. That one postdates the review and is not
+subordinate to it; it also covers two modules the review never saw.
 
 ## The mode
 
@@ -36,16 +39,25 @@ simulator.
 
 Two things the plans depend on that are not yet done:
 
-- **About seventy proposed spec corrections sit unapplied**, in each plan's *Spec corrections
-  proposed* section. They are corrections to the specs, `docs/schema.md`, `docs/architecture.md`
-  and `CLAUDE.md`. `docs/schema.md` in particular is stale against
-  the schema SQL the contracts plan will write to `scripts/postgres/init/001_schema.sql`, which
-  exists only inside that plan until it is executed. `docs/schema.md` is missing
-  `participant.game_id`, `participant.army_id`, `game.rng_seed`, `blob.uploaded` and
-  `blob.content_type`. Apply them before or alongside execution.
-- **`CLAUDE.md` still describes three deliverables.** `sim/` and `viewer/` are the fourth and
-  fifth, ruled 2026-09-06. Several plans' last task edits `CLAUDE.md`; those edits are written to
-  compose in build order.
+- **Ninety-eight spec corrections are proposed and about eighty-three are still pending**, in each
+  plan's *Spec corrections proposed* section; only fifteen carry a resolution. They target the
+  specs, `docs/schema.md`, `docs/data-model.md`, `docs/architecture.md`, `CLAUDE.md`, and in nine
+  cases a sibling plan. Apply them before or alongside execution.
+- **`docs/schema.md` is behind the schema SQL** the contracts plan will write to
+  `scripts/postgres/init/001_schema.sql`, which exists only inside that plan until it is executed.
+  Six columns are missing from the document: `participant.game_id`, `participant.army_id`,
+  `game.rng_seed`, `blob.uploaded`, `blob.content_type` and `effect.target_stat_level`, the last
+  of which a foreign key the document promises cannot exist without.
+- **`CLAUDE.md` and `docs/architecture.md` both undercount the deliverables.** `sim/` and
+  `viewer/` were ruled the fourth and fifth on 2026-09-06. **All ten** plans' last task edits
+  `CLAUDE.md`, though geometry's and the scheduler's task titles do not say so, and the simulator
+  plan owns the `architecture.md` deliverables table. Those edits were audited on 2026-09-06 and
+  three did not compose: two would have reverted earlier plans' wording and one would have
+  reverted the client's platform correction. They compose now, but the hazard is structural, so
+  check a plan's *Before* text against the file as it actually stands rather than trusting it.
+- **The game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's**, so
+  those two are not interchangeable in order even though the build graph allows it. Run management
+  first.
 
 ## The ten modules
 
@@ -78,7 +90,7 @@ overturned an assumption the plans had already been written against, that is mar
 | Ruling | Note |
 | --- | --- |
 | The RNG seed is stored, not derived from the game id | **Overturned.** `long RngSeed` on `GameInfo`, positional, over `game.rng_seed bigint not null` with no default. Management writes it once at creation. The simulator sets it and uses ordinary UUIDv7 ids |
-| An unknown id in an event is a typed desync; the client rebuilds | **Overturned.** The applier had sixteen fallible lookups, not the two that were known. The client bounds retries by the sequence position of the fault. The server faults instead, holding the only copy of the log |
+| An unknown id in an event is a typed desync; the client rebuilds | **Overturned.** Sixteen of the applier's lookups can miss; only two were reachable designed cases, and only those two were tested. The client bounds retries by the sequence position of the fault. The server faults instead, holding the only copy of the log |
 | The payload format's lack of versioning is accepted | Revisit trigger: the first game worth keeping |
 | The server sends a rest frame when it has nothing more to emit | New `AtRest(long Seq)`. The frame follows its batch: broadcast when the batch appended an event, to the provoking client alone when it did not. It replaced the simulator's 250 ms quiet window |
 | Presence departure stays an explicit frame | Confirmed |
@@ -90,7 +102,7 @@ overturned an assumption the plans had already been written against, that is mar
 
 | Ruling | Note |
 | --- | --- |
-| Teams are locked at the start of play; a player rejoins their slot | The specs contradicted themselves on this and it kept resurfacing. Corrected in place across four specs, with the canonical statement in `superpowers/specs/2026-08-28-game-flow-design.md` → *Teams are frozen at the flip, and a team is a slot*. Every other document points there |
+| Teams are locked at the start of play; a player rejoins their slot | The specs contradicted themselves on this and it kept resurfacing. Corrected in place across four specs, with the canonical statement in `superpowers/specs/2026-08-28-game-flow-design.md` → *Teams are frozen at the flip, and a team is a slot*. A sixth document, the scheduler spec, was still contradicting it until an audit on 2026-09-06 |
 | The game server seeds the ruleset content, and the schema boundary is not a wall | Confirmed, and the prose treating a write as a border crossing was removed. Row ownership by game status stays, because hydration depends on it |
 
 ### The rules
@@ -100,7 +112,7 @@ overturned an assumption the plans had already been written against, that is mar
 | One try per spell resets per activation | Confirmed |
 | Attack counts, and the `Blast` cap, are settled before any group fires | **Overturned.** A group firing after casualties rolls its original count |
 | A unit cannot enter an enemy transport | Confirmed. Page 14's clause about occupants targeting the transport itself is therefore unreachable, since valid targets are enemies only |
-| A transport survivor with nowhere legal to stand is destroyed | **Overturned.** Was shelved |
+| A transport survivor with nowhere legal to stand is destroyed | **Overturned.** It was shelved unwounded; it is now shelved with wounds at capacity and counted on the activation's tally, which is what makes it a casualty rather than a stored model |
 | Sight is centre to any part of the target | **Changed.** The eye is the body's centre. The target is sampled on three rings, base, mid-height and top, which bounds an error that was unbounded vertically |
 | Cover is a fraction of the unit at fifty per cent | **Changed.** Fewer than half the models visible gives cover; half or more inside cover terrain gives cover. A single model uses its base centre. Geometry reports per-model visibility and the ruleset applies the threshold |
 | A team allocates its token spend across its own models | **Overturned.** Was a total the server took from the nearest models. The shape is a map from model to its own cap, with no total |
@@ -117,7 +129,6 @@ overturned an assumption the plans had already been written against, that is mar
 | A joined hero merges into the unit it joined | **Overturned.** Its stats land on its slot. It fights at the squad's quality and defence, because the block roll is thrown before any wound is assigned to a model |
 | Height scales from the published base | **Overturned.** Was a flat 1.5 inches |
 | Both Grimdark Future and Age of Fantasy import | **Overturned.** Same mechanics, one rules implementation. **No Age of Fantasy content set exists**, so such a list imports before there is anything to play it with |
-| Weapons are dealt onto models in order | Confirmed |
 | The table origin is a corner | Ratified, having been ruled by a compatibility review rather than by the owner |
 | Side Battle's zone scales with the table; small tables are out of scope | **Changed**, and it contradicted a spec. Side Battle is the only proportional style; on a table near the standard size every style agrees anyway |
 | The client takes no Windows-only dependency | **Changed.** `architecture.md` said Windows outright. The stored session is a file created owner-only, not Windows data protection |
@@ -133,34 +144,65 @@ Every plan proceeds under a stated assumption, so none of these blocks execution
 *Questions for the project owner* section is the authority; this is the union, and the ones marked
 worth asking are the ones where a late answer means rewriting rather than editing.
 
-**Worth asking**
+**Answer these first: a late answer means rewriting rather than editing**
 
-- **Who chooses which model pays** is settled, but two residues are not: whether a sniper group
-  with two Sniper models picks one target between them, and that *"resolved as if it was a unit of
-  1"* is not modelled (interpreter, question 7's residue).
-- **The `Blast` cap and attack counts now agree**, but `Impact` and melee still read live model
-  counts mid-action, deliberately, because page 9 sequences melee by hand. Worth confirming that
-  is the intent (interpreter, question 3's residue).
-- **A terrain container** for a solid building holding models: the automated embark path is model
-  containers only, and a building holds models through the menu (geometry, question 8).
-- **The simulator's scenario catalogue**, and whether a casting scenario joins it now that casting
-  has two player decisions rather than one (simulation, question 4).
+- **Does a joined hero fight at its own quality or the squad's?** Interpreter question 13. It fights
+  at the squad's today, because the block roll is thrown before any wound is assigned to a model.
+  The alternative is about a task's work and makes the roll record per-quality everywhere the log
+  is read. This is the most expensive open item in the repo.
+- **What facing does a disembarking model take?** Client question 8. Nothing in the specs or in
+  page 14 says, and an oval base's footprint depends on it. Keeping the pre-embark facing needs a
+  yaw stored on the location, which is a wire change.
+- **Is `Entrenched` aggregated as `any` or `all`?** Interpreter question 4. The rulebook says
+  "models with this special rule" where `Stealth` says "units where all models have this rule", so
+  `all` is the alternative. It changes what a partly-entrenched unit gets.
+- **Are weapons dealt onto models in order?** Management question 4. Assumed an advancing cursor,
+  so a lone flamer lands on the last model. Asking the player instead means import cannot expand a
+  unit on its own, which needs a per-slot weapon editor and a patch shape, neither designed.
+
+**Cheap either way, but still open**
+
+- A terrain container for a solid building holding models, geometry question 8. One overload, five
+  lines and a test.
+- The simulator's scenario catalogue, and whether a casting scenario joins it now that casting has
+  two player decisions, simulation question 4. Changes nothing else.
+- The disembark radius and whether it is measured edge to edge, interpreter question 11.
+
+Three more are worth a look but are **not** open questions, so a plan's question list will not
+surface them. All are residues recorded inside a question the owner already closed:
+
+- Interpreter question 7 is closed, but a sniper group with two Sniper models names one target
+  between them, and page 14's *"resolved as if it was a unit of 1"* is not modelled.
+- Interpreter question 3 is closed, but `Impact` and melee still read live model counts mid-action,
+  deliberately, because page 9 sequences melee by hand.
+- Interpreter question 8 is closed, but the end-of-turn morale test's die is still unreachable from
+  the menu: it is a single-step frame with an actor, so it pops before anything can gate it.
 
 **Local, and safe as assumed**
 
-Client: presence sample rate, the facing a disembarking model takes, whose base the disembark
-region is drawn for, whether a container is a click target or a button. Geometry: straight-line
-movement reach, ovals as 64-gons. Interpreter: whether the generic effect code may know the two
-weapon stat names, whether a caster inside a container may cast. Management: how partial weapon
-counts are dealt, game list ordering, whether textures accept WebP. Game server: what the setup
-draft starts as, one connection per participant. Web app: where the browser keeps its token.
-Simulator: exit code on a stuck run, solution membership. Viewer: headless rendering tests,
-fixture size, fetching a recording over HTTP, refusing an unknown ruleset, panel layout.
+Client: presence sample rate, whose base the disembark region is drawn for, whether a container is
+a click target or a button. Geometry: straight-line movement reach, ovals as 64-gons. Interpreter:
+whether the generic effect code may know the two weapon stat names, whether a caster inside a
+container may cast. Management: game list ordering, whether textures accept WebP. Game server:
+what the setup draft starts as, one connection per participant. Web app: where the browser keeps
+its token. Simulator: exit code on a stuck run, solution membership. Viewer: headless rendering
+tests, fixture size, fetching a recording over HTTP, refusing an unknown ruleset, panel layout.
 
 **Deferred by design**, each recorded where it belongs: hosting; buildings as shootable targets
 and army terrain; action boosting; Advanced Casting's optional modules; and everything waiting on
 a second ruleset, which is Warhammer rather than Age of Fantasy, since the two One Page Rules
 games share an engine.
+
+## `docs/workstreams/` is superseded
+
+Eight prompt files from before the first design session, describing a data model that no longer
+exists. Until 2026-09-06 its README told every session to read it first and marked five
+workstreams ready, which is a second execution scheme competing with the plans. It now carries a
+superseded banner, each prompt file names the plan that replaced it, and `docs/architecture.md` no
+longer implies any of it is current.
+
+It was kept rather than deleted because eleven files across the plans, the specs and the design
+documents cite those paths as the sketch they departed from. **Execute nothing from it.**
 
 ## How to work here
 
@@ -170,8 +212,9 @@ Five things, four of them learned the hard way this session.
   better answers than designing. Grimdark Future v3.4.1 and Age of Fantasy v3.5.0 are at
   `/mnt/c/Users/clays/Downloads/`. Extract with `pypdf` from `./venv`; page numbers below.
 - **Name a mechanic in the rulebook's own words.** Casting's token spend was called a "sealed bid"
-  and reached 223 occurrences across 18 files, including a wire discriminator and generated
-  TypeScript, before the owner caught it. There is no bid in the rules. Quote the rule, then name
+  and reached over three hundred occurrences across twenty files, including a wire discriminator
+  and generated TypeScript, before the owner caught it. Measurable at `4b2e56b~1` if you want the
+  exact figure; three different greps gave three different answers, which is its own lesson. There is no bid in the rules. Quote the rule, then name
   the thing.
 - **A ruling must reach every layer.** Plans, sibling plans, specs, the design documents including
   their mermaid diagrams, `docs/design/README.md`, and a new module means a new design folder.
@@ -192,7 +235,8 @@ No `pdftotext`, and headless Chrome cannot launch (missing `libnspr4`), so the r
 are read by extracting images with `pypdf` and Pillow.
 
 Stytch: project `TabletopWar`, vertical CONSUMER, test project
-`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`, no production environment. Its MCP tools are
+`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. A live project exists and is
+unconfigured; nothing uses it. Its MCP tools are
 project configuration only, with no user management, so the Consumer user schema has to come from
 the docs. **Two pieces of Stytch configuration are now load-bearing and not in the repo:** the
 `SESSION` claim template mapping `{{ user.external_id }}` to `account_id`, whose absence takes
@@ -202,15 +246,20 @@ both services down with no error from Stytch; and a registered redirect URL for 
 ./venv/bin/python -c "
 from pypdf import PdfReader
 r = PdfReader('/mnt/c/Users/clays/Downloads/GF - Advanced Rules v3.4.1.pdf')
-print(r.pages[12].extract_text())"        # 68 pages, zero-based; special rules are 13-14
+print(r.pages[12].extract_text())"        # prints printed page 13
 ```
+
+`pypdf` indexes from zero and the page numbers below are the rulebook's printed ones, so
+`r.pages[N]` is printed page `N + 1`. Grimdark Future is 68 pages, Age of Fantasy 70. Every
+citation in this repository uses printed numbering.
 
 Useful pages in Grimdark Future v3.4.1: **6** objectives and the deployment roll-off, **7** rounds
 and action distances, **8-10** shooting, charging and melee, **11-12** terrain, **13-14** every
 special rule, **16** terrain placement styles, **17-18** terrain generators, **19** army terrain,
 **20** buildings, **21-23** deployment styles (the zone dimensions are in the diagrams, not the
-text), **24-28** missions, **29-34** extra actions, boosting, advanced casting and hero upgrades,
-**49** multiplayer.
+text), **24-26** missions and **27-28** side-missions, **29-35** the advanced modules, which the
+rulebook groups as extra actions, boosting, advanced casting with relic wargear, and hero and
+monster feats, **49** multiplayer.
 
 Per-faction spells through the Army Forge API:
 `https://army-forge.onepagerules.com/api/army-books?filters=official&gameSystemSlug=grimdark-future`

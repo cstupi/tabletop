@@ -236,9 +236,19 @@ different shape starts a new game.
 *Corrected 2026-09-04 by [the setup phase](2026-09-04-setup-phase-design.md), the same day.*
 This section first said team membership was fixed and joining closed at the lobby, which
 contradicted accounts' settled rule that a game is joinable at every status. Accounts holds:
-anyone may join an existing team at any time, brings no army after deployment, and is what
-presence calls a spectator. The scheduler is unaffected — a late joiner adds nothing to any
-legal set.
+~~anyone may join an existing team at any time~~ (corrected again below), brings no army after
+deployment, and is what presence calls a spectator. The scheduler is unaffected — a late joiner
+adds nothing to any legal set.
+
+*Corrected again 2026-09-06, ruled by the owner.* The 09-04 note went one step too far: joining
+the **game** is open at every status, but joining a **team** is not. Teams are created and
+picked only while the game is `lobby` or `setup`, and at the flip to `playing` the team list
+freezes along with the scheduler shape, the armies and the layout. A participant's team is
+their **slot**, recorded on their `participant` row, and reconnecting during play returns them
+to that slot with no re-pick and nothing re-derived. Someone who first joins after play began
+has no slot, so no team, and is exactly the spectator this section already describes. The
+canonical statement is [game flow](2026-08-28-game-flow-design.md) → *Teams are frozen at the
+flip, and a team is a slot*. The scheduler is unaffected either way.
 
 ## Testing
 
