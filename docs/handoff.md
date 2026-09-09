@@ -1,9 +1,10 @@
 # Handoff — 2026-09-08
 
 Where the project stands, and what to pick up next. Rewritten at the end of the session that
-rebased the ruleset onto Grimdark Future v3.5.1, and extended on 2026-09-08 by one ruling on wound
-distribution, the correction it turned up, and the joined-hero mechanism, which was the largest
-un-designed consequence in the repo and is now written.
+cleared the plans' debts: the joined-hero mechanism is written, all 98 spec corrections are
+applied, and the documentation debts are gone. Two owner rulings were made that day, on wound
+distribution and on when cover is counted, and three latent defects were found and fixed on the
+way. **Design, planning and cleanup are all complete. The only thing left is to build it.**
 
 ## State
 
@@ -15,8 +16,12 @@ implemented.
 | Layer | Where | Size |
 | --- | --- | --- |
 | Design sessions | `docs/superpowers/specs/`, 23 files | the requirements |
-| Implementation plans | `docs/superpowers/plans/`, 10 files | 38,013 lines |
-| Engineering design docs | `docs/design/`, 10 folders plus an index | 15,085 lines |
+| Implementation plans | `docs/superpowers/plans/`, 10 files | 38,325 lines |
+| Engineering design docs | `docs/design/`, 10 folders plus an index | 15,145 lines |
+
+The specs are now level with the plans. Every correction a plan proposed to a spec, to
+`docs/schema.md`, `docs/data-model.md`, `docs/architecture.md` or to a sibling plan has been
+applied, so a document no longer disagrees with the plan that reads it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, which is the system
 design document and defines the vocabulary. Then `docs/architecture.md`. Then the design document
@@ -50,6 +55,11 @@ modules' full-game tests run through the simulator.
 game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
 are not interchangeable.
 
+**Two things to know before the first task.** The plans' *Spec corrections proposed* sections are
+now history rather than work: their *Before* quotes no longer match the documents they quote. And
+`plans/2026-09-05-interpreter-and-effects.md` grew a mechanism after it was written, so read Task 7,
+12, 13 and 14 as they now stand rather than trusting a summary of them.
+
 ### The one debt the plans still carry
 
 - **The `CLAUDE.md` edits are a chain, and the hazard is structural.** All ten plans' last task
@@ -63,54 +73,56 @@ are not interchangeable.
 
 ## The spec corrections are applied
 
-**2026-09-08.** All 98 were worked through and written into the documents they name. The pass was
-split five ways by target file so that no two passes wrote the same file, and each plan's *Spec
-corrections proposed* section is kept as the historical record of what was asked and why. A
-*Before* quote in one of those lists therefore no longer matches the document it quotes.
+**2026-09-08.** All 98 were worked through and written into the documents they name, in five passes
+split by target file so that no two passes wrote the same file. Each plan's *Spec corrections
+proposed* section is kept as the historical record of what was asked and why, and each now carries a
+note saying so, because a *Before* quote in one of those lists no longer matches the document it
+quotes.
 
-The count was 98 exactly, of which 84 were bare under a strict reading and 14 carried a recorded
-outcome. The remembered figure of seventy-eight bare is reachable by also counting the eight that
-cite a 2026-09-06 ruling while still proposing an unmade edit.
+The count was 98 exactly. 84 were bare under a strict reading and 14 carried a recorded outcome; the
+remembered figure of seventy-eight bare is reachable by also counting the eight that cite a
+2026-09-06 ruling while still proposing an unmade edit.
 
-What did not get applied as written, and why:
+Sixteen turned out to be already applied, seven of them the schema work done earlier the same day.
+Five did not apply as written: `contracts #8` was folded into `client-shell #9`, which replaces the
+same sentence and is a superset, with #8's one distinguishing clause carried across because #9
+otherwise leaves *"The Ask"* with no antecedent; `contracts #13` is a strict subset of
+`game-server #8`; `geometry #4` and `game-server #3` are word for word identical and were written
+once; `simulation #1` was withdrawn by its own plan after the stored-seed ruling. Four more were
+struck before the pass began.
 
-- **Seven were already done**, all of them the schema work cleared earlier the same day:
-  `contracts #4 #5 #6 #12`, `management #1`, `simulation #10`, and the `docs/schema.md` half of
-  `contracts #2`. Nine more in the simulation and geometry sets had landed earlier still.
-- **`contracts #8` was folded into `client-shell #9`** rather than applied. Both replace the same
-  sentence of the client-shell spec's *Input and presence*, incompatibly; `client-shell #9` is
-  later and a superset. Its one distinguishing clause was carried across, because `client-shell #9`
-  otherwise leaves *"The Ask"* with no antecedent.
-- **`contracts #13` was skipped as a strict subset of `game-server #8`**, which strikes the same
-  presence item and one more, with the settled wording.
-- **`geometry #4` and `game-server #3` are word for word identical** and were written once.
-- **`simulation #1` was withdrawn** by its own plan after the stored-seed ruling, and
-  `client-shell #3`, `scheduler #6 #8 #9` were struck before this pass began.
-- **`contracts #9` applied only its `docs/architecture.md` half.** Its `CLAUDE.md` half would have
-  broken the chain above, and the correction's own text says that file is Task 16's. So
-  `architecture.md` lists `tests/` under repo-level support and `CLAUDE.md` does not, until the
-  contracts plan runs. That divergence is deliberate.
-- **`game-server #7` is propagated in three of four places.** The fourth,
-  `plans/2026-09-05-management-api.md` line 18, says the game *server* owns the catalog types
-  rather than naming a plan, which is the service boundary and is right as it stands.
+**`contracts #9` applied only its `docs/architecture.md` half.** Its `CLAUDE.md` half would have
+broken the ten-plan quote chain, and the correction's own text says that file is Task 16's. So
+`architecture.md` lists `tests/` under repo-level support and `CLAUDE.md` does not, until the
+contracts plan runs. That divergence is deliberate: do not close it by editing `CLAUDE.md`.
 
-Three corrections proved wrong about the document they described and were corrected in passing:
-`simulation #9` misquoted the scheduler spec, `management #5` sat beside a sentence asserting the
-opposite of what it added, and `game-server #4` quoted a *Joining* sentence its own change made
-false. One inventory entry was wrong too: `geometry #10` was recorded as unapplied and had landed
-in commit `cd99ece`.
+**`game-server #7` is propagated in three of four places.** The fourth,
+`plans/2026-09-05-management-api.md` line 18, says the game *server* owns the `Properties` catalog
+types rather than naming a plan, which is the service boundary and is right as it stands.
+
+Three corrections proved wrong about the documents they described, and each was corrected rather
+than applied blind: `simulation #9` misquoted the scheduler spec, `management #5` sat beside a
+sentence asserting the opposite of what it added, and `game-server #4` quoted a *Joining* sentence
+its own change made false.
+
+**Two loose threads the pass left, both worth a decision before the module that owns them is
+built.** `client-shell #8` was applied but is contingent: its plan offers an alternative in the same
+breath, putting the `Properties` action names on `GameInfo`, and taking it makes that spec sentence
+wrong. And the setup-phase spec still lists *"Which socket frames carry which message kind"* as
+undecided while the client-shell spec now records it settled, because `client-shell #7` struck only
+one of the two copies and no correction targets the other.
 
 **Also cleared on 2026-09-08.** `docs/schema.md` had six columns the contracts plan's SQL has and it
 did not: `participant.game_id`, `participant.army_id`, `game.rng_seed`, `blob.uploaded`,
 `blob.content_type` and `effect.target_stat_level`, the last of which a foreign key the document
-promises cannot exist without. All six are in the diagram now, with prose for the seed, the
-participant's two links and the blob's upload state, and the open item on one database versus two
-is closed for local development. `CLAUDE.md` and `docs/architecture.md` undercounted the
-deliverables at three against a ruling made on 2026-09-06; both now name five, `CLAUDE.md` carries
-a stub bullet for `sim/` and `viewer/`, and `architecture.md`'s table has six rows and an audience
-column. The simulator plan's Task 11 owned those edits and now verifies them instead, its Step 2
-replaces the `sim/` stub rather than inserting a bullet, and the viewer plan's *Before* quotes the
-stub it will replace.
+promises cannot exist without, since `stat_definition`'s key is `(properties_hash, level, name)`.
+All six are in the diagram now, with prose for the seed, the participant's two links and the blob's
+upload state, and the open item on one database versus two is closed for local development.
+`CLAUDE.md` and `docs/architecture.md` undercounted the deliverables at three against a ruling made
+on 2026-09-06; both now name five, `CLAUDE.md` carries a stub bullet for `sim/` and `viewer/`, and
+`architecture.md`'s table has six rows and an audience column. The simulator plan's Task 11 owned
+those edits and now verifies them instead, its Step 2 replaces the `sim/` stub rather than inserting
+a bullet, and the viewer plan's *Before* quotes the stub it will replace.
 
 ## The ten modules
 
@@ -270,62 +282,47 @@ unit, so heroes-last already covers it. One stale citation was fixed beside it, 
 
 ### The joined-hero mechanism, written 2026-09-08
 
-The largest un-designed consequence in the repo. It was a debt because the ruling reached every
-document and no code.
+The largest un-designed consequence in the repo, and a debt because the ruling had reached every
+document and no code. Written in `plans/2026-09-05-interpreter-and-effects.md` Tasks 7, 12, 13 and
+14, and in `design/interpreter/`.
 
-`StatReader.TargetNumber` took `StatLevel.Unit` only and threw for anything else. It now takes an
-optional model: a `StatLevel.Model` ref reads that slot's text and falls back to the unit's where
-the slot declares none, so an ordinary squad reads one number whichever ref is used. Its
-`replace_stat`/`modify_stat` scan matches on the stat's **name** at either level, because a target
-number is one stat with a declaration at each level and every catalog row names the unit-level ref,
-which is what keeps `Reliable`'s *"attacks at Quality 2+"* over a hero's own value. `StepContext.Plan`
-gained an optional `threshold`, so a value read off a model reaches a plan without putting a model on
-`RollSpec` and therefore on `IGameRules`.
+**A Quality test belongs to a model, so the hit roll splits by Quality value rather than by weapon
+group.** `StatReader.TargetNumber` took `StatLevel.Unit` only and threw for anything else; it now
+takes an optional model, reads that slot's text and falls back to the unit's, so an ordinary squad
+reads one number whichever ref is used. Its `replace_stat`/`modify_stat` scan matches on the stat's
+**name** at either level, because a target number is one stat with a declaration at each level and
+every catalog row names the unit-level ref. That is what keeps `Reliable`'s *"attacks at Quality 2+"*
+over a hero's own value. `GfRolls.HitQuality` names p.4's value per model and returns 6 for a
+fatigued melee, since p.9 replaces the value rather than modifying it and collapses a unit to one
+pool. `GfAttack.Attacks` sums per Quality value, ascending, so the dice cursor does not depend on
+model order.
 
-`GfRolls.HitQuality` names p.4's *"the model's Quality value"* per attacking model, and returns 6 for
-a fatigued melee, because p.9 **replaces** the value rather than modifying it and so collapses a
-whole unit to one pool. `GfAttack.Attacks` sums a group's Attack values per Quality value rather than
-per unit, so `determine-attacks` writes `attacks` plus one `attacks_q<n>` per value and `roll-to-hit`
-rolls one pooled `GfRolls.HitPlan` for each, ascending, summing `extra_hits` and the
-`granted_<entry>_<amount>` counts across every pool. `fire-groups` settles those counts as
-`attacks_<i>_q<n>` before it pushes the first group, since question 3's ruling fixes them there.
-`GfAttack.HitsFrom` already summed every `hit` roll on the frame, so the hits total needed nothing.
+**The Hero clause's sunset is a model count, and it is the frozen one.** `GfRolls.DefensePlan` takes
+`defenderModels` and reads the surviving model's own slot `Defense` only when that count is one,
+which for a slot without one is the unit's value again, so it branches on no rule name.
+`defender_models_<i>` **replaced `blast_cap_<i>`**: p.13's *"as many hits as models in the target
+unit"* and p.14's *"until all other models have been killed"* count the same models at the same
+moment, and the old name fitted only one of its two readers.
 
-The Hero clause's sunset is a model count. `GfRolls.DefensePlan` takes `defenderModels` and reads the
-surviving model's own slot `Defense` only when that count is one, which for a slot without one is the
-unit's value again, so it branches on no rule name. **The count is the frozen one, not a live read**:
-`fire-groups` records `defender_models_<i>` and `determine-attacks` carries it onto the
-`attack-sequence` frame, because p.8 fires a unit's weapons simultaneously and a second group must
-not find the hero alone that the first group left it. That key **replaced `blast_cap_<i>`**, which
-held the same number under a name that fitted only one of its two readers: p.13's *"as many hits as
-models in the target unit"* and p.14's *"until all other models have been killed"* count the same
-models at the same moment. Question 3's closing sentence, *no live read of the target's size is left
-in the shooting path*, is what forced the freeze.
+**`GfRolls.MoralePlan` takes the best of the unit's `Quality` and every living `Hero` model's own**,
+one `Min` and no Ask. p.14's *"even if the hero is the last model remaining, it takes morale tests as
+the unit"* is about the starting-size comparison that separates Shaken from Rout, so
+`GfHooks.AtHalfOrLess` is untouched.
 
-`GfRolls.MoralePlan` takes the best of the unit's `Quality` and every living `Hero` model's own, one
-`Min` and no Ask. p.14's *"even if the hero is the last model remaining, it takes morale tests as the
-unit"* is about the starting-size comparison that separates Shaken from Rout, so `GfHooks.AtHalfOrLess`
-is untouched.
+**The wire needed nothing.** `StepCompleted.Rolls` was already a list, `RollRecord` carries its own
+`Threshold`, and `RulesEngine.PlanOf` rebuilds a plan from the record, so a reroll in one pool is
+judged at that pool's threshold. `ModifierAdded` names a roll by name and is pending, so a player's
++1 to `hit` reaches every pool, which is right. Three readers of a single hit roll became readers of
+several: the client's log-panel dice controls and its `Animator` readout both read `Rolls[0]`, and
+`Sim.Recording.LogLines.Dice` with the viewer's TypeScript port of it printed a roll's name without
+its threshold, which made two hit pools in one step indistinguishable in a recording's `line`. The
+viewer's `RollPanel` already iterated the list and already showed each threshold.
 
-**Three readers of a single hit roll became readers of several.** The wire needed nothing:
-`StepCompleted.Rolls` was already a list and `RollRecord` already carries its own `Threshold`, and
-`RulesEngine.PlanOf` rebuilds a plan from the record, so a reroll in one pool is judged at that pool's
-threshold. `ModifierAdded` names a roll by name and is pending, so a player's +1 to `hit` reaches every
-pool, which is right. What changed: the client's log-panel dice controls and its `Animator` readout
-both read `Rolls[0]` and now read all of them; and `Sim.Recording.LogLines.Dice`, with the viewer's
-TypeScript port of it, printed a roll's name without its threshold, which made two hit pools in one
-step indistinguishable in a recording's `line`. The viewer's `RollPanel` already iterated the list and
-already showed each threshold.
-
-**One gap the work turned up, and the owner closed it the same day.** `GfRolls.InCover` counted the
-target's living models when `roll-to-block` asked, so a group firing after casualties judged p.11's
-*"majority of models in a unit"* against what was still standing, and killing models could shoot a
-unit out of cover part-way through one action. That was a live read of the target's size in the
-shooting path, and question 3's closing sentence had claimed none was left. See the ruling below.
-
-**A tally was wrong and is fixed.** `design/interpreter/design.md` said *"Eight are closed by owner
-ruling: 1, 2, 3, 6, 7, 9, 12 and 14"* while eleven rows were marked closed. It now reads eleven, and
-names 5, 10 and 11 as the three still open.
+Two document defects fell out of the work and are fixed. `effect-grammar.md` and the interpreter
+plan's Task 6 still asserted that neither `Quality` declaration is read and that a last-standing
+joined hero blocks at its host squad's defence. And `design/interpreter/design.md` claimed *"Eight
+are closed by owner ruling: 1, 2, 3, 6, 7, 9, 12 and 14"* while eleven rows were marked closed; it
+now reads eleven and names 5, 10 and 11 as the three still open.
 
 ## Open questions
 
@@ -397,7 +394,7 @@ sketch they departed from: four design documents, six plans and three specs, plu
 
 ## How to work here
 
-Six things, five of them learned the hard way in a session.
+Nine things, most of them learned the hard way in a session.
 
 - **Pin the rulebook version before you read it, and check for a newer one.** The whole repository
   was designed against Grimdark Future v3.4.1, and v3.5.1 renamed five rules the plans were built
@@ -426,6 +423,24 @@ Six things, five of them learned the hard way in a session.
   rewritten.
 - **Ask questions in the language of the game, not of the code.** A question about which model
   loses its tokens is answerable; a question about a capacity predicate is not.
+- **A version rebase must re-read the C#, not just the citations.** The 3.5.1 rebase verified 272
+  page citations and every prose assertion, and left three defects in the code blocks inside the
+  plans. `Tough` gained *"even if already wounded"* and the prose took it while
+  `GfAttack.EligibleForNextWound` kept reading the two ordering clauses independently, so a wounded
+  hero was the sole eligible target while unwounded models stood. `Regeneration` became aggregation
+  `all` and `assign` kept filtering for a per-model instance that `LiveProperties.Gather` no longer
+  produces, so the rule never rolled at all and the plan's own test would have failed against the
+  plan's own code. `Takedown`'s rewrite reached the plan and the handoff but not
+  `docs/design/interpreter/`, which still described `Sniper`. Prose and code drift apart because
+  grepping for a rule's name finds the prose.
+- **A proposed correction is a claim about a document, not a fact about it.** Three of the 98
+  misdescribed their target: one misquoted the sentence it meant to replace, one sat beside a
+  sentence asserting the opposite of what it added, and one quoted text its own change made false.
+  Read the target section before applying, and fix what the correction makes untrue around it.
+- **Split parallel document edits by target file, never by source document.** The corrections were
+  proposed per plan and target twenty-five files, so applying them plan by plan would have had five
+  workers writing the same specs at once. Bucketing by target made the passes disjoint, and the
+  three corrections that straddled a boundary were all already resolved.
 
 ## Environment
 
@@ -481,7 +496,8 @@ list is `GET /api/tts?id={id}`, which is what import reads.
 ## Where to look at the model
 
 Both diagrams render at <https://claude.ai/code/artifact/f5d2d64c-d819-4553-b03f-e23271ac0f63>,
-generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a source**, it is
-stale as of 2026-09-06, and regenerating it means pulling the mermaid block out of each document
-and republishing to the same URL. Both documents are themselves behind the schema SQL inside the
-contracts plan; see *The mode*.
+generated from `docs/schema.md` and `docs/data-model.md`. **It is a copy, not a source**, and
+regenerating it means pulling the mermaid block out of each document and republishing to the same
+URL. It is stale: both documents gained columns on 2026-09-08, six in `schema.md` and one edge plus
+one column in `data-model.md`, and the artifact predates all of it. The documents themselves are now
+level with the schema SQL inside the contracts plan.
