@@ -91,6 +91,9 @@ nothing else in the system reads them, and an asset in no folder is fine.
 This is the answer to a user with five hundred meshes finding one, together with the
 modelled base as a filter.
 
+The web app filters folders client-side over the whole library, loaded page by page. A folder
+view includes its sub-folders' assets.
+
 ## The terrain profile
 
 Designed later, in [the table and its setup content](2026-08-29-setup-content-design.md): a

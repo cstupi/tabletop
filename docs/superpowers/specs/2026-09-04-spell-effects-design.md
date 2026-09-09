@@ -44,6 +44,11 @@ The optional extra actions (page 30) use two more — *until its next activation
 and they are not added until those actions are. Adding a value is a code change, like every
 closed set here.
 
+That every spell is one of the two families is a closed reading of the whole corpus, so it is
+validated rather than assumed. A `spell` entry's top-level effect must be `add_hit`, which is a
+damage spell, or carry `duration = once`, which is a grant. Anything else would be applied
+nowhere, and the authored-document validator refuses it.
+
 ## The grants store
 
 A unit gains a **fourth store**, beside the action record, conditions and placement from
@@ -62,6 +67,10 @@ from, the entry that granted it, the casting unit, and remaining uses (one).
   parameter-modify of −1 on `AP`; *friendly units get Rending in melee against* is a stored grant
   on the enemy unit whose subject is `opponent`, so any friendly unit interacting with it gets
   the rule.
+
+A grant on a model-grain target lands on the model's unit, because the store is the unit's. A
+grant's parameter, the `1` in *gets `AP(1)`*, is the granting effect's `amount`, read from the
+pinned set by `effect_id`; the grant row itself carries none.
 
 **Conditions stay names.** Game flow kept containment out of the condition store because it
 carried a reference; a grant carries three, so it is not a condition either. The alternative of

@@ -52,9 +52,10 @@ row with no team, and the lobby's pick assigns one. Teams are created, and parti
 between them, by lobby commands over the socket, ~~at any status~~ **while status is `lobby` or
 `setup`** (corrected 2026-09-06, ruled by the owner). **A participant with no team is
 never addressed by an Ask**, and that is what a spectator is — cleaner than presence's "joins a
-third team", which is corrected there. During setup, zones re-derive from the zone style whenever
-the team list changes; ~~a team created after `playing` has no zone and nothing to deploy~~ — no
-team is created after `playing`, so that case does not arise.
+third team", which is corrected there. During setup a zone row exists for every ordinal the zone
+style has, so a team created then finds its zone by its ordinal and the team list re-derives
+nothing (*Zones*, below); ~~a team created after `playing` has no zone and nothing to deploy~~ —
+no team is created after `playing`, so that case does not arise.
 
 ## The lifecycle
 
@@ -65,8 +66,9 @@ the creator's participant:
 - **Lobby to setup.** In the lobby everyone present picks a team and an army, and the
   configuration game flow listed — pack, scheduler shape, enforcement, wait-between-steps — set
   on `POST /v1/games` may be changed. The creator starts setup, which creates the game's
-  `table_state` draft row. Teams and armies stay editable during setup, since deployment has not
-  happened.
+  `table_state` draft row with the server's configured default size and texture, 72×48 and the
+  built-in `grass` until an inventory exists. The first edit, typically a layout load, replaces
+  them. Teams and armies stay editable during setup, since deployment has not happened.
 - **Setup to playing.** The creator ends setup. Off-slab terrain rows are deleted, each
   participant's `army_snapshot` is written from their army as it stands, the draft becomes the
   snapshot by the status flip, the log opens with it as initial state, and the scheduler begins
@@ -165,12 +167,25 @@ table to mismatch against, because the table is whatever the draft says.
 ## Zones
 
 Setting a zone style creates its zones and assigns them to team ordinals in order: team one gets
-zone one. **Any participant may swap two teams' assignments**, as freely as moving terrain.
-That is the whole mechanism, and it is what makes page 6's *"the winner picks an edge"*
-possible: the group rolls off by any means they like, and the winner's team is swapped into
-the edge it wants. **The app runs no roll-off in setup.** The scheduler's logged roll-off at the
-start of deployment decides deployment order only, and yesterday's accepted deviation is
-reconciled by the swap rather than left as a gap.
+zone one. The client sends the style's zone shape ids with the edit, taken from the geometry
+library's zone style inventory that both ends reference. The server writes one `deployment_zone`
+row per shape, keyed by team ordinal `1..n`, whether or not a team with that ordinal exists yet.
+`deployment_zone.style` holds a shape id namespaced by its style, such as `frontline/1`; the style
+name itself is never stored, only its expansion. A team created during setup therefore finds its
+zone by its ordinal, and nothing has to be re-derived. A style with fewer shapes than there are
+teams leaves the later ordinals with no zone until a client sends `set_zone_style` again, which is
+what re-deriving means on a server that keeps no style state.
+
+**Any participant may swap two teams' assignments**, as freely as moving terrain, and a swap
+exchanges the two ordinals' shapes. That is the whole mechanism, and it is what makes page 6's
+*"the winner picks an edge"* possible: the group rolls off by any means they like, and the
+winner's team is swapped into the edge it wants. **The app runs no roll-off in setup.** The
+scheduler's logged roll-off at the start of deployment decides deployment order only, and
+yesterday's accepted deviation is reconciled by the swap rather than left as a gap.
+
+**During setup every zone row is drawn**, in its team's colour where an ordinal has a team and
+grey otherwise, so a group can see and swap zones before every team has formed. From `playing` on,
+only zones with a team are drawn (owner ruling, 2026-09-06).
 
 Free-for-all's zones (page 50: a corner area each) are one of the built-in shapes. Which shapes
 ship is setup content's inventory question, unchanged.
@@ -189,9 +204,12 @@ nothing to that path.
 
 **Built-in terrain ships with the client**, the way predefined textures and marker visuals
 already do: a set of meshes with their volumes and declarations, owned by nobody, in no
-library. A placement therefore references **either a built-in name or a library asset,
-exactly one** — the pattern `texture_builtin | texture_asset_id` and `visual_builtin |
-visual_asset_id` already use. `terrain_placement.asset_id` becomes nullable and
+library. A built-in ships as its volume and its declarations plus a **shared** mesh: the 35
+pieces group into ten meshes under `client/content/builtin/terrain/`, differing by footprint,
+height, scale and yaw. A piece that finds no mesh file draws as its volumes, the same degrade
+path a missing asset uses. A placement therefore references **either a built-in name or a
+library asset, exactly one** — the pattern `texture_builtin | texture_asset_id` and
+`visual_builtin | visual_asset_id` already use. `terrain_placement.asset_id` becomes nullable and
 `terrain_placement.builtin` is added beside it, with the same check constraint. Which pieces
 ship is the inventory question; it must at least cover every entry the generators name.
 

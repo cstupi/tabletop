@@ -518,6 +518,10 @@ grammar found is set membership over action types and not an `or`. One row is a 
 several rows are a set, and there is no boolean expression tree anywhere — the rulebook has no
 *or* and no *not* in its properties.
 
+A `roll_result` condition has exactly two `condition_value` rows: the roll it reads (`hit`,
+`defense`) and either `raw` or `modified`. `effect_condition.number` is the face compared. No
+roll may be named `raw` or `modified`.
+
 Conditions hang off the effect, never off the property. `Indirect` is why: its three effects
 have different conditions, one of them conditional and two unconditional.
 
@@ -594,8 +598,10 @@ terrain generators place it. So `terrain_placement` carries `builtin` beside a n
 `asset_id`, exactly one set, with the same check constraint `texture_builtin | texture_asset_id`
 and `visual_builtin | visual_asset_id` already use. The placement's own `terrain_volume` rows
 carry its footprint and declarations either way, which is what lets a user swap the mesh and
-keep the piece. For a built-in placement they are **the** volumes, not overrides: there is no
-`asset_volume` row beneath, so they are always written on add.
+keep the piece. A placement's `terrain_volume` rows are always written on add, copied from the
+built-in's shipped volumes or from the asset's `asset_volume` rows. That makes the draft and the
+snapshot self-contained. The game server never reads `asset_volume`. Editing those rows in place
+is the override, and clearing them re-copies the source's volumes.
 
 ### A game has a name, an enforcement setting and a wait setting
 

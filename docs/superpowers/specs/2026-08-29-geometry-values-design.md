@@ -50,6 +50,12 @@ a reference to keep in sync for no gain.
 
 So a placement is **position and yaw**.
 
+**The frame** (settled 2026-09-05). The table's origin is a corner: `x` runs along the width from
+`0` to `width`, `y` along the length from `0` to `length`, and `z` up from the slab's top face. A
+position is on the slab when `0 ≤ x ≤ width` and `0 ≤ y ≤ length`. Yaw 0 faces +Y, and positive
+yaw turns counter-clockwise seen from above. An oval's length lies along the facing axis. A rect
+footprint's width lies along the piece's local X and its length along local Y.
+
 ## The terrain transform
 
 **Position, yaw, and a uniform scale.** Terrain is resizable — one rock mesh at three sizes
@@ -120,6 +126,24 @@ at 6", dangerous is a die per model with each 1 a wound — all of which live in
 on a rock. A flag says *this is difficult*; the ruleset says what that costs. This is the
 table domain model's rule — terrain declares what it does, the game system interprets it —
 tested against a real ruleset rather than a hypothetical one.
+
+**What geometry answers about cover** (rulebook p.11, settled 2026-09-05).
+`Cover.InsideCoverVolumes` is *"fully inside a piece of cover terrain"*: the whole base inside a
+Cover volume's footprint and vertical range. `Cover.SightBlockersBetween` non-empty while
+`LineOfSight.Check` is clear is *"behind a sight blocker"*. `Containment.VolumesContaining`
+filtered to Cover is *"mostly inside"* for a single-model unit, which is the base centre inside
+the volume (confirmed by the owner 2026-09-06). `LineOfSight.VisibleModels(observers, unit,
+volumes)` is how many of a unit's models an attacker can see, one boolean per model. Every fact
+is per model, and the thresholds are `GameRules`'. p.11's *"majority of models in a unit"*
+governs both counts: strictly more than half of a unit's models must be inside cover terrain for
+it to count, and a sight blocker grants cover when a majority of the unit is hidden, which is
+fewer than half of it visible. The +1 to Defense is the ruleset's too.
+
+**What geometry answers about the other declarations.** `Movement.Region` and
+`Movement.Check` read impassable and difficult from the volumes the server names.
+`Movement.VolumesCrossed` is *"moves in or through"* for difficult and dangerous alike (p.11),
+which a landing position does not answer. `Containment.VolumesContaining` is *"is activated in
+it"*.
 
 **`impassable` is orthogonal to solid versus area**, and all four combinations are real:
 
@@ -225,6 +249,12 @@ The two corrections that make an arbitrary glTF usable:
 Both are applied at import, so the mesh sits properly on its base. What they are measured
 against is the mesh's own axes versus the table's.
 
+**The convention was fixed 2026-09-05 on `Tabletop.Geometry.Orientation` by the contracts plan**,
+and is recorded here because this document is where the value is defined. `orientation` is
+`pitch` about the table's X axis, then `roll` about Y, then `yaw` about Z, in degrees,
+right-handed and extrinsic. It is applied to mesh coordinates before `scale`. A Y-up glTF stood
+upright in the Z-up table frame is `pitch = 90`.
+
 ## Marker size
 
 **A diameter in world units.** Objectives are large circles, tokens small chips, and both are
@@ -234,7 +264,12 @@ circles.
 
 - How the footprint editor works, beyond the bar above.
 - Reading volumes from glTF node names or `extras`.
-- The contents of the default deployment set, and how styles are organised per game.
+- ~~The contents of the default deployment set.~~ **Settled 2026-09-05** by the geometry plan:
+  the six basic styles of Grimdark Future p.22 (Frontline, Ground War, Side Battle, Disordered,
+  Spearhead, Opposing Forces) and p.50's free-for-all corners, as `ZoneStyles` in
+  `Tabletop.Geometry`. Six of the seven anchor to table edges, corners and edge midpoints, and
+  Side Battle is proportional; the p.23–24 styles are later additions. How styles are organised
+  per game stays open.
 - Rectangular bases.
 - ~~Whether scale and orientation are written by the mesh prep tool or by the user.~~
   **Settled 2026-09-04** by [mesh conversion](2026-09-04-mesh-conversion-design.md): proposed

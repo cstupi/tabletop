@@ -123,11 +123,32 @@ line of sight in or out — which is what the rulebook says. The container moves
 about its occupants updates. Disembarking is the operation that already exists: give a model a
 placement.
 
+The rulebook says one more thing than that: units inside **can** target other units inside, and
+the container itself (p.15). Having no position gives the first half for free and gets the
+second half wrong, so containment is asked before any measurement, and it answers three ways.
+No, for one unit inside and one out. Yes with nothing to measure, for two units in one container
+or an occupant and its container. Measure it, for two units on the table. The container-itself
+branch is unreachable in an ordinary game, since a unit cannot enter an enemy transport (ruled
+2026-09-06) and valid targets are enemies; only a menu-written state reaches it.
+
+What does not fall out is **where** a placement is legal, and which containers a move may enter.
+The wire carries the destination, `Inside`, in a `Destinations` answer, but not the offer, so the
+move Ask carries it. `move_region.containment` names either the containers a model of the unit
+could reach, one reaching model embarking the whole unit, or the container it is inside together
+with the 6" its models must be placed fully within of. Enterable and exiting are never both set,
+which is where "never both in one activation" is enforced.
+
 **Capacity is not enforced.** `Transport(X)` carries its number as a property parameter because
 every property may, but nothing checks it, and a building's capacity — which the rulebook
 leaves to the players, *"you have to decide how many models can be inside by yourself"* — is not
 recorded at all. This is the same position as scoring: players count their own points, and
 nothing recorded here is an invariant.
+
+Two readings of a unit's models follow from this being a third place rather than the shelf, and
+both are needed. The models with a **position** answer every distance, sight line, cover and
+blocker question. The models still **in play** answer how many the unit has, who may be assigned
+a wound, whether it is destroyed, and whether it is at half or less. A transported model is in
+the second and not the first.
 
 **Buildings can hold models but cannot yet be shot.** The rulebook gives a solid building
 `Defense 2+` and a `Tough(X)` the players set, and lets it be targeted and destroyed. That needs
@@ -140,8 +161,13 @@ not done here.
 The game records **round number, current phase, and active team.** That is its
 position, and it is all the flow state there is.
 
-**Rounds advance automatically** when no unspent units remain. The player does not
-have to declare it.
+**A player ends the round.** When no unspent units remain, every team having activated all it
+can, passed, or having nothing left to activate, the scheduler stops at the round boundary and
+asks every team that has a participant whether to end it. The next round starts on the first
+answer. The player does have to declare it, and that is deliberate: ruled by the owner
+2026-09-06 to avoid an accidental auto-advance. Which teams may answer is not a turn-order
+question, and any player on any team may end the round. See
+[the scheduler](2026-09-04-scheduler-design.md) → *There is no round limit*.
 
 **Phase structure stays ruleset C#**, per `docs/architecture.md` — pipeline step order,
 scheduler policy, and dice conventions are the three things that stay code until a

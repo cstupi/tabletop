@@ -50,6 +50,11 @@ built-in or a library asset — see [the setup phase](2026-09-04-setup-phase-des
 
 **Size cannot change after the setup phase.**
 
+**The built-in deployment styles assume a table near 72×48.** Six of the seven take absolute
+insets from Grimdark Future p.22's diagrams, and Side Battle scales with the table. Small tables
+are out of scope by the owner's ruling of 2026-09-06. Custom and adjustable shapes, a later
+expansion, are what a small table would need.
+
 ## Deployment zones
 
 A **built-in shape id, plus the team it belongs to.** Deployment zones are team-assigned
@@ -141,6 +146,11 @@ and reused in every game.
 or the pack supplies a default, the user overrides in place — and here it is what lets a
 group decide this forest is impassable today.
 
+**The copy is made when the placement is added.** A placement's volumes are always written on
+add, from the asset's volumes or from a built-in's shipped ones, so the draft and the snapshot
+are self-contained and the game server never reads the asset's rows. Editing a placement's
+volumes in place is the override, and clearing them re-copies the source's.
+
 Declarations split in two, which is `architecture.md`'s closed-schema-open-catalog instinct
 applied to terrain:
 
@@ -162,7 +172,8 @@ interprets it. Terrain still does not know what a forest is.
   **Settled 2026-09-04** by [the setup phase](2026-09-04-setup-phase-design.md): the layout
   wins. Loading it replaces the whole draft, size included.
 - How a texture's aspect ratio is reconciled with an arbitrary board size.
-- The inventories themselves: which built-in shapes, which built-in textures.
+- The inventories themselves: ~~which built-in shapes~~ (**settled 2026-09-05** by the geometry
+  plan: the seven `ZoneStyles` in `Tabletop.Geometry`), and which built-in textures.
 - The setup UI, the terrain volume editor, and how a layout is exported.
 
 ## Still open

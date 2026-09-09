@@ -54,7 +54,10 @@ is empty; only the pass is state, and it is a logged fact (`turn_ended` carrying
 **It is rebuilt from the log and never stored**, as the action record and the resolution
 stack are, so a rejoining client and a crashed server recover it by the one hydrate path.
 Game flow's "round number, current phase, active team" is this state; *phase* is
-`deployment`, `rounds`, or a `GameRules` phase name inside a turn.
+`deployment`, `scouts`, `rounds`, or a `GameRules` phase name inside a turn. `scouts` sits
+between `deployment` and `rounds`. Under the player-turn shape a `GameRules` phase name replaces
+`rounds` for the rest of the round; OPR lists no phases inside a turn, so its phase stays
+`rounds`.
 
 ## Events
 
@@ -64,6 +67,12 @@ Four kinds, all facts the scheduler emits:
 - `turn_started` — the team
 - `turn_ended` — the team
 - `phase_started` — a name
+
+Deployment's order is carried the same way. The roll-off before the first phase is followed by
+`round_started` with round `0`, and `phase_started` names the phase. Round one's `round_started`
+follows the last phase before rounds and is itself followed by `phase_started("rounds")`. The
+scheduler's position has no other field for the deployment order, so hydration finds it in the
+log.
 
 **Replay applies them and never re-derives them.** A change to a first-team policy after a
 deploy does not rewrite who went first in a game already played — the same reasoning that put
@@ -115,6 +124,18 @@ with action sequences', reopened the earlier boolean; the review of 09-04 kept t
 in a window — legality *is* the legal set, and out-of-set is enumerated rather than rejected,
 which is how the model holds "a unit that has already moved moving again".
 
+**An answer the ruleset cannot read follows the same dial**, exactly as an out-of-set answer
+does: refused under `strict`, and under `warn` or `silent` logged, with a warning under `warn`,
+and read as a pass. An option id that does not parse and a unit that does not exist are both
+this case. The two are one rule because they are decided in one place, before anything is
+written, which is the only point at which a refusal can leave the Ask open. *Ruled by the owner
+2026-09-06; the earlier reading, that an unreadable answer is a pass whatever the dial says, is
+withdrawn.*
+
+**A superseded scheduler Ask closes with no answers.** A team asked while its turn is open by a
+menu edit setting the active team or the round has that Ask closed rather than answered. It is
+the one close the engine writes, and it is never an answer.
+
 ## The two shapes
 
 **Alternating activation.** One activation per turn. The order over teams comes from the
@@ -125,9 +146,9 @@ the team that finished first goes first; free-for-all, roll off.
 
 **Player-turn.** A team holds the turn for every activation until its legal set is empty or it
 passes. The turn is a list of phases from `GameRules`; each phase is an Ask loop of *act or end
-phase*, with the legal set read per phase. OPR under this shape has one phase and activates
-every unit in a row. The team's action record clears at its `turn_ended`, per game flow. The
-round ends when every team has had a turn.
+phase*, with the legal set read per phase. OPR lists no phases, which the player-turn scheduler
+runs as one unnamed phase, activating every unit in a row. The team's action record clears at
+its `turn_ended`, per game flow. The round ends when every team has had a turn.
 
 **Only OPR's `GameRules` is built, and it runs under both shapes.** Game flow's point stands: a
 group may pick alternating activation in a game whose pack defaults to player turns, and the
@@ -160,9 +181,13 @@ themselves before assigning zones. The setup phase session may add a zone swap a
 and is not asked to.
 
 **Scouts** (page 14) deploy after every other unit, alternating, "starting with the player that
-activates next" — at that moment, the roll-off winner. A second deploy Ask over the set-aside
-Scouts, same phase, same mechanics. Set-aside is a condition on the shelved unit, per game
-flow's rule that why a model is on the shelf is a condition.
+activates next" — at that moment, the roll-off winner. They deploy in a **second phase**,
+`scouts`, logged as `phase_started("scouts")`, with the same Ask mechanics and the question
+`deploy_scouts`. A phase start restarts the rotation from the first team of the order, which is
+what makes "starting with the player that activates next" a logged fact rather than a special
+case; without the phase boundary the rotation would continue after whichever team deployed last,
+contradicting page 14. Set-aside is a condition on the shelved unit, per game flow's rule that
+why a model is on the shelf is a condition.
 
 ## The round boundary
 
@@ -175,10 +200,24 @@ At `round_started`, after the order is set and before the first turn, the schedu
 - **Ambushers** (page 13) — for any round after the first, each team in the new order is Asked
   *deploy an Ambusher or pass*, "starting with the player that activates next", alternating
   until every team passes. Deploying an Ambusher writes nothing to the action record, so the
-  unit may activate that round, as the rulebook allows.
+  unit may activate that round, as the rulebook allows. Ambusher Asks are not turns: no
+  `turn_started`/`turn_ended` is written, and a pass there stands for the boundary only, so it
+  cannot mark the team as passed for the round.
 
 **There is no round limit.** Rounds count up. Missions say four; players read their book, and
 ending is a flag they set.
+
+**Rounds count up only when a player says so.** *Ruled by the owner 2026-09-06, to avoid an
+accidental auto-advance; the earlier reading, that the scheduler idles and the menu moves the
+game on, is withdrawn.* The round does not advance on its own. When no team can take another
+turn the scheduler stops at the boundary and opens an Ask: question `end_round`, a confirmation
+with no pass, addressed to every team that has a participant. The next round's `round_started`
+follows the first answer to it. Any player on any team may answer, because the boundary belongs
+to the table rather than to a turn. This is one rule for the ordinary boundary
+and the degenerate one, so a wiped or idle table waits at the same Ask instead of counting up.
+The Ask sits **before** `round_started`, so the round-boundary hooks above and the first-team
+roll-off all still run after it, in the new round. It is one of the scheduler's own Asks, so a
+menu edit setting the active team or the round supersedes it and closes it with no answers.
 
 ## Windows
 

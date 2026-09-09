@@ -43,9 +43,20 @@ kinds carry it:
 
 - `sequence_started` — name and context
 - `step_completed` — the step's name, plus everything it produced: choices made, rolls, state
-  changes applied
+  changes applied, and `values`, a flat map of named integers holding the step's settled
+  parameters: attacks counted, a hit multiplier once capped, extra hits, a distance used, a
+  token spend, who lost. A later step or a nested frame reads those without re-deriving them. A
+  reroll between steps changes what the next step reads, since that reads the record, without
+  changing what was settled, since that reads the value. There is no schema per step kind.
 - `sequence_finished`
 - `sequence_abandoned`
+
+**Three more kinds carry Asks.** `ask_opened` names the teams addressed, the question and the
+legal set. `ask_answered` names the team, its answer, and whether the answer was outside the legal
+set; the answer is withheld on the stream while a sealed window is still open. `ask_closed`
+carries the revealed answers. A client's current Asks are rebuilt from these three, which is what
+makes them survive a reconnect, since the projection is built by applying every event. A
+`sequence_abandoned` is preceded by an `ask_closed` for every Ask the popped frames held.
 
 A logged roll carries **threshold, modifiers, and each die's raw and modified result** — the
 08-30 roll-record decision, extended per die because four properties trigger on unmodified 6s
@@ -87,6 +98,10 @@ knows no ruleset. A step reads game state and its frame, and ends by:
    melee; melee pushes resolve-hits; a spell pushes resolve-hits directly.
 4. **Opening a window** — an interrupt point, below.
 
+**A step may also complete and run again**: the same step, a fresh history, the same position.
+That is how a move takes a second segment after a mid-move cast. In the log it is a second
+`step_completed` with the same step name, and a sequence never lists one name twice in a row.
+
 There is no branch primitive and no master pipeline: sequences are lists the ruleset composes,
 and conditional flow is C# inside a step. A ruleset never no-ops a step it does not need — it
 simply does not list one.
@@ -97,10 +112,16 @@ Roll N dice against a threshold, with modifiers. Split:
 
 | The generic engine owns | `GameRules` supplies per roll |
 | --- | --- |
-| the seeded RNG in game state | the dice convention (OPR 1D6 ≥ N; 40k Battle-shock 2D6 ≥ Ld) |
+| the seeded RNG | the dice convention (OPR 1D6 ≥ N; 40k Battle-shock 2D6 ≥ Ld) |
 | recording raw and modified per die | the threshold derivation (read Quality; 40k's S-vs-T lookup) |
 | the two effect passes, in `ordinal` order | the modifier cap (OPR none; 40k ±1 after summing) |
 | folding in player-added modifiers | |
+
+**The RNG is counter-based.** The seed is the game's stored `rng_seed`, written once when the game
+is created and never changed. The cursor is the number of dice drawn in the effective log, so no
+RNG state is stored and an undo rewinds the dice with the log. A forced reroll (`Bane`) is a
+`dice_rerolled` payload following the `step_completed`, so the record shows the replaced die and
+the cursor counts the extra draw.
 
 Summing is generic; clamping is ruleset. The pooled primitive serves both granularities: OPR
 pools a unit's attacks by rule, and 40k's own Fast Dice Rolling legitimises pooling identical
@@ -169,6 +190,11 @@ answers are withheld until the window closes. The names are `SimultaneousSpend` 
 variant, `TokenSpend` for the legal set, `TokensSpent` for the answer and `spend_tokens` for the
 question. Every other document that named this mechanic points here.
 
+**One sealed Ask is addressed to every eligible team.** Its `TokenSpend` legal set carries a cap
+per model, the tokens that model holds, for every addressed team's models, and there is no
+per-team total (owner ruling, 2026-09-06). The casting step checks that a team spent only from its
+own models.
+
 When several teams want to react in one window, who goes first is the **scheduler's**
 question, not the sequence's. That seam is left for the scheduler session.
 
@@ -223,7 +249,12 @@ The actions:
   before `turn_ended` ([the scheduler](2026-09-04-scheduler-design.md), added 09-04).
 - **Dangerous terrain** (p.11) — per model: one die, or the model's Tough value in dice; each
   1 is a wound → deal-wounds. Invoked by moves through it, activating in it, and transport
-  destruction.
+  destruction. All three write `dangerous_dice` on the invoking frame and push
+  `dangerous-terrain`, so the test itself is one step and only the affected models are rolled
+  for. Transport destruction is its own sequence, `transport-destroyed`, one frame per occupant
+  unit, pushed by deal-wounds' `disgorge` step: the container is destroyed but stays on the table
+  until every occupant has tested, been Shaken and been placed, because p.15 places them *before
+  removal*.
 - **Casting** (p.13) — an invoked window on the activation, any point before attacking,
   mid-move included → Ask: spell and tokens, cost equal to the spell's value, one try per
   spell → simultaneous token spend window: models with tokens within 18" and line of sight of
@@ -323,5 +354,6 @@ data.
   recomputation after casualties.
 - ~~Whether a muted window kind is per player or per team.~~ **Settled 2026-09-04** by
   [the scheduler](2026-09-04-scheduler-design.md): per player.
-- Whether `step_completed` payloads need a schema per step kind, or stay free-form within the
-  event payload's existing `jsonb`.
+- ~~Whether `step_completed` payloads need a schema per step kind, or stay free-form within the
+  event payload's existing `jsonb`.~~ **Settled 2026-09-05** by the interpreter plan: a flat
+  `values` map of named integers, and no per-kind schema.

@@ -33,15 +33,32 @@ Settled by [accounts](2026-08-29-accounts-design.md), revised by
 here, with their own forms**, and there is no social login.
 
 ```
-POST   /v1/auth/otp                      send a code to an email address
-POST   /v1/auth/otp/verify               code → session
+POST   /v1/auth/otp                      send a code to an email address → method id
+POST   /v1/auth/otp/verify               method id + code → session
 POST   /v1/auth/password                 email and password → session
-POST   /v1/auth/password/reset
+POST   /v1/auth/password/signup          email and password → new user, session
+POST   /v1/auth/password/reset           email → Stytch sends the reset link to the web app
+POST   /v1/auth/password/reset/complete  token + password → session
+POST   /v1/auth/session/refresh          an expiring or expired session JWT → a fresh one
 DELETE /v1/auth/session                  log out
 ```
 
 ~~`POST /v1/auth/magic-link`, `GET /v1/auth/oauth/{provider}/start`,
 `GET /v1/auth/oauth/callback`~~ — struck 09-04 with the methods they served.
+
+Every session-returning call ends the same way: the account row is created or found by
+`external_id`. The JWT carries our id because the project's Stytch custom claim template maps
+`{{ user.external_id }}` to the claim `account_id`, and Stytch evaluates the template on every
+mint; *We issue no tokens of our own* states what the claim is and what Stytch's own JWT holds
+instead. Management sends `session_custom_claims` nowhere. On the one login where `external_id`
+is first written the session was minted a moment too early, so that login re-mints the JWT once.
+No other login and no refresh does. Refresh exists because the JWT lives five minutes and only
+management holds the project secret.
+
+The web app is served on a different origin in development (`TABLETOP_WEB_URL`, port 5173) and
+uses a Vite proxy for `/v1`. When it is served from anywhere but management's own origin,
+management must answer CORS preflights for that origin, with `Authorization` and `Content-Type`
+allowed.
 
 OTP and password are Basic-auth Stytch endpoints requiring the project secret, so they run
 server-side regardless.
@@ -49,7 +66,8 @@ server-side regardless.
 **The version check** this document called "the mechanism that matters" is a request header:
 the client sends its version on every call, and management answers `426 Upgrade Required` when
 it is below the minimum the server accepts. No endpoint, one status code, and the client shell
-shows it as a screen. Placed 09-04.
+shows it as a screen. Placed 09-04. A request with no version header is accepted: the web app is
+deployed with the API and does not send one, and the Godot client always does.
 
 ### We issue no tokens of our own
 
@@ -81,9 +99,11 @@ an account id and an expiry, all to state a fact `participant` already records �
 *is* the row. Its expiry was also a live failure: a four-player game runs hours, so a token
 issued at the lobby could lapse before a player who dropped at hour three tried to reconnect.
 
-**Confirmed 2026-08-30:** a Stytch session JWT can carry `external_id`, and if it ever cannot,
-it is added as a custom claim. Either way the account UUID rides in the token and no lookup is
-needed.
+**Corrected 2026-09-06.** Stytch's session JWT puts its own `user_id` in `sub` and does not carry
+`external_id`. Our account UUID arrives as the top-level custom claim `account_id`, rendered by
+the project's Stytch custom claim template from `{{ user.external_id }}` on every mint. Stytch
+reserves `sub` and the `https://stytch.com/*` names, and custom claims are merged at the top
+level. The game server reads `account_id` and nothing else.
 
 ## Asset bytes never pass through the API
 
@@ -165,6 +185,18 @@ POST /v1/armies/import        { source }
 parser lives in one place, there is no CORS problem, and a change to Army Forge's format is a
 server deploy rather than a client release.
 
+**The source is a share link** (`https://army-forge.onepagerules.com/share?id=…`) or a bare list
+id, and management fetches `GET /api/tts?id={id}`. Grimdark Future (`gameSystem: "gf"`) and Age
+of Fantasy (`"aof"`) both import, and both carry `game_system = "grimdark-future"`, because one
+rules implementation serves both and only the content differs. The skirmish and regiment variants
+are refused. Two `combined` entries are one unit. An entry whose `joinToUnit` names another
+becomes models of that unit, carrying its own quality, defence and rules on its own slots; a
+`joinToUnit` that names nothing, or names an entry which itself joins, imports as its own unit.
+A rule's level comes from the `catalog_entry` rows for the game rules, so a model-level rule goes
+onto every slot, and a name no catalog knows is a unit rule. Weapons with a count below the
+unit's size are assumed to be dealt onto successive models from an advancing cursor, which is
+management question 4 and still open.
+
 ## The rest of the surface
 
 ```
@@ -225,9 +257,12 @@ small enough to return whole.
 
 ## Deliberately not decided
 
-- Error shapes and status code conventions.
+- ~~Error shapes and status code conventions.~~ Settled 2026-09-05 by the management API plan:
+  RFC 7807 `application/problem+json`, and another owner's row is `404`.
 - Rate limiting.
-- Whether `PATCH` on an army takes a whole document or a patch.
+- ~~Whether `PATCH` on an army takes a whole document or a patch.~~ Settled 2026-09-05 by the
+  management API plan: a patch, carrying a name, unit-default bindings (`UnitPatch`), and
+  per-slot binding, base and height (`SlotPatch`).
 - The JWT lifetime and refresh interval. Five minutes and one minute are the working figures.
 - Whether the manifest is re-issued on reconnect or the client re-requests it.
 

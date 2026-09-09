@@ -104,8 +104,13 @@ Both are deferred. Nothing in the model depends on which is chosen.
   method exists, so nothing has to cross from the browser to the client.
 - ~~Whether the client keeps a login of its own as a fallback when no browser is available.~~
   **Settled 2026-09-04**: the client has its own login screen, and it is not a fallback.
-- The web app's own screens, routing, and framework details beyond it being a Svelte SPA.
-- How a glTF preview is embedded — `<model-viewer>`, three.js, or otherwise.
+- ~~The web app's own screens, routing, and framework details beyond it being a Svelte SPA.~~
+  **Settled 2026-09-05 by the web-app plan**: SvelteKit 2 on Svelte 5, built by `adapter-static`
+  as a pure SPA (`ssr = false`, `index.html` fallback), with routes `/login`, `/reset-password`,
+  `/account`, `/armies`, `/armies/[id]`, `/library`, `/library/[id]`.
+- ~~How a glTF preview is embedded — `<model-viewer>`, three.js, or otherwise.~~
+  **Settled 2026-09-05**: three.js, because the terrain volume editor needs the same scene under
+  an orthographic camera with drawn footprints.
 
 ## Still open
 

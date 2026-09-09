@@ -906,6 +906,13 @@ proposed as an addition to the viewer section.
 Whether a recording carries the dice or only their result was settled by the simulation plan: it
 carries them, and `RollPanel.svelte` shows raw and modified faces with the net modifier.
 
+A frame's `rolls` is a list because a step may hold more than one. The ruleset splits a roll
+wherever its dice do not share a threshold: OPR's `roll-to-hit` takes one pool per Quality value
+the attacking models bring, since rulebook p.4 tests each attack against *"the model's Quality
+value"* and a joined hero brings its own. `RollPanel.svelte` renders a section per roll with its
+threshold in the heading, so the pools read apart, and the ported log line prints each pool's
+threshold for the same reason.
+
 ### Deferred
 
 | Deferred | Reason | Recorded in |

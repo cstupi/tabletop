@@ -21,6 +21,13 @@ can point at a problem.
 They ship to developers, not to players. Neither is in the client's export, neither is
 referenced by a server, and a release that omits both is complete.
 
+One thing the simulator must do that is not an answer to an Ask: **deploy**. Deployment's Ask
+names a unit, and putting that unit's models on the table is an ordinary `MoveModels` command
+rather than an Ask (the scheduler → *The turn is an Ask*: "Hand moves never end a turn"). So
+`sim/` places models itself, inside the team's own deployment zone, resolving the zone's shape
+with `Tabletop.Geometry.ZoneStyles`. That is geometry rather than a rule, and nothing judges
+whether a placement is good — placement is free under every enforcement setting.
+
 ## Two ways to answer an Ask
 
 Every decision in a game arrives as an Ask carrying a server-computed legal set. A simulator is
@@ -97,6 +104,13 @@ terrain as outlines carrying their declarations, deployment zones, and a timelin
 step and scrub. The log sits beside the board and clicking a line jumps to that sequence.
 Nothing is rendered in 3D and no mesh is ever loaded, so a model is its base and its facing.
 
+**Canvas rather than SVG, ruled by the viewer plan 2026-09-06.** Frames carry whole state, so
+moving one step invalidates every model at once and there is no partial update for a
+retained-mode tree to exploit; a few hundred SVG nodes rewritten per frame pays style
+recalculation and layout for the whole document at pointer rate while scrubbing. The two things
+SVG gives away free — hit testing and text layout — are cheap here, because a base is a circle, a
+square or a convex 64-gon in table space, so picking is a point test in inches.
+
 ### Two feeds
 
 - **A recording**, loaded from a file. The primary case, and the only one that works with no
@@ -112,6 +126,14 @@ the TypeScript types are generated from the C# records rather than hand-written,
 applier is checked against the C# one by replaying a recording through both and comparing
 projections. A hand-maintained second applier was rejected.
 
+The check is stronger than comparing final projections, and it needs no separate export: a
+recording's frames **are** the C# applier's output, canonicalised, so the test hands TypeScript
+the three socket frames of a run (`welcome`, `board`, `events`) and requires it to reproduce
+every frame of that run's recording field for field. Two checked-in fixtures, a couple of hundred
+intermediate states each. Collection order is normalised on both sides before comparison — a
+`Dictionary` and a `Map` can diverge once an entry is removed and another added, and that is not
+a drift in the applier.
+
 ### Interactive debugging is a door, not a room
 
 Playback is the whole of the first version. The viewer sends no command and answers no Ask.
@@ -124,14 +146,16 @@ client, which is a larger surface than a renderer.
 
 ## What a full game means
 
-A run reaches one of three ends, and a run that reaches none of them is a bug the simulator
-exists to find.
+A run reaches one of five ends. Three are the game ending; two are the harness. A run that
+reaches none of them is a bug the simulator exists to find.
 
 | End | Condition |
 | --- | --- |
-| Decided | One team has models and the others do not |
-| Round limit | A configured round cap, since OPR has no round limit and a stalemate must still terminate |
+| Decided | One team has models and the others do not. Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game |
+| Round limit | A configured round cap, since OPR has no round limit and a stalemate must still terminate. A cap of *n* means *n* whole rounds: the run ends on round *n*'s boundary Ask rather than part-way through round *n* + 1 |
 | Stuck | No Ask is open and the engine emits nothing, or an Ask is answered and reopens unchanged |
+| Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending, and it is the outcome that makes the console exit non-zero |
+| Paused | The step-and-wait seam: the loop stopped with an Ask open and answered nothing, waiting for a person or a test to answer it. A paused run is not a failure and is resumed rather than ended |
 
 Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in
 production and a failed assertion here.
@@ -168,7 +192,12 @@ Beyond a scenario's own expectations, every run checks the invariants that hold 
 
 `sim/` has xUnit tests of its own: the policy answers every legal-set shape, a script fails on
 an unscripted Ask, the two drivers agree, and a recording round-trips. It is then the harness
-the interpreter's and scheduler's own full-game tests use.
+the interpreter's and scheduler's own full-game tests use. Those tests live in
+`tests/Tabletop.Sim.Tests` rather than in `tests/Tabletop.GameServer.Tests`, because `sim/`
+references the game server and a test project that `sim/` referenced back would be a cycle.
+`sim/` therefore reaches the core `Properties` set through the production path —
+`PropertiesSeeder.EmbeddedDocuments()` — rather than through `TestProperties`, and builds its
+armies with `ScenarioArmy` rather than `TestArmies`.
 
 `viewer/` has Vitest over its pure parts: the recording reader, the frame-to-geometry
 projection, the timeline reducer, and the generated applier against a recording. The rendering
@@ -176,18 +205,50 @@ is checked by looking at it.
 
 ## Deliberately not decided
 
-- The recording's exact schema and whether it is versioned. It is derived, so a breaking change
-  costs a re-run.
-- Whether the policy prefers to act over passing when both are legal. That it is *uniform* over
-  the legal set is no longer open: it was ruled on 2026-09-06 — see *Two ways to answer an Ask*.
-- How the viewer draws a model inside a container, which has no position.
+- **Settled 2026-09-06 by the simulation plan.** The recording's schema is the record set in
+  `sim/Recording/Recording.cs`, and it carries `schemaVersion` — one integer, so a viewer can
+  refuse a file it does not understand rather than mis-draw it. It stays derived, so a breaking
+  change still costs only a re-run.
+- **Settled 2026-09-06 by the simulation plan: the policy prefers to act.**
+  `PolicyOptions.PassProbability` defaults to `0`, so a pass is taken only when the legal set
+  admits nothing else. It stays a knob rather than a decision, because tuning it toward plausible
+  play is a step toward an opponent that plays well and that is a later feature. That it is
+  *uniform* over the legal set was ruled on 2026-09-06 — see *Two ways to answer an Ask*.
+- **Settled 2026-09-06 by the viewer plan: the viewer does not draw a model inside a container on
+  the board at all.** A model whose `where` is `inside` or `shelf` has no position, and inventing
+  one — beside the container, or on it — would be the viewer deciding something, which is exactly
+  what handing it frames was meant to prevent. Such models are listed off the board with what they
+  are inside (`Scene.offTable`, carrying the container's name), and the count is shown. Drawing a
+  badge on the container is a later refinement and needs no schema change.
 - Whether a scenario is C# or a text format. C# costs nothing to start and keeps the assertions
   typed.
 
 ## Still open
 
-- Whether the live feed needs authentication beyond a session JWT for a spectator with no team.
-- Whether a recording should carry the dice so a viewer can show a roll, or only its result.
-- Whether the round cap belongs in the scenario or in `GameRules`.
-- Whether generating TypeScript types from the C# records is worth a build step, or whether a
-  checked-in generated file is enough.
+- ~~Whether the live feed needs authentication beyond a session JWT for a spectator with no
+  team.~~ **Settled 2026-09-06 by the viewer plan: no.** A session JWT is the whole of it, because
+  the game server already answers the question — `Connect` carries the JWT, the JWT carries
+  `account_id`, and the server matches it against a `participant` row for that game or sends
+  `rejected: not_a_participant`. A spectator is a participant with no team, so "may this account
+  watch" is already "has this account joined", and the viewer's only auth code is
+  `POST /v1/auth/password` and `POST /v1/auth/session/refresh` to obtain the token. Joining is
+  `POST /v1/games/{id}/join` on the management API and is not the viewer's.
+- ~~Whether a recording should carry the dice so a viewer can show a roll, or only its result.~~
+  **Settled 2026-09-06 by the simulation plan: it carries the dice** — `RecordedRoll` holds every
+  die's raw and modified face, whether it succeeded, the threshold and the modifiers. The result
+  alone would make a viewer that cannot show why a unit died, which is the first thing a person
+  debugging the engine wants to see, and the cost is a few hundred integers per game.
+- ~~Whether the round cap belongs in the scenario or in `GameRules`.~~ **Settled 2026-09-06 by the
+  simulation plan: the scenario.** OPR has no round limit and `GameRules` must not invent one; the
+  cap is a property of a *run*, not of a ruleset, and putting it in `GameRules` would put a testing
+  concern inside the rules. `Scenario.RoundCap`, overridable from the console with `--rounds`.
+- ~~Whether generating TypeScript types from the C# records is worth a build step, or whether a
+  checked-in generated file is enough.~~ **Settled 2026-09-06 by the viewer plan: checked in,
+  guarded by a test rather than a build step.** `tests/Tabletop.Viewer.Tests/TypeScriptEmitter.cs`
+  reflects over `System.Text.Json`'s own contract metadata — `JsonTypeInfo.Properties[i].Name` for
+  the wire name, `JsonPolymorphismOptions.DerivedTypes` for every `kind` string, and a
+  serialisation of each enum member for its spelling — and writes
+  `viewer/src/lib/protocol/{recording,wire}.generated.ts`. A plain `dotnet test` fails if the
+  checked-in files are stale; `TABLETOP_WRITE_GENERATED=1 dotnet test` rewrites them. So drift is
+  caught in the check every plan already ends with, and `viewer/`'s own `npm ci && npm run build`
+  needs no .NET SDK.

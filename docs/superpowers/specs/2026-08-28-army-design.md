@@ -61,8 +61,14 @@ naming it as the resolution.
 **Set by the user, per slot, defaulting to whatever the ruleset says.** OPR's defaults fill
 them in; anyone who bases their models differently changes them.
 
-The list does not carry this. Nothing in an Army Forge export says a Space Marine is on a
-32mm base, so it cannot be imported, and it is too load-bearing to guess from the mesh.
+~~The list does not carry this. Nothing in an Army Forge export says a Space Marine is on a
+32mm base, so it cannot be imported, and it is too load-bearing to guess from the mesh.~~
+
+*Corrected 2026-09-06.* Army Forge publishes a recommended base per unit (`bases.round`, for
+example `32` or `60x35` mm), which import uses as the default; a unit without one gets a 32 mm
+circle. No ruleset supplies a height and Army Forge publishes none, so import scales one off the
+base: `1.5 ×` the base's longest dimension, giving 1.5" for a 25.4 mm circle, 1.89" for a 32 mm
+circle and 3.54" for a 60×35 mm oval. The user corrects it per slot.
 
 ## Assets are a soft reference
 

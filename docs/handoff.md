@@ -2,7 +2,8 @@
 
 Where the project stands, and what to pick up next. Rewritten at the end of the session that
 rebased the ruleset onto Grimdark Future v3.5.1, and extended on 2026-09-08 by one ruling on wound
-distribution and the correction it turned up.
+distribution, the correction it turned up, and the joined-hero mechanism, which was the largest
+un-designed consequence in the repo and is now written.
 
 ## State
 
@@ -49,22 +50,8 @@ modules' full-game tests run through the simulator.
 game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
 are not interchangeable.
 
-### Three debts the plans carry
+### The one debt the plans still carry
 
-- **One ruling is propagated but not written.** A joined hero attacks at its own Quality, ruled
-  2026-09-06, and the mechanism is the largest un-designed consequence in the repo.
-  `GfRolls.HitPlan` returns one pooled roll and needs one per distinct model-level `Quality`;
-  `determine-attacks` and `fire-groups` need an attack count per Quality, because the ruling on
-  interpreter question 3 fixes those counts before the first group fires; and `GfRolls.DefensePlan`
-  needs a live-model count for the Hero clause's *until all other models have been killed*.
-  `StepRecord.Rolls` is already a list, so the log shape carries it, but every reader of a single
-  hit roll becomes a reader of several: the client's readout, the viewer's projection, the
-  simulator's assertions. Every document that asserted the squad's Quality is corrected, and the
-  owed work is stated at `GfRolls.HitPlan` and in interpreter question 13.
-- **Ninety-eight spec corrections are proposed and about seventy-eight are bare**, in each plan's
-  *Spec corrections proposed* section; roughly twenty carry a resolution. They target the specs,
-  `docs/schema.md`, `docs/data-model.md`, `docs/architecture.md`, `CLAUDE.md`, and in nine cases a
-  sibling plan. Apply them before or alongside execution.
 - **The `CLAUDE.md` edits are a chain, and the hazard is structural.** All ten plans' last task
   edits the file, though geometry's and the scheduler's task titles do not say so. Nine of them
   quote a predecessor's exact wording as their *Before*, so an edit landing out of order, or a
@@ -74,7 +61,46 @@ are not interchangeable.
   opening-paragraph chain and the closing note's four narrowings: it composes. Check a plan's
   *Before* text against the file rather than trusting it.
 
-**Cleared on 2026-09-08.** `docs/schema.md` had six columns the contracts plan's SQL has and it
+## The spec corrections are applied
+
+**2026-09-08.** All 98 were worked through and written into the documents they name. The pass was
+split five ways by target file so that no two passes wrote the same file, and each plan's *Spec
+corrections proposed* section is kept as the historical record of what was asked and why. A
+*Before* quote in one of those lists therefore no longer matches the document it quotes.
+
+The count was 98 exactly, of which 84 were bare under a strict reading and 14 carried a recorded
+outcome. The remembered figure of seventy-eight bare is reachable by also counting the eight that
+cite a 2026-09-06 ruling while still proposing an unmade edit.
+
+What did not get applied as written, and why:
+
+- **Seven were already done**, all of them the schema work cleared earlier the same day:
+  `contracts #4 #5 #6 #12`, `management #1`, `simulation #10`, and the `docs/schema.md` half of
+  `contracts #2`. Nine more in the simulation and geometry sets had landed earlier still.
+- **`contracts #8` was folded into `client-shell #9`** rather than applied. Both replace the same
+  sentence of the client-shell spec's *Input and presence*, incompatibly; `client-shell #9` is
+  later and a superset. Its one distinguishing clause was carried across, because `client-shell #9`
+  otherwise leaves *"The Ask"* with no antecedent.
+- **`contracts #13` was skipped as a strict subset of `game-server #8`**, which strikes the same
+  presence item and one more, with the settled wording.
+- **`geometry #4` and `game-server #3` are word for word identical** and were written once.
+- **`simulation #1` was withdrawn** by its own plan after the stored-seed ruling, and
+  `client-shell #3`, `scheduler #6 #8 #9` were struck before this pass began.
+- **`contracts #9` applied only its `docs/architecture.md` half.** Its `CLAUDE.md` half would have
+  broken the chain above, and the correction's own text says that file is Task 16's. So
+  `architecture.md` lists `tests/` under repo-level support and `CLAUDE.md` does not, until the
+  contracts plan runs. That divergence is deliberate.
+- **`game-server #7` is propagated in three of four places.** The fourth,
+  `plans/2026-09-05-management-api.md` line 18, says the game *server* owns the catalog types
+  rather than naming a plan, which is the service boundary and is right as it stands.
+
+Three corrections proved wrong about the document they described and were corrected in passing:
+`simulation #9` misquoted the scheduler spec, `management #5` sat beside a sentence asserting the
+opposite of what it added, and `game-server #4` quoted a *Joining* sentence its own change made
+false. One inventory entry was wrong too: `geometry #10` was recorded as unapplied and had landed
+in commit `cd99ece`.
+
+**Also cleared on 2026-09-08.** `docs/schema.md` had six columns the contracts plan's SQL has and it
 did not: `participant.game_id`, `participant.army_id`, `game.rng_seed`, `blob.uploaded`,
 `blob.content_type` and `effect.target_stat_level`, the last of which a foreign key the document
 promises cannot exist without. All six are in the diagram now, with prose for the seed, the
@@ -200,7 +226,7 @@ Where a ruling overturned an assumption the plans were already written against, 
 | `Takedown` picks which model takes the wound, per model | **Overturned, then overtaken, then ruled again.** The rule was `Sniper` in 3.4.1 and the first ruling gave a group one pick between its models, because *"each model with Sniper"* met a pooled roll. 3.5.1 renamed it `Takedown` and rewrote the clause as *"This model may pick"*, so the pick is **per model**: `GfShooting.Groups` splits a takedown weapon type into one group per model, each with its own pick, roll and wounds. A takedown wound skips only what building the assignment prompt decides: free choice of who dies, wounded `Tough` first, heroes last. `Deadly`, `Regeneration` and `Tough` as a capacity still apply, and wounds past that capacity are lost |
 | `Artillery` aggregates `all` | Ruled after `Stealth`, which is the same to-hit penalty at the same range band and reads *"units where all models have this rule"* in both books. `Artillery` inherited `Entrenched`'s problem when 3.5.1 replaced it: the -2 is written per model while a hit roll is pooled per weapon group, and no hit belongs to a target model until the defender removes casualties. Cover's majority was the alternative, and `any`, the plans' old reading, the loosest |
 | `Fearless` needs every model to carry it | Ruled before 3.5.1 was read, and confirmed by it: both books now say *"a unit where all models have this rule"*, where 3.4.1 said *"most models"*. `Regeneration` reads `all` for the same reason |
-| A joined hero attacks at its own Quality | **Overturned.** p.4 defines a Quality test against *"the model's Quality value"*, and the Hero rule overrides `Defense` alone. The clause that settles it is the same rule's *"may take morale tests on behalf of the unit"*, which changes nothing if the hero already used the unit's Quality. It blocks on the unit's `Defense` until every other model is dead, which is the Hero clause's own sunset and is cheap once the unit holds one model. It takes the unit's morale tests whenever its own Quality is better, which resolves the clause's *"may"* as always-when-it-helps and needs no Ask. The mechanism is a debt; see *The mode* |
+| A joined hero attacks at its own Quality | **Overturned.** p.4 defines a Quality test against *"the model's Quality value"*, and the Hero rule overrides `Defense` alone. The clause that settles it is the same rule's *"may take morale tests on behalf of the unit"*, which changes nothing if the hero already used the unit's Quality. It blocks on the unit's `Defense` until every other model is dead, which is the Hero clause's own sunset and is cheap once the unit holds one model. It takes the unit's morale tests whenever its own Quality is better, which resolves the clause's *"may"* as always-when-it-helps and needs no Ask. The mechanism was written on 2026-09-08; see *Rulings of 2026-09-08* |
 | A disembarking model may take any facing that fits | **Overturned**, over the container's yaw. p.7: *"Models may move and turn in any direction regardless of their facing"*, and a unit exits by using any move action, so a placement is legal if some yaw fits. Only oval bases and models with no base are affected. `Location.Inside` gains no yaw, because nothing is preserved |
 | An unreadable turn answer follows the enforcement dial | **Overturned.** Was always a pass. In practice it bites only for a ruleset that offers an id it cannot read |
 | The deployment roll-off is gated like any other roll | **Overturned.** It became two steps, because editing dice rewrites the roll record but never a completed step. It is the one gate that ignores the between-steps wait setting. 3.5.1 narrowed its consumer to deployment order, and it still has to yield the whole descending order |
@@ -226,6 +252,7 @@ Where a ruling overturned an assumption the plans were already written against, 
 
 | Ruling | Note |
 | --- | --- |
+| p.11's cover majority is frozen before any group fires | The cover ruling of 2026-09-06 settled the fraction and said nothing about the timing. p.8's *"all weapons are fired simultaneously"* settles it, and it is the same clause that settled the attack counts and `Blast`'s cap on question 3. `fire-groups` records `in_cover_<i>` through the new `GfAttack.InCoverAgainst`, `determine-attacks` carries it down as `in_cover`, and `roll-to-block` reads it there. Positions do not change between groups, so only the count was ever live. Judging it live at `roll-to-block` was the alternative, which let an earlier group's casualties shoot the unit out of cover. **No live read of the target's size is left in the shooting path**, and all three keys fall back to the live reading for a push that recorded nothing, which is every melee push and every spell's hits |
 | The owners of a model determine how its wounds are distributed, and the owner is the target unit's team | Confirmed. p.8 gives the defending player free choice of removal order, and `assign` already opens its `Allocation` to `ctx.TeamOf(target)`. A unit knows its owning participant in `UnitInPlay.ParticipantId`, so addressing that participant alone was the alternative and was declined. Asks address teams, and one answer per team is what the dispatcher enforces, so in a team game a teammate may remove another player's models |
 
 A correction fell out of checking it. `Tough`'s ordering clauses are nested rather than parallel:
@@ -240,6 +267,65 @@ Heroes are now deferred before the `Tough` ordering is read, with a regression t
 joins a unit without it, then it is removed last"*, needs nothing: p.14 lets only Heroes join a
 unit, so heroes-last already covers it. One stale citation was fixed beside it, a `p.14` for
 `Transport` in the `deal-wounds` diagram in `design/interpreter/design.md`, left by the page shift.
+
+### The joined-hero mechanism, written 2026-09-08
+
+The largest un-designed consequence in the repo. It was a debt because the ruling reached every
+document and no code.
+
+`StatReader.TargetNumber` took `StatLevel.Unit` only and threw for anything else. It now takes an
+optional model: a `StatLevel.Model` ref reads that slot's text and falls back to the unit's where
+the slot declares none, so an ordinary squad reads one number whichever ref is used. Its
+`replace_stat`/`modify_stat` scan matches on the stat's **name** at either level, because a target
+number is one stat with a declaration at each level and every catalog row names the unit-level ref,
+which is what keeps `Reliable`'s *"attacks at Quality 2+"* over a hero's own value. `StepContext.Plan`
+gained an optional `threshold`, so a value read off a model reaches a plan without putting a model on
+`RollSpec` and therefore on `IGameRules`.
+
+`GfRolls.HitQuality` names p.4's *"the model's Quality value"* per attacking model, and returns 6 for
+a fatigued melee, because p.9 **replaces** the value rather than modifying it and so collapses a
+whole unit to one pool. `GfAttack.Attacks` sums a group's Attack values per Quality value rather than
+per unit, so `determine-attacks` writes `attacks` plus one `attacks_q<n>` per value and `roll-to-hit`
+rolls one pooled `GfRolls.HitPlan` for each, ascending, summing `extra_hits` and the
+`granted_<entry>_<amount>` counts across every pool. `fire-groups` settles those counts as
+`attacks_<i>_q<n>` before it pushes the first group, since question 3's ruling fixes them there.
+`GfAttack.HitsFrom` already summed every `hit` roll on the frame, so the hits total needed nothing.
+
+The Hero clause's sunset is a model count. `GfRolls.DefensePlan` takes `defenderModels` and reads the
+surviving model's own slot `Defense` only when that count is one, which for a slot without one is the
+unit's value again, so it branches on no rule name. **The count is the frozen one, not a live read**:
+`fire-groups` records `defender_models_<i>` and `determine-attacks` carries it onto the
+`attack-sequence` frame, because p.8 fires a unit's weapons simultaneously and a second group must
+not find the hero alone that the first group left it. That key **replaced `blast_cap_<i>`**, which
+held the same number under a name that fitted only one of its two readers: p.13's *"as many hits as
+models in the target unit"* and p.14's *"until all other models have been killed"* count the same
+models at the same moment. Question 3's closing sentence, *no live read of the target's size is left
+in the shooting path*, is what forced the freeze.
+
+`GfRolls.MoralePlan` takes the best of the unit's `Quality` and every living `Hero` model's own, one
+`Min` and no Ask. p.14's *"even if the hero is the last model remaining, it takes morale tests as the
+unit"* is about the starting-size comparison that separates Shaken from Rout, so `GfHooks.AtHalfOrLess`
+is untouched.
+
+**Three readers of a single hit roll became readers of several.** The wire needed nothing:
+`StepCompleted.Rolls` was already a list and `RollRecord` already carries its own `Threshold`, and
+`RulesEngine.PlanOf` rebuilds a plan from the record, so a reroll in one pool is judged at that pool's
+threshold. `ModifierAdded` names a roll by name and is pending, so a player's +1 to `hit` reaches every
+pool, which is right. What changed: the client's log-panel dice controls and its `Animator` readout
+both read `Rolls[0]` and now read all of them; and `Sim.Recording.LogLines.Dice`, with the viewer's
+TypeScript port of it, printed a roll's name without its threshold, which made two hit pools in one
+step indistinguishable in a recording's `line`. The viewer's `RollPanel` already iterated the list and
+already showed each threshold.
+
+**One gap the work turned up, and the owner closed it the same day.** `GfRolls.InCover` counted the
+target's living models when `roll-to-block` asked, so a group firing after casualties judged p.11's
+*"majority of models in a unit"* against what was still standing, and killing models could shoot a
+unit out of cover part-way through one action. That was a live read of the target's size in the
+shooting path, and question 3's closing sentence had claimed none was left. See the ruling below.
+
+**A tally was wrong and is fixed.** `design/interpreter/design.md` said *"Eight are closed by owner
+ruling: 1, 2, 3, 6, 7, 9, 12 and 14"* while eleven rows were marked closed. It now reads eleven, and
+names 5, 10 and 11 as the three still open.
 
 ## Open questions
 

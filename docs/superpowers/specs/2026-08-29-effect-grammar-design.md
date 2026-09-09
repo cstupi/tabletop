@@ -131,6 +131,10 @@ Rolling dice and deciding what a success does were two separate kinds in an earl
 They are one kind with a nested effect. **Effects nest**; one level covers everything in the
 rulebook, and nothing forbids deeper.
 
+A property's own roll is recorded as a `RollRecord` named for the entry, so `Regeneration`,
+`Impact` and `Fearless`, carrying the effect row's threshold. It is not a `roll` row, because
+nothing targets it, and `AddModifier` therefore cannot name it.
+
 ### Multiplication carries a cap
 
 `Blast(X)` multiplies each hit by X, *"up to as many hits as models in the target unit."*

@@ -2600,6 +2600,13 @@ Reaction ordering has no type here: `Interpreter.Windows.ReactionOrder(GameState
 
 ## Spec corrections proposed
 
+**Applied on 2026-09-08.** These were written into the documents they name, across five passes split
+by target file so that no two passes wrote the same file. The list below is kept as the historical
+record of what each correction asked for and why, so a *Before* quote here no longer matches the
+document it quotes. `docs/handoff.md` → *The spec corrections are applied* records the exceptions:
+the corrections that were already applied, the ones folded into a later correction, and the ones
+skipped as superseded.
+
 1. **`docs/superpowers/specs/2026-09-04-scheduler-design.md` → Events.** Current: *"`round_started` — round number, and the order over teams"*. Add: *"Deployment's order is carried the same way: the roll-off before the first phase is followed by `round_started` with round `0`, and `phase_started` names the phase. Round one's `round_started` follows the last phase before rounds and is itself followed by `phase_started("rounds")`."* Reason: the projection's `SchedulerPosition` has no other field for the deployment order, and hydration must find it in the log.
 2. **Same file → Deployment**, the Scouts paragraph: *"A second deploy Ask over the set-aside Scouts, same phase, same mechanics."* Replace with: *"A second phase, `scouts`, logged as `phase_started("scouts")`; a phase start restarts the rotation from the first team of the order, which is how 'starting with the player that activates next' — the roll-off winner — is a logged fact rather than a special case. Same Ask mechanics, question `deploy_scouts`."* Reason: without a phase boundary the rotation would continue after whichever team deployed last, contradicting page 14.
 3. **Same file → State**, the sentence *"phase is `deployment`, `rounds`, or a `GameRules` phase name inside a turn"*. Add: *"`scouts` between `deployment` and `rounds`. Under the player-turn shape a `GameRules` phase name replaces `rounds` for the rest of the round; OPR lists no phases inside a turn, so its phase stays `rounds`."* And, same file → The line, the row *"the list of phases inside a turn — empty for OPR"* against The two shapes' *"OPR under this shape has one phase"*: replace the latter with *"OPR lists no phases, which the player-turn scheduler runs as one unnamed phase, activating every unit in a row"*.

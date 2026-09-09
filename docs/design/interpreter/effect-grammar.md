@@ -230,7 +230,10 @@ sealed class LiveSet
 now, taking the die when one is given, and orders by `Ordinal`. Every reader is a fold over it.
 
 **`RollEffects.Plan`** builds the `RollPlan`. Base modifiers come from the ruleset:
-`GfRolls.DefensePlan` passes `new RollModifier("cover", +1)`. Every `ModifyRoll` on this roll is
+`GfRolls.DefensePlan` passes `new RollModifier("cover", +1)`. So does the threshold, where the
+ruleset has one: `StepContext.Plan` takes an optional `threshold` that overrides
+`RollSpec.Threshold`, which is how a target number read off a model's slot rather than the unit's
+reaches a plan without putting a model on `RollSpec` and therefore on `IGameRules`. Every `ModifyRoll` on this roll is
 then appended, and two suppressions are applied by removal:
 
 - `TargetModifier.Cover` suppressed removes modifiers whose `Source` is the literal `"cover"`.
@@ -259,12 +262,15 @@ is the same with no cap. The product rather than the sum matters only if two mul
 ever apply at once, and nothing in OPR does.
 
 **`StatReader`** reads a stat as the live properties leave it. Replace runs first, in ordinal
-order, last wins. Modify runs second, summed. It resolves `StatLevel.Unit` only and throws
-`NotSupportedException` for a model-level target number. Grimdark Future declares `Quality` and
-`Defense` at `model` level as well as `unit` level, so the hole is its own rather than a
-second ruleset's: a joined hero's slot carries its own pair as declared values and nothing
-reads them, so the hero fights at its host squad's numbers (design.md → question 13). The
-throw is an explicit hole rather than a silent wrong answer.
+order, last wins. Modify runs second, summed. `TargetNumber` takes an optional model: a
+`StatLevel.Unit` ref reads the unit's text, a `StatLevel.Model` ref reads the named slot's and
+falls back to the unit's where the slot declares none, and a model-level ref with no model throws
+`NotSupportedException`. Grimdark Future declares `Quality` and `Defense` at `model` level as well
+as `unit` level, and a joined hero's slot carries its own pair, which p.4 makes the values its
+Quality tests use (design.md → question 13). The replace and modify scans match on the stat's
+**name** at either level rather than on the ref, because a target number is one stat with a
+declaration at each level and every catalog row names the unit-level ref; that is what puts
+`Reliable`'s *"attacks at Quality 2+"* over a hero's own value as well as over a squad's.
 
 ## Worked against the book
 
@@ -348,12 +354,13 @@ effects-as-data stops paying.
 **A property may be in both places.** `Indirect` carries two effect rows *and* is checked by name
 for *"may target enemies that are not in line of sight"*, which is no kind. `Aircraft` carries
 two and is checked by name during movement. `Hero` is the opposite case. Its third clause, *must
-use the unit's Defense until all other models have been killed*, needs **no** effect row at all.
-`StatReader.TargetNumber` resolves `Defense` at unit level, so every model already rolls the
-unit's, and a `replace_stat` row would restate it. The reader is the reason, not the declaration:
-`Defense` is declared at both levels. The clause's *until all other models have been killed* half
-is unimplemented, and no effect row could implement it, because `roll-to-block` throws one roll
-per hit before `deal` assigns a wound to any model.
+use the unit's Defense until all other models have been killed*, needs **no** effect row at all,
+in either half. `GfRolls.DefensePlan` reads `Defense` at unit level while the target holds more
+than one model, so a `replace_stat` row would restate it, and it reads the surviving model's own
+slot `Defense` once the settled count of living models is one. No effect row could have expressed
+the second half: `roll-to-block` throws one roll per hit before `deal` assigns a wound to any
+model, so the threshold is chosen while no model is named, and the ruleset is the only thing that
+knows the count was settled before the first group fired.
 
 ## Not covered by the grammar
 

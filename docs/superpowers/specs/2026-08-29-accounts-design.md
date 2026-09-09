@@ -32,8 +32,13 @@ systems. No Stytch identifier is stored anywhere in our schema.
 
 **The flow runs through management.** Whatever is logging in posts to our endpoints;
 management calls Stytch; a **Stytch session JWT carrying our account UUID** comes back. Nothing
-outside management holds a Stytch secret, and no Stytch identifier is stored in our schema —
-`external_id` is our GUID, so the token names the account in our own terms.
+outside management holds a Stytch secret, and no Stytch identifier is stored in our schema.
+
+*Corrected 2026-09-06.* Stytch's session JWT puts its own `user_id` in `sub` and does not carry
+`external_id`. The account UUID arrives as the top-level custom claim `account_id`, rendered by
+the project's Stytch custom claim template from `{{ user.external_id }}` on every mint. Stytch
+reserves `sub` and the `https://stytch.com/*` names, and custom claims are merged at the top
+level. The game server reads `account_id` and nothing else.
 
 *Revised 2026-08-30.* This session had management issue an opaque token of its own, stored in a
 `session` table. That table is gone: both services verify the JWT locally against Stytch's
@@ -142,6 +147,11 @@ A game ends when someone ends it explicitly, or when the last participant leaves
 is deliberate. **Disconnecting is not leaving**: a disconnected player is still in the
 game, and reconnecting rehydrates from the log — into the team slot on their own `participant`
 row, unchanged (ruled by the owner 09-06).
+
+**Ending and deleting are the creator's alone** (ruled by the owner 2026-09-06, overturning any
+participant). `POST /v1/games/{id}/end` and `DELETE /v1/games/{id}` answer `404` to anyone else,
+and the right stays with the creator after they leave the game. An account deletion destroys
+every game the account created, so a game whose creator is gone is gone with them.
 
 **An ended game is just one marked ended.** Because state is replayed from the event log,
 restarting an ended game is the identical operation to recovering a crashed task: hydrate

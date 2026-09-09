@@ -624,7 +624,11 @@ a second geometry implementation in the browser. An unknown shape id resolves to
 `polygons` is `[]` and a viewer draws no outline while still showing the id.
 
 **The dice are carried.** `RecordedRoll` holds every die's raw and modified face, whether it
-succeeded, the threshold and the modifiers. The result alone would make a viewer that cannot
+succeeded, the threshold and the modifiers. A frame carries a list of them, because a step may hold
+more than one: the ruleset splits a roll wherever its dice do not share a threshold, and OPR's
+`roll-to-hit` takes one pool per Quality value the attacking models bring, since rulebook p.4 tests
+each attack against *"the model's Quality value"* and a joined hero brings its own. `LogLines.Dice`
+prints each pool's threshold for that reason, since the roll's name alone does not tell two apart. The result alone would make a viewer that cannot
 show why a unit died, which is the first thing a person debugging the engine wants to see. The
 cost is a few hundred integers per game.
 
@@ -1264,8 +1268,8 @@ comparison in `DriverAgreementTests` is restored, and a socket step costs what t
 | A control channel over the step-and-wait seam | it makes the viewer a second thin client, a larger surface than a renderer | spec → Interactive debugging is a door, not a room |
 | A state-reading `IAnswerSource` | it explores a narrower region and finds fewer bugs, so it is never the soak default | spec → Two ways to answer an Ask |
 | An opponent that plays well | a later feature, behind the same `IAnswerSource` seam | spec → Two ways to answer an Ask |
-| How a viewer draws a model inside a container | a container has no position | spec → Deliberately not decided |
-| Whether the live feed needs authentication beyond a spectator's session JWT | still open | spec → Still open |
+| How a viewer draws a model inside a container | settled: it is not drawn on the board and is listed in `Scene.offTable`, since a container has no position | spec → Deliberately not decided, settled there by the viewer plan's correction 4 |
+| Whether the live feed needs authentication beyond a spectator's session JWT | settled: the session JWT alone, and a non-participant is refused with `rejected: not_a_participant` | spec → Still open, settled there by the viewer plan's correction 2 |
 | Cleaning up socket runs' rows | a developer tool leaves the game in the database to look at | Task 10 |
 
 ## References

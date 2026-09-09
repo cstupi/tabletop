@@ -62,6 +62,10 @@ Each behaviour is from the sketch, kept:
   unsupported file. **No support removal, ever** — it is not reliably possible.
 - **Emit GLB**: one file, meshes and normals only. No textures, no materials beyond a default, no
   rigging.
+- **Centre.** The mesh is translated so its footprint is centred on the origin and its lowest
+  point along the guessed up-axis is at zero, so it stands on its base in the preview and in
+  play. Scale and orientation are not baked in: the GLB keeps the file's units and axes, and the
+  asset row carries the confirmed scale and orientation.
 
 ## What it writes
 
@@ -101,10 +105,15 @@ triangle count within budget, normals present, the up-axis guess, and the suppor
 
 ## Deliberately not decided
 
-- Which parser, simplifier and exporter — implementation, with the web app's other framework
-  choices.
-- The angle threshold for smooth normals, and the exact support-detection heuristic. Tuned
-  against the test STLs.
+- ~~Which parser, simplifier and exporter — implementation, with the web app's other framework
+  choices.~~ **Settled 2026-09-05**: the pipeline's own STL reader (the format is 50 bytes per
+  facet or `vertex x y z` lines), `meshoptimizer`'s WebAssembly simplifier, and
+  `@gltf-transform/core` as the GLB writer and reader. three.js draws the preview only.
+- ~~The angle threshold for smooth normals, and the exact support-detection heuristic. Tuned
+  against the test STLs.~~ **Settled 2026-09-05 as defaults, tuned against the fixtures**: a 60°
+  crease angle; a component is support-like when its horizontal extent is under 6% of the
+  model's, it is at least 3× taller than wide, and its lowest point is within 2% of the model's
+  height from the bottom; the warning fires at six such components.
 
 ## Still open
 

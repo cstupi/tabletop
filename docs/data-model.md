@@ -38,6 +38,7 @@ erDiagram
     GAME ||--|{ TEAM : has
     TEAM ||--|{ PARTICIPANT : has
     PARTICIPANT ||--o| ARMYSNAPSHOT : brings
+    PARTICIPANT }o--o| ARMY : "picked in the lobby"
     GAME }o--|| PROPERTIES : "pinned by hash"
     PROPERTIES ||--|{ STATDEFINITION : declares
     PROPERTIES ||--|{ CATALOGENTRY : catalogs
@@ -132,6 +133,7 @@ erDiagram
     }
     PARTICIPANT {
         uuid id
+        id army_id
     }
     ARMYSNAPSHOT {
         uuid id
@@ -240,10 +242,17 @@ the thing a game ends setup with and the thing a user saves are the same record.
 **`ARMYSNAPSHOT` has no edge back to `ARMY`** on purpose. It is a copy taken when the game
 loaded, with no live link, so editing a saved army cannot reach into a match in progress.
 
+**`PARTICIPANT` does point at the `ARMY` it picked**, in the lobby, so a game recovers the pick
+with the rest of its rows. The edge is nullable and cleared rather than cascaded when the army is
+deleted. `ARMYSNAPSHOT` is written from it when setup ends, and the snapshot is what plays from
+there.
+
 **`DEPLOYMENTZONE` names a built-in style**, which resolves to a **set** of polygons — one
-of OPR's standard styles gives each team two diagonally opposite corners. Measurements are
-anchored to table features rather than absolute, so a style works at any board size. Custom
-shapes are a later expansion. **The polygons are not stored**: a built-in is not a row, so
+of OPR's standard styles gives each team two diagonally opposite corners. Six of the seven
+built-in styles anchor their measurements to table features rather than writing them as
+absolutes, and Side Battle scales its two legs with the edges they run along (owner ruling
+2026-09-06). Tables far from 72×48 are out of scope either way. Custom shapes are a later
+expansion. **The polygons are not stored**: a built-in is not a row, so
 holding both the style and what it resolves to would be two sources for one fact.
 
 **It points at a team by ordinal, not by id** — the one soft edge that is not an asset. A

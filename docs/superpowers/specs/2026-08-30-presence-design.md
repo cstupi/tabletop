@@ -157,11 +157,16 @@ Hidden pre-measuring is a different game from the one being simulated.
 - The sample rate, and whether cursor and placements share one. The table model already
   deferred the live-position broadcast rate and the debounce interval; this adds no new
   answer.
-- How a client is told that a presence value has stopped, versus timing it out.
+- ~~How a client is told that a presence value has stopped, versus timing it out.~~ Settled
+  2026-09-05 by the game server plan, and confirmed by the owner 2026-09-06: the server sends
+  `presence_ended` when the participant's last socket closes, so no client owns a presence
+  timeout.
 - Ping visuals, cursor colours, and whether a player can mute another's cursors.
 - Camera and view direction. Considered and dropped: it is the one field with no physical
   table behind it.
-- Whether a participant can have two connections at once, and what presence does if so.
+- ~~Whether a participant can have two connections at once, and what presence does if so.~~
+  Settled 2026-09-05 by the game server plan: a participant has one connection, and a newer
+  socket replaces the older, which is closed with `1000`.
 
 ## Still open
 

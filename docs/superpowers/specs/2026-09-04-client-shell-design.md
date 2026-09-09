@@ -48,8 +48,13 @@ status change and fights the server's view that lobby, setup and play are one co
 ## Screens
 
 - **Login.** Email and password, or email and a one-time code. On success the client holds the
-  JWT in memory and, if the player chooses, in the OS credential store so the next launch skips
-  the screen.
+  JWT in memory and, if the player chooses, on disk so the next launch skips the screen. The
+  stored JWT is the five-minute session token. On launch it goes to
+  `POST /v1/auth/session/refresh`, which accepts an expired JWT while the Stytch session lives,
+  and a `401` shows the login screen. **The store is not an OS credential store**: it is
+  `user://session.bin`, a file created owner-only where the platform has file modes, because the
+  client may run on more than one operating system (owner ruling, 2026-09-06). It keeps the token
+  from other local accounts, not from anything running as this user.
 - **Home.** The game list from `GET /v1/games`, every status, filtered by the player. Create
   game: name it (`game.name`, added 09-04), pick the pack from `GET /v1/properties`, the shape,
   the enforcement setting and whether the pipeline waits between steps, and pick one of the
@@ -76,11 +81,29 @@ resolution stack, and the current Asks. **The applier is rules-free and lives in
 `step_completed` records *"everything it produced"* — so applying is copying, never deriving,
 and no ruleset code reaches the player's machine.
 
+**The current Asks come out of the log like everything else.** Three event kinds carry them:
+`ask_opened`, `ask_answered` and `ask_closed`, listed in
+[action sequences](2026-09-03-action-sequences-design.md) → *The resolution stack*. The projection
+rebuilds the open Asks by applying those three, so a reconnect recovers them from the log rather
+than from anything the socket held.
+
 **Undo is local first.** Undo-to-sequence-N is a command; while it travels the client re-applies
 its own copy of the log to N and shows that. The server's answer confirms or corrects it.
 
 **Reconnect is connect.** The projection is discarded and rebuilt from snapshot and log, the
-same path a first join and a crashed server use.
+same path a first join and a crashed server use. The client reconnects with backoff after any
+close it did not ask for. Two closes are excepted: a `rejected` frame, and a `1000` after
+`welcome`, which is how the server closes a socket it has replaced, so reconnecting there would
+fight the newer one. The socket's first frame is `connect`, sent inside the server's ten-second
+handshake window.
+
+**A desync is not a network fault.** An event the applier cannot apply, because it names an id the
+projection does not hold, is a desync of this client's copy. The client drops the projection,
+reopens the socket and rebuilds from the log, which is the reconnect path with no backoff. It does
+not skip the event and carry on, because a client that silently diverges from the server is worse
+than one that visibly resets. **One attempt per sequence position.** A fault that has made no
+progress past the last one is an event in the server's own log, so the player goes to the home
+screen with the reason rather than replaying it forever. Ruled by the owner 2026-09-06.
 
 **Presence and setup edits bypass the projection.** Presence is a separate in-memory table
 keyed by participant, gone when the socket closes. A setup edit replaces the draft.
@@ -94,9 +117,19 @@ machinery and no rollback.
 One scene, used by setup and play. It draws the slab at its real size with its texture, terrain
 placements as their meshes, markers, deployment zones as flat polygons, and pieces.
 
+**During setup every zone row is drawn.** A zone whose team ordinal has a team draws in that
+team's colour, and one whose ordinal has no team draws grey, so a group can see and swap zones
+before every team has formed. From `playing` on, only zones with a team are drawn.
+
 **A piece is drawn as its hitbox first.** The base-and-height cylinder for a model, the volumes
 for terrain. The mesh, once loaded, decorates that. A missing, deleted or still-downloading mesh
 leaves a translucent proxy and the game is fully playable — the asset library's rule, visible.
+
+**A model that is not on the table is not drawn at all.** Nothing is drawn for a model on the
+shelf, and nothing for a model inside a container, because neither location carries a placement to
+draw at. The one exception lasts as long as a single Ask: while a unit is disembarking, the client
+puts one draggable ghost per model on the container's own node, so the player has something to
+place. Those ghosts are not part of the projection and they vanish when the answer is sent.
 
 **Assets load at runtime** through `GLTFDocument` from a presigned URL, never through editor
 import. A content-addressed cache on disk means a blob is fetched once per machine: the hash is
@@ -123,14 +156,28 @@ meshes.
   a ruler draws from each model's start position to its current one with the distance in
   inches, measured the way page 7 does — *"no part of their bases move further than the total
   movement distance"* — so the readout is the base's displacement from where it started. In a
-  declared move the readout also shows the remaining allowance, and the reachable region is
-  drawn at that radius. After a mid-move checkpoint (a cast, for instance) the distance used so
-  far comes from the frame and the region shrinks to what is left. Other participants see the
-  same ruler, drawn from the `held` presence position against the start position already in
-  their projection, so nothing new goes on the wire.
-- **The move button** on the selected unit's action bar starts the declared action. The Ask's
-  answer returns the allowance and the impassable volume ids; the client draws the reachable
-  region and streams the planned position as a `proposed` ghost until the player commits.
+  declared move the readout also shows the remaining allowance, and the reachable region is the
+  allowance as straight-line reach, cut where the base would enter an impassable volume or leave
+  the slab, and capped where the path enters difficult terrain. The geometry library computes
+  that region and the client only draws it. After a mid-move checkpoint (a cast, for instance)
+  the distance used so far comes from the frame and the region shrinks to what is left. Other
+  participants see the same ruler, drawn from the `held` presence position against the start
+  position already in their projection, so nothing new goes on the wire.
+
+  A model inside a container has no start position of its own. Its ruler draws from the
+  container's placement, which is the point it is disembarking relative to, and it shows a
+  distance with no remaining allowance, because the move's allowance constrains nothing about
+  where an occupant may be placed. The region there is the container's base grown by the exit
+  distance, not a radius about a start.
+- **The move button** on the selected unit's action bar answers the activate Ask, which starts
+  the action's sequence. The sequence's move step opens a `move_region` Ask, and its answer is
+  the destinations. That Ask carries the allowance and the impassable volume ids. When the move
+  may enter a container it also carries the containers it may enter; when the move is leaving one
+  it carries that container instead, with the distance its models must be placed fully within of.
+  The client draws the straight-line reachable region from the first, or the container-relative
+  region from the second, and streams the planned position as a `proposed` ghost until the player
+  commits. Clicking an offered container embarks the whole unit at once, which is one answer and
+  not a move.
 - **Measure:** two clicks or a drag between pieces, resolved edge to edge locally, relayed as a
   presence measurement.
 - **Ping:** a keypress at the cursor, one-shot.
@@ -167,18 +214,24 @@ greys the entries above the target until the server confirms. Presence never app
 The **menu** is the right-click on any piece, unit or team panel, and it is where *every
 property is editable* lives: mark activated or clear the action record, add or remove a
 condition, set wounds, set spell tokens, move to the shelf or back, put inside a container or
-take out, change a team's score, set the active team or round. Each item is one ordinary
-command, logged with the actor, through the same path automation uses. **No admin mode, no
-confirmation dialog.** The log is the accountability.
+take out, change a team's score, set the active team or round. The action names of the pinned
+`Properties` are not on the wire, so the menu offers the names it has seen, which are the activate
+Ask's option labels and the actions already recorded, and free text beside them. Each item is one
+ordinary command, logged with the actor, through the same path automation uses. **No admin mode,
+no confirmation dialog.** The log is the accountability.
 
 ## Animation
 
 The projection applies an event the moment it arrives. Whether the table then *plays it out* is
 **the player's own animate setting**, kept in local settings — ruled 09-04; it is presentation
-only, so it is not on the game row — dice rolling on the table and models falling, or the result
-simply appearing. Animation is a queue between the projection and the renderer and nothing else. It may
-lag the projection and it never delays an Ask — a player may answer while the dice are still
-rolling. Presence is never animated, only drawn.
+only, so it is not on the game row — models falling, or the result simply appearing. Animation is
+a queue between the projection and the renderer and nothing else. It may lag the projection and it
+never delays an Ask — a player may answer while a roll is still being read out. Presence is never
+animated, only drawn.
+
+**A roll is a readout, not an object**, ruled by the owner 2026-09-06. Text beside the unit gives
+the faces rolled, the threshold, the modifiers applied and which dice passed. No die is placed on
+the table and nothing tumbles. Models falling stays as written, by tween.
 
 ## What must not be in the client
 
@@ -194,9 +247,12 @@ rolling. Presence is never animated, only drawn.
 ## Testing
 
 The projection applier and the geometry library are headless and get the tests. The Godot layer
-is thin over them and is tested by running the game. Two things inside Godot are worth a
-scripted check, and both are a grep: no scene contains a physics body, and no client script
-references a rules type.
+is thin over them and is tested by running the game. Everything Godot-free in the client lives
+under `client/src/Core/`: the session object, the management client, the socket seam, the cache,
+the built-in content and generators, and the view models. That directory is compiled from source
+into `tests/Tabletop.Client.Tests`, which is what proves it needs no engine. Two things inside
+Godot are worth a scripted check, and both are a grep: no scene contains a physics body, and no
+client script references a rules type.
 
 ## Corrections made in place
 
@@ -209,7 +265,8 @@ references a rules type.
 ## Deliberately not decided
 
 - The visual design of every screen, and the Godot scene tree beneath each.
-- Which socket frames carry which message kind — the protocol contract.
+- ~~Which socket frames carry which message kind — the protocol contract.~~ **Settled 2026-09-05**
+  by the contracts plan's socket message set and the game server plan's connect sequence.
 - Whether the client edits armies — open since the web app session, unchanged.
 
 ## Still open

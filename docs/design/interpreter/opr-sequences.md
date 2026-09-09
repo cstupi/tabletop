@@ -94,9 +94,9 @@ for a strike-back.
 
 | Step | Does |
 | --- | --- |
-| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]` and `Values["eligible_models"]`. The count comes from `Values["attacks_<i>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
+| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]` and `Values["in_cover"]`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["blast_cap_<i>"]` on the pushing frame, which is p.13's models in the target counted with the attack counts rather than when this group fires), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
 | `resolve` | `Push(resolve-hits, ...)` |
 
 `GfAttack.HitsFrom(parent)` is what `resolve-hits` reads back. It is the successes of the
@@ -114,7 +114,9 @@ at all. Content values: a melee weapon has no range, and *an absent range is abs
 `roll-to-block` rolls `GfRolls.DefensePlan` once **per grant group**: the hits that carry a
 per-die grant are rolled separately with that property folded into the live set by
 `LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(+4)* reaches the defence
-roll. Cover is a base modifier of +1, from `GfRolls.InCover(target, eligible attacker models)`
+roll. Every one of those plans takes `Values["defender_models"]` off the `attack-sequence` frame,
+because p.14 lets a joined hero block on its own `Defense` only *"until all other models have been
+killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.InCover(target, eligible attacker models)` asked once for the whole action (ruled 2026-09-08)
 (p.11). Both of p.11's thresholds live in that call: a majority of the target's living models
 with a base centre in a `Cover` volume, or fewer than half of them seen. `Battlefield` supplies
 only the two counts, `ModelsInCoverTerrain` and `ModelsVisibleFrom`, because the fraction is a
@@ -144,7 +146,7 @@ after: a wounded `Tough` hero waits for every other model instead of soaking the
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
-That is the one clause of `Hero` a joined hero's slot property does reach. The answer is applied as given. An out-of-set allocation under
+That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*. The answer is applied as given. An out-of-set allocation under
 `warn`/`silent` is applied too, because nothing is an invariant.
 
 A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
@@ -243,8 +245,9 @@ and push: the activation, the move, and transport destruction (proposed spec cor
 `declare-targets` opens `Assignment(Items = GfShooting.Groups(...), Targets = valid target units,
 MaxDistinctTargets = 2)`. p.8: targets are declared *before any roll*, and up to two different
 targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
-every group's attack count and `Blast` cap as `Values["attacks_<i>"]` and `Values["blast_cap_<i>"]`
-before it pushes anything, pushes
+every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
+`Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
+`Values["defender_models_<i>"]` and `Values["in_cover_<i>"]`, before it pushes anything, pushes
 one `attack-sequence` per group with `Takedown` groups first (p.14), and completes when the last has
 finished.
 
@@ -326,8 +329,10 @@ routed, and otherwise makes the charger fall back 1 inch (p.10).
 
 Fatigue is a unit condition set by the melee sequence when a unit first attacks in melee in a
 round and cleared at the round boundary by `OnRoundStarted`. It is read twice: by
-`GfRolls.HitPlan`, which sets `RequiredRaw = 6` and threshold 6 with no modifiers so a fatigued
-unit hits only on unmodified 6s (p.9), and by `Impact`'s `actor_state neq fatigued` condition.
+`GfRolls.HitQuality` and `GfRolls.HitPlan`, which set the value to 6 and the plan to `RequiredRaw = 6`,
+threshold 6, no modifiers, so a fatigued unit hits only on unmodified 6s (p.9) and every model of it
+shares one pool, since p.9 replaces the Quality value rather than modifying it; and by `Impact`'s
+`actor_state neq fatigued` condition.
 
 ## The morale test
 
@@ -335,7 +340,9 @@ One step, `test`. p.10, both paragraphs:
 
 1. A unit with no models still in play `Finish`es without testing.
 2. A `Shaken` unit **always fails and no die is rolled**.
-3. Otherwise one `GfRolls.MoralePlan` die. On a failure, every kind-5 roll whose child overrides a
+3. Otherwise one `GfRolls.MoralePlan` die, at the best of the unit's `Quality` and every living
+   `Hero` model's own (p.14: *"The hero may take morale tests on behalf of the unit"*, resolved
+   always-when-it-helps, so no Ask). On a failure, every kind-5 roll whose child overrides a
    `morale_test` result gets its chance. That is `Fearless`: one die at the effect row's
    threshold, and a success counts as passed.
 4. A failed **wounds** test sets `shaken`. A failed **melee** test Routs when the unit is at half
@@ -505,22 +512,35 @@ at all: `dice_edited` reaches back into a recorded `RollRecord` and never rewrit
 ## Roll specs
 
 `GfRolls.Spec(roll)` gives every OPR roll the same convention, `new RollConvention(6, null)`,
-which is 1D6 with no modifier cap. The specs differ only in threshold derivation.
+which is 1D6 with no modifier cap. The specs differ only in threshold derivation, and a spec's threshold is the default a caller that
+names none gets: `GfRolls` passes its own to `StepContext.Plan` wherever the rulebook makes the
+target number a model's.
 
 | Roll | Threshold | Notes |
 | --- | --- | --- |
-| `hit` | `Quality` at unit level, read through `StatReader.TargetNumber` | fatigued in melee: `RequiredRaw = 6`, threshold 6, no modifiers (p.9) |
-| `defense` | `Defense` at unit level | base modifier `cover +1` when shooting into cover (p.11) |
-| `morale` | `Quality` at unit level | a `Shaken` unit rolls no die at all |
+| `hit` | `Quality` at unit level in the spec, overridden per pool by `GfRolls.HitQuality`, which reads the attacking model's slot and falls back to the unit's | one pool per distinct value (p.4: *"the model's Quality value"*). Fatigued in melee: `RequiredRaw = 6`, threshold 6, no modifiers (p.9) |
+| `defense` | `Defense` at unit level in the spec, overridden by `GfRolls.DefensePlan` with the surviving model's own once the target holds one model (p.14) | base modifier `cover +1` when shooting into cover (p.11) |
+| `morale` | `Quality` at unit level in the spec, overridden by `GfRolls.MoralePlan` with a living `Hero` model's own where that is better (p.14) | a `Shaken` unit rolls no die at all |
 | `casting` | 4, fixed | the net token spend as a signed `tokens` modifier (p.13) |
 | `roll-off` | none | raw comparison, ties rerolled |
 
-All three target numbers are the unit's, and every one is the whole roll's: a `RollRequest`
-carries one `Threshold`. `Quality` and `Defense` are declared at `model` level as well, because a
-hero joined to another unit is a model of it and its slot carries its own two, and neither
-declaration is read. A joined hero therefore hits and blocks on its host squad's numbers, which
-is what `Hero`'s own clause asks for on the defence side and what the roll shape imposes on the
-hit side. Interpreter design → question 13 prices the change.
+A threshold belongs to a whole roll: a `RollRecord` carries one `Threshold` for all of its dice.
+`Quality` and `Defense` are declared at `model` level as well, because a hero joined to another
+unit is a model of it and its slot carries its own two, and both declarations are read.
+`StatReader.TargetNumber` takes an optional model and resolves either level, falling back to the
+unit's text for a slot that declares none, so an ordinary squad reads one number whichever ref is
+used.
+
+The hit roll is therefore **one pooled roll per distinct Quality value**, not per weapon group.
+p.4 scores a Quality test against *"the model's Quality value"*, so `determine-attacks` sums a
+group's attacks per value and `roll-to-hit` rolls a pool for each, ascending. p.4's *"we recommend
+having dice of multiple colors ... and then roll them all at once"* is the same procedure at the
+table. The defence roll stays the unit's number until the unit holds one model, which is `Hero`'s
+own sunset, *"must use the unit's Defense until all other models have been killed"*; the count is
+the one settled before any group fired, so a second group does not find the hero alone that the
+first group left it. The morale threshold is the best of the unit's Quality and every living
+`Hero` model's own, which is `Hero`'s *"may take morale tests on behalf of the unit"* resolved
+always-when-it-helps. Interpreter design → question 13 records the ruling and the mechanism.
 
 The dangerous-terrain test and every kind-5 property roll (`Regeneration`, `Impact`, `Fearless`)
 borrow a convention from a spec but are **not** `roll` rows. Nothing targets them, so they exist

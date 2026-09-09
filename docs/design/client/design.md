@@ -902,7 +902,15 @@ the projection directly and the queue holds no lock. Presence is never animated,
 
 A roll is a readout and not an object, ruled 2026-09-06. The label carries the roll's name, its
 threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
-`RollRecord` already holds. No die is placed on the table and nothing tumbles. Godot physics is out
+`RollRecord` already holds. No die is placed on the table and nothing tumbles.
+
+**A step may carry several rolls, and the readout carries all of them**, one block each, stacked.
+`StepCompleted.Rolls` is a list, and the ruleset fills it with more than one wherever it splits a
+roll: OPR's `roll-to-hit` takes one pool per Quality value the attacking models bring, since
+rulebook p.4 tests each attack against *"the model's Quality value"* and a joined hero brings its
+own. Each block's threshold is what tells the pools apart. The log panel's dice controls follow the
+same list: "Reroll all" and "Set die 1" name a `RollRecord` by id, so there is one of each per roll,
+while "Add modifier" names a roll by name and stays one control for the step. Godot physics is out
 of the scene, so a die on the table would be a canned animation of a result the server has already
 decided, and the readout says more than a tumbling die can. The client shell spec's animation
 section does name dice rolling on the table, which spec correction 13 narrows.
@@ -1397,7 +1405,7 @@ were ruled on by the owner on 2026-09-06: questions 2 and 3 changed the design, 
 | 2. Where the remembered session lives | **ruled 2026-09-06**: not an OS keystore. `user://session.bin`, created owner-only where the platform has file modes; DPAPI was the assumed answer and is Windows-only, which the platform ruling excludes | closed. A keystore later replaces `SessionStore`, three methods with one call site |
 | 3. Built-in art | **ruled 2026-09-06**: a minimal set ships, so a generated table looks like a table. Ten grouped `.glb` meshes and five `.png` textures, authored by hand and not produced by the plan; a missing file still draws the hitbox | closed. More art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
 | 4. Generator entries with alternatives ("Hill, Forest, or Field") | **ruled 2026-09-06, as assumed**: the client's RNG picks one, so rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup | closed. Asking the player would have `TerrainGenerators.Generate` return the alternatives and the toolbar prompt |
-| 5. Dice on the table | **ruled 2026-09-06, as assumed**: a readout, not dice objects. Text beside the unit gives the faces, the threshold, the modifiers and which dice passed; nothing tumbles, and models still fall by tween | closed. Visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes. The spec's animation section mentions dice rolling on the table, which spec correction 13 narrows |
+| 5. Dice on the table | **ruled 2026-09-06, as assumed**: a readout, not dice objects. Text beside the unit gives the faces, the threshold, the modifiers and which dice passed, for every roll on the step rather than the first; nothing tumbles, and models still fall by tween | closed. Visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes. The spec's animation section mentions dice rolling on the table, which spec correction 13 narrows |
 | 6. The game list's filters | **ruled 2026-09-06, as assumed**: status, name and "created by me", all three off the `GameSummary` the browser already returns | closed. "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
 | 7. Zones for ordinals with no team | **ruled 2026-09-06, as assumed**: drawn grey during setup, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | closed. Hiding them would have `TableView.ZoneColour` return transparent |
 | 8. The facing a disembarking model takes | the container's yaw, for the ghost, for `ExitRegion`'s candidate and for the answer | keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |

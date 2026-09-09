@@ -74,13 +74,18 @@ Three libraries in `libs/`, and nothing else:
 | --- | --- | --- |
 | `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
 | `Tabletop.Protocol` | client, game server | Commands, events, Asks, presence, setup edits, the rules-free event applier, wire format |
-| `Tabletop.Content` | client, both servers | Army, unit, model slot, weapon types |
+| `Tabletop.Content` | client, both servers | Army, unit, model slot and weapon types; the table state (board, terrain placements, markers, deployment zones) |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
 the two must agree exactly. Protocol is shared by definition. Content is shared because the
 client renders armies and both servers store and interpret them. Whether an army reaches the
 client over HTTP or over the WebSocket is a transport detail and changes nothing about the
 types.
+
+The table state is one record with two owners, and the same three consume it: management stores
+it as a user's saved layout, the game server writes it as a game's setup draft and snapshot, and
+the client draws and edits it. It joined this row after setup content was designed, and
+`architecture.md` is corrected by the later spec rather than the reverse.
 
 The rules engine — pipelines, scheduler, the property sets, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.
@@ -209,9 +214,17 @@ The goal is **extensibility and multi-ruleset support**. ~~JSON is chosen becaus
 faster than C#~~ — **corrected 2026-09-04**: the data half is rows in eight Postgres tables with
 check constraints, per [`docs/schema.md`](schema.md), not JSON files. The argument stands
 without the format: adding a custom rule is a data edit, and supporting a game beyond OPR is new
-data rather than new engine code. How authored content reaches those tables — in-repo files
-loaded as rows, or the Army Forge import [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md)
-left undesigned — is the one part of this section no design doc has touched.
+data rather than new engine code.
+
+**How authored content reaches those tables was settled 2026-09-05 by the interpreter plan.** A
+set is one JSON document under `server/game/Content/*.properties.json`, carrying the eight
+tables' shape without ids. It is content-addressed by SHA-256 over a canonical serialisation
+(`sha256:…`), and the game server seeds it as rows at startup, once per hash and idempotently.
+Editing a document yields a new hash and so a new set, and a game keeps the set it pinned.
+`GET /v1/properties` lists what has been seeded. Effect and condition ids are minted at seeding
+and are stable thereafter within a database. The Army Forge import of
+[spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) is a later writer of the
+same format.
 
 **In-repo now, user-authored eventually.** This document originally said the goal was "not end
 users uploading rules"; that is true of the current phase and not the intent. The order matters
@@ -319,6 +332,14 @@ which designs these as data.
   four-player square is a rectangle like any other. Arbitrary sizes; the named presets this
   line used to list (40k 60×44, OPR 72×48, skirmish 30×22, 4-player 72×72) are a first-pass
   suggestion for setup content's undecided inventory, not a decision. Never a constant.
+- **Arbitrary sizes are the table's property, not the deployment styles'** (ruled by the owner
+  2026-09-06: *"We don't need to support skirmish at all"*). `Tabletop.Geometry.ZoneStyles` ships
+  seven built-in styles read from Grimdark Future p.22's diagrams on a 72×48 table, six of them
+  anchored at absolute insets of 12" and 24". Those six therefore assume a table near that size.
+  Small tables, the 30×22 skirmish size among them, are out of scope: below a 48" long edge or a
+  24" short edge the anchored styles overlap each other or cover the whole board. That is an
+  accepted limit rather than a defect. `Table`, `TableSize` and every measurement outside
+  `ZoneStyles` still take any positive size, and a size is still never a constant.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
   placements, deployment zones. Physical only, no rules.
 - **Mission** — **not a record.** This document defined one as deployment zones, objectives,
@@ -326,9 +347,10 @@ which designs these as data.
   published content in OPR and Warhammer, players read them out of a book, and game flow had
   already removed victory conditions from the model.
 
-A deployment zone names a **built-in style**, which resolves to a *set* of polygons with
-measurements anchored to table features. It names a **team ordinal**, not a team, because a
-saved layout has zones but no game to have teams in.
+A deployment zone names a **built-in style**, which resolves to a *set* of polygons. Six of the
+seven styles anchor their measurements to table features; Side Battle scales its two legs with
+the edges they run along, by the owner's ruling of 2026-09-06. A zone names a **team ordinal**,
+not a team, because a saved layout has zones but no game to have teams in.
 
 A terrain piece is a mesh plus collision volumes plus declarations. The engine reads a closed
 set of six — impassable, blocks LoS, see in and out, cover, difficult, dangerous — and carries
@@ -510,7 +532,7 @@ The real constraints are statefulness, not throughput:
 
 | Constraint | Resolution |
 | --- | --- |
-| ALB idle timeout drops long-idle sockets | App-level ping/pong heartbeat |
+| ALB idle timeout drops long-idle sockets | Kestrel's WebSocket ping/pong control frames (`KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s); no protocol message kind is involved |
 | Deploys kill tasks holding live games | ECS `stopTimeout`, drain to the event log on SIGTERM |
 | Reconnect may land on a different task | Rehydrate from the event log — needed for crash recovery anyway |
 
@@ -610,12 +632,13 @@ web/                     Svelte SPA
 sim/                     headless full-game simulator (developers)
 viewer/                  recording viewer, a static page (developers)
 libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
+tests/                   xUnit projects, one per library
 docs/  scripts/          repo-level support
 ```
 
-Top-level directories are deliverables, except `libs/` (consumed by them) and `docs/`/`scripts/`
-(neither). The Godot project lives in `client/` rather than at the repo root so its `**/*.cs`
-glob cannot reach sibling projects.
+Top-level directories are deliverables, except `libs/` (consumed by them) and `tests/`,
+`docs/` and `scripts/` (neither). The Godot project lives in `client/` rather than at the repo
+root so its `**/*.cs` glob cannot reach sibling projects.
 
 The Svelte app shares no code with the .NET projects, but tracks the HTTP API closely enough
 that versioning it separately would create drift for no benefit.

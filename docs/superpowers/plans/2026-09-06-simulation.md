@@ -1804,6 +1804,21 @@ public class RecordingTests
     }
 
     [Fact]
+    public void A_step_with_two_pools_records_both_and_the_line_names_each_threshold()
+    {
+        // A ruleset splits one roll wherever a step's dice do not share a threshold: OPR's roll-to-hit takes one pool per Quality
+        // value the attacking models bring, since p.4 tests each attack against "the model's Quality value" and a joined hero
+        // brings its own. The recording carries both, and the line has to say which is which.
+        var projector = new FrameProjector(Scenario());
+        var captain = new RollRecord(Guid.CreateVersion7(), "hit", 3, [], [new Die(4, 4, true)]);
+        var squad = new RollRecord(Guid.CreateVersion7(), "hit", 5, [], [new Die(4, 4, false)]);
+        var frame = projector.Add(new GameEvent(1, null,
+            new StepCompleted(Guid.CreateVersion7(), "roll-to-hit", null, [captain, squad], []), null));
+        Assert.Equal([3, 5], frame.Rolls.Select(r => r.Threshold));
+        Assert.Equal("roll-to-hit: hit 3+ 4!; hit 5+ 4", frame.Line);
+    }
+
+    [Fact]
     public async Task A_recording_round_trips_through_json()
     {
         var c = Scenario();
@@ -2102,9 +2117,14 @@ public static class LogLines
 
     private static string Actor(Projection p, Guid? unitId) => unitId is { } id ? $" for {Unit(p, id)}" : "";
 
+    /// <summary>
+    /// Every roll on the step, not the first: a ruleset splits one roll wherever a step's dice do not share a threshold, and OPR's
+    /// roll-to-hit takes one pool per Quality value the attacking models bring (p.4, and a joined hero brings its own). The
+    /// threshold is printed because it is the only thing that tells two pools of the same roll apart.
+    /// </summary>
     private static string Dice(IReadOnlyList<RollRecord> rolls) =>
         rolls.Count == 0 ? "" : ": " + string.Join("; ", rolls.Select(r =>
-            $"{r.Roll} {string.Join(",", r.Dice.Select(d => d.Success ? $"{d.Modified}!" : $"{d.Modified}"))}"));
+            $"{r.Roll}{(r.Threshold is { } t ? $" {t}+" : "")} {string.Join(",", r.Dice.Select(d => d.Success ? $"{d.Modified}!" : $"{d.Modified}"))}"));
 
     private static string Answer(AskAnswer? answer) => answer switch
     {
@@ -4609,6 +4629,13 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 
 ---
 ## Spec corrections proposed
+
+**Applied on 2026-09-08.** These were written into the documents they name, across five passes split
+by target file so that no two passes wrote the same file. The list below is kept as the historical
+record of what each correction asked for and why, so a *Before* quote here no longer matches the
+document it quotes. `docs/handoff.md` → *The spec corrections are applied* records the exceptions:
+the corrections that were already applied, the ones folded into a later correction, and the ones
+skipped as superseded.
 
 1. **Withdrawn.** This correction asked `CLAUDE.md` and the contracts plan to carve out a UUIDv7 exception for `sim/`. It is no longer needed: the project owner ruled on 2026-09-06 that the RNG seed is a stored value on the game row rather than a hash of the game id, so a simulator run sets `GameInfo.RngSeed` explicitly and draws ordinary `Guid.CreateVersion7()` ids. `CLAUDE.md`'s and the contracts plan's identifier constraints stand unamended.
 2. **`docs/superpowers/specs/2026-09-06-simulation-design.md` → Deliberately not decided**, the item *"The recording's exact schema and whether it is versioned. It is derived, so a breaking change costs a re-run."* Replace with: *"**Settled 2026-09-06 by the simulation plan.** The schema is the record set in `sim/Recording/Recording.cs`, and it carries `schemaVersion` — one integer, so a viewer can refuse a file it does not understand rather than mis-draw it. It stays derived, so a breaking change still costs only a re-run."*

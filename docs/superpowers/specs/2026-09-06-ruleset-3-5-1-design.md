@@ -45,9 +45,9 @@ the text any of them rests on.
    assumption of the host squad's Quality. Page 4 defines a Quality test against *"the model's
    Quality value"*, and the Hero rule overrides Defense alone. The morale clause settles it: the
    hero *"may take morale tests on behalf of the unit"* would change nothing if the hero used
-   the unit's Quality, so the rule presupposes the hero's own. `GfRolls.HitPlan` emits one roll
-   per distinct model-level Quality among the attacking models, falling back to the unit's for a
-   slot that declares none, and `RollRecord` becomes per-quality rather than per-group. Page 4's
+   the unit's Quality, so the rule presupposes the hero's own. `GfRolls.HitQuality` reads that value off
+   each attacking model's slot, falling back to the unit's for a slot that declares none, and
+   `roll-to-hit` rolls one pooled `RollRecord` per distinct value rather than one per weapon group. Page 4's
    *"we recommend having dice of multiple colors"* is the tabletop procedure for the case where
    the hero and the squad carry one weapon type and `fire-groups` has merged them.
 2. **A joined hero takes morale tests when its Quality is better.** The Hero clause's *"may"*
@@ -59,8 +59,10 @@ the text any of them rests on.
    models have been killed"*. Settled by the text rather than asked. The plan's reason for
    model-level Defense being expensive is that the block roll is thrown before any wound is
    assigned to a model, and that objection binds only for a mixed unit. A unit down to its hero
-   holds exactly one model, so the threshold is unambiguous, and the cost is a live-model count
-   in `GfRolls.DefensePlan`.
+   holds exactly one model, so the threshold is unambiguous, and the cost is a model count passed
+   into `GfRolls.DefensePlan`. It is the count settled before any group fired rather than a live
+   one, because page 8 fires a unit's weapons simultaneously and question 3 already froze the same
+   number for `Blast`'s cap.
 4. **A disembarking model may take any facing that fits.** Client question 8, over the assumed
    container yaw. Page 7 says *"Models may move and turn in any direction regardless of their
    facing"*, and a unit exits a transport *"by using any move action"*, so a placement is legal
@@ -324,12 +326,15 @@ Interpreter question 4 is closed as asked, because `Entrenched` does not exist; 
 `Artillery`'s aggregation and is ruled above. The `Sniper` per-group residue under interpreter
 question 7 is closed by `Takedown`'s *"This model"* and the split that implements it.
 
-**One propagation is owed rather than done.** The joined-hero ruling needs `GfRolls.HitPlan` to
-emit one roll per distinct model-level `Quality`, `determine-attacks` and `fire-groups` to carry
-an attack count per Quality, since question 3's ruling fixes those counts before the first group
-fires, and `GfRolls.DefensePlan` to take a live-model count for the Hero clause's sunset. Every
-document that asserted the squad's Quality is corrected, and the owed work is stated at
-`GfRolls.HitPlan` and in interpreter question 13. None of it is written.
+**One propagation was owed rather than done, and was written on 2026-09-08.**
+`StatReader.TargetNumber` takes an optional model and resolves either declaration level;
+`GfRolls.HitQuality` names page 4's value per attacking model; `GfAttack.Attacks` sums a group's
+attacks per Quality value, so `determine-attacks` writes `attacks_q<n>` and `fire-groups` settles
+`attacks_<i>_q<n>` before it pushes the first group; `roll-to-hit` rolls one pooled `HitPlan` per
+value; `GfRolls.DefensePlan` takes the defending unit's model count, settled with the attack counts
+as `defender_models`, and reads the surviving model's own slot `Defense` when it is one; and
+`GfRolls.MoralePlan` takes the best of the unit's Quality and every living `Hero` model's own.
+Interpreter question 13 records the mechanism.
 
 ## Precedence
 
