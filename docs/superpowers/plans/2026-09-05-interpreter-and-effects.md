@@ -3347,7 +3347,7 @@ public static class GfHooks
 - Consumes: Tasks 6–11; `Allocation`, `Allocated`, `SelectedPieces`, `WoundsSet`, `ModelsMoved`, `WoundsThisActivationSet` (Protocol).
 - Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.15, in that order: heroes last even if already wounded, then a wounded Tough model first until it dies, over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? TakedownModel(FrameView frame)` (the model a `Takedown` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
 - **Task 19 comes back to this sequence.** `DealWounds()` gains a second step, `disgorge`, and `assign`'s casualty line gains one condition: a model at its capacity that is a container holding somebody is *not* shelved here, because p.15 places its occupants *"before removal"*. Nothing else in this task changes, and a container with nobody inside is an ordinary casualty.
-- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Bane`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team, and any member of that team may answer it (owner ruling of 2026-09-08); the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A takedown wound opens no Ask**: when `TakedownModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.14 `Takedown`; owner ruling of 2026-09-06 on question 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.15's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and wounds past that capacity are lost exactly as they are when a defender over-allocates to one model. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on that model → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
+- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Bane`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team, and any member of that team may answer it (owner ruling of 2026-09-08); the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A takedown wound opens no Ask**: when `TakedownModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.14 `Takedown`; owner ruling of 2026-09-06 on question 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.15's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and wounds past that capacity are lost exactly as they are when a defender over-allocates to one model. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on the target unit, which 3.5.1 needs every model to carry → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
 
 Spec: action sequences → Grimdark Future's sequences (deal-wounds: `Tough` stacking, heroes last, `Deadly` first and no carry-over, `Regeneration` per wound unless suppressed, casualties to the shelf, wounds-this-activation); rulebook p.8 ("the defending player may remove models from the target in any order"), p.13 `Deadly`, p.14 `Regeneration`, `Tough`, `Hero`.
 
@@ -3424,7 +3424,7 @@ public class GfDealWoundsTests
     }
 
     [Fact]
-    public void Regeneration_rolls_per_wound_unless_the_weapon_ignores_it()
+    public void Regeneration_rolls_per_wound_unless_the_weapon_ignores_it_or_a_model_lacks_it()
     {
         var troll = Unit("Troll", "4+", "4+", [], 1, [P("Regeneration"), P("Tough", 6)]);
         var plain = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
@@ -3439,6 +3439,11 @@ public class GfDealWoundsTests
         sim2.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [troll.Models[0].Id] = 2 }));
         Assert.Empty(sim2.Steps("assign").Single().Rolls);
         Assert.Equal(2, sim2.Model(troll.Models[0].Id).Wounds);
+        var mixed = Unit("Pack", "4+", "4+", [], 2, []) with { Models = [Unit("R", "4+", "4+", [], 1, [P("Regeneration"), P("Tough", 6)]).Models[0], Unit("P", "4+", "4+", [], 1, [P("Tough", 6)]).Models[0] with { Ordinal = 2 }] };
+        var sim3 = Start(plain, mixed, 2, [5, 5]);
+        sim3.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [mixed.Models[0].Id] = 2 }));
+        Assert.Empty(sim3.Steps("assign").Single().Rolls);                                                      // aggregation all: 3.5.1 needs "a unit where all models have this rule"
+        Assert.Equal(2, sim3.Model(mixed.Models[0].Id).Wounds);
     }
 
     [Fact]
@@ -3559,9 +3564,11 @@ public static partial class GfAttack
             var live = LiveProperties.Settle(ix);
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(live, Side.Attacker);
-            // Regeneration is aggregation none: one live instance per model, keyed here by model; its threshold is the effect row's.
+            // Regeneration is aggregation all (3.5.1: "a unit where all models have this rule"), so LiveProperties.Gather settles it
+            // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
+            // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
-                .Where(x => x.Source.ModelId is not null).ToDictionary(x => x.Source.ModelId!.Value, x => x.Roll);
+                .FirstOrDefault();
             var allocation = takedown is { } one ? new Dictionary<Guid, int> { [one] = wounds }
                 : answer is Allocated a ? a.Counts : new Dictionary<Guid, int> { [EligibleForNextWound(ctx.State, ctx.Properties, target)[0]] = wounds };
 
@@ -3571,9 +3578,9 @@ public static partial class GfAttack
                 var model = ctx.Projection.Models[modelId];
                 var capacity = Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1;
                 var incoming = count * multiplier;
-                if (regen.TryGetValue(modelId, out var roll))
+                if (regen.Roll is { } roll)
                 {
-                    var record = ctx.Roll(new Dice.RollPlan(live.On(targetSide).First(p => p.Entry.Effects.Contains(roll)).Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
+                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
                     incoming = Dice.RollOutcome.Failures(record);   // each success overrides one wound
                 }
                 var total = Math.Min(capacity, model.Wounds + incoming);
@@ -3591,7 +3598,7 @@ public static partial class GfAttack
 
 `GfRules._sequences` gains `GfAttack.DealWounds()`. A property's own roll is recorded under the entry's name (`Regeneration`) with the effect row's threshold, so nothing here knows the number 5 (spec correction 3).
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfDealWoundsTests`; expect 6 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfDealWoundsTests`; expect 7 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**
 
 ### Task 13: attack-sequence and resolve-hits — the four steps of pages 8 and 9
 
@@ -4514,7 +4521,7 @@ public static class GfMoves
 }
 ```
 
-`GfAttack.PushStep` gains an optional `Func<StepContext, SequenceContext>? context` and pushes `context?.Invoke(ctx) ?? ctx.Frame.Context`. `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Takedown` resolves first, at Quality 2+, and its group names the model its wounds land on in `attack-sequence`'s `pick-target-model` step (Task 13; owner ruling of 2026-09-06 on question 7). `WeaponGroup.Takedown` and that step read one predicate, `GfAttack.IsTakedownGroup`, so a group cannot be ordered first without also being offered the pick.
+`GfAttack.PushStep` gains an optional `Func<StepContext, SequenceContext>? context` and pushes `context?.Invoke(ctx) ?? ctx.Frame.Context`. `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Takedown` resolves first, at the shooting model's own Quality since 3.5.1 dropped `Sniper`'s *"Shoots at Quality 2+"*, and its group — one per takedown model, which is how `Groups` splits such a type — names the model its wounds land on in `attack-sequence`'s `pick-target-model` step (Task 13; owner ruling of 2026-09-06 on question 7, and the 3.5.1 rebase). `WeaponGroup.Takedown` and that step read one predicate, `GfAttack.IsTakedownGroup`, so a group cannot be ordered first without also being offered the pick.
 
 - [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfShootingTests`; expect 10 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**
 

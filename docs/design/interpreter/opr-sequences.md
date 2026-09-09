@@ -95,7 +95,7 @@ for a strike-back.
 | Step | Does |
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models. Writes `Values["attacks"]` and `Values["eligible_models"]`. The count comes from `Values["attacks_<i>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
-| `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.13). One pick per group, not per shot, and the answer stays on this step for `GfAttack.TakedownModel` to read |
+| `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
 | `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6), `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["blast_cap_<i>"]` on the pushing frame, which is p.13's models in the target counted with the attack counts rather than when this group fires), and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
 | `resolve` | `Push(resolve-hits, ...)` |
 
@@ -162,8 +162,8 @@ of the target is ignored and the ordinary Ask opens; only a menu edit can produc
 pick and the wound are two steps of one frame and the only wounds dealt in between are this group's.
 
 Each assigned wound is multiplied by `RollEffects.WoundMultiplier`. That is `Deadly(X)`, first by
-ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on that model rolls
-one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
+ordinal 0, with no carry-over past the model's capacity. `Regeneration` live on the target unit, which 3.5.1 needs
+every model to carry, rolls one die at the effect row's threshold, recorded as a `RollRecord` named `Regeneration`, and a
 success ignores the wound. The model's `Wounds` rises. At
 `Lookup.ModelParameter(state, modelId, "Tough") ?? 1` it goes to the shelf.
 `WoundsThisActivation` on the target rises by the wounds that landed. It is a per-unit counter in
@@ -249,20 +249,24 @@ one `attack-sequence` per group with `Takedown` groups first (p.14), and complet
 finished.
 
 `GfShooting.Groups` is one `WeaponGroup(Name, WeaponIds, Takedown)` per ranged weapon **type** across
-living models, excluding `Limited` weapons already used this game. `ValidTargets` is the enemy
+living models, excluding `Limited` weapons already used this game. A type carrying `Takedown` is the
+exception: it splits into one group per model, each holding that model's own weapon, named
+`"{type} ({i})"` when the type sits on more than one model. `ValidTargets` is the enemy
 units with a model still in play that `EligibleModels` admits. A unit inside a container is
 therefore a candidate and is then ruled out, or ruled in for a fellow occupant.
 
-A `Takedown` group resolves first, at Quality 2+, and names one model in the target unit as the
-target of its wounds in `attack-sequence`'s `pick-target-model` step. The pick precedes the hit
-roll, because p.8 declares targets before any roll, and follows `determine-attacks`, so a group
-with nothing in range never asks. `GfAttack.IsTakedownGroup` is the one predicate: `WeaponGroup.Takedown`
-and the step read it, so a group cannot be ordered first without also being offered the pick. Two
-parts of p.14's sentence are not modelled. The pick is per **group** rather than per Takedown model,
-because a group is one weapon type whose dice `roll-to-hit` pools into one roll, so two Takedown
-models sharing a weapon type name one model between them. And *resolved as if it was a unit of 1*
-is not, so cover, `Blast`'s cap and the defence roll still read the whole target unit. That is what
-is left of question 7.
+A `Takedown` group resolves first and names one model in the target unit as the target of its
+wounds in `attack-sequence`'s `pick-target-model` step. It hits at the shooting model's own
+`Quality`: 3.5.1 dropped `Sniper`'s *"Shoots at Quality 2+"* along with the name, so the catalogue
+entry carries no effects at all and only `Reliable` on the weapon's own profile moves the
+threshold. The pick precedes the hit roll, because p.8 declares targets before any roll, and
+follows `determine-attacks`, so a group with nothing in range never asks. `GfAttack.IsTakedownGroup`
+is the one predicate: `WeaponGroup.Takedown` and the step read it, so a group cannot be ordered
+first without also being offered the pick. The pick is per **model**, which is what the group split
+buys: 3.5.1 rewrote the clause as *"This model may pick"*, so two takedown models sharing a weapon
+type are two groups and name a model each. One part of p.14's sentence is still not modelled,
+*resolved as if it was a unit of [1]*, so cover, `Blast`'s cap and the defence roll read the whole
+target unit and only the wound is redirected. That is what is left of question 7.
 
 ## Charge and melee
 
