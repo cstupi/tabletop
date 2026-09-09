@@ -176,8 +176,10 @@ question, not the sequence's. That seam is left for the scheduler session.
 
 Three shared sub-sequences do most of the work:
 
-- **deal-wounds** — assign each wound: `Tough` stacking onto the most-wounded tough model
-  until it dies, heroes assigned last even if already wounded (p.15); `Deadly(X)` assigns then
+- **deal-wounds** — assign each wound: heroes assigned last even if already wounded, and among
+  the models that are not heroes `Tough` stacking onto the most-wounded tough model until it dies
+  (p.15, where the heroes clause is a parenthetical inside the stacking one and so takes
+  precedence over it); `Deadly(X)` assigns then
   multiplies, resolved first, no carry-over (p.13). `Regeneration` roll per wound unless suppressed. Casualties go
   to the shelf. Records wounds-this-activation for the morale threshold — a per-unit counter in
   game state, like spell tokens, cleared at `turn_ended` (placed 09-04; it must outlive the

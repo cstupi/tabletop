@@ -135,8 +135,12 @@ completed steps. When the parent rolled none it is the parent's `Values["wounds"
 dangerous-terrain path.
 
 `assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds)` to the
-target's team. p.8 gives the defending player free choice of removal order. p.15 constrains it
-twice: a wounded `Tough` model takes wounds until it dies, and heroes are assigned last.
+target's team, and any member of that team may answer it. p.8 gives the defending player free
+choice of removal order. p.15 constrains it twice, and the two clauses are ordered. Heroes are
+assigned wounds last *even if already wounded*. Among the models that are not heroes, a wounded
+`Tough` model takes wounds until it dies. The second clause is where the first is written, as a
+parenthetical inside it, so heroes are deferred before the `Tough` ordering is read rather than
+after: a wounded `Tough` hero waits for every other model instead of soaking the next wound.
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
@@ -146,8 +150,9 @@ That is the one clause of `Hero` a joined hero's slot property does reach. The a
 A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
 target, every wound this group deals is assigned to that one model and the defender is not asked
 (p.14 `Takedown`). What that skips is precisely what building the prompt's targets decides:
-`EligibleForNextWound`, and so p.8's free choice of removal order, p.15's wounded-`Tough`-model-first
-and heroes-last, and the per-model read of `Hero` that orders a joined hero last. Nothing after the
+`EligibleForNextWound`, and so p.8's free choice of removal order, p.15's heroes-last and its
+wounded-`Tough`-model-first among the rest, and the per-model read of `Hero` that orders a joined
+hero last. Nothing after the
 assignment changes: `Deadly` multiplies, `Regeneration` rolls, the `Tough` capacity read shelves the
 model, and `WoundsThisActivation` rises by what landed. `Tough` therefore splits in two: it is not
 consulted as an *ordering* rule, so a takedown may name a fresh model while a wounded `Tough` model

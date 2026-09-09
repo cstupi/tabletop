@@ -3345,9 +3345,9 @@ public static class GfHooks
 
 **Interfaces:**
 - Consumes: Tasks 6–11; `Allocation`, `Allocated`, `SelectedPieces`, `WoundsSet`, `ModelsMoved`, `WoundsThisActivationSet` (Protocol).
-- Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.15: a wounded Tough model first, until it dies; heroes last — over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? TakedownModel(FrameView frame)` (the model a `Takedown` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
+- Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.15, in that order: heroes last even if already wounded, then a wounded Tough model first until it dies, over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? TakedownModel(FrameView frame)` (the model a `Takedown` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
 - **Task 19 comes back to this sequence.** `DealWounds()` gains a second step, `disgorge`, and `assign`'s casualty line gains one condition: a model at its capacity that is a container holding somebody is *not* shelved here, because p.15 places its occupants *"before removal"*. Nothing else in this task changes, and a container with nobody inside is an ordinary casualty.
-- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Bane`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team; the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A takedown wound opens no Ask**: when `TakedownModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.14 `Takedown`; owner ruling of 2026-09-06 on question 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.15's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and wounds past that capacity are lost exactly as they are when a defender over-allocates to one model. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on that model → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
+- Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Bane`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team, and any member of that team may answer it (owner ruling of 2026-09-08); the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A takedown wound opens no Ask**: when `TakedownModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.14 `Takedown`; owner ruling of 2026-09-06 on question 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.15's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and wounds past that capacity are lost exactly as they are when a defender over-allocates to one model. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0, no carry-over past the model's capacity); `Regeneration` live on that model → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed.
 
 Spec: action sequences → Grimdark Future's sequences (deal-wounds: `Tough` stacking, heroes last, `Deadly` first and no carry-over, `Regeneration` per wound unless suppressed, casualties to the shelf, wounds-this-activation); rulebook p.8 ("the defending player may remove models from the target in any order"), p.13 `Deadly`, p.14 `Regeneration`, `Tough`, `Hero`.
 
@@ -3408,6 +3408,19 @@ public class GfDealWoundsTests
         Assert.Equal(1, sim.Alive(t.Id));
         Assert.Equal(0, sim.Model(t.Models[1].Id).Wounds);                                                            // nothing carried over
         Assert.Equal(1, sim.Unit(t.Id).WoundsThisActivation);                                                         // one wound landed on a one-wound model
+    }
+
+    [Fact]
+    public void A_wounded_hero_is_assigned_wounds_last_even_though_it_is_the_most_wounded_Tough_model()
+    {
+        var gun = Gun("Long Rifle", "30\"", 1, P("Takedown"));
+        var a = Unit("A", "4+", "4+", [], 1, [], gun);
+        var t = Unit("T", "4+", "4+", [], 2, []) with { Models = [Unit("T", "4+", "4+", [], 1, []).Models[0], Unit("H", "4+", "4+", [], 1, [P("Hero"), P("Tough", 3)]).Models[0] with { Ordinal = 2 }] };
+        var (plain, hero) = (t.Models[0].Id, t.Models[1].Id);
+        var sim = Start(a, t, 1, [1], hero, a.Models[0].Weapons.Select(w => w.Id).ToArray());
+        Assert.Equal(1, sim.Model(hero).Wounds);                                                                      // the takedown named it, so no prompt and no ordering
+        Assert.Equal(2, sim.Alive(t.Id));
+        Assert.Equal([plain], GfAttack.EligibleForNextWound(sim.State, TestProperties.Core, t.Id));                    // p.15: last even if already wounded, so the Tough ordering never reaches it
     }
 
     [Fact]
@@ -3508,14 +3521,17 @@ public static partial class GfAttack
         return null;
     }
 
-    /// <summary>p.15: keep wounding the most-wounded Tough model until it dies; heroes are assigned wounds last, even if already wounded. The in-play reading, so a unit inside a wrecked transport can be wounded before it is placed (Task 19).</summary>
+    /// <summary>p.15, in the order the rule writes them: heroes are assigned wounds last even if already wounded, and among the rest the most-wounded Tough model keeps taking wounds until it dies. The in-play reading, so a unit inside a wrecked transport can be wounded before it is placed (Task 19).</summary>
     public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
     {
         var living = Lookup.AliveModels(state, unit);
-        var woundedTough = living.Where(m => state.Projection.Models[m].Wounds > 0 && (Lookup.ModelParameter(state, m, "Tough") ?? 1) > 1).OrderByDescending(m => state.Projection.Models[m].Wounds).ToList();
-        if (woundedTough.Count > 0) return [woundedTough[0]];
+        // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
+        // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
+        // wounded Tough hero waits for every other model rather than soaking the next wound.
         var notHeroes = living.Where(m => !state.Projection.Models[m].Slot.Properties.Any(p => p.Name == "Hero")).ToList();
-        return notHeroes.Count > 0 ? notHeroes : living;
+        var pool = notHeroes.Count > 0 ? notHeroes : living;
+        var woundedTough = pool.Where(m => state.Projection.Models[m].Wounds > 0 && (Lookup.ModelParameter(state, m, "Tough") ?? 1) > 1).OrderByDescending(m => state.Projection.Models[m].Wounds).ToList();
+        return woundedTough.Count > 0 ? [woundedTough[0]] : pool;
     }
 
     sealed class AssignStep : IStep

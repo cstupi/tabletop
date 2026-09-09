@@ -1,7 +1,8 @@
-# Handoff — 2026-09-06
+# Handoff — 2026-09-08
 
 Where the project stands, and what to pick up next. Rewritten at the end of the session that
-rebased the ruleset onto Grimdark Future v3.5.1.
+rebased the ruleset onto Grimdark Future v3.5.1, and extended on 2026-09-08 by one ruling on wound
+distribution and the correction it turned up.
 
 ## State
 
@@ -214,6 +215,25 @@ Where a ruling overturned an assumption the plans were already written against, 
 | Terrain generator alternatives are picked at random | Confirmed |
 | Zones for team ordinals with no team are drawn grey | Confirmed |
 | The game list filters by status, name and created-by-me | Confirmed |
+
+## Rulings of 2026-09-08
+
+| Ruling | Note |
+| --- | --- |
+| The owners of a model determine how its wounds are distributed, and the owner is the target unit's team | Confirmed. p.8 gives the defending player free choice of removal order, and `assign` already opens its `Allocation` to `ctx.TeamOf(target)`. A unit knows its owning participant in `UnitInPlay.ParticipantId`, so addressing that participant alone was the alternative and was declined. Asks address teams, and one answer per team is what the dispatcher enforces, so in a team game a teammate may remove another player's models |
+
+A correction fell out of checking it. `Tough`'s ordering clauses are nested rather than parallel:
+p.15 writes *"heroes must be assigned wounds last, even if already wounded"* as a parenthetical
+inside *"you must continue to put wounds on the tough model with most wounds"*, which makes it an
+exception to that clause. `GfAttack.EligibleForNextWound` read the two independently and returned a
+wounded `Tough` hero as the sole eligible target while unwounded models stood. 3.5.1 added *even if
+already wounded* and the rebase carried the phrase into the prose without changing the function.
+Heroes are now deferred before the `Tough` ordering is read, with a regression test in
+`superpowers/plans/2026-09-05-interpreter-and-effects.md` and the prose corrected in
+`design/interpreter/opr-sequences.md`. The rule's other ordering clause, *"if a model with tough
+joins a unit without it, then it is removed last"*, needs nothing: p.14 lets only Heroes join a
+unit, so heroes-last already covers it. One stale citation was fixed beside it, a `p.14` for
+`Transport` in the `deal-wounds` diagram in `design/interpreter/design.md`, left by the page shift.
 
 ## Open questions
 
