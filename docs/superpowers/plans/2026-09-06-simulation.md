@@ -4367,54 +4367,42 @@ git commit -m "Run a scenario or a seed range from the console, writing recordin
 
 ---
 
-### Task 11: `CLAUDE.md` and `docs/architecture.md`
+### Task 11: `CLAUDE.md`
 
 **Files:**
 - Modify: `CLAUDE.md` (Layout, Commands)
-- Modify: `docs/architecture.md` (Deliverables, Repository layout)
+- Verify only: `docs/architecture.md`. The deliverables ruling landed there on 2026-09-08, ahead of
+  this plan, so Step 3 checks it rather than editing it.
 
 **Interfaces:**
-- Consumes: everything Tasks 1–10 produced, as the facts these two documents now record.
+- Consumes: everything Tasks 1–10 produced, as the facts this document now records.
 - Produces: no code. The whole-tree check in Step 4 is this plan's exit gate.
 
 Spec: spec → *`sim/` is a fourth deliverable* — "The layout rule in `CLAUDE.md` had three shipping directories, `client/`, `server/` and `web/`… `sim/` and `viewer/` are a fourth and fifth. Ruled by the project owner on 2026-09-06"; "They ship to developers, not to players. Neither is in the client's export, neither is referenced by a server, and a release that omits both is complete."
 
-`viewer/` is another plan's, so it gets one line in each document and nothing more.
+`viewer/` is another plan's, so it keeps the stub line it already has and nothing more.
 
-- [ ] **Step 1: Edit `CLAUDE.md` → Layout, the kinds list**
+- [ ] **Step 1: `CLAUDE.md` → Layout, the kinds list — already correct, verify only**
 
-Before (lines 42–48, as the contracts plan Task 16 leaves them — that task adds `tests/` to the third bullet):
-
-```markdown
-Three kinds of top-level directory:
-
-- **Deliverables** — `client/`, `server/`, `web/`. These ship.
-- **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
-- **Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed. Dev tooling
-  stays out of `client/`, because everything under the Godot project root is project
-  content that the editor scans and lists.
-```
-
-After:
+**There is no edit here, and this step exists to say so.** The undercount was cleared on
+2026-09-08 rather than left until this task, because `CLAUDE.md` is loaded into every session and
+was asserting three deliverables against a ruling made on 2026-09-06. The first bullet already
+reads:
 
 ```markdown
-Three kinds of top-level directory:
-
 - **Deliverables** — `client/`, `server/`, `web/`, `sim/`, `viewer/`. These ship. The first three
-  ship to players; `sim/` and `viewer/` ship to developers — neither is in the client's export,
-  neither is referenced by a server, and a release that omits both is complete (ruled 2026-09-06,
-  [simulation](docs/superpowers/specs/2026-09-06-simulation-design.md)).
-- **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
-- **Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed. Dev tooling
-  stays out of `client/`, because everything under the Godot project root is project
-  content that the editor scans and lists.
+  ship to players; `sim/` and `viewer/` ship to developers, so neither is in the client's export,
+  neither is referenced by a server, and a release that omits both is complete. Ruled 2026-09-06,
+  `docs/superpowers/specs/2026-09-06-simulation-design.md`.
 ```
 
-- [ ] **Step 2: Edit `CLAUDE.md` → Layout, insert the two bullets**
+The `Repo-level support` bullet's `tests/` belongs to the contracts plan Task 16, not to this task.
 
-**This step is an insertion, and it restates none of the neighbouring bullets.** Eight plans edit
-this list before this one, and three of them rewrite the text a "replace these lines" edit would
-have to quote:
+- [ ] **Step 2: Edit `CLAUDE.md` → Layout, the `sim/` bullet**
+
+**This step replaces one bullet, and it restates none of the neighbouring bullets.** Eight plans
+edit this list before this one, and three of them rewrite the text a wider edit would have to
+quote:
 
 - the contracts plan Task 16 replaced the `libs/` bullet — it now names each library and its
   contents and ends "`net10.0`, Godot-free, persistence-free." — and added a `tests/` bullet after
@@ -4423,14 +4411,16 @@ have to quote:
 - the web app plan Task 17 Step 2 replaced the `web/` bullet with the Svelte SPA text, and
   **deleted** the sentence "`web/` is empty on purpose." from the closing note.
 
-So do not reproduce the `web/` or `libs/` bullets. Insert after the end of the `web/` bullet,
-whose closing clause the web app plan leaves as:
+So do not reproduce the `web/` or `libs/` bullets. Both bullets this step used to insert already
+sit between the `web/` bullet and the `libs/` one, added as stubs on 2026-09-08 when the
+deliverables undercount was cleared. Replace the `sim/` stub, which reads:
 
 ```markdown
-Node 24 via mise; `npm`, exact versions (`.npmrc`).
+- `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
+  in-process driver or a real socket, and records a projection per event. Does not exist yet.
 ```
 
-The two new bullets, inserted between the `web/` bullet and the `libs/` one:
+with:
 
 ```markdown
 - `sim/` — `Tabletop.Sim`, a library plus a console entry point that plays a whole game with no
@@ -4438,8 +4428,10 @@ The two new bullets, inserted between the `web/` bullet and the `libs/` one:
   (in process and over the socket), the invariant checks, and one recording file per run.
   It reads game state freely but holds no second implementation of the rules: it answers from the
   server's legal sets without narrowing them, and asserts invariants.
-- `viewer/` — a static developer web app that draws a recording top-down. Does not exist yet.
 ```
+
+Leave the `viewer/` stub alone. The viewer plan Task 12 Step 1 replaces it, and its *Before* quotes
+that stub.
 
 **The closing note is not touched.** It began as "`server/`, `web/` and `libs/` are empty or absent
 on purpose. Each module is designed before it is built."; the contracts plan narrowed the first
@@ -4470,88 +4462,16 @@ dotnet run --project sim -- --list                 # the scenarios
 dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
 ```
 
-`docs/architecture.md` → Deliverables, before. **Note the client's platform cell**: the table row
-below is the text as the 2026-09-06 platform correction leaves it (already in the file), not the
-original "Windows (Godot export)" — the After block must carry that wording through unchanged, or
-this step reverts the correction:
+**`docs/architecture.md` needs nothing from this task.** Its Deliverables table already carries six
+rows and an Audience column, the ruling paragraph already sits above the client's platform
+correction, and the Repository layout block already lists `sim/` and `viewer/`. All of it landed on
+2026-09-08 with the `CLAUDE.md` kinds list, for the same reason. What is still missing there is
+`tests/`, on the layout block's last line and in the paragraph below it, and that belongs to the
+contracts plan's spec correction 9, which is the coordinator's rather than a task in any plan.
 
-```markdown
-Four things ship, and they have different target platforms:
-
-| Deliverable | Directory | Platform |
-| --- | --- | --- |
-| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) |
-| Game server | `server/game/` | Linux (container) |
-| Management API | `server/management/` | Linux (container) |
-| Web app | `web/` | Static (Svelte SPA) |
-```
-
-After:
-
-```markdown
-Six things ship. Four go to players; two go to developers.
-
-| Deliverable | Directory | Platform | Audience |
-| --- | --- | --- | --- |
-| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) | Players |
-| Game server | `server/game/` | Linux (container) | Players |
-| Management API | `server/management/` | Linux (container) | Players |
-| Web app | `web/` | Static (Svelte SPA) | Players |
-| Simulator | `sim/` | .NET console + library | Developers |
-| Developer viewer | `viewer/` | Static page | Developers |
-
-**Ruled 2026-09-06** ([simulation](superpowers/specs/2026-09-06-simulation-design.md)): `sim/` and
-`viewer/` are deliverables rather than tests, because a simulator that only xUnit can start is not
-a thing you can point at a problem. Neither is in the client's export, neither is referenced by a
-server, and a release that omits both is complete. `sim/` plays a game headlessly and asserts the
-invariants that hold for any game; it reads game state freely but contains no second implementation
-of the rules. `viewer/` draws a run's recording top-down and is separate from `web/`, which owns
-preparation for players.
-```
-
-The paragraph that already follows the table, "**The client's platform was corrected on
-2026-09-06.**", is untouched and stays where it is; this ruling paragraph goes before it.
-
-`docs/architecture.md` → Repository layout, before. If the contracts plan's spec correction 9 has
-already landed (it adds `tests/` to the last line and is the coordinator's, not a task in any
-plan), the last line already reads `docs/  scripts/  tests/  repo-level support` and only the
-`sim/` and `viewer/` lines are new:
-
-```
-client/                  Godot game client (the only Godot dependency)
-server/game/             live sessions, rules engine, event log
-server/management/       ASP.NET Core CRUD API
-web/                     Svelte SPA
-libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
-docs/  scripts/          repo-level support
-```
-
-After:
-
-```
-client/                  Godot game client (the only Godot dependency)
-server/game/             live sessions, rules engine, event log
-server/management/       ASP.NET Core CRUD API
-web/                     Svelte SPA
-sim/                     headless full-game simulator (developers)
-viewer/                  recording viewer, a static page (developers)
-libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
-docs/  scripts/  tests/  repo-level support
-```
-
-And, in the paragraph after that block, before:
-
-```markdown
-Top-level directories are deliverables, except `libs/` (consumed by them) and `docs/`/`scripts/`
-(neither).
-```
-
-After:
-
-```markdown
-Top-level directories are deliverables, except `libs/` (consumed by them) and
-`docs/`/`scripts/`/`tests/` (neither).
-```
+Confirm the table's client row still reads *Windows first, other desktop platforms possible (Godot
+export)*. The 2026-09-06 platform correction is what put that wording there, and an edit that
+quotes the original "Windows (Godot export)" would revert it.
 
 - [ ] **Step 4: Run the whole check**
 
@@ -4569,8 +4489,8 @@ Expected: build clean, every test green, fifty runs with no failures, no `obj/` 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CLAUDE.md docs/architecture.md
-git commit -m "Record sim and viewer as developer deliverables, per the 2026-09-06 ruling"
+git add CLAUDE.md
+git commit -m "Record what sim/ is in CLAUDE.md, and how to run it"
 ```
 
 ---

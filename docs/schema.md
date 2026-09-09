@@ -66,6 +66,8 @@ erDiagram
         text hash PK
         text s3_key
         bigint byte_size
+        bool uploaded
+        text content_type
     }
     ASSET {
         uuid id PK
@@ -239,6 +241,7 @@ erDiagram
         text scheduler_shape
         text enforcement
         bool waits_between_steps
+        bigint rng_seed
         uuid created_by FK
         timestamptz created_at
     }
@@ -249,8 +252,10 @@ erDiagram
     }
     PARTICIPANT {
         uuid id PK
+        uuid game_id FK
         uuid team_id FK
         uuid account_id FK
+        uuid army_id FK
         jsonb army_snapshot
     }
     PROPERTIES {
@@ -296,6 +301,7 @@ erDiagram
         int ordinal
         text kind
         text target_roll FK
+        text target_stat_level FK
         text target_stat FK
         text target_entry FK
         text target_action FK
@@ -441,14 +447,15 @@ and usually one number. `entry_name` is the catalog entry it belongs to. `amount
 `amount_from_parameter` says the number is the entry's own `X`, which is what makes `Impact(X)`
 and `Blast(X)` one row rather than one row per value of X.
 
-**What an effect acts on is seven different things, so it is seven columns rather than one.** A
+**What an effect acts on is seven different things, so it is seven columns rather than one**, eight
+counting the level a stat reference needs. A
 single `target` string would have been a magic string with no defined contents — the database
 could not check it and nothing said what it may contain:
 
 | Column | Vocabulary | Used by |
 | --- | --- | --- |
 | `target_roll` | **FK** to `roll` in the same set | Modify a roll, Force a reroll |
-| `target_stat` | **FK** to `stat_definition` in the same set | Modify a stat, Replace a stat |
+| `target_stat`, `target_stat_level` | **FK** to `stat_definition` in the same set. That table's key is `(properties_hash, level, name)`, so the level travels with the name and the FK is two columns | Modify a stat, Replace a stat |
 | `target_action` | **FK** to `action` in the same set | Modify a stat, where the stat is a move distance |
 | `target_entry` | **FK** to `catalog_entry` in the same set | Grant, Suppress, Modify a parameter |
 | `target_quantity` | `hits \| wounds` | Multiply |
@@ -612,6 +619,33 @@ commands — start setup, end setup — and nothing else; the creator is not a h
 deletion already destroys every game the account played in, so a deleted creator leaves no
 orphan.
 
+### A game stores its dice seed
+
+**Added 2026-09-06 by an owner ruling.** `game.rng_seed bigint not null`, with no default. The RNG
+is counter-based: the seed and the count of dice drawn in the effective log give every die, so an
+undo rewinds the dice along with the log and no RNG state is stored anywhere. Management writes the
+seed once, at creation, and never again. Deriving it from the game id was the alternative and was
+overturned, because a simulator run then has no way to choose one. The absent default is deliberate,
+so a caller that omits the seed fails loudly instead of playing a game nobody can reproduce.
+
+### `participant` links to its game, and holds the army it picked
+
+`team_id` is nullable, because a participant with no team is what a spectator is, so the link to
+the game cannot travel through the team. `participant.game_id` is its own column, and
+`unique (game_id, account_id)` is what stops an account joining twice. `army_id` is the lobby's
+pick, nullable and `on delete set null`. It stands until `army_snapshot` is written at the start of
+setup, after which the snapshot is what plays, and the army may then change or be deleted without
+touching the game.
+
+### `blob` records whether its bytes arrived, and what they are
+
+`uploaded boolean not null default false` and `content_type text not null`, checked against
+`model/gltf-binary | image/png | image/jpeg`. The row is written when `POST /v1/assets` hands out a
+presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
+indistinguishable from a finished upload. These two columns arrive as management's
+`002_blob_uploaded.sql` rather than in `001_schema.sql`, which is the one place this document's
+tables and the init SQL differ on purpose.
+
 ### A deployment zone names a team ordinal, not a team
 
 A saved layout has deployment zones but no game, so no `team` rows exist to point at. The zone
@@ -646,7 +680,11 @@ dedup a property of the schema rather than a rule in code.
   game's row directly** — and, since 09-04, writes the game's own rows while its status is
   `lobby` or `setup` ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)). The
   two services share a database, so a management migration can break the game server.
-- Whether the two schemas are two Postgres schemas in one database or two databases.
+- ~~Whether the two schemas are two Postgres schemas in one database or two databases.~~
+  **Settled** for local development by the contracts plan: two Postgres schemas in one database,
+  created by `create schema management; create schema game;` at the top of `001_schema.sql`. The
+  game server reads and, before play, writes management's rows, which is one connection when the
+  two share a database. Hosting is still free to split them.
 - Indexes beyond primary and foreign keys. None are needed at this scale, but the game
   browser's listing query is the first candidate.
 - ~~Presence has never been designed.~~ **Settled** by

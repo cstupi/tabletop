@@ -49,7 +49,7 @@ modules' full-game tests run through the simulator.
 game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
 are not interchangeable.
 
-### Five debts the plans carry
+### Three debts the plans carry
 
 - **One ruling is propagated but not written.** A joined hero attacks at its own Quality, ruled
   2026-09-06, and the mechanism is the largest un-designed consequence in the repo.
@@ -65,20 +65,26 @@ are not interchangeable.
   *Spec corrections proposed* section; roughly twenty carry a resolution. They target the specs,
   `docs/schema.md`, `docs/data-model.md`, `docs/architecture.md`, `CLAUDE.md`, and in nine cases a
   sibling plan. Apply them before or alongside execution.
-- **`docs/schema.md` is behind the schema SQL** the contracts plan will write to
-  `scripts/postgres/init/001_schema.sql`, which exists only inside that plan until it is executed.
-  Six columns are missing from the document: `participant.game_id`, `participant.army_id`,
-  `game.rng_seed`, `blob.uploaded`, `blob.content_type` and `effect.target_stat_level`, the last
-  of which a foreign key the document promises cannot exist without.
-- **`CLAUDE.md` and `docs/architecture.md` both undercount the deliverables.** `CLAUDE.md` line 44
-  still reads *"`client/`, `server/`, `web/`"*, and `architecture.md` names neither `sim/` nor
-  `viewer/`, which were ruled the fourth and fifth deliverables on 2026-09-06. **All ten** plans'
-  last task edits `CLAUDE.md`, though geometry's and the scheduler's task titles do not say so, and
-  the simulator plan owns the `architecture.md` deliverables table.
-- **Those `CLAUDE.md` edits do not reliably compose.** An audit on 2026-09-06 found three that
-  would have reverted an earlier plan's wording, one of them the client's platform correction.
-  They compose as written now, but the hazard is structural, so check a plan's *Before* text
-  against the file as it actually stands rather than trusting it.
+- **The `CLAUDE.md` edits are a chain, and the hazard is structural.** All ten plans' last task
+  edits the file, though geometry's and the scheduler's task titles do not say so. Nine of them
+  quote a predecessor's exact wording as their *Before*, so an edit landing out of order, or a
+  change made to the file directly, silently breaks a later plan. An audit on 2026-09-06 found
+  three that would have reverted an earlier plan's wording, one of them the client's platform
+  correction. Re-audited on 2026-09-08 against the file as it now stands, including the whole
+  opening-paragraph chain and the closing note's four narrowings: it composes. Check a plan's
+  *Before* text against the file rather than trusting it.
+
+**Cleared on 2026-09-08.** `docs/schema.md` had six columns the contracts plan's SQL has and it
+did not: `participant.game_id`, `participant.army_id`, `game.rng_seed`, `blob.uploaded`,
+`blob.content_type` and `effect.target_stat_level`, the last of which a foreign key the document
+promises cannot exist without. All six are in the diagram now, with prose for the seed, the
+participant's two links and the blob's upload state, and the open item on one database versus two
+is closed for local development. `CLAUDE.md` and `docs/architecture.md` undercounted the
+deliverables at three against a ruling made on 2026-09-06; both now name five, `CLAUDE.md` carries
+a stub bullet for `sim/` and `viewer/`, and `architecture.md`'s table has six rows and an audience
+column. The simulator plan's Task 11 owned those edits and now verifies them instead, its Step 2
+replaces the `sim/` stub rather than inserting a bullet, and the viewer plan's *Before* quotes the
+stub it will replace.
 
 ## The ten modules
 

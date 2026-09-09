@@ -41,7 +41,10 @@ before, or the assembly is missing and every script fails with "class could not 
 
 Three kinds of top-level directory:
 
-- **Deliverables** — `client/`, `server/`, `web/`. These ship.
+- **Deliverables** — `client/`, `server/`, `web/`, `sim/`, `viewer/`. These ship. The first three
+  ship to players; `sim/` and `viewer/` ship to developers, so neither is in the client's export,
+  neither is referenced by a server, and a release that omits both is complete. Ruled 2026-09-06,
+  `docs/superpowers/specs/2026-09-06-simulation-design.md`.
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
 - **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
@@ -56,6 +59,10 @@ Three kinds of top-level directory:
   Empty.
 - `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
   browser, the account, and login. Does not exist yet.
+- `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
+  in-process driver or a real socket, and records a projection per event. Does not exist yet.
+- `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
+  live game as a spectator. Does not exist yet.
 - `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
 
 The rules engine is **not** in `libs/` — it lives only in `server/game/`. The client is a

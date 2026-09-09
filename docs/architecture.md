@@ -6,14 +6,24 @@ built.
 
 ## Deliverables
 
-Four things ship, and they have different target platforms:
+Six things ship. Four go to players; two go to developers.
 
-| Deliverable | Directory | Platform |
-| --- | --- | --- |
-| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) |
-| Game server | `server/game/` | Linux (container) |
-| Management API | `server/management/` | Linux (container) |
-| Web app | `web/` | Static (Svelte SPA) |
+| Deliverable | Directory | Platform | Audience |
+| --- | --- | --- | --- |
+| Game client | `client/` | Windows first, other desktop platforms possible (Godot export) | Players |
+| Game server | `server/game/` | Linux (container) | Players |
+| Management API | `server/management/` | Linux (container) | Players |
+| Web app | `web/` | Static (Svelte SPA) | Players |
+| Simulator | `sim/` | .NET console + library | Developers |
+| Developer viewer | `viewer/` | Static page | Developers |
+
+**Ruled 2026-09-06** ([simulation](superpowers/specs/2026-09-06-simulation-design.md)): `sim/` and
+`viewer/` are deliverables rather than tests, because a simulator that only xUnit can start is not
+a thing that can be pointed at a problem. Neither is in the client's export, neither is referenced
+by a server, and a release that omits both is complete. `sim/` plays a game headlessly and asserts
+the invariants that hold for any game; it reads game state freely but contains no second
+implementation of the rules. `viewer/` draws a run's recording top-down and is separate from
+`web/`, which owns preparation for players.
 
 **The client's platform was corrected on 2026-09-06.** This table originally gave it as Windows
 outright, and the client plan and its design document repeated that as settled. Windows is the
@@ -597,6 +607,8 @@ client/                  Godot game client (the only Godot dependency)
 server/game/             live sessions, rules engine, event log
 server/management/       ASP.NET Core CRUD API
 web/                     Svelte SPA
+sim/                     headless full-game simulator (developers)
+viewer/                  recording viewer, a static page (developers)
 libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
 docs/  scripts/          repo-level support
 ```
