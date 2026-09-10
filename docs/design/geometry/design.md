@@ -117,10 +117,10 @@ p.14's *"fully within 12" of their deployment zone"* and not a distance from a p
 3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. No
 placement check reads it yet, in this library or either server plan.
 
-Coherency is one distance for every pair, so p.11's new *"If not all models in a unit can fit on
-elevation, then a coherency of 3" is allowed to models at different elevation"* is not served: a
-per-pair distance keyed on elevation is a signature change, and whether the unit *can fit* is a
-ruleset judgement. Open question 4 of the 3.5.1 rebase holds it.
+Coherency is two distances per pair, so p.11's *"If not all models in a unit can fit on elevation,
+then a coherency of 3" is allowed to models at different elevation"* is served for the allowance and
+deliberately not for its precondition: whether the unit *can fit* is a ruleset judgement, and the
+allowance is applied to every cross-elevation pair without it. Ruled 2026-09-09; see section 10.
 
 **Geometry to the client.** The client draws consequences, never answers. It resolves the id
 lists to `WorldVolume`s, calls `Movement.Region`, and draws `.Boundary` as a polygon. It calls
@@ -172,7 +172,7 @@ would stretch a circular footprint into an ellipse, a shape the geometry does no
 
 `architecture.md` originally listed boxes, cylinders **and convex hulls** as collision shapes.
 Geometry values dropped the hulls. With footprints restricted to a circle or a rectangle and
-bases restricted to a circle, an oval or a square, every test in the library factors into two
+bases restricted to a circle, an oval or a rectangle, every test in the library factors into two
 independent problems:
 
 1. a **2D shape intersection or distance** between two convex outlines on the table plane, and
@@ -234,7 +234,7 @@ approximation, so a round base carries no discretisation error. Round is the com
 `PolygonOutline`'s constructor rejects fewer than three vertices and **reorders the vertices
 counter-clockwise** by the sign of twice the signed area. Callers may therefore hand it either
 winding and `Contains`, a left-of test against every edge, stays correct. Convexity is an
-unchecked precondition. Every producer inside the library builds a rectangle, a square, an
+unchecked precondition. Every producer inside the library builds a rectangle, an
 inscribed ellipse or a table rectangle, all convex by construction.
 
 **Separation is dispatched on the pair, and it is exact.**
@@ -255,7 +255,7 @@ points).
 bases do not overlap, and neither does a model standing exactly on a hill's top face. For two
 polygons it runs a separating-axis test over the edge normals of both. The axis projections are
 compared with a `Tolerance.Distance` slack that makes edge contact "not intersecting". Both
-shapes are convex and neither is axis-aligned in general. A square base at yaw 45 against a
+shapes are convex and neither is axis-aligned in general. A rect base at yaw 45 against a
 rotated wall footprint is the ordinary case here.
 
 **Segment tests** exist for line of sight. A circle intersects a segment when the closest point
@@ -278,7 +278,7 @@ places a transform is applied. Every other class calls them.
 flowchart TD
     PM["PlacedModel: ModelBody + Placement"] --> BS{"Base.Shape"}
     BS -->|Circle| CO["CircleOutline(centre, A/2) - exact"]
-    BS -->|Square| SQ["4 local corners"]
+    BS -->|Rect| SQ["4 local corners"]
     BS -->|Oval| OV["64 points on (B/2 cos t, A/2 sin t)"]
     SQ --> PL["Bodies.Place: Rotate(yaw) then + centre"]
     OV --> PL
@@ -301,10 +301,11 @@ sight blockers"* without the library knowing what a unit is. The caller passes t
 wants treated as blockers, so p.8's *"models may always ignore friendly models from their own
 unit"* is the caller leaving them out. No friend/foe concept enters the library.
 
-`AsBlockingVolume` is asymmetric. An oval or square base becomes its **bounding rectangle**
-(`Footprint.Rect(b.B, b.A)`), because `Footprint` has no oval kind. A model is shot *at* as a
-64-gon and blocks *as* a rectangle, and the rectangle is the larger shape. It over-blocks by
-the corner area of the bounding box, about 21% of the footprint for a 2.36×1.38 oval.
+`AsBlockingVolume` is asymmetric. An oval base becomes its **bounding rectangle**
+(`Footprint.Rect(b.B, b.A)`), because `Footprint` has no oval kind; a rect base already is one and
+passes through unchanged. A model is shot *at* as a 64-gon and blocks *as* a rectangle, and the
+rectangle is the larger shape. It over-blocks by the corner area of the bounding box, about 21% of
+the footprint for a 2.36×1.38 oval.
 
 ### 5. Edge-to-edge distance
 
@@ -423,7 +424,7 @@ flowchart LR
     J -->|no| OBS["LineOfSightResult(false, every blocker that stopped a line, input order)"]
 ```
 
-Twenty-seven rays for a circular or oval base, fifteen for a square whose four vertices are its
+Twenty-seven rays for a circular or oval base, fifteen for a rect whose four vertices are its
 whole rim. Partial exposure counts as visible. `ObstructedBy` is the union over all failed rays,
 not the blockers of any one ray.
 
@@ -524,16 +525,18 @@ and must stay within 9" of all other models … forming an uninterrupted chain o
 coherency with each other"*. Two conditions, and they are not the same shape of test:
 connected components, then a spread check.
 
-`Coherency.Check(models, chainDistance, maxSpread)`:
+`Coherency.Check(models, chainDistance, elevatedChainDistance, maxSpread)`:
 
-1. build the full `n × n` edge-to-edge distance matrix;
-2. find connected components under `distance <= chainDistance`, by depth-first search;
+1. build the full `n × n` edge-to-edge distance matrix, and beside it the chain distance each pair
+   is judged at: `elevatedChainDistance` when `Distance.Vertical` puts the pair at different
+   settled heights, `chainDistance` otherwise;
+2. find connected components under `distance <= chain[i, j]`, by depth-first search;
 3. the **largest** component is the unit's body. Ties keep the one holding the earliest model,
    which falls out of numbering components by first-encountered index;
 4. a model outside the body is out of coherency; so is a model inside it that is further than
    `maxSpread` from **any** other model in the body.
 
-The rulebook's `1"` and `9"` are the caller's, per the constraint that no OPR number lives in
+The rulebook's `1"`, `3"` and `9"` are the caller's, per the constraint that no OPR number lives in
 this library. `CoherencyResult` reports indices into the input rather than ids, because the
 library has no model identity. The caller zips them back.
 
@@ -542,6 +545,18 @@ Two properties. The spread test flags **both** ends of an over-long chain (the p
 participating in a violation, not the minimal set to move. And the matrix is O(n²) with a full
 outline separation per pair. For a 20-model unit of ovals that is roughly 190 pairs of
 64-gon-versus-64-gon separation.
+
+**The elevation allowance and what it deliberately omits.** 3.5.1 added to p.11: *"If not all
+models in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
+elevation."* The pair test is cheap — settling has already resolved every model's Z, so
+`Distance.Vertical(a, b) > Tolerance.Distance` is the whole of *at different elevation*, and the
+measurement itself stays horizontal like every other distance here. The **precondition** is not
+implemented: *can fit* is undefined in the book, and testing it would need a ruleset judgement
+this library cannot make. Applying the allowance unconditionally is safe because coherency is
+flagged rather than prevented (`architecture.md` → Rules enforcement) and the precondition only
+ever widens the allowance, so omitting it can only suppress an advisory flag. Ruled 2026-09-09,
+[closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md). The
+spread stays at one distance: p.7's 9" has no elevation clause.
 
 ### 11. The slab
 
@@ -814,7 +829,7 @@ Decisions the plan took because **no spec said anything**. The owner ruled on fo
 | Side Battle legs are `0.75` of the long edge and `0.625` of the short | The owner ruled the style proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which the ruling overrides and which overrun any table shorter than 54" or narrower than 30" | Ruled 2026-09-06; Task 13, question 6 closed, spec correction 10 |
 | `Rays = 180`, `Step = 0.25` | 2° angular resolution and a quarter-inch radial one, for a region redrawn once per Ask | Fewer rays with interpolation; a bisection refinement pass | Task 12 |
 | `RimSamples = 8`, `OvalVertices = 64` | Eight rim points subtend 2.8° on a 1.26" base at 10", so the sliver between adjacent rays is under 0.24" at mid-range; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
-| `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand | A `WorldVolume` overload: five lines and one test if a building must offer the same region | Task 6, question 8 |
+| `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand, and releases them the same way (ruled 2026-09-09) | A `WorldVolume` overload: five lines and one test, declined | Task 6, question 8 |
 
 ## Interfaces
 
@@ -837,7 +852,7 @@ plan.
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)`; *added:* `IRL<Guid> VolumesFullyContaining(PlacedModel, IRL<WorldVolume>)`, `bool BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 | `sealed record CoherencyResult(bool Coherent, IRL<int> OutOfCoherency)` *added* | indices into the input |
-| `static class Coherency` *added* | `CoherencyResult Check(IRL<PlacedModel> models, double chainDistance, double maxSpread)` |
+| `static class Coherency` *added* | `CoherencyResult Check(IRL<PlacedModel> models, double chainDistance, double elevatedChainDistance, double maxSpread)` |
 | `static class Table` *added* | `Polygon Bounds(TableSize)`, `bool ContainsPoint(TableSize, Point2)`, `bool ContainsBase(TableSize, PlacedModel)` |
 | `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
 | `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
@@ -977,7 +992,7 @@ ordinals that may have no team yet (the whole-design review's ruling 5). A team 
 
 ### Coherency and overlap after a move
 
-After applying the move the server calls `Coherency.Check(unitModels, 1, 9)`, `Overlap.Bases`
+After applying the move the server calls `Coherency.Check(unitModels, 1, 3, 9)`, `Overlap.Bases`
 pairwise and `Overlap.WithSolid` per Solid volume. It warns under `warn` and refuses only under
 `strict`. The client highlights the flagged models. Two hazards. `OutOfCoherency` holds
 **positional indices**, so the caller must pass models in a stable order and zip the result
@@ -1110,7 +1125,7 @@ What the tests are for, by class:
 | --- | --- |
 | `PolygonTests` | boundary and vertex inclusion, either winding, a concave notch, the yaw direction |
 | `OutlineTests` | exact circle separation, circle-to-rect, rect-to-rect vertex/edge pairs, touching-is-not-intersecting, SAT on a rotated diamond, clockwise reordering, segment tests, whole-outline containment |
-| `BodyTests` | the two transform chains: yaw on a square base, an oval's length along the facing axis, scale × yaw × offset × Z on a volume, a segment clipped to a prism's vertical range |
+| `BodyTests` | the two transform chains: yaw on a rect base, an oval's length along the facing axis, scale × yaw × offset × Z on a volume, a segment clipped to a prism's vertical range |
 | `DistanceTests` | edge-to-edge on every base pair, height not entering, the marker overload, witness points carrying their own Z, inclusive range |
 | `SettlingTests` | Area passed through, highest Solid from above, **dropping from below a slab landing beneath it**, scale and Z raising the top, a rotated footprint |
 | `ContainmentTests` | centre versus whole base, a model on a hill under a canopy in both, ground beneath a second storey in neither, `BaseFullyWithin` measured from the container's *edge* |
@@ -1118,7 +1133,7 @@ What the tests are for, by class:
 | `LineOfSightTests` | a low wall shot over, blocking declared not derived, a forest blocking through but not in/out/within, the first of two forests, a wall off the line, tall versus short bodies, another unit as a blocker, partly hidden still clear, the 27/15 sample counts with the centre among them, `VisibleModels` reporting one boolean per model, a second observer seeing what the first cannot |
 | `CoverTests` | fully inside, a low wall as a sight blocker while sight is clear, a transparent wall is not one, another unit is one |
 | `CoherencyTests` | a straggler, equal groups keeping the earliest, a long chain breaking the spread, exactly one inch counting |
-| `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a square base rotated 45° off it** |
+| `TableTests` | the corner frame's bounds, edge inclusivity, a base wholly on the slab, **a rect base rotated 45° off it** |
 | `MovementTests` | a full circle on open ground, an impassable volume stopping short, the difficult cap, no cap changing nothing, the table edge, a non-multiple allowance, displacement versus allowance, `VolumesCrossed` naming what containment cannot |
 | `ZoneStyleTests` | every style resolving, each style's diagram dimensions, Side Battle's legs scaling to a 60×44 table, the long-edge rule on a portrait table, `fully within` needing the whole base, malformed ids throwing |
 
@@ -1161,12 +1176,12 @@ styles into one proportional and six anchored. Six are closed by ruling: questio
 | 1 | Where is the origin? | **Closed: the corner**, ruled 2026-09-05 by the compatibility review and ratified by the owner 2026-09-06 | Nothing. The frame is settled on the wire, in the library, in both servers and in the client |
 | 2 | What is the sight-line policy? | **Closed: *"Center to any part of target"***, ruled by the owner 2026-09-06. Eye at the centre of the shooter's body, half height; 27 target points, 15 for a square; clear if any line is clear | The eye moved from the top centre and the target gained a mid-height ring, 17 points to 27. A denser sample still changes only `TargetPoints`; a shooter-rim sample now contradicts the ruling |
 | 3 | What does *mostly inside* mean for a single model? | **Closed: the base centre inside the volume**, confirmed by the owner 2026-09-06, who added *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the companion rule about seeing a unit added `LineOfSight.VisibleModels` |
-| 4 | Is straight-line reach enough? | Yes. The region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
+| 4 | Is straight-line reach enough? | **Closed 2026-09-09 as assumed, on `architecture.md`'s own terms:** yes. The region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
 | 5 | Free-for-all's *2'x1'*, which way round? | **Closed: 24" along the long edge, 12" along the short**, confirmed by the owner 2026-09-06 | Nothing |
 | 6 | Side Battle's anchoring | **Closed: proportional to the table**, ruled by the owner 2026-09-06. Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48. The diagram's own three labels stay inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | `Leg(edge) = edge - 18` is dropped, and the degeneracy it carried with it. The ruling contradicts geometry values → Deployment shapes, so it carries spec correction 10; the other six styles stay anchored |
 | 6a | Should every style scale with the table, so the split is not inconsistent? | **Closed: no**, ruled by the owner 2026-09-06: *"We don't need to support skirmish at all."* One proportional style and six anchored ones is the shipped set. The two conventions agree exactly at 72×48, because Side Battle's fractions were chosen to reproduce that diagram, and diverge only as the table leaves the standard size | Nothing about the split. What the ruling changes is scope: the small-table behaviour the split would have hurt is an accepted limit under Failure modes, and spec correction 11 records that the built-in styles assume a table near 72×48 |
-| 7 | Ovals as 64-gons? | Accepted: error under 0.2% of the radius | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
-| 8 | Is a terrain container needed as well as a model container? | No. Only `Transport(X)` is automated. A building holds models through the client's menu, which places by hand | One overload, `BaseFullyWithin(PlacedModel, WorldVolume, double)` over `WorldOutline()`, five lines and one test. `MoveContainment.ExitingId` then names a `TerrainVolume` id, which the bare `Guid` already permits |
+| 7 | Ovals as 64-gons? | **Closed 2026-09-09 as assumed:** accepted, error under 0.2% of the radius, inside the tolerance `architecture.md` allows | Exact ellipse-ellipse distance has no closed form and needs an iterative solver on both client and server |
+| 8 | Is a terrain container needed as well as a model container? | **Closed 2026-09-09 by the owner: no**, and the overload is not written. Most terrain buildings are open, so there is no region to derive; garrisonable buildings are rare enough in play that the players agree how they work at the table. A building holds models by hand through the client's menu, so it releases them by hand | Nothing. `BaseFullyWithin` keeps its `PlacedModel` container and `MoveContainment.ExitingId` names a model. Buildings stay whole inside the deferred-by-design bucket they share with buildings as shootable targets |
 
 Two further items the plan does not ask about:
 

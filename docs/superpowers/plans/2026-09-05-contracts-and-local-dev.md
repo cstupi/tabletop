@@ -297,14 +297,14 @@ public sealed record Polygon(IReadOnlyList<Point2> Vertices)
 ```csharp
 namespace Tabletop.Geometry;
 
-public enum BaseShape { Circle, Oval, Square }
+public enum BaseShape { Circle, Oval, Rect }
 
-/// <summary>A base shape and its dimensions in inches. Circle: A = B = diameter. Oval: A = length, B = width. Square: A = B = side.</summary>
+/// <summary>A base shape and its dimensions in inches. Circle: A = B = diameter. Oval and Rect: A = length, B = width, length along the model's facing. A square is Rect(s, s).</summary>
 public readonly record struct Base(BaseShape Shape, double A, double B)
 {
     public static Base Circle(double diameter) => new(BaseShape.Circle, diameter, diameter);
     public static Base Oval(double length, double width) => new(BaseShape.Oval, length, width);
-    public static Base Square(double side) => new(BaseShape.Square, side, side);
+    public static Base Rect(double length, double width) => new(BaseShape.Rect, length, width);
 }
 
 /// <summary>What line of sight and distance run against: the base, extruded to the height.</summary>
@@ -2426,7 +2426,7 @@ create table asset (
     orientation_pitch   real not null default 0,
     orientation_yaw     real not null default 0,
     orientation_roll    real not null default 0,
-    modelled_base_shape text check (modelled_base_shape in ('circle', 'oval', 'square')),
+    modelled_base_shape text check (modelled_base_shape in ('circle', 'oval', 'rect')),
     modelled_base_a     real,
     modelled_base_b     real,
     foreign key (owner_id, blob_hash) references blob(owner_id, hash),
@@ -2490,7 +2490,7 @@ create table model_slot (
     unit_id    uuid not null references unit(id) on delete cascade,
     ordinal    int  not null,
     name       text not null,
-    base_shape text not null check (base_shape in ('circle', 'oval', 'square')),
+    base_shape text not null check (base_shape in ('circle', 'oval', 'rect')),
     base_a     real not null,
     base_b     real not null,
     height     real not null,
@@ -2777,8 +2777,8 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 | `readonly record struct Orientation(double Pitch, double Yaw, double Roll)` | degrees; the convention: raw mesh coordinates read as table coordinates, rotated Pitch about X, then Roll about Y, then Yaw about Z (right-handed, extrinsic), then scaled; a Y-up glTF stands at Pitch = 90 — the web app writes it, the client's `MeshLoader.Orient` applies it |
 | `readonly record struct TableSize(double Width, double Length)` | |
 | `sealed record Polygon(IRL<Point2> Vertices)` | `bool Contains(Point2)` — geometry plan |
-| `enum BaseShape { Circle, Oval, Square }` | |
-| `readonly record struct Base(BaseShape Shape, double A, double B)` | `static Circle(double diameter)`, `static Oval(double length, double width)`, `static Square(double side)` |
+| `enum BaseShape { Circle, Oval, Rect }` | |
+| `readonly record struct Base(BaseShape Shape, double A, double B)` | `static Circle(double diameter)`, `static Oval(double length, double width)`, `static Rect(double length, double width)` |
 | `readonly record struct ModelBody(Base Base, double Height)` | |
 | `enum FootprintKind { Circle, Rect }` | |
 | `readonly record struct Footprint(FootprintKind Kind, double A, double B)` | `static Circle(double radius)`, `static Rect(double width, double length)` |

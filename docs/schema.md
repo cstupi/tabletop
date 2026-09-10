@@ -646,7 +646,7 @@ touching the game.
 ### `blob` records whether its bytes arrived, and what they are
 
 `uploaded boolean not null default false` and `content_type text not null`, checked against
-`model/gltf-binary | image/png | image/jpeg`. The row is written when `POST /v1/assets` hands out a
+`model/gltf-binary | image/png | image/jpeg | image/webp`. The row is written when `POST /v1/assets` hands out a
 presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
 indistinguishable from a finished upload. These two columns arrive as management's
 `002_blob_uploaded.sql` rather than in `001_schema.sql`, which is the one place this document's

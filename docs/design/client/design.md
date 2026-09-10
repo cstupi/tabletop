@@ -464,7 +464,7 @@ flowchart TD
 ```
 
 A piece is drawn as its hitbox first. `PieceNode.SetBody(Base, height)` builds the proxy
-immediately: a `CylinderMesh`, `BoxMesh` or scaled cylinder for a circle, square or oval base,
+immediately: a `CylinderMesh`, `BoxMesh` or scaled cylinder for a circle, rect or oval base,
 extruded to the model's height, translucent. `SetMesh` adds the loaded GLB scene as a child and
 keeps the proxy beneath it at 25% alpha. Terrain does the same from its volumes, one proxy
 `MeshInstance3D` per `Volume` with offset, yaw, scale and heights applied and coloured by
@@ -637,9 +637,16 @@ added. The cost is that the client reimplements a march-and-bisect loop the libr
 contains for the non-containment case.
 
 The region is drawn for one body, the lead model's `ModelIds[0]`. A unit with mixed base sizes
-sees the lead's boundary, and the server refuses outliers individually. A disembarking model takes
-the container's yaw. An oval base's footprint depends on its yaw and something must supply one.
-Neither the specs nor rulebook p.14 say which.
+sees the lead's boundary, and the server refuses outliers individually (ruled 2026-09-09, as
+assumed). **A disembarking model takes any facing that fits**, ruled 2026-09-06 over the container's
+yaw this design first assumed: p.7 says *"Models may move and turn in any direction regardless of
+their facing"*, and a unit exits by using an ordinary move action, so a placement is legal if some
+facing fits. `Admits` therefore tries `MoveRuler.ExitYaws` facings for a non-circular base and the
+drawn region is the union over those that fit; a circular base is yaw-invariant and tries one, which
+is every ordinary infantry model and so the whole common case. `MoveRuler.ExitYawAt` runs the same
+search for the answer, so what the panel sends is a placement `GfMoves.ExitPlacement` accepts. The
+server already honoured this — it checks the proposed placement rather than imposing a facing — so
+the ruling only ever bound the client, which is why it went unpropagated until 2026-09-09.
 
 ### The Ask panel
 
@@ -720,7 +727,7 @@ in `AskQuestions`. A disembark is the same `RenderMove` with three things swappe
 | `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` |
 | ruler | start to current, with remaining allowance | container to current, distance only |
 | `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through |
-| yaw | the model's own | the container's, through `YawOf` |
+| yaw | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` |
 
 Embarking answers with the unit, not the model: one `ModelRelocation` per model of the unit, all to
 the same `Inside(container)`. P.14 embarks the whole unit when one model reaches the transport.
@@ -946,7 +953,7 @@ Decisions the plan took because a spec was silent:
 | 20 Hz presence sampling | presence left the rate open; matches the server's relay rate and `architecture.md`'s figure, itself named a first-pass assertion | question 1 (same question as the game server plan's question 4) |
 | Reconnect after any close the client did not ask for, except `Rejected` and `1000` after `welcome` | the spec said only "reconnect is connect" | spec correction 2 |
 | Zones for ordinals with no team are drawn grey during setup | the spec said zones are drawn as flat polygons and said nothing about teamless ordinals; a four-zone style in a two-player lobby shows two coloured and two grey, so the table shows what the style laid out | spec correction 5; question 7, ruled 2026-09-06 |
-| A disembarking model takes the container's yaw | nothing in the specs or p.15 says, and an oval base's footprint depends on yaw | question 8 |
+| A disembarking model takes any facing that fits | p.7 lets a model turn in any direction, so a placement is legal if some facing fits; `ExitRegion` unions over `MoveRuler.ExitYaws` and a circular base tries one. Ruled 2026-09-06, written 2026-09-09 | question 8 |
 | The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | question 9 |
 | An enterable container is a click target, not a button | it is already highlighted because the legal set names it | question 10 |
 | Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | question 3, ruled 2026-09-06 |
@@ -978,7 +985,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer, Names)`, `Touched(GameEvent)` |
 | `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `SpendableBy(Projection, GameInfo, Guid team, TokenSpend)`, `ConfirmLabel(Ask)` |
 | `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`, `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
-| `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `IsDisembark` |
+| `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(bool animate)`, `Count` |
 
 Godot layer, for completeness: `Main` (`static Instance`, `Session`, `Cache`, `Http`,
@@ -1408,7 +1415,7 @@ were ruled on by the owner on 2026-09-06: questions 2 and 3 changed the design, 
 | 5. Dice on the table | **ruled 2026-09-06, as assumed**: a readout, not dice objects. Text beside the unit gives the faces, the threshold, the modifiers and which dice passed, for every roll on the step rather than the first; nothing tumbles, and models still fall by tween | closed. Visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes. The spec's animation section mentions dice rolling on the table, which spec correction 13 narrows |
 | 6. The game list's filters | **ruled 2026-09-06, as assumed**: status, name and "created by me", all three off the `GameSummary` the browser already returns | closed. "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
 | 7. Zones for ordinals with no team | **ruled 2026-09-06, as assumed**: drawn grey during setup, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | closed. Hiding them would have `TableView.ZoneColour` return transparent |
-| 8. The facing a disembarking model takes | the container's yaw, for the ghost, for `ExitRegion`'s candidate and for the answer | keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
+| 8. The facing a disembarking model takes | **any facing that fits**, ruled 2026-09-06 and written 2026-09-09: `ExitRegion` unions over `ExitYaws` facings and `ExitYawAt` answers with one that fits. The overturned assumption was the container's yaw | keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
 | 9. Whose base the disembark region is drawn for | the lead model's (`ModelIds[0]`), as `Region` already is | `MoveRegionNode.Show` takes a list of polygons |
 | 10. Is an offered container a click target or a button | a click, since the legal set already highlights it | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
 

@@ -118,7 +118,7 @@ That is the second profile `kind` was introduced for.
   100,000 triangles; the converter aims for 15,000 (miniature) and 50,000 (terrain).
 - ~~What a slot draws when its asset is missing.~~ **Settled on 08-30: it draws its own
   hitbox** — the slot's base shape extruded to its height, rendered semi-transparent green. A
-  circle base gives a cylinder, an oval or square its own prism.
+  circle base gives a cylinder, an oval or rect its own prism.
 
   This needs nothing the slot does not already hold, and it shows the shape the rules actually
   use. A miniature has no collision volumes to fall back on, unlike terrain, and the base and

@@ -166,7 +166,7 @@ and `footprint/dim_a/dim_b` in `schema.md`. Symmetric shapes store the same numb
 | --- | --- | --- |
 | `Base` | `Circle` | A = B = diameter |
 | `Base` | `Oval` | A = length, B = width |
-| `Base` | `Square` | A = B = side |
+| `Base` | `Rect` | A = length, B = width; a square is `Rect(s, s)` |
 | `Footprint` | `Circle` | A = B = radius |
 | `Footprint` | `Rect` | A = width (x), B = length (y) |
 
@@ -1088,7 +1088,7 @@ Each of these is this module's own call, not a spec's.
 | `Refused` correlates by a client-generated `CommandId`/`EditId`, with no ack for success | no spec mentions acknowledgement | a command that legitimately produces no event is indistinguishable from a lost one |
 | `EventsMessage` carries a list, and the whole log on connect | no spec bounds the connect payload | a long game's first frame is unbounded (see [Failure modes](#failure-modes)) |
 | `WireJson` and `ContentJson` hold two `JsonSerializerOptions` instances built by the same `Configure` | no spec says where the options live | two metadata caches, and a divergence between them would be silent |
-| Dimensions are flat `(Shape, A, B)` triples | geometry values describes `circle(diameter)` / `oval(length, width)` / `square(side)` as a union | diameter-versus-radius call-site errors are not type-checked |
+| Dimensions are flat `(Shape, A, B)` triples | geometry values describes `circle(diameter)` / `oval(length, width)` / `rect(length, width)` as a union | diameter-versus-radius call-site errors are not type-checked |
 
 ## Interfaces
 
@@ -1110,8 +1110,8 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `readonly record struct Orientation(double Pitch, double Yaw, double Roll)` | degrees; extrinsic Pitch-X, Roll-Y, Yaw-Z, then scale |
 | `readonly record struct TableSize(double Width, double Length)` | |
 | `sealed record Polygon(IRL<Point2> Vertices)` | `bool Contains(Point2)`, implemented by the geometry module |
-| `enum BaseShape { Circle, Oval, Square }` | |
-| `readonly record struct Base(BaseShape Shape, double A, double B)` | `static Circle(double diameter)`, `static Oval(double length, double width)`, `static Square(double side)` |
+| `enum BaseShape { Circle, Oval, Rect }` | |
+| `readonly record struct Base(BaseShape Shape, double A, double B)` | `static Circle(double diameter)`, `static Oval(double length, double width)`, `static Rect(double length, double width)` |
 | `readonly record struct ModelBody(Base Base, double Height)` | |
 | `enum FootprintKind { Circle, Rect }` | |
 | `readonly record struct Footprint(FootprintKind Kind, double A, double B)` | `static Circle(double radius)`, `static Rect(double width, double length)` |

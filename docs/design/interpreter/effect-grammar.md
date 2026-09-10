@@ -145,7 +145,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 8 | `OverrideResult` | two | nobody: it is the child of a kind-5 roll, and the step reads `TargetResult` to know what a success does | `Regeneration` (wound), `Fearless` (morale test) |
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
 | 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Bane`, `Rending` and `Unstoppable` ignoring `Regeneration` |
-| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Thrust` (`AP(+1)`), `Counter` (−1 `Impact` rolls) |
+| 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Counter` (−1 `Impact` rolls) |
 | 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, `Blast` and `Indirect` for cover |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
@@ -284,12 +284,24 @@ parts the first four do not.
 | `Impact(X)` | one effect: `kind = roll`, `amount_from_parameter`, `threshold = 2`, with a **child** effect `kind = add_hit`, `amount = 1`. Conditions: action taken is charge, actor state `neq` fatigued |
 | `Bane` | **two** effects on one entry. `force_reroll` with `target_roll = defense` on the opponent, conditioned on a raw `defense` result of 6. And `suppress_property` with `target_entry = Regeneration`, unconditional, at a lower `ordinal` so it wins |
 | `Rending` | `grant_property` with `target_entry = AP` and `amount = 4`, conditioned on a raw `hit` result of 6, so it is deferred to pass two and folded in per die |
+| `Thrust` | **two** effects. `modify_roll` on `hit`, `amount = 1`; and `grant_property` with `target_entry = AP` and `amount = 1`. Both conditioned on the action taken being `Charge` and the attack kind melee. The grant is not per-die, so unlike `Rending`'s it settles in pass one |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
 | `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` and `Indirect` are what suppress that |
 
 `Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
 is conditional and the other is not, and a single condition list on the entry would get it wrong.
 `Indirect` is the same argument with three effects, one conditional and two not.
+
+`Thrust` shows why an additive `AP` is a grant and not a `modify_parameter`. 3.5.1 writes both
+`Thrust`'s `AP(+1)` and `Rending`'s `AP(+4)` with the same `+`, and `Settle` applies a
+`modify_parameter` to **every** matching instance. Three cases separate them, and the grant is
+right in all three where the modifier was right in one: a weapon with `AP(1)` reaches 2 either way,
+because `LiveSet.Parameter` sums an entry's instances; a weapon with **no** `AP` gets 1 from the
+grant and nothing at all from the modifier; and a weapon whose `Rending` has already granted `AP(4)`
+on a 6 gets 6 from the grant and 7 from the modifier, which adds to both instances. Ruled
+2026-09-09, [closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md).
+`ModifyParameter` keeps its place in the grammar for `Counter`, which genuinely modifies an existing
+instance's parameter rather than adding one.
 
 ## The grants store
 

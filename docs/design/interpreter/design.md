@@ -370,7 +370,7 @@ one pool to keep aligned rather than one per Quality value. A comment holds that
 An effect is a row saying what a named rule does. Twelve kinds cover Grimdark Future.
 **Four of them act on other properties** rather than on game state: grant, suppress, modify a
 parameter, suppress modifiers. Resolution is two passes for that reason. `Bane` deletes
-`Regeneration` from the interaction and `Thrust` changes what `AP` contributes, so which
+`Regeneration` from the interaction and `Thrust` adds an `AP` that may not have been there, so which
 properties are live and what their parameters are must be settled before anything is applied.
 
 ```mermaid

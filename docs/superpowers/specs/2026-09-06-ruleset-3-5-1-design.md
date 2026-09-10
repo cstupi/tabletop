@@ -5,7 +5,8 @@ was written against Grimdark Future v3.4.1. The project owner supplied v3.5.1 fo
 during this session, and 3.5.1 renames rules the plans are built on, removes others, and
 changes behaviour in seventeen places.
 
-This document records what changed, what was ruled, and what is still open. It postdates
+This document records what changed and what was ruled. Its two open questions were closed on
+2026-09-09 by [closing the open questions](2026-09-09-open-questions-design.md). It postdates
 `2026-09-04-whole-design-review.md` and `2026-09-06-simulation-design.md`, and where it
 disagrees with either, this document is newer.
 
@@ -308,19 +309,22 @@ pass and answered the same day.
 
 ## Open questions
 
-Two, neither of which blocks execution.
+Both were closed on 2026-09-09 by
+[closing the open questions](2026-09-09-open-questions-design.md), and neither had blocked execution.
 
 1. **Are weapons dealt onto models in order?** Management question 4, untouched by 3.5.1 because
-   it is a question about Army Forge data rather than about the rules. Assumed an advancing
-   cursor, so a lone flamer lands on the last model. Asking the player instead means import
-   cannot expand a unit on its own, which needs a per-slot weapon editor and a `PATCH` shape,
-   neither designed.
+   it is a question about Army Forge data rather than about the rules. **Ruled: an advancing
+   cursor**, as assumed, so a lone flamer lands on the last model. Import stays deterministic and
+   expands a unit on its own; the per-slot weapon editor and `PATCH` shape that asking the player
+   would have needed are not written, and the player corrects a slot afterwards.
 2. **How is the elevated 3" coherency measured?** Page 11's new sentence reads *"If not all models
    in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
-   elevation."* `Coherency.Check` takes one chain distance for every pair, so a per-pair distance
-   keyed on the two models' elevations is a signature change, and the precondition, whether the
-   unit *can fit* on the elevation, is a ruleset judgement the geometry library cannot make. The
-   rule states the allowance and not the test.
+   elevation."* **Ruled: the allowance is applied to every cross-elevation pair and its precondition
+   is never tested.** `Coherency.Check` gains an `elevatedChainDistance`, and a pair is at different
+   elevation when `Distance.Vertical` puts its settled bottoms apart — which needs no ruleset
+   judgement, because settling has already resolved Z. Whether the unit *can fit* stays untested:
+   it is undefined in the book, and coherency is flagged rather than prevented, so the precondition
+   can only ever widen the allowance. `maxSpread` is untouched, p.7's 9" having no elevation clause.
 
 Interpreter question 4 is closed as asked, because `Entrenched` does not exist; it reopened as
 `Artillery`'s aggregation and is ruled above. The `Sniper` per-group residue under interpreter

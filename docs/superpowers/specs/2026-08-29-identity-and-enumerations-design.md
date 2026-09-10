@@ -122,7 +122,7 @@ GAME.waits_between_steps   boolean                 (added 09-04; animate is a pe
 ModelProperty.aggregation   all | any | majority | none
 Volume.kind            solid | area          (geometry values)
 Volume.footprint       circle | rect         (geometry values)
-base shape             circle | oval | square (geometry values)
+base shape             circle | oval | rect (geometry values)
 ```
 
 **Added 2026-08-30, when `Properties` was given tables.** Every one of these was a closed set in

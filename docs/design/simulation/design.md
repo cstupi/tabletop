@@ -11,7 +11,7 @@ legal set and never compute a rules outcome the engine should compute.
 
 ## Scope
 
-**In scope.** The `Chooser`, the scenario record and its compiler, the five catalog scenarios;
+**In scope.** The `Chooser`, the scenario record and its compiler, the six catalog scenarios;
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
 `IGameDriver` interface and both implementations; the run loop, its four outcomes and its
 hand-placement of deployed models; the five invariants and the projection comparer; the
@@ -187,7 +187,7 @@ Zone shape ids come from `ZoneStyles.ShapesOf` (`frontline/1`, `free-for-all/1`)
 order, which is what `SetZoneStyle.Shapes` carries during setup. `sim/` stores the expansion
 rather than the style name, because that is what a `deployment_zone` row holds.
 
-The five catalog scenarios and what each exists to exercise:
+The six catalog scenarios and what each exists to exercise:
 
 | Name | Shape | Contents |
 | --- | --- | --- |
@@ -196,6 +196,7 @@ The five catalog scenarios and what each exists to exercise:
 | `player-turn` | `SchedulerShape.PlayerTurn` | the second scheduler shape |
 | `free-for-all` | alternating activation | three teams, `ZoneStyles.FreeForAll` zones |
 | `stalemate` | alternating activation | one model a side and `RoundCap(3)`, so the run must hit the cap |
+| `casting` | alternating activation | a `Caster(2)` and one scenario-declared spell, so casting's two player decisions open in a whole-game run |
 
 `Scenario.Enforcement` defaults to `Enforcement.Strict`, which is the opposite of every
 fixture's default. An answer outside the legal set must be refused loudly rather than logged and
@@ -1237,10 +1238,17 @@ exit code changes. The frames are dumped either way.
 so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands
 section grows a line. Nothing in the code changes.
 
-**4. Are these the right five scenarios?** Assumed `skirmish`, `terrain`, `player-turn`,
-`free-for-all` and `stalemate`, one per thing that could plausibly diverge. A regression scenario
-for a specific rules interaction is a script and is added the same way, so the shape of the
-catalog does not change.
+**4. Are these the right five scenarios? Ruled 2026-09-09 by the owner: six.** `casting` joins
+`skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate`. Casting is not a mode — a
+spell is cast inside an ordinary activation — so the preset differs from `skirmish` only in
+fielding a `Caster(2)` and declaring a spell. It exists because none of the other five opens
+casting's two player decisions, the token spend map and the caster spending its own leftover
+tokens on its own roll, and both were changed by rulings of 2026-09-06. The spell is the
+scenario's own: `ScenarioBuilder.Spells` folds it into the pinned `PropertySet`, so the hash
+differs from `CoreProperties` for that run alone. The shipped content document is every special
+rule on pages 13–15 and holds no spells, because a spell list belongs to an army book this
+project has not designed. A regression scenario for a specific rules interaction is still a
+script and is added the same way, so the shape of the catalog does not change.
 
 **5. Is 250 ms the right quiet window? Answered by the project owner on 2026-09-06: the quiet
 window is replaced by a rest frame.** The game server sends `AtRest(long Seq)` when it has

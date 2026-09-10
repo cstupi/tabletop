@@ -1,10 +1,10 @@
-# Handoff — 2026-09-08
+# Handoff — 2026-09-09
 
-Where the project stands, and what to pick up next. Rewritten at the end of the session that
-cleared the plans' debts: the joined-hero mechanism is written, all 98 spec corrections are
-applied, and the documentation debts are gone. Two owner rulings were made that day, on wound
-distribution and on when cover is counted, and three latent defects were found and fixed on the
-way. **Design, planning and cleanup are all complete. The only thing left is to build it.**
+Where the project stands, and what to pick up next. Rewritten at the end of the session that closed
+the last open questions: all twenty-five are decided, and three defects surfaced while propagating
+them are fixed. The session before it cleared the plans' debts — the joined-hero mechanism written,
+all 98 spec corrections applied. **Design, planning and cleanup are all complete. The only thing
+left is to build it.**
 
 ## State
 
@@ -15,7 +15,7 @@ implemented.
 
 | Layer | Where | Size |
 | --- | --- | --- |
-| Design sessions | `docs/superpowers/specs/`, 23 files | the requirements |
+| Design sessions | `docs/superpowers/specs/`, 24 files | the requirements |
 | Implementation plans | `docs/superpowers/plans/`, 10 files | 38,325 lines |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | 15,145 lines |
 
@@ -31,14 +31,16 @@ Precedence, when two documents disagree: **the specs settle behaviour, the plans
 written, the design docs settle structure.** A later spec beats an earlier one. Where a design
 document disagrees with its plan, the plan is what an implementer follows.
 
-Three specs sit above the rest, newest last:
+Four specs sit above the rest, newest last:
 
 1. `2026-09-04-whole-design-review.md` beats every spec written before it, which was all of them
    at the time.
 2. `2026-09-06-simulation-design.md` postdates the review and is not subordinate to it. It also
    covers two modules the review never saw.
-3. `2026-09-06-ruleset-3-5-1-design.md` is newest and beats both, on the one subject it touches:
-   the ruleset. See *The ruleset moved to 3.5.1*.
+3. `2026-09-06-ruleset-3-5-1-design.md` beats both, on the one subject it touches: the ruleset.
+   See *The ruleset moved to 3.5.1*.
+4. `2026-09-09-open-questions-design.md` is newest, and beats every one of them on the twenty-five
+   questions it names and on nothing else. See *The open questions are closed*.
 
 ## The mode
 
@@ -55,10 +57,12 @@ modules' full-game tests run through the simulator.
 game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
 are not interchangeable.
 
-**Two things to know before the first task.** The plans' *Spec corrections proposed* sections are
-now history rather than work: their *Before* quotes no longer match the documents they quote. And
+**Three things to know before the first task.** The plans' *Spec corrections proposed* sections are
+now history rather than work: their *Before* quotes no longer match the documents they quote.
 `plans/2026-09-05-interpreter-and-effects.md` grew a mechanism after it was written, so read Task 7,
-12, 13 and 14 as they now stand rather than trusting a summary of them.
+12, 13 and 14 as they now stand rather than trusting a summary of them. And every plan's *Questions
+for the project owner* section is now closed end to end — no plan proceeds on an assumption any
+more, and six of the answers changed the plan they sat in.
 
 ### The one debt the plans still carry
 
@@ -324,34 +328,56 @@ joined hero blocks at its host squad's defence. And `design/interpreter/design.m
 are closed by owner ruling: 1, 2, 3, 6, 7, 9, 12 and 14"* while eleven rows were marked closed; it
 now reads eleven and names 5, 10 and 11 as the three still open.
 
-## Open questions
+## The open questions are closed
 
-Every plan proceeds under a stated assumption, so none of these blocks execution. Each plan's own
-*Questions for the project owner* section is the authority; this is the union.
+All twenty-five, on 2026-09-09. `superpowers/specs/2026-09-09-open-questions-design.md` is the
+record and beats every earlier spec on these questions alone. Every plan's *Questions for the
+project owner* section now carries its answer, so **no plan proceeds on an assumption any more**.
 
-**Worth asking, because a late answer means rewriting rather than editing**
+Ten were never open — a document already settled them and the plan that asked never wrote the
+answer down. Four were closed as assumed. Twelve went to the owner, of which six confirmed the
+assumption and change nothing: the weapon cursor, click-to-embark, the tabbed viewer panel, the
+72×48 grass draft default, newer-socket-replaces-older, and a `stuck` run failing CI.
 
-- **Are weapons dealt onto models in order?** Management question 4, and untouched by 3.5.1
-  because it asks about Army Forge data rather than about the rules. Assumed an advancing cursor,
-  so a lone flamer lands on the last model. Asking the player instead means import cannot expand a
-  unit on its own, which needs a per-slot weapon editor and a `PATCH` shape, neither designed.
-- **How is the elevated 3" coherency measured?** New with 3.5.1. Page 11 gained *"If not all
-  models in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
-  elevation."* `Coherency.Check` takes one chain distance for every pair, so a per-pair distance
-  keyed on the two models' elevations is a signature change, and whether the unit *can fit* on the
-  elevation is a ruleset judgement the geometry library cannot make. The rule states the allowance
-  and not the test.
+**Six answers changed a plan.** The rest are in the spec:
 
-**Cheap either way, but still open**
+| Change | Where it lands |
+| --- | --- |
+| p.11's elevated 3" coherency is applied to every cross-elevation pair, its precondition never tested | `Coherency.Check` gains an `elevatedChainDistance`; `maxSpread` untouched. Closes the 3.5.1 rebase's second open question |
+| `Thrust` grants `AP` rather than modifying it, as `Rending` does | The catalog entry's second effect becomes `grant_property`, so a melee weapon with no `AP` gains 1. `ModifyParameter` keeps `Counter` as its example. Closes the last residue |
+| `GET /v1/games` is newest-first | `id < @after order by id desc`; the keyset cursor is unchanged |
+| Textures accept `image/webp` | `AssetRules.ContentTypes`, the `002` constraint, `schema.md`, and the web app's intake |
+| The simulator ships six scenarios and can declare its own spells | `casting` joins the five; `ScenarioBuilder.Spells` folds entries into the pinned `PropertySet` for one run, because the shipped content holds no spells |
+| Garrisonable buildings stay entirely manual | Geometry question 8 is *no*: no `WorldVolume` overload, no exit region. Most terrain buildings are open, and the players agree how a garrison works at the table |
 
-- A terrain container for a solid building holding models, geometry question 8. One overload, five
-  lines and a test.
-- The simulator's scenario catalogue, and whether a casting scenario joins it now that casting has
-  two player decisions, simulation question 4. Changes nothing else.
-- The disembark radius and whether it is measured edge to edge, interpreter question 11.
+### Three defects the propagation found
 
-**Residues, not open questions**, so a plan's question list will not surface them. Each sits inside
-a question the owner already closed:
+None was on a question list. Each is fixed.
+
+- **The disembark-facing ruling had reached no code.** `2026-09-06-ruleset-3-5-1-design.md` §4
+  ruled *any facing that fits* over the container's yaw, and reached that spec and this file and
+  stopped: `MoveRuler.Admits`, `AskPanel.YawOf`, the client plan's question 8 and three rows of
+  `design/client/design.md` all still assumed the container's yaw. The **server was never wrong** —
+  `GfMoves.ExitPlacement` checks the placement the client proposes — so nothing caught it.
+  `MoveRuler.ExitYaws` is 8 and `ExitYawAt` answers with a facing that fits; a **circular base tries
+  one**, so every ordinary infantry model costs what it did before.
+- **The default base was wrong for every model it applied to.** An entry with no published base got
+  `Base.Circle(32/25.4)`. Army Forge publishes `bases.round` reliably for infantry, so a missing
+  base means a vehicle, and a tank measured from a 1.26" circle at its hull centre put its whole 6"
+  disembark region — and its movement, cover and line of sight — inside itself. The default is now
+  `DefaultBody`, a 221 × 119 × 113 mm hull, carrying its own height because `HeightFromBase` would
+  have scaled 221 mm into a 13" tall tank.
+- **`BaseShape.Square` could not express a hull.** A square is a rectangle, so the enum held the
+  special case and not the general shape. **`Square` is replaced by `Rect(length, width)`**; a
+  square is `Rect(s, s)`, and `A` is the length along the facing, matching `Oval`. This is
+  wire-level: the `Protocol` enum, both check constraints, `Bodies.BaseOutline`, ten geometry
+  tests, the client's `BoxMesh` arm, the web app's union, presets, picker and labels, the
+  simulator's and viewer's `RecordedModel.BaseShape`, the viewer's ported `baseOutline`, and three
+  specs. Army Forge's own `bases.square` field is their data and is untouched.
+
+### Residues, not open questions
+
+Each sits inside a question the owner already closed, so no plan's question list will surface them.
 
 - Interpreter question 7 is closed twice over, but `Takedown`'s *"resolved as if it was a unit of
   [1]"* is still not modelled: cover, `Blast`'s cap and the defence roll read the whole target
@@ -360,25 +386,13 @@ a question the owner already closed:
   deliberately, because page 9 sequences melee by hand.
 - Interpreter question 8 is closed, but the end-of-turn morale test's die is still unreachable from
   the menu: it is a single-step frame with an actor, so it pops before anything can gate it.
-- `Thrust`'s `AP(+1)` is a `modify_parameter` on an existing `AP` instance, so a melee weapon with
-  no `AP` at all gains nothing from it. 3.5.1 writes both it and `Rending` with the additive `+`
-  notation, and `Rending` grants a separate instance instead. Nothing has decided whether the two
-  should be modelled the same way.
-
-**Local, and safe as assumed**
-
-Client: presence sample rate, whose base the disembark region is drawn for, whether a container is
-a click target or a button. Geometry: straight-line movement reach, ovals as 64-gons. Interpreter:
-whether the generic effect code may know the two weapon stat names, whether a caster inside a
-container may cast. Management: game list ordering, whether textures accept WebP. Game server:
-what the setup draft starts as, one connection per participant. Web app: where the browser keeps
-its token. Simulator: exit code on a stuck run, solution membership. Viewer: headless rendering
-tests, fixture size, fetching a recording over HTTP, refusing an unknown ruleset, panel layout.
+- Interpreter question 10 is closed, but `SpellTargets`' model-grain branch measures per model.
 
 **Deferred by design**, each recorded where it belongs: hosting; buildings as shootable targets
 and army terrain; action boosting; Advanced Casting's optional modules; missions, side-missions
-and scoring; and everything waiting on a second ruleset, which is Warhammer rather than Age of
-Fantasy, since the two One Page Rules games share an engine.
+and scoring; a real spell list, which belongs to an army book; and everything waiting on a second
+ruleset, which is Warhammer rather than Age of Fantasy, since the two One Page Rules games share
+an engine.
 
 ## `docs/workstreams/` is superseded
 

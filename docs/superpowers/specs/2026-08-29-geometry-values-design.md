@@ -19,7 +19,7 @@ never the visual mesh; models settle by raycasting down; markers ignore terrain.
 **A shape and its dimensions, in world units.**
 
 ```
-base   circle(diameter) | oval(length, width) | square(side)
+base   circle(diameter) | oval(length, width) | rect(length, width)
 ```
 
 Presets exist and carry the familiar names — `32mm round` is a *name*, `1.26` is the value.
@@ -79,7 +79,7 @@ Volume   kind          solid | area
 
 **Convex hulls are dropped.** `architecture.md` listed boxes, cylinders and convex hulls.
 With footprints restricted to circles and rectangles, every test is a 2D shape intersection
-plus a vertical range — and model bases are circles, ovals and squares, so model-versus-terrain
+plus a vertical range — and model bases are circles, ovals and rectangles, so model-versus-terrain
 is 2D shape intersection with a height check. No hull math anywhere, and moving a model
 through terrain stays cheap.
 

@@ -452,7 +452,7 @@ records `001` as applied rather than re-running it.
 | no | yes | the early return fires and DbUp applies only what the journal lacks. If the journal already records `001`, `002` runs against a table that is not there and fails. Not reachable through either supported path, and not tested |
 
 Migration `002_blob_uploaded.sql` adds `blob.uploaded boolean not null default false` and
-`blob.content_type text not null check (content_type in ('model/gltf-binary','image/png','image/jpeg'))`.
+`blob.content_type text not null check (content_type in ('model/gltf-binary','image/png','image/jpeg','image/webp'))`.
 Both are needed by the presigned protocol. Neither is in `schema.md`. Spec correction 1 proposes
 them.
 
@@ -663,9 +663,15 @@ surviving entry answers leaves the entry as its own unit, the behaviour this mod
 ruling. A `joinToUnit` naming an entry that itself joins does the same, so joins are never chained
 and a cycle needs no walk.
 
-Defaults where nothing supplies one: `DefaultBase = Base.Circle(32/25.4)` when `bases.round` is
-absent. The army spec says bases default to "whatever the ruleset says" and no ruleset value exists
-anywhere in the model (question 3; spec correction 5).
+Defaults where nothing supplies one: `DefaultBody`, a 221 × 119 × 113 mm vehicle hull, when
+`bases.round` is absent. Ruled 2026-09-09, over the `Base.Circle(32/25.4)` that stood before: Army
+Forge publishes `bases.round` reliably for infantry, so a missing base means a vehicle or monster in
+practice, and a 32 mm circle put a tank's whole 6" disembark region — and its movement, cover and
+line of sight — inside its own hull. The default carries its own height rather than going through
+`HeightFromBase`, which would scale 221 mm into a 13" tall tank. The army spec says bases default to
+"whatever the ruleset says" and no ruleset value exists anywhere in the model (question 3; spec
+correction 5). The player corrects it per model through `SlotPatch.Base`, which the web app's base
+editor already writes.
 
 `HeightFromBase(base)` is `HeightScale * base.A`, `1.5 ×` the base's long axis, ruled 2026-09-06.
 A 25.4 mm circle gets 1.5", a 32 mm circle 1.89", a 60x35 mm oval 3.54" and a 120x92 mm oval 7.09".
@@ -770,10 +776,12 @@ Endpoint behaviour:
 - `POST /v1/games` validates the `properties_hash` against the `properties` table and copies
   `game_rules` from the chosen row, so a game can never name a ruleset its pinned set disagrees
   with. An unknown hash is `422` with a pointer to `GET /v1/properties`.
-- `GET /v1/games` lists **every status**, keyset over `id`, ascending. Filtering is the user's, not
+- `GET /v1/games` lists **every status**, keyset over `id`, **descending**. Filtering is the user's, not
   the server's. "Open games" was the wrong phrase. Nothing is hidden by status (accounts → *Still
-  open*). Ascending by id means oldest first. That is what the cursor mechanism gives, and probably
-  not what a browser wants (question 7).
+  open*). Descending by id means newest first, ruled 2026-09-09 over the ascending order the cursor
+  gave for free: the list filters by status, name and created-by-me, which is a filter set for
+  finding something recent, and ascending puts every finished game ahead of tonight's (question 7).
+  `id < @after order by id desc`; `Page<T>.Next` still holds the last id.
 - `POST /v1/games/{id}/join` is `insert ... on conflict (game_id, account_id) do nothing` guarded by
   `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
   nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
@@ -951,8 +959,8 @@ Each of these was decided, reversed, and in several cases reversed again.
 | Does `PATCH /v1/armies/{id}` take a document or a patch? | a patch: `Name?`, `UnitPatch` (unit default), `SlotPatch` (per-slot asset, base, height), spec correction 3 | a whole-document `PUT` would need the client to hold the full tree and would race with itself |
 | What are the error shapes? | RFC 7807 `application/problem+json` throughout. Another owner's row is `404`, spec correction 3 | nothing. The spec listed this under *Deliberately not decided* |
 | How are partial weapon counts dealt onto models? | an advancing cursor. `9x Rifle, 1x Flamer` puts the flamer last (question 4) | if the user must be asked, import cannot expand deterministically and the web app needs a weapon editor that is not designed |
-| Is the game browser newest-first? | oldest-first, ascending by id, which is what the keyset cursor gives (question 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
-| Does the texture kind accept WebP? | no, PNG and JPEG (question 8) | one value in `AssetRules.ContentTypes` and the `002` check constraint |
+| Is the game browser newest-first? | **yes**, ruled 2026-09-09 (question 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id, so the cursor mechanism is unchanged |
+| Does the texture kind accept WebP? | **yes**, ruled 2026-09-09 (question 8): Godot 4 loads it natively and every client in a game downloads the table texture | one value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's intake |
 | Is the manifest re-issued on reconnect? | not decided here. The client re-requests it. `ExpiresAt` is 60 minutes and a game runs hours | management API → *Deliberately not decided*; the client must handle expiry |
 
 ---
@@ -1026,7 +1034,7 @@ and a build whose environment is unset serves `404` for it.
 | `Content.Assets.AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes` |
 | `Content.Assets.FolderRepository` | `List`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
 | `Content.Armies.ArmyForgeClient` | `static ListId(source)`, `static Parse(json)`, `Fetch(listId)`, `HttpClientName = "army-forge"`, `BaseUrl`; `ArmyForgeException(Status)` |
-| `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog)`, `ParseBase(round)`, `HeightFromBase(base)`, `GameRules`, `DefaultBase`, `HeightScale`; `PropertyLevel { Unit, Model }`; `UnsupportedGameSystemException` |
+| `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog)`, `ParseBase(round)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `UnsupportedGameSystemException` |
 | `Content.Armies.CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
 | `Content.Armies.ArmyRepository` | `Insert`, `Get`, `List`, `Patch`, `Delete`; `ArmySummary`, `ImportRequest`, `UnitPatch`, `SlotPatch`, `PatchArmyRequest` |
 | `Content.Layouts.LayoutRepository` | `Save`, `Get`, `List`, `Patch`, `Delete`, `static ReadTree`; `LayoutSummary`, `PatchLayoutRequest` |
@@ -1548,8 +1556,8 @@ Stytch user and no re-mint, with the second JWT accepted by `GET /v1/account`.
 | 4. How are partial weapon counts dealt onto models? | an advancing cursor, and the flamer lands last | if the user must choose, import cannot expand deterministically and the web app needs a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
 | ~~5. Which game systems import?~~ | **ruled 2026-09-06: Grimdark Future and Age of Fantasy, both as `grimdark-future`.** The mechanics are the same and only the content differs | already applied above. No Age of Fantasy content set exists, so such a list imports before anything can play it, recorded against the interpreter |
 | ~~6. Who may `/end` and `DELETE` a game?~~ | **ruled 2026-09-06: the creator alone**, still so after leaving | already applied above. `GameRepository.IsCreator` gates both routes and anyone else gets `404` |
-| 7. Is `GET /v1/games` newest-first? | oldest-first, ascending by id | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
-| 8. Does the texture kind accept `image/webp`? | no | one value in `AssetRules.ContentTypes` and in the `002` check constraint |
+| 7. Is `GET /v1/games` newest-first? | **yes**, ruled 2026-09-09 | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
+| 8. Does the texture kind accept `image/webp`? | **yes**, ruled 2026-09-09 | one value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's `ContentType` union and `classifyFiles` |
 
 A ninth question, whether a missing version header is accepted, was struck on 09-06. The specs
 answer it: the check exists for the downloaded desktop client, and the client shell says the client

@@ -372,6 +372,7 @@ public sealed record Scenario(
     IReadOnlyList<ScenarioTerrain> Terrain,
     IReadOnlyList<ScenarioMarker> Markers,
     IReadOnlyList<string> ZoneShapes,
+    IReadOnlyList<EntryDocument> Spells,
     AnswerScript Script,
     bool ScriptOnly,
     IReadOnlyList<Expectation> Expectations)
@@ -398,6 +399,7 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     private readonly List<ScenarioTerrain> _terrain = [];
     private readonly List<ScenarioMarker> _markers = [];
     private string? _zoneStyle;
+    private readonly List<EntryDocument> _spells = [];
     private AnswerScript _script = AnswerScript.Empty;
     private bool _scriptOnly;
     private readonly List<Expectation> _expectations = [];
@@ -408,6 +410,11 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     public ScenarioBuilder Table(double width, double length) { _table = new TableSize(width, length); return this; }
     /// <summary>A zone style id from Tabletop.Geometry.ZoneStyles; its shapes expand in team-ordinal order.</summary>
     public ScenarioBuilder Zones(string style) { _zoneStyle = style; return this; }
+
+    /// <summary>Spells for this run only, folded into the pinned PropertySet the way TestProperties.WithSpells does.
+    /// The shipped content document is every special rule on pages 13-15 and holds no spells, because a spell list belongs
+    /// to an army book this project has not designed. Nothing invented here reaches the game's content (ruled 2026-09-09).</summary>
+    public ScenarioBuilder Spells(params EntryDocument[] spells) { _spells.AddRange(spells); return this; }
 
     public ScenarioBuilder Army(string armyName, int units, int modelsPerUnit,
         IReadOnlyList<ScenarioRule>? unitRules = null, IReadOnlyList<ScenarioRule>? modelRules = null,
@@ -433,7 +440,7 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
         var style = _zoneStyle ?? (_armies.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
         var shapes = ZoneStyles.ShapesOf(style).Take(_armies.Count).ToList();
-        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations);
+        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _spells, _script, _scriptOnly, _expectations);
     }
 }
 ```
@@ -466,9 +473,16 @@ public sealed record CompiledScenario(
 public static class ScenarioCompiler
 {
     /// <summary>The core Grimdark Future set, through the production path: the game server's embedded document.</summary>
-    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(
-        PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId),
-        Guid.CreateVersion7);
+    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
+
+    static PropertySetDocument CoreDocument { get; } =
+        PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId);
+
+    /// <summary>The core set plus a scenario's own spells, so the hash differs and the run is pinned to what it declared.
+    /// No spells means CoreProperties itself, which keeps every other scenario on the production hash.</summary>
+    public static PropertySet PropertiesFor(IReadOnlyList<EntryDocument> spells) =>
+        spells.Count == 0 ? CoreProperties
+            : PropertiesJson.ToSet(CoreDocument with { Name = $"{CoreDocument.Name} + scenario spells", Entries = [.. CoreDocument.Entries, .. spells] }, Guid.CreateVersion7);
 
     public static CompiledScenario Compile(Scenario s)
     {
@@ -498,7 +512,7 @@ public static class ScenarioCompiler
             GrimdarkFutureRules.RulesId, CoreProperties.ContentHash, s.Shape, s.Enforcement,
             WaitsBetweenSteps: false, unchecked((long)s.Seed), teams, participants);
 
-        return new CompiledScenario(s, info, new Board(snapshot, armies), CoreProperties,
+        return new CompiledScenario(s, info, new Board(snapshot, armies), PropertiesFor(s.Spells),
             teams.Select(t => t.Id).ToList(), participants.Where(p => p.TeamId is not null).Select(p => p.Id).ToList(),
             participants.Where(p => p.TeamId is not null).ToDictionary(p => p.Id, p => p.TeamId!.Value),
             snapshot, recorder.Id);
@@ -562,7 +576,28 @@ public static class ScenarioCatalog
 
         ["stalemate"] = () => new ScenarioBuilder("stalemate", seed: 1)
             .RoundCap(3).Army("Red", 1, 1).Army("Blue", 1, 1).Build(),
+
+        // Casting is not a mode: a spell is cast inside an ordinary activation. This preset exists only because none of the
+        // other five fields a caster, so nothing else opens casting's two player decisions in a whole-game run — the token
+        // spend map, and the caster spending its own leftover tokens on its own roll (both changed by rulings of 2026-09-06).
+        ["casting"] = () => new ScenarioBuilder("casting", seed: 1)
+            .Spells(Bolt)
+            .Army("Red", 2, 3, modelRules: [new ScenarioRule(0, "Caster", 2)])
+            .Army("Blue", 2, 3)
+            .Build(),
     };
+
+    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
+    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
+    static readonly EntryDocument Bolt = PropertiesJson.Parse(
+        """
+        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
+          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
+            "ruleText": "Target enemy unit within 12\" takes 3 hits with AP(1).",
+            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 12 },
+            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
+              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
+        """).Entries.Single();
 
     public static IReadOnlyList<string> Names { get; } = Factories.Keys.Order().ToList();
     public static Scenario Get(string name) =>
@@ -1938,8 +1973,8 @@ public sealed record RecordedMarker(Guid Id, string Kind, double Diameter, strin
 public sealed record RecordedZone(
     Guid Id, string Shape, int TeamOrdinal, IReadOnlyList<IReadOnlyList<Point2>> Polygons);
 
-/// <param name="BaseShape">`circle`, `oval` or `square`.</param>
-/// <param name="BaseA">A circle's diameter, an oval's length, a square's side — all in inches.</param>
+/// <param name="BaseShape">`circle`, `oval` or `rect`.</param>
+/// <param name="BaseA">A circle's diameter, an oval's or rect's length — all in inches.</param>
 /// <param name="BaseB">An oval's width; equal to BaseA otherwise.</param>
 public sealed record RecordedModel(
     Guid Id, Guid UnitId, string UnitName, string Name, int Ordinal,
@@ -4533,12 +4568,12 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 
 | Type | Members |
 | --- | --- |
-| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
+| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<EntryDocument> Spells, IRL<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
 | `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats)`; `ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)`; `ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
 | `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Scripted`, `Expect`, `Build` |
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
 | `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties` |
-| `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` — `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate` |
+| `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` — `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting` |
 | `abstract record Expectation` | `EventOfKind(string, int)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int)`, `Outcome(string)` |
 | `static class Expectations` | `IRL<string> Check(IRL<Expectation>, Projection, IRL<GameEvent>, RunOutcome, CompiledScenario)`, `int ModelsOnTable(Projection, CompiledScenario, int teamOrdinal)`, `int ModelsOnTable(Projection, CompiledScenario, Guid teamId)` |
 
@@ -4692,9 +4727,9 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 ## Questions for the project owner
 
 1. **How does a socket run get its session JWTs? Answered by the project owner on 2026-09-06, ruling 4: from a development-only endpoint that mints one.** Hand-pasting is rejected. The endpoint is `POST /v1/dev/sessions` on the **management API**, not the game server, because management holds the Stytch project secret and already creates users and authenticates sessions; the game server holds no credential and could not mint anything real. It takes a name, finds or creates the Stytch user and the `account` row, and returns a real Stytch session JWT, so the socket driver stays on the production verification path. It is gated on `IHostEnvironment.IsDevelopment()` rather than on a configuration flag, and it is absent from the route table a production build serves. Applied in Task 8: `SocketCredentials.MintAsync` replaces `FromEnvironment`, `AccountOf` reads the account id from the mint's response instead of decoding the token, `NameFor` makes the account names stable per scenario and participant, and `--driver socket` has no token variable. The cost is that a console socket run now needs network access to the Stytch test project; the in-process driver and `DriverAgreementTests` still need none. See the management API plan, Task 5, for the endpoint and its absence test.
-2. **Should a `stuck` run fail the console's exit code?** Assumed yes: `RunReport.Passed` is false for `stuck` and `failed`, so `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the exit code changes; the frames are still dumped either way.
-3. **Should `sim/` be in `Tabletop.sln`?** Assumed yes, in a `sim` solution folder, so `dotnet build` at the root builds it and `dotnet test` runs its tests — which is what makes it part of the whole-tree check every plan ends with. If it should be excluded so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands section grows a line; nothing in the code changes.
-4. **How many scenarios should the catalog ship with, and are these the right five?** Assumed `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change. **One candidate sixth, raised 2026-09-06 and not added:** a casting scenario. Casting now holds two player decisions rather than one — the caster's spell and target, then a simultaneous per-model token spend by both teams (p.13) — and it is the only sealed window a full game reaches, so nothing in the present five exercises `TokenSpend`, the sealed reveal, or a window addressed to more than one team. Adding it is a `Scenario` with two casters per side and a `--script` for the spend, not a change to anything else.
+2. **Should a `stuck` run fail the console's exit code? Ruled 2026-09-09 by the owner, as assumed: yes** ([closing the open questions](../specs/2026-09-09-open-questions-design.md)). A game that cannot finish is a bug in the rules engine, and CI is the only place anyone will run 500 seeds. Assumed yes: `RunReport.Passed` is false for `stuck` and `failed`, so `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the exit code changes; the frames are still dumped either way.
+3. **Should `sim/` be in `Tabletop.sln`? Closed 2026-09-09 on `CLAUDE.md`'s own terms: yes** — the solution is *"at the repo root, spanning every project"* ([closing the open questions](../specs/2026-09-09-open-questions-design.md)). Assumed yes, in a `sim` solution folder, so `dotnet build` at the root builds it and `dotnet test` runs its tests — which is what makes it part of the whole-tree check every plan ends with. If it should be excluded so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands section grows a line; nothing in the code changes.
+4. **How many scenarios should the catalog ship with, and are these the right five? Ruled 2026-09-09 by the owner: six.** `casting` joins them, because casting is the only path with two player decisions a whole-game run would otherwise never open — the token spend map, and the caster spending its own leftover tokens on its own roll — and both were changed by rulings of 2026-09-06. Casting is not a mode: a spell is cast inside an ordinary activation, so the preset differs from `skirmish` only in fielding a `Caster(2)` and declaring a spell. The spell is the scenario's own, folded into the pinned `PropertySet` the way `TestProperties.WithSpells` does, because the shipped content document is every special rule on pages 13–15 and holds no spells — a spell list belongs to an army book this project has not designed ([closing the open questions](../specs/2026-09-09-open-questions-design.md)). The original assumption: `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate` — one per thing that could plausibly diverge (a plain game, terrain declarations, the second scheduler shape, three teams, and a run that must hit the cap). A regression scenario for a specific rules interaction is a script and is added the same way; the shape of the catalog does not change. **One candidate sixth, raised 2026-09-06 and not added:** a casting scenario. Casting now holds two player decisions rather than one — the caster's spell and target, then a simultaneous per-model token spend by both teams (p.13) — and it is the only sealed window a full game reaches, so nothing in the present five exercises `TokenSpend`, the sealed reveal, or a window addressed to more than one team. Adding it is a `Scenario` with two casters per side and a `--script` for the spend, not a change to anything else.
 5. **Is 250 ms the right quiet window for the socket driver? Answered by the project owner on 2026-09-06: it is replaced by a rest frame.** The game server sends `AtRest(long Seq)` when it has finished processing an inbound `connect` or `command`, carrying the log's high-water mark, broadcast when the batch appended and sent to the provoking client alone when it did not. `SocketDriver.StepAsync` waits for that frame instead of for silence, and `RestTimeout` (30 seconds) replaces `QuietWindow` as a guard on a hung server rather than as a guess at quiescence; expiry is `RestTimeoutException`, which `RunLoop` turns into a `Failed` run. Task 8 is rewritten accordingly, and `DriverAgreementTests` compares the two drivers run for run again. In process is unaffected and stays exact.
 
 ---

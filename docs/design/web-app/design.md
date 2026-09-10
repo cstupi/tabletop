@@ -301,7 +301,7 @@ conversion edge and nothing past it knows about mm.
 
 `bases.ts` implements the geometry-values ruling that **presets are UI over a shape, not the
 stored value**. `32mm round` is a name, `1.26` is the value. `BASE_PRESETS` is ten rounds, six
-ovals and four squares built by `circle(mm)`, `oval(lengthMm, widthMm)` and `square(mm)`.
+ovals, four squares and one vehicle rectangle built by `circle(mm)`, `oval(lengthMm, widthMm)` and `rect(lengthMm, widthMm)`.
 `presetFor(base)` matches within 0.005″, so a value that came back from Postgres as a `real`
 still shows its familiar name. `baseLabel` falls back to `"50.8 × 25.4 mm oval (custom)"`.
 `architecture.md` described the base as a preset dropdown, which would have made the geometry
@@ -586,7 +586,7 @@ modes.
 
 The world is drawn Z-up by setting `camera.up = (0, 0, 1)` and leaving the GLB's data alone. The
 stored orientation is what stands the model up. The ring is the **modelled base** in inches: a
-circle or oval outline with the oval's `a` along +Y, or a square as four edges. The arrow is the
+circle or oval outline with the oval's `a` along +Y, or a rectangle as four edges. The arrow is the
 facing. Standing the mesh on that ring turns "scale = 0.0394" into a decision a person can make.
 If the model is twice the ring, the units guess was wrong.
 
