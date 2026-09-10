@@ -1,10 +1,11 @@
 # Handoff — 2026-09-09
 
-Where the project stands, and what to pick up next. Rewritten at the end of the session that closed
-the last open questions: all twenty-five are decided, and three defects surfaced while propagating
-them are fixed. The session before it cleared the plans' debts — the joined-hero mechanism written,
-all 98 spec corrections applied. **Design, planning and cleanup are all complete. The only thing
-left is to build it.**
+Where the project stands, and what to pick up next. Rewritten at the end of 2026-09-09, the last
+day before execution. That day closed the twenty-five open questions, audited the ten plans against
+each other and against the specs, and made each plan executable by an agent holding only that plan:
+prerequisites stated, the interpreter/scheduler type cycle broken, `CLAUDE.md` edits made
+order-independent, test counts and elided signatures corrected. Three commits: `c107628`, `6c47ee2`,
+`a397159`. **Design, planning and cleanup are all complete. The next session builds it.**
 
 ## State
 
@@ -47,11 +48,29 @@ Four specs sit above the rest, newest last:
 Design and planning are both complete. **The next thing is execution**, starting with
 `superpowers/plans/2026-09-05-contracts-and-local-dev.md`, which everything else consumes.
 
-Execute with the `superpowers:subagent-driven-development` or `superpowers:executing-plans` skill,
-as each plan's own header says. Build order is in `docs/design/README.md`: contracts, then geometry
-and the management API and the game server skeleton in any order, then the web app, the client, and
-the two rules modules. The simulator and the viewer come last and repay early, because the rules
-modules' full-game tests run through the simulator.
+**How it will run, decided 2026-09-09: one manager agent, and each plan on its own tree of
+subagents**, with `superpowers:subagent-driven-development` inside each tree as every plan's header
+says. The manager's job is the graph, not the code: launch a plan when its `Requires landed:` line
+is satisfied, give each tree its own worktree, merge when a tree's whole-tree check is green, and
+resolve the two textual conflicts that are expected rather than wrong — `Tabletop.sln` (re-run both
+trees' `dotnet sln add` lines) and `.env.example` (keep both appends). Nothing else two concurrent
+trees write overlaps. The graph, from `docs/design/README.md` → *Build order and why*:
+
+1. contracts, alone;
+2. geometry, management, game-server skeleton — together;
+3. web app, client, interpreter — together;
+4. scheduler;
+5. simulator;
+6. viewer.
+
+The simulator and the viewer come last and repay early, because the rules modules' full-game tests
+run through the simulator.
+
+**What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle:
+two counts in the game-server plan (Tasks 4 and 6) come from data-driven theories whose case counts
+the plan does not show, so a disagreement there is decided by the test runner. And nothing on
+2026-09-09 verified that any task's implementation satisfies its own tests — that is what each
+task's red-then-green step exists to do, and the tree running it is the first thing that will.
 
 **The plans may run in parallel where the graph allows, and each now says what it needs.** Every
 plan carries a `**Requires landed:**` line under its `**Spec:**` line (added 2026-09-09 for
