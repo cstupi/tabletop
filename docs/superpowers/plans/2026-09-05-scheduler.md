@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-04-scheduler-design.md` (primary); `2026-08-28-game-flow-design.md` (two shapes, when the record clears, the shelf, and the team model — teams created only while `lobby` or `setup`, a participant's team is their slot, reconnecting returns the player to it, ruled 2026-09-06); `2026-09-03-action-sequences-design.md` (the Ask, the frame stack, the end-of-activation hook, fatigue, the token economy); `2026-09-04-setup-phase-design.md` (the flip into deployment, the zone swap); `2026-08-30-presence-design.md` and `2026-09-04-whole-design-review.md` (a participant with no team is never Asked; the pass as a logged fact; enforcement three positions); `2026-08-29-identity-and-enumerations-design.md` (`scheduler_shape`, actions named per ruleset); `2026-09-04-client-shell-design.md` → Asks and windows (mutes are client-side). Rulebook: Grimdark Future v3.5.1 pages 6, 7, 10, 13–14, 21–23, 49, read for this plan. Earlier plans obeyed: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` (every Protocol name) and `2026-09-05-game-server-skeleton.md` (`IGameRules`, `IRulesEngine`, `GameState`, `Actor`, `Legality`, `EngineResult`, `CommandDispatcher`, `InMemoryEventLog`, the test infrastructure). `2026-09-05-interpreter-and-effects.md` is obeyed for the seam: `Engine.IScheduler`, `Engine.ISchedulerFactory`, `Interpreter.ISequenceStarter`, `Properties.PropertySet`, `IGameRules.Sequence/ActionSequence/EndOfTurnSequences/OnRoundStarted/OnTurnEnded`, `GfRolls.RollOffSequence`, `GfNames`, `Effects.Lookup`, and the test infrastructure `Sim`, `TestProperties`, `LambdaStep`. Build order: the interpreter plan's Tasks 1–11 before this plan's Task 3 (this plan's Tasks 1–2 depend only on the skeleton, plus `TestProperties.Core` for Task 2's tests).
 
+**Requires landed:** the contracts and game-server skeleton plans, and **the whole interpreter plan** — `RulesEngine`, `ISchedulerFactory`, `ISequenceStarter`, `SequenceStart`, `GfNames`, the three hooks' `GfHooks` bodies, and the seam records in `server/game/Scheduler/` that its Task 8 declares. Task 10's `CLAUDE.md` edit anchors on the interpreter plan's Task 18 wording.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, namespace root `Tabletop.GameServer`; `Directory.Build.props` puts `obj/` under `obj/$(OS)/`; `global.json` pins SDK `10.0.400`. Files land in `server/game/` and `tests/Tabletop.GameServer.Tests/`; nothing is added to `libs/` and no Protocol type is renamed or reshaped.
@@ -35,8 +37,8 @@ server/game/
   Rules/GrimdarkFuture/GfRules.Scheduling.cs        this plan's partial of the skeleton's GrimdarkFutureRules: phases, first team, activatable units and their actions, answer reading
   Rules/GrimdarkFuture/GfRules.Deployment.cs        deploy and scout legal sets, the Ambusher round-boundary loop
   Program.cs                                        modified: SchedulerFactory registered as Engine.ISchedulerFactory in place of NoSchedulerFactory
-  Scheduler/SchedulerTypes.cs                       TurnAsk, Activation, TurnContext, HookResult, FirstTeamDecision
-  Scheduler/ActivationOption.cs                     the activate option id: "{unitId:N}/{action}"
+  Scheduler/SchedulerTypes.cs                       read, not written: the interpreter plan's Task 8 declares TurnAsk, Activation, TurnContext, HookResult, FirstTeamDecision
+  Scheduler/ActivationOption.cs                     read, not written: the interpreter plan's Task 8 declares the activate option id "{unitId:N}/{action}"
   Scheduler/TeamUnits.cs                            which units are a team's, through the participant; shelf and table checks
   Scheduler/SchedulerLog.cs                         effective-log slices: since round, since phase, since turn; scheduler Asks
   Scheduler/RollOff.cs                              starts the ruleset's roll-off sequence through the interpreter and reads the order back from its Values once the frame has finished
@@ -63,11 +65,12 @@ CLAUDE.md                                           modified: one Layout child b
 ### Task 1: The scheduler's types, the option id and the log reader
 
 **Files:**
-- Create: `server/game/Scheduler/SchedulerTypes.cs`, `server/game/Scheduler/ActivationOption.cs`, `server/game/Scheduler/SchedulerLog.cs`
+- Create: `server/game/Scheduler/SchedulerLog.cs`
+- Read, do not modify: `server/game/Scheduler/SchedulerTypes.cs`, `server/game/Scheduler/ActivationOption.cs` — **the interpreter plan's Task 8 declares both**, in this namespace and to the letter of Steps 2 and 4 below, because that plan runs first and its `IGameRules` members and `StubRules` reference the types. Land it first. The blocks below are what must already be there; verify, do not rewrite
 - Test: `tests/Tabletop.GameServer.Tests/ActivationOptionTests.cs`, `tests/Tabletop.GameServer.Tests/SchedulerLogTests.cs`
 
 **Interfaces:**
-- Consumes: `GameState` (skeleton); `Ask`, `LegalSet`, `AskAnswer`, `StateChange`, `EventPayload`, `GameEvent`, `EventApplier.EffectiveLog`, `SequenceContext`, `AskQuestions`, `AskOpened`, `AskClosed`, `RoundStarted`, `TurnStarted`, `TurnEnded`, `PhaseStarted` (Protocol); `SequenceStart` (interpreter plan Task 8, `Tabletop.GameServer.Rules` — a record with no other dependency; add it from that plan if it has not landed). The scheduler's side of the engine is the interpreter plan's `Engine.IScheduler` (its Task 10), not a type of this plan's.
+- Consumes: `GameState` (skeleton); `Ask`, `LegalSet`, `AskAnswer`, `StateChange`, `EventPayload`, `GameEvent`, `EventApplier.EffectiveLog`, `SequenceContext`, `AskQuestions`, `AskOpened`, `AskClosed`, `RoundStarted`, `TurnStarted`, `TurnEnded`, `PhaseStarted` (Protocol); `SequenceStart`, `TurnAsk`, `Activation`, `TurnContext`, `HookResult`, `FirstTeamDecision`, `ActivationOption` (interpreter plan Task 8, which must have landed: it declares the seam, and this plan adds nothing to it — if the files are absent, stop rather than write them). The scheduler's side of the engine is the interpreter plan's `Engine.IScheduler` (its Task 10), not a type of this plan's.
 - Produces (namespace `Tabletop.GameServer.Scheduler`): `sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass)`; `sealed record Activation(Guid UnitId, string Action, bool RunsSequence, IReadOnlyList<StateChange> Changes)`; `sealed record TurnContext(Guid TeamId, Activation? Activation, long AnsweredAtSeq, long ActivationEndedAtSeq)`; `abstract record HookResult` with `HookDone`, `HookWaiting`, `HookEmit(IReadOnlyList<EventPayload> Events)`, `HookStartSequences(IReadOnlyList<SequenceStart> Sequences)`; `abstract record FirstTeamDecision` with `OrderedTeams(IReadOnlyList<Guid> Order)` and `RollOffNeeded(string Sequence)` (the ruleset sequence that decides the order — OPR's `GfNames.RollOffSeq`; Task 3 starts it and reads its result); `static class ActivationOption { const string Idle = "Idle"; string Id(Guid unitId, string action); bool TryParse(string id, out Guid unitId, out string action); AskOption For(UnitInPlay unit, string action); }`; `sealed class SchedulerLog` with `static SchedulerLog Of(GameState state)`, `IReadOnlyList<GameEvent> Effective`, `long LastSeq`, `GameEvent? Last(Func<EventPayload, bool> match)`, `IReadOnlyList<GameEvent> After(long seq)`, `long RoundStartedAt`, `long PhaseStartedAt`, `long TurnStartedAt`, `long RotationStartAt` (the later of round and phase start), `IReadOnlyList<GameEvent> SinceRound`, `IReadOnlyList<GameEvent> SinceRotation`, `IReadOnlyList<GameEvent> SinceTurn`, `long CycleStartAt`, `IReadOnlyList<GameEvent> SinceCycle`, `static bool IsSchedulerAsk(Ask ask)`, `static bool IsTurnAsk(Ask ask)` (the four turn questions `TurnCycle` reads an answer for, which is the scope of the readability check `CommandDispatcher.Answer` gains in Task 4), `(AskOpened Opened, long OpenedAt, AskClosed? Closed, long ClosedAt)? LastSchedulerAsk(IReadOnlyList<GameEvent> slice)`, `IReadOnlyDictionary<Guid, long> LastTurnEndedByTeam(IReadOnlyList<GameEvent> slice)`, `Guid? LastTurnEndedTeam(IReadOnlyList<GameEvent> slice)`.
 
 Spec: scheduler → The line (generic component, hooks), State (rebuilt from the log), The turn is an Ask (the answer names a unit and an action; the Ask is the interpreter's Ask type; `FrameId = null` per the contracts plan's `Ask` doc-comment), Events. A scheduler Ask is one whose `FrameId` is null and whose question is one of the engine-owned `AskQuestions` the scheduler issues: `Activate`, `ActOrEndPhase`, `Deploy`, `DeployScouts`, `DeployAmbusher`, `EndRound`. The first four are also the *turn* questions, `IsTurnAsk`: the ones whose answer goes through `ReadAnswer`, and so the ones the dispatcher probes for readability under the enforcement dial (Task 4, question 3 ruled 2026-09-06). `EndRound` is the round boundary's, ruled 2026-09-06 (Task 5); it is a scheduler Ask for the same reason the others are — a menu edit that supersedes it closes it with no answers, and only `IsSchedulerAsk` finds it. The option id convention `"{unitId:N}/{action}"` exists so an out-of-set `Chosen` under `warn`/`silent` still names a unit and an action (scheduler → Enforcement).
@@ -179,7 +182,7 @@ public class SchedulerLogTests
 }
 ```
 
-- [ ] **Step 2: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "ActivationOption|SchedulerLog"`; expect compile errors. Write `SchedulerTypes.cs`**
+- [ ] **Step 2: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "ActivationOption|SchedulerLog"`; expect `SchedulerLogTests` to fail to compile and `ActivationOptionTests` to pass. Verify `SchedulerTypes.cs` reads as follows** (the interpreter plan's Task 8 wrote it; if it is absent, that plan has not landed — stop)
 
 ```csharp
 using Tabletop.GameServer.Rules;
@@ -189,6 +192,7 @@ namespace Tabletop.GameServer.Scheduler;
 
 // The scheduler's side of the shared engine is Tabletop.GameServer.Engine.IScheduler (interpreter plan, Task 10):
 // IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter). SchedulerBase (Task 5) implements it.
+// Declared by the interpreter plan's Task 8 (it runs first and references these); this plan reads them.
 
 /// <summary>A team's turn Ask as GameRules computes it: the question, a prompt, the legal set, whether pass is allowed. Null from the hook means the legal set is empty.</summary>
 public sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass);
@@ -218,7 +222,7 @@ public sealed record RollOffNeeded(string Sequence) : FirstTeamDecision;
 
 - [ ] **Step 3: There is no interpreter interface to write.** The scheduler consumes the interpreter plan's `Interpreter.ISequenceStarter { IReadOnlyList<EventPayload> Start(GameState, string sequence, SequenceContext) }`, handed to it on every `Engine.IScheduler.Advance(state, starter)` call, and the `PropertySet` its factory receives. Nothing in `Rules/` is created by this task.
 
-- [ ] **Step 4: Write `ActivationOption.cs`**
+- [ ] **Step 4: Verify `ActivationOption.cs` reads as follows** (the interpreter plan's Task 8 wrote it)
 
 ```csharp
 using Tabletop.Protocol;
@@ -2574,7 +2578,7 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`.
 
 | Type | Members |
 | --- | --- |
-| `sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass)` | |
+| `sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass)` | declared by the interpreter plan's Task 8 (the seam), as are the next four rows and `ActivationOption`; this plan reads them |
 | `sealed record Activation(Guid UnitId, string Action, bool RunsSequence, IRL<StateChange> Changes)` | |
 | `sealed record TurnContext(Guid TeamId, Activation? Activation, long AnsweredAtSeq, long ActivationEndedAtSeq)` | |
 | `abstract record HookResult` | `HookDone`, `HookWaiting`, `HookEmit(IRL<EventPayload>)`, `HookStartSequences(IRL<SequenceStart>)` (`SequenceStart` is the interpreter plan's record beside `IGameRules`) |

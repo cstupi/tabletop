@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-03-action-sequences-design.md` (primary); `2026-08-28-resolution-design.md`; `2026-08-29-effect-grammar-design.md`; `2026-09-04-spell-effects-design.md`; `2026-08-29-content-values-design.md`; `2026-08-29-identity-and-enumerations-design.md`; `2026-08-28-game-flow-design.md`; `2026-09-04-scheduler-design.md` (the seam only); `2026-09-04-whole-design-review.md` (newest, wins); `docs/schema.md` (the eight `Properties` tables, the roll row); `docs/architecture.md` → Command / Event spine, Undo, Abilities, Rules as data. Rulebook: Grimdark Future v3.5.1 pages 7, 8–10, 11, 13–14, 20, 29–34, read for this plan. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-game-server-skeleton.md` (its *Interfaces needed → Scheduler and interpreter plans* is binding), `2026-09-05-management-api.md` (`GET /v1/properties`, the `properties` rows), `2026-09-05-geometry.md` (`Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Settling`).
 
+**Requires landed:** the contracts, geometry and game-server skeleton plans. **Not** the scheduler plan: this plan runs first of the two rules plans and declares the scheduler seam (`server/game/Scheduler/SchedulerTypes.cs`, `ActivationOption.cs`) in Task 8; the scheduler plan reads them.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, root namespace `Tabletop.GameServer`; `obj/` under `obj/$(OS)/`; SDK `10.0.400`.
@@ -58,6 +60,8 @@ server/game/
   Interpreter/Windows.cs                          Reaction, WindowRunner (offered and invoked windows, the simultaneous spend)
   Interpreter/Battlefield.cs                      PlacedModel from ModelInPlay, terrain volumes, LoS, range, cover
   Engine/IScheduler.cs                            the scheduler seam: IScheduler, ISchedulerFactory, NoScheduler
+  Scheduler/SchedulerTypes.cs                     the seam's records: TurnAsk, Activation, TurnContext, HookResult, FirstTeamDecision (the scheduler plan reads them)
+  Scheduler/ActivationOption.cs                   the activate option id "{unitId:N}/{action}" and Idle (GfHooks reads Idle; the scheduler plan tests it)
   Engine/RulesEngine.cs                           IRulesEngine: Judge/Execute dice commands; Advance = interpreter, then scheduler
   Engine/RulesEngineFactory.cs
   Rules/IGameRules.cs                             modified: the interpreter's members
@@ -1553,7 +1557,7 @@ public static class LiveProperties
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter LivePropertiesTests`; expect 6 passed. Commit: `Settle which properties are live: pass one of the effect grammar`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter LivePropertiesTests`; expect 7 passed. Commit: `Settle which properties are live: pass one of the effect grammar`.**
 
 ### Task 7: Pass two — what the live properties do to a roll, a stat and a die
 
@@ -1806,7 +1810,8 @@ public static class RollEffects
 
 **Files:**
 - Create: `server/game/Interpreter/Steps.cs`, `server/game/Interpreter/FrameReader.cs`, `server/game/Interpreter/StepContext.cs`, `server/game/Interpreter/SequenceInterpreter.cs`
-- Modify: `server/game/Rules/IGameRules.cs` (the interpreter's members, added beside the scheduler plan's)
+- Modify: `server/game/Rules/IGameRules.cs` (the interpreter's members; the scheduler plan's Task 2 adds its own block later)
+- Create: `server/game/Scheduler/SchedulerTypes.cs`, `server/game/Scheduler/ActivationOption.cs` — **the scheduler seam**, declared by this plan because it runs first and this task's interface members and `StubRules` reference the types (see Step 1)
 - Create: `server/game/Rules/GrimdarkFuture/GfRules.Sequences.cs` (this plan's partial of the skeleton's `GrimdarkFutureRules`, with `NotImplementedException` bodies until Tasks 11–17 fill them)
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs`, `tests/Tabletop.GameServer.Tests/InterpreterTests.cs`
 
@@ -1819,9 +1824,9 @@ public static class RollEffects
 
 Spec: action sequences → The resolution stack (four kinds; a frame is name, context, position, produced values), A step ends one of four ways, One roll primitive ("when on, every step boundary is a confirm gate — the gate is an Ask owned by the interpreter"), Asks; resolution → A pipeline in progress is state; `architecture.md` → Abilities (a sequence is a list of C# steps run over a frame stack); scheduler → The turn is an Ask (the scheduler starts a sequence through `Start`).
 
-- [ ] **Step 1: Write the `IGameRules` additions**
+- [ ] **Step 1: Write the `IGameRules` additions and the scheduler seam**
 
-Add these `using`s and records to `Rules/IGameRules.cs`, and the members to the interface body beside the scheduler plan's (that plan's Task 2 adds its own block the same way; the merged file is written in full in the skeleton plan → Interfaces → Produces → `Tabletop.GameServer.Rules`). `TurnContext` is the scheduler plan's Task 1 record (`Scheduler/SchedulerTypes.cs`); land that task first, or add the record from it — it has no other dependency.
+Add these `using`s and records to `Rules/IGameRules.cs`, and the members to the interface body (the scheduler plan's Task 2 adds its own block beside them later; the merged file is written in full in the skeleton plan → Interfaces → Produces → `Tabletop.GameServer.Rules`). `TurnContext` is the scheduler plan's Task 1 record (`Scheduler/SchedulerTypes.cs`); land that task first, or add the record from it — it has no other dependency.
 
 ```csharp
 using Tabletop.GameServer.Dice;
@@ -1840,7 +1845,7 @@ public sealed class UnknownSequenceException(string name) : Exception($"No seque
 
 public interface IGameRules
 {
-    // ... string Id, and the scheduler plan's members ...
+    // string Id is the skeleton's. The scheduler plan's Task 2 adds its block here later; until then this is the whole interface.
 
     // Added by the interpreter plan. Sequences and steps: the step lists are per-ruleset C# (architecture.md → Where data stops).
     Sequence Sequence(string name);
@@ -1858,6 +1863,72 @@ public interface IGameRules
     IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round);
     /// <summary>Changes riding on turn_ended (OPR: wounds-this-activation to 0; an idle activation clears Shaken).</summary>
     IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn);
+}
+```
+
+**The scheduler seam, declared here.** `TurnContext`, `TurnAsk`, `Activation`, `HookResult` and `FirstTeamDecision` are named by the interface above and implemented by `StubRules` below, and `GfHooks.OnTurnEnded` (Task 11) reads `ActivationOption.Idle`; none of them existed when this plan was written, because the scheduler plan's Task 1 declared them. This plan runs first (`docs/design/README.md` → Build order), so it declares them, in the scheduler's own namespace and files, exactly as that plan specifies — and that plan now reads them rather than writing them (its Task 1). Write `server/game/Scheduler/SchedulerTypes.cs` and `server/game/Scheduler/ActivationOption.cs`:
+
+```csharp
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Scheduler;
+
+// The scheduler's side of the shared engine is Tabletop.GameServer.Engine.IScheduler (this plan's Task 10):
+// IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter). The scheduler plan's SchedulerBase (its Task 5) implements it.
+// These records are the seam between the two rules plans. This plan declares them because it runs first and its own IGameRules
+// members and StubRules reference them; the scheduler plan reads them and adds nothing here.
+
+/// <summary>A team's turn Ask as GameRules computes it: the question, a prompt, the legal set, whether pass is allowed. Null from the hook means the legal set is empty.</summary>
+public sealed record TurnAsk(string Question, string Prompt, LegalSet Legal, bool AllowPass);
+
+/// <summary>What a turn answer means. RunsSequence: the interpreter starts the action's sequence. Changes: what the activation writes when it starts (OPR: action_recorded).</summary>
+public sealed record Activation(Guid UnitId, string Action, bool RunsSequence, IReadOnlyList<StateChange> Changes);
+
+/// <summary>The turn the end-of-turn hooks see. ActivationEndedAtSeq is the seq at which the activation's own work ended (its frame finished, or the answer closed for a sequence-less activation).</summary>
+public sealed record TurnContext(Guid TeamId, Activation? Activation, long AnsweredAtSeq, long ActivationEndedAtSeq);
+
+/// <summary>What a stepwise hook says: done, waiting on something in the log (an open Ask, models still on the shelf), events to emit, or sequences for the interpreter to start.</summary>
+public abstract record HookResult;
+public sealed record HookDone : HookResult;
+public sealed record HookWaiting : HookResult;
+public sealed record HookEmit(IReadOnlyList<EventPayload> Events) : HookResult;
+/// <summary>Sequences for the interpreter to start, as SequenceStart(Sequence, Context) — the record beside IGameRules.</summary>
+public sealed record HookStartSequences(IReadOnlyList<SequenceStart> Sequences) : HookResult;
+
+/// <summary>
+/// Who goes first: an order, or "roll off" — the scheduler starts the named ruleset sequence through the interpreter and reads
+/// the descending order back from its step_completed.Values place_1..place_n (pages 7, 50; scheduler plan Task 3).
+/// </summary>
+public abstract record FirstTeamDecision;
+public sealed record OrderedTeams(IReadOnlyList<Guid> Order) : FirstTeamDecision;
+public sealed record RollOffNeeded(string Sequence) : FirstTeamDecision;
+```
+
+```csharp
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Scheduler;
+
+/// <summary>The activate Ask's option id names the unit and the action, so an out-of-set answer still says what it meant. Declared here
+/// with the seam because GfHooks.OnTurnEnded (Task 11) reads Idle; the scheduler plan's Task 1 tests it and adds nothing.</summary>
+public static class ActivationOption
+{
+    /// <summary>Not an action row: a Shaken unit's only activation (page 10), resolved by the scheduler with no sequence.</summary>
+    public const string Idle = "Idle";
+
+    public static string Id(Guid unitId, string action) => $"{unitId:N}/{action}";
+
+    public static bool TryParse(string id, out Guid unitId, out string action)
+    {
+        unitId = default; action = "";
+        var slash = id.IndexOf('/');
+        if (slash != 32 || slash == id.Length - 1) return false;
+        if (!Guid.TryParseExact(id[..slash], "N", out unitId)) return false;
+        action = id[(slash + 1)..];
+        return true;
+    }
+
+    public static AskOption For(UnitInPlay unit, string action) => new(Id(unit.Id, action), $"{unit.Definition.Name}: {action}", [unit.Id]);
 }
 ```
 
@@ -4766,7 +4837,7 @@ public static class GfMoves
 
 `GfAttack.PushStep` gains an optional `Func<StepContext, SequenceContext>? context` and pushes `context?.Invoke(ctx) ?? ctx.Frame.Context`. `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Takedown` resolves first, at the shooting model's own Quality since 3.5.1 dropped `Sniper`'s *"Shoots at Quality 2+"*, and its group — one per takedown model, which is how `Groups` splits such a type — names the model its wounds land on in `attack-sequence`'s `pick-target-model` step (Task 13; owner ruling of 2026-09-06 on question 7, and the 3.5.1 rebase). `WeaponGroup.Takedown` and that step read one predicate, `GfAttack.IsTakedownGroup`, so a group cannot be ordered first without also being offered the pick.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfShootingTests`; expect 10 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfShootingTests`; expect 11 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**
 
 ### Task 15: The morale test
 
@@ -5963,6 +6034,7 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 | `IRL<SequenceStart> EndOfTurnSequences(GameState, PropertySet, TurnContext turn)`; `sealed record SequenceStart(string Sequence, SequenceContext Context)` | OPR: morale tests for units at half or less that took wounds (`turn.Activation?.UnitId` is the actor). Merged with the scheduler plan's `EndOfTurn` |
 | `IRL<StateChange> OnRoundStarted(GameState, PropertySet, int round)` | OPR: clear `fatigued`; `Caster(X)` tokens capped at 6; round 0 → `[]`. Merged with the scheduler plan's `RoundStartChanges` |
 | `IRL<StateChange> OnTurnEnded(GameState, PropertySet, TurnContext turn)` | OPR: `WoundsThisActivation` to 0; an activation spent idle clears `shaken` — an `Idle` activation, and an `Aircraft`'s mandatory `Advance`, which p.13 says does not break the idling requirement. Merged with the scheduler plan's `TurnEndChanges` |
+| `Tabletop.GameServer.Scheduler`: `TurnAsk`, `Activation`, `TurnContext`, `HookResult` (`HookDone`, `HookWaiting`, `HookEmit`, `HookStartSequences`), `FirstTeamDecision` (`OrderedTeams`, `RollOffNeeded`), `static class ActivationOption` (`Idle`, `Id`, `TryParse`, `For`) | **the scheduler seam**, Task 8: declared here because this plan runs first and its `IGameRules` members, `StubRules` and `GfHooks` reference them; the scheduler plan's Task 1 reads them and writes only `SchedulerLog` |
 | `GameState.RngSeed : ulong` (added to the skeleton's `GameState`) | `unchecked((ulong)Info.RngSeed)` — the game's stored seed, reinterpreted; nothing here derives a seed |
 | `GrimdarkFutureRules` (this plan's partial, `Rules/GrimdarkFuture/GfRules.Sequences.cs`; identity in the skeleton's `GfRules.cs`) | `OneTryPerSpellScope = "activation"`, every member above |
 | `GfNames` also carries the scheduler plan's names | `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside` — one names class. `Transport` is this plan's own (Task 14), not the scheduler's |

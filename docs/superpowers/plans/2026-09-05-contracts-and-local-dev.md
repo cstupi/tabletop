@@ -10,6 +10,8 @@
 
 **Spec:** `docs/architecture.md`; `docs/schema.md`; `docs/superpowers/specs/2026-08-29-geometry-values-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-08-29-content-values-design.md`, `2026-08-27-table-domain-model-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-28-resolution-design.md`, `2026-08-30-presence-design.md`, `2026-09-03-action-sequences-design.md`, `2026-09-04-scheduler-design.md`, `2026-09-04-setup-phase-design.md`, `2026-09-04-client-shell-design.md`, `2026-09-04-spell-effects-design.md`, `2026-09-04-whole-design-review.md`, `2026-08-29-setup-content-design.md`, `2026-08-28-army-design.md`, `2026-08-28-asset-library-design.md`. `docs/workstreams/01-contracts.md` is stale and is not followed (it names `EndActivation` and `DiceRolled`, neither of which exists, and "terrain multipliers", an invention).
 
+**Requires landed:** nothing — this plan is first. Every other plan consumes it.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, root namespace = project name (matches `client/Tabletop.csproj`).
@@ -1382,7 +1384,7 @@ public static class EventKinds
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 11 passed. Commit: `Define the event log's payloads`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 12 passed. Commit: `Define the event log's payloads`.**
 
 ### Task 10: Protocol — commands
 
@@ -1486,7 +1488,7 @@ public sealed record SetDice(Guid FrameId, Guid RollId, IReadOnlyList<DieValue> 
 public sealed record AddModifier(Guid FrameId, string Roll, int Amount) : Command;
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 13 passed. Commit: `Define the commands`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 14 passed. Commit: `Define the commands`.**
 
 ### Task 11: Protocol — presence and edits
 
@@ -1628,7 +1630,7 @@ public sealed record SwapZones(int TeamOrdinalA, int TeamOrdinalB) : SetupEdit;
 public sealed record ReplaceDraft(TableState Draft) : SetupEdit;
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 16 passed. Commit: `Define presence values and the unlogged edits`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 17 passed. Commit: `Define presence values and the unlogged edits`.**
 
 ### Task 12: Protocol — the socket envelope and the wire format
 
@@ -1855,7 +1857,7 @@ public static class WireJson
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 24 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 25 passed. If `Every_concrete_kind_has_a_sample` fails, add the sample — never delete the assertion. Commit: `Define the socket envelope and the wire format`.**
 
 ### Task 13: Protocol — the projection
 
@@ -2005,7 +2007,7 @@ public sealed class OpenAsk(Ask ask)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 25 passed. Commit: `Define the projection the client draws from`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Protocol.Tests`; expect 26 passed. Commit: `Define the projection the client draws from`.**
 
 ### Task 14: Protocol — the rules-free event applier
 
@@ -2842,7 +2844,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice)` | |
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
 | `abstract record StateChange : EventPayload` | `ModelsMoved(IRL<ModelRelocation> Moves)`, `WoundsSet(Guid ModelId, int Wounds)`, `ConditionSet(Subject Subject, string Condition, bool Present)`, `ActionRecorded(Guid UnitId, string Action)`, `ActionRecordCleared(Guid UnitId)`, `GrantAdded(Guid UnitId, Grant Grant)`, `GrantRemoved(Guid UnitId, Guid GrantId)`, `SpellTokensSet(Guid ModelId, int Tokens)`, `WoundsThisActivationSet(Guid UnitId, int Wounds)`, `ScoreSet(Guid TeamId, int Score)`, `MarkerPlaced(Marker Marker)`, `MarkerMoved(Guid MarkerId, Point3 Position, Yaw Yaw)`, `MarkerRemoved(Guid MarkerId)` — kinds are the snake_case of the type name |
-| `abstract record EventPayload` | the StateChanges plus `RoundStarted(int Round, IRL<Guid> Order, IRL<StateChange> Changes)`, `TurnStarted(Guid TeamId)`, `TurnEnded(Guid TeamId, bool Passed, IRL<StateChange> Changes)`, `PhaseStarted(string Phase)`, `SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context)`, `StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IRL<RollRecord> Rolls, IRL<StateChange> Changes) { IRD<string,int>? Values { get; init; } }` (`values`, omitted when null), `SequenceFinished(Guid FrameId)`, `SequenceAbandoned(Guid FrameId)`, `AskOpened(Ask Ask)`, `AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet)`, `AskClosed(Guid AskId, IRL<TeamAnswer> Answers)`, `DiceRerolled(Guid FrameId, Guid RollId, IRL<DieReplacement> Replaced)`, `DiceEdited(…same…)`, `ModifierAdded(Guid FrameId, string Roll, RollModifier Modifier)`, `Undone(long ToSeq)` — kinds snake_case of the type name |
+| `abstract record EventPayload` | the StateChanges plus `RoundStarted(int Round, IRL<Guid> Order, IRL<StateChange> Changes)`, `TurnStarted(Guid TeamId)`, `TurnEnded(Guid TeamId, bool Passed, IRL<StateChange> Changes)`, `PhaseStarted(string Phase)`, `SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context)`, `StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IRL<RollRecord> Rolls, IRL<StateChange> Changes) { IRD<string,int>? Values { get; init; } }` (`values`, omitted when null), `SequenceFinished(Guid FrameId)`, `SequenceAbandoned(Guid FrameId)`, `AskOpened(Ask Ask)`, `AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet)`, `AskClosed(Guid AskId, IRL<TeamAnswer> Answers)`, `DiceRerolled(Guid FrameId, Guid RollId, IRL<DieReplacement> Replaced)`, `DiceEdited(Guid FrameId, Guid RollId, IRL<DieReplacement> Replaced)`, `ModifierAdded(Guid FrameId, string Roll, RollModifier Modifier)`, `Undone(long ToSeq)` — kinds snake_case of the type name |
 | `sealed record TeamAnswer(Guid TeamId, AskAnswer Answer)`; `sealed record DieReplacement(int Index, Die Old, Die New)` | |
 | `sealed record GameEvent(long Seq, Guid? Actor, EventPayload Payload, string? Warning)` | `string Kind` (JsonIgnore) |
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |

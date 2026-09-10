@@ -10,6 +10,8 @@
 
 **Spec:** `docs/architecture.md` (The load-bearing seam, Command / Event spine, Rules enforcement, Undo, Two servers → `server/game/`, Transport, Deployment → the three constraints, Game management data model, Persistence, Contracts to freeze → who instantiates a session); `docs/schema.md`; `docs/superpowers/specs/2026-08-29-accounts-design.md`, `2026-08-30-presence-design.md`, `2026-09-04-setup-phase-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-27-table-domain-model-design.md`, `2026-08-29-setup-content-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-09-04-scheduler-design.md` and `2026-09-03-action-sequences-design.md` (seams only), `2026-09-04-client-shell-design.md`, `2026-09-04-whole-design-review.md`, `2026-08-29-management-api-design.md` (auth, join). Earlier plan obeyed: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` — every Protocol, Content and Geometry name below is that plan's. `docs/workstreams/04-game-server-skeleton.md` is stale and not followed. The management API plan does not exist yet; the rows this server writes are taken from `docs/schema.md` and `scripts/postgres/init/001_schema.sql` (contracts plan Task 15), and the assumptions are recorded at the end.
 
+**Requires landed:** the contracts plan. Tasks 1–12 may run alongside the geometry and management plans; Task 13 anchors on the management plan's Task 1 (`.env.example`) and Task 14 (`CLAUDE.md`) and waits for them.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, root namespace `Tabletop.GameServer`; `Directory.Build.props` puts `obj/` under `obj/$(OS)/`; `global.json` pins SDK `10.0.400`.
@@ -3761,7 +3763,11 @@ The flip freezes the team list along with the scheduler shape, the armies and th
 ### Task 13: `CLAUDE.md`, running the server, and the whole-tree check
 
 **Files:**
-- Modify: `CLAUDE.md` (Commands, Layout, Environment)
+- Modify: `CLAUDE.md` (Commands, Layout, Environment), `.env.example` (one comment line)
+
+**Interfaces:**
+- Consumes: everything Tasks 1–12 produced, as the facts `CLAUDE.md` now records; the management plan's `CLAUDE.md` wording (its Task 14) and `.env.example` lines (its Task 1), which this task's edits are anchored on — land that plan first.
+- Produces: no code. Step 2's whole-tree check is this plan's exit gate.
 
 - [ ] **Step 1: Edit `CLAUDE.md`**
 
@@ -3821,7 +3827,7 @@ Later plans copy these names verbatim. The scheduler and interpreter plans **ext
 | `sealed partial class GrimdarkFutureRules : IGameRules` (namespace `Tabletop.GameServer.Rules.GrimdarkFuture`, `Rules/GrimdarkFuture/GfRules.cs`) | `const string RulesId = "grimdark-future"`, `static GrimdarkFutureRules Instance`, `Id` — declared once, here; the scheduler plan adds `GfRules.Scheduling.cs` and `GfRules.Deployment.cs`, the interpreter plan `GfRules.Sequences.cs`, and neither redeclares these three |
 | `static class GameRulesRegistry` | `IGameRules Resolve(string id)` (throws `UnknownGameRulesException`) |
 
-**`IGameRules` after both later plans have added their members** — the one hook surface, reconciled 2026-09-05 across the scheduler and interpreter plans. The scheduler plan adds the first block (Task 2), the interpreter plan the second (Task 8); each hook exists once, with this signature. `TurnAsk`, `Activation`, `TurnContext`, `HookResult`, `FirstTeamDecision` are the scheduler plan's (`Tabletop.GameServer.Scheduler`); `Sequence`, `FrameView` are the interpreter plan's (`Tabletop.GameServer.Interpreter`); `RollSpec`, `Reaction`, `SequenceStart`, `UnknownSequenceException` sit beside the interface in `Tabletop.GameServer.Rules`; `PropertySet` is `Tabletop.GameServer.Properties`.
+**`IGameRules` after both later plans have added their members** — the one hook surface, reconciled 2026-09-05 across the scheduler and interpreter plans. The scheduler plan adds the first block (Task 2), the interpreter plan the second (Task 8); each hook exists once, with this signature. `TurnAsk`, `Activation`, `TurnContext`, `HookResult`, `FirstTeamDecision` live in `Tabletop.GameServer.Scheduler` and are **declared by the interpreter plan's Task 8** (it runs first and references them; the scheduler plan reads them); `Sequence`, `FrameView` are the interpreter plan's (`Tabletop.GameServer.Interpreter`); `RollSpec`, `Reaction`, `SequenceStart`, `UnknownSequenceException` sit beside the interface in `Tabletop.GameServer.Rules`; `PropertySet` is `Tabletop.GameServer.Properties`.
 
 ```csharp
 public interface IGameRules

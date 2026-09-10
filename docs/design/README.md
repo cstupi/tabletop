@@ -427,7 +427,9 @@ here. The local environment lands with them so every later module has a database
 store from its first test.
 
 **Geometry, management and the game server skeleton next**, in any order or at once. None
-depends on another. Geometry is pure computation with no I/O. Management has no game concepts.
+depends on another in code — with one documentation exception: the skeleton's last task edits
+`CLAUDE.md` and `.env.example` against wording the management plan wrote, so management's Task 1
+and Task 14 land before the skeleton's Task 13. Geometry is pure computation with no I/O. Management has no game concepts.
 The skeleton is transport, sessions and the log with an inert engine behind the rules seam, so
 it is provable without a single rule.
 
@@ -436,8 +438,11 @@ all three. The two rules modules need the skeleton's seam and geometry.
 
 **The rules modules are one unit.** They compose into a single `IRulesEngine` over a single
 `IGameRules`, so neither is finishable alone. Build the interpreter first: the scheduler
-consumes its Ask machinery, its roll primitive and its sequence starter, while the interpreter
-needs only an interface from the scheduler.
+consumes its Ask machinery, its roll primitive and its sequence starter. The interpreter needs the
+scheduler's seam records (`TurnContext`, `TurnAsk`, `Activation`, `HookResult`,
+`FirstTeamDecision`, `ActivationOption`) for its own `IGameRules` members, so its Task 8 declares
+them in `server/game/Scheduler/` and the scheduler plan reads them — that is what makes the order
+work rather than a cycle.
 
 **The developer tools come last and repay early.** The simulator needs both rules modules
 before it can play a game, and the viewer needs the simulator's recording schema before it can

@@ -10,6 +10,8 @@
 
 **Spec:** [`docs/superpowers/specs/2026-09-06-simulation-design.md`](../specs/2026-09-06-simulation-design.md) — the whole document. `viewer/` is a separate plan's; nothing here builds it.
 
+**Requires landed:** the contracts, geometry, game-server skeleton, interpreter and scheduler plans (a game cannot be played without both rules modules). Task 11's `CLAUDE.md` edit assumes the management, game-server, web-app and client plans' `CLAUDE.md` edits have landed, and appends after them.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, `RootNamespace Tabletop.Sim`. Matches every other project (contracts plan → Global Constraints).

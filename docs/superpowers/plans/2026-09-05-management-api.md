@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-29-management-api-design.md` (primary); `2026-08-29-accounts-design.md`; `2026-08-28-army-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-29-web-app-design.md`; `2026-09-04-mesh-conversion-design.md`; `2026-09-04-client-shell-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-identity-and-enumerations-design.md`; `2026-08-29-content-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/schema.md`; `docs/architecture.md`. Earlier plan obeyed: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` (its *Interfaces → Produces* names are used verbatim). `docs/workstreams/03-management-identity.md` and `09-management-collections.md` are stale and not followed.
 
+**Requires landed:** the contracts plan (`libs/`, `docker-compose.yml`, `.env.example`, `scripts/postgres/init/001_schema.sql`). May run alongside the geometry and game-server plans; its Task 1 (`.env.example`) and Task 14 (`CLAUDE.md`) must land before the game-server plan's Task 13.
+
 ## Global Constraints
 
 - `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`; root namespace `Tabletop.Management` (matches `client/Tabletop.csproj` conventions); `Directory.Build.props` puts `obj/` under `obj/$(OS)/`; `global.json` pins SDK `10.0.400`.
@@ -3683,7 +3685,7 @@ git status --short
 find server tests -path '*/obj/*' -maxdepth 4 -type d | grep -v Unix
 ```
 
-Expected: build clean; every test project green (Geometry, Content, Protocol, Management — 53 in Management); `/healthz` reachable from Windows over forwarded localhost; no `obj/` outside `obj/Unix/`; `git status` shows only the intended files and never `.env`.
+Expected: build clean; every test project green (Geometry, Content, Protocol, Management — 58 in Management); `/healthz` reachable from Windows over forwarded localhost; no `obj/` outside `obj/Unix/`; `git status` shows only the intended files and never `.env`.
 
 - [ ] **Step 4: Commit**
 

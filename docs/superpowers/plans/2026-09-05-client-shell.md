@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.5.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api.md`, `2026-09-05-game-server-skeleton.md`. `docs/workstreams/05-client-shell.md` is stale and not followed.
 
+**Requires landed:** the contracts, geometry, management and game-server skeleton plans. The rules plans are not required: Task 14's Step 4 exercises the Ask panel against the skeleton's `FixedAskEngine` and marks the interpreter- and scheduler-dependent checks as conditional. Task 16's `CLAUDE.md` edit anchors on the contracts, management and game-server plans' wording.
+
 ## Global Constraints
 
 - `client/Tabletop.csproj` stays `Godot.NET.Sdk/4.7.2`, `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, `RootNamespace Tabletop`; the SDK globs `**/*.cs` so no file needs registering. `Directory.Build.props` puts `obj/` under `obj/$(OS)/`; the Windows Godot build of the referenced libs produces `obj/Windows_NT/` beside WSL's `obj/Unix/`.

@@ -53,12 +53,29 @@ and the management API and the game server skeleton in any order, then the web a
 the two rules modules. The simulator and the viewer come last and repay early, because the rules
 modules' full-game tests run through the simulator.
 
-**Run the management API before the game server.** The build graph allows either order, but the
-game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
-are not interchangeable. **And run the interpreter before the scheduler**: `docs/design/README.md`
+**The plans may run in parallel where the graph allows, and each now says what it needs.** Every
+plan carries a `**Requires landed:**` line under its `**Spec:**` line (added 2026-09-09 for
+parallel execution): contracts alone first; then geometry, management and the game-server skeleton
+together; then the web app, the client and the interpreter together; then the scheduler; then the
+simulator; then the viewer. Three files are touched by more than one plan and are the only merge
+hazards between plans that may run together: `CLAUDE.md` (see the debt below — its edits are a
+quote chain and must land in build order even when the code did not), `Tabletop.sln` (every plan
+adds its projects with `dotnet sln add`, so a textual conflict is resolved by re-running both
+commands) and `.env.example` (the contracts plan creates it, management adds the Stytch lines, the
+skeleton appends one comment after them). Everything else a later plan modifies belongs to a plan
+it already requires.
+
+**Run the management API before the game server's last task.** The code has no dependency, but the
+skeleton's Task 13 edits `CLAUDE.md` and `.env.example` against wording the management plan
+wrote, so the two are not interchangeable there. **And run the interpreter before the scheduler**: `docs/design/README.md`
 → *Build order and why* says so, the scheduler consumes the interpreter's `RulesEngine`,
 `ISchedulerFactory`, `ISequenceStarter` and `SequenceStart`, and its `CLAUDE.md` step assumes the
-interpreter's bullet text is already there.
+interpreter's bullet text is already there. The interpreter's own `IGameRules` members and its
+`StubRules` reference the scheduler's seam records (`TurnContext`, `TurnAsk`, `Activation`,
+`HookResult`, `FirstTeamDecision`) and `ActivationOption.Idle`, which the scheduler plan's Task 1
+used to declare — a type-level cycle that a human muddles through and a parallel agent cannot.
+Since 2026-09-09 the interpreter plan's Task 8 declares them in `server/game/Scheduler/` and the
+scheduler plan's Task 1 reads them.
 
 **Three things to know before the first task.** The plans' *Spec corrections proposed* sections are
 now history rather than work: their *Before* quotes no longer match the documents they quote.
