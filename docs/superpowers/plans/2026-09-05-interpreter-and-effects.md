@@ -5986,9 +5986,20 @@ public class InterfaceConstraintTests
 
 - [ ] **Step 2: Edit `CLAUDE.md`**
 
-In **Layout**, in the `server/game/` bullet the skeleton plan wrote, replace "`CommandDispatcher` over the `IRulesEngine` seam (`InertEngine` until the scheduler and interpreter plans), the lobby and setup row writes. No rules yet." (ignoring line wraps) with "`CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes; `Properties/` (the pinned set, its authored `Content/*.properties.json` form, the store and the startup seeder), `Dice/` (the seeded counter-based roll primitive), `Effects/` (the effect grammar's two passes), `Interpreter/` (frames from the log, steps, windows, the battlefield reader), `Engine/` (`RulesEngine`, the one `IRulesEngine`; `IScheduler` is the scheduler's seam), `Rules/GrimdarkFuture/` (OPR's sequences — the only place a rule is named)."
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
 
-In **Conventions**, add: "The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json`, seeded by hash at startup; editing one makes a new set with a new hash — old games keep theirs."
+In **Layout**, under the `server/game/` bullet the skeleton plan wrote, append these child bullets (after any child already there; do not edit the parent):
+
+```
+  - `Properties/` (the pinned set, its authored `Content/*.properties.json` form, the store and the startup seeder),
+    `Dice/` (the seeded counter-based roll primitive), `Effects/` (the two passes over live properties), `Interpreter/`
+    (frames from the log, steps, windows, the battlefield reader), `Engine/` (`RulesEngine`, the one `IRulesEngine`, and
+    the scheduler seam `IScheduler`/`ISchedulerFactory`), `Scheduler/SchedulerTypes.cs` and `ActivationOption.cs` (the
+    seam records the scheduler plan reads).
+  - `Rules/GrimdarkFuture/` — OPR's sequences, rolls, hooks and names: the only place a rule is named.
+```
+
+In **Conventions**, append: "- The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json`, seeded by hash at startup; editing one makes a new set with a new hash — old games keep theirs."
 
 - [ ] **Step 3: Run the whole check**
 

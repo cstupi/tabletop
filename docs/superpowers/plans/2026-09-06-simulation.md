@@ -10,7 +10,7 @@
 
 **Spec:** [`docs/superpowers/specs/2026-09-06-simulation-design.md`](../specs/2026-09-06-simulation-design.md) — the whole document. `viewer/` is a separate plan's; nothing here builds it.
 
-**Requires landed:** the contracts, geometry, game-server skeleton, interpreter and scheduler plans (a game cannot be played without both rules modules). Task 11's `CLAUDE.md` edit assumes the management, game-server, web-app and client plans' `CLAUDE.md` edits have landed, and appends after them.
+**Requires landed:** the contracts, geometry, game-server skeleton, interpreter and scheduler plans (a game cannot be played without both rules modules).
 
 ## Global Constraints
 
@@ -4441,10 +4441,9 @@ Spec: spec → *`sim/` is a fourth deliverable* — "The layout rule in `CLAUDE.
 
 - [ ] **Step 1: `CLAUDE.md` → Layout, the kinds list — already correct, verify only**
 
-**There is no edit here, and this step exists to say so.** The undercount was cleared on
-2026-09-08 rather than left until this task, because `CLAUDE.md` is loaded into every session and
-was asserting three deliverables against a ruling made on 2026-09-06. The first bullet already
-reads:
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
+
+**There is no edit here, and this step exists to say so.** The deliverables undercount was cleared on 2026-09-08, because `CLAUDE.md` is loaded into every session and was asserting three deliverables against a ruling made on 2026-09-06. The first bullet already reads:
 
 ```markdown
 - **Deliverables** — `client/`, `server/`, `web/`, `sim/`, `viewer/`. These ship. The first three
@@ -4453,31 +4452,9 @@ reads:
   `docs/superpowers/specs/2026-09-06-simulation-design.md`.
 ```
 
-The `Repo-level support` bullet's `tests/` belongs to the contracts plan Task 16, not to this task.
-
 - [ ] **Step 2: Edit `CLAUDE.md` → Layout, the `sim/` bullet**
 
-**This step replaces one bullet, and it restates none of the neighbouring bullets.** Eight plans
-edit this list before this one, and three of them rewrite the text a wider edit would have to
-quote:
-
-- the contracts plan Task 16 replaced the `libs/` bullet — it now names each library and its
-  contents and ends "`net10.0`, Godot-free, persistence-free." — and added a `tests/` bullet after
-  it, which the management, game server skeleton and client shell plans each extended;
-- the geometry plan Task 13 Step 5 rewrote `Tabletop.Geometry`'s parenthesis inside that bullet;
-- the web app plan Task 17 Step 2 replaced the `web/` bullet with the Svelte SPA text, and
-  **deleted** the sentence "`web/` is empty on purpose." from the closing note.
-
-So do not reproduce the `web/` or `libs/` bullets. Both bullets this step used to insert already
-sit between the `web/` bullet and the `libs/` one, added as stubs on 2026-09-08 when the
-deliverables undercount was cleared. Replace the `sim/` stub, which reads:
-
-```markdown
-- `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
-  in-process driver or a real socket, and records a projection per event. Does not exist yet.
-```
-
-with:
+Replace the `sim/` bullet (the line beginning "- `sim/` —", the stub added 2026-09-08 that ends "Does not exist yet.") with:
 
 ```markdown
 - `sim/` — `Tabletop.Sim`, a library plus a console entry point that plays a whole game with no
@@ -4487,48 +4464,18 @@ with:
   server's legal sets without narrowing them, and asserts invariants.
 ```
 
-Leave the `viewer/` stub alone. The viewer plan Task 12 Step 1 replaces it, and its *Before* quotes
-that stub.
+Leave the `viewer/` bullet alone; the viewer plan replaces its own. Touch neither the opening paragraph nor the closing note.
 
-**The closing note is not touched.** It began as "`server/`, `web/` and `libs/` are empty or absent
-on purpose. Each module is designed before it is built."; the contracts plan narrowed the first
-sentence to `server/` and `web/`, the management plan to `server/game/` and `web/`, the game server
-skeleton plan to `web/` alone, and the web app plan Task 17 Step 2 **deleted it**. By the time this
-plan runs the note reads, in full:
+- [ ] **Step 3: Edit `CLAUDE.md` → Commands, and verify `docs/architecture.md`**
 
-```markdown
-Each module is designed before it is built.
-```
-
-Leave it exactly so. Nothing in the list is empty any more except `viewer/`, and its own bullet
-says it does not exist yet — which is where the viewer plan Task 12 Step 1 replaces it. Re-adding
-"`server/`, `web/` and `viewer/` are empty or absent on purpose." would contradict the three plans
-that built `server/management/`, `server/game/` and `web/`.
-
-- [ ] **Step 3: Edit `CLAUDE.md` → Commands, and `docs/architecture.md`**
-
-In **Commands**, add two lines at the end of the block. The `dotnet test` line the contracts plan
-Task 16 added has since been re-commented by the management plan Task 14 Step 2 and now reads
-`dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d`,
-and the management, web app, game server skeleton and client shell plans have each appended their
-own run lines after it — so append rather than insert at a quoted anchor, and change no existing
-line:
+In **Commands**, append two lines at the end of the block, changing no existing line:
 
 ```bash
 dotnet run --project sim -- --list                 # the scenarios
 dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
 ```
 
-**`docs/architecture.md` needs nothing from this task.** Its Deliverables table already carries six
-rows and an Audience column, the ruling paragraph already sits above the client's platform
-correction, and the Repository layout block already lists `sim/` and `viewer/`. All of it landed on
-2026-09-08 with the `CLAUDE.md` kinds list, for the same reason. What is still missing there is
-`tests/`, on the layout block's last line and in the paragraph below it, and that belongs to the
-contracts plan's spec correction 9, which is the coordinator's rather than a task in any plan.
-
-Confirm the table's client row still reads *Windows first, other desktop platforms possible (Godot
-export)*. The 2026-09-06 platform correction is what put that wording there, and an edit that
-quotes the original "Windows (Godot export)" would revert it.
+**`docs/architecture.md` needs nothing from this task.** Its Deliverables table already carries six rows and an Audience column, the ruling paragraph already sits above the client's platform correction, and the Repository layout block already lists `sim/` and `viewer/`. All of it landed on 2026-09-08 with the `CLAUDE.md` kinds list. Confirm the table's client row still reads *Windows first, other desktop platforms possible (Godot export)* — the 2026-09-06 platform correction put that wording there.
 
 - [ ] **Step 4: Run the whole check**
 

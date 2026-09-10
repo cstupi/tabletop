@@ -427,9 +427,7 @@ here. The local environment lands with them so every later module has a database
 store from its first test.
 
 **Geometry, management and the game server skeleton next**, in any order or at once. None
-depends on another in code — with one documentation exception: the skeleton's last task edits
-`CLAUDE.md` and `.env.example` against wording the management plan wrote, so management's Task 1
-and Task 14 land before the skeleton's Task 13. Geometry is pure computation with no I/O. Management has no game concepts.
+depends on another. Geometry is pure computation with no I/O. Management has no game concepts.
 The skeleton is transport, sessions and the log with an inert engine behind the rules seam, so
 it is provable without a single rule.
 

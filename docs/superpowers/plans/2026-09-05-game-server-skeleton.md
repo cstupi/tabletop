@@ -10,7 +10,7 @@
 
 **Spec:** `docs/architecture.md` (The load-bearing seam, Command / Event spine, Rules enforcement, Undo, Two servers → `server/game/`, Transport, Deployment → the three constraints, Game management data model, Persistence, Contracts to freeze → who instantiates a session); `docs/schema.md`; `docs/superpowers/specs/2026-08-29-accounts-design.md`, `2026-08-30-presence-design.md`, `2026-09-04-setup-phase-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-27-table-domain-model-design.md`, `2026-08-29-setup-content-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-09-04-scheduler-design.md` and `2026-09-03-action-sequences-design.md` (seams only), `2026-09-04-client-shell-design.md`, `2026-09-04-whole-design-review.md`, `2026-08-29-management-api-design.md` (auth, join). Earlier plan obeyed: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` — every Protocol, Content and Geometry name below is that plan's. `docs/workstreams/04-game-server-skeleton.md` is stale and not followed. The management API plan does not exist yet; the rows this server writes are taken from `docs/schema.md` and `scripts/postgres/init/001_schema.sql` (contracts plan Task 15), and the assumptions are recorded at the end.
 
-**Requires landed:** the contracts plan. Tasks 1–12 may run alongside the geometry and management plans; Task 13 anchors on the management plan's Task 1 (`.env.example`) and Task 14 (`CLAUDE.md`) and waits for them.
+**Requires landed:** the contracts plan. May run alongside the geometry and management plans.
 
 ## Global Constraints
 
@@ -3766,33 +3766,34 @@ The flip freezes the team list along with the scheduler shape, the armies and th
 - Modify: `CLAUDE.md` (Commands, Layout, Environment), `.env.example` (one comment line)
 
 **Interfaces:**
-- Consumes: everything Tasks 1–12 produced, as the facts `CLAUDE.md` now records; the management plan's `CLAUDE.md` wording (its Task 14) and `.env.example` lines (its Task 1), which this task's edits are anchored on — land that plan first.
+- Consumes: everything Tasks 1–12 produced, as the facts `CLAUDE.md` now records. Every edit is to a line this plan owns or an append, so no other plan need have landed.
 - Produces: no code. Step 2's whole-tree check is this plan's exit gate.
 
-- [ ] **Step 1: Edit `CLAUDE.md`**
+- [ ] **Step 1: Edit `CLAUDE.md` and `.env.example`**
 
-In the opening paragraph replace "the game server and web app do not yet." (the management plan's wording) with "the game server skeleton exists under `server/game/` with no rules; the web app does not yet."
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
 
-In **Commands**, add after the `./scripts/management` line:
+In **Commands**, append at the end of the block:
 
 ```bash
 dotnet run --project server/game   # the game server on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
 ```
 
-In **Layout**, replace the `server/game/` bullet with:
+In **Layout**, replace the `server/game/` bullet (the line beginning "- `server/game/` —", currently the scaffold's stub) with a parent whose children later plans append to and never rewrite:
 
 ```
 - `server/game/` — the WebSocket game server (`Tabletop.GameServer`, `net10.0`): the connect handshake and Stytch JWT
   verification, a `GameSession` per game hydrated from management's rows plus `game.game_event`, the append-only log and
-  replay, `CommandDispatcher` over the `IRulesEngine` seam (`InertEngine` until the scheduler and interpreter plans), the
-  lobby and setup row writes. No rules yet.
+  replay, `CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes. Tested in
+  `tests/Tabletop.GameServer.Tests`. What sits behind the rules seam is listed by the children below; with none, the
+  engine is `InertEngine`.
 ```
 
-Replace "`server/game/` and `web/` are empty on purpose." (the management plan's wording) with "`web/` is empty on purpose." In the `tests/` bullet, replace "`Tabletop.Protocol.Tests`, `Tabletop.Management.Tests`." with "`Tabletop.Protocol.Tests`, `Tabletop.Management.Tests`, `Tabletop.GameServer.Tests`." (rewrap the bullet as needed).
+The interpreter and scheduler plans each append one child bullet under it and touch the parent's text no further.
 
-In **Environment**, add: "`.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, already in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection(\"Postgres\")]` need the Docker Postgres up."
+In **Environment**, append: "`.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection(\"Postgres\")]` need the Docker Postgres up."
 
-`.env.example` already carries `TABLETOP_STYTCH_BASE_URL` and `TABLETOP_STYTCH_PROJECT_ID` (management plan Task 1); add one line after them: `# TABLETOP_STYTCH_JWKS_URL= (derived from TABLETOP_STYTCH_BASE_URL and the project id when unset)`.
+In `.env.example`, append at the end of the file (not at an anchor — the management plan adds the Stytch lines and may or may not have landed): `# TABLETOP_STYTCH_JWKS_URL= (derived from TABLETOP_STYTCH_BASE_URL and the project id when unset)`.
 
 - [ ] **Step 2: Run the whole check**
 

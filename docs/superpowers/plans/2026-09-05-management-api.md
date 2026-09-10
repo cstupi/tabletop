@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-29-management-api-design.md` (primary); `2026-08-29-accounts-design.md`; `2026-08-28-army-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-29-web-app-design.md`; `2026-09-04-mesh-conversion-design.md`; `2026-09-04-client-shell-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-identity-and-enumerations-design.md`; `2026-08-29-content-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/schema.md`; `docs/architecture.md`. Earlier plan obeyed: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` (its *Interfaces → Produces* names are used verbatim). `docs/workstreams/03-management-identity.md` and `09-management-collections.md` are stale and not followed.
 
-**Requires landed:** the contracts plan (`libs/`, `docker-compose.yml`, `.env.example`, `scripts/postgres/init/001_schema.sql`). May run alongside the geometry and game-server plans; its Task 1 (`.env.example`) and Task 14 (`CLAUDE.md`) must land before the game-server plan's Task 13.
+**Requires landed:** the contracts plan (`libs/`, `docker-compose.yml`, `.env.example`, `scripts/postgres/init/001_schema.sql`). May run alongside the geometry and game-server plans.
 
 ## Global Constraints
 
@@ -3655,26 +3655,20 @@ exec dotnet run --project server/management/Tabletop.Management.csproj "$@"
 
 - [ ] **Step 2: Edit `CLAUDE.md`**
 
-In the opening paragraph, replace "the servers and web app do not yet." with "the management API exists under `server/management/`; the game server and web app do not yet."
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
 
-In **Commands**, replace the `dotnet test` line the contracts plan wrote, `dotnet test                  # the three libs' xUnit projects under tests/`, with `dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d`, and add after the `docker compose up -d` line:
+In **Commands**, append at the end of the block:
 
 ```bash
 ./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret)
 cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine; never in a file
 ```
 
-In **Layout**, replace the `server/management/` bullet with: "`server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tests in `tests/Tabletop.Management.Tests` run against the Docker Postgres and MinIO, one throwaway database per test class." Replace "`server/` and `web/` are empty on purpose." with "`server/game/` and `web/` are empty on purpose." Replace the `tests/` bullet the contracts plan wrote with:
+In **Layout**, replace the `server/management/` bullet (the line beginning "- `server/management/` —", currently the scaffold's stub) with: "`server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack."
 
-```
-- `tests/` — one xUnit project per library and per server: `Tabletop.Geometry.Tests`, `Tabletop.Content.Tests`,
-  `Tabletop.Protocol.Tests`, `Tabletop.Management.Tests`. `dotnet test` from the root; the server tests need
-  `docker compose up -d`.
-```
+The `tests/` bullet and the *Tests:* convention already cover this server in the form the contracts plan wrote; edit neither.
 
-In the closing note under the list, replace "`server/` and `web/` are empty on purpose." (the contracts plan's wording) with "`server/game/` and `web/` are empty on purpose." — the game server skeleton plan's Task 13 quotes this narrowed sentence as its *Before*, so it must exist by then (added 2026-09-09; the chain had a gap here).
-
-In **Conventions**, in the "Tests:" bullet replace "one project per library;" with "one project per library and per server;", and add: "Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup` — see the plan's Global Constraints for the exact columns."
+In **Conventions**, append: "- Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`; management writes them at creation and at end/leave/delete (management plan → Rows by writer)."
 
 - [ ] **Step 3: Run the whole check**
 

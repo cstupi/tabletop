@@ -58,16 +58,14 @@ plan carries a `**Requires landed:**` line under its `**Spec:**` line (added 202
 parallel execution): contracts alone first; then geometry, management and the game-server skeleton
 together; then the web app, the client and the interpreter together; then the scheduler; then the
 simulator; then the viewer. Three files are touched by more than one plan and are the only merge
-hazards between plans that may run together: `CLAUDE.md` (see the debt below — its edits are a
-quote chain and must land in build order even when the code did not), `Tabletop.sln` (every plan
+hazards between plans that may run together: `CLAUDE.md` (each plan edits only lines it owns and
+appends the rest, so two plans' edits merge; see below), `Tabletop.sln` (every plan
 adds its projects with `dotnet sln add`, so a textual conflict is resolved by re-running both
 commands) and `.env.example` (the contracts plan creates it, management adds the Stytch lines, the
-skeleton appends one comment after them). Everything else a later plan modifies belongs to a plan
-it already requires.
+skeleton appends one comment at the end of the file). Everything else a later plan modifies belongs
+to a plan it already requires.
 
-**Run the management API before the game server's last task.** The code has no dependency, but the
-skeleton's Task 13 edits `CLAUDE.md` and `.env.example` against wording the management plan
-wrote, so the two are not interchangeable there. **And run the interpreter before the scheduler**: `docs/design/README.md`
+**Run the interpreter before the scheduler**: `docs/design/README.md`
 → *Build order and why* says so, the scheduler consumes the interpreter's `RulesEngine`,
 `ISchedulerFactory`, `ISequenceStarter` and `SequenceStart`, and its `CLAUDE.md` step assumes the
 interpreter's bullet text is already there. The interpreter's own `IGameRules` members and its
@@ -84,22 +82,23 @@ now history rather than work: their *Before* quotes no longer match the document
 for the project owner* section is now closed end to end — no plan proceeds on an assumption any
 more, and six of the answers changed the plan they sat in.
 
+**The `Run the management API before the game server` rule is withdrawn.** It existed only for the
+`CLAUDE.md` quote chain, which is gone; the code never depended on it.
+
 ### The one debt the plans still carry
 
-- **The `CLAUDE.md` edits are a chain, and the hazard is structural.** All ten plans' last task
-  edits the file, though geometry's and the scheduler's task titles do not say so. Nine of them
-  quote a predecessor's exact wording as their *Before*, so an edit landing out of order, or a
-  change made to the file directly, silently breaks a later plan. An audit on 2026-09-06 found
-  three that would have reverted an earlier plan's wording, one of them the client's platform
-  correction. Re-audited on 2026-09-08 and again on 2026-09-09 against the file as it now stands.
-  The second audit found the closing-note chain **did not compose**: the game server plan quoted a
-  narrowing to "`server/game/` and `web/`" that the management plan never wrote, and the simulation
-  and viewer plans both narrated a deletion by the web app plan that its Task 17 did not contain.
-  Both edits are written now, so the note goes contracts → management → game server → web app
-  (deleted) and the last two plans find the one-sentence note they quote. The opening-paragraph
-  chain, the `libs/` parenthesis, the `server/game/` and `tests/` bullets, the Conventions sentence
-  and the two developer-tool stubs all composed on both audits. Check a plan's *Before* text
-  against the file rather than trusting it.
+- **The `CLAUDE.md` edits used to be a quote chain; they are not any more.** Until 2026-09-09 all
+  ten plans' last task edited the file and nine quoted a predecessor's exact wording as their
+  *Before*, so an edit landing out of order silently broke a later plan; two audits found breaks,
+  the second two links that had never been written. For parallel execution the owner ruled that
+  **each plan edits only the lines it owns**: its own Layout bullet (or appended child bullets under
+  `server/game/`), its own appended Commands lines, its own appended Conventions and Environment
+  text. The contracts plan, which every other plan requires, writes the three sentences later plans
+  used to rewrite in turn — the opening paragraph, the `tests/` bullet and the *Tests:* convention —
+  once, in a form that never needs another plan's edit, and deletes the closing note's first
+  sentence. The one dependency-ordered edit left is geometry replacing its own library's child line,
+  which contracts wrote and geometry already requires. The debt is closed; what remains is the rule,
+  stated at the top of every plan's `CLAUDE.md` step.
 
 ## The spec corrections are applied
 

@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.5.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api.md`, `2026-09-05-game-server-skeleton.md`. `docs/workstreams/05-client-shell.md` is stale and not followed.
 
-**Requires landed:** the contracts, geometry, management and game-server skeleton plans. The rules plans are not required: Task 14's Step 4 exercises the Ask panel against the skeleton's `FixedAskEngine` and marks the interpreter- and scheduler-dependent checks as conditional. Task 16's `CLAUDE.md` edit anchors on the contracts, management and game-server plans' wording.
+**Requires landed:** the contracts, geometry, management and game-server skeleton plans. The rules plans are not required: Task 14's Step 4 exercises the Ask panel against the skeleton's `FixedAskEngine` and marks the interpreter- and scheduler-dependent checks as conditional.
 
 ## Global Constraints
 
@@ -4364,9 +4364,9 @@ exec ./scripts/godot "$@"
 
 - [ ] **Step 2: Edit `CLAUDE.md`**
 
-In the opening paragraph replace "The client scaffold and the three `libs/` contracts exist;" (the contracts plan's wording; the clauses after it name the servers and the web app and stay) with: "The client shell exists under `client/` — three screens over a session object, the table view, the setup tools, the Ask panel, the log and the menu — over the three `libs/` contracts;".
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
 
-In **Commands**, add:
+In **Commands**, append at the end of the block:
 
 ```bash
 ./scripts/client             # build, run scripts/check-client, launch the Godot client on Windows
@@ -4374,7 +4374,7 @@ In **Commands**, add:
 dotnet test tests/Tabletop.Client.Tests   # the client's Godot-free core
 ```
 
-In **Layout**, replace the `client/` bullet's children with:
+In **Layout**, replace the `client/` bullet's children (the indented lines under "- `client/` —", currently the scaffold's `Tabletop.csproj`, `src/`, `scenes/` lines) with:
 
 ```
   - `src/Core/` — Godot-free: `Session`, `ManagementClient`, `ClientGameSocket`, `AssetCache`, `BuiltinContent`,
@@ -4386,9 +4386,9 @@ In **Layout**, replace the `client/` bullet's children with:
   - `content/builtin/` — the five table textures and the ten grouped terrain meshes; a missing file draws the piece's volumes.
 ```
 
-In the `tests/` bullet, replace "`Tabletop.Management.Tests`, `Tabletop.GameServer.Tests`." with "`Tabletop.Management.Tests`, `Tabletop.GameServer.Tests`, `Tabletop.Client.Tests` (the client's `src/Core/` compiled from source)." (rewrap the bullet as needed).
+Leave the `client/` parent line itself as it is. The `tests/` bullet and the *Tests:* convention already cover the client's `src/Core/` in the form the contracts plan wrote; edit neither.
 
-In **Conventions**, in the "Tests:" bullet replace "one project per library and per server; test-driven for everything with logic. The Godot client is tested by running it." with "one per library, per server and for the client's Godot-free `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it." Then add: "The table frame's origin is the table's corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up) on the wire and in `Tabletop.Geometry` alike; nothing converts. Godot: x = X, y = Z, z = −Y, `rotation.y` = yaw (`WorldFrame`). No Godot physics; picking is ray-versus-AABB."
+In **Conventions**, append: "- The table frame's origin is the table's corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up) on the wire and in `Tabletop.Geometry` alike; nothing converts. Godot: x = X, y = Z, z = −Y, `rotation.y` = yaw (`WorldFrame`). No Godot physics; picking is ray-versus-AABB."
 
 - [ ] **Step 3: Run the whole check**
 

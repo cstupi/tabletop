@@ -2722,30 +2722,37 @@ git commit -m "Add the local development stack: Postgres, MinIO and the schema"
 
 - [ ] **Step 1: Edit `CLAUDE.md`**
 
-In the opening paragraph, replace "Currently at scaffold stage — only the client exists." with "The client scaffold and the three `libs/` contracts exist; the servers and web app do not yet."
+**Ownership rule for `CLAUDE.md`** (2026-09-09, for parallel execution): a plan edits only the lines it owns — its own Layout bullet, its own appended Commands lines, its own appended Conventions or Environment text — and never the opening paragraph, the closing note, or another plan's bullet. No *Before* quote below is another plan's text. Match each anchor by its fixed prefix, not by exact wording.
 
-In **Commands**, add after the `dotnet build` line:
+This plan is first and every other plan requires it, so it also writes the three sentences later plans used to rewrite in turn — the `tests/` bullet, the *Tests:* convention and the closing note — in their final, plan-independent form.
+
+In the opening paragraph, replace the sentence "Currently at scaffold stage — only the client exists." with: "What exists is what `Tabletop.sln` and the Layout section below say; a Layout bullet that reads *Empty* or *does not exist yet* is a module not yet built." Nothing later edits this paragraph again.
+
+In **Commands**, append at the end of the block:
 
 ```bash
-dotnet test                  # the three libs' xUnit projects under tests/
+dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d
 cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO (9000/9001) in WSL
 ```
 
-In **Layout**, in the first list's third bullet add `tests/` to repo-level support — the kinds stay three — by replacing its first sentence, "**Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed.", with "**Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed." and keeping the bullet's second sentence ("Dev tooling stays out of `client/` …") as it is. Then replace the `libs/` bullet with:
+In **Layout**, in the first list's third bullet, replace its first sentence "**Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed." with "**Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed." and keep the bullet's second sentence ("Dev tooling stays out of `client/` …") as it is. The kinds stay three.
+
+Replace the `libs/` bullet (the line beginning "- `libs/` —") with a parent and one child per library, so a later plan can rewrite its own library's line and no other:
 
 ```
-- `libs/` — `Tabletop.Geometry` (values, and the distance/LoS/settling API the geometry plan implements),
-  `Tabletop.Content` (army snapshot and table state), `Tabletop.Protocol` (every socket message, the wire
-  JSON, `EventApplier` and `Projection`). `net10.0`, Godot-free, persistence-free.
-- `tests/` — one xUnit project per library: `Tabletop.Geometry.Tests`, `Tabletop.Content.Tests`,
-  `Tabletop.Protocol.Tests`. `dotnet test` from the root.
+- `libs/` — `net10.0`, Godot-free, persistence-free. One child per library:
+  - `Tabletop.Geometry` — values, and the distance/LoS/settling API declared here and implemented by the geometry plan.
+  - `Tabletop.Content` — the army snapshot and the table state.
+  - `Tabletop.Protocol` — every socket message, the wire JSON, `EventApplier` and `Projection`.
+- `tests/` — one xUnit project per library, per server, and for the client's Godot-free core; the set is whatever
+  `dotnet sln list` shows under `tests/`. `dotnet test` from the root; the server tests need `docker compose up -d`.
 ```
 
-Replace "`server/`, `web/` and `libs/` are empty or absent on purpose." with "`server/` and `web/` are empty on purpose."
+In the closing note under the Layout list, delete the sentence "`server/`, `web/` and `libs/` are empty or absent on purpose." — `libs/` is no longer empty, the remaining bullets say for themselves whether their module exists, and the sentence that stays, "Each module is designed before it is built.", is always true. Nothing later edits the note again.
 
-In **Environment**, add: "Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`); the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001, management 5100, game server 5200."
+In **Environment**, append: "Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`); the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001, management 5100, game server 5200."
 
-In **Conventions**, replace the "No test project yet" bullet with: "Tests: xUnit under `tests/`, one project per library; test-driven for everything with logic. The Godot client is tested by running it."
+In **Conventions**, replace the "No test project yet" bullet with: "- Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it." Written once, in its final form; no later plan edits it.
 
 - [ ] **Step 2: Run the whole check**
 
