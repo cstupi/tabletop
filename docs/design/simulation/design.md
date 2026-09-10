@@ -1228,12 +1228,12 @@ four tokens for a three-team soak and tokens expiring; the rest-frame ruling had
 of the second, and the mint disposes of the first. The cost is that a console socket run needs
 network access to the Stytch test project.
 
-**2. Should a stuck run fail the console's exit code?** Assumed yes. `RunReport.Passed` is false
+**2. Should a stuck run fail the console's exit code? Ruled 2026-09-09 by the owner, as assumed: yes** (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))). `RunReport.Passed` is false
 for `stuck` and `failed`, so a 500-seed soak exits `1` if any game hangs, which is what makes it
 usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the
 exit code changes. The frames are dumped either way.
 
-**3. Should `sim/` be in `Tabletop.sln`?** Assumed yes, in a `sim` solution folder, so
+**3. Should `sim/` be in `Tabletop.sln`? Closed 2026-09-09 on `CLAUDE.md`'s own terms — the solution spans every project: yes**, in a `sim` solution folder, so
 `dotnet build` at the root builds it and `dotnet test` runs its tests. If it should be excluded
 so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands
 section grows a line. Nothing in the code changes.

@@ -55,7 +55,10 @@ modules' full-game tests run through the simulator.
 
 **Run the management API before the game server.** The build graph allows either order, but the
 game server plan's `CLAUDE.md` edit replaces text it labels as the management plan's, so the two
-are not interchangeable.
+are not interchangeable. **And run the interpreter before the scheduler**: `docs/design/README.md`
+→ *Build order and why* says so, the scheduler consumes the interpreter's `RulesEngine`,
+`ISchedulerFactory`, `ISequenceStarter` and `SequenceStart`, and its `CLAUDE.md` step assumes the
+interpreter's bullet text is already there.
 
 **Three things to know before the first task.** The plans' *Spec corrections proposed* sections are
 now history rather than work: their *Before* quotes no longer match the documents they quote.
@@ -71,9 +74,15 @@ more, and six of the answers changed the plan they sat in.
   quote a predecessor's exact wording as their *Before*, so an edit landing out of order, or a
   change made to the file directly, silently breaks a later plan. An audit on 2026-09-06 found
   three that would have reverted an earlier plan's wording, one of them the client's platform
-  correction. Re-audited on 2026-09-08 against the file as it now stands, including the whole
-  opening-paragraph chain and the closing note's four narrowings: it composes. Check a plan's
-  *Before* text against the file rather than trusting it.
+  correction. Re-audited on 2026-09-08 and again on 2026-09-09 against the file as it now stands.
+  The second audit found the closing-note chain **did not compose**: the game server plan quoted a
+  narrowing to "`server/game/` and `web/`" that the management plan never wrote, and the simulation
+  and viewer plans both narrated a deletion by the web app plan that its Task 17 did not contain.
+  Both edits are written now, so the note goes contracts → management → game server → web app
+  (deleted) and the last two plans find the one-sentence note they quote. The opening-paragraph
+  chain, the `libs/` parenthesis, the `server/game/` and `tests/` bullets, the Conventions sentence
+  and the two developer-tool stubs all composed on both audits. Check a plan's *Before* text
+  against the file rather than trusting it.
 
 ## The spec corrections are applied
 

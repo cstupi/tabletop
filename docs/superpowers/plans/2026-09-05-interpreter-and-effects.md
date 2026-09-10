@@ -5965,7 +5965,7 @@ Later plans copy these names verbatim. `IRL<T>` abbreviates `IReadOnlyList<T>`, 
 | `IRL<StateChange> OnTurnEnded(GameState, PropertySet, TurnContext turn)` | OPR: `WoundsThisActivation` to 0; an activation spent idle clears `shaken` — an `Idle` activation, and an `Aircraft`'s mandatory `Advance`, which p.13 says does not break the idling requirement. Merged with the scheduler plan's `TurnEndChanges` |
 | `GameState.RngSeed : ulong` (added to the skeleton's `GameState`) | `unchecked((ulong)Info.RngSeed)` — the game's stored seed, reinterpreted; nothing here derives a seed |
 | `GrimdarkFutureRules` (this plan's partial, `Rules/GrimdarkFuture/GfRules.Sequences.cs`; identity in the skeleton's `GfRules.cs`) | `OneTryPerSpellScope = "activation"`, every member above |
-| `GfNames` also carries the scheduler plan's names | `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`, `SetAside` — one names class |
+| `GfNames` also carries the scheduler plan's names | `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside` — one names class. `Transport` is this plan's own (Task 14), not the scheduler's |
 
 ### `Tabletop.GameServer.Properties`
 

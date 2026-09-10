@@ -3670,6 +3670,8 @@ In **Layout**, replace the `server/management/` bullet with: "`server/management
   `docker compose up -d`.
 ```
 
+In the closing note under the list, replace "`server/` and `web/` are empty on purpose." (the contracts plan's wording) with "`server/game/` and `web/` are empty on purpose." — the game server skeleton plan's Task 13 quotes this narrowed sentence as its *Before*, so it must exist by then (added 2026-09-09; the chain had a gap here).
+
 In **Conventions**, in the "Tests:" bullet replace "one project per library;" with "one project per library and per server;", and add: "Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup` — see the plan's Global Constraints for the exact columns."
 
 - [ ] **Step 3: Run the whole check**

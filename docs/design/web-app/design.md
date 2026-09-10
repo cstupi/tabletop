@@ -1280,8 +1280,8 @@ DTOs. `svelte-check` is the only thing standing between a renamed DTO field and 
 
 ### The plan's own question
 
-**Where does the browser keep the session JWT?** Assumed `localStorage['tabletop.session']`, so
-a reload and a new tab stay signed in for the Stytch session's 30 days. If `sessionStorage` is
+**Where does the browser keep the session JWT? Closed 2026-09-09 on the accounts spec's own terms: `localStorage['tabletop.session']`**, so
+a reload and a new tab stay signed in for the Stytch session's 30 days — a thirty-day session means nothing if closing a tab ends it (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))). If `sessionStorage` is
 preferred, meaning signed out when the tab closes, `session.svelte.ts` changes one identifier
 and nothing else. No spec settles it. Accounts accepts that revocation is "a matter of minutes
 rather than instant" either way, so the security argument does not decide it. The answer changes

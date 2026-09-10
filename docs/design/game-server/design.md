@@ -1240,11 +1240,11 @@ The plan's three questions. The first is answered; the other two stand with the 
    the canonical statement is game flow → Teams are frozen at the flip, and a team is a slot.
    `Projection.Scores` therefore needs no entry beyond the ones `Projection.Initial` builds from
    the frozen list.
-2. **What does the draft start as?** Assumed 72 × 48 with the built-in texture `grass`, replaced
-   by the first edit (typically a layout load). **If the creator's client should choose**,
+2. **What does the draft start as? Ruled 2026-09-09 by the owner, as assumed:** 72 × 48 with the built-in texture `grass`, replaced
+   by the first edit (typically a layout load) — Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). 72 × 48 is the size every deployment style assumes and the creator has a legal table to edit without a round trip. **If the creator's client should choose**,
    `StartSetup` gains fields, which is a `Tabletop.Protocol` change the contracts plan owns. **If
    the default should be a layout**, this server needs a way to read one, which it has not got.
-3. **One connection per participant?** Assumed a newer socket replaces the older. **If two are
+3. **One connection per participant? Ruled 2026-09-09 by the owner, as assumed:** a newer socket replaces the older — Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). A reconnection after a blip works; a second window kills the first. **If two are
    allowed**, presence stays one value per participant (both sockets write the same slot, latest
    wins), and `AttachCoreAsync`/`DetachAsync` stop replacing and stop sending `PresenceEnded`
    until the last socket closes. That is a small change, but presence's own open item then closes

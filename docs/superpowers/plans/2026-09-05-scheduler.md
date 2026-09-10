@@ -370,13 +370,13 @@ public static class TestGames
 
     /// <summary>One team per entry, one participant each; a null army is a team that brought nothing. Spectators are participants with no team.</summary>
     public static Built Build(IReadOnlyList<Army?> armyPerTeam, SchedulerShape shape = SchedulerShape.AlternatingActivation,
-        Enforcement enforcement = Enforcement.Warn, bool waits = false, int spectators = 0, IGameRules? rules = null)
+        Enforcement enforcement = Enforcement.Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, long rngSeed = 7)
     {
         var teams = armyPerTeam.Select((_, i) => new Team(Guid.CreateVersion7(), i + 1)).ToList();
         var participants = teams.Select((t, i) => new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Player {i + 1}", t.Id, armyPerTeam[i]?.Id)).ToList();
         participants.AddRange(Enumerable.Range(0, spectators).Select(i => new Participant(Guid.CreateVersion7(), Guid.CreateVersion7(), $"Watcher {i}", null, null)));
         var info = new GameInfo(Guid.CreateVersion7(), "Test", GameStatus.Playing, participants[0].AccountId, GrimdarkFutureRules.RulesId, "sha256:test",
-            shape, enforcement, waits, teams, participants);
+            shape, enforcement, waits, rngSeed, teams, participants);                        // RngSeed is positional (contracts plan): a build that forgot it would not compile
         var armies = participants.Zip(armyPerTeam, (p, a) => (p, a)).Where(x => x.a is not null)
             .Select(x => new ArmyInPlay(x.p.Id, ArmySnapshot.Of(x.a!, Guid.CreateVersion7()))).ToList();
         var board = new Board(TableStateTests.Sample(), armies);

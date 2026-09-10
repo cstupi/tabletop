@@ -886,6 +886,8 @@ whole game in memory. The socket driver and its Postgres are `sim/`'s concern.
 
 ### The plan's own questions
 
+All five were closed on 2026-09-09 (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))): questions 1, 3 and 4 on their own documents' terms, 2 as assumed, and 5 by the owner. Each holds as written below.
+
 | Question | Assumption taken | What changes if the answer differs |
 | --- | --- | --- |
 | Should the rendering be pinned by a headless browser test? | No, per spec → *Testing*, and forced by the missing `libnspr4` in this WSL image | a Node canvas shim, a PNG per fixture frame, a byte comparison, one added task and a native dependency in `viewer/` |
