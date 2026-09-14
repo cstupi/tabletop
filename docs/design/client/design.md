@@ -826,8 +826,9 @@ enforcement setting, since they are the override path.
 here") is the manual containment path beside the Ask-driven one. It is the only path when no Ask is
 open: a transport deploying with units inside (p.14), a correction after a misclick, or a group
 playing under `warn`/`silent`. `KnownActionNames` exists because the pinned `Properties`' action
-rows never reach the client. The menu offers the names it has seen, meaning the activate Ask's
-option labels and recorded actions, plus free text.
+rows never reach the client. The menu offers the names it has seen, meaning the actions recorded
+in the log and on the units, plus free text. The activate Ask's option labels
+(`"{unit name}: {action}"`) are display text and are not parsed.
 
 ### Setup: the lobby panel, the toolbar, built-in content and the generators
 

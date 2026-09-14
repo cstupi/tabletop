@@ -73,15 +73,14 @@ the scheduler plan's Task 1 reads them.
 Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects.md` carry more mechanism than a
 summary of them shows; read them as they stand.
 
-## Open before the client and scheduler trees start
+## The activate Ask's option label
 
-**The activate Ask's option label.** The contracts plan's `AskTests` sample and the client plan
-(Task 8's `MenuModel`, *Interfaces needed* item 5) take an activation option's `Label` as the bare
-action name (`"Advance"`), and the client derives its "mark as having taken …" menu from it. The
-scheduler plan's `ActivationOption.For` test asserts `Label` is `"{unit name}: Rush"`. One of the
-three has to change: either the scheduler labels with the action name alone and the client
-disambiguates units by highlighting, or the client parses the action name off the option `Id`, or
-`GameInfo` gains `IRL<string> Actions`. An owner call; nothing else depends on it.
+An activation option is labelled `"{unit name}: {action}"` with `Id` `"{unitId:N}/{action}"`, as the
+scheduler design and the interpreter plan's `ActivationOption.For` say. The client renders `Label`
+and `Pieces` and parses neither; its "mark as having taken …" menu learns action names from
+`ActionRecorded` events and `UnitInPlay.Actions` only, so it is empty until the game's first
+activation, and free text covers the rest. `GameInfo` gains no `Actions` list. The contracts plan's
+`AskTests` sample labels an option `"Advance"`; it is a round-trip fixture and constrains nothing.
 
 ## The ten modules
 

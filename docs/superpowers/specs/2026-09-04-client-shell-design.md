@@ -215,8 +215,9 @@ The **menu** is the right-click on any piece, unit or team panel, and it is wher
 property is editable* lives: mark activated or clear the action record, add or remove a
 condition, set wounds, set spell tokens, move to the shelf or back, put inside a container or
 take out, change a team's score, set the active team or round. The action names of the pinned
-`Properties` are not on the wire, so the menu offers the names it has seen, which are the activate
-Ask's option labels and the actions already recorded, and free text beside them. Each item is one
+`Properties` are not on the wire, so the menu offers the names it has seen, which are the actions
+already recorded in the log and on the units, and free text beside them. The activate Ask's option
+labels are display text and are not parsed. Each item is one
 ordinary command, logged with the actor, through the same path automation uses. **No admin mode,
 no confirmation dialog.** The log is the accountability.
 
