@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <RootNamespace>Tabletop.Protocol</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tabletop.Geometry/Tabletop.Geometry.csproj" />
+    <ProjectReference Include="../Tabletop.Content/Tabletop.Content.csproj" />
+  </ItemGroup>
+</Project>
