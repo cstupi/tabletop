@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Virtual tabletop for One Page Rules and Warhammer 40,000: a Godot 4.7 / C# client and
-.NET servers. Currently at scaffold stage — only the client exists.
+.NET servers. What exists is what `Tabletop.sln` and the Layout section below say; a Layout
+bullet that reads *Empty* or *does not exist yet* is a module not yet built.
 
 `docs/handoff.md` says where things stand and what to pick up. `docs/design/README.md` is the
 system design and defines the vocabulary; `docs/design/<module>/design.md` is each module's
@@ -26,6 +27,9 @@ reaches the project over `\\wsl.localhost\Ubuntu-20.04\home\cstupi\src\tabletop`
 - Windows has Godot 4.7.2 Mono and .NET SDK 10.0.400, both via winget.
 - `Directory.Build.props` gives each OS its own `obj/` (`obj/Unix`, `obj/Windows_NT`);
   a shared one breaks restore, since it records absolute OS-specific paths.
+- Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
+  the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
+  management 5100, game server 5200.
 
 ## Commands
 
@@ -33,6 +37,8 @@ reaches the project over `\\wsl.localhost\Ubuntu-20.04\home\cstupi\src\tabletop`
 dotnet build                 # compile; output goes to client/.godot/mono/temp/bin/
 ./scripts/godot -e           # open the editor on the Windows host
 ./scripts/godot              # run
+dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d
+cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO (9000/9001) in WSL
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -47,7 +53,7 @@ Three kinds of top-level directory:
   neither is referenced by a server, and a release that omits both is complete
   (`docs/superpowers/specs/2026-09-06-simulation-design.md`).
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
-- **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
+- **Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
   content that the editor scans and lists.
 
@@ -64,7 +70,12 @@ Three kinds of top-level directory:
   in-process driver or a real socket, and records a projection per event. Does not exist yet.
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
   live game as a spectator. Does not exist yet.
-- `libs/` — `Tabletop.Geometry`, `Tabletop.Protocol`, `Tabletop.Content`. Empty.
+- `libs/` — `net10.0`, Godot-free, persistence-free. One child per library:
+  - `Tabletop.Geometry` — values, and the distance/LoS/settling API declared here and implemented by the geometry plan.
+  - `Tabletop.Content` — the army snapshot and the table state.
+  - `Tabletop.Protocol` — every socket message, the wire JSON, `EventApplier` and `Projection`.
+- `tests/` — one xUnit project per library, per server, and for the client's Godot-free core; the set is whatever
+  `dotnet sln list` shows under `tests/`. `dotnet test` from the root; the server tests need `docker compose up -d`.
 
 The rules engine is **not** in `libs/` — it lives only in `server/game/`. The client is a
 renderer plus a geometry engine, and there is no offline mode: running the game means
@@ -75,8 +86,7 @@ running a server.
 Because the client project lives in `client/`, its `**/*.cs` glob cannot reach sibling
 projects — that is why it moved out of the repo root.
 
-`server/`, `web/` and `libs/` are empty or absent on purpose. Each module is designed
-before it is built.
+Each module is designed before it is built.
 
 ## Conventions
 
@@ -87,5 +97,5 @@ before it is built.
   breaks C# loading, dropping the TFM back to `net8.0` is the first thing to try.
 - `.tscn`, `.tres`, `.godot`, and `.import` files are owned by the editor — hand-edit only
   when necessary, and never reformat them.
-- No test project yet. Add one (`net10.0` class library + xUnit) when there is logic worth
-  testing headlessly.
+- Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free
+  `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it.
