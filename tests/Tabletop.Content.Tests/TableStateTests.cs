@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Tabletop.Geometry;
 
 namespace Tabletop.Content.Tests;
@@ -43,7 +44,24 @@ public class TableStateTests
         Assert.Contains("\"kind\":\"solid\"", json);
         Assert.Contains("\"declarations\":\"none\"", json);
         // Derived properties stay off the wire: System.Text.Json writes every get-only property unless it is [JsonIgnore].
-        foreach (var derived in new[] { "\"horizontal\"", "\"isBuiltin\"", "\"transform\"" }) Assert.DoesNotContain(derived, json);
+        foreach (var derived in new[] { "\"horizontal\"", "\"isBuiltin\"", "\"isValid\"", "\"transform\"" }) Assert.DoesNotContain(derived, json);
+    }
+
+    [Fact]
+    public void VisualRef_rejects_neither_or_both_at_the_parse_boundary()
+    {
+        Assert.Throws<JsonException>(() => ContentJson.Deserialize<VisualRef>("{}"));
+        Assert.Throws<JsonException>(() => ContentJson.Deserialize<VisualRef>($"{{\"builtin\":\"grass\",\"assetId\":\"{Guid.CreateVersion7()}\"}}"));
+        Assert.Equal(VisualRef.OfBuiltin("grass"), ContentJson.Deserialize<VisualRef>("{\"builtin\":\"grass\"}"));
+    }
+
+    [Fact]
+    public void An_absent_visual_is_the_invalid_default_the_server_checks()
+    {
+        // The property is missing altogether, so no converter runs and Marker's constructor receives default(VisualRef).
+        var json = $"{{\"id\":\"{Guid.CreateVersion7()}\",\"kind\":\"objective\",\"position\":{{\"x\":0,\"y\":0,\"z\":0}},\"yaw\":{{\"degrees\":0}},\"diameter\":3}}";
+        Assert.False(ContentJson.Deserialize<Marker>(json).Visual.IsValid);
+        Assert.True(VisualRef.OfBuiltin("grass").IsValid);
     }
 
     [Fact]

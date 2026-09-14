@@ -13,11 +13,16 @@ public sealed class ProjectionDesyncException(string kind, Guid unknownId)
     public Guid UnknownId { get; } = unknownId;
 }
 
-/// <summary>Builds a Projection by copying what events say. Rules-free: it never derives, decides or clears on its own.</summary>
+/// <summary>
+/// Builds a Projection by copying what events say. Rules-free: it decides nothing and derives nothing. The only stores it clears
+/// on its own are the three the specs name — the round's order, active team and passes on round_started, the active team on
+/// turn_ended, and a roll's pending modifiers when a step_completed records that roll.
+/// </summary>
 public sealed class EventApplier(Board board, GameInfo game)
 {
     private readonly List<GameEvent> _log = new();
 
+    /// <summary>Replaced by a fresh instance on every Undone. Read it through the applier each time; never cache it.</summary>
     public Projection Projection { get; private set; } = Projection.Initial(board, game);
     public IReadOnlyList<GameEvent> Log => _log;
 
@@ -79,8 +84,8 @@ public sealed class EventApplier(Board board, GameInfo game)
                 foreach (var c in s.Changes) ApplyChange(p, c);
                 break;
             }
-            case SequenceFinished f: Pop(p, f.FrameId); break;
-            case SequenceAbandoned f: Pop(p, f.FrameId); break;
+            case SequenceFinished f: Pop(p, f.FrameId, f); break;
+            case SequenceAbandoned f: Pop(p, f.FrameId, f); break;
             case AskOpened a: p.OpenAsksMut[a.Ask.Id] = new OpenAsk(a.Ask); break;
             case AskAnswered a: Need(p.OpenAsksMut, a.AskId, a).AnswersMut[a.TeamId] = a.Answer; break;
             case AskClosed a: p.OpenAsksMut.Remove(a.AskId); break;
@@ -134,10 +139,11 @@ public sealed class EventApplier(Board board, GameInfo game)
     private static Frame FrameOf(Projection p, Guid frameId, EventPayload payload) =>
         p.StackMut.FirstOrDefault(f => f.Id == frameId) ?? throw new ProjectionDesyncException(EventKinds.Of(payload), frameId);
 
-    private static void Pop(Projection p, Guid frameId)
+    private static void Pop(Projection p, Guid frameId, EventPayload payload)
     {
         var index = p.StackMut.FindIndex(f => f.Id == frameId);
-        if (index >= 0) p.StackMut.RemoveRange(index, p.StackMut.Count - index);
+        if (index < 0) throw new ProjectionDesyncException(EventKinds.Of(payload), frameId);
+        p.StackMut.RemoveRange(index, p.StackMut.Count - index);
     }
 
     private static void ReplaceDice(Projection p, EventPayload payload, Guid frameId, Guid rollId, IReadOnlyList<DieReplacement> replaced)
@@ -146,7 +152,11 @@ public sealed class EventApplier(Board board, GameInfo game)
             ?? throw new ProjectionDesyncException(EventKinds.Of(payload), rollId);
         var i = step.RollsMut.FindIndex(r => r.Id == rollId);
         var dice = step.RollsMut[i].Dice.ToList();
-        foreach (var r in replaced) dice[r.Index] = r.New;
+        foreach (var r in replaced)
+        {
+            if (r.Index < 0 || r.Index >= dice.Count) throw new ProjectionDesyncException(EventKinds.Of(payload), rollId);
+            dice[r.Index] = r.New;
+        }
         step.RollsMut[i] = step.RollsMut[i] with { Dice = dice };
     }
 }

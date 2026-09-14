@@ -117,4 +117,23 @@ public class EventApplierTests
         Assert.Equal("dice_edited", ex.Kind);
         Assert.Equal(Frame, ex.UnknownId);
     }
+
+    [Fact]
+    public void A_change_riding_inside_a_carrier_reports_its_own_kind()
+    {
+        var a = Fresh(); var unknown = Guid.CreateVersion7();
+        var ex = Assert.Throws<ProjectionDesyncException>(
+            () => a.Apply(Ev(1, new RoundStarted(1, [Samples.Team1], [new WoundsSet(unknown, 1)]))));
+        Assert.Equal("wounds_set", ex.Kind);
+        Assert.Equal(unknown, ex.UnknownId);
+    }
+
+    [Fact]
+    public void Popping_a_frame_that_is_not_on_the_stack_is_a_desync()
+    {
+        var a = Fresh();
+        var ex = Assert.Throws<ProjectionDesyncException>(() => a.Apply(Ev(1, new SequenceFinished(Frame))));
+        Assert.Equal("sequence_finished", ex.Kind);
+        Assert.Equal(Frame, ex.UnknownId);
+    }
 }

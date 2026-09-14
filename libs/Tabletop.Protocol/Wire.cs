@@ -65,6 +65,8 @@ public static class WireJson
     /// passed with its own static type still writes its "kind" — the wire shape never depends on the caller's
     /// declared type.</summary>
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, PolymorphicTypeOf(typeof(T)), Options);
+    /// <summary>Reads with T itself, not its polymorphic root: a union is read through its base type. A concrete T whose JSON
+    /// carries "kind" relies on the options' default UnmappedMemberHandling.Skip to ignore the discriminator.</summary>
     public static T Deserialize<T>(string json) => JsonSerializer.Deserialize<T>(json, Options) ?? throw new JsonException("null frame");
 
     static Type PolymorphicTypeOf(Type type)
