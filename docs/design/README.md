@@ -20,7 +20,7 @@ order. Per-module detail is in the ten documents indexed at the bottom.
 
 | Deliverable | Directory | Runtime | Owns |
 | --- | --- | --- | --- |
-| Game client | `client/` | Windows, Godot 4.7 Mono export | Rendering, input, camera, local geometry, the game list, play |
+| Game client | `client/` | Windows first, other desktop platforms possible; Godot 4.7 Mono export | Rendering, input, camera, local geometry, the game list, play |
 | Game server | `server/game/` | Linux container | Live sessions, the rules engine, the event log |
 | Management API | `server/management/` | Linux container | Accounts, armies, assets, layouts, game records |
 | Web app | `web/` | Static SPA, Svelte 5 | Army import, mesh conversion and binding, the asset library, the account |
@@ -32,10 +32,9 @@ The division of labour between the browser and the client is **preparation versu
 browser owns everything a player builds between games. The client owns everything that happens
 during one. The client cannot edit an army; it picks one.
 
-`sim/` and `viewer/` were added on 2026-09-06 as a fourth and fifth deliverable, against a
-layout rule that had three. They ship to developers rather than to players: neither is in the
-client's export, neither is referenced by a server, and a release omitting both is complete.
-A simulator only xUnit can start is not something you can point at a problem.
+`sim/` and `viewer/` ship to developers rather than to players: neither is in the client's
+export, neither is referenced by a server, and a release omitting both is complete. A simulator
+only xUnit can start is not something you can point at a problem.
 
 The rules engine lives only in `server/game/`. It is not in `libs/`, so there is one
 implementation and no second copy on a machine a player controls. There is no offline mode:

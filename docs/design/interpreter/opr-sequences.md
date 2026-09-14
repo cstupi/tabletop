@@ -116,7 +116,7 @@ per-die grant are rolled separately with that property folded into the live set 
 `LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(+4)* reaches the defence
 roll. Every one of those plans takes `Values["defender_models"]` off the `attack-sequence` frame,
 because p.14 lets a joined hero block on its own `Defense` only *"until all other models have been
-killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.InCover(target, eligible attacker models)` asked once for the whole action (ruled 2026-09-08)
+killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.InCover(target, eligible attacker models)` asked once for the whole action
 (p.11). Both of p.11's thresholds live in that call: a majority of the target's living models
 with a base centre in a `Cover` volume, or fewer than half of them seen. `Battlefield` supplies
 only the two counts, `ModelsInCoverTerrain` and `ModelsVisibleFrom`, because the fraction is a
@@ -174,7 +174,7 @@ game state, because the morale threshold needs it to outlive the frame that wrot
 **Constraint 6 lives in that one expression.** `deal-wounds` reads a *capacity*. The only place
 the string `Tough` appears is `GfAttack.cs`, and `InterfaceConstraintTests` asserts both halves.
 
-`disgorge` is Task 19's addition, covered under §Containment.
+`disgorge` is covered under §Containment (Task 19).
 
 ## The four actions
 
@@ -238,7 +238,7 @@ a different set. That is the obligation the geometry module states of this one.
 standing in it now. That is one die per affected model, or that model's `Tough` value in dice, at
 threshold 2. Each failure, meaning each 1, is a wound, written as `Values["wounds"]`. `deal`
 pushes `deal-wounds` with no attacker. Three invokers write `dangerous_dice` on their own frame
-and push: the activation, the move, and transport destruction (proposed spec correction 12).
+and push: the activation, the move, and transport destruction.
 
 ## Shooting
 
@@ -260,16 +260,15 @@ therefore a candidate and is then ruled out, or ruled in for a fellow occupant.
 
 A `Takedown` group resolves first and names one model in the target unit as the target of its
 wounds in `attack-sequence`'s `pick-target-model` step. It hits at the shooting model's own
-`Quality`: 3.5.1 dropped `Sniper`'s *"Shoots at Quality 2+"* along with the name, so the catalogue
-entry carries no effects at all and only `Reliable` on the weapon's own profile moves the
-threshold. The pick precedes the hit roll, because p.8 declares targets before any roll, and
+`Quality`: p.14's `Takedown` says nothing about Quality, so the catalogue entry carries no effects
+at all and only `Reliable` on the weapon's own profile moves the threshold. The pick precedes the hit roll, because p.8 declares targets before any roll, and
 follows `determine-attacks`, so a group with nothing in range never asks. `GfAttack.IsTakedownGroup`
 is the one predicate: `WeaponGroup.Takedown` and the step read it, so a group cannot be ordered
 first without also being offered the pick. The pick is per **model**, which is what the group split
-buys: 3.5.1 rewrote the clause as *"This model may pick"*, so two takedown models sharing a weapon
+buys: p.14 reads *"This model may pick"*, so two takedown models sharing a weapon
 type are two groups and name a model each. One part of p.14's sentence is still not modelled,
 *resolved as if it was a unit of [1]*, so cover, `Blast`'s cap and the defence roll read the whole
-target unit and only the wound is redirected. That is what is left of question 7.
+target unit and only the wound is redirected (the plan's ruling 7).
 
 ## Charge and melee
 
@@ -303,8 +302,7 @@ sequenceDiagram
 ```
 
 The defender is asked three times in one charge: close in, strike back, and allocation inside
-each `deal-wounds`. `Counter` resolves before `Impact`, a ruling made because the book leaves the
-order ambiguous. `melee-start` has to record both units' `WoundsThisActivation` **before**
+each `deal-wounds`. `Counter` resolves before `Impact`; the book leaves the order ambiguous. `melee-start` has to record both units' `WoundsThisActivation` **before**
 anything strikes, because `compare` subtracts that baseline. A step inserted before `melee-start`
 that causes a wound would be counted twice.
 
@@ -393,7 +391,7 @@ measurement, being a model of the caster's own unit, and p.13 does not exclude i
 exception to a test that is otherwise **positional on both ends**: `LivingModels` on the caster's
 side and `Location is OnTable` on the spender's. A cast from inside a container therefore draws no
 tokens from anybody else and resolves at 4+ modified only by what the caster itself still holds
-(question 10).
+(the plan's ruling 10).
 
 The caps are built in `spend-tokens`, after `pick-spell`'s deduction is applied, so the caster is
 offered what the spell's cost left it and no step subtracts that cost twice. A caster whose tokens
@@ -401,7 +399,7 @@ exactly paid the cost holds none and is not an entry.
 
 The spend is answered per model, not as one number per team: `TokenSpend.MaxByModel` carries a cap
 per model and `TokensSpent.Counts` a count per model, so the player chooses which of its own models
-pays (question 14). Every token holder is itself a `Caster(X)` model, which is why the choice
+pays (the plan's ruling 14). Every token holder is itself a `Caster(X)` model, which is why the choice
 matters: a server-chosen payer would spend the tokens held for that model's own spell. The roll
 reads only the sums, since the modifier is ±1 per token spent. Two checks are the step's rather than
 the protocol's: a key belongs to the answering team, and a count is within that key's cap.
@@ -413,8 +411,8 @@ granted by `OnRoundStarted`, and needs nothing in `Properties` beyond the parame
 already carries.
 
 `TriedThisActivation` scans the effective log back to the activation's `sequence_started` for
-closed `pick-spell` steps. That is the *one try per spell* scope, ruled to be the activation
-(question 2). It keys on the sequence context's `Action` being one of the four action names, so a
+closed `pick-spell` steps. That is the *one try per spell* scope, the activation (the plan's
+ruling 2). It keys on the sequence context's `Action` being one of the four action names, so a
 cast reached by any other route would not bound correctly.
 
 ## Containment
@@ -446,7 +444,7 @@ answer's model ids only.
 
 `ContainersInReach` lists **friendly** containers only, so no automated move puts a unit inside an
 enemy vehicle, while `Battlefield.InsideReach` implements p.14 as written. That asymmetry leaves
-the inside-to-inside clause latent rather than wrong (question 9).
+the inside-to-inside clause latent rather than wrong (the plan's ruling 9).
 
 **`Hold` from inside a container is legal and changes nothing.** The unit stays inside, and
 `shoot-or-not` finds a target only among the container's other occupants and the container itself.
@@ -472,7 +470,7 @@ inches of the transport before removal."*
    no legal placement for is **destroyed** rather than parked off the table. The step writes what
    `assign` writes for a casualty: wounds at the model's capacity, the model removed to the shelf,
    and those wounds on the unit's activation tally, so a unit cut to half or less this way still
-   owes p.10's end-of-activation test. The frame reports `Values["destroyed"]` (question 12).
+   owes p.10's end-of-activation test. The frame reports `Values["destroyed"]` (the plan's ruling 12).
 
 **A nested `deal-wounds` never disgorges.** The occupants' own dangerous terrain test pushes a
 `deal-wounds`, whose `disgorge` would find the very wreck the frame above it is emptying. The
@@ -492,12 +490,12 @@ the scheduler's `RollOff.Order` reads into `round_started.Order`. p.50 needs the
 order for a free-for-all, not just a winner.
 
 A null threshold means `Die.Success` is `false` for every die and raw results are compared. The
-roll primitive admits that case. The whole-design review filled the gap.
+roll primitive admits that case (whole-design review → Gaps filled).
 
 The boundary between the two steps is a confirm gate, and it is the only gate in the module that
 does not depend on `game.waits_between_steps`. The frame therefore stays on the stack after the
 dice are recorded, which is what `RerollDice` and `SetDice` need, so the roll-off's dice are
-editable from the menu like every other roll (the owner's ruling of 2026-09-06 on question 8).
+editable from the menu like every other roll (the plan's ruling 8).
 The gate is **addressed to every team**: the roll-off has no acting unit, and its result fixes
 turn order for all of them, so there is no team with a better claim to release it. One unsealed
 `Confirm` Ask carries every team, and the dispatcher closes an unsealed Ask on the first answer,
@@ -540,7 +538,7 @@ own sunset, *"must use the unit's Defense until all other models have been kille
 the one settled before any group fired, so a second group does not find the hero alone that the
 first group left it. The morale threshold is the best of the unit's Quality and every living
 `Hero` model's own, which is `Hero`'s *"may take morale tests on behalf of the unit"* resolved
-always-when-it-helps. Interpreter design → question 13 records the ruling and the mechanism.
+always-when-it-helps. design.md → Rulings, 13 records the mechanism.
 
 The dangerous-terrain test and every kind-5 property roll (`Regeneration`, `Impact`, `Fearless`)
 borrow a convention from a spec but are **not** `roll` rows. Nothing targets them, so they exist
@@ -548,16 +546,16 @@ only as `RollRecord.Roll` names.
 
 ## The one flagged interpretation
 
-Recorded as a visible constant on `GrimdarkFutureRules` rather than as silent behaviour, as
-action sequences asked:
+A visible constant on `GrimdarkFutureRules` rather than silent behaviour, as action sequences asks
+of a flagged interpretation:
 
 ```csharp
-public const string OneTryPerSpellScope = "activation";   // question 2
+public const string OneTryPerSpellScope = "activation";   // p.13 "only one try per spell": per activation
 ```
 
-`RecomputeAttacksPerGroup` was the second such constant. The owner ruled question 3 on 2026-09-06
-and it is **deleted** rather than set to `false`: nothing branched on it, so `false` would
-advertise a switch that does not exist and name the settled behaviour by its negation.
+There is no `RecomputeAttacksPerGroup` constant: attack counts are settled before any group fires
+(the plan's ruling 3), nothing branches on it, and a `false` would advertise a switch that does not
+exist and name the settled behaviour by its negation.
 
-`Counter` before `Impact` is the other ambiguity. The 09-03 session ruled it rather than flagging
-it, so it is ordinary code in `GfMelee`.
+`Counter` before `Impact` is the other ambiguity. It is ordinary code in `GfMelee` rather than a
+flagged constant (action sequences → Grimdark Future's sequences).

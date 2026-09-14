@@ -1,8 +1,9 @@
 # Architecture
 
-High-level design decisions for the tabletop wargaming simulator. This document records
-*what was decided and why*; individual modules are still planned separately before being
-built.
+The cross-cutting design decisions for the tabletop wargaming simulator, and why they were made.
+`docs/design/README.md` is the system design and owns structure and vocabulary; the module design
+documents beside it own per-module structure, and the plans in `docs/superpowers/plans/` say what
+gets written. Where this document and one of those disagree, the later document wins.
 
 ## Deliverables
 
@@ -17,34 +18,22 @@ Six things ship. Four go to players; two go to developers.
 | Simulator | `sim/` | .NET console + library | Developers |
 | Developer viewer | `viewer/` | Static page | Developers |
 
-**Ruled 2026-09-06** ([simulation](superpowers/specs/2026-09-06-simulation-design.md)): `sim/` and
-`viewer/` are deliverables rather than tests, because a simulator that only xUnit can start is not
-a thing that can be pointed at a problem. Neither is in the client's export, neither is referenced
-by a server, and a release that omits both is complete. `sim/` plays a game headlessly and asserts
-the invariants that hold for any game; it reads game state freely but contains no second
-implementation of the rules. `viewer/` draws a run's recording top-down and is separate from
-`web/`, which owns preparation for players.
+`sim/` and `viewer/` are deliverables rather than tests
+([simulation](superpowers/specs/2026-09-06-simulation-design.md)): a simulator that only xUnit can
+start cannot be pointed at a problem. Neither is in the client's export, neither is referenced by a
+server, and a release that omits both is complete. `sim/` plays a game headlessly and asserts the
+invariants that hold for any game; it reads game state freely but contains no second implementation
+of the rules. `viewer/` draws a run's recording top-down and is separate from `web/`, which owns
+preparation for players.
 
-**The client's platform was corrected on 2026-09-06.** This table originally gave it as Windows
-outright, and the client plan and its design document repeated that as settled. Windows is the
-first target, not the only one — the same Godot project exports to Linux and macOS, so the
-correction is about intent rather than capability. What follows from it is a constraint on
-design, not a schedule: **the client may not take a Windows-only dependency**, and where one was
-assumed (the remembered session in Windows data protection) it was replaced with a portable
-mechanism. No work is planned for the other platforms, and no export preset for them exists yet.
+**Windows is the client's first target, not its only one.** The same Godot project exports to
+Linux and macOS, so **the client may not take a Windows-only dependency**; the remembered session
+uses a portable mechanism rather than Windows data protection. No work is planned for the other
+platforms and no export preset for them exists.
 
-There is no mesh prep tool. This document originally listed one at `tools/mesh-prep/`,
-shipping to users' machines; [mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md)
-moved STL conversion into the web app's upload flow, running in the browser, and the tool and
-its language exception went with it. `docs/workstreams/11-mesh-prep-tool.md` sketched that tool.
-
-**Corrected 2026-09-06.** The line above previously called that one file a stale sketch, which
-implied the other seven in its directory were current. None of them is. Every file in
-`docs/workstreams/` was written on 2026-08-24 — before the first design session — and its README
-is banner-marked superseded as of 2026-09-06: the workstream prompts are history, the ten
-implementation plans in `docs/superpowers/plans/` are what a session executes, and
-`docs/handoff.md` is where a session starts. Nothing in this document points at those prompts as
-work to be done.
+There is no mesh prep tool and no language exception for one. STL conversion runs in the browser,
+inside the web app's upload flow
+([mesh conversion](superpowers/specs/2026-09-04-mesh-conversion-design.md)).
 
 The web app exists and owns **preparation** — armies, assets, the account, and its own login.
 The client owns **play**, plus the game list, joining, and its own login screen; both log in
@@ -84,8 +73,7 @@ types.
 
 The table state is one record with two owners, and the same three consume it: management stores
 it as a user's saved layout, the game server writes it as a game's setup draft and snapshot, and
-the client draws and edits it. It joined this row after setup content was designed, and
-`architecture.md` is corrected by the later spec rather than the reverse.
+the client draws and edits it.
 
 The rules engine — pipelines, scheduler, the property sets, modifier system — is
 **not** in `libs/`. It lives in `server/game/` and goes nowhere else.
@@ -96,9 +84,8 @@ Players never mutate state. They submit **Commands** (intents: `MoveUnit`, an As
 `Pass`). The game server validates a command and emits ordered **Events** (facts:
 `ModelMoved`, `StepCompleted`, `TurnStarted`). In play, state changes only by applying events.
 Before play — lobby and setup — the game server writes rows instead, and nothing is logged; see
-[the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md). *Examples corrected
-2026-09-04: there is no end-turn command (the turn ends when the declared action's sequence
-finishes), and a roll is not an event of its own.*
+[the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md). There is no end-turn
+command: the turn ends when the declared action's sequence finishes.
 
 One pattern serves as: the network protocol, undo, save/load, replay, the test harness, the
 client's animation queue, and the audit trail for explaining a result.
@@ -116,8 +103,8 @@ round trip. It does this without owning the rules, by distinguishing two kinds o
 - **Continuous actions** — movement is *anywhere* within an allowance, not an enumerable
   list. The server sends **parameters**, not an answer: move allowance, terrain effects, and the
   ids of volumes that cannot be crossed. `Tabletop.Geometry` renders the region from those
-  parameters. *"Terrain multipliers" was an invention* — OPR's difficult terrain caps a unit's
-  whole move at 6" rather than scaling it, so the parameter is whatever `GameRules` computes.
+  parameters. OPR's difficult terrain caps a unit's whole move at 6" rather than scaling it, so
+  the parameter is whatever `GameRules` computes, not a multiplier.
 
 The second is the important one. It is why the client needs geometry and only geometry: the
 server describes the constraint, the client draws its consequence.
@@ -126,18 +113,16 @@ server describes the constraint, the client draws its consequence.
 ghosts are pure geometry, computed locally — so waiting players stay busy and the mouse never
 feels laggy.
 
-They are still **relayed**, which is not the same thing. This document originally said they
-were never sent anywhere; [presence](superpowers/specs/2026-08-30-presence-design.md) puts
-measurements and ghosts on the ephemeral channel, because a tape measure on a real table is
-visible to everyone at it. Nothing waits on them, nothing validates them, and nothing logs
-them.
+They are **relayed**, which is not the same thing:
+[presence](superpowers/specs/2026-08-30-presence-design.md) puts measurements and ghosts on the
+ephemeral channel, because a tape measure on a real table is visible to everyone at it. Nothing
+waits on them, nothing validates them, and nothing logs them.
 
 ## Rules enforcement
 
-**Three positions, set per game: `silent | warn | strict`.** Ruled 2026-09-04 in
-[the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md), reopening identity and enumerations'
-boolean: action sequences and the scheduler had both written a refusing mode, and the review
-chose to keep it rather than strike it. Under `silent` and `warn` the server accepts every
+**Three positions, set per game: `silent | warn | strict`**
+([the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)). Under `silent`
+and `warn` the server accepts every
 command and every Ask answer, logging a warning under `warn` when one is outside the legal set.
 Under `strict` an out-of-set Ask answer or an illegal command is refused. **The menu's edits are
 accepted under every setting** — they are the override path, visible to opponents and recorded
@@ -163,12 +148,11 @@ reproduces the same dice — so undo cannot be used to fish for rolls.
 
 ## Abilities
 
-Resolution is a **stack of sequences**. **Corrected 2026-09-03 by
-[action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)**: the sketch this
-section used to carry (shooting: declare target → range/LoS → hit rolls → defense rolls →
-apply wounds → morale) put targeting and morale inside the pipeline, and both live outside —
-targeting is the action's Ask, morale fires from ruleset-owned triggers, and Grimdark Future's
-shooting and melee are one four-step attack sequence invoked from two contexts. A sequence is a
+Resolution is a **stack of sequences**
+([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)). Targeting and
+morale live outside the sequence: targeting is the action's Ask, morale fires from ruleset-owned
+triggers, and Grimdark Future's shooting and melee are one four-step attack sequence invoked from
+two contexts. A sequence is a
 list of C# steps run over a frame stack; a step completes, asks a team for input, pushes a
 nested sequence, or opens an interrupt window, and the stack is rebuilt from the log the way
 the action record is. Properties declaratively attach to a roll or step with a condition and
@@ -176,11 +160,10 @@ contribute an effect — one of the twelve kinds in
 [the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md).
 
 The hard part is stacking and ordering — replacement vs additive effects, caps, floors.
-Modifier priority must be explicit rather than relying on registration order. **This survived
-being challenged**: the resolution session argued that restricting modifiers to arithmetic made
-them commute and removed the need, and
-[the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md) found that holds
-for one of twelve effect kinds. Ordering is a field on the effect.
+Modifier priority must be explicit rather than relying on registration order. Restricting
+modifiers to arithmetic would make them commute and remove the need, but that holds for one of
+the twelve effect kinds ([the effect grammar](superpowers/specs/2026-08-29-effect-grammar-design.md)).
+Ordering is a field on the effect.
 
 An ability is not only a modifier. Twelve kinds cover Grimdark Future, four of which act on
 *other properties* — granting, suppressing, or altering a parameter — so resolving an
@@ -192,8 +175,8 @@ A **scheduler** answers "whose input is needed next, and what is legal in this w
 Windows are **scoped to a team, not a player** — under the alternating shape teams alternate
 activations, and any member of the active team may act. Coordination inside a team is social.
 
-**Corrected 2026-09-04.** This section said the ruleset owns the scheduler. It does not: the
-scheduler is a generic engine component with two implementations selected per game, and
+The ruleset does not own the scheduler. The scheduler is a generic engine component with two
+implementations selected per game, and
 `GameRules` supplies its policies — who goes first each round, which units may activate, the
 phases inside a turn, the round-boundary hooks. See
 [the scheduler](superpowers/specs/2026-09-04-scheduler-design.md).
@@ -201,8 +184,8 @@ phases inside a turn, the round-boundary hooks. See
 - 2 players = two teams of one.
 - Free-for-all = N teams of one, differing in the order over teams and in the deployment zones
   (a 2'x1' corner area each, GF page 50). The first-team policy is the same as for two teams:
-  3.5.1 gives round one to whoever deployed first and every later round to whoever finished
-  activating first, where 3.4.1's page 49 rolled off at the start of every round.
+  round one goes to whoever deployed first and every later round to whoever finished activating
+  first.
 - Player-turn is the second scheduler shape behind the same interface, chosen per game rather
   than per ruleset — OPR's `GameRules` runs under both.
 
@@ -210,14 +193,11 @@ No engine code branches on ruleset identity; the scheduler is the firewall.
 
 ## Rules as data
 
-The goal is **extensibility and multi-ruleset support**. ~~JSON is chosen because it iterates
-faster than C#~~ — **corrected 2026-09-04**: the data half is rows in eight Postgres tables with
-check constraints, per [`docs/schema.md`](schema.md), not JSON files. The argument stands
-without the format: adding a custom rule is a data edit, and supporting a game beyond OPR is new
-data rather than new engine code.
+The goal is **extensibility and multi-ruleset support**. The data half is rows in eight Postgres
+tables with check constraints, per [`docs/schema.md`](schema.md). Adding a custom rule is a data
+edit, and supporting a game beyond OPR is new data rather than new engine code.
 
-**How authored content reaches those tables was settled 2026-09-05 by the interpreter plan.** A
-set is one JSON document under `server/game/Content/*.properties.json`, carrying the eight
+**How authored content reaches those tables.** A set is one JSON document under `server/game/Content/*.properties.json`, carrying the eight
 tables' shape without ids. It is content-addressed by SHA-256 over a canonical serialisation
 (`sha256:…`), and the game server seeds it as rows at startup, once per hash and idempotently.
 Editing a document yields a new hash and so a new set, and a game keeps the set it pinned.
@@ -226,9 +206,7 @@ and are stable thereafter within a database. The Army Forge import of
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) is a later writer of the
 same format.
 
-**In-repo now, user-authored eventually.** This document originally said the goal was "not end
-users uploading rules"; that is true of the current phase and not the intent. The order matters
-because OPR's rulebook gives a finite, known vocabulary to design against. While `Properties` is
+**In-repo now, user-authored eventually.** The order matters because OPR's rulebook gives a finite, known vocabulary to design against. While `Properties` is
 authored in-repo and ships with the build there is no upload endpoint, no sandbox and no
 moderation surface; when users can author it, that is additive.
 
@@ -245,9 +223,8 @@ a catalog entry and the effect rows that say what it does.
 
 The rejected alternative is an open property bag where the engine reads keys it recognises: it
 authors just as fast but a mistyped key silently does nothing. With a closed schema, typos fail
-loudly. *Corrected 2026-09-04:* the closure is the database's — foreign keys into the same set
-and per-kind check constraints — not a JSON Schema in tests, which is what this section said
-when the data half was going to be files.
+loudly. The closure is the database's: foreign keys into the same set and per-kind check
+constraints.
 
 ### Stat blocks are named stats
 
@@ -264,7 +241,7 @@ accessors over it.
 
 ### Where data stops, for now
 
-**What is edited every day is JSON; what is edited once per ruleset stays C#.** The two halves
+**What is edited every day is data; what is edited once per ruleset stays C#.** The two halves
 have names — see
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md).
 
@@ -324,54 +301,45 @@ which this deliberately is not.
 
 ## Table and layout
 
-Superseded in part by [the table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md),
-which designs these as data.
+[The table and its setup content](superpowers/specs/2026-08-29-setup-content-design.md) designs
+these as data.
 
-- **Table** — width and length in inches, and a texture. A rectangle: the "shape" and
-  "play-area boundary as a volume" this document originally called for do not exist, and the
-  four-player square is a rectangle like any other. Arbitrary sizes; the named presets this
-  line used to list (40k 60×44, OPR 72×48, skirmish 30×22, 4-player 72×72) are a first-pass
-  suggestion for setup content's undecided inventory, not a decision. Never a constant.
-- **Arbitrary sizes are the table's property, not the deployment styles'** (ruled by the owner
-  2026-09-06: *"We don't need to support skirmish at all"*). `Tabletop.Geometry.ZoneStyles` ships
-  seven built-in styles read from Grimdark Future p.22's diagrams on a 72×48 table, six of them
-  anchored at absolute insets of 12" and 24". Those six therefore assume a table near that size.
-  Small tables, the 30×22 skirmish size among them, are out of scope: below a 48" long edge or a
-  24" short edge the anchored styles overlap each other or cover the whole board. That is an
-  accepted limit rather than a defect. `Table`, `TableSize` and every measurement outside
-  `ZoneStyles` still take any positive size, and a size is still never a constant.
+- **Table** — width and length in inches, and a texture. A rectangle, with no shape field and no
+  play-area volume; the four-player square is a rectangle like any other. Arbitrary sizes, never a
+  constant. Setup content's inventory of named presets is undecided.
+- **Arbitrary sizes are the table's property, not the deployment styles'.**
+  `Tabletop.Geometry.ZoneStyles` ships seven built-in styles read from Grimdark Future p.22's
+  diagrams on a 72×48 table, six of them anchored at absolute insets of 12" and 24". Those six
+  therefore assume a table near that size. Small tables, the 30×22 skirmish size among them, are
+  out of scope by the owner's ruling: below a 48" long edge or a 24" short edge the anchored styles
+  overlap each other or cover the whole board. That is an accepted limit rather than a defect.
+  `Table`, `TableSize` and every measurement outside `ZoneStyles` take any positive size.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
   placements, deployment zones. Physical only, no rules.
-- **Mission** — **not a record.** This document defined one as deployment zones, objectives,
-  victory conditions, round count and team count, which is not what a mission is. Missions are
-  published content in OPR and Warhammer, players read them out of a book, and game flow had
-  already removed victory conditions from the model.
+- **Mission** — **not a record.** Missions are published content in OPR and Warhammer, players
+  read them out of a book, and the model has no victory conditions.
 
 A deployment zone names a **built-in style**, which resolves to a *set* of polygons. Six of the
 seven styles anchor their measurements to table features; Side Battle scales its two legs with
-the edges they run along, by the owner's ruling of 2026-09-06. A zone names a **team ordinal**,
+the edges they run along. A zone names a **team ordinal**,
 not a team, because a saved layout has zones but no game to have teams in.
 
 A terrain piece is a mesh plus collision volumes plus declarations. The engine reads a closed
 set of six — impassable, blocks LoS, see in and out, cover, difficult, dangerous — and carries
 the rest as free text nobody interprets. Those six are OPR's own terrain types, read from the
-rulebook; `climbable`, which this document previously listed, is not among them. Same asset
-pipeline as models.
+rulebook. Same asset pipeline as models.
 
 ### Terrain placement is a game phase, not an editor
 
 Terrain is placed in a setup phase rather than in a separate map editor application, and there
 is no second persistence path. The sequence is: setup (size, terrain, markers, zones — unlogged,
 free for all, per [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)) → the
-status flip → deployment (logged, driven by the scheduler) → rounds. *Corrected 2026-09-04 from
-"table size → terrain placement → deployment → rounds".*
+status flip → deployment (logged, driven by the scheduler) → rounds.
 
-**The setup phase is not logged.** This reverses what this document originally claimed. It made
-placement a stream of ordinary Commands so that a predefined map would be "a batch of placement
-events," undo during placement would fall out of undo-by-replay, and alternating placement
-would come free from team-scoped input windows. Setup does not need replay; it needs a settled
-result. Only the state at the end of the phase is recorded, and that record is the event log's
-initial state.
+**The setup phase is not logged.** Logging placement as ordinary Commands would make a predefined
+map a batch of events, give undo during placement for free, and get alternating placement from
+team-scoped input windows. Setup needs none of that; it needs a settled result. Only the state at
+the end of the phase is recorded, and that record is the event log's initial state.
 
 What that buys instead: **terrain and objectives are locked after setup** with no flag and no
 check, because nothing in the log can reach them. Nobody nudges a ruin while reaching across the
@@ -444,9 +412,8 @@ The miniature ecosystem distributes STL, which Godot cannot load and which is 50
 for realtime — a print-ready 32mm mini is routinely 500k–2M triangles. Converting it server-side would mean a job queue, a worker, an
 async upload state machine, and a source/derived blob split.
 
-Instead, conversion runs **in the browser, inside the web app's upload flow** — corrected
-2026-09-04 from "an offline tool the user runs before uploading." The product gains a validation
-rule and loses an entire subsystem either way; the browser version also loses the install.
+Instead, conversion runs **in the browser, inside the web app's upload flow**. The product gains
+a validation rule, loses an entire subsystem, and has nothing to install.
 
 The residual risk is that nothing stops a user uploading an undecimated GLB straight out of
 Blender, which then lands on every client in the game. A triangle-count check is the only
@@ -458,10 +425,10 @@ not block.
 **A missing or undownloadable mesh must degrade to a proxy shape, with the game fully playable.**
 Free, given the rules never touch the mesh — but only if built that way from the start.
 
-What the proxy is drawn from differs by kind, which this document originally missed: terrain has
-collision volumes to draw, a **miniature has only its base and height**. Settled 08-30 in
-[the asset library](superpowers/specs/2026-08-28-asset-library-design.md): a slot draws its own
-hitbox, the base shape extruded to its height, semi-transparent.
+What the proxy is drawn from differs by kind: terrain has collision volumes to draw, a
+**miniature has only its base and height**, so a slot draws its own hitbox, the base shape
+extruded to its height, semi-transparent
+([the asset library](superpowers/specs/2026-08-28-asset-library-design.md)).
 
 ## Two servers
 
@@ -479,9 +446,6 @@ deferred, because the two differ in transport, state, and deploy risk.
 
 Ordinary CRUD. Holds no live state, so it can restart freely and deploy at any time. Both the
 web app and the game client talk to it over HTTP, and it is the only thing that talks to Stytch.
-
-There is no `Collections` module and no collection entity. The word was never given a meaning
-and is dropped.
 
 ### `server/game/` — WebSocket
 
@@ -509,10 +473,9 @@ client's geometry is a cosmetic prediction, overwritten by the event, per Geomet
 
 ## Deployment
 
-**Deferred, ruled 2026-09-04.** Local development comes first and is the only environment; Docker
-is the most that gets introduced, and only for what needs it — Postgres, and S3 substituted by a
-local store. Hosting is designed after the whole-design review, when there is something to
-host. Everything below is the first-pass sketch it will be designed against.
+**Hosting is deferred.** Local development is the only environment; Docker is introduced only for
+what needs it — Postgres, and S3 substituted by a local store. Hosting is designed when there is
+something to host. Everything below is the first-pass sketch it will be designed against.
 
 **ECS Fargate for both servers, RDS Postgres, S3 for blobs.** One deployment model, because
 the game server holds live WebSocket sessions and cannot be serverless — so making the
@@ -523,10 +486,9 @@ never advances state on a timer, only when a command arrives.
 
 **There is still a continuous relay.** Cursors, pings and live drag positions are broadcast
 between players at a fixed rate and never logged, because a virtual tabletop is largely people
-pointing at things. Four players at 20Hz is a few hundred messages a second, which is nothing —
-but it is not nothing per second, and this document previously said "no tick loop" without the
-distinction. See [presence](superpowers/specs/2026-08-30-presence-design.md) for what the relay
-carries; none of it is persisted or logged.
+pointing at things. Four players at 20Hz is a few hundred messages a second. See
+[presence](superpowers/specs/2026-08-30-presence-design.md) for what the relay carries; none of
+it is persisted or logged.
 
 The real constraints are statefulness, not throughput:
 
@@ -574,21 +536,17 @@ Because the client does not hold the full rules state, the server *can* send **p
 filtered event streams** if hidden information ever matters. The mechanism falls out of the thin
 client rather than needing to be designed in later.
 
-Its original two justifications are both gone: there are no victory conditions, so secret
-objectives do not exist, and hidden deployment is `Ambush`, a `GameRules` hook. One thing does
-use it: casting's simultaneous token spend, where every eligible team answers concurrently and
-the answers are withheld until the window closes
-([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)). *Corrected
-2026-09-06.* This read "sealed token bid"; there is no bid in the rule, and the note in action
-sequences quotes p.13.
+There are no victory conditions, so secret objectives do not exist, and hidden deployment is
+`Ambush`, a `GameRules` hook. One thing does use filtering: casting's simultaneous token spend,
+where every eligible team answers concurrently and the answers are withheld until the window
+closes ([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)).
 
 ## Web frontend
 
-Settled by [the web app](superpowers/specs/2026-08-29-web-app-design.md): it exists, and the
-line is **preparation versus play**. The browser owns armies, assets and the account; the
-client owns the game list, joining, setup and play. Each has its own login screen against the
-same two management methods (corrected 2026-09-04; social login and its browser-to-client
-handoff are gone). The client does not edit armies — it creates a game and picks one.
+The line is **preparation versus play** ([the web app](superpowers/specs/2026-08-29-web-app-design.md)).
+The browser owns armies, assets and the account; the client owns the game list, joining, setup
+and play. Each has its own login screen against the same two management methods. The client does
+not edit armies — it creates a game and picks one.
 
 Account and army management are a **Svelte SPA**, not part of the game client. Users manage
 their own persistent things in a browser: identity, armies imported from Army Forge, mesh
@@ -598,19 +556,17 @@ This removes real work from the hard-to-iterate side — the Godot client needs 
 UI and no upload UI; its login is two fields — and makes the HTTP API a genuine API surface
 rather than an internal detail of one client.
 
-- ~~**Auth is easier in a browser.**~~ **Corrected 2026-09-04.** There is no OAuth and no magic
-  link ([the client shell](superpowers/specs/2026-09-04-client-shell-design.md)), so no login
-  method needs a page to redirect to. Password and email one-time code run through management,
+- **Login needs no browser.** There is no OAuth and no magic link
+  ([the client shell](superpowers/specs/2026-09-04-client-shell-design.md)), so no login method
+  needs a page to redirect to. Password and email one-time code run through management,
   and both the web app and the client have their own login form. Nothing crosses from the
   browser to the client.
 - **Uploads belong in the browser.** Dragging a `.glb` onto a page beats a file dialog in Godot.
   There is no server-side mesh processing to speak of: conversion runs in the browser, and
   the only server-side step is a ranged read of the GLB header to count triangles.
 - **Collision volume authoring is the web's too.** Base sizes are a preset dropdown (25/32/40mm
-  round, oval sizes) covering effectively every model. Terrain volumes were held back for the
-  in-game editor because they "need real 3D manipulation" — that was true of convex hulls, which
-  are gone. A footprint and two heights is a top-down task over a model preview, so both live in
-  the browser.
+  round, oval sizes) covering effectively every model. A terrain volume is a footprint and two
+  heights, a top-down task over a model preview, so it lives in the browser too.
 
 ### A web game client stays possible
 
@@ -653,13 +609,13 @@ holds, but the two services do share a database and a management migration can b
 server.
 
 **[`docs/data-model.md`](data-model.md) holds the entity diagram** — every entity from every
-design session and how they relate. It supersedes the sketch that used to sit here.
+design session and how they relate.
 
 Everything in it is in the management schema except one entity. The game schema holds exactly
 one thing: `GameEvent (game_id, seq, kind, payload)`. The game server nonetheless **writes**
 management's rows for a game while its status is `lobby` or `setup` — status, teams, each
 participant's team and army snapshot, and the `table_state` draft — and is read-only from
-`playing` on. Ruled 2026-09-04 in [the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md).
+`playing` on ([the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)).
 
 `Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
 account deletes every game it was in.
@@ -673,11 +629,9 @@ same hydrate-from-the-log operation as recovering a crashed task.
 `playing` on it reads a game's rows at hydration and writes only events; before that it writes
 the game's own rows, as above.
 
-*Corrected 2026-08-29.* This previously read "the game server has no CRUD surface" and claimed
-that was "what keeps management restartable at will and confines deploy risk to one service."
-Neither follows. Management is restartable because it **holds no live state**; deploy risk is
-confined to the game server because it **holds live WebSocket sessions**. Both are true for
-reasons that have nothing to do with CRUD.
+Management is restartable at will because it **holds no live state**; deploy risk is confined to
+the game server because it **holds live WebSocket sessions**. Neither follows from which service
+has a CRUD surface.
 
 **An army snapshot is a frozen copy, not a version column.** Written once when setup ends —
 the same moment the scheduler shape freezes — never updated, so editing a saved army cannot
@@ -747,14 +701,10 @@ until they are settled.
 | `Tabletop.Protocol` command, event, Ask, presence and setup-edit schema, and the event applier | client, game server |
 | `Tabletop.Content` army snapshot types | client, both servers |
 
-**Auth is not on this list, and the first version of this document was right about that** —
-though not for the reason it gave. It argued Stytch was the token authority for both servers,
-so there was no bespoke format to agree on. Confining Stytch to management looked like it
-reversed that, and [accounts](superpowers/specs/2026-08-29-accounts-design.md) added a join
-token as a fourth contract on those grounds. That token was dropped on 08-30: a game has an id,
-the session JWT says who you are, and the `participant` row records who is allowed in, so
-there was no format left to agree. We issue no token of our own at all. There are no management-to-game-server calls, and therefore
-no M2M.
+**Auth is not on this list.** A game has an id, the session JWT says who you are, and the
+`participant` row records who is allowed in, so there is no token format of our own to agree and
+we issue none ([accounts](superpowers/specs/2026-08-29-accounts-design.md)). There are no
+management-to-game-server calls, and therefore no M2M.
 
 **Who instantiates a game session is settled: nobody does.** A client opens a socket naming a
 game, and if no session for that game is in memory the server hydrates it from the log.
@@ -762,28 +712,22 @@ Starting, reconnecting, and crash recovery are one path.
 
 ## Build order
 
-1. **Contracts** — the three above, as types and schemas with no implementations behind them.
-2. **Geometry** — volumes, distance, LoS, surface settling. Headless tests, zero dependencies.
-3. **Management API and web app** — Stytch auth, signup, accounts. No game concepts at all.
-4. **Game server skeleton** — WebSocket, session lifecycle, event log, command dispatch.
-5. **Client shell** — login, home, one game screen over a session object; the projection, the
-   table view, Asks, log and menu. See
-   [the client shell](superpowers/specs/2026-09-04-client-shell-design.md); the earlier
-   "geometry only, no server" sandbox was build ordering, not the design.
-6. **Setup phase** — table sizing and terrain placement, ending in a snapshot. Not commands;
-   see [setup content](superpowers/specs/2026-08-29-setup-content-design.md).
-7. **Scheduler and OPR skeleton** — deployment, rounds, team-alternating activation, moves.
-8. **Resolution pipelines** — dice, the modifier system, shooting and melee.
-9. **Army management** — Army Forge import, mesh binding per model slot.
-10. **Assets** — content-addressed upload direct to S3 by presigned URL, from the web app.
-11. **Objectives, LoS and cover refinement, replay viewer, AI.** Not missions — those are
-    content in a book, and automating them is a later feature rather than a module.
+One plan per module, six stages. `docs/design/README.md` → *Build order and why* is the
+dependency graph with its reasons, and every plan's *Requires landed* line states its own
+prerequisites.
 
-Steps 2 and 3 have no dependency on anything and no overlap with each other, so they run in
-parallel immediately after step 1. Steps 4 and 5 run in parallel once the contracts exist.
+1. **Contracts and local dev** — the three libraries as types, the event applier, Postgres and
+   the blob store in Docker.
+2. **Geometry, management API, game server skeleton** — in parallel; none depends on another.
+3. **Web app, client, interpreter** — in parallel. The interpreter precedes the scheduler: it
+   declares the scheduler's seam records, and the scheduler consumes its Ask machinery, roll
+   primitive and sequence starter.
+4. **Scheduler.**
+5. **Simulator** — needs both rules modules; their full-game tests then run through it.
+6. **Viewer** — needs the simulator's recording schema.
 
-Networking is no longer deferred — it is the only transport, so it is exercised from step 4
-onward rather than bolted on late.
+Networking is the only transport, so it is exercised from the skeleton onward rather than bolted
+on late. Missions are content in a book; automating them is a later feature, not a module.
 
 The first playable seats two, but nothing in the code says "two": players are a list and teams
 are a separate concept, so a free-for-all is N teams of one and differs only in the order over

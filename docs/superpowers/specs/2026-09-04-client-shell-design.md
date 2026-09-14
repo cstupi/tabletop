@@ -14,8 +14,8 @@ the game list and lobby ([accounts](2026-08-29-accounts-design.md)), the setup p
 ([game flow](2026-08-28-game-flow-design.md)). This session designs the frame those sit in.
 Not the visual design of any screen.
 
-`docs/workstreams/05-client-shell.md` scoped the shell to table, camera and mouse with no
-server. That was build ordering, not a design, and it is superseded here.
+An earlier sketch scoped the shell to table, camera and mouse with no server. That was build
+ordering, not a design, and it is superseded here.
 
 ## No social login
 

@@ -491,7 +491,7 @@ Per-kind `CHECK` constraints keep the nullable columns honest: a `Multiply` row 
 with an `Add a hit` child, so kind 6 is reused rather than special-cased. The column is
 self-referencing and nullable; one level covers the whole rulebook and nothing forbids deeper.
 
-**`duration` is `interaction | once`**, default `interaction`. **Added 2026-09-04** by
+**`duration` is `interaction | once`**, default `interaction`. Per
 [spell effects](superpowers/specs/2026-09-04-spell-effects-design.md): a `once` effect, when it
 applies, writes a grant onto its target — a fourth in-play store on the unit, rebuilt from the
 log and never a row — consumed the first time that grant's effect applies. Every core rule is
@@ -627,11 +627,11 @@ orphan.
 
 ### A game stores its dice seed
 
-**Added 2026-09-06 by an owner ruling.** `game.rng_seed bigint not null`, with no default. The RNG
+`game.rng_seed bigint not null`, with no default. The RNG
 is counter-based: the seed and the count of dice drawn in the effective log give every die, so an
 undo rewinds the dice along with the log and no RNG state is stored anywhere. Management writes the
-seed once, at creation, and never again. Deriving it from the game id was the alternative and was
-overturned, because a simulator run then has no way to choose one. The absent default is deliberate,
+seed once, at creation, and never again. It is not derived from the game id, because a simulator
+run then has no way to choose one. The absent default is deliberate,
 so a caller that omits the seed fails loudly instead of playing a game nobody can reproduce.
 
 ### `participant` links to its game, and holds the army it picked

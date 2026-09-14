@@ -36,7 +36,7 @@ management's rows plus the event log.
   joining, leaving, ending and deleting a game are management endpoints, and layouts stay
   management's.
 - **Hosting.** Local only: Postgres from `docker-compose.yml`, the server bound to
-  `http://0.0.0.0:5200`. Deployment was deferred by the whole-design review.
+  `http://0.0.0.0:5200`. Deployment is deferred.
 - **Migrations.** `scripts/postgres/init/001_schema.sql` reaches the database through compose
   or through management's migrator. This server never migrates.
 
@@ -98,18 +98,16 @@ audience the project id, 30 s clock skew, keys from `HttpJwksSource`. It reads t
 out of the top-level custom claim `account_id`. The claim is there because the Stytch project's
 `SESSION` claim template renders `{{ user.external_id }}` into it on every mint, and management
 keeps `external_id` equal to the account id; no call from either server passes
-`session_custom_claims` (owner ruling 2026-09-06 on the management plan's question 1). There is no
-M2M call, no shared signing key and no session row. Verification happens once, at connect. The
-socket lives hours and the JWT five minutes, so re-checking it would kill live games on a
-five-minute clock.
+`session_custom_claims` (the management plan's ruling 1). There is no M2M call, no shared signing
+key and no session row. Verification happens once, at connect. The socket lives hours and the JWT
+five minutes, so re-checking it would kill live games on a five-minute clock.
 `VerifiedSession.ExpiresAt` is recorded and not enforced.
 
 **The row seam.** One database, two schemas, no joins across the line. The game server reads
 `management.game`, `management.team`, `management.participant`, the `management.table_state`
 tree and `management.army`. It **writes** the game's own rows while the status is `lobby` or
-`setup`, per ruling 4 of [the whole-design
-review](../../superpowers/specs/2026-09-04-whole-design-review.md). From `playing` on it writes
-only `game.game_event`. The two services share a schema, so a management migration can break
+`setup` (`architecture.md` → Game management data model). From `playing` on it writes only
+`game.game_event`. The two services share a schema, so a management migration can break
 this one, and this module owns no migration to defend itself with.
 
 **The rules seam.** `IGameRules` is the hook surface and `IRulesEngine` is the generic engine.
@@ -251,7 +249,7 @@ Three consequences:
   `Info.Participants`, and `TeamOf` filters the log by it. A socket arriving at `playing` for a
   participant who has a team is that team's player again, with no re-pick and nothing
   re-derived. A spectator is a participant whose `team_id` is null, which is a fact about the
-  row rather than about how the socket arrived (owner ruling 1, 2026-09-06; the model is stated in
+  row rather than about how the socket arrived (the plan's ruling 1; the model is stated in
   game flow → Teams are frozen at the flip, and a team is a slot).
 - **`ended` is a flag, not a terminal state.** `Hydrator` treats `Ended` like `Playing`, and
   `HandleCommandAsync` accepts commands at both. Accounts says "any participant can pick an
@@ -298,7 +296,7 @@ is the backstop for the window in which it is briefly false.
 `ProjectionDesyncException` from step 4. A batch whose append threw for any other reason has an
 unknown outcome, so the next `seq` is unknown and the instance cannot be trusted to continue. A
 `ProjectionDesyncException` in step 4 means this server has just written an event naming an id
-its own projection does not hold (owner ruling 2, 2026-09-06). Faulting is the whole response:
+its own projection does not hold. Faulting is the whole response:
 the batch is durable by then, so a resync would replay the same event from the same log and
 throw again, and hydration hits it in `Hydrator` instead, where `ConnectionHandshake` closes the
 socket with `1011`. The client's opposite treatment of the same exception, dropping the
@@ -311,9 +309,9 @@ projection mutated by events that may never be durable, and the session is disca
 ### The rest frame
 
 `AtRest(long Seq)` is the server saying it has nothing further to send right now, with the log
-ending at `Seq` (owner ruling 4, 2026-09-06). `Seq` is always `Play?.Projection.LastSeq ?? 0`,
-the log's high-water mark: `0` before the log opens, and unchanged from the previous frame when
-the batch appended nothing. The frame is `GameSession.Rest()` and has three call sites.
+ending at `Seq`. `Seq` is always `Play?.Projection.LastSeq ?? 0`, the log's high-water mark: `0`
+before the log opens, and unchanged from the previous frame when the batch appended nothing. The
+frame is `GameSession.Rest()` and has three call sites.
 
 | Sent | To whom | Carrying |
 | --- | --- | --- |
@@ -333,9 +331,9 @@ the `GameInfoMessage` or `BoardMessage` carrying the whole settled value is itse
 terminator. Ending setup is the exception among edits, because it opens the log and runs the
 engine.
 
-This replaces the simulator's 250 millisecond quiet window, which was its only signal that the
-server had stopped. A slower server read as a stuck game and a socket run took minutes. A client
-with no use for the frame ignores it, as it ignores any kind it does not recognise.
+The simulator waits for this frame rather than timing a 250 millisecond quiet window, under which
+a slower server reads as a stuck game and a socket run takes minutes. A client with no use for
+the frame ignores it, as it ignores any kind it does not recognise.
 
 ### Undo by replay
 
@@ -382,14 +380,13 @@ durability rules. `GameSession.ReceiveAsync` is the whole routing table:
 | `EditMessage` with a `SetupEdit` | `HandleSetupEditAsync` → `DraftEditor` | never | the `table_state` tree | `BoardMessage` with the whole draft | `setup` |
 
 Edits are the third kind. Presence is relayed and discarded, commands are logged, and setup
-edits sit between the two: setup needs a settled result and does not need replay.
-`architecture.md` originally specified placement as a stream of commands. That was rejected. It
-would have bought undo-during-placement and a predefined map as a batch of events, and cost the
-structural lock on terrain, because anything in the log can be moved by the log. Keeping the
-draft out of the log and *in a row* makes "nobody nudges a ruin while reaching across the board"
-free of a flag and a check. Edits exist only during `lobby` and `setup`. From `playing` on the
-server refuses both edit kinds with `RefusalReason.WrongStatus`, which is "read-only from
-`playing` on".
+edits sit between the two: setup needs a settled result and does not need replay. Placement as a
+stream of commands was rejected. It would have bought undo-during-placement and a predefined map
+as a batch of events, and cost the structural lock on terrain, because anything in the log can be
+moved by the log. Keeping the draft out of the log and *in a row* makes "nobody nudges a ruin
+while reaching across the board" free of a flag and a check. Edits exist only during `lobby` and
+`setup`. From `playing` on the server refuses both edit kinds with `RefusalReason.WrongStatus`,
+which is "read-only from `playing` on".
 
 The draft **is** the row, not a copy of one. `table_state` with `game_id` set is the live draft.
 `DraftEditor.Apply` produces the next value, the session broadcasts it, then `WriteDraftAsync`
@@ -407,11 +404,11 @@ generated pieces never dragged onto the table.
 
 ### Enforcement and the override path
 
-`game.enforcement` is `silent | warn | strict`. Ruling 1 of the whole-design review added
-`strict` to
+`game.enforcement` is `silent | warn | strict` (`architecture.md` → Rules enforcement). `silent`
+and `warn` are
 [identity and enumerations](../../superpowers/specs/2026-08-29-identity-and-enumerations-design.md)'
-boolean, *"the server warns, or it says nothing"*, because action sequences and the scheduler had
-both written a refusing mode. `EnforcementPolicy.Decide` is that ruling as a function:
+two positions, *"the server warns, or it says nothing"*; `strict` is the refusing mode action
+sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting as a function:
 
 | `Legality` | `silent` | `warn` | `strict` |
 | --- | --- | --- | --- |
@@ -528,8 +525,8 @@ be tested end to end with no rules in the tree.
 
 ### Row reads and writes
 
-Ruling 4 of the whole-design review reversed three documents that had the game server reading
-management's schema read-only. It writes, and the list is closed:
+The game server writes management's rows while the game is `lobby` or `setup`
+(`architecture.md` → Game management data model), and the list is closed:
 
 | While `lobby` or `setup` | From `playing` on |
 | --- | --- |
@@ -595,8 +592,8 @@ empty. A participant with no team at all is never addressed by an Ask, **and tha
 spectator is**. There is no second identity for one.
 
 Freezing the team list is about the list, not about who is holding a socket: a participant's team
-is their slot on their `participant` row, and reconnecting during play returns them to it (owner
-ruling 1, 2026-09-06).
+is their slot on their `participant` row, and reconnecting during play returns them to it (the
+plan's ruling 1).
 
 ### Per-team Ask addressing and the sealed answer
 
@@ -630,16 +627,16 @@ never filtered. It is the reveal. Three properties:
 the frame with the sender's participant id and stores it, so a client cannot speak for another.
 There is no sequence number, because presence is never replayed and the latest value wins.
 `SessionHost`, a `BackgroundService`, runs a `PeriodicTimer` at `1000 / PresenceRelayHz` ms (20
-Hz, `architecture.md`'s standing first-pass figure) and calls `TickPresenceAsync` on every live
+Hz, `architecture.md`'s figure) and calls `TickPresenceAsync` on every live
 session, which relays each changed value to everyone but its owner. Pings bypass the timer. They
 are an instant, not state, and are relayed immediately.
 
 Connectedness is not a field. A presence value exists while a participant is connected, so who
 is connected is which values exist. `DetachAsync` removes the value and broadcasts
-`PresenceEnded` when the participant's *last* socket closes. One connection per participant is
-assumed, and `AttachCoreAsync` closes an older socket for the same participant with `1000`. The
-new client is sent every other participant's current value at attach, so a joiner sees the room
-immediately.
+`PresenceEnded` when the participant's *last* socket closes. A participant has one connection
+(the plan's ruling 3), and `AttachCoreAsync` closes an older socket for the same participant with
+`1000`. The new client is sent every other participant's current value at attach, so a joiner
+sees the room immediately.
 
 **SIGTERM.** `SessionHost` registers on `ApplicationStopping` and calls
 `SessionRegistry.DrainAllAsync` inside the callback rather than after it. The host waits for
@@ -655,36 +652,36 @@ nothing to flush.
 
 | Decision | Why | Rejected alternative | Source |
 | --- | --- | --- | --- |
-| Enforcement is three positions, `silent \| warn \| strict` | Two later designs independently wrote a refusing mode; the review put the contradiction to the user, who kept it | A boolean (warn or say nothing), which identity and enumerations had ruled on the grounds that blocking contradicts a virtual tabletop | Whole-design review ruling 1, reopening identity and enumerations |
+| Enforcement is three positions, `silent \| warn \| strict` | Action sequences and the scheduler both need a refusing mode | A boolean (warn or say nothing), on the grounds that blocking contradicts a virtual tabletop | Whole-design review ruling 1 |
 | Menu edits are accepted under **every** setting | They are the override path, visible to opponents and logged with an actor, never silent | A separate admin mode or a confirmation gate; a second write path for overrides | Review ruling 1; game flow, *Nothing is an invariant* |
-| The game server **writes** the game's own rows while `lobby` or `setup` | The setup phase had it writing the draft, flipping the status and taking team and army picks over the socket; three documents said read-only | Read-only throughout, with management endpoints for team, army, configuration and the draft | Review ruling 4, reversing architecture, the management API, schema and data model |
-| A participant has no team until they pick one, and that *is* a spectator | Nothing said what team `join` assigned or who created team rows | Presence's "someone who wants to watch joins a third team" | Review ruling 5, superseding presence |
-| The team list is locked at the flip to `playing`, and a participant reconnecting during play is returned to their slot | A team is a slot on the `participant` row, so it survives the socket; letting teams change mid-game would also need a score entry for a team created after `Projection.Initial` | Teams created and picked at any status, which review ruling 5 said and which contradicts ruling 4; treating a reconnecting player as a late joiner, which would make every dropped connection cost a seat | Owner ruling 1, 2026-09-06, stated in game flow → Teams are frozen at the flip, and a team is a slot, and settling the two readings |
-| The setup phase is not logged; only the result is | Setup needs a settled result, not replay, and keeping terrain out of the log locks it structurally, with no flag and no check | `architecture.md`'s original: placement as a stream of ordinary commands, so a predefined map is a batch of events and undo-during-placement is free | Setup content, *The setup phase is snapshotted, not logged*; setup phase |
-| Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | `architecture.md`'s original "computed locally, never sent anywhere" | Presence, *What this corrects in architecture.md* |
-| No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts (revised 08-30); management API, *We issue no tokens of our own* |
+| The game server **writes** the game's own rows while `lobby` or `setup` | Setup has it writing the draft, flipping the status and taking team and army picks over the socket | Read-only throughout, with management endpoints for team, army, configuration and the draft | Review ruling 4 |
+| A participant has no team until they pick one, and that *is* a spectator | `join` assigns no team | Presence's "someone who wants to watch joins a third team" | Review ruling 5 |
+| The team list is locked at the flip to `playing`, and a participant reconnecting during play is returned to their slot | A team is a slot on the `participant` row, so it survives the socket; letting teams change mid-game would also need a score entry for a team created after `Projection.Initial` | Teams created and picked at any status, which contradicts the server being read-only from `playing` on; treating a reconnecting player as a late joiner, which would make every dropped connection cost a seat | The plan's ruling 1; game flow → Teams are frozen at the flip, and a team is a slot |
+| The setup phase is not logged; only the result is | Setup needs a settled result, not replay, and keeping terrain out of the log locks it structurally, with no flag and no check | Placement as a stream of ordinary commands, so a predefined map is a batch of events and undo-during-placement is free | Setup content, *The setup phase is snapshotted, not logged*; setup phase |
+| Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | Computed locally and never sent anywhere | Presence, *What this corrects in architecture.md* |
+| No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts; management API, *We issue no tokens of our own* |
 | Nobody instantiates a session | Starting, reconnecting, moving a game and crash recovery become one path | Management creating a session over M2M, which would also make management learn which task holds which game | `architecture.md`, *Contracts to freeze*; accounts, *A game is a lobby* |
 | Undo is replay from the setup snapshot | RNG is game state, so replay reproduces the same dice and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
 | `ended` is a flag; commands are accepted at `ended` | Restarting an ended game is the identical hydrate-from-the-log operation as recovery, and there is no un-end endpoint | Refusing commands until something un-ends the game | Accounts, *Ending is a flag*; identity and enumerations |
 | Legality is `EnumerateLegalCommands`, not `IsLegal` | Validation falls out of enumeration and not the reverse; the client needs the set anyway to render affordances | An `IsLegal(command)` predicate | `architecture.md`, *Rules enforcement* |
 
-Decisions this plan took because no spec settled them:
+Decisions this module settles itself:
 
-| Decision | Assumption taken | Why |
+| Decision | Mechanism | Why |
 | --- | --- | --- |
 | One actor per game, mailbox, no locks | Every mutation runs on the loop | Three of the four things a session does are order-sensitive; a lock gives exclusion without order |
-| The account UUID rides as the top-level custom claim `account_id`, rendered by the Stytch project's `SESSION` claim template from `{{ user.external_id }}` | Stytch's `sub` is its own `user_id` and does not carry `external_id` | Accounts allowed the fallback ("if it ever cannot, it is added as a custom claim"); the verifier needs one exact name. Spec correction 2; the template is the owner's 2026-09-06 ruling and changes neither the name nor the position |
-| The heartbeat is Kestrel's WebSocket ping/pong, not a protocol frame | `KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s | `Tabletop.Protocol` has no heartbeat kind and needs none; `architecture.md` said "app-level ping/pong". Spec correction 6 |
-| The table frame is corner-origin | `0 <= x <= width`, `0 <= y <= length`, Z up | No document stated the origin, and both end-setup's off-slab rule and the client's rendering need one. Spec correction 3, aligned with the geometry plan |
-| `deployment_zone` rows exist per shape, keyed by ordinal, with no stored style | "Re-derive on team change" becomes a render-time join | The server keeps no style state. Spec correction 4 |
-| The draft starts at 72 × 48 with texture `grass` | `StartSetup` carries no fields and the columns are non-null | The presets are a first-pass suggestion, not a decision. Question 2 / spec correction 5 |
-| A newer socket replaces an older one for the same participant | `AttachCoreAsync` closes the old one with `1000` | Presence left "whether a participant can have two connections" open. Question 3 / spec correction 8 |
-| `presence_ended` is an explicit frame, not a timeout | Sent when the participant's last socket closes | Presence left the signal open; the contracts plan chose the frame. Spec correction 8 |
+| The account UUID rides as the top-level custom claim `account_id`, rendered by the Stytch project's `SESSION` claim template from `{{ user.external_id }}` | Stytch's `sub` is its own `user_id` and does not carry `external_id` | Accounts allowed the fallback ("if it ever cannot, it is added as a custom claim"); the verifier needs one exact name |
+| The heartbeat is Kestrel's WebSocket ping/pong, not a protocol frame | `KeepAliveInterval` 20 s, `KeepAliveTimeout` 60 s | `Tabletop.Protocol` has no heartbeat kind and needs none; `architecture.md` → Deployment |
+| The table frame is corner-origin | `0 <= x <= width`, `0 <= y <= length`, Z up | End-setup's off-slab rule and the client's rendering both need an origin; the geometry plan's ruling 1 states the frame |
+| `deployment_zone` rows exist per shape, keyed by ordinal, with no stored style | "Re-derive on team change" becomes a render-time join | The server keeps no style state; `docs/schema.md` → A deployment zone names a team ordinal, not a team |
+| The draft starts at 72 × 48 with texture `grass` | `StartSetup` carries no fields and the columns are non-null | 72 × 48 is the size every deployment style assumes, and the creator has a legal table to edit without a round trip. The plan's ruling 2 |
+| A newer socket replaces an older one for the same participant | `AttachCoreAsync` closes the old one with `1000` | A reconnection after a blip works and a second window kills the first. The plan's ruling 3; presence → Deliberately not decided |
+| `presence_ended` is an explicit frame, not a timeout | Sent when the participant's last socket closes | No client owns a presence timeout. Presence → Deliberately not decided |
 | A game leaves memory with its last socket; nothing keeps it warm | `ReleaseIfEmptyAsync` on every detach | Accounts makes hydrate-from-the-log the one path, so a warm cache would be a second one |
-| 20 Hz presence relay | `GameServerOptions.PresenceRelayHz` | Presence left the rate open; `architecture.md`'s "four players at 20Hz" is the standing figure the review left untouched |
+| 20 Hz presence relay | `GameServerOptions.PresenceRelayHz` | Presence sets no rate; `architecture.md`'s "four players at 20Hz" is the figure |
 | A lost `seq` race faults the game rather than retrying | `FaultAsync`, close `1011`, replace on next hydrate | One game on one task is a deployment property; the primary key is the backstop, and a retry would paper over two writers |
-| The rest frame follows its batch: broadcast when the batch appended, to the sender alone when it did not | `HandleCommandAsync` compares `LastSeq` before and after | Always broadcasting would tell every player that someone's command was refused, and sending only on a non-empty batch would leave a refused sender with no terminator. Owner ruling 4, 2026-09-06 |
-| A desync applying the server's own event faults the session | `FaultAsync`, close `1011`; hydration hits the same event and the handshake closes `1011` | Resyncing, which is what the client does with the same exception, would replay the same event from the same log. Owner ruling 2, 2026-09-06 |
+| The rest frame follows its batch: broadcast when the batch appended, to the sender alone when it did not | `HandleCommandAsync` compares `LastSeq` before and after | Always broadcasting would tell every player that someone's command was refused, and sending only on a non-empty batch would leave a refused sender with no terminator |
+| A desync applying the server's own event faults the session | `FaultAsync`, close `1011`; hydration hits the same event and the handshake closes `1011` | Resyncing, which is what the client does with the same exception, would replay the same event from the same log |
 
 ## Interfaces
 
@@ -1031,9 +1028,8 @@ Every table but `game_event` is management's. This server writes them only while
 `lobby` or `setup`. `deployment_zone.style` holds a shape id namespaced by style
 (`frontline/1`), not a style name.
 
-`participant.game_id` and `participant.army_id` are additions the contracts plan proposed
-(spec corrections 4 and 2) and are not in `docs/schema.md`'s diagram yet. This module's SQL
-assumes both.
+`participant.game_id` and `participant.army_id` are `docs/schema.md` → PARTICIPANT columns
+(*`participant` links to its game, and holds the army it picked*). This module's SQL uses both.
 
 ### In memory
 
@@ -1088,7 +1084,7 @@ Freezing the team list means `CreateTeam` and `PickTeam` are refused with `Wrong
 `playing` on, so no `team` row and no `participant.team_id` changes for the rest of the game. It
 does not mean a participant loses their team by disconnecting. Their slot is on their
 `participant` row, so a socket arriving during play is returned to it, and only an account that
-never joined before the flip has no slot and watches (owner ruling 1, 2026-09-06; the model is
+never joined before the flip has no slot and watches (the plan's ruling 1; the model is
 stated in game flow → Teams are frozen at the flip, and a team is a slot).
 
 ### A session in memory
@@ -1141,10 +1137,9 @@ edge back to `absent` is recovered by hydrating again.
   faults on all of them. What a handler throws off the log path, in a lobby edit's row read or
   the end-setup transaction, reaches the `Task` that `ReceiveAsync` returned, and
   `ConnectionHandshake`'s read loop catches it as a last resort, logs it, and closes that
-  connection with `1011`. Catching only `DuplicateSequenceException`, which is what the first
-  draft of the log path did, left the read loop awaiting a faulted `Task` it did not handle: a
-  dead socket and a running session, and the largest hole in the module's error handling.
-  Faulting stays reserved for the two places where memory and the database can disagree: the log
+  connection with `1011`. Catching only `DuplicateSequenceException` would leave the read loop
+  awaiting a faulted `Task` it did not handle: a dead socket and a running session.
+  Faulting is reserved for the two places where memory and the database can disagree: the log
   path, and the draft write whose broadcast has already gone out. A lobby or end-setup write that
   throws rolls back and leaves the session's own state untouched, so only the connection goes.
 - **A faulted session's mailbox loop is never completed.** `FaultAsync` closes and clears the
@@ -1157,7 +1152,7 @@ edge back to `absent` is recovered by hydrating again.
   `FindParticipantAsync` reads the row directly. But `Welcome` describes a game they are not in,
   `TeamOf` returns null so they act as a spectator, and `HandleLobbyEditAsync`'s
   `Info.Participants.First(...)` throws for them. A two-player lobby hits it: A creates and
-  connects, B joins and connects. See Open questions.
+  connects, B joins and connects.
 - **A game deleted while a session is live.** `DELETE /v1/games/{id}` removes the rows and the
   log. The session keeps serving from memory until its sockets close. The next append fails on
   the foreign key rather than on the primary key, so it is not the duplicate path.
@@ -1223,40 +1218,38 @@ static source. Every `Advance` behaviour beyond "the inert engine returns nothin
 too. The loop's cap and its interleaving with appends are first exercised by the scheduler and
 interpreter plans.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-The plan's three questions. The first is answered; the other two stand with the assumption taken:
+The plan's three rulings:
 
-1. **May teams be created and picked after `playing`?** **Answered by the owner on 2026-09-06
-   (ruling 1): no, and a returning player rejoins their slot.** Teams are created only while the
-   game is `lobby` or `setup`, and the team list freezes at the flip with the scheduler shape,
-   the armies and the layout, so `CreateTeam` and `PickTeam` are refused with `WrongStatus` from
-   `playing` on. A participant's team is their slot, recorded on their `participant` row; a
-   socket arriving during play is returned to it, with no re-pick and nothing re-derived. Only an
-   account that never joined before the flip has no slot, and that account is a spectator: no
-   team, never Asked, watching. This ruling also settles the contradiction the plan had to guess
-   past, where the setup phase spec and ruling 5 said teams are created "at any status" while
-   ruling 4 said the server is read-only from `playing` on. The specs are corrected in place, and
-   the canonical statement is game flow → Teams are frozen at the flip, and a team is a slot.
+1. **Teams are not created or picked after `playing`, and a returning player rejoins their
+   slot.** Teams are created only while the game is `lobby` or `setup`, and the team list freezes
+   at the flip with the scheduler shape, the armies and the layout, so `CreateTeam` and
+   `PickTeam` are refused with `WrongStatus` from `playing` on. A participant's team is their
+   slot, recorded on their `participant` row; a socket arriving during play is returned to it,
+   with no re-pick and nothing re-derived. Only an account that never joined before the flip has
+   no slot, and that account is a spectator: no team, never Asked, watching. The canonical
+   statement is game flow → Teams are frozen at the flip, and a team is a slot.
    `Projection.Scores` therefore needs no entry beyond the ones `Projection.Initial` builds from
    the frozen list.
-2. **What does the draft start as? Ruled 2026-09-09 by the owner, as assumed:** 72 × 48 with the built-in texture `grass`, replaced
-   by the first edit (typically a layout load) — Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). 72 × 48 is the size every deployment style assumes and the creator has a legal table to edit without a round trip. **If the creator's client should choose**,
-   `StartSetup` gains fields, which is a `Tabletop.Protocol` change the contracts plan owns. **If
-   the default should be a layout**, this server needs a way to read one, which it has not got.
-3. **One connection per participant? Ruled 2026-09-09 by the owner, as assumed:** a newer socket replaces the older — Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). A reconnection after a blip works; a second window kills the first. **If two are
-   allowed**, presence stays one value per participant (both sockets write the same slot, latest
+2. **The draft starts as 72 × 48 with the built-in texture `grass`**, replaced by the first edit
+   (typically a layout load) ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)).
+   72 × 48 is the size every deployment style assumes and the creator has a legal table to edit
+   without a round trip. Rejected: the creator's client choosing, which gives `StartSetup`
+   fields, a `Tabletop.Protocol` change the contracts plan owns; a layout as the default, which
+   needs a way to read one that this server has not got.
+3. **One connection per participant: a newer socket replaces the older**
+   ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)).
+   A reconnection after a blip works; a second window kills the first. Rejected: two connections,
+   under which presence stays one value per participant (both sockets write the same slot, latest
    wins), and `AttachCoreAsync`/`DetachAsync` stop replacing and stop sending `PresenceEnded`
-   until the last socket closes. That is a small change, but presence's own open item then closes
-   differently.
+   until the last socket closes.
 
-Questions the plan asked and then answered from the specs: commands while `ended` (accepted,
-because `ended` is a flag and there is no un-end endpoint), the presence relay rate (20 Hz),
-session eviction (a game leaves memory with its last socket), and the account claim name
-(`account_id`, settled between this plan and management's). Management's own question about where
-the claim comes from was ruled on 2026-09-06 in favour of the Stytch claim template, which changes
-nothing here: the name and the top-level position are the same, so `StytchJwtVerifier` and its
-tests are untouched.
+Rulings the plan takes from the specs: commands while `ended` (accepted, because `ended` is a
+flag and there is no un-end endpoint), the presence relay rate (20 Hz), session eviction (a game
+leaves memory with its last socket), and the account claim name (`account_id`, shared with
+management's plan). The claim is rendered by the Stytch claim template (the management plan's
+ruling 1); `StytchJwtVerifier` depends only on that name and its top-level position.
 
 Deferred, with where it is recorded:
 
@@ -1264,9 +1257,9 @@ Deferred, with where it is recorded:
 | --- | --- |
 | Every rule: scheduler, interpreter, `Properties`, dice, legality beyond set membership | [scheduler](../scheduler/design.md), [interpreter](../interpreter/design.md) |
 | Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, settling `Z` | the interpreter's move step over `Tabletop.Geometry` |
-| Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment, deferred by the whole-design review |
+| Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment |
 | Terrain as event-driven state, which unlocks army terrain, buildings as targets and mid-game terrain edits | setup content → Still open |
-| How authored `Properties` content reaches the eight tables | `architecture.md` → Rules as data; named as untouched by the review |
+| How authored `Properties` content reaches the eight tables | `architecture.md` → Rules as data |
 | A replay viewer | build order step 11 |
 
 Two shapes are left as they are. `Legality.AlwaysAccepted` is never constructed on the dispatch
@@ -1275,8 +1268,8 @@ path, and `EnumerateLegalCommands` expands two of seven `LegalSet` shapes.
 ## References
 
 **Plan.** [`docs/superpowers/plans/2026-09-05-game-server-skeleton.md`](../../superpowers/plans/2026-09-05-game-server-skeleton.md):
-thirteen tasks, the `Interfaces → Produces` tables, eight proposed spec corrections, four
-interfaces needed from other modules, three questions for the project owner.
+thirteen tasks, the `Interfaces → Produces` tables, four interfaces needed from other modules,
+three rulings.
 
 **Specs**, in the order the plan's header names them:
 
@@ -1289,7 +1282,7 @@ interfaces needed from other modules, three questions for the project owner.
 - [`2026-08-29-identity-and-enumerations-design.md`](../../superpowers/specs/2026-08-29-identity-and-enumerations-design.md): `GameRules` and `Properties`, every closed set, `ended` is reversible
 - [`2026-09-04-scheduler-design.md`](../../superpowers/specs/2026-09-04-scheduler-design.md) and [`2026-09-03-action-sequences-design.md`](../../superpowers/specs/2026-09-03-action-sequences-design.md): seams only: the turn is an Ask, Asks and windows, the sealed variant, abandonment
 - [`2026-09-04-client-shell-design.md`](../../superpowers/specs/2026-09-04-client-shell-design.md): the connect sequence, the projection, undo local first, reconnect is connect
-- [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md): rulings 1, 2, 3, 4 and 5; newer than every other spec
+- [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md): rulings 1, 2, 3, 4 and 5
 - [`2026-08-29-management-api-design.md`](../../superpowers/specs/2026-08-29-management-api-design.md): auth and join; we issue no tokens of our own; the version check
 
 **Repo documents.** [`docs/architecture.md`](../../architecture.md) (the load-bearing seam, the

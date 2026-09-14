@@ -2,8 +2,8 @@
 
 `viewer/` is a static web page that draws a `sim/` recording top-down in inches, with a timeline
 under the board and the log beside it. It is a developer tool and the fifth deliverable, separate
-from `web/` by a ruling of 2026-09-06: `web/` owns preparation for players, and a debugging surface
-for the person writing the engine does not belong in it. Two feeds reach it, a recording file and a
+from `web/`: `web/` owns preparation for players, and a debugging surface for the person writing
+the engine does not belong in it. Two feeds reach it, a recording file and a
 live socket, and the live feed manufactures the recording's own shape in the browser, so nothing
 below the feed abstraction knows which feed it is on.
 
@@ -96,8 +96,8 @@ Four seams.
 **The recording schema.** `viewer/` consumes it and never redefines it. `schemaVersion` is the
 integer `1`, from `RecordingJson.SchemaVersion`. A file carrying any other value is refused. Every
 field the viewer reads is declared by `recording.generated.ts`, so a schema change is a TypeScript
-error rather than a silent `undefined`. Three additions were requested against the schema on
-2026-09-06 and applied. They are listed under *Interfaces*.
+error rather than a silent `undefined`. Three of the schema's fields exist for the viewer's sake.
+They are listed under *Interfaces*.
 
 **The socket.** The live feed follows the connect sequence the game-server plan states, sends
 `Connect` and reads six frame kinds. It is a participant with no team. Presence, the scheduler and
@@ -161,8 +161,8 @@ Nothing accumulates, interpolates or tweens.
 The live feed has no `RecordingMeta` to read, so it builds one from `GameInfo` on every publish.
 `scenario` is `info.name`, `driver` is `live`, `outcome` is `live`, `seed` is `0`, `rounds` and
 `lastSeq` come from the last frame, and `teams` is built from `info.teams` with the name
-`Team {ordinal}`. `outcome: 'live'` is a value `sim/` never writes. The simulation plan's doc
-comment was amended to say so (simulation plan → *Applied from the viewer plan, 2026-09-06*, item
+`Team {ordinal}`. `outcome: 'live'` is a value `sim/` never writes; `RecordingMeta.Outcome`'s doc
+comment reserves it for a still-running feed (simulation plan → *Applied from the viewer plan*, item
 5). The field is a `string`, so no shape changes.
 
 A null `meta` was rejected: the Ask panel resolves a team id to a name through `RecordingMeta.Teams`
@@ -200,14 +200,14 @@ narrows `SocketMessage` to the seven frames the live feed reads: `Connect`, `Wel
 no `Presence`, no `Ping`, no `AtRest`. `Rename` is empty until two reachable types share a `Name`.
 The emitter throws when that happens rather than overwriting a declaration.
 
-`AtRest(long Seq)`, wire kind `at_rest`, is the thirteenth `SocketMessage` kind, added by owner
-ruling 4 on 2026-09-06. It is pruned away. The frame announces that the game server has finished
+`AtRest(long Seq)`, wire kind `at_rest`, is the thirteenth `SocketMessage` kind. It is pruned
+away. The frame announces that the game server has finished
 processing and has nothing further to emit, which replaces the simulator's 250 millisecond quiet
 window. The viewer has no quiet window to replace. It republishes on every `EventsMessage`, so its
 frame list is current the moment an events frame is decoded, and idleness changes nothing it draws.
 Declaring a kind no branch reads would also move the checked-in golden file for no behavioural
 reason. Pruning is therefore the side this falls on, and the two generated modules are byte for byte
-unchanged when the contracts plan lands the kind. Wanting an idle indicator later costs one member
+the same with the kind declared in C# as without it. Wanting an idle indicator later costs one member
 in `PrunedUnions`, one entry in `HANDLED` and one `case`.
 
 Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
@@ -217,8 +217,8 @@ shows as a one-line golden-file diff. Nothing else would catch it, so `RecordedM
 members are also pinned line for line in a test.
 
 `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests` rewrites both modules. Any
-other run asserts they are what the C# emits today. This settles the spec's open item on whether
-generating types is worth a build step: checked in, guarded by a test.
+other run asserts they are what the C# emits today. This is the spec's answer (*Still open*) on
+whether generating types is worth a build step: checked in, guarded by a test.
 
 ### The recording reader and the schema gate
 
@@ -257,8 +257,8 @@ counter-clockwise seen from above.
 
 **A model with no position is not drawn.** A model whose `where` is `inside` or `shelf` goes to
 `Scene.offTable` and is listed in the meta panel with what it is inside. Placing it beside its
-container would be the viewer deciding something, which is what handing it frames prevents. This
-answers the spec's *Deliberately not decided* item on drawing a model inside a container.
+container would be the viewer deciding something, which is what handing it frames prevents. The
+spec says the same under *Deliberately not decided*.
 
 **Zone rings come from C#.** `RecordedZone.Polygons` is filled by `ZoneStyles.Resolve(shape, size)`
 in `sim/`, already in the corner frame. Resolving a shape id is C# geometry, and OPR's frontline is
@@ -363,8 +363,7 @@ addressee per team with whether it has answered, the teams still being waited on
 description of the legal set, and a note list. `describeLegal` covers the seven wire kinds
 (`options`, `pieces`, `allocation`, `assignment`, `move_region`, `token_spend`, `confirmation`)
 and returns an unknown kind's own string rather than throwing, so a new legal kind degrades to
-its name. The seven survived the rulings of 2026-09-06 unchanged. What moved is inside one of
-them: a token spend is now one maximum per eligible model (p.13), so the recording carries the
+its name. A token spend is one maximum per eligible model (p.13), so the recording carries the
 spender models in `Pieces` and the sum of their maxima in `Allowance`, and the line reads *"a
 token spend of up to 3 over 2 models"*. The per-model figures are not recorded twice, because
 every frame already carries each model's `SpellTokens`. A `tokens_spent` answer is a count per
@@ -396,14 +395,14 @@ its own. `initialProjection` walks armies, then units, then model slots, in that
 insertion order is the order every frame lists models and units in and the C# `Projection.Initial`
 walks the same way.
 
-**An unknown id.** Owner ruling 2 makes the C# `EventApplier` throw `ProjectionDesyncException` where
-it used to index a dictionary and raise `KeyNotFoundException`. The exception carries the event kind
+**An unknown id.** The C# `EventApplier` throws `ProjectionDesyncException` on an id the projection
+does not hold. The exception carries the event kind
 and the unknown id, as `Kind` and `UnknownId`. `apply.ts` mirrors that with `ProjectionDesyncError`,
 carrying `kind` and `unknownId`, thrown from the four helpers `unitIn`, `modelIn`, `markerIn` and
 `askIn`. No `!` on a `Map.get` survives in the file. The spelling matters more than it looks.
 `p.models.get(id)!.wounds = w` throws an untyped `TypeError`. `{ ...p.markers.get(id)!, position }`
 on a missing marker spreads `undefined` and succeeds, writing a marker with no `id` into the store,
-which is a silent divergence at the exact case ruling 2 names: a marker placed during setup and then
+which is a silent divergence at the exact case the fault exists for: a marker placed during setup and then
 moved. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
 there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
 the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
@@ -415,7 +414,7 @@ pending events, and reports `status: 'error'` naming the kind and the id. It nev
 continues, because a copy of the game that silently disagrees with the server is worse than one that
 visibly stops. It does not reconnect on its own either. Reconnecting is the source picker's connect
 form, and the connect sequence redelivers the whole log, so a fresh feed rebuilds the projection from
-scratch. That is ruling 2's drop, reconnect and rebuild, driven by hand rather than by a retry loop,
+scratch. That is drop, reconnect and rebuild, driven by hand rather than by a retry loop,
 which suits the one tool whose purpose is to make a server's behaviour visible. A log that genuinely
 names an id nothing created faults again on reconnect, and that is a server bug for `server/game/` to
 fault the session over.
@@ -515,36 +514,35 @@ The score is not geometry. `Scene` is unchanged by it.
 
 ## Key decisions
 
-**(reversed)** marks a decision a spec had settled differently. **(plan)** marks a decision the plan
-took because no spec spoke.
+**(plan)** marks a decision stated in the plan and in no spec.
 
 | Decision | Why | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| `viewer/` is a fifth deliverable, not part of `web/` and not under `tests/` | `web/` owns preparation for players; a debugging surface for the engine author is a different audience | living in `web/`, or a fixture only xUnit can start | ruled by the project owner 2026-09-06; spec → *`sim/` is a fourth deliverable*, *`viewer/` is a developer web app* |
+| `viewer/` is a fifth deliverable, not part of `web/` and not under `tests/` | `web/` owns preparation for players; a debugging surface for the engine author is a different audience | living in `web/`, or a fixture only xUnit can start | spec → *`sim/` is a fourth deliverable*, *`viewer/` is a developer web app* |
 | The live feed manufactures `RecordedBoard` and `RecordedFrame[]` in the browser | one input shape below the feed abstraction; neither feed is privileged | a live feed with its own shape, branching every component on the feed | spec → *Two feeds*; plan → Architecture |
 | The recording is a projection per event, not a log of events | a viewer given raw events would need an applier, and a second applier drifts | streaming events to the viewer for the recording feed too | spec → *The recording is the artifact* |
 | The TypeScript applier exists anyway, for the live feed, and is checked rather than avoided | the socket carries events; there is no third option | a hand-maintained second applier | spec → *Two feeds* |
 | Types generated by reflecting over `JsonTypeInfo`, not over C# properties | property names, union discriminators and enum spellings come from the serializer's own contract, so no JSON convention is reimplemented | reflection over records, which reimplements the naming policy and the discriminator rules | **(plan)** plan Task 2 → *Why `JsonTypeInfo`* |
 | Generated files checked in, guarded by a test, not produced by a build step | `viewer/` needs no .NET SDK to build; drift is caught by the `dotnet test` every plan already runs | a codegen step in `npm run build`, or a `dotnet` invocation from Vite | plan Task 2, answering spec → *Still open* |
 | The emitter lives in `tests/Tabletop.Viewer.Tests`, not in `viewer/` and not in a new directory | keeps `viewer/` a pure npm project and adds no top-level directory | a `tools/` project, or an MSBuild task | **(plan)** plan → *File Structure* |
-| Canvas, not SVG | whole-state frames invalidate every model per step, so retained-mode diffing buys nothing; picking is a point test in inches | SVG, which pays layout for the whole document at pointer rate; WebGL and drawing libraries, which the workload does not need | **(plan)** plan Task 5; proposed as spec correction 5 |
+| Canvas, not SVG | whole-state frames invalidate every model per step, so retained-mode diffing buys nothing; picking is a point test in inches | SVG, which pays layout for the whole document at pointer rate; WebGL and drawing libraries, which the workload does not need | plan Task 5; spec → *`viewer/` is a developer web app* |
 | Playback only; `Feed.control` declared and `null` | building on the seam makes the viewer a second thin client | shipping interactive control in version one | spec → *Interactive debugging is a door, not a room* |
-| A spectator is a participant with no team | the server already treats such a participant as never Asked; no new server concept | a spectator identity, or a third team | spec → *Two feeds*; whole-design review ruling 5 **(reversed:** presence's "joins a third team" corrected**)** |
-| A session JWT is the whole of the live feed's auth | the server already matches the JWT's account against a `participant` row and answers `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | plan → *Spec corrections proposed*, item 2, answering spec → *Still open* |
-| Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; applied to the schema 2026-09-06 |
+| A spectator is a participant with no team | the server already treats such a participant as never Asked; no new server concept | a spectator identity, or a third team | spec → *Two feeds*; whole-design review ruling 5; presence spec → *The presence value* |
+| A session JWT is the whole of the live feed's auth | the server already matches the JWT's account against a `participant` row and answers `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | spec → *Still open* |
+| Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; simulation plan → *Applied from the viewer plan*, item 1 |
 | A marker's definition rides on every frame state | a marker placed during play is in no board block, and the live feed writes the board before any event | a board block covering every marker that ever appears | simulation plan → *Applied from the viewer plan*, item 2 |
-| A model with no position is listed, not drawn | inventing a position is the viewer deciding something | drawing it beside or on its container | **(plan)** proposed as spec correction 4 |
-| Fixtures checked in, rewritten only under a flag, never diffed against a predecessor | ids are UUIDv7 and differ between runs, so two recordings are never byte-comparable | generating fixtures on demand, which makes `npm test` need a .NET SDK to have run first | plan question 2; spec → *The seed is stored* |
-| Agreement compares every frame, not final projections | localises a ported branch to one event; needs no extra export | comparing the last projection only | plan Task 10; proposed as spec correction 6 |
+| A model with no position is listed, not drawn | inventing a position is the viewer deciding something | drawing it beside or on its container | spec → *Deliberately not decided* |
+| Fixtures checked in, rewritten only under a flag, never diffed against a predecessor | ids are UUIDv7 and differ between runs, so two recordings are never byte-comparable | generating fixtures on demand, which makes `npm test` need a .NET SDK to have run first | plan ruling 2; spec → *The seed is stored* |
+| Agreement compares every frame, not final projections | localises a ported branch to one event; needs no extra export | comparing the last projection only | plan Task 10; spec → *Two feeds* |
 | Plain Vite and Svelte 5, no SvelteKit | one screen, no redirect target, no route to split, no server-side anything; `?recording=<url>` needs no router | SvelteKit, which `web/` uses for Stytch redirect paths and code splitting | **(plan)** plan Task 1 |
 | The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for three no-op event kinds | **(plan)** plan Task 9 |
-| The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, question 5 |
-| `at_rest` is pruned out of the generated wire union | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing it draws; the generated surface stays the smallest thing the live feed reads | declaring the kind, which moves the golden file and adds a declaration with no reader | owner ruling 4, 2026-09-06; plan Task 2 |
+| The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, ruling 5 |
+| `at_rest` is pruned out of the generated wire union | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing it draws; the generated surface stays the smallest thing the live feed reads | declaring the kind, which moves the golden file and adds a declaration with no reader | plan Task 2 |
 | An unrecognised wire kind is dropped by a membership test, not by a `switch` on a closed union | the union in TypeScript is a pruned seven of thirteen, so the set of kinds actually read is the authority; the protocol grows without an edit here | narrowing on the generated union alone, which faults on a kind it cannot name | **(plan)** plan Task 11 |
-| The TypeScript applier throws `ProjectionDesyncError` where the C# throws `ProjectionDesyncException` | written with `!`, the port would spread `undefined` into a fresh marker and diverge silently; the agreement test would still pass | a `!` per lookup, or skipping the change and carrying on | owner ruling 2, 2026-09-06; plan Task 9 |
-| A desync stops the live feed and the operator reconnects | the tool exists to make server behaviour visible, and the connect sequence redelivers the whole log | an automatic reconnect loop, which repairs the symptom and hides the fault | owner ruling 2; **(plan)** plan Task 11 |
-| `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode; the protocol version stays `1` under owner ruling 4, because a thirteenth message kind is additive | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
-| Rendering is checked by looking at it | headless Chrome cannot launch in this WSL image (`handoff.md`: missing `libnspr4`) | Playwright or jsdom snapshots | spec → *Testing*; plan question 1 |
+| The TypeScript applier throws `ProjectionDesyncError` where the C# throws `ProjectionDesyncException` | written with `!`, the port would spread `undefined` into a fresh marker and diverge silently; the agreement test would still pass | a `!` per lookup, or skipping the change and carrying on | plan Task 9 |
+| A desync stops the live feed and the operator reconnects | the tool exists to make server behaviour visible, and the connect sequence redelivers the whole log | an automatic reconnect loop, which repairs the symptom and hides the fault | **(plan)** plan Task 11 |
+| `CLIENT_VERSION` is the literal `1`, not generated | `Connect.ClientVersion` is one integer, not worth a second emitter mode; the protocol version stays `1`, because a thirteenth message kind is additive | generating a constant from `ProtocolVersion.Current` | **(plan)** plan → *Interfaces needed*, item 6 |
+| Rendering is checked by looking at it | headless Chrome cannot launch in this WSL image (`handoff.md`: missing `libnspr4`) | Playwright or jsdom snapshots | spec → *Testing*; plan ruling 1 |
 
 ## Interfaces
 
@@ -605,14 +603,14 @@ took because no spec spoke.
 
 | Of | What | State |
 | --- | --- | --- |
-| simulation plan | `RecordedZone.Polygons` as `IReadOnlyList<IReadOnlyList<Point2>>`, resolved by `ZoneStyles.Resolve` | applied 2026-09-06 |
-| simulation plan | `RecordedMarkerState.Kind`, `.Diameter`, `.Label`, positionally before `X` | applied 2026-09-06 |
-| simulation plan | `RecordedFrame.Scores` and `.Passed`, whole rather than deltas | applied 2026-09-06 |
+| simulation plan | `RecordedZone.Polygons` as `IReadOnlyList<IReadOnlyList<Point2>>`, resolved by `ZoneStyles.Resolve` | in the schema; that plan's *Applied from the viewer plan*, item 1 |
+| simulation plan | `RecordedMarkerState.Kind`, `.Diameter`, `.Label`, positionally before `X` | in the schema; that plan's *Applied from the viewer plan*, item 2 |
+| simulation plan | `RecordedFrame.Scores` and `.Passed`, whole rather than deltas | in the schema; that plan's *Applied from the viewer plan*, item 3 |
 | simulation plan | every name the fixture writer touches is `public`, and `sim/` references no test project | already true; stated in that plan's *Interfaces → Produces* |
 | contracts plan | no two reachable types in the `SocketMessage` closure share a `Name` | assumed; the one candidate is `Placement`, and the fix is one `EmitRequest.Rename` entry |
-| contracts plan | `ProtocolVersion.Current` stays `1`, or `liveFeed.ts` is edited | assumed; unaffected by owner ruling 4, which only adds a message kind |
-| contracts plan | `EventApplier` throws `ProjectionDesyncException` on an id the projection does not hold | owner ruling 2, 2026-09-06; the type is named in one `Assert.Throws` and ported as `ProjectionDesyncError` |
-| contracts plan | `AtRest(long Seq)` joins `SocketMessage` as `at_rest` | owner ruling 4, 2026-09-06; nothing here reads it, and nothing here moves if it lands under another name |
+| contracts plan | `ProtocolVersion.Current` stays `1`, or `liveFeed.ts` is edited | assumed; a thirteenth message kind is additive and leaves it at `1` |
+| contracts plan | `EventApplier` throws `ProjectionDesyncException` on an id the projection does not hold | stated there; the type is named in one `Assert.Throws` and ported as `ProjectionDesyncError` |
+| contracts plan | `AtRest(long Seq)` is `SocketMessage`'s thirteenth kind, `at_rest` | stated there; nothing here reads it |
 | management plan | both auth routes answer a body carrying `sessionJwt` | assumed; the rest of `SessionResponse` is not read |
 
 ## Sequences
@@ -848,7 +846,7 @@ the viewer reports as a plain close.
 seen is drawn anyway, because the viewer holds no ruleset and nothing it draws depends on one. Only
 `schemaVersion` gates a file. A live game shows no deployment-zone outlines. `CLIENT_VERSION` is
 hard-coded, so a protocol bump makes the server answer `rejected: upgrade_required` until the
-constant is edited. `ProtocolVersion.Current` is still `1` and owner ruling 4 leaves it there,
+constant is edited. `ProtocolVersion.Current` is `1` with `at_rest` declared,
 because a thirteenth `SocketMessage` kind is additive and a client that ignores it stays compatible.
 None of these has a mechanism behind it.
 
@@ -882,31 +880,31 @@ whole game in memory. The socket driver and its Postgres are `sim/`'s concern.
 5. The live feed is only tested against a fake socket carrying fixture bytes. The real handshake,
    the reconnect close code and the presence frames are exercised by hand.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### The plan's own questions
+### Rulings
 
-All five were closed on 2026-09-09 (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))): questions 1, 3 and 4 on their own documents' terms, 2 as assumed, and 5 by the owner. Each holds as written below.
+The plan's five rulings ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)), numbered as the plan numbers them.
 
-| Question | Assumption taken | What changes if the answer differs |
+| # | Ruling | Reason |
 | --- | --- | --- |
-| Should the rendering be pinned by a headless browser test? | No, per spec → *Testing*, and forced by the missing `libnspr4` in this WSL image | a Node canvas shim, a PNG per fixture frame, a byte comparison, one added task and a native dependency in `viewer/` |
-| Two checked-in fixtures at a two-round cap, the right size? | Yes: `skirmish` and `terrain`, eight files, a few hundred kilobytes | generating on demand makes the agreement test require a prior `dotnet test`, and `npm test` alone stops being a complete check |
-| Should the viewer fetch a recording from a server? | No: a recording is a `sim/` artifact on the developer's filesystem, and neither server knows the concept; `?recording=<url>` covers a static file server | an endpoint on somebody's API, which is another module's concern |
-| Should the viewer refuse an unknown `meta.gameRules` or `meta.propertiesHash`? | No: only `schemaVersion` gates a file, and both values are shown in the meta panel | the viewer needs a source for the list of known rulesets, which it has none |
-| Tabbed side panel, or all panels visible? | Tabbed, with the source picker and the scoreboard exempt in the header | `App.svelte`'s right pane becomes a scrolling column; nothing else moves |
+| 1 | The rendering is checked by looking at it, not pinned by a headless browser test | spec → *Testing*; headless Chrome cannot launch in this WSL image (missing `libnspr4`). The cheapest pin would be a Node canvas shim, a PNG per fixture frame and a byte comparison, which adds a native dependency to `viewer/` |
+| 2 | Two checked-in fixtures, `skirmish` and `terrain`, at a two-round cap: eight files, a few hundred kilobytes | generating on demand would make the agreement test require a prior `dotnet test`, and `npm test` alone would stop being a complete check |
+| 3 | The viewer does not fetch a recording from a server; `?recording=<url>` covers a static file server | a recording is a `sim/` artifact on the developer's filesystem, and neither server knows the concept; an endpoint would be another module's concern |
+| 4 | The viewer does not refuse an unknown `meta.gameRules` or `meta.propertiesHash`; only `schemaVersion` gates a file, and both values are shown in the meta panel | the viewer holds no ruleset and has no source for a list of known rulesets |
+| 5 | A tabbed side panel, with the source picker and the scoreboard exempt in the header | the log is in constant use and the other three panels are consulted at a specific frame; the score is wanted continuously. Stacking all four would make `App.svelte`'s right pane a scrolling column and move nothing else |
 
 ### Answered from the specs
 
-Two spec items marked *Still open* are settled by this module and are proposed as corrections.
-Generated types are checked in and guarded by a test rather than produced by a build step. The live
-feed needs no authentication beyond a session JWT, because the game server already answers "may this
-account watch" as "has this account joined". Two items marked *Deliberately not decided* are also
-settled: a model inside a container is listed rather than drawn, and the canvas-over-SVG argument is
-proposed as an addition to the viewer section.
+The spec's *Still open* section carries two answers this module gives. Generated types are checked
+in and guarded by a test rather than produced by a build step. The live feed needs no authentication
+beyond a session JWT, because the game server already answers "may this account watch" as "has this
+account joined". Its *Deliberately not decided* section carries a third, a model inside a container
+is listed rather than drawn, and the canvas-over-SVG argument sits under *`viewer/` is a developer
+web app*.
 
-Whether a recording carries the dice or only their result was settled by the simulation plan: it
-carries them, and `RollPanel.svelte` shows raw and modified faces with the net modifier.
+A recording carries the dice, not only their result (simulation plan), and `RollPanel.svelte` shows
+raw and modified faces with the net modifier.
 
 A frame's `rolls` is a list because a step may hold more than one. The ruleset splits a roll
 wherever its dice do not share a threshold: OPR's `roll-to-hit` takes one pool per Quality value
@@ -920,12 +918,12 @@ threshold for the same reason.
 | Deferred | Reason | Recorded in |
 | --- | --- | --- |
 | Interactive control from the browser | it makes the viewer a second thin client | spec → *Interactive debugging is a door, not a room*; the null `ControlChannel` |
-| Drawing a badge on a container for the models inside it | needs no schema change and is a refinement | plan → *Spec corrections proposed*, item 4 |
+| Drawing a badge on a container for the models inside it | needs no schema change and is a refinement | deferred by the plan |
 | Deployment zones on the live feed | needs `ZoneStyles` in the browser or a resolved-zone message | plan → *Interfaces needed*, item 1 |
 | A generated `CLIENT_VERSION` | one integer is not worth a second emitter mode | plan → *Interfaces needed*, item 6 |
-| An idle indicator driven by `at_rest` | the frame is pruned out of the generated union, and nothing the viewer draws depends on the server being idle | plan Task 2; owner ruling 4 |
-| An automatic reconnect after a desync | a retry loop would hide the fault the tool exists to show | plan Task 11; owner ruling 2 |
-| Serving recordings from a server | neither server has the concept | plan question 3 |
+| An idle indicator driven by `at_rest` | the frame is pruned out of the generated union, and nothing the viewer draws depends on the server being idle | plan Task 2 |
+| An automatic reconnect after a desync | a retry loop would hide the fault the tool exists to show | plan Task 11 |
+| Serving recordings from a server | neither server has the concept | plan ruling 3 |
 
 ## References
 
@@ -933,16 +931,15 @@ threshold for the same reason.
 
 - [`docs/superpowers/plans/2026-09-06-viewer.md`](../../superpowers/plans/2026-09-06-viewer.md):
   twelve tasks, the file structure, the recording schema it consumes verbatim, the
-  `Interfaces → Produces` tables, six spec corrections, seven interfaces needed from other modules,
-  five questions.
+  `Interfaces → Produces` tables, seven interfaces needed from other modules, five rulings.
 
 ### Specs
 
 | Spec | What this module takes from it |
 | --- | --- |
 | [`2026-09-06-simulation-design.md`](../../superpowers/specs/2026-09-06-simulation-design.md) | primary: the recording as a projection per event, `viewer/` as a fifth deliverable separate from `web/`, the two feeds, interactive debugging as a door, what is tested |
-| [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | newer than every other spec: a participant with no team is a spectator |
-| [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | the spectator reading the review corrected |
+| [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
+| [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
 | [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed six terrain declarations the palette colours |
 | [`2026-08-29-geometry-values-design.md`](../../superpowers/specs/2026-08-29-geometry-values-design.md) | the corner frame, yaw 0 facing `+y`, base shapes |
 | [`2026-08-29-web-app-design.md`](../../superpowers/specs/2026-08-29-web-app-design.md) | the Svelte, Vite and Vitest versions only; no code is shared |

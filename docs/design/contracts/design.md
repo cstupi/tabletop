@@ -33,7 +33,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 
 - **Every geometry body.** `Api.cs` and `Polygon.Contains` throw `NotImplementedException("Implemented
   by the geometry plan.")`. The geometry module fills them in. It may not change a signature or a
-  documented contract without a spec correction. It also *adds* members this module does not
+  documented contract without first changing the spec. It also *adds* members this module does not
   declare: `Settling.SurfaceHeightAt(Point3 from, …)`, `Containment.VolumesFullyContaining`,
   `Containment.BaseFullyWithin`, `Movement`, `Table`, `ZoneStyles`.
 - **`Properties` types.** The catalog, effect and condition rows are interpreted only by the game
@@ -44,7 +44,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 - **Any persistence code.** The schema ships as SQL that Docker applies on first volume creation. The
   real migration mechanism (DbUp, `Persistence/Migrator.cs`) belongs to the management API module.
   That module embeds a byte-for-byte copy of `001_schema.sql` as its migration 001.
-- **Hosting.** Local only, per `architecture.md` → Deployment (deferred, ruled 2026-09-04). No AWS,
+- **Hosting.** Local only, per `architecture.md` → Deployment (deferred). No AWS,
   no ECS, no RDS. MinIO stands in for S3 so that later "deploying changes the address, not the
   shape".
 - **`Presence` transport.** The values are here. The sample rate, the relay and the timeout are not
@@ -66,7 +66,7 @@ them.
 **Cost of being first.** Two costs are accepted. First, `libs/` is written against specs and not
 against a working consumer, so an awkward shape surfaces only in another module's plan. The seven
 "Interfaces needed from other modules" obligations at the end of the plan are that record.
-`MoveRegion.Containment` and the sixth `DifficultCap` parameter were both added on 2026-09-05.
+`MoveRegion.Containment` and the sixth `DifficultCap` parameter both came from consumers' plans.
 Second, the contract has no version story beyond an integer:
 [Versioning and the 426 path](#6-versioning-and-the-426-path).
 
@@ -111,8 +111,8 @@ direction: `Geometry` ← `Content` ← `Protocol`. `TableState` is in `Content`
 because it is shared by the client and *both* servers, which is `architecture.md`'s criterion for
 the `Content` row. Management stores it as a saved layout, the game server writes it as the setup
 draft, and the client saves and loads it over HTTP (setup phase → Layouts; whole-design review
-ruling 4). Spec correction 10 updates `architecture.md`, whose `Tabletop.Content` row predates setup
-content and still reads "Army, unit, model slot, weapon types".
+ruling 4). `architecture.md` → What is actually shared lists the table state in its
+`Tabletop.Content` row.
 
 **Seam two: the socket carries three kinds of message with three different fates.** Commands are
 validated and answered with events, which are appended to `game.game_event` and replayed. Edits are
@@ -210,7 +210,7 @@ which is a compile-time check dressed as a test. The geometry module deletes it 
 behaviour tests. The five doc comments are the specification. The empty bodies are placeholders.
 
 Every value uses the corner frame: origin at a table corner, `0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z
-up. A compatibility ruling settled it on 2026-09-05, and this module's samples assume it.
+up, and this module's samples assume it.
 `Orientation(Pitch, Yaw, Roll)` fixes the one convention an arbitrary glTF needs. Raw mesh
 coordinates are read as table-frame coordinates, rotated Pitch about X, then Roll about Y, then Yaw
 about Z (right-handed, extrinsic), and scaled last. A Y-up glTF stood upright is therefore
@@ -300,7 +300,7 @@ does. One shape, two owners, matching `table_state`'s two nullable owner columns
 Four decisions are carried in this shape.
 
 - **`VisualRef` is exactly one of `Builtin` or `AssetId`**, validated in the constructor, mirroring
-  `texture_builtin | texture_asset_id`, `visual_builtin | visual_asset_id` and (since 2026-09-04)
+  `texture_builtin | texture_asset_id`, `visual_builtin | visual_asset_id` and
   `terrain_placement.builtin | asset_id`. Built-in terrain, textures and marker visuals ship inside
   the client and belong to nobody. A library asset is a soft reference with no foreign key, so
   deleting an asset degrades appearance and never blocks.
@@ -308,9 +308,8 @@ Four decisions are carried in this shape.
   rows or from the built-in's shipped volumes at add time. The draft and the snapshot are therefore
   self-contained, and the game server never resolves `asset_volume`. It could not do so anyway,
   because an asset's volumes are owner-only over HTTP. Editing them in place *is* the override.
-  "Clearing" re-sends the source's own volumes (`OverrideTerrainVolumes`). This is **spec correction
-  1**, against `schema.md` and setup content, both of which still describe overrides falling through
-  to the asset.
+  "Clearing" re-sends the source's own volumes (`OverrideTerrainVolumes`). `schema.md` → A terrain
+  placement names a built-in or an asset states the same.
 - **Objectives and tokens are one `Marker` with a `Kind`**, sized by a diameter. Markers ignore
   terrain: no settling, no collision (setup content → Markers; table domain model). Where a marker
   lives differs by origin. Setup markers are rows in `TableState.Markers`. A token dropped in play is
@@ -320,7 +319,7 @@ Four decisions are carried in this shape.
   has zones and no game. Shape ids are namespaced by style (`"frontline/1"`), the ids
   `Tabletop.Geometry.ZoneStyles.ShapesOf(style)` lists, one row per shape, keyed by ordinal `1..n`.
   The C# property is `Shape` and the column is `deployment_zone.style`. That mismatch is unfixed
-  ([Open questions](#open-questions-and-deferred-work)).
+  ([Rulings and deferred work](#rulings-and-deferred-work)).
 
 **`ContentJson` is the single JSON configuration.** `Configure(JsonSerializerOptions)` sets
 camelCase properties, `WhenWritingNull` ignore, `JsonStringEnumConverter(SnakeCaseLower)` and
@@ -460,7 +459,7 @@ tests read.
 | --- | --- | --- | --- |
 | Scheduler | `round_started`, `turn_started`, `turn_ended`, `phase_started` | `RoundStarted(Round, Order, Changes)`; `TurnEnded(TeamId, Passed, Changes)` | scheduler → Events; `turn_ended.passed` from whole-design review → The scheduler's pass |
 | Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }` | action sequences → The resolution stack, Abandonment |
-| Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks; **spec correction 3** |
+| Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks |
 | Dice | `dice_rerolled`, `dice_edited`, `modifier_added` | `DieReplacement(Index, Die Old, Die New)`; `ModifierAdded(FrameId, Roll, RollModifier)` | resolution → Players roll their own dice; scheduler → Deployment ("every roll result is editable from the menu") |
 | Undo | `undone` | `Undone(long ToSeq)` | `architecture.md` → Undo; client shell → undo is local first |
 | State change | `models_moved` | `ModelsMoved(IRL<ModelRelocation>)`, one kind for deployment, hand moves, casualties and embarking | table domain model → The one wire decision; game flow → The shelf, Inside a container |
@@ -504,9 +503,8 @@ redundant weight on the most frequent event on the wire.
 **There is no end-turn command and no pass command.** Both are `AnswerAsk`. The turn is an Ask, and
 passing is a real answer (`Passed`) that is logged.
 `CommandTests.There_is_no_end_turn_or_pass_command` asserts by reflection that no `EndTurn`,
-`EndActivation` or `Pass` type exists. The test is written against `architecture.md`'s corrected
-examples and against the stale `docs/workstreams/01-contracts.md`, which names `EndActivation` and
-`DiceRolled` and invents "terrain multipliers". Each menu command maps one-to-one onto its
+`EndActivation` or `Pass` type exists. The test is written against `architecture.md`'s examples;
+`EndActivation` is included because a pre-design sketch used that name. Each menu command maps one-to-one onto its
 `StateChange` event, except `SetActiveTeam` (logs `turn_started`) and `SetRound` (logs
 `round_started`).
 
@@ -534,7 +532,7 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 `MoveRegion` is the continuous-action case `architecture.md` designs for. The server sends
 parameters, not an enumerated answer, and `Tabletop.Geometry` draws the consequence.
 `DifficultCap` is the whole-move cap `GameRules` computed, null when the ruleset has none. In OPR it
-is 6" and never a multiplier, and `architecture.md` corrects itself on this.
+is 6" and never a multiplier (`architecture.md` → Continuous actions).
 
 `MoveContainment(Enterable, ExitingId, ExitWithin)` is the newest field in the contract.
 `Location.Inside` and `ModelRelocation` already put an `Inside` destination on the wire, but nothing
@@ -547,7 +545,7 @@ within of it (OPR: 6"), which is `Containment.BaseFullyWithin`. The client draws
 of `Movement.Region`, because an occupant has no position to move from. `Enterable` and `ExitingId`
 are never both set, which enforces *"never both in one activation"* (game flow → Inside a container;
 Grimdark Future p.15 `Transport(X)`, p.21 solid buildings). `Containment` is optional, so an ordinary
-open-table move constructs with five arguments as before. This is **spec correction 11**.
+open-table move constructs with five arguments.
 
 **`PieceSelection.Eligible` holds either grain.** A unit id is the grain for deploy, for an Ambusher
 and for a charge target. A model id is the grain for a spell whose `effect.target_grain` is `model`,
@@ -582,8 +580,8 @@ zero and that key's cap. Which team owns a key is the spend step's check and not
 the precedent of `MoveRegion`, whose distances belong to the move step. One map covers every
 addressed team's eligible models, because an Ask has one legal set for all of its teams, and it
 reveals nothing: `ModelInPlay.SpellTokens` is in the projection every client holds, and range and
-line of sight are read off the table. The sealed window still withholds the answers. This is the
-owner's per-model spend ruling of 2026-09-06.
+line of sight are read off the table. The sealed window still withholds the answers (the plan's
+Rulings → The token spend and the `Takedown` target).
 
 Reusing `Allocation(Targets, Amount)` for the spend was rejected on two counts. `Allocated` is legal
 only when its counts sum to `Amount`, which is what wound assignment and casualty removal need and
@@ -616,13 +614,13 @@ thing keeping them apart.
 
 `PickTeam(null)` and `PickArmy(null)` are how a participant leaves a team or drops an army. A
 participant with no team is never Asked, and that is what a spectator is (whole-design review ruling
-5, superseding presence's "joins a third team").
+5).
 
 `SetZoneStyle(Style, Shapes)` carries the style's shape ids, `ZoneStyles.ShapesOf(style)` in
 team-ordinal order. The server's draft editor therefore stays a pure function over strings and never
 links a geometry inventory into a rules decision. It writes one `DeploymentZone` per shape keyed by
-ordinal `1..n` whether or not a team with that ordinal exists yet. This is **spec correction 7**. It
-does not reopen ruling 5: a style's shape list is a property of the style, not of the team list.
+ordinal `1..n` whether or not a team with that ordinal exists yet (setup phase → Zones). It is
+consistent with ruling 5: a style's shape list is a property of the style, not of the team list.
 
 #### Presence
 
@@ -673,7 +671,7 @@ relayed rather than processed and never produce one. `Seq` is the last sequence 
 when the round of processing appended nothing, and is `0` for a game whose log is empty. It is a
 rest point, not a receipt: `at_rest` says nothing more is coming, and never that anything happened.
 The cost is one small frame per participant per inbound frame, paid by every client whether or not
-it reads them. This is **owner protocol ruling 4 of 2026-09-06**.
+it reads them.
 
 ### 5. Serialization rules
 
@@ -712,7 +710,7 @@ only sometimes values in C#, and nothing in the type system distinguishes the tw
 on every management request and the same integer inside `Connect.ClientVersion`. Management answers
 `426 Upgrade Required` when it is below its configured minimum. The game server answers
 `Rejected(UpgradeRequired)` and closes. The client shell renders either as an *update required*
-screen (management API → The version check, placed 2026-09-04; client shell → Screens).
+screen (management API → The version check; client shell → Screens).
 
 Two things are absent.
 
@@ -728,9 +726,9 @@ Two things are absent.
   applies to the payload shape, and nothing pins it. `GameRules` is knowingly unpinned (identity and
   enumerations → Only `Properties` is pinned), and this extends that accepted risk from behaviour to
   format. The only mitigation today is the rule already in the design: never rename or remove a
-  payload property, only add. This is accepted with a revisit trigger by **owner protocol ruling 3
-  of 2026-09-06** ([Key decisions](#accepted-risk-the-payload-format-is-unversioned)), and no
-  version field is added now.
+  payload property, only add. This is accepted with a revisit trigger
+  ([Key decisions](#accepted-risk-the-payload-format-is-unversioned)), and no version field is
+  added now.
 
 The HTTP status code `426` sits in `Tabletop.Protocol`, which otherwise knows nothing about
 transports. That is accepted so the client, management and the game server name one constant rather
@@ -818,7 +816,7 @@ The two call sites answer it differently, and the difference is the point of the
 drops its projection, reconnects, and rebuilds from the log (client shell → The connection and the
 projection). The game server, which is applying events it wrote itself, faults the session: a resync
 replays the same event and throws again, so the fault is a server bug and hiding it behind a rebuild
-loop would hide the bug. This is **owner protocol ruling 2 of 2026-09-06**.
+loop would hide the bug.
 
 The contract as prohibitions: **it never decides legality, never derives a location, never clears a
 store on its own.** Every branch in `ApplyChange` is an assignment, an `Add`, a `Remove` or a
@@ -880,12 +878,12 @@ management `5100`, game server `5200`, both binding `0.0.0.0`.
   targets (`ServiceURL` + `ForcePathStyle`), so presigned PUT and GET work unchanged and the
   management API writes S3 code once. `architecture.md` → Local development: *"deploying changes the
   address, not the shape."*
-- **Two Postgres schemas in one database**, `management` and `game`. This closes `schema.md`'s open
-  item ("whether the two schemas are two Postgres schemas in one database or two databases") for
-  local development. The reason is in `architecture.md`: the game server reads management's rows at
-  hydration and writes a game's own rows while status is `lobby` or `setup`, which is one connection
-  when they share a database. The stated cost stands: *"the two services share a database, so a
-  management migration can break the game server"*. Hosting may revisit it.
+- **Two Postgres schemas in one database**, `management` and `game`, a choice made for local
+  development and recorded under `schema.md` → Still open. The reason is in `architecture.md`: the
+  game server reads management's rows at hydration and writes a game's own rows while status is
+  `lobby` or `setup`, which is one connection when they share a database. The stated cost stands:
+  *"the two services share a database, so a management migration can break the game server"*.
+  Hosting may revisit it.
 - **Windows reaches WSL over forwarded localhost.** With WSL2's default `localhostForwarding=true`,
   Docker's published ports and any WSL listener on `0.0.0.0` answer at `localhost:<port>` from
   Windows. The Godot client uses `localhost` for both servers, and presigned MinIO URLs are minted
@@ -898,8 +896,7 @@ game server and its tests need. `docker compose down -v && docker compose up -d`
 management API module owns the real migrator (DbUp). It embeds a byte-for-byte copy of this file as
 migration `001`, recognises a compose-built database (`management.account` exists, no journal) and
 records 001 as applied instead of re-running it, then owns `002_blob_uploaded.sql` onward. A database
-management creates from nothing, such as its per-run test databases, gets 001 from DbUp. A
-compatibility review settled this with that plan on 2026-09-05. **The
+management creates from nothing, such as its per-run test databases, gets 001 from DbUp. **The
 `create schema management; create schema game;` at the top of this file is the only place either
 schema is created, on either path.** The game server never migrates.
 
@@ -957,14 +954,14 @@ erDiagram
         text scheduler_shape "player-turn, alternating-activation"
         text enforcement "silent, warn, strict"
         bool waits_between_steps
-        bigint rng_seed "spec correction 12: the dice seed, written once at creation"
+        bigint rng_seed "the dice seed, written once at creation"
         uuid created_by FK
     }
     PARTICIPANT {
         uuid id PK
-        uuid game_id FK "spec correction 4"
+        uuid game_id FK "unique with account_id"
         uuid team_id FK "nullable: no team means spectator"
-        uuid army_id FK "spec correction 2: the lobby pick"
+        uuid army_id FK "the lobby pick"
         jsonb army_snapshot "written once at end-setup"
     }
     TABLE_STATE {
@@ -981,7 +978,7 @@ erDiagram
     }
     EFFECT {
         uuid id PK
-        text target_stat_level "spec correction 6"
+        text target_stat_level "with target_stat, the FK to stat_definition"
         text target_stat FK
         text duration "interaction, once"
     }
@@ -1027,28 +1024,28 @@ belongs to the interpreter module (rows, not schema). A freshly composed stack t
 | Every message set is a closed C# union with a `"kind"` discriminator | exhaustive switches, a reflection test that the set is complete, and a place to hang direction and fate | a `kind` string plus a property bag or `JsonObject`; a mistyped key would silently do nothing | identity and enumerations → The closed sets |
 | The applier copies and never derives | keeps every ruleset off the player's machine and makes replay faithful to what happened | let the client recompute consequences from a thinner event | client shell → The connection and the projection; action sequences → `step_completed` records "everything it produced" |
 | Undo is replay to N from the initial state, `Undone(N)` a logged event, the log append-only | RNG is state, so redoing reproduces the dice; no inverse events to write or keep correct | inverse events; a separate checkpoint mechanism | `architecture.md` → Undo |
-| `GameInfo` carries `long RngSeed`, positional and last among the scalars, backed by `game.rng_seed bigint not null` with no database default | undo and replay need a seed fixed for the life of the game, and a simulator run needs one it can choose; positional because a construction that omitted it would silently get `0`, and a `0` seed is a real game whose dice match every other game that omitted it | deriving the seed from `game.id`; carrying it in the first event, which a game in `lobby` or `setup` does not have; a database default, which would let a management bug produce a playable game | owner ruling 1 of 2026-09-06; **spec correction 12** |
-| `AtRest(long Seq)`, wire kind `at_rest`, broadcast when the server finishes processing an inbound frame | a client, a simulator run and a viewer all need to know that nothing more is coming, and the only signal before this was a 250 millisecond quiet window that reads a slow server as a stuck game | leave the quiet window, whose cost is minutes per socket run and a false stall under load; a per-command acknowledgement, which would say a command was handled rather than that the game is idle | owner protocol ruling 4 of 2026-09-06 |
-| `PresenceEnded(ParticipantId)` is an explicit frame, sent when a participant's last socket closes | departure is a fact the server knows exactly, while a client inferring it from silence has to pick a timeout and will get it wrong on a slow network | a client-side presence timeout, which puts a mechanism in every client to replace one frame from the server | owner protocol ruling 1 of 2026-09-06, confirming the assumption; presence → Connectedness is not a field |
-| An event naming an id the projection does not hold throws `ProjectionDesyncException`, and the client rebuilds from the log | the fault is identifiable, so the client can treat its own copy as lost instead of dying, and the server can fault a session it knows is its own bug | `KeyNotFoundException`, which is untypeable at the catch site; skipping the change and carrying on, which trades a visible reset for a client that silently diverges from the server | owner protocol ruling 2 of 2026-09-06 |
-| Asks are events (`ask_opened`, `ask_answered`, `ask_closed`) | the projection *holds* the current Asks and is rebuilt from snapshot and log, so an Ask outside the log cannot survive a reconnect, and a window's pass is "a real answer, logged" | Asks as ephemeral server state pushed to clients | **spec correction 3**, derived from client shell and action sequences, neither of which listed the kinds |
+| `GameInfo` carries `long RngSeed`, positional and last among the scalars, backed by `game.rng_seed bigint not null` with no database default | undo and replay need a seed fixed for the life of the game, and a simulator run needs one it can choose; positional because a construction that omitted it would silently get `0`, and a `0` seed is a real game whose dice match every other game that omitted it | deriving the seed from `game.id`; carrying it in the first event, which a game in `lobby` or `setup` does not have; a database default, which would let a management bug produce a playable game | `schema.md` → A game stores its dice seed |
+| `AtRest(long Seq)`, wire kind `at_rest`, broadcast when the server finishes processing an inbound frame | a client, a simulator run and a viewer all need to know that nothing more is coming, and the only signal before this was a 250 millisecond quiet window that reads a slow server as a stuck game | leave the quiet window, whose cost is minutes per socket run and a false stall under load; a per-command acknowledgement, which would say a command was handled rather than that the game is idle | game server → The rest frame; simulation plan ruling 5 |
+| `PresenceEnded(ParticipantId)` is an explicit frame, sent when a participant's last socket closes | departure is a fact the server knows exactly, while a client inferring it from silence has to pick a timeout and will get it wrong on a slow network | a client-side presence timeout, which puts a mechanism in every client to replace one frame from the server | the plan's ruling 1; presence → Connectedness is not a field |
+| An event naming an id the projection does not hold throws `ProjectionDesyncException`, and the client rebuilds from the log | the fault is identifiable, so the client can treat its own copy as lost instead of dying, and the server can fault a session it knows is its own bug | `KeyNotFoundException`, which is untypeable at the catch site; skipping the change and carrying on, which trades a visible reset for a client that silently diverges from the server | [`EventApplier`](#8-eventapplier); client shell → The connection and the projection |
+| Asks are events (`ask_opened`, `ask_answered`, `ask_closed`) | the projection *holds* the current Asks and is rebuilt from snapshot and log, so an Ask outside the log cannot survive a reconnect, and a window's pass is "a real answer, logged" | Asks as ephemeral server state pushed to clients | derived from client shell and action sequences, neither of which listed the kinds |
 | The 13 `StateChange` leaves are registered on both `StateChange` and `EventPayload` | one `ApplyChange` serves the menu and automation: "the same fields through the same path" | wrap each change in a `StateChanged` payload | game flow → Nothing is an invariant |
-| `TableState` lives in `Content`, not `Protocol` | management stores it as a layout, the game server writes it as the draft, the client saves and loads it over HTTP. The client and both servers, which is `architecture.md`'s own test for `Content` | keep it in `Protocol` and duplicate a layout DTO in management | setup phase → Layouts; whole-design review ruling 4; **spec correction 10** |
-| A placement's `Volumes` are always written on add, never resolved from `asset_volume` | the client and server need every placed volume; an asset's volumes are owner-only over HTTP and the manifest does not carry them | fall through to `asset_volume` when a placement has no override | **spec correction 1**, against `schema.md` and setup content |
-| A move Ask carries `MoveContainment` | `Inside` was already a destination on the wire but nothing said where one was legal, so no plan could offer embark or disembark | infer enterable containers on the client (it has no rules); a separate embark command | **spec correction 11**; game flow → Inside a container; GF p.15, p.21 |
+| `TableState` lives in `Content`, not `Protocol` | management stores it as a layout, the game server writes it as the draft, the client saves and loads it over HTTP. The client and both servers, which is `architecture.md`'s own test for `Content` | keep it in `Protocol` and duplicate a layout DTO in management | setup phase → Layouts; whole-design review ruling 4; `architecture.md` → What is actually shared |
+| A placement's `Volumes` are always written on add, never resolved from `asset_volume` | the client and server need every placed volume; an asset's volumes are owner-only over HTTP and the manifest does not carry them | fall through to `asset_volume` when a placement has no override | `schema.md` → A terrain placement names a built-in or an asset; setup content → Terrain |
+| A move Ask carries `MoveContainment` | `Inside` was already a destination on the wire but nothing said where one was legal, so no plan could offer embark or disembark | infer enterable containers on the client (it has no rules); a separate embark command | game flow → Inside a container; GF p.15, p.21 |
 | Geometry's API is declared here and implemented later | `architecture.md` names the API surface as a contract to freeze *before* parallel work; two other modules must be able to name the calls | let the geometry module invent the surface with the bodies | `architecture.md` → Contracts to freeze |
 | Free strings for action, stat, condition, roll, sequence, step, phase, window-kind and Ask-question names | a second ruleset must be content, not a Protocol change; the shape the client renders stays closed | enumerate them and migrate the Protocol per ruleset | identity and enumerations → The closed sets; action sequences constraint 9 |
 | `MoveRegion` carries parameters (allowance, impassable ids, difficult ids, cap), not an enumerated destination set | movement is continuous: the server describes the constraint, the client draws the consequence | send legal destinations; round-trip every drag | `architecture.md` → How the client stays responsive |
-| Two Postgres schemas in one database | the game server reads and, before play, writes management's rows, so one connection | two databases and a second connection, or an internal API | closes `schema.md` → Still open; **spec correction 5** |
-| Compose init SQL *and* a DbUp migrator, both keeping 001 | a bare `docker compose up` must give the game server a schema, management owns the schema, and `libs/` may not touch persistence | one mechanism only, giving either no schema without running management or no migration story | settled with the management API plan, 2026-09-05 |
+| Two Postgres schemas in one database | the game server reads and, before play, writes management's rows, so one connection | two databases and a second connection, or an internal API | `schema.md` → Still open |
+| Compose init SQL *and* a DbUp migrator, both keeping 001 | a bare `docker compose up` must give the game server a schema, management owns the schema, and `libs/` may not touch persistence | one mechanism only, giving either no schema without running management or no migration story | management API plan → Migrations |
 | MinIO rather than a filesystem stand-in | same S3 API, so presigned PUT/GET and the AWS SDK code are written once | a local blob directory behind a management endpoint, which would pass the bytes through the API. The design forbids that | `architecture.md` → Local development; management API → Asset bytes never pass through the API |
 
 ### Accepted risk: the payload format is unversioned
 
 `game_event.payload` holds the serialized wire message and nothing versions it. Renaming a property
 breaks every stored log, and every round-trip test still passes, because those tests prove
-self-consistency and not stability. This is accepted as of **owner protocol ruling 3 of 2026-09-06**,
-because nothing is built and no stored game matters yet.
+self-consistency and not stability. This is accepted because nothing is built and no stored game
+matters yet.
 
 The revisit trigger is the first game worth keeping. Until then a rename is a text edit; after it a
 rename is a migration of every `game_event` row.
@@ -1059,22 +1056,21 @@ intentional change. A version stamped on the stored payload would let a reader d
 would need a reader per version from the first bump. Adding either before the trigger buys a guard
 against breaking logs that do not exist.
 
-### Decisions that were contested and re-decided
+### Contested decisions
 
-Each of these reversed an earlier position and each leaves a residue in the types.
+Each of these leaves a residue in the types.
 
-| What changed | From | To | Where |
-| --- | --- | --- | --- |
-| **Enforcement** | identity and enumerations ruled a boolean: warn or silent, never block | three positions, `silent \| warn \| strict`. `strict` refuses an out-of-set Ask answer or an illegal command; **the menu's edits are accepted under every setting** | whole-design review ruling 1, reopening 08-29. In the types: `Enforcement`, `RefusalReason`, `Refused`, and `GameEvent.Warning` |
-| **The scheduler's pass** | scheduler state held "which teams have finished", and its own text said finished is not a flag | the pass is a logged fact, `TurnEnded(TeamId, Passed, Changes)`, and only teams that did not pass re-enter the round | whole-design review → Contradictions fixed. In the types: `TurnEnded.Passed` and `SchedulerPosition.Passed` |
-| **Where a token lives** | setup content said a token is "dropped during play and moved freely", and the marker table lives only on the snapshot | objectives are snapshot rows; a token dropped in play is a logged command rebuilt from the log | whole-design review → "Tokens had no home in the log". In the types: `MarkerPlaced/Moved/Removed` beside `TableState.Markers` |
-| **A participant's team** | presence had a watcher "join a third team"; the scheduler had team membership fixed once playing | `Participant.TeamId` is nullable, a participant with no team is never Asked, and that is what a spectator is. Joining is allowed at any status | whole-design review ruling 5; setup phase → Joining is allowed at any status. In the types: `Guid? TeamId`, `PickTeam(Guid?)` |
-| **Lobby picks are edits, not commands** | game flow said setup "happens inside a loaded game as ordinary commands" | create team, pick team, pick army and change configuration are the third message kind: written, broadcast, never logged | whole-design review ruling 4; setup phase → A third message kind. In the types: `LobbyEdit` |
-| **Terrain declarations** | the table domain model offered "blocks sight past three inches", an invented rule. An early draft had five flags and derived blocking from `Solid` | six declarations read out of the rulebook; **blocking is declared, not derived** (a chain-link fence is solid and transparent) | geometry values → Declarations. In the types: `[Flags] TerrainDeclarations` and `LineOfSight`'s contract |
-| **Difficult terrain** | `architecture.md` said the server sends "terrain multipliers" | OPR caps a unit's whole move at 6" rather than scaling it, so the parameter is whatever `GameRules` computes | `architecture.md` → Continuous actions, corrected. In the types: `MoveRegion.DifficultCap` |
-| **`architecture.md`'s own examples** | `EndActivation` a command, `DiceRolled` an event, "every roll is an event" | no end-turn or pass command, both being `AnswerAsk`. A roll is a `RollRecord` inside `step_completed` | whole-design review → Architecture's examples. Asserted by `CommandTests` |
-| **Spell grants** | action sequences said "grants write a condition" | a grant is a fourth store with three references, so it cannot be a condition (conditions stay names) | spell effects → The grants store. In the types: `Grant`, `GrantAdded`, `GrantRemoved`, `UnitInPlay.Grants` |
-| **The mesh prep tool** | a shipped offline converter, with a language exception | conversion runs in the browser, and the tool and its exception are gone | mesh conversion, 2026-09-04. In the types: `Orientation`, written by the web app's converter |
+| Decision | Rejected alternative | Where |
+| --- | --- | --- |
+| **Enforcement** has three positions, `silent \| warn \| strict`. `strict` refuses an out-of-set Ask answer or an illegal command; **the menu's edits are accepted under every setting** | a boolean: warn or silent, never block | whole-design review ruling 1. In the types: `Enforcement`, `RefusalReason`, `Refused`, and `GameEvent.Warning` |
+| **The scheduler's pass** is a logged fact, `TurnEnded(TeamId, Passed, Changes)`, and only teams that did not pass re-enter the round | scheduler state holding "which teams have finished", with no logged fact | whole-design review → Contradictions fixed. In the types: `TurnEnded.Passed` and `SchedulerPosition.Passed` |
+| **Where a token lives**: objectives are snapshot rows; a token dropped in play is a logged command rebuilt from the log | a token dropped during play and moved freely, with the marker table only on the snapshot | whole-design review → "Tokens had no home in the log". In the types: `MarkerPlaced/Moved/Removed` beside `TableState.Markers` |
+| **A participant's team**: `Participant.TeamId` is nullable, a participant with no team is never Asked, and that is what a spectator is. Joining is allowed at any status | a spectator as a member of a third team; team membership fixed once playing | whole-design review ruling 5; setup phase → Joining is allowed at any status. In the types: `Guid? TeamId`, `PickTeam(Guid?)` |
+| **Lobby picks are edits, not commands**: create team, pick team, pick army and change configuration are the third message kind, written, broadcast, never logged | setup as ordinary commands inside a loaded game | whole-design review ruling 4; setup phase → A third message kind. In the types: `LobbyEdit` |
+| **Terrain declarations** are six, read out of the rulebook; **blocking is declared, not derived** (a chain-link fence is solid and transparent) | five flags with blocking derived from `Solid`, and an invented "blocks sight past three inches" | geometry values → Declarations. In the types: `[Flags] TerrainDeclarations` and `LineOfSight`'s contract |
+| **Difficult terrain**: OPR caps a unit's whole move at 6" rather than scaling it, so the parameter is whatever `GameRules` computes | a terrain multiplier scaling the move | `architecture.md` → Continuous actions. In the types: `MoveRegion.DifficultCap` |
+| **No end-turn or pass command**, both being `AnswerAsk`. A roll is a `RollRecord` inside `step_completed`, not an event | `EndActivation` as a command, `DiceRolled` as an event | whole-design review → Architecture's examples. Asserted by `CommandTests` |
+| **Spell grants** are a fourth store with three references, so a grant cannot be a condition (conditions stay names) | a grant written as a condition | spell effects → The grants store. In the types: `Grant`, `GrantAdded`, `GrantRemoved`, `UnitInPlay.Grants` |
 
 ### Decisions the plan took because a spec was silent
 
@@ -1213,10 +1209,10 @@ written in this module and kept in another.
 | Client shell | add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/`; marshal socket-thread applier writes onto Godot's main thread; render `MoveRegion.Containment`, where a click on an `Enterable` container answers `Destinations` with `Inside(container)` for every model and a non-null `ExitingId` draws the exit region with `Containment.BaseFullyWithin` |
 | Web app | mirror the JSON conventions in TypeScript, including the `[Flags]` comma-joined `TerrainDeclarations` form and the `builtin`-or-`assetId` exclusivity |
 
-### What the owner protocol rulings of 2026-09-06 require of each consumer
+### What `at_rest` and `ProjectionDesyncException` require of each consumer
 
-Two of the four rulings add a contract another module has to keep. Every consumer of `at_rest` and
-of `ProjectionDesyncException` is listed here.
+Each adds a contract another module has to keep. Every consumer of `at_rest` and of
+`ProjectionDesyncException` is listed here.
 
 | Module | What it must now do |
 | --- | --- |
@@ -1225,18 +1221,18 @@ of `ProjectionDesyncException` is listed here.
 | Simulation | Wait for `at_rest` as the end of a step, and delete the 250 millisecond quiet window. A socket run's pacing is the frame, not a timer |
 | Viewer | Ignore `at_rest`. It reads the log and has nothing to do at a rest point |
 
-### What the owner spend rulings of 2026-09-06 require of each consumer
+### What the per-model token spend requires of each consumer
 
 `TokenSpend` and `TokensSpent` carry a map keyed by model, and a `Takedown` target is a model-grain
-`PieceSelection`. Both changes land in other modules.
+`PieceSelection`. Both have consequences in other modules.
 
 | Module | What it must now do |
 | --- | --- |
 | Interpreter | Build `TokenSpend.MaxByModel` from p.13's predicate over every addressed team's models, each with its own token count as its cap, the caster's own model included with the tokens left after the spell's cost. Read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model. Sum every team's counts for the roll modifier, which is what `Values["net_tokens"]` records. Open a `Takedown`'s target as a `PieceSelection(models, 1, 1)` under its own question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask |
 | Game server | `LegalSetMembership` for a `TokenSpend` checks that every key of `Counts` is a key of `MaxByModel` and every value lies between zero and that key's cap. It checks no total, because a spend is any number up to a maximum. Which team owns a key belongs to the spend step, as `MoveRegion`'s distances belong to the move step |
-| Client shell | Render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map. Keep the mode; only its two shapes changed |
+| Client shell | Render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map. The mode stays one `AskMode.TokenSpend` |
 | Simulation | Choose a count per model within that model's cap and answer `TokensSpent` with the map, rather than one integer within a single maximum |
-| Viewer | Read `TokenSpend.MaxByModel`'s keys as the pieces an Ask concerns and the sum of its values as the amount at stake, and sum `TokensSpent.Counts` when it reports what a team spent. Neither kind's name changed, so its generated types and its recording's legal-kind strings do not move |
+| Viewer | Read `TokenSpend.MaxByModel`'s keys as the pieces an Ask concerns and the sum of its values as the amount at stake, and sum `TokensSpent.Counts` when it reports what a team spent. Neither kind is renamed, so its generated types and its recording's legal-kind strings are unaffected |
 
 ## Sequences
 
@@ -1414,8 +1410,8 @@ at a few thousand events, and neither call belongs in a loop.
 | Presence, pings, measurements, ghosts | in-memory table keyed by participant | the relay | gone when the socket closes |
 
 *"A table growing a 'current position' column means the event spine has been broken"*
-(`architecture.md` → Game management data model). The middle rows are the setup-phase exception the
-whole-design review ruled on. Before play the game server writes rows, because setup is not logged.
+(`architecture.md` → Game management data model). The middle rows are the setup-phase exception
+(whole-design review ruling 4). Before play the game server writes rows, because setup is not logged.
 
 ### Game status and the message kinds it accepts
 
@@ -1501,7 +1497,7 @@ lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`sc
 nothing when the frame is already gone.
 
 Strictness holds because the server is the only writer and it emits ids from the snapshot it
-hydrated. Two cases fall on the wrong side of it, and both are now a typed desync rather than a
+hydrated. Two cases fall on the wrong side of it, and both are a typed desync rather than a
 `KeyNotFoundException` or an `InvalidOperationException`.
 
 - **A token placed during setup and then moved in play throws.** Setup content says objectives are
@@ -1515,11 +1511,11 @@ hydrated. Two cases fall on the wrong side of it, and both are now a typed desyn
   in the same way when no step in a live frame holds that roll. So the menu affordance the scheduler
   promises is unreachable for any roll in a completed sequence. The end-of-turn morale test is the
   remaining example: a root frame with an actor and one step, which pops before any boundary can
-  gate it. The deployment roll-off used to be the clearest case and no longer is, because the owner
-  ruled on 2026-09-06 that it is gated, so its frame is live while the gate is open.
+  gate it. The deployment roll-off is not a case, because it is gated, so its frame is live while
+  the gate is open.
 
 The typed exception makes both cases recoverable on the client and loud on the server rather than
-fatal on both, and `EventApplierTests` now asserts each of them. It does not make either case
+fatal on both, and `EventApplierTests` asserts each of them. It does not make either case
 correct: a client that resyncs replays the same event and desyncs again, so the two id spaces and
 the popped-frame lookup are still the fix, and both belong to the game server module.
 
@@ -1661,40 +1657,22 @@ hand-written union honest.
 
 The client's Godot layer is out of scope and is tested by running the game (client shell → Testing).
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### Open questions
+### Rulings
 
-**None.** The one question this module carried is answered.
+**1. A departed presence is signalled by an explicit frame.** The server sends `PresenceEnded` when
+a participant's last socket closes, and no client owns a presence timeout. Departure is a fact the
+server knows exactly; a client inferring it from silence has to pick a timeout and will get it wrong
+on a slow network. Timing out on the client is the rejected alternative (presence → Still open).
 
-**1. How is a departed presence signalled? Answered 2026-09-06 by owner protocol ruling 1.** The
-server sends `PresenceEnded` when a participant's last socket closes. Presence left *"how a client
-is told that a presence value has stopped, versus timing it out"* open; the assumption this module
-took is confirmed, so no mechanism changes and no type moves. Timing out on the client was the
-rejected alternative, and presence's own open item is struck by spec correction 13.
-
-### Questions closed from the specs rather than asked
+### Answered from the specs
 
 | Question | Answer, and where it came from |
 | --- | --- |
-| Should Asks be events in the log? | **Yes.** The client shell puts *"the current Asks"* in the projection and builds it by applying every event, and says a reconnect is *"discarded and rebuilt from snapshot and log"*, so an Ask outside the log cannot survive one. Action sequences adds *"the log records who did"* and *"passing is a real answer, logged."* Landed as spec correction 3 |
-| Is `TableState` in `Tabletop.Content` acceptable? | **Yes**, by `architecture.md`'s own criterion for that row. Its wording predates setup content. Spec correction 10 updates it, per the standing rule that a design doc beats `architecture.md` |
+| Should Asks be events in the log? | **Yes.** The client shell puts *"the current Asks"* in the projection and builds it by applying every event, and says a reconnect is *"discarded and rebuilt from snapshot and log"*, so an Ask outside the log cannot survive one. Action sequences adds *"the log records who did"* and *"passing is a real answer, logged."* |
+| Is `TableState` in `Tabletop.Content` acceptable? | **Yes**, by `architecture.md`'s own criterion for that row |
 | Do rulesets name their Ask questions as free strings? | **Yes.** Identity and enumerations settles the identical case for actions: *"a ruleset with an action nobody anticipated needs content, not a code change"*. Action sequences constraint 9 makes the same argument for who answers an Ask. What stays closed is `LegalSet` and `AskAnswer` |
-
-### Spec corrections this module proposes
-
-Thirteen, all raised by the plan and applied by the coordinator, not by this module. **12** adds
-`game.rng_seed` to `schema.md`, by owner ruling 1 of 2026-09-06. **13** strikes presence's open item
-on how a departure is signalled, answered by owner protocol ruling 1 of 2026-09-06: the frame is
-`PresenceEnded` and the client owns no timeout. Eight of the first eleven change a decision rather
-than a word: **1** (a placement's volumes are always written on add, so the game
-server never reads `asset_volume`), **2** (`participant.army_id`, the lobby's pick), **3** (the three
-Ask event kinds), **4** (`participant.game_id` and `unique (game_id, account_id)`, which ruling 5
-left implicit when it made `team_id` nullable), **6** (`effect.target_stat_level`, without which the
-promised foreign key cannot exist), **7** (`SetZoneStyle` carries the shape ids), **10**
-(`architecture.md`'s `Tabletop.Content` row), and **11** (`move_region.containment`). **5** strikes
-`schema.md`'s two-schemas-or-two-databases open item. **8** fixes a sentence in the client shell that
-had the move parameters coming back in an answer. **9** adds `tests/` to the repository layout.
 
 ### Deferred
 
@@ -1704,7 +1682,7 @@ had the move parameters coming back in an answer. **9** adds `tests/` to the rep
 | The `Properties` C# types and the interpreter | game server and interpreter modules; `architecture.md` → Rules as data |
 | How authored `Properties` content reaches the eight tables (the content import) | `architecture.md` → Rules as data; whole-design review → Left as first-pass assertions; spell effects → Deliberately not decided |
 | The real migration mechanism and every migration after 001 | management API module |
-| Hosting: AWS, containers, the S3 endpoint | `architecture.md` → Deployment, deferred 2026-09-04 |
+| Hosting: AWS, containers, the S3 endpoint | `architecture.md` → Deployment |
 | The presence sample rate, the debounce interval, and whether a participant may hold two connections | presence → Deliberately not decided |
 | The built-in inventories: terrain meshes, textures, marker visuals, zone shapes | setup content → Deliberately not decided; geometry values → Deployment shapes |
 | A dice-expression grammar | content values → Deliberately not decided; `StatKind.DiceExpression` keeps the text |
@@ -1715,8 +1693,8 @@ had the move parameters coming back in an answer. **9** adds `tests/` to the rep
 ## References
 
 **Plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`: sixteen tasks, the
-`Interfaces → Produces` tables, the kind-by-kind spec table, eleven spec corrections, five
-obligations on later modules, one open question.
+`Interfaces → Produces` tables, the kind-by-kind spec table, its rulings, five
+obligations on later modules.
 
 **Repository documents.** `docs/architecture.md` (the load-bearing seam, what is actually shared, the
 command/event spine, rules enforcement, undo, geometry, two servers, persistence, local development,

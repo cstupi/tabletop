@@ -5,8 +5,7 @@ server records about it.
 
 This is the first module designed in earnest. It supersedes nothing in
 `docs/architecture.md`, but it does make that document's talk of `Tabletop.Content`
-concrete for the first time, and the workstream prompts in `docs/workstreams/` predate it
-— they are sketches, not specs, and none should be run as written.
+concrete for the first time.
 
 Scope is deliberately narrow: **the table and the things standing on it.** Not the rules
 engine, not resolution, not the management API, not the wire format beyond the one

@@ -1,23 +1,23 @@
 # Tabletop
 
-Virtual tabletop for One Page Rules and Warhammer 40,000.
+Virtual tabletop for One Page Rules and Warhammer 40,000. A Godot 4.7 / C# client, .NET servers
+and a Svelte web app. Developed in WSL; the Godot editor runs on the Windows host.
 
-A Godot 4.7 / C# client and .NET servers. Developed in WSL; the Godot editor runs on
-the Windows host.
+`CLAUDE.md` describes the layout and conventions. `docs/handoff.md` says where the project stands.
 
 ## Requirements
 
-- Godot 4.7.x, **.NET/Mono build**, installed on the Windows host — the standard build
-  cannot open a C# project
-- .NET SDK 10.0.400 on **both** sides: WSL (for CLI builds) and Windows (Godot shells out
-  to `dotnet` to build the assembly)
+- Godot 4.7.x, **.NET/Mono build**, on the Windows host. The standard build cannot open a C#
+  project.
+- .NET SDK 10.0.400 on **both** sides: WSL for CLI builds, Windows because Godot shells out to
+  `dotnet` to build the assembly.
 
 ```powershell
 winget install --id GodotEngine.GodotEngine.Mono --exact
 winget install --id Microsoft.DotNet.SDK.10 --exact
 ```
 
-The `Godot.NET.Sdk` version in `client/Tabletop.csproj` must match your Godot version.
+The `Godot.NET.Sdk` version in `client/Tabletop.csproj` must match the Godot version.
 
 ## Build and run
 
@@ -27,30 +27,22 @@ dotnet build                 # compile the C# assembly
 ./scripts/godot              # run
 ```
 
-`scripts/godot` finds the Windows Godot executable and passes it `client/` as a UNC
-path. Set `GODOT_EXE` to override the editor location.
+`scripts/godot` finds the Windows Godot executable and passes it `client/` as a UNC path. Set
+`GODOT_EXE` to override the editor location.
 
 ## Layout
 
 ```
-client/                  deliverable: the Godot game client
-  project.godot          project settings
-  Tabletop.csproj        client assembly, net10.0
-  scenes/                scenes; Main.tscn is the entry scene
-  src/                   C# source, root namespace `Tabletop`
-server/                  deliverables: the .NET servers, no Godot dependency
-  game/                  live game sessions, rules, event log
-  management/            accounts, game browser, collections, assets
-libs/                    shared libraries, consumed by client and servers
-docs/                    design documents
-scripts/godot            editor/game launcher
+client/                  Godot game client, the only Godot dependency
+server/game/             live game sessions, rules engine, event log (WebSocket)
+server/management/       accounts, armies, assets, layouts, games (HTTP)
+web/                     Svelte SPA: armies, assets, the account
+sim/                     headless full-game simulator, for developers
+viewer/                  draws a simulator recording, for developers
+libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
+docs/                    design documents and plans
+scripts/godot            editor and game launcher
 Tabletop.sln             solution
 global.json              pins the .NET SDK
 Directory.Build.props    per-OS obj/ dirs, so WSL and Windows builds don't collide
 ```
-
-New `.cs` files under `client/src/` are picked up automatically — no `.csproj` edit
-needed. Because the client project lives in `client/`, its `**/*.cs` glob cannot reach
-sibling projects under `server/` or `libs/`.
-
-`server/` and `libs/` are empty; each module is designed before it is built.

@@ -9,9 +9,8 @@ than per ruleset. Everything ruleset-specific is a hook on `IGameRules` implemen
 
 The scheduler holds no state. Round, order, active team and passed teams are re-derived from
 `Projection.Scheduler` and the effective event log on every `Advance` call. Four events carry
-them: `round_started`, `turn_started`, `turn_ended`, `phase_started`. A *player* ends a round
-(2026-09-06 ruling). Undo-by-replay, a rejoining client and a rehydrated server therefore reach
-the same answer.
+them: `round_started`, `turn_started`, `turn_ended`, `phase_started`. A *player* ends a round.
+Undo-by-replay, a rejoining client and a rehydrated server therefore reach the same answer.
 
 ## Scope
 
@@ -49,7 +48,7 @@ and `Dispatch/` because the scheduler is engine code, not a ruleset.
 exists yet: the client is a scaffold and `server/game/` is empty. What must land first:
 
 1. the contracts plan: every `Tabletop.Protocol` name, including the `AskQuestions.EndRound`
-   constant added there on 2026-09-06 for the round-boundary ruling;
+   constant the round boundary's confirmation Ask is asked under;
 2. the game-server skeleton: `IGameRules`, `IRulesEngine`, `GameState`, `Actor`, `Legality`,
    `EngineResult`, `CommandDispatcher`, `InMemoryEventLog`, `EventApplier`, the `Postgres` test
    fixture, and `GrimdarkFutureRules` as a `sealed partial class` in `GfRules.cs`;
@@ -286,8 +285,8 @@ Stale Asks are closed before anything else. A menu edit may have left one hangin
 dispatcher only closes Asks that carry a `FrameId`. An open Ask is the universal wait: one branch
 covers the turn Ask, the deploy Asks, a boundary hook's Ambusher Ask and the `end_round` Ask. The
 round-boundary hook runs after `round_started` and before the first `turn_started` of the round,
-where the spec puts it. The round-0 branch never reaches the gate. Deployment's phases and its
-flip into round one are untouched by the 2026-09-06 ruling.
+where the spec puts it. The round-0 branch never reaches the gate: deployment's phases and its
+flip into round one need no player's confirmation.
 
 ### State rebuilding and its cost
 
@@ -314,8 +313,8 @@ markers, and cuts it at five anchors:
 `RotationStartAt` makes page 14's *"starting with the player that activates next"* a logged fact
 rather than a special case. A `phase_started` restarts the rotation at `Order[0]`, which for the
 Scouts phase is the roll-off winner. Without a phase boundary the rotation would continue after
-whichever team deployed last, and the Scouts phase would begin with the wrong player. This is the
-plan's spec correction 2.
+whichever team deployed last, and the Scouts phase would begin with the wrong player. Scheduler →
+Deployment states the restart.
 
 **Cost.** Every `Advance` is `O(log)`. `EffectiveLog` walks the whole log to strip undone ranges,
 and each anchor is a `LastOrDefault` over the result. The session loops `Advance` until it rests,
@@ -375,10 +374,9 @@ is not an action row and runs no sequence. Page 14 gives `Immobile`: `Hold` only
 come from `PropertySet.Actions` in catalog order (`Hold`, `Advance`, `Rush`, `Charge`), because
 actions are named per ruleset rather than enumerated.
 
-The turn ends when the declared action's sequence finishes. There is no end-turn command.
-`architecture.md`'s old `EndActivation` example was struck by the whole-design review for this
-reason. `TurnCycle` reads how far one activation got, from the log slice since `CycleStartAt`,
-and takes one step:
+The turn ends when the declared action's sequence finishes. There is no end-turn command and no
+`EndActivation` command (whole-design review → Architecture's examples). `TurnCycle` reads how far
+one activation got, from the log slice since `CycleStartAt`, and takes one step:
 
 ```mermaid
 stateDiagram-v2
@@ -413,7 +411,7 @@ stateDiagram-v2
 5. **An answer that names nothing follows the enforcement dial.** `ReadAnswer` returns null for an
    option id that does not parse or a unit that does not exist. Under `warn` and `silent` that is
    a pass: `TurnCycle.Read` maps it to `PassAnswered`. Under `strict` it never reaches the reader,
-   because `CommandDispatcher.Answer` refuses it. Ruled 2026-09-06 on the plan's question 3.
+   because `CommandDispatcher.Answer` refuses it. The plan's ruling 3 states the rule.
 6. **An out-of-set action with no sequence is recorded and nothing more.** `ActionSequence("Teleport")`
    is null, so the cycle emits `ActionRecorded(unit, "Teleport")` and completes. That is
    enumeration-not-validation carried through to the end.
@@ -433,15 +431,15 @@ also the only mechanism needed for a team that brought no army.
 **A participant with no team is never addressed.** Every Ask the scheduler builds names teams,
 and the `end_round` Ask is addressed to `teams.Where(t => Info.Participants.Any(p => p.TeamId == t))`.
 `participant.team_id` is nullable, and someone who first joins after the flip to `playing` gets a
-row with no team. A participant with no team is what a spectator is: ruling 5 of the whole-design
-review, superseding presence's "joins a third team". There is no spectator type, no second
-identity and no filtering. A watcher appears in no `Ask.Teams`.
+row with no team. A participant with no team is what a spectator is (whole-design review →
+ruling 5; presence → *There is no spectator, so there is no second identity*). There is no
+spectator type, no second identity and no filtering. A watcher appears in no `Ask.Teams`.
 
 A returning player is not that case. Teams are created only while the game is `lobby` or `setup`,
 a participant's team is their slot, and reconnecting returns the player to the slot already on
 their `participant` row. The model is stated once in
 [game flow](../../superpowers/specs/2026-08-28-game-flow-design.md) → *Teams are frozen at the
-flip, and a team is a slot*, ruled 2026-09-06. Nothing about a team is re-derived on reconnect, so
+flip, and a team is a slot*. Nothing about a team is re-derived on reconnect, so
 the scheduler reads the same `Info.Teams` and the same `participant.team_id` before and after.
 
 **A pass is a logged fact.** `turn_ended` carries `Passed`, and the applier adds the team to
@@ -470,7 +468,7 @@ by the `Advance` that reads the resolved order; the gate moves when that `Advanc
 what it emits.
 
 Round 0 carries the deployment order on `round_started.Order`, because `SchedulerPosition` has no
-other field for it and hydration must find it in the log. This is the plan's spec correction 1.
+other field for it and hydration must find it in the log (scheduler spec → Events).
 Round 0's `round_started.Changes` is empty: `OnRoundStarted` returns `[]` for round 0, so no
 fatigue is cleared and no spell token is granted before the game begins.
 
@@ -523,7 +521,7 @@ The base calls it on every `Advance` until it says done:
 
 A pass there stands for the boundary only. `turn_ended.Passed` is round-scoped in the projection,
 so reusing it at the boundary would mark the team as passed for the whole round and skip its
-activations. This is the plan's spec correction 7. The Ambusher loop tracks passes by scanning its
+activations (scheduler spec → The round boundary). The Ambusher loop tracks passes by scanning its
 own Asks in the round's slice, and writes no `turn_started` or `turn_ended` at all.
 
 ### First team: policy and roll-off
@@ -542,9 +540,8 @@ pages:
   `previous.OrderBy(t => lastTurnEndedSeq[t])`, reading the round that just finished, with the
   previous order as the tie-break.
 
-3.4.1's page 49 had a free-for-all roll off *"at the beginning of each round"*, including the
-first, and the team count branched on it. 3.5.1 unified multiplayer with the core game, so the
-branch is gone and the roll-off serves deployment only.
+The team count branches nothing: page 50 orders three and four players the way page 7 orders
+two, so a free-for-all rolls off once, for deployment, and the roll-off serves deployment only.
 
 `teams` is `Info.Teams`, frozen at the flip to `playing` along with the rest of the setup. Every
 round of a game therefore orders the same team list, and an order rebuilt from the log needs no
@@ -575,7 +572,7 @@ Four states, all read from the log since the round anchor:
 | started, no `sequence_finished` | `Waiting` |
 | started and finished | `Resolved(Order(state, lastStepCarryingPlace1))` |
 
-**The roll-off is confirm-gated, ruled 2026-09-06.** `GfRolls.RollOffSequence` is two steps,
+**The roll-off is confirm-gated.** `GfRolls.RollOffSequence` is two steps,
 `roll-off` then `order`, and the boundary between them is an unsealed `Confirm` Ask to every team,
 opened whatever `waits_between_steps` says, because the frame has no actor and no parent. Every
 team is the addressee because no acting unit has a better claim to release a result that fixes
@@ -596,22 +593,21 @@ rather than on a step name keeps the ruleset's step names out of the engine.
 `Waiting` is what holds for the whole gated interval. `RulesEngine.Advance` does not call the
 scheduler during it — a framed Ask open returns `[]` and a live frame runs the interpreter — so
 the engine's own wait shows up as the engine resting, and the branch is exercised from
-`RollOffTests` over a hand-built log. It is not dead code with no state behind it, which is what
-it was while the roll-off resolved in one batch.
+`RollOffTests` over a hand-built log. It is not dead code: a state the game really occupies stands
+behind it.
 
 `RollOff.Order` tolerates a hand-edited log. Unknown or duplicate ordinals are skipped, and teams
 the values do not name follow in ordinal order. A menu-mangled roll-off therefore yields a total
-order rather than an exception. That tolerance matters more now than when it was written, because
-`place_*` is derived from dice a player may have edited at the gate.
+order rather than an exception. That tolerance matters because `place_*` is derived from dice a
+player may have edited at the gate.
 
 ### The round boundary
 
-Two specs pulled opposite ways. Game flow → Flow said *"Rounds advance automatically when no
-unspent units remain. The player does not have to declare it."* The scheduler spec → There is no
-round limit said *"Rounds count up"* and offered no cap, so a table where every model is dead
-would count rounds up without bound. The project owner ruled on 2026-09-06 that the round does not
-advance on its own: a player ends it. The ruling avoids an accidental auto-advance, and is wider
-than the degenerate case it came from. It is one rule for both:
+The round does not advance on its own: a player ends it. Advancing automatically when no unspent
+units remain risks an accidental auto-advance, and *rounds count up* with no cap would let a table
+where every model is dead count rounds up without bound. Game flow → Flow and the scheduler spec →
+There is no round limit both state the rule, and it is one rule for the ordinary boundary and the
+degenerate one:
 
 > When no team can take another turn, the scheduler stops at the boundary, opens one unframed Ask
 > addressed to **every team that has a participant**, and waits. The question is
@@ -632,8 +628,7 @@ Four consequences:
   `RoundBoundaryStep` still runs after it. Round one's fatigue is still set while the boundary Ask
   is open, which one of the plan's tests pins.
 - **The degenerate case needs no cap.** A wiped or idle table waits at the same Ask. Nothing
-  counts up until somebody says to. The earlier *"the scheduler idles and the menu moves the game
-  on"* wording is withdrawn. There is no special handling for a round nobody can act in.
+  counts up until somebody says to. There is no special handling for a round nobody can act in.
 - **It is one of the scheduler's own unframed Asks.** `SchedulerLog.IsSchedulerAsk` finds it,
   `set_active_team` or `set_round` supersedes it, and it is then closed with no answers. If it was
   closed unanswered, the next boundary opens a fresh one.
@@ -706,22 +701,22 @@ var cutoff = Math.Max(log.TurnStartedAt, log.RoundStartedAt);
 // every still-open scheduler Ask opened before the cutoff -> AskClosed(id, [])
 ```
 
-An empty answer list is what makes it not an answer. The plan's spec corrections 4 and 10 both
-record this exception, and the skeleton plan carries it too. An Ask is never withdrawn. It stands
+An empty answer list is what makes it not an answer. Scheduler → The turn is an Ask (*a
+superseded scheduler Ask closes with no answers*) and the skeleton plan both state this exception.
+An Ask is never withdrawn. It stands
 as logged until something closes it. Its legal set was computed when it opened, so a menu edit
 after that is read by the *next* Ask rather than mutating this one.
 
-**Enforcement is enumeration, not validation**, in three positions. The whole-design review kept
-the refusing one. Under `strict` the *dispatcher* refuses an out-of-set answer, so the scheduler
+**Enforcement is enumeration, not validation**, in three positions (whole-design review → ruling
+1). Under `strict` the *dispatcher* refuses an out-of-set answer, so the scheduler
 never sees it and the turn stands with the same Ask still open. Under `warn` and `silent` the
 answer is logged (with a warning under `warn`) and the scheduler acts on it as if it were legal:
 an unknown action is recorded and runs nothing, an unknown unit is a pass. The scheduler has no
 legality check of its own. The legal set is the legality. It has no command of its own either. A
 pass is an Ask answer, not a `Pass` command.
 
-An answer the ruleset cannot read takes the same three positions, ruled 2026-09-06. The two used
-to differ — an out-of-set answer was refused under `strict` while an unreadable one was a pass
-whatever the dial said — and one clause in `CommandDispatcher.Answer` makes them one rule:
+An answer the ruleset cannot read takes the same three positions. An out-of-set answer and an
+unreadable one are one rule, and one clause in `CommandDispatcher.Answer` makes them so:
 
 ```csharp
 var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
@@ -744,36 +739,33 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 
 ## Key decisions
 
-**(reversed)** marks a contested and re-decided decision. **(plan)** marks a decision the plan
-took because no spec spoke.
-
 | Decision | Why | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| The scheduler is generic engine code with two implementations, `GameRules` supplies policy | keeps ruleset identity out of the engine; two shapes are the second example at this seam | the scheduler inside `GameRules` with the shape as a parameter, which is two branches in one class | scheduler → The line **(reversed:** `architecture.md` said the ruleset owns the scheduler, corrected 2026-09-04**)** |
+| The scheduler is generic engine code with two implementations, `GameRules` supplies policy | keeps ruleset identity out of the engine; two shapes are the second example at this seam | the scheduler inside `GameRules` with the shape as a parameter, which is two branches in one class | scheduler → The line; `architecture.md` → Turn scheduling |
 | The turn is an Ask through the interpreter's `Ask` type, `FrameId = null` | one input path; the client's Ask panel already renders it | the scheduler as a sequence on the resolution stack, which has no loop primitive and a frame living for the whole game | scheduler → The line, The turn is an Ask |
 | The shape is chosen per game (`game.scheduler_shape`), fixed once playing | a group may want alternating activation in a player-turn pack; `FirstTeam` must never see the shape | per ruleset, which would put the scheduler back inside `GameRules` | game flow → Two schedulers; scheduler → Setup configuration is fixed once playing |
 | No state held; everything re-read from `Projection.Scheduler` and the effective log | one hydrate path for undo, rejoin and crash recovery; no cache to invalidate | a cached position, a second source of truth | scheduler → State, Nothing is an invariant |
 | Four events carry the state; replay applies and never re-derives them | a first-team policy change must not rewrite a played game | recomputing the order on replay | scheduler → Events |
-| Finished = passed this round **or** empty legal set; the pass is `turn_ended.Passed` | a team that passed with units left must not be re-asked at once | a held finished flag, or "finished is only an empty legal set" | whole-design review → The scheduler's pass **(reversed)** |
-| The turn ends when the declared action's sequence finishes | no end-turn command; an abandoned sequence still counts | an `EndActivation` command | scheduler → The turn is an Ask; whole-design review → Architecture's examples **(reversed)** |
+| Finished = passed this round **or** empty legal set; the pass is `turn_ended.Passed` | a team that passed with units left must not be re-asked at once | a held finished flag, or "finished is only an empty legal set" | whole-design review → The scheduler's pass |
+| The turn ends when the declared action's sequence finishes | no end-turn command; an abandoned sequence still counts | an `EndActivation` command | scheduler → The turn is an Ask; whole-design review → Architecture's examples |
 | The action record is written when the sequence *starts* | abandonment must still spend the activation | writing it on completion | scheduler → The turn is an Ask |
-| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case with no cap | automatic advance when no unspent units remain | ruled by the project owner 2026-09-06 **(reversed:** game flow → Flow said automatic; spec corrections 5 and 11**)** |
+| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case with no cap | automatic advance when no unspent units remain | scheduler → There is no round limit; game flow → Flow; the plan's ruling 4 |
 | A team with an empty legal set is skipped: no Ask, no turn events | handles unequal unit counts, a team with no army, and a spectator with one rule | a turn that opens and immediately ends | scheduler → The turn is an Ask |
-| A participant with no team is never addressed, which is what a spectator is | no second identity, no filtering | presence's "joins a third team" | whole-design review → ruling 5 **(reversed:** presence corrected**)** |
-| Deployment is a phase list from `GameRules`, alternating one unit a turn under **both** shapes | the spec describes the phase once, not per shape; p.6 alternates units regardless | a per-shape deployment | scheduler → Deployment (plan's struck correction 6 and struck question 1) |
-| Scouts are their own phase, `phase_started("scouts")` | a phase start restarts the rotation at `Order[0]`, making p.14's "the player that activates next" a logged fact | a second deploy Ask in the same phase, where the rotation would continue after the last deployer | **(plan)** spec correction 2 |
-| Deployment's order rides on `round_started(0, order, [])` | `SchedulerPosition` has no other field, and hydration must find it in the log | a scheduler-only field | **(plan)** spec correction 1 |
-| Set-aside is the ordinary condition `set-aside`, menu-written | every property is editable through the same path automation uses | a *set aside or deploy* Ask, i.e. a phase no spec lists | scheduler → Deployment; game flow → Nothing is an invariant (plan's struck question 2) |
-| Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | **(plan)** spec correction 7 |
+| A participant with no team is never addressed, which is what a spectator is | no second identity, no filtering | presence's "joins a third team" | whole-design review → ruling 5; presence → There is no spectator |
+| Deployment is a phase list from `GameRules`, alternating one unit a turn under **both** shapes | the spec describes the phase once, not per shape; p.6 alternates units regardless | a per-shape deployment | scheduler → Deployment; the plan's ruling 1 |
+| Scouts are their own phase, `phase_started("scouts")` | a phase start restarts the rotation at `Order[0]`, making p.14's "the player that activates next" a logged fact | a second deploy Ask in the same phase, where the rotation would continue after the last deployer | scheduler → Deployment |
+| Deployment's order rides on `round_started(0, order, [])` | `SchedulerPosition` has no other field, and hydration must find it in the log | a scheduler-only field | scheduler → Events |
+| Set-aside is the ordinary condition `set-aside`, menu-written | every property is editable through the same path automation uses | a *set aside or deploy* Ask, i.e. a phase no spec lists | scheduler → Deployment; game flow → Nothing is an invariant; the plan's ruling 2 |
+| Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | scheduler → The round boundary |
 | Free-for-all is a first-team policy inside the ruleset hook, not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.50 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
-| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | ruled by the project owner 2026-09-06 **(reversed:** the plan assumed one batch and marked `Waiting` dead; struck correction 9**)** |
-| Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window is the interpreter's mechanism | an `IReactionOrdering` type in `Scheduler/` (drafted, then merged away) | scheduler → Windows; reconciled with the interpreter plan 2026-09-05 |
-| Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement **(reversed** by whole-design review ruling 1**)** |
-| An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases that were different; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | ruled by the project owner 2026-09-06 **(reversed:** the plan assumed a pass; spec correction 4**)** |
-| A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; an Ask is never withdrawn | leaving it open, or having the dispatcher close unframed Asks | **(plan)** spec correction 4; skeleton plan correction 10 |
-| The option id is `"{unitId:N}/{action}"` | an out-of-set `Chosen` must still name a unit and an action | an opaque id resolved server-side | **(plan)** scheduler → Enforcement |
-| `ActivationOption.Idle` is not an action row and runs no sequence | p.10's Shaken activation is an activation with no action | a real `Idle` action row in `Properties` | **(plan)** p.10 |
+| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | scheduler → Deployment (*every roll result is editable*); the plan's ruling 7 |
+| Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window is the interpreter's mechanism | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
+| Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement; whole-design review → ruling 1 |
+| An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | scheduler → Enforcement; the plan's ruling 3 |
+| A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; an Ask is never withdrawn | leaving it open, or having the dispatcher close unframed Asks | scheduler → The turn is an Ask; skeleton plan (`CommandDispatcher` closes only framed Asks) |
+| The option id is `"{unitId:N}/{action}"` | an out-of-set `Chosen` must still name a unit and an action | an opaque id resolved server-side | scheduler → Enforcement |
+| `ActivationOption.Idle` is not an action row and runs no sequence | p.10's Shaken activation is an activation with no action | a real `Idle` action row in `Properties` | p.10 |
 | `Aircraft` is tested before `Shaken` in `ActionsFor` | p.13: "may only use Advance actions … even if Shaken", and the mandatory move does not break idling | Shaken first, which would offer a Shaken Aircraft only `Idle` | p.13 |
 
 ## Interfaces
@@ -810,7 +802,7 @@ skeleton's. Nothing is added to `GfNames`.
 | --- | --- |
 | `IRL<string> PhasesBeforeRounds { get; }` | `[deployment, scouts]` |
 | `IRL<string> PhasesInTurn { get; }` | `[]` |
-| `FirstTeamDecision FirstTeam(GameState, int round, IRL<Guid> teams)` | roll off at round 0 and for more than two teams; else the previous order at round 1, finished-first from round 2 |
+| `FirstTeamDecision FirstTeam(GameState, int round, IRL<Guid> teams)` | roll off at round 0; the deployment order at round 1; finished-first from round 2 — at any team count |
 | `TurnAsk? LegalTurn(GameState, PropertySet, Guid teamId)` | deploy/scout `PieceSelection`, or `activate` `Options` of unit × action; null when empty |
 | `Activation? ReadAnswer(GameState, Guid teamId, AskAnswer)` | `SelectedPieces` → deploy; `Chosen` → parsed unit and action with `ActionRecorded`; else null, which is also the dispatcher's readability probe |
 | `bool ActivationComplete(GameState, Activation)` | true unless a deploy still has a shelved model |
@@ -842,7 +834,7 @@ Plus two internals the tests reach directly:
 | contracts | `Ask`, `AskOption`, `LegalSet` (`Options`, `PieceSelection`, `Confirmation`), `AskAnswer` (`Chosen`, `SelectedPieces`, `Passed`, `Confirmed`), `AskQuestions` | the Asks |
 | contracts | `RoundStarted`, `TurnStarted`, `TurnEnded`, `PhaseStarted`, `AskOpened`, `AskClosed`, `ActionRecorded`, `ActionRecordCleared`, `SequenceStarted`, `StepCompleted`, `SequenceFinished`, `SequenceAbandoned` | the events read and written |
 | contracts | `Projection.Scheduler` (`SchedulerPosition`), `Projection.OpenAsks`, `Projection.Stack`, `UnitInPlay`, `ModelInPlay`, `OnShelf` | the projection |
-| contracts | `AskQuestions.EndRound = "end_round"` | added there on 2026-09-06 for the ruling; read by both server and client |
+| contracts | `AskQuestions.EndRound = "end_round"` | the boundary Ask's question; read by both server and client |
 
 ### Required of others
 
@@ -989,7 +981,7 @@ sequenceDiagram
     D-->>Sc: [ask_answered, ask_closed] (unsealed: first answer closes it)
     Sc->>R: FirstTeam(state, round 2, teams)
     R-->>Sc: OrderedTeams: whoever finished first (p.7, p.50)
-    Note over Sc,B: a fresh roll-off waits at its own confirm gate before any of the following
+    Note over Sc,B: a FirstTeam answering RollOffNeeded would wait at its confirm gate before any of the following
     Sc->>R: OnRoundStarted(state, properties, 2)
     R-->>Sc: [fatigue cleared, Caster tokens +X capped at 6]
     Sc-->>D: round_started(2, order, shape changes + hook changes)
@@ -999,8 +991,8 @@ sequenceDiagram
     Sc-->>A: turn_started(first team of the order)
 ```
 
-The ruling inserts one Ask *before* `round_started` and changes nothing after it. The order, the
-hook changes and the Ambusher loop all still land in the new round.
+The boundary Ask sits *before* `round_started`, and nothing after it changes: the order, the
+hook changes and the Ambusher loop all land in the new round.
 
 The answer is a logged fact, so `Undo` across the boundary un-ends the round and re-opens the
 boundary Ask, taking round two's record clearing with it. Any player on any team may answer,
@@ -1083,8 +1075,8 @@ whose effect does not change what the next call reads. Three candidates. A `Roun
 that returns `HookEmit` for the same Ask forever; the Ambusher loop guards against it by reading
 its own Asks in the round's slice. `RollOff.Advance` returning `Emit` repeatedly because the
 started frame is not found, guarded by matching on the sequence name since the round anchor —
-which is the guard the confirm gate leans on, since the frame is now started and unfinished for
-as long as a player takes to answer. And
+which is the guard the confirm gate leans on, since the frame is started and unfinished for as
+long as a player takes to answer. And
 `NextTeam` returning a team whose `LegalTurn` is null, which is impossible because `IsFinished`
 calls the same hook. Each of these is a hook contract, so a badly written ruleset can hang the
 game. Nothing in the engine can detect it.
@@ -1169,8 +1161,8 @@ a roll-off outcome is chosen by the test (`h.Dice.Enqueue(6); h.Dice.Enqueue(1)`
 must redraw nothing, which the counter-based RNG over the effective log makes true.
 
 **Every roll-off waits.** Its confirm gate is not conditional on the wait setting, so
-`h.ConfirmRollOff()` releases one and `h.SkipDeployment()` releases any it meets — deployment's,
-and a free-for-all's every round. A test that drives `Run()` by hand and then asserts on a deploy
+`h.ConfirmRollOff()` releases one and `h.SkipDeployment()` releases any it meets — for Grimdark
+Future, deployment's only, since a free-for-all rolls off once. A test that drives `Run()` by hand and then asserts on a deploy
 Ask calls it explicitly, which is also the assertion that the gate was there.
 
 **Needs Docker.** Only `SchedulerEndToEndTests`, for the Postgres event log and management rows.
@@ -1196,35 +1188,35 @@ the game: the Ask panel's confirm button and the log line for the boundary answe
   a roll-off with three or more teams whose dice are edited into a tie, where the ranking falls
   back to team ordinal inside the ruleset's own step.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### The plan's own questions, both ruled 2026-09-06
+### Rulings
 
-**1. What does an unreadable turn answer mean?** *Ruled: it follows the enforcement dial* —
-refused under `strict`, a pass under `warn` and `silent`, with a warning logged under `warn`. The
-plan had assumed a pass whatever the dial said, which left it inconsistent with the out-of-set
-case; one clause in `CommandDispatcher.Answer` makes the two one rule. See *Menu overrides, stale
-Asks, and enforcement* for the clause and for why the dispatcher is the only place it fits.
+**1. An unreadable turn answer follows the enforcement dial** (the plan's ruling 3) — refused
+under `strict`, a pass under `warn` and `silent`, with a warning logged under `warn` — so the
+unreadable case and the out-of-set case are one rule, one clause in `CommandDispatcher.Answer`.
+See *Menu overrides, stale Asks, and enforcement* for the clause and for why the dispatcher is the
+only place it fits.
 
-**2. Should the roll-off's dice be editable?** *Ruled: yes — it is gated like any other roll.* The
-interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
+**2. The roll-off's dice are editable: it is gated like any other roll** (the plan's ruling 7).
+The interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
 `roll-off` and `order` steps, whatever the wait setting says, and ranks the dice that stand when a
 team releases it. The scheduler's side is the reader: `RollOff.Advance` waits across dispatches,
-keys `Resolved` on `sequence_finished`, and reads the completed step carrying `place_1`. Spec
-correction 9, which had written the un-editable roll-off into the spec, is struck. See *First
-team: policy and roll-off*.
+keys `Resolved` on `sequence_finished`, and reads the completed step carrying `place_1`. See
+*First team: policy and roll-off*.
 
 ### Questions answered from the specs
 
 - *Does deployment alternate one unit a turn under the player-turn shape?* Yes. The spec describes
-  the phase once, not per shape, and p.6 alternates units regardless.
+  the phase once, not per shape, and p.6 alternates units regardless (the plan's ruling 1).
 - *Who sets a unit aside as a Scout or Ambusher, and when?* The players, from the menu, with
-  `SetCondition`, whenever they like. No Ask and no phase.
-- *Does an abandoned action end the turn?* Yes. The record is written when the sequence starts.
+  `SetCondition`, whenever they like. No Ask and no phase (the plan's ruling 2).
+- *Does an abandoned action end the turn?* Yes. The record is written when the sequence starts
+  (the plan's ruling 5).
 - *Under the player-turn shape, what is the first team from round two?* The same hook. `FirstTeam`
-  never sees the shape, by design.
-- *Should a round nobody can act in end on its own?* Ruled 2026-09-06: no round advances on its
-  own. The degenerate case needs no special handling.
+  never sees the shape, by design (the plan's ruling 6).
+- *Should a round nobody can act in end on its own?* No round advances on its own; a player ends
+  it. The degenerate case needs no special handling (the plan's ruling 4).
 
 ### Deferred
 
@@ -1242,19 +1234,18 @@ team: policy and roll-off*.
 ### The plan
 
 - [`docs/superpowers/plans/2026-09-05-scheduler.md`](../../superpowers/plans/2026-09-05-scheduler.md):
-  ten tasks, the file structure, the `Interfaces → Produces` tables, eleven spec corrections (two
-  struck), eleven interfaces needed from other modules, seven questions — four answered from the
-  specs, three ruled by the owner.
+  ten tasks, the file structure, the `Interfaces → Produces` tables, eleven interfaces needed
+  from other modules, seven rulings.
 
 ### Specs
 
 | Spec | What this module takes from it |
 | --- | --- |
 | [`2026-09-04-scheduler-design.md`](../../superpowers/specs/2026-09-04-scheduler-design.md) | primary: the line, state, the four events, the turn as an Ask, the two shapes, deployment, the round boundary, windows, re-entering a round, the six constraints |
-| [`2026-08-28-game-flow-design.md`](../../superpowers/specs/2026-08-28-game-flow-design.md) | two schedulers, when the record clears, the shelf, *Nothing is an invariant*, the team model (teams created only in `lobby` or `setup`, a participant's team is their slot, reconnecting returns to it), and the automatic-advance sentence the 2026-09-06 ruling replaces |
+| [`2026-08-28-game-flow-design.md`](../../superpowers/specs/2026-08-28-game-flow-design.md) | two schedulers, when the record clears, the shelf, *Nothing is an invariant*, the team model (teams created only in `lobby` or `setup`, a participant's team is their slot, reconnecting returns to it), and Flow's rule that a player ends the round |
 | [`2026-09-03-action-sequences-design.md`](../../superpowers/specs/2026-09-03-action-sequences-design.md) | the Ask, the frame stack, the end-of-activation hook, fatigue, the token economy, the four actions as sequences |
 | [`2026-09-04-setup-phase-design.md`](../../superpowers/specs/2026-09-04-setup-phase-design.md) | the flip into deployment, and the zone swap that reconciles *"the winner picks an edge"* |
-| [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | selecting is not activating; the corrected spectator reading |
+| [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | selecting is not activating; a participant with no team is the spectator |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | newer than every other spec: enforcement in three positions, a participant with no team is a spectator, the pass as a logged fact, name checks read the grants store |
 | [`2026-08-29-identity-and-enumerations-design.md`](../../superpowers/specs/2026-08-29-identity-and-enumerations-design.md) | `scheduler_shape` as a closed set, actions named per ruleset, `GameRules` unpinned |
 | [`2026-09-04-client-shell-design.md`](../../superpowers/specs/2026-09-04-client-shell-design.md) | the Ask panel, mutes as client-side, the menu that sets the active team or round |

@@ -5,9 +5,8 @@ library. Formerly "the mesh prep tool".
 
 `architecture.md` ruled that upload accepts GLB and rejects STL, and that conversion is not
 server-side — that would mean a job queue, a worker and an async upload state. It assumed the
-alternative was **an offline tool the user installs and runs**, sketched in
-`docs/workstreams/11-mesh-prep-tool.md` as a command line. This session keeps every behaviour
-that sketch wanted and moves it **into the web app's upload flow**. There is no tool.
+alternative was **an offline tool the user installs and runs**, sketched as a
+command line before the design sessions. This session keeps every behaviour that sketch wanted and moves it **into the web app's upload flow**. There is no tool.
 
 ## Conversion runs in the browser
 

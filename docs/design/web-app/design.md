@@ -102,8 +102,8 @@ management.
 **The seam with the client is behavioural, not code.** The client shell has its own login form
 and its own refresh loop. It may copy the behaviour described here (refresh once a minute, sign
 out on `401`) and must not share the code. Nothing crosses from browser to client at runtime:
-no loopback listener, no device code, no session handoff. Those mechanisms were deleted when
-social login and magic links went (09-04).
+no loopback listener, no device code, no session handoff. There is no social login and no
+magic link, so nothing needs a redirect target and no handoff exists.
 
 ## Design
 
@@ -115,14 +115,10 @@ prepares, the client is where they play. The line is enforced by omission, not b
 others. There is no `games`, `layouts` or `properties` function to call, so a page cannot reach
 play-side state by accident.
 
-The line was re-decided twice. The accounts spec (08-29) put login in the client, because no
-browser existed to host it, and left the web app's existence undecided. The web-app spec
-(08-29) reversed both: the browser exists, owns preparation, and owns login, because you cannot
-play without an army and armies are made in the browser. The client shell (09-04) then removed
-social login and magic links, which removed every reason for a redirect and so for a
-browser-to-client handoff. Login therefore lives in both places, each with its own form, and
-neither is a fallback for the other. What survives is that the browser owns preparation. The
-login argument that carried it is gone.
+The browser owns preparation and owns login, because you cannot play without an army and
+armies are made in the browser. There is no social login and no magic link, so nothing needs a
+redirect and there is no browser-to-client handoff. Login therefore lives in both places, each
+with its own form, and neither is a fallback for the other.
 
 Two consequences shape the code. First, the web app holds no game concept, so it needs no
 projection, no event applier, and no `Tabletop.Protocol` equivalent. The only types it needs
@@ -135,8 +131,7 @@ second renderer inside it for mesh preview, to avoid writing `Control` nodes.
 
 SvelteKit 2 on Svelte 5, built by `@sveltejs/adapter-static` with `fallback: 'index.html'`,
 `ssr = false` and `prerender = false` in `src/routes/+layout.ts`. It is a static SPA with real
-paths and no server. The specs left framework details beyond "a Svelte SPA" undecided. The
-reasons for these choices:
+paths and no server. The reasons for these choices:
 
 - `/reset-password?token=…` is the URL Stytch redirects to. A hash router would put the query
   before the `#`, making the token unreadable, so real paths are a requirement.
@@ -286,12 +281,11 @@ underlying Stytch session lives (30 days). That is what makes "reload and stay s
 
 The JWT is opaque except for `exp`. `decodeExp` base64url-decodes the payload and verifies
 nothing. Verification is management's and the game server's, locally against Stytch's JWKS.
-There is no session table to look up. That table was deleted (08-30) once both services could
-verify asymmetrically.
+There is no session table to look up, because both services verify asymmetrically.
 
-`localStorage['tabletop.session']` holds `{ sessionJwt, account }`. This is the module's one
-open question (see §11). `sessionStorage` would sign the user out when the tab closes and is a
-one-identifier change.
+`localStorage['tabletop.session']` holds `{ sessionJwt, account }` (the plan's ruling 1), so a
+reload and a new tab stay signed in for the Stytch session's 30 days. `sessionStorage` would
+sign the user out when the tab closes and is a one-identifier change.
 
 ### 5. Millimetres, bases, declarations
 
@@ -299,13 +293,13 @@ one-identifier change.
 unit is one inch. The web app is where humans type millimetres, so `src/lib/units/` is the
 conversion edge and nothing past it knows about mm.
 
-`bases.ts` implements the geometry-values ruling that **presets are UI over a shape, not the
+`bases.ts` implements the geometry-values spec's rule that **presets are UI over a shape, not the
 stored value**. `32mm round` is a name, `1.26` is the value. `BASE_PRESETS` is ten rounds, six
 ovals, four squares and one vehicle rectangle built by `circle(mm)`, `oval(lengthMm, widthMm)` and `rect(lengthMm, widthMm)`.
 `presetFor(base)` matches within 0.005″, so a value that came back from Postgres as a `real`
 still shows its familiar name. `baseLabel` falls back to `"50.8 × 25.4 mm oval (custom)"`.
-`architecture.md` described the base as a preset dropdown, which would have made the geometry
-library look up a table to answer "how big is this". The per-slot base exists so a user can
+Storing a preset name instead would make the geometry library look up a table to answer "how
+big is this". The per-slot base exists so a user can
 base models their own way.
 
 An oval's `a` is its **length**, along the facing axis (yaw 0 faces +Y). Everything that draws
@@ -320,15 +314,14 @@ gets at upload: `kind: 'solid'`, rect footprint, `bottom 0`, `top` the mesh heig
 
 ### 6. The conversion pipeline
 
-`architecture.md` ruled that upload accepts GLB and rejects STL, that conversion is not
-server-side (that would mean a job queue, a worker, an async upload state machine and a
-source/derived blob split), and assumed the alternative was an offline command-line tool at
-`tools/mesh-prep/`. The mesh-conversion spec (09-04) kept every behaviour that sketch wanted
-and moved it into the browser. There is no tool. The tool was rejected on three grounds: the
-sketch promised a non-technical user and handed them a terminal; a desktop app is a second
-install and a second codebase to keep in step with the upload rules; and the browser already
-owns upload, already needs a mesh preview for binding, and can hold a two-million-triangle STL
-in memory.
+Upload accepts GLB and rejects STL (`architecture.md`). Conversion is not server-side: that
+would mean a job queue, a worker, an async upload state machine and a source/derived blob split.
+It is not an offline command-line tool at `tools/mesh-prep/` either; there is no mesh prep tool,
+on three grounds: a command-line tool promises a non-technical user and hands them a terminal; a
+desktop app is a second install and a second codebase to keep in step with the upload rules; and
+the browser already owns upload, already needs a mesh preview for binding, and can hold a
+two-million-triangle STL in memory. Conversion runs in the browser (mesh conversion →
+Conversion runs in the browser).
 
 The pipeline is built from existing libraries, not from a WebAssembly build of
 `Tabletop.Geometry`. That library has no mesh-processing code and should not grow any.
@@ -394,10 +387,10 @@ shared-vertex topology, and a triangle soup has none.
 #### 6.3 Centring
 
 `recentre(mesh, upAxis)` translates the mesh in place so its footprint is centred on the origin
-and its lowest point along the guessed up-axis sits at zero. This step is **not in the spec**.
-The plan adds it and proposes it as a spec correction. The preview has the mesh standing on a
-ring of its modelled base, and a mesh exported off-origin, which is normal for a kit part,
-cannot stand on its base in the preview or in play.
+and its lowest point along the guessed up-axis sits at zero (mesh conversion → *What conversion
+does*, *Centre*). The preview has the mesh standing on a ring of its modelled base, and a mesh
+exported off-origin, which is normal for a kit part, cannot stand on its base in the preview or
+in play.
 
 Centring does not bake scale or orientation into the GLB. The exported GLB keeps the file's own
 units and axes, and the asset row carries the confirmed `scale` and `orientation`. Baking would
@@ -410,7 +403,7 @@ dropped GLB behave differently from a converted one.
 a hundred miniatures and they are small on screen, while terrain is larger and fewer. A
 print-ready 32 mm mini is routinely 500k–2M triangles, so this is a 50–100× reduction.
 
-`meshoptimizer` is the simplifier. The spec left the choice to implementation. It was picked
+`meshoptimizer` is the simplifier (mesh conversion → *Deliberately not decided*). It is picked
 because it embeds its WebAssembly in the JS module, so it loads under Node and inside a Worker
 with no asset plumbing, and because its error metric is the quality knob the spec names
 ("Quality is the simplifier's own error metric, and the preview is the user's check").
@@ -432,8 +425,8 @@ triangle corner averages only those incident faces whose normal is within the cr
 that triangle's own. It then re-welds on the pair `(vertex, rounded normal)`, so a cube's eight
 corners become 24 vertices with three hard faces each, while a 64-segment cylinder wall shares
 vertices across its 5.6° facets and shades smooth. The angle is a **parameter with a default**,
-not a constant. The spec left the threshold to be tuned against real STLs, and 60° is a
-starting value.
+not a constant. 60° is the spec's value, tuned against the fixtures (mesh conversion →
+*Deliberately not decided*).
 
 The rounding in the weld key is `toFixed(4)`. It makes two computed normals compare equal, and
 it sets the precision at which two nearly-identical normals merge.
@@ -476,7 +469,7 @@ flowchart LR
 implementations of one convention that must agree; `worldExtent`, the volume, the ring and the
 drawn footprints all depend on it.*
 
-The convention is fixed by the contracts plan on `Tabletop.Geometry.Orientation`. Mesh
+The convention is `Tabletop.Geometry.Orientation`'s (contracts plan). Mesh
 coordinates are read as table coordinates, rotated `pitch` about X, then `roll` about Y, then
 `yaw` about Z, then scaled. Angles are degrees, right-handed, extrinsic. A Y-up glTF therefore
 stands at `pitch = 90`. `mesh/three-frame.ts` is the only file that translates it into three.js,
@@ -505,11 +498,11 @@ not reliably possible. `detectSupports` finds connected components by shared ver
 | Height vs its own width | `>= 3x` | Supports are tall |
 | Distance of its base above the model's floor | `<= 2% of model height` | Supports stand on the plate |
 
-`suspected` fires at **six or more** such components. The thresholds are the plan's, offered as
-a spec correction to the "exact support-detection heuristic" the spec left open. They are tuned
-against `supported-binary.stl` (a blob on sixteen 0.8 mm pillars) and asserted not to fire on
-the four clean fixtures. When it fires, the dialog says so and asks for the unsupported file.
-The Confirm button stays enabled, because the warning is advice, not a gate.
+`suspected` fires at **six or more** such components. The thresholds are the spec's (mesh
+conversion → *Deliberately not decided*). They are tuned against `supported-binary.stl` (a blob
+on sixteen 0.8 mm pillars) and asserted not to fire on the four clean fixtures. When it fires,
+the dialog says so and asks for the unsupported file. The Confirm button stays enabled, because
+the warning is advice, not a gate.
 
 Detection runs on the welded, full-resolution mesh. After decimation the pillars merge into the
 body and the component count collapses.
@@ -519,8 +512,8 @@ body and the component count collapses.
 Every terrain asset gets a collision volume at upload, computed from the mesh's bounding box:
 rect footprint, `bottom 0`, `top` the mesh height, `kind: solid`. A crate, a rock or a wall is
 finished with no authoring, and **volumes are never absent**, so no consumer needs a fallback.
-The review's gap-filling ruling named the actor: the browser computes it from the mesh it
-already holds and writes it with `PUT /v1/assets/{id}/volumes` at confirm.
+The browser computes it from the mesh it already holds and writes it with
+`PUT /v1/assets/{id}/volumes` at confirm (whole-design review → Gaps filled).
 
 `ConversionResult.volume` exists and is computed inside `convert()` from the proposal. **The
 upload dialog does not use it.** At confirm the dialog calls
@@ -561,8 +554,8 @@ that parity claim is the one interface assumption here that nothing checks.
 an ES module worker, transfers the input `ArrayBuffer`s in (so a two-million-triangle STL is
 moved, not copied), streams `{ progress }` messages back per stage, and transfers the finished
 GLB buffer out. Without it, decimating a 2M-triangle mesh takes seconds of synchronous WASM and
-would freeze the page with no progress and no cancel. The spec asked only that the pipeline run
-headless. The worker is the plan's decision, made possible by the headless pipeline.
+would freeze the page with no progress and no cancel. The spec asks only that the pipeline run
+headless; the worker is what the headless pipeline makes possible.
 
 The worker's contract is one-shot: one message in, progress out, result or error, `terminate()`.
 There is no cancellation path, so changing the budget mid-conversion spawns a second worker while
@@ -651,9 +644,8 @@ finished bytes.
   signed for it. Any other value and S3 rejects the signature.
 - A missing `uploadUrl` means a per-user dedup hit: the bytes are already under this account's
   `{account}/{sha}` key. The asset row is still new, so two library items may point at one
-  blob. Global dedup was `architecture.md`'s position and was corrected by the asset-library
-  spec, so deleting an asset never has to check whether another account still points at the
-  bytes.
+  blob. Dedup is per account, not global (asset library spec), so deleting an asset never has
+  to check whether another account still points at the bytes.
 - `confirm`'s `warning` is passed through **untouched**. It is the server's words, fired above
   100,000 triangles, and never a refusal. The converter's budgets sit far below that threshold,
   so the warning only fires for a file that skipped the converter.
@@ -718,11 +710,10 @@ carried anything the rules depend on, so there is no referential integrity probl
 
 ### 10. The terrain volume editor
 
-`architecture.md` put volume authoring in the client, because volumes "need real 3D
-manipulation". That reasoning was about convex hulls, and convex hulls are gone. Footprints are
-circles and rectangles only, so every test is a 2D shape intersection plus a vertical range.
-Authoring is a footprint and two heights, a top-down 2D task over a model preview. Geometry
-values moved it here on that ground.
+Volume authoring is here, not in the client (geometry values → Where volumes come from). It
+needs no 3D manipulation: there are no convex hulls, footprints are circles and rectangles only,
+so every test is a 2D shape intersection plus a vertical range. Authoring is a footprint and two
+heights, a top-down 2D task over a model preview.
 
 The editor exists **only for when the bounding-box default is wrong**: a forest that should be
 area rather than solid, a ruin needing an upper floor, a footprint that should not be the full
@@ -751,17 +742,16 @@ contribution is `normaliseSource`. A share link is passed through whole (managem
 `id=` and keeps the link as `source`), any other URL carrying `id=` collapses to the bare id, a
 bare id passes, and anything else is rejected locally before a request is made.
 
-**A changed list means a re-import.** The army spec was reversed on 08-29. It originally had
-the user copy an army into the editor and apply the new list to the copy, so bindings survived
-by construction. There is no copy operation now. `reimport` imports the same source as a new
+**A changed list means a re-import.** There is no copy operation, so nothing carries bindings
+across a list change by construction. `reimport` imports the same source as a new
 army and then deletes the old one, in that order, so a failed import leaves the original
 untouched. The confirm dialog states the cost: every per-slot mesh, base and height override is
 lost. Unit defaults are quick to set again, per-slot meshes are not. The trade is accepted
 because an army is cheap to rebuild and list changes are rare.
 
-The same reversal is why `Binding {army_id, target_ref, asset_id}` is not a record. It existed
-so bindings would survive a re-import. Nothing preserves them now, so the asset reference is a
-plain field on the model slot (`MODEL_SLOT.asset_id`).
+For the same reason `Binding {army_id, target_ref, asset_id}` is not a record. A binding row
+would only earn its place if something preserved it across a re-import, and nothing does, so the
+asset reference is a plain field on the model slot (`MODEL_SLOT.asset_id`).
 
 **The editor** (`/armies/[id]`) implements the pattern of a default from the pack or the import
 plus a per-slot override. A unit-level picker sets every slot's mesh. A per-slot picker
@@ -778,15 +768,14 @@ round trip per completed field and no offline editing.
 
 The editor does **not** edit stats, weapons, properties, unit names or slot names. The list
 determines composition and loadout; the user determines appearance and physical presence.
-`UnitPatch` and `SlotPatch` carry no `Name?`, by a ruling recorded in both plans. It is a
-one-column change if the owner ever wants it.
+`UnitPatch` and `SlotPatch` carry no `Name?` (management plan, web-app plan). It is a
+one-column change if it is ever wanted.
 
 `AssetPicker` offers *made for this base* first. That is why the asset library records a
 modelled base: given a slot on a 32 mm base, the library can offer the meshes built for one.
 The asset's modelled base and the slot's base are **two different facts with two different
-jobs**. `architecture.md` had one base, on the asset, winning for geometry, with any mismatch
-surfaced as a warning. That was corrected, and what was an error to warn about became a way to
-search.
+jobs**. One base on the asset, winning for geometry with any mismatch surfaced as a warning, is
+rejected: a mismatch is not an error to warn about but a way to search.
 
 ## Key decisions
 
@@ -796,21 +785,21 @@ search.
 | --- | --- | --- | --- |
 | The web app exists and owns preparation | Splits on what a user is doing, not on which technology is convenient; each side gets one job | Everything in the client (form-heavy CRUD in Godot; slower iteration) | web app → The line is preparation versus play |
 | Not an embedded webview in the client | Does not remove a UI stack, adds a bridge to one: a browser engine plus a second renderer inside it | gdcef / godot-webview / godot_wry serving one shared UI | web app → Why this rather than everything in the client |
-| Login lives here **and** in the client, neither a fallback | With no OAuth and no magic link, nothing needs a page to redirect to, so no handoff is needed | Browser-only login with loopback or device-code handoff (designed, then deleted) | web app (reversing accounts) → corrected by client shell 09-04 |
-| Password and email OTP only | Both are Basic-auth Stytch endpoints needing the project secret, so they run in management either way | Magic link and OAuth, struck 09-04 with the endpoints that served them | accounts, management API → Authentication |
-| No token of our own; the Stytch session JWT is the credential | Both services verify locally against JWKS; nothing to look up, no shared signing key | An opaque token in a `session` table (designed, deleted 08-30); a join token (deleted for its own reasons) | management API → We issue no tokens of our own |
-| Conversion in the browser, not an offline tool | The sketch promised a non-technical user and handed them a terminal; a desktop app is a second install and a second codebase | `tools/mesh-prep/` command line (`architecture.md`'s assumption) | mesh conversion → Conversion runs in the browser |
-| Converter proposes, user confirms | Fields that were always identity would hold nothing to confirm, and a dropped GLB would behave differently from a converted one | The tool writes scale and orientation; or the user writes both unaided | mesh conversion → What it writes (closing an item open in asset library **and** geometry values) |
-| The **browser** computes the bounding-box volume, from the **confirmed** values | Geometry values said volumes are written "at upload" and never named who; the review named the actor, and the proposal may have been corrected since | Server-side computation (needs the mesh); using `ConversionResult.volume` | whole-design review → Gaps filled; mesh conversion → What it does not do |
-| Budgets 15,000 / 50,000; warn above 100,000 | A table holds ~100 miniatures and they are small on screen; terrain is larger and fewer. The warning never blocks | A hard cap at upload; no guardrail at all | mesh conversion → Decimate, The threshold (closing asset library's open item) |
+| Login lives here **and** in the client, neither a fallback | With no OAuth and no magic link, nothing needs a page to redirect to, so no handoff is needed | Browser-only login with loopback or device-code handoff | web app → Login is the web app's; client shell → No social login |
+| Password and email OTP only | Both are Basic-auth Stytch endpoints needing the project secret, so they run in management either way | Magic link and OAuth, with the endpoints that served them | accounts, management API → Authentication |
+| No token of our own; the Stytch session JWT is the credential | Both services verify locally against JWKS; nothing to look up, no shared signing key | An opaque token in a `session` table; a join token | management API → We issue no tokens of our own |
+| Conversion in the browser, not an offline tool | A command-line tool promises a non-technical user and hands them a terminal; a desktop app is a second install and a second codebase | A `tools/mesh-prep/` command line | mesh conversion → Conversion runs in the browser |
+| Converter proposes, user confirms | Fields that were always identity would hold nothing to confirm, and a dropped GLB would behave differently from a converted one | The tool writes scale and orientation; or the user writes both unaided | mesh conversion → What it writes; geometry values → Asset scale and orientation |
+| The **browser** computes the bounding-box volume, from the **confirmed** values | Volumes are written at upload (geometry values) and only the browser holds the mesh; the user may have corrected the proposal in the preview | Server-side computation (needs the mesh); using `ConversionResult.volume` | whole-design review → Gaps filled; mesh conversion → What it does not do |
+| Budgets 15,000 / 50,000; warn above 100,000 | A table holds ~100 miniatures and they are small on screen; terrain is larger and fewer. The warning never blocks | A hard cap at upload; no guardrail at all | mesh conversion → Decimate, The threshold |
 | Never remove supports | Not reliably possible | Automatic support removal | mesh conversion → Warn about pre-supported files |
-| GLB only | A `.gltf` with external buffers is several files with relative references: breaks presigned single-object upload and the header read | glTF with external `.bin` (`architecture.md`'s "glTF/GLB") | management API → GLB only |
-| Presets are UI over a shape | Otherwise the geometry library looks up a table to answer "how big is this", and the per-slot base exists so users can base their own way | A base-size enumeration (`architecture.md`'s preset dropdown as the stored value) | geometry values → Bases |
-| Volume authoring in the browser | Convex hulls are gone; a footprint and two heights is a top-down 2D task | The in-game editor, because volumes "need real 3D manipulation" | geometry values → Where volumes come from (reversing `architecture.md`) |
-| A changed list means a re-import; bindings are lost | Armies are cheap to rebuild, not objects to maintain; reconciliation machinery for a rare event | Copy the army and apply the new list to the copy (the original 08-28 design) | the army → A changed list means a re-import (revised 08-29) |
-| Dedup is per user | Nobody shares storage, so cross-user reference counting never has to exist | Global blob dedup (`architecture.md`) | asset library → Two records |
+| GLB only | A `.gltf` with external buffers is several files with relative references: breaks presigned single-object upload and the header read | glTF with external `.bin` | management API → GLB only |
+| Presets are UI over a shape | Otherwise the geometry library looks up a table to answer "how big is this", and the per-slot base exists so users can base their own way | A base-size enumeration: a preset dropdown as the stored value | geometry values → Bases |
+| Volume authoring in the browser | There are no convex hulls; a footprint and two heights is a top-down 2D task | The in-game editor, because volumes "need real 3D manipulation" | geometry values → Where volumes come from |
+| A changed list means a re-import; bindings are lost | Armies are cheap to rebuild, not objects to maintain; reconciliation machinery for a rare event | Copy the army and apply the new list to the copy | the army → A changed list means a re-import |
+| Dedup is per user | Nobody shares storage, so cross-user reference counting never has to exist | Global blob dedup | asset library → Two records |
 | Deleting an asset is not blocked | The army holds the hitbox; the asset is only ever appearance | Referential integrity between army and asset | the army → Assets are a soft reference |
-| No unit or slot renaming | The list determines composition; the user determines appearance | `Name?` on `UnitPatch`/`SlotPatch` | management plan ruling, 09-05 |
+| No unit or slot renaming | The list determines composition; the user determines appearance | `Name?` on `UnitPatch`/`SlotPatch` | management plan → Interfaces needed from other modules |
 
 ### Decided by the plan, where the specs were silent
 
@@ -827,7 +816,7 @@ search.
 | Crease angle 60°, support thresholds 6% / 3× / 2% / 6 components | The spec asks for tuning against real STLs; these are defaults, parameterised | Hard-coded constants |
 | Conversion in a Web Worker | A 2M-triangle decimation is seconds of synchronous WASM | On the main thread with a spinner |
 | Centre the mesh, do not bake the transform | The preview stands the mesh on a ring; an off-origin kit part cannot stand | Bake scale and orientation into the GLB |
-| `localStorage['tabletop.session']` | A reload and a new tab stay signed in for the Stytch session's life | `sessionStorage`, the module's one open question |
+| `localStorage['tabletop.session']` | A reload and a new tab stay signed in for the Stytch session's life | `sessionStorage` |
 | Load the whole asset list, filter client-side | Folders are membership lists, so folder filtering needs the whole set; 500 meshes is the design case | Server-side folder and base filters |
 | `reimport` = import, then delete | A failed import must leave the original army intact | Delete first; a server-side replace endpoint |
 | No `Tabletop-Client-Version` header | The check exists for a downloaded desktop client months behind; an SPA cannot be. Management accepts a missing header | Send it and handle `426` |
@@ -1219,7 +1208,7 @@ across page visits: every write is followed by a refetch, so a stale list cannot
 | `recentre` mutates in place | The caller's array is modified; a re-run re-parses from the original bytes | Nothing; the pipeline is single-pass per run |
 | Volume computed from the proposal instead of the confirmation | A collision box that does not match the piece | The dialog's explicit re-derivation at confirm; **no test asserts it** |
 | Folder rename resending a stale `parentId` | A concurrent move is silently undone, because `FolderRequest` carries both fields | Nothing |
-| `AssetPicker` mounted per slot row | Each instance pages the whole miniature library; a ten-model unit issues ten full library loads | Nothing (see Open questions) |
+| `AssetPicker` mounted per slot row | Each instance pages the whole miniature library; a ten-model unit issues ten full library loads | Nothing (see Rulings and deferred work) |
 | `worldExtent` / `eulerFor` divergence | The ring, the reported size and the volume disagree | `three-frame.test.ts` and `guess.test.ts` pin both against the same convention, but never against each other |
 
 ## Testing
@@ -1271,31 +1260,33 @@ management API are needed for Tasks 4, 5, 12, 13, 14, 15, 16 and 17, all of whic
 
 **Gaps.** No test compares `readGlb`'s triangle count with management's
 `GlbHeader.CountTriangles` on the same file, although the design asserts they agree. No test
-asserts the confirmed-not-proposed volume: the bug the review caught is prevented by a comment
-and a code path, not by an assertion. No contract test between `api/types.ts` and management's
+asserts the confirmed-not-proposed volume: that bug is prevented by a comment and a code path,
+not by an assertion. No contract test between `api/types.ts` and management's
 DTOs. `svelte-check` is the only thing standing between a renamed DTO field and a runtime
 `undefined`.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### The plan's own question
+### The plan's ruling
 
-**Where does the browser keep the session JWT? Closed 2026-09-09 on the accounts spec's own terms: `localStorage['tabletop.session']`**, so
-a reload and a new tab stay signed in for the Stytch session's 30 days — a thirty-day session means nothing if closing a tab ends it (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))). If `sessionStorage` is
-preferred, meaning signed out when the tab closes, `session.svelte.ts` changes one identifier
-and nothing else. No spec settles it. Accounts accepts that revocation is "a matter of minutes
-rather than instant" either way, so the security argument does not decide it. The answer changes
-only the reload experience and the exposure window of a token left in a shared browser.
+**The browser keeps the session JWT in `localStorage['tabletop.session']`** (the plan's ruling
+1; [closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)),
+so a reload and a new tab stay signed in for the Stytch session's 30 days: a thirty-day session
+means nothing if closing a tab ends it, which is what `sessionStorage` would do. Accounts accepts
+that revocation is "a matter of minutes rather than instant" either way, so the security
+argument does not decide it; the choice changes only the reload experience and the exposure
+window of a token left in a shared browser. Switching to `sessionStorage` would change one
+identifier in `session.svelte.ts` and nothing else.
 
 ### Questions the plan asked and then answered from the documents
 
 | Question | Answer, and where it came from |
 | --- | --- |
-| What exactly is the `Orientation` convention? | Fixed by the contracts plan on `Tabletop.Geometry.Orientation`; `toWorld`, `eulerFor` and `propose` implement it, and geometry values gets a mirroring spec correction |
+| What exactly is the `Orientation` convention? | `Tabletop.Geometry.Orientation`'s (contracts plan); `toWorld`, `eulerFor` and `propose` implement it, and geometry values → Asset scale and orientation states the same convention |
 | Bake scale and orientation into the GLB? | No, by mesh conversion's "the fields hold the confirmed value", and a dropped GLB must behave like a converted one |
 | Centre the mesh? | Yes; the mesh stands on a ring, and the base is the hitbox the mesh only decorates |
 | Send `Tabletop-Client-Version`? | No; the check exists for a downloaded desktop client, and management accepts a missing header |
-| Conversion in a Worker? | Yes, and it is the plan's to settle; the spec asks only that the pipeline run headless |
+| Conversion in a Worker? | Yes; the spec asks only that the pipeline run headless |
 | Page the library grid? | Load-all, 200 per request, filter client-side; folders are membership lists |
 
 ### Deferred, and where it is recorded
@@ -1311,14 +1302,14 @@ only the reload experience and the exposure window of a token left in a shared b
 | Multipart upload for very large files | management API → Still open |
 | Per-account defaults (a preferred rule pack, default base sizes) | accounts → Deliberately not decided |
 | Any browser *game* client (Blazor WASM, Godot web export) | `architecture.md` → A web game client stays possible |
-| Hosting, deployment addresses, a built SPA's origin | deferred past the review; local development first |
+| Hosting, deployment addresses, a built SPA's origin | nowhere yet; local development first |
 
 ### Loose ends
 
 Not questions the plan asks. They need deciding before implementation.
 
 1. `ConversionResult.volume` is computed and then left unused. Rename it `proposedVolume` or
-   delete it. As it stands it is the exact shape of the bug the review caught.
+   delete it. As it stands it is the exact shape of the proposal-instead-of-confirmation bug.
 2. `AssetPicker` loads the whole miniature library **per instance**, and the army editor mounts
    one per model slot. It needs a shared store or a page-level fetch passed in.
 3. `slotSummary` reads the hard-coded stat keys `Range` and `Attacks`, which are OPR's. Content
@@ -1335,8 +1326,7 @@ Not questions the plan asks. They need deciding before implementation.
 ## References
 
 **Plan.** `docs/superpowers/plans/2026-09-05-web-app.md`: 17 tasks, the File Structure, the
-whole-project `Interfaces → Produces` table, six spec corrections proposed, and one question for
-the project owner.
+whole-project `Interfaces → Produces` table, and one ruling.
 
 **Specs**, in the order the plan's header names them:
 
@@ -1356,16 +1346,16 @@ the project owner.
   declarations, where volumes come from, asset scale and orientation
 - `docs/superpowers/specs/2026-08-29-content-values-design.md`: stats are declared, a weapon
   lives on the model slot, `game_system` and `source`
-- `docs/superpowers/specs/2026-09-04-whole-design-review.md`: **newest, wins**. The login
-  contradiction, and the ruling that the browser computes the bounding-box volume
+- `docs/superpowers/specs/2026-09-04-whole-design-review.md`: **newest, wins**. Login in both
+  places, and the browser computes the bounding-box volume
 - `docs/architecture.md` → Deliverables, Content and assets, GLB only, Web frontend, Repository
   layout, Build order, Local development
 
 **Plans consumed for their seams only.** `2026-09-05-management-api.md` (the HTTP surface, DTO
-names, the CORS provision, the no-renaming ruling), `2026-09-05-contracts-and-local-dev.md`
-(`Tabletop.Content` and `Tabletop.Geometry` JSON shapes, the compose stack),
-`2026-09-05-geometry.md` (the table frame: Z up, yaw 0 faces +Y, an oval's `a` along the facing
-axis).
+names, the CORS provision, no `Name?` on `UnitPatch`/`SlotPatch`),
+`2026-09-05-contracts-and-local-dev.md` (`Tabletop.Content` and `Tabletop.Geometry` JSON shapes,
+the compose stack), `2026-09-05-geometry.md` (the table frame: Z up, yaw 0 faces +Y, an oval's
+`a` along the facing axis).
 
 **Data model.** `docs/data-model.md`, `docs/schema.md` (`BLOB`, `ASSET`, `ASSET_VOLUME`,
 `FOLDER`, `ASSET_FOLDER`, `ARMY`, `UNIT`, `MODEL_SLOT`).
@@ -1376,9 +1366,6 @@ word-for-word identical (geometry values → Declarations). No rulebook page is 
 module's code. A weapon profile's printed form, `Heavy Rifle (24", A1, AP(1))`, is echoed by
 `slotSummary` from the Grimdark Future advanced rulebook's unit-entry format (content values →
 What the rulebook actually says).
-
-**Stale, and not followed.** `docs/workstreams/11-mesh-prep-tool.md`, the command-line sketch
-mesh conversion replaced. There is no tool.
 
 **Sibling design documents.** `docs/design/management-api/`, `docs/design/client-shell/`,
 `docs/design/game-server-skeleton/`, `docs/design/geometry/`,

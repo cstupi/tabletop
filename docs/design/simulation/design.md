@@ -36,11 +36,10 @@ the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliver
 documentation files are edited in Task 11. Nothing else outside those two directories is
 touched.
 
-**`sim/` is a fourth deliverable.** `CLAUDE.md`'s layout rule had three shipping directories,
-`client/`, `server/` and `web/`, with `libs/` consumed and `docs/`/`scripts/` repo support. The
-project owner ruled on 2026-09-06 that `sim/` is a fourth and `viewer/` a fifth, rather than
-living under `tests/`. The reason is that a simulator only xUnit can start is not something you
-can point at a problem. `sim/` ships to developers, not to players: it is not in the client's
+**`sim/` is a fourth deliverable.** `CLAUDE.md`'s layout rule lists five shipping directories:
+`client/`, `server/` and `web/` ship to players, `sim/` and `viewer/` to developers, with `libs/`
+consumed and `docs/`/`scripts/` repo support. `sim/` is a deliverable rather than a folder under
+`tests/` because a simulator only xUnit can start is not something you can point at a problem. `sim/` ships to developers, not to players: it is not in the client's
 export, no server references it, and a release that omits it is complete.
 
 **Project references.** `sim/` references `server/game/Tabletop.GameServer.csproj`, which
@@ -132,10 +131,9 @@ Both are fixed by `Scenario.Seed`. It reaches the engine as `GameInfo.RngSeed`, 
 constructs the `AnswerPolicy`'s `Chooser` and the `RunLoop`'s placement `Chooser`.
 
 The seed is its own stored value on the management-owned game row, `rng_seed`, not null, written
-once when the game is created. It is not derived from the game id. An earlier design hashed the
-game id, which made the dice a function of the id and forced `sim/` to derive its ids from its
-run seed to be reproducible at all. That was withdrawn by the project owner on 2026-09-06.
-Identifiers in `sim/` are ordinary `Guid.CreateVersion7()`, with no exception to `CLAUDE.md`.
+once when the game is created. It is not derived from the game id: hashing the id would make the
+dice a function of the id and force `sim/` to derive its ids from its run seed to be reproducible
+at all. Identifiers in `sim/` are ordinary `Guid.CreateVersion7()`, with no exception to `CLAUDE.md`.
 
 Reproducibility therefore means: the same scenario with the same seed gives the same dice and
 the same answers, and the ids differ between runs. Nothing asserts that two runs share an id,
@@ -151,7 +149,7 @@ seed fails to compile rather than silently getting `0`.
 ### The scenario and its compilation
 
 A scenario is C#. `Scenario` is a record with a fluent `ScenarioBuilder`, and
-`ScenarioCatalog` holds five of them by name. A text format was rejected in the spec's
+`ScenarioCatalog` holds six of them by name. A text format was rejected in the spec's
 *Deliberately not decided*: C# costs nothing to start and keeps the assertions typed.
 
 ```mermaid
@@ -244,10 +242,9 @@ one line per answer given, not one per Ask opened.
 
 ### The two prohibitions, and the uniform default
 
-An earlier draft banned the simulator from reading any game state. That was over-broad and
-self-contradictory: the invariant checks, the expectations and the recording all read wounds,
-conditions, positions and properties. The project owner withdrew it on 2026-09-06. `sim/` may
-read anything the engine exposes. Two prohibitions carry the argument instead.
+`sim/` may read anything the engine exposes. A ban on reading game state would contradict
+itself: the invariant checks, the expectations and the recording all read wounds, conditions,
+positions and properties. Two prohibitions carry the argument instead.
 
 1. **Never narrow the legal set.** An answer is chosen from what the server offered, whole. A
    policy that filtered the set to answers it judged sensible would stop exercising the ones
@@ -304,7 +301,7 @@ The entries are drawn in id order, so one seed answers one run identically.
 
 A `PieceSelection` whose `Eligible` list is model ids needs nothing from the policy: it picks ids
 out of the list it was given without asking what they name, which is what makes a Takedown choosing
-its target model (p.14, ruled 2026-09-06) a zero-change shape here. The deployment loop that
+its target model (p.14) a zero-change shape here. The deployment loop that
 places models by hand after an answer keys on the question name, not on the answer shape, so a
 model-id selection never reaches it.
 
@@ -390,8 +387,7 @@ one implementation would not have been worth the abstraction.
 rest. In process the signal is a marker: `GameSession.RunAsync` puts one at the back of the
 mailbox, so when it returns every queued turn has run. Over the socket the signal is an
 `AtRest(long Seq)` frame, sent when the game server has finished processing an inbound `connect`
-or `command`, after the last frame that processing produced. The project owner ruled the frame
-on 2026-09-06. `Seq` is the log's high-water mark, so it is `0` before the log opens and
+or `command`, after the last frame that processing produced. `Seq` is the log's high-water mark, so it is `0` before the log opens and
 unchanged when the batch appended nothing. WebSocket delivers in order on one connection, so
 every `EventsMessage` of a batch precedes that batch's `AtRest`, and the driver's
 `Projection.LastSeq` equals `AtRest.Seq` once the batch is drained. `SocketDriver.StepAsync`
@@ -415,7 +411,7 @@ one wait for `AtRest`. It is a liveness guard rather than a quiescence guess, so
 the slowest real step is correct and no designed step approaches 30 seconds. Expiry throws
 `RestTimeoutException`, `RunLoop.RunAsync` catches it, and the run ends `Failed` with the last
 frames dumped and a non-zero exit code. Expiry is never `Stuck`, because stuck means the engine
-made no progress and a rest timeout means the harness stopped observing. A socket step now costs
+made no progress and a rest timeout means the harness stopped observing. A socket step costs
 what the server takes to answer it. The in-process driver stays the default because it needs no
 Postgres, no server process and no Docker, and the socket one runs a smaller set of scenarios.
 
@@ -435,8 +431,7 @@ in team-ordinal order with the recorder last. In tests `TestKeys.Mint` produces 
 fake JWKS, so the suite reaches no network.
 
 From the console they come from the management API's development-only mint,
-`POST /v1/dev/sessions`, one call per participant. Owner ruling 4 of 2026-09-06. The mint takes a
-name, finds or creates the Stytch user and the `account` row, and returns a real Stytch session
+`POST /v1/dev/sessions`, one call per participant. The mint takes a name, finds or creates the Stytch user and the `account` row, and returns a real Stytch session
 JWT, which keeps the socket driver on the production verification path. It lives on the management
 API because management holds the Stytch project secret; the game server holds no credential and
 could mint nothing real. It is gated on `IHostEnvironment.IsDevelopment()`.
@@ -733,21 +728,20 @@ stored rather than derived, and the two runs are separate games that rolled the 
 
 ## Key decisions
 
-**(reversed)** marks a contested and re-decided decision. **(plan)** marks a decision the plan
-took because no spec spoke.
+**(plan)** marks a decision stated in the plan and in no spec.
 
 | Decision | Why | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| `sim/` is a fourth deliverable, not a folder under `tests/` | a simulator only xUnit can start is not something you can point at a problem | `tests/Tabletop.Sim` as a test project | ruled by the project owner 2026-09-06 **(reversed:** `CLAUDE.md` had three shipping directories**)** |
-| The simulator may read anything the engine exposes; two prohibitions replace the ban | the blanket ban was self-contradictory, since invariants, expectations and the recording all read state | banning every read of game state | ruled by the project owner 2026-09-06 **(reversed:** an earlier draft banned it; spec correction 6**)** |
-| The default policy is uniform over the legal set and ignorant of state | a cleverer policy explores a narrower region and finds fewer bugs | weighting toward plausible play | ruled by the project owner 2026-09-06 |
+| `sim/` is a fourth deliverable, not a folder under `tests/` | a simulator only xUnit can start is not something you can point at a problem | `tests/Tabletop.Sim` as a test project | spec → `sim/` is a fourth deliverable; `CLAUDE.md` → Layout |
+| The simulator may read anything the engine exposes; two prohibitions carry the argument | invariants, expectations and the recording all read state, so a ban on reading it would contradict itself | banning every read of game state | spec → Two ways to answer an Ask |
+| The default policy is uniform over the legal set and ignorant of state | a cleverer policy explores a narrower region and finds fewer bugs | weighting toward plausible play | spec → Two ways to answer an Ask |
 | A state-reading policy is a second `IAnswerSource`, not a `PolicyOptions` flag | a type name is named; a boolean is one careless call away from becoming the soak default | `PolicyOptions(readState: true)` | **(plan)** Task 2 |
-| The policy prefers to act: `PassProbability` defaults to `0` | a pass is taken only when the legal set admits nothing else | preferring to pass, or tuning toward plausible play | **(plan)** spec correction 5 |
-| The RNG seed is a stored column, `game.rng_seed bigint not null`, reaching the engine as `GameInfo.RngSeed` | a run sets the seed explicitly and takes ordinary v7 ids | hashing the game id to derive the seed, which forced `sim/` to derive its ids from its run seed | ruled by the project owner 2026-09-06 **(reversed:** spec correction 1 withdrawn**)** |
-| `GameInfo.RngSeed` is positional and last among the scalars | a construction that forgets the seed fails to compile rather than getting `0` | a defaulted or named parameter | contracts plan → spec correction 12 |
+| The policy prefers to act: `PassProbability` defaults to `0` | a pass is taken only when the legal set admits nothing else | preferring to pass, or tuning toward plausible play | spec → Deliberately not decided |
+| The RNG seed is a stored column, `game.rng_seed bigint not null`, reaching the engine as `GameInfo.RngSeed` | a run sets the seed explicitly and takes ordinary v7 ids | hashing the game id to derive the seed, which would force `sim/` to derive its ids from its run seed | spec → The seed is stored, so a run sets it; `schema.md` → A game stores its dice seed |
+| `GameInfo.RngSeed` is positional and last among the scalars | a construction that forgets the seed fails to compile rather than getting `0` | a defaulted or named parameter | [contracts](../contracts/design.md) → Key decisions |
 | Two drivers behind `IGameDriver`, in process by default | a full game must cost milliseconds for a fuzz run; the socket exercises the only path | one implementation, which would not be worth the abstraction | spec → Two drivers behind one interface |
 | The in-process driver goes through `Hydrator` and `GameSession.ConnectAsync` | the two drivers then differ in transport and nothing else | building a `GameState` by hand | `architecture.md` → Contracts to freeze |
-| Quiescence is exact on both drivers: the mailbox marker in process, an `AtRest(long Seq)` frame over the socket | a quiet window guessed at rest, so a slow server read as stuck and every step cost a quarter of a second | a 250 ms quiet window, which was the earlier design | ruled by the project owner 2026-09-06 **(reversed:** question 5 answered**)** |
+| Quiescence is exact on both drivers: the mailbox marker in process, an `AtRest(long Seq)` frame over the socket | a quiet window would guess at rest, so a slow server would read as stuck and every step would cost the window | a quiet-window timer | the plan's ruling 5; game server plan → Task 9, *The rest frame* |
 | `AtRest` is broadcast when the batch appended and sent to the provoking client alone when it did not | a refusal disturbs nobody but its sender, and the recorder is woken exactly when there is a batch for it | broadcasting every rest frame, which would wake every spectator on every refusal | game server plan → Task 9, *The rest frame* |
 | `SubmitAsync` reads the submitting socket's rest frame; `StepAsync` reads the recorder's only when the command appended | the submitting socket is the one guaranteed a frame either way, and its `Seq` says whether a batch is coming to the recorder | waiting on the recorder unconditionally, which hangs out `RestTimeout` after every refusal | **(plan)** Task 8 |
 | A rest wait that exceeds `SocketDriver.RestTimeout`, 30 seconds, is `Failed` | stuck means the engine made no progress; a rest timeout means the harness stopped observing | `Stuck(NoAskNoEvents)`, which names the wrong fault | **(plan)** Task 8 |
@@ -758,17 +752,17 @@ took because no spec spoke.
 | `RecordedMarkerState` carries kind, diameter and label per frame | a marker placed during play is in no board block, and a frame must be whole | a growing board block, which the live feed cannot implement | **(plan)** applied from the viewer plan, item 2 |
 | `RecordedZone.Polygons` holds resolved rings | OPR's frontline is an absolute twelve-inch inset, so it cannot be derived from the id and the table size | porting `ZoneStyles` to TypeScript | **(plan)** applied from the viewer plan, item 1 |
 | `RecordedFrame` carries `Scores` and `Passed` | the applier maintains both and `ProjectionComparer` compares both | a frame from which a viewer could show neither | **(plan)** applied from the viewer plan, item 3 |
-| The recording carries the dice, not only the result | the first thing a person debugging the engine wants is why a unit died | the result alone, at a few hundred integers saved | **(plan)** spec correction 3 |
-| The schema carries `schemaVersion`, one integer | a viewer can refuse a file it does not understand rather than mis-draw it | no version, since the recording is derived | **(plan)** spec correction 2 |
+| The recording carries the dice, not only the result | the first thing a person debugging the engine wants is why a unit died | the result alone, at a few hundred integers saved | **(plan)** Task 5 |
+| The schema carries `schemaVersion`, one integer | a viewer can refuse a file it does not understand rather than mis-draw it | no version, since the recording is derived | spec → Deliberately not decided |
 | `RecordingJson` owns its options rather than reusing `WireJson.Options` | the recording is not a wire format | one shared serializer | **(plan)** Global Constraints |
-| The round cap lives on `Scenario`, overridable with `--rounds` | a cap is a property of a run, not of a ruleset; OPR has no round limit | `GameRules`, which would put a testing concern inside the rules | **(plan)** spec correction 4 |
-| `Decided` is read from the table and only from round one | before deployment every model is on the shelf, so the condition would fire on the first frame of every game | reading it from round zero | **(plan)** spec correction 7 |
+| The round cap lives on `Scenario`, overridable with `--rounds` | a cap is a property of a run, not of a ruleset; OPR has no round limit | `GameRules`, which would put a testing concern inside the rules | spec → What a full game means |
+| `Decided` is read from the table and only from round one | before deployment every model is on the shelf, so the condition would fire on the first frame of every game | reading it from round zero | spec → What a full game means |
 | A scenario is C# with a fluent builder | costs nothing to start and keeps the assertions typed | a text format | spec → Deliberately not decided |
 | `Enforcement.Strict` is a scenario's default | an out-of-set answer must be refused loudly rather than logged and accepted | matching the fixtures' `warn` default | **(plan)** Global Constraints |
 | The script is keyed by `(question, ordinal)`, counted per question over the run | that is the number a person writing a script can count | keying by `Ask.Id`, which is server-minted, or by frame id, which is not stable | **(plan)** Task 3 |
-| The run loop places deployed models itself with `ZoneStyles` | deployment's Ask names a unit; placing it is an ordinary `MoveModels`, not an Ask | waiting for an Ask that never comes | **(plan)** spec correction 9; scheduler → The turn is an Ask |
-| Stuck fails the exit code | `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI | a warning that still exits `0` | **(plan)** question 2 |
-| `sim/` references no test project, in either direction | `tests/Tabletop.GameServer.Tests` and `tests/Tabletop.Viewer.Tests` reference `sim/`; the reverse would be a cycle | reaching `TestProperties` and `TestArmies` | **(plan)** spec correction 8 |
+| The run loop places deployed models itself with `ZoneStyles` | deployment's Ask names a unit; placing it is an ordinary `MoveModels`, not an Ask | waiting for an Ask that never comes | **(plan)** Task 6; scheduler → The turn is an Ask |
+| Stuck fails the exit code | `dotnet run --project sim -- skirmish --seeds 1..500` exits `1` if any game hangs, which is what makes it usable in CI | a warning that still exits `0` | the plan's ruling 2 |
+| `sim/` references no test project, in either direction | `tests/Tabletop.GameServer.Tests` and `tests/Tabletop.Viewer.Tests` reference `sim/`; the reverse would be a cycle | reaching `TestProperties` and `TestArmies` | spec → Testing |
 | Step-and-wait is a mode and two methods, and nothing more | building a control channel makes the viewer a second thin client | an HTTP endpoint or a browser control surface | spec → Interactive debugging is a door, not a room |
 
 ## Interfaces
@@ -889,12 +883,12 @@ The viewer's whole input.
 
 | Owner | Requirement |
 | --- | --- |
-| Contracts | `GameInfo.RngSeed` as `long`, positional and last among the scalars, over `management.game.rng_seed bigint not null` with no default. `EventApplier.EffectiveLog(IRL<GameEvent>)` public static. `Projection.Initial(Board, GameInfo)`. `WireJson.Serialize<T>` accepting an enum. `AskQuestions.EndRound`. `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client, landed 2026-09-06. |
+| Contracts | `GameInfo.RngSeed` as `long`, positional and last among the scalars, over `management.game.rng_seed bigint not null` with no default. `EventApplier.EffectiveLog(IRL<GameEvent>)` public static. `Projection.Initial(Board, GameInfo)`. `WireJson.Serialize<T>` accepting an enum. `AskQuestions.EndRound`. `AtRest(long Seq)` as a `SocketMessage` kind, wire kind `at_rest`, server to client. |
 | Interpreter | `PropertiesSeeder.EmbeddedDocuments()` and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` public. `InMemoryPropertiesStore.Add(PropertySet)` returning `this`. `DiceSource()` parameterless. `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public. |
 | Scheduler | `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. |
-| Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. Landed 2026-09-06 and consumed unchanged. |
+| Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. |
 | Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and no polygons for an unknown id. `Settling.SurfaceHeightAt`. |
-| Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Landed in that plan's Task 5 by owner ruling 4 of 2026-09-06 |
+| Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. |
 | Viewer | consumes `Tabletop.Sim.Recording` verbatim as its input format and `RecordingJson.SchemaVersion` as the number to check. It generates its TypeScript types from these C# records. |
 
 ## Sequences
@@ -1018,7 +1012,7 @@ sequenceDiagram
 A command that appended nothing sends its `AtRest` to the submitting socket alone, which
 `SubmitAsync` has already read. `StepAsync` then waits on nothing and returns an empty step.
 
-Quiescence over the socket is now the server's own statement rather than a guess. The wait
+Quiescence over the socket is the server's own statement rather than a guess. The wait
 returns on the frame, so a slow server delays a step and never reports a rest that has not
 happened. `RestTimeout` bounds the wait at 30 seconds and is a liveness guard, not a quiescence
 guess: expiry throws `RestTimeoutException` and the run ends `Failed`. A command that appended
@@ -1075,12 +1069,11 @@ log, through the same code the servers use.
 | `management.participant.army_snapshot` | `IGameRows.EndSetupAsync` | one per participant |
 | `game.game_event` | the game server | nothing; `sim/` only reads `max(seq)` to assert |
 
-`docs/schema.md`'s `PARTICIPANT` block lists `id`, `team_id`, `account_id` and `army_snapshot`
-only. `game_id` and `army_id` are missing from the diagram and present in
-`scripts/postgres/init/001_schema.sql`, so the diagram is stale rather than the schema. The
-game server plan's `FindParticipantAsync(gameId, accountId)` and `SetParticipantArmyAsync` and
-the management plan's `POST /v1/games/{id}/join` all require both. That is spec correction 9.
-`game.rng_seed` is likewise absent from the diagram. The contracts plan owns adding it.
+`docs/schema.md`'s `PARTICIPANT` block lists `id`, `game_id`, `team_id`, `account_id`, `army_id`
+and `army_snapshot`, matching `scripts/postgres/init/001_schema.sql`. The game server's
+`FindParticipantAsync(gameId, accountId)` and `SetParticipantArmyAsync` and the management API's
+`POST /v1/games/{id}/join` all require `game_id` and `army_id`. `game.rng_seed` is in the same
+diagram's `GAME` block.
 
 ### In memory
 
@@ -1114,7 +1107,7 @@ reopened-unchanged check, since `_sinceLastAnswer` clears on any non-Ask event, 
 only by the step cap. The frame dump is what makes that diagnosable.
 
 **A server that never rests.** `RestAsync` waits for `AtRest` and cannot mistake a slow server
-for a rested one, so a false rest is no longer a failure mode. What remains is a server that
+for a rested one, so a false rest is not a failure mode. What remains is a server that
 stops sending the frame at all, from a hang or from a dropped connection the read loop has not
 noticed. `RestTimeout` bounds that at 30 seconds and the run ends `Failed` with the last frames
 dumped. The report names the harness rather than the engine, which is the honest attribution: a
@@ -1210,63 +1203,60 @@ And no test proves the two prohibitions: that `sim/` never narrows a legal set a
 a rules outcome is enforced by `AnswerPolicy` reading only `PolicyView`'s geometry members, and a
 future `IAnswerSource` could violate both without a test noticing.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### The plan's own questions
+### Rulings
 
-**1. How does a socket run get its session JWTs? Answered by the project owner on 2026-09-06,
-ruling 4: from a development-only endpoint that mints one.** Hand-pasting is rejected. The
-endpoint is `POST /v1/dev/sessions` on the management API rather than the game server, because
+**1. A socket run gets its session JWTs from a development-only endpoint that mints one.**
+Hand-pasting is rejected: a three-team soak would need four tokens pasted by hand. The endpoint
+is `POST /v1/dev/sessions` on the management API rather than the game server, because
 management holds the Stytch project secret and already creates users and authenticates sessions.
 It takes a name, finds or creates the Stytch user and the `account` row, and returns a real Stytch
 session JWT, so the socket driver stays on the production verification path. It is gated on
 `IHostEnvironment.IsDevelopment()` and absent from the route table a production build serves.
-Applied above: `SocketCredentials.MintAsync` replaces `FromEnvironment`, `AccountOf` reads the
-account id out of the mint's response, `NameFor` makes the account names stable per scenario and
-participant, and `--driver socket` has no token variable. Two objections had stood, hand-pasting
-four tokens for a three-team soak and tokens expiring; the rest-frame ruling had already disposed
-of the second, and the mint disposes of the first. The cost is that a console socket run needs
-network access to the Stytch test project.
+`SocketCredentials.MintAsync` calls it, `AccountOf` reads the account id out of the mint's
+response, `NameFor` makes the account names stable per scenario and participant, and
+`--driver socket` has no token variable. The cost is that a console socket run needs network
+access to the Stytch test project.
 
-**2. Should a stuck run fail the console's exit code? Ruled 2026-09-09 by the owner, as assumed: yes** (Ruled 2026-09-09 ([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md))). `RunReport.Passed` is false
-for `stuck` and `failed`, so a 500-seed soak exits `1` if any game hangs, which is what makes it
-usable in CI. If a stuck run should only warn, `Summary.Failed` counts `failed` alone and the
-exit code changes. The frames are dumped either way.
+**2. A stuck run fails the console's exit code**
+([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). A
+game that cannot finish is a bug in the rules engine, and CI is the only place anyone will run
+500 seeds: `RunReport.Passed` is false for `stuck` and `failed`, so a 500-seed soak exits `1` if
+any game hangs. The frames are dumped either way.
 
-**3. Should `sim/` be in `Tabletop.sln`? Closed 2026-09-09 on `CLAUDE.md`'s own terms — the solution spans every project: yes**, in a `sim` solution folder, so
-`dotnet build` at the root builds it and `dotnet test` runs its tests. If it should be excluded
-so a client-only build stays small, it moves to its own solution and `CLAUDE.md`'s Commands
-section grows a line. Nothing in the code changes.
+**3. `sim/` is in `Tabletop.sln`**, in a `sim` solution folder, because the solution is *"at the
+repo root, spanning every project"* (`CLAUDE.md`), so `dotnet build` at the root builds it and
+`dotnet test` runs its tests.
 
-**4. Are these the right five scenarios? Ruled 2026-09-09 by the owner: six.** `casting` joins
-`skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate`. Casting is not a mode — a
-spell is cast inside an ordinary activation — so the preset differs from `skirmish` only in
-fielding a `Caster(2)` and declaring a spell. It exists because none of the other five opens
-casting's two player decisions, the token spend map and the caster spending its own leftover
-tokens on its own roll, and both were changed by rulings of 2026-09-06. The spell is the
+**4. The catalog ships six scenarios.** `casting` joins `skirmish`, `terrain`, `player-turn`,
+`free-for-all` and `stalemate`. Casting is not a mode — a spell is cast inside an ordinary
+activation — so the preset differs from `skirmish` only in fielding a `Caster(2)` and declaring
+a spell. It exists because none of the other five opens casting's two player decisions, the
+per-model token spend map (p.13) and the caster spending its own leftover tokens on its own
+roll. The spell is the
 scenario's own: `ScenarioBuilder.Spells` folds it into the pinned `PropertySet`, so the hash
 differs from `CoreProperties` for that run alone. The shipped content document is every special
 rule on pages 13–15 and holds no spells, because a spell list belongs to an army book this
 project has not designed. A regression scenario for a specific rules interaction is still a
 script and is added the same way, so the shape of the catalog does not change.
 
-**5. Is 250 ms the right quiet window? Answered by the project owner on 2026-09-06: the quiet
-window is replaced by a rest frame.** The game server sends `AtRest(long Seq)` when it has
-finished processing and has nothing further to emit, carrying the last appended sequence number.
-`SocketDriver.StepAsync` waits for that frame instead of for silence, on the recorder's socket
-when the command appended and on the submitting socket when it did not. `RestTimeout`, 30 seconds,
-replaces `QuietWindow` as a liveness guard on a hung server, and expiry is a `Failed` run rather
-than a `Stuck` one. Quiescence is therefore exact on both drivers, the strict cross-driver
-comparison in `DriverAgreementTests` is restored, and a socket step costs what the server takes.
+**5. The socket driver waits for a rest frame, not a quiet window.** The game server sends
+`AtRest(long Seq)` when it has finished processing an inbound `connect` or `command`, carrying
+the log's high-water mark. `SocketDriver.StepAsync` waits for that frame instead of for silence,
+on the recorder's socket when the command appended and on the submitting socket when it did not.
+`RestTimeout`, 30 seconds, is a liveness guard on a hung server, and expiry is a `Failed` run
+rather than a `Stuck` one. Quiescence is therefore exact on both drivers, `DriverAgreementTests`
+compares the two drivers run for run, and a socket step costs what the server takes.
 
-### Questions the plan answered from the specs
+### Answered from the specs
 
-| Spec item | Settled as | Where |
+| Spec item | Answer | Where |
 | --- | --- | --- |
-| The recording's schema and versioning | the record set in `sim/Recording/Recording.cs`, carrying `schemaVersion` | spec correction 2 |
-| Whether a recording carries the dice | it carries them, raw and modified, with threshold and modifiers | spec correction 3 |
-| Whether the round cap belongs in the scenario or in `GameRules` | the scenario, overridable with `--rounds` | spec correction 4 |
-| Whether the policy prefers to act over passing | it acts; `PassProbability` defaults to `0` | spec correction 5 |
+| The recording's schema and versioning | the record set in `sim/Recording/Recording.cs`, carrying `schemaVersion` | spec → Deliberately not decided |
+| Whether a recording carries the dice | it carries them, raw and modified, with threshold and modifiers | spec → Still open |
+| Whether the round cap belongs in the scenario or in `GameRules` | the scenario, overridable with `--rounds` | spec → What a full game means |
+| Whether the policy prefers to act over passing | it acts; `PassProbability` defaults to `0` | spec → Deliberately not decided |
 | Whether a scenario is C# or a text format | C# | spec → Deliberately not decided |
 
 ### Deferred
@@ -1276,8 +1266,8 @@ comparison in `DriverAgreementTests` is restored, and a socket step costs what t
 | A control channel over the step-and-wait seam | it makes the viewer a second thin client, a larger surface than a renderer | spec → Interactive debugging is a door, not a room |
 | A state-reading `IAnswerSource` | it explores a narrower region and finds fewer bugs, so it is never the soak default | spec → Two ways to answer an Ask |
 | An opponent that plays well | a later feature, behind the same `IAnswerSource` seam | spec → Two ways to answer an Ask |
-| How a viewer draws a model inside a container | settled: it is not drawn on the board and is listed in `Scene.offTable`, since a container has no position | spec → Deliberately not decided, settled there by the viewer plan's correction 4 |
-| Whether the live feed needs authentication beyond a spectator's session JWT | settled: the session JWT alone, and a non-participant is refused with `rejected: not_a_participant` | spec → Still open, settled there by the viewer plan's correction 2 |
+| How a viewer draws a model inside a container | it is not drawn on the board and is listed in `Scene.offTable`, since a container has no position | spec → Deliberately not decided |
+| Whether the live feed needs authentication beyond a spectator's session JWT | the session JWT alone, and a non-participant is refused with `rejected: not_a_participant` | spec → Still open |
 | Cleaning up socket runs' rows | a developer tool leaves the game in the database to look at | Task 10 |
 
 ## References

@@ -112,8 +112,8 @@ geometry is a prediction for responsiveness. A disagreement is resolved by resyn
 reconciling. Bit-exact cross-platform determinism between the client's desktop build and the
 server's Linux container is therefore not a requirement here.
 
-Windows is the client's first export target and not its only possible one, ruled 2026-09-06 and
-recorded in `architecture.md` → Deliverables. No design decision in this client depends on
+Windows is the client's first export target and not its only possible one (`architecture.md` →
+Deliverables). No design decision in this client depends on
 Windows: `OS.GetUserDataDir()`, `res://` and `user://` are portable, and the remembered session is
 a plain owner-only file rather than Windows data protection. The development machine is WSL with
 the Godot editor on the Windows host, which is a fact about the current machine and carries no
@@ -263,8 +263,8 @@ code path on both sides.
 A reconnecting player rejoins their team. `MyTeamId` is derived, never picked or stored: it reads
 `Game.Participants` for `ParticipantId`, and the server fills that from the participant's row,
 which outlives the socket. So the `Welcome` that ends a reconnect names the team the previous one
-named, and no client code re-picks a team or asks the player to (owner ruling 1, 2026-09-06; the
-model is stated in game flow → Teams are frozen at the flip, and a team is a slot). `LobbyPanel`,
+named, and no client code re-picks a team or asks the player to (game flow → Teams are frozen at
+the flip, and a team is a slot). `LobbyPanel`,
 the only control that sends `PickTeam`, exists at `lobby` and `setup` only, which is where the
 server accepts the edit. `MyTeamId` is
 null in two unrelated states, and nothing may treat them alike: a spectator has a `Game` whose
@@ -331,7 +331,7 @@ flowchart TD
 Presence and the draft bypass the applier.
 
 `Projection` is `Tabletop.Protocol`'s, built only by `EventApplier`. Applying is copying, never
-deriving. Action sequences ruled that `step_completed` records everything it produced, so every
+deriving. Action sequences states that `step_completed` records everything it produced, so every
 event carries the state changes it made and the applier has no rule to consult. That is why
 `EventApplier` is shippable to a player's machine, and why the same applier serves the client, the
 server's own hydrate and a future replay viewer.
@@ -500,8 +500,7 @@ plane (`Plane(Vector3.Up, 0).IntersectsRay`). Settling is
 second geometry implementation to diverge from the server's and no collision layer to configure.
 `WorldFrame` is the only place the two coordinate systems meet: `x = X`, `y = Z`, `z = −Y`,
 `rotation.y = yaw` in radians. Nothing else converts. The wire frame and `Tabletop.Geometry`'s
-frame are the same frame, ruled 2026-09-05, and the plan's `TableFrame` conversion layer was
-deleted as a result.
+frame are the same frame (geometry plan → Global Constraints), so there is no conversion layer.
 
 ### Mesh loading and the content-addressed cache
 
@@ -637,16 +636,15 @@ added. The cost is that the client reimplements a march-and-bisect loop the libr
 contains for the non-containment case.
 
 The region is drawn for one body, the lead model's `ModelIds[0]`. A unit with mixed base sizes
-sees the lead's boundary, and the server refuses outliers individually (ruled 2026-09-09, as
-assumed). **A disembarking model takes any facing that fits**, ruled 2026-09-06 over the container's
-yaw this design first assumed: p.7 says *"Models may move and turn in any direction regardless of
+sees the lead's boundary, and the server refuses outliers individually. **A disembarking model
+takes any facing that fits**: p.7 says *"Models may move and turn in any direction regardless of
 their facing"*, and a unit exits by using an ordinary move action, so a placement is legal if some
 facing fits. `Admits` therefore tries `MoveRuler.ExitYaws` facings for a non-circular base and the
 drawn region is the union over those that fit; a circular base is yaw-invariant and tries one, which
 is every ordinary infantry model and so the whole common case. `MoveRuler.ExitYawAt` runs the same
 search for the answer, so what the panel sends is a placement `GfMoves.ExitPlacement` accepts. The
-server already honoured this — it checks the proposed placement rather than imposing a facing — so
-the ruling only ever bound the client, which is why it went unpropagated until 2026-09-09.
+server checks the proposed placement rather than imposing a facing, so the facing search lives only
+on the client.
 
 ### The Ask panel
 
@@ -737,7 +735,7 @@ second control for the same command.
 
 ### A spend over models and a pick of one model
 
-Two rulings of 2026-09-06 put models where the panel previously saw one number and one unit.
+Both put models where the panel would otherwise hold one number and one unit.
 
 A team's spell token spend is `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)`, `Sealed`,
 with a pass, answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)` (p.13: *"Models within
@@ -856,8 +854,8 @@ zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
 server never writes an owner-side row.
 
 `BuiltinContent` ships with the client: 35 terrain names with their `Volume` and declarations, five
-textures, two marker visuals, and the zone style ids. A minimal art set ships with it, ruled
-2026-09-06 so that a generated table looks like a table.
+textures, two marker visuals, and the zone style ids. A minimal art set ships with it, so that a
+generated table looks like a table.
 
 The art is fifteen files, not fifty. The 35 pieces group into ten meshes that differ only by
 footprint, height, scale and yaw: `hill` (6 pieces), `woods` (5), `ruins` (4), `building` (3),
@@ -883,7 +881,7 @@ are always written on add, and "reset" re-copies the shipped ones.
 as a batch of `AddTerrain` edits placed off the slab beside the long edge at `x = width + 4`, in
 rows 8" apart, for players to drag on. The client rolls, because nothing in setup is logged and no
 seeded RNG is owed. An entry naming alternatives ("Hill, Forest, or Field") is resolved by that
-same RNG, ruled 2026-09-06, so rolling a table produces a finished board in one action; a player
+same RNG, so rolling a table produces a finished board in one action; a player
 who dislikes a piece swaps its mesh or deletes it, which the toolbar already offers. The tables ship with the client and the server never reads them, which keeps
 the game server ruleset-blind during setup. 40k has no such tables. Declarations follow the tables
 literally. Conditional clauses ("dangerous when using Rush or Charge", "units on top may ignore one
@@ -907,7 +905,7 @@ over the actor unit for 1.5 s, then pumps the next. The queue may lag the projec
 delays an Ask. A player may answer while a roll's readout is still up, because the Ask panel reads
 the projection directly and the queue holds no lock. Presence is never animated, only drawn.
 
-A roll is a readout and not an object, ruled 2026-09-06. The label carries the roll's name, its
+A roll is a readout and not an object. The label carries the roll's name, its
 threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
 `RollRecord` already holds. No die is placed on the table and nothing tumbles.
 
@@ -919,8 +917,8 @@ own. Each block's threshold is what tells the pools apart. The log panel's dice 
 same list: "Reroll all" and "Set die 1" name a `RollRecord` by id, so there is one of each per roll,
 while "Add modifier" names a roll by name and stays one control for the step. Godot physics is out
 of the scene, so a die on the table would be a canned animation of a result the server has already
-decided, and the readout says more than a tumbling die can. The client shell spec's animation
-section does name dice rolling on the table, which spec correction 13 narrows.
+decided, and the readout says more than a tumbling die can. The client shell spec → Animation says
+the same.
 
 ## Key decisions
 
@@ -928,35 +926,35 @@ Contested or re-decided:
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| No social login. Email plus password, or email one-time code, on the client's own login screen | both methods are Basic-auth calls to Stytch through management and need no page to redirect back to | loopback listener and device code, both twice deferred by accounts and the web app to serve Google sign-in and magic links; neither method is wanted | client shell → No social login (ruled 2026-09-04) |
-| Enforcement is three positions, `strict` refuses, and the panel says so | action sequences and the scheduler had both written a refusing mode | identity and enumerations' boolean (warn or silent, never block), reopened by the review and the refusing position kept | whole-design review ruling 1 |
+| No social login. Email plus password, or email one-time code, on the client's own login screen | both methods are Basic-auth calls to Stytch through management and need no page to redirect back to | loopback listener and device code, both twice deferred by accounts and the web app to serve Google sign-in and magic links; neither method is wanted | client shell → No social login |
+| Enforcement is three positions, `strict` refuses, and the panel says so | action sequences and the scheduler both specify a refusing mode | identity and enumerations' boolean (warn or silent, never block) | whole-design review ruling 1 |
 | Menu edits are accepted under every enforcement setting | they are the override path, visible to opponents and recorded with an actor | refusing them under `strict`, which would leave no way to fix a mistake | whole-design review ruling 1 |
 | Animation is the player's setting, waiting is the game's | animation is presentation only; waiting changes what the server does and what the log records | resolution's "both set at game setup", with no column for either | whole-design review ruling 3 |
 | One game screen for four statuses | all four are one socket and one hydrate path, and a status change happens inside the screen | a scene per status, which reloads the table on every change; one scene with panels toggled, which puts the game list and the table in one tree | client shell → Structure |
-| Presence is relayed: measurements and ghosts go on the wire | a tape measure on a real table is visible to everyone at it; hidden pre-measuring is a different game | `architecture.md`'s original "computed locally, never sent anywhere" | presence → What this corrects in `architecture.md` |
-| Setup edits are a third message kind, not commands | setup needs a settled result rather than replay; terrain is then locked after setup with no flag and no check | `architecture.md`'s original "placement is a stream of ordinary Commands" | setup phase → Editing is free for all |
-| One table frame, and the client converts nothing | the wire, `Tabletop.Geometry` and the client all use the corner frame | the plan's own `TableFrame` conversion layer, deleted when the ruling landed | compatibility review 2026-09-05; geometry plan → Global Constraints |
-| A model that is not `OnTable` is not drawn at all | `OnShelf` and `Inside` carry no placement, so there is no position to draw at and `PieceAt` returning null keeps every consumer correct | drawing an occupant at the container's position, which makes it selectable and measurable when it is neither | spec correction 11; game flow → Inside a container |
+| Presence is relayed: measurements and ghosts go on the wire | a tape measure on a real table is visible to everyone at it; hidden pre-measuring is a different game | computing them locally and sending nothing | presence → What this corrects in `architecture.md` |
+| Setup edits are a third message kind, not commands | setup needs a settled result rather than replay; terrain is then locked after setup with no flag and no check | placement as a stream of ordinary Commands | setup phase → Editing is free for all |
+| One table frame, and the client converts nothing | the wire, `Tabletop.Geometry` and the client all use the corner frame | a `TableFrame` conversion layer in the client | geometry plan → Global Constraints |
+| A model that is not `OnTable` is not drawn at all | `OnShelf` and `Inside` carry no placement, so there is no position to draw at and `PieceAt` returning null keeps every consumer correct | drawing an occupant at the container's position, which makes it selectable and measurable when it is neither | client shell → The table view; game flow → Inside a container |
 | Two region functions, and `ExitRegion` returns a boundary | an occupant has no start to sweep rays from, so `Movement.Region` is meaningless; a boundary lets `MoveRegionNode` draw both with no change | a predicate (`BaseFullyWithin`) evaluated per candidate, which cannot express a ring of impassable terrain and needs a different node | plan Task 8; geometry plan Task 6 |
-| The round boundary gets no control of its own | the one Ask panel is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 (ruled 2026-09-06) |
-| A `ProjectionDesyncException` resyncs the client, bounded at one attempt per sequence position | the fault is a divergence in this client's copy, which a rebuild from the log fixes; a fault that made no progress is in the server's log, which a rebuild cannot fix | skipping the change and carrying on, which diverges silently; a fixed retry count, which either strands an unrelated later fault or loops on a batched hydrate; a `Resyncing` phase, which renders identically to `Reconnecting` | owner ruling 2 (2026-09-06) |
-| `MyTeamId` is derived from `Game.Participants` on every read, and a reconnect re-picks nothing | the participant row is the one record of a slot, and it outlives the socket; teams are locked from `playing` on, so a returning player's team cannot have changed while they were away | caching the team across `Reset()`, which would be a second source of truth for a value the `Welcome` already carries; treating a reconnecting player as teamless, which is what a spectator is and would cost a seat on every dropped connection | owner ruling 1 (2026-09-06), stated in game flow → Teams are frozen at the flip, and a team is a slot |
-| The client drops `AtRest` | nothing here waits for the server to settle, and the only busy state ends at `Welcome` | stopping a busy indicator on it, which would be a second and weaker source of truth for a settled table | owner ruling 4 (2026-09-06) |
+| The round boundary gets no control of its own | the one Ask panel is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 |
+| A `ProjectionDesyncException` resyncs the client, bounded at one attempt per sequence position | the fault is a divergence in this client's copy, which a rebuild from the log fixes; a fault that made no progress is in the server's log, which a rebuild cannot fix | skipping the change and carrying on, which diverges silently; a fixed retry count, which either strands an unrelated later fault or loops on a batched hydrate; a `Resyncing` phase, which renders identically to `Reconnecting` | client shell → The connection and the projection |
+| `MyTeamId` is derived from `Game.Participants` on every read, and a reconnect re-picks nothing | the participant row is the one record of a slot, and it outlives the socket; teams are locked from `playing` on, so a returning player's team cannot have changed while they were away | caching the team across `Reset()`, which would be a second source of truth for a value the `Welcome` already carries; treating a reconnecting player as teamless, which is what a spectator is and would cost a seat on every dropped connection | game flow → Teams are frozen at the flip, and a team is a slot |
+| The client drops `AtRest` | nothing here waits for the server to settle, and the only busy state ends at `Welcome` | stopping a busy indicator on it, which would be a second and weaker source of truth for a settled table | contracts plan ruling 3; plan → Interfaces needed item 12 |
 | `ManagementDtos.cs` mirrors management's records by hand | keeps `client/` free of a dependency on `server/management`, and the DTOs are stable | a shared DTO assembly in `libs/`, not proposed | plan → Interfaces needed item 4 |
 
-Decisions the plan took because a spec was silent:
+Decisions the plan took where a spec was silent:
 
-| Decision | Assumption taken | Where it is recorded |
+| Decision | Reason | Where it is recorded |
 | --- | --- | --- |
-| Everything Godot-free goes under `client/src/Core/` and is compiled into the test project | the spec said only "the projection applier and the geometry library get the tests"; the plan extends that to the session, the management client, the socket seam, the cache, the built-in content and the view models | spec correction 6 |
-| An owner-only file at `user://session.bin` for the remembered session | the spec said "the OS credential store"; no keystore is portable, so `SessionStore` writes a plain file with `UnixFileMode.UserRead \| UserWrite` where the platform has file modes | spec correction 1; question 2, ruled 2026-09-06 |
-| 20 Hz presence sampling | presence left the rate open; matches the server's relay rate and `architecture.md`'s figure, itself named a first-pass assertion | question 1 (same question as the game server plan's question 4) |
-| Reconnect after any close the client did not ask for, except `Rejected` and `1000` after `welcome` | the spec said only "reconnect is connect" | spec correction 2 |
-| Zones for ordinals with no team are drawn grey during setup | the spec said zones are drawn as flat polygons and said nothing about teamless ordinals; a four-zone style in a two-player lobby shows two coloured and two grey, so the table shows what the style laid out | spec correction 5; question 7, ruled 2026-09-06 |
-| A disembarking model takes any facing that fits | p.7 lets a model turn in any direction, so a placement is legal if some facing fits; `ExitRegion` unions over `MoveRuler.ExitYaws` and a circular base tries one. Ruled 2026-09-06, written 2026-09-09 | question 8 |
-| The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | question 9 |
-| An enterable container is a click target, not a button | it is already highlighted because the legal set names it | question 10 |
-| Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | question 3, ruled 2026-09-06 |
+| Everything Godot-free goes under `client/src/Core/` and is compiled into the test project | the tests cover the session, the management client, the socket seam, the cache, the built-in content and the view models, beside the projection applier and the geometry library | client shell → Testing |
+| An owner-only file at `user://session.bin` for the remembered session | no keystore is portable, so `SessionStore` writes a plain file with `UnixFileMode.UserRead \| UserWrite` where the platform has file modes | client shell → Screens; the plan's ruling 2 |
+| 20 Hz presence sampling | presence leaves the rate open; matches the server's relay rate and `architecture.md`'s figure | the plan's ruling 1 |
+| Reconnect after any close the client did not ask for, except `Rejected` and `1000` after `welcome` | `Rejected` means the server refused this participant, and `1000` after `welcome` means a newer socket replaced this one; reconnecting after either would fight the server | client shell → The connection and the projection |
+| Zones for ordinals with no team are drawn grey during setup | a four-zone style in a two-player lobby shows two coloured and two grey, so the table shows what the style laid out | setup phase → Zones; the plan's ruling 7 |
+| A disembarking model takes any facing that fits | p.7 lets a model turn in any direction, so a placement is legal if some facing fits; `ExitRegion` unions over `MoveRuler.ExitYaws` and a circular base tries one | the plan's ruling 8 |
+| The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | the plan's ruling 9 |
+| An enterable container is a click target, not a button | it is already highlighted because the legal set names it | the plan's ruling 10 |
+| Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | the plan's ruling 3 |
 
 ## Interfaces
 
@@ -1257,8 +1255,8 @@ Linux, `~/Library/Application Support` on macOS:
 | `session.bin` | the session JWT, in a file created readable and writable by its owner alone | absent, unreadable or not three dot-separated segments reads as null and the login screen shows; an `IOException` or `UnauthorizedAccessException` is caught, not thrown |
 | `cache/{hash}.bin` | asset blobs, keyed by SHA-256 | a partial download lives in `.part` and never becomes a cache entry; a hash mismatch deletes the part and the piece keeps its proxy |
 
-The remembered session is deliberately not in an OS keystore. Windows data protection was the
-assumed answer and is Windows-only, which the platform ruling of 2026-09-06 rules out, and a
+The remembered session is deliberately not in an OS keystore. Windows data protection is
+Windows-only, which the client's platform position rules out (`architecture.md` → Deliverables), and a
 per-platform store behind one interface costs three implementations of which two cannot be
 exercised on the development machine, with libsecret depending on a session keyring a minimal
 Linux desktop may not have. The file protects the token from other local accounts on a shared
@@ -1294,16 +1292,16 @@ its own would mean the event spine had been broken.
 | JWT expired mid-session | the 60 s refresh normally prevents it; if a refresh fails with `401`, `TryResumeAsync` clears the store and drops to `LoggedOut`. An open socket is unaffected, because the server authenticates once at connect | yes; a socket can outlive its credential |
 | Socket closes unexpectedly | reconnect with backoff 1, 2, 5, 10, 10… s; `ConnectionLost(willReconnect: true)` toasts; the projection is discarded and rebuilt, and the `Welcome` restores the player's team | yes |
 | Socket replaced by the same participant's newer connection (`1000` after `welcome`) | no reconnect; drop to Home | yes; reconnecting would fight the newer socket |
-| Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two; the silence it used to carry is fixed |
+| Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two |
 | `Rejected` with `InvalidSession` or `NotAParticipant` | no reconnect; `GameId` cleared; Home | yes |
 | Handshake window missed (10 s) | the server closes; the client reconnects, because no `Welcome` arrived | yes |
 | A command or edit refused | `RefusedReceived` toasts `{reason}: {detail}`; the Ask panel shows an in-panel line when the `MessageId` matches its last command; nothing is rolled back, because nothing was applied locally except a predicted undo | yes |
-| `ProjectionDesyncException` while applying an event | the projection is dropped, the socket is reopened and the log is replayed; `ConnectionLost(willReconnect: true)` toasts it as a rebuild | yes; ruling 2 |
+| `ProjectionDesyncException` while applying an event | the projection is dropped, the socket is reopened and the log is replayed; `ConnectionLost(willReconnect: true)` toasts it as a rebuild | yes; client shell → The connection and the projection |
 | A resync faulting again at or before `_desyncFloor` | no further attempt; `Phase = LoggedIn`, `LastCloseReason` is the exception's message, and Home prints it | yes; the bad event is in the server's own log, and rejoining buys one more attempt |
-| A frame kind the client does not act on, `AtRest` included | dropped; `Handle`'s switch has no default arm and deserialization has already succeeded | yes; ruling 4 |
+| A frame kind the client does not act on, `AtRest` included | dropped; `Handle`'s switch has no default arm and deserialization has already succeeded | yes; contracts plan ruling 3 |
 | A mesh 404s, its presigned URL has expired, or its hash mismatches | `MeshLoader` logs and returns null; the proxy stays; the game is playable | yes, and load-bearing |
 | Presigned URLs expire mid-game (`Manifest.ExpiresAt`, 60 minutes) | `RefreshManifest()` must be called again; a long game that never re-fetches will fail to load newly-visible meshes | a gap: nothing schedules a refresh on expiry |
-| Presence stops without `PresenceEnded` | another player's `held` placement leaves that piece's node displaced from the projection until the next `Redraw` for it | a gap: presence left "how a client is told a value stopped, versus timing it out" undecided, and the plan relies on `PresenceEnded` alone |
+| Presence stops without `PresenceEnded` | another player's `held` placement leaves that piece's node displaced from the projection until the next `Redraw` for it | a gap: the server sends `PresenceEnded` when a participant's last socket closes, and the client relies on that frame alone, with no timeout of its own |
 | A frame over 4 MiB | the server treats it as a protocol violation; a very large `ReplaceDraft` is the only realistic candidate | not guarded on the client |
 | Two players drag the same piece | last drop wins; each saw the other's drag through presence | yes |
 | An unknown zone shape id | `ZoneNode` draws nothing and logs a warning | yes; the game server's `DraftEditor` tests use shape ids `ZoneStyles` does not resolve |
@@ -1348,9 +1346,7 @@ Headless, `tests/Tabletop.Client.Tests` (xUnit). The project compiles `client/sr
 from source and references the three libraries plus `Tabletop.Content.Tests` and
 `Tabletop.Protocol.Tests` for their samples (`TableStateTests.Sample()`, `Samples.Game`,
 `Samples.Board`). Every task with logic is test-driven. The plan's running count ends at 45 tests.
-The rulings of 2026-09-06 moved it by one: the session store's two facts were rewritten rather
-than replaced, the mesh grouping is asserted inside a fact that already existed, and the token
-spend and the takedown pick added one fact over the answers' wording. What is covered:
+What is covered:
 
 | Subject | Test infrastructure | What is pinned |
 | --- | --- | --- |
@@ -1400,44 +1396,42 @@ Gaps:
 - No performance test. There is no budget for `Redraw`, for the 20 Hz presence sample, or for a
   game with many models and many volumes.
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-The plan's ten questions, the assumption each takes, and what changes if the answer differs. Six
-were ruled on by the owner on 2026-09-06: questions 2 and 3 changed the design, and questions 4, 5,
-6 and 7 confirmed the assumption as written. Four remain open.
+The plan's ten rulings, the decision and reason of each, and what changes if a ruling is reversed.
 
-| Question | Assumption | If the answer differs |
+| Ruling | Decision | If it changed |
 | --- | --- | --- |
-| 1. Presence sample rate | **Closed 2026-09-09 as assumed: 20 Hz**, matching the server's relay rate and `architecture.md`'s figure; the whole-design review's objection was that the figure was a first-pass assertion, not that it was wrong | one `Timer.WaitTime`. Same question as the game server plan's question 4, and one answer settles both |
-| 2. Where the remembered session lives | **ruled 2026-09-06**: not an OS keystore. `user://session.bin`, created owner-only where the platform has file modes; DPAPI was the assumed answer and is Windows-only, which the platform ruling excludes | closed. A keystore later replaces `SessionStore`, three methods with one call site |
-| 3. Built-in art | **ruled 2026-09-06**: a minimal set ships, so a generated table looks like a table. Ten grouped `.glb` meshes and five `.png` textures, authored by hand and not produced by the plan; a missing file still draws the hitbox | closed. More art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
-| 4. Generator entries with alternatives ("Hill, Forest, or Field") | **ruled 2026-09-06, as assumed**: the client's RNG picks one, so rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup | closed. Asking the player would have `TerrainGenerators.Generate` return the alternatives and the toolbar prompt |
-| 5. Dice on the table | **ruled 2026-09-06, as assumed**: a readout, not dice objects. Text beside the unit gives the faces, the threshold, the modifiers and which dice passed, for every roll on the step rather than the first; nothing tumbles, and models still fall by tween | closed. Visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes. The spec's animation section mentions dice rolling on the table, which spec correction 13 narrows |
-| 6. The game list's filters | **ruled 2026-09-06, as assumed**: status, name and "created by me", all three off the `GameSummary` the browser already returns | closed. "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
-| 7. Zones for ordinals with no team | **ruled 2026-09-06, as assumed**: drawn grey during setup, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | closed. Hiding them would have `TableView.ZoneColour` return transparent |
-| 8. The facing a disembarking model takes | **any facing that fits**, ruled 2026-09-06 and written 2026-09-09: `ExitRegion` unions over `ExitYaws` facings and `ExitYawAt` answers with one that fits. The overturned assumption was the container's yaw | keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
-| 9. Whose base the disembark region is drawn for | **Closed 2026-09-09 as assumed:** the lead model's (`ModelIds[0]`), as `Region` already is; the server refuses an outlier individually | `MoveRegionNode.Show` takes a list of polygons |
-| 10. Is an offered container a click target or a button | **Ruled 2026-09-09 by the owner: a click**, since the legal set already highlights it and the container's name is in the panel's note; one control for one command | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
+| 1. Presence sample rate | **20 Hz**, matching the server's relay rate and `architecture.md`'s figure | one `Timer.WaitTime`. The game server plan's relay rate is the same figure, and one answer settles both |
+| 2. Where the remembered session lives | **Not an OS keystore.** `user://session.bin`, created owner-only where the platform has file modes; DPAPI is Windows-only, which the client's platform position excludes | a keystore replaces `SessionStore`, three methods with one call site |
+| 3. Built-in art | **A minimal set ships**, so a generated table looks like a table. Ten grouped `.glb` meshes and five `.png` textures, authored by hand and not produced by the plan; a missing file still draws the hitbox | more art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
+| 4. Generator entries with alternatives ("Hill, Forest, or Field") | **The client's RNG picks one**, so rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup | asking the player would have `TerrainGenerators.Generate` return the alternatives and the toolbar prompt |
+| 5. Dice on the table | **A readout, not dice objects.** Text beside the unit gives the faces, the threshold, the modifiers and which dice passed, for every roll on the step rather than the first; nothing tumbles, and models still fall by tween | visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes |
+| 6. The game list's filters | **Status, name and "created by me"**, all three off the `GameSummary` the browser already returns | "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
+| 7. Zones for ordinals with no team | **Drawn grey during setup**, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | hiding them would have `TableView.ZoneColour` return transparent |
+| 8. The facing a disembarking model takes | **Any facing that fits**, since p.7 lets a model turn in any direction: `ExitRegion` unions over `ExitYaws` facings and `ExitYawAt` answers with one that fits | the container's yaw would be one facing tried; keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
+| 9. Whose base the disembark region is drawn for | **The lead model's** (`ModelIds[0]`), as `Region` already is; the server refuses an outlier individually | `MoveRegionNode.Show` takes a list of polygons |
+| 10. Is an offered container a click target or a button | **A click**, since the legal set already highlights it and the container's name is in the panel's note; one control for one command | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
 
 Deferred, with where it is recorded:
 
 - The visual design of every screen, and the Godot scene tree beneath each: client shell → not
   decided. The plan hand-writes `.tscn` files with a root and a script and builds every control
   tree in code, so a real scene tree is additive.
-- Whether the client edits armies: open since the web app session, unchanged. A wrong mesh sends
-  the player to the browser.
+- Whether the client edits armies: open, and the web app owns editing. A wrong mesh sends the
+  player to the browser.
 - Terrain becoming event-driven state, and with it army terrain (GF p.20), buildings as targets,
   and unlocking terrain mid-game: setup phase → not decided. Nothing in this client obstructs it.
   Terrain would gain events on top of the same snapshot.
 - Placement styles (p.17), objective counts and spacing (p.6), and Generic Planet's dangerous
   picks (p.18) stay social. The app places markers and does not count or space them. A style helper
   that warns on spacing is a later convenience.
-- Presence timeout versus an explicit stop frame: presence → not decided. The contracts plan's
-  question 1 notes that if timing out wins, `PresenceEnded` leaves `SocketMessage` and the client
-  owns the timeout.
-- Whether a participant can have two connections at once: presence → not decided. The game
-  server's answer today is that the newer socket closes the older with `1000`, which is what the
-  reconnect rule keys on.
+- Presence timeout versus an explicit stop frame: an explicit frame. The server sends
+  `PresenceEnded` when a participant's last socket closes, and no client owns a presence timeout
+  (contracts plan ruling 1). Were a timeout chosen instead, `PresenceEnded` would leave
+  `SocketMessage` and the client would own the timeout.
+- Whether a participant can have two connections at once: no. The newer socket closes the older
+  with `1000` (game server plan ruling 3), which is what the reconnect rule keys on.
 - A cache eviction policy. `user://cache/` grows without bound, and nothing in the spec or plan
   caps it.
 - Hosting. Local only: management at `http://localhost:5100`, the game server at
@@ -1448,8 +1442,7 @@ Deferred, with where it is recorded:
 ## References
 
 Plan: `docs/superpowers/plans/2026-09-05-client-shell.md`. 16 tasks, the File Structure block, the
-`Interfaces → Produces` tables, 12 proposed spec corrections, 11 consumed-interface statements and
-10 owner questions, six of them ruled on 2026-09-06.
+`Interfaces → Produces` tables, 11 consumed-interface statements and ten rulings.
 
 Specs, in the order the plan's header names them:
 
@@ -1467,8 +1460,6 @@ Specs, in the order the plan's header names them:
 - `docs/superpowers/specs/2026-09-04-whole-design-review.md` (newest; wins over every other)
 
 Also read: `docs/architecture.md`, `docs/schema.md`, `docs/data-model.md`.
-`docs/workstreams/05-client-shell.md` is stale ("table, camera and mouse with no server") and is
-not followed.
 
 Rulebook: Grimdark Future v3.5.1. Page 7 (a move measures the base's displacement: *"no part of
 their bases move further than the total movement distance"*), page 15 (`Transport(X)`: *"only one

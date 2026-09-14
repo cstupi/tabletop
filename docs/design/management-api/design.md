@@ -50,7 +50,7 @@ Asset bytes never pass through the process, and the service issues no token of i
   (`architecture.md` → *Rules as data*), so `GET /v1/properties` can return an empty list and
   `POST /v1/games` then answers `422`.
 - **No hosting.** Local only: Postgres and MinIO from `docker-compose.yml`, configuration from
-  `TABLETOP_*` and `dotnet user-secrets` (hosting ruling 2026-09-04).
+  `TABLETOP_*` and `dotnet user-secrets`.
 
 ### Where the code lands
 
@@ -137,8 +137,8 @@ that calls Stytch's Basic-auth endpoints. The game server never touches Stytch's
 fetches the same public JWKS and applies the same validation parameters. There is no contract type
 to agree on and no M2M call. The contract is four constants (`iss`, `aud`, `RS256`, the claim name
 `account_id`) plus a URL, recorded under *Interfaces needed from other modules* for the
-game-server plan to copy. Auth is not in `architecture.md` → *Contracts to freeze*, and the join
-token that was once on that list is gone.
+game-server plan to copy. Auth is not in `architecture.md` → *Contracts to freeze*, and there is
+no join token.
 
 **Database seam.** Both servers open the same database. Management owns the schema and runs DbUp
 at its own startup. The game server never migrates. A management migration can break the game
@@ -272,7 +272,7 @@ Stytch session JWT that both servers verify locally.
 Stytch's JWT names the user by Stytch's own `sub`. It does not carry `external_id`. The account id
 therefore rides in the custom claim `account_id`, rendered by the Stytch project's `SESSION` custom
 claim template, `{"account_id": "{{ user.external_id }}"}`, which Stytch evaluates every time it
-mints a JWT (owner ruling 2026-09-06). Management passes `session_custom_claims` nowhere. Its one
+mints a JWT. Management passes `session_custom_claims` nowhere. Its one
 job is keeping every Stytch user's `external_id` equal to its `Account.id`, which
 `Sessions.Complete(StytchSession)` does, and every login method passes through it:
 
@@ -316,7 +316,7 @@ A returning login costs no Stytch call beyond the authenticate itself, and a ref
 One re-mint survives, in one place. On a brand-new account Stytch mints the session by the same
 call that spends the single-use one-time code, before `external_id` exists, so that first JWT
 carries no claim. `Sessions.Complete` therefore creates the account row, sets `external_id`, and
-re-mints once through `POST /v1/sessions/authenticate`. Linking earlier was rejected: the code is
+re-mints once through `POST /v1/sessions/authenticate`. Linking earlier does not work: the code is
 single-use, so the session must be minted by the call that spends it, and linking at
 `POST /v1/auth/otp` would create an account row for any email anyone types.
 
@@ -327,7 +327,7 @@ incidental: the template reads it, so a user whose `external_id` is unset gets J
 
 The template is project configuration rather than code, and its absence is silent: every JWT mints
 without the claim, `CurrentAccount.Id` throws on every management request, the game server rejects
-every connection, and Stytch reports no error. It is recorded as environment setup beside the
+every connection, and Stytch reports no error. It is environment setup, listed beside the
 reset-password redirect URL (*Obligations this module places on others → Stytch dashboard*). It is
 also readable and writable through Stytch's Workspace Management API at `GET` and
 `PUT https://management.stytch.com/pwa/v3/projects/{project_slug}/environments/{environment_slug}/jwt_templates/SESSION`,
@@ -344,7 +344,7 @@ rotation path, and the only reason the cache is not permanent.
 
 The JWKS endpoint `GET {StytchBaseUrl}/v1/sessions/jwks/{project_id}` **takes no credentials**.
 Stytch's reference page lists a `basicAuth` scheme and passes `-u project:secret` in its example.
-An unauthenticated `curl` answers `200` with the key set (verified 2026-09-05 and 2026-09-06). That
+An unauthenticated `curl` answers `200` with the key set. That
 is what lets the game server verify a JWT without holding the project secret.
 
 `CurrentAccount.Id(ClaimsPrincipal)` parses the claim and throws `UnauthorizedAccessException` when
@@ -354,9 +354,9 @@ takes `ownerId` as a parameter rather than reading ambient state.
 #### The development mint
 
 `POST /v1/dev/sessions` takes a name and returns a real Stytch session JWT for the account of that
-name. Owner ruling 4 of 2026-09-06. The simulator's socket driver needs one session token per team,
-hand-pasting them was rejected, and management is the only process holding the Stytch project
-secret, so the mint belongs here.
+name. The simulator's socket driver needs one session token per team, hand-pasting them is not
+acceptable, and management is the only process holding the Stytch project secret, so the mint
+belongs here.
 
 `DevSessions.Mint(name)`:
 
@@ -415,8 +415,8 @@ result and the same `404`. Existence is not disclosed (management API → *The r
 There is no `403` anywhere in the service. A permission error is indistinguishable from a mistyped
 id. That is accepted for a single-owner model with no sharing.
 
-`/end` and `DELETE /v1/games/{id}` are the creator's alone, ruled 2026-09-06 against this design's
-earlier reading of the spec's "unowned" as any participant. `GameRepository.IsCreator` gates both
+`/end` and `DELETE /v1/games/{id}` are the creator's alone, not any participant's; the spec's
+"unowned" setup phase does not widen the right. `GameRepository.IsCreator` gates both
 routes and everyone else gets the same `404` as any other row that is not the caller's. The right
 survives leaving, because `game.created_by` has no `on delete` action and outlives the participant
 row. A creator's account deletion takes the game with it, so nothing is left undeletable. The game
@@ -453,8 +453,8 @@ records `001` as applied rather than re-running it.
 
 Migration `002_blob_uploaded.sql` adds `blob.uploaded boolean not null default false` and
 `blob.content_type text not null check (content_type in ('model/gltf-binary','image/png','image/jpeg','image/webp'))`.
-Both are needed by the presigned protocol. Neither is in `schema.md`. Spec correction 1 proposes
-them.
+Both are needed by the presigned protocol (`docs/schema.md` → *`blob` records whether its bytes
+arrived, and what they are*).
 
 ### 6. The asset library and the presigned protocol
 
@@ -523,7 +523,7 @@ header read pointless. `GlbHeader` is pure and headless:
   because that is what a client loads into memory.
 
 The threshold warns and does not block (mesh conversion → *The threshold*). It is unrelated to
-`game.enforcement`, which gained a refusing position on 09-04. Nothing about uploads refuses.
+`game.enforcement`, whose `strict` position refuses. Nothing about uploads refuses.
 
 Download is `GET /v1/assets/{id}/download` → a presigned `GET` valid 60 minutes, `409` until
 confirmed. Delete removes the asset row. When that was the owner's **last** reference to the hash
@@ -561,7 +561,7 @@ null otherwise (`422`). `Fetch(listId)` calls `GET https://army-forge.onepagerul
 and throws `ArmyForgeException(status)` on non-200, which the endpoint maps to `502`.
 
 `ArmyForgeList.cs` is the **subset of the export this project reads**, verified against a live
-fetch on 2026-09-06 (`c2-6YsWRH3py`, 26 KB, saved as a fixture). Every optional member is nullable
+fetch (`c2-6YsWRH3py`, 26 KB, saved as a fixture). Every optional member is nullable
 and nothing is `required`, because a required-field model throws on the real payload. What the
 fetch established:
 
@@ -577,7 +577,7 @@ fetch established:
 | `bases` is `{round, square}`, both strings of millimetres | `"32"` → `Base.Circle(32/25.4)`, `"60x35"` → `Base.Oval(60/25.4, 35/25.4)` |
 | there is no `customName` | `name` is the only name field |
 | `combined: true` on two entries whose `joinToUnit` cross-reference | one unit of double size; sizes and loadout counts add |
-| `joinToUnit` on an entry that is not a `combined` partner | a hero joining that unit; its models become models of that unit (ruled 2026-09-06). This list carries no such entry, so the join path is tested against hand-written lists |
+| `joinToUnit` on an entry that is not a `combined` partner | a hero joining that unit; its models become models of that unit (the plan's ruling 2). This list carries no such entry, so the join path is tested against hand-written lists |
 
 `ArmyForgeImport.ToArmy(list, source, catalog)` is a pure function: no database, no HTTP. The
 mapping is the most heavily unit-tested piece in the module.
@@ -625,7 +625,7 @@ time. The cursor is shared, and both weapons and part-count rules advance it.
 
 The cursor answers `9x Rifle, 1x Flamer`: the flamer lands on slot 10, not slot 1. Because it is
 shared between weapons and partial-count item rules, a shield on two models and a flamer on one do
-not both start at slot 1. The choice is arbitrary and deterministic (question 4). There is one
+not both start at slot 1. The choice is arbitrary and deterministic (the plan's ruling 4). There is one
 cursor per section, so a joining entry's loadout can never reach a slot of the unit it joined.
 
 The level of a rule comes from `CatalogKinds.For(gameRules)`, a `distinct` query over
@@ -636,7 +636,7 @@ and no content import exists yet, so today every rule imports at unit level.
 #### A joined hero as a model of its host
 
 An entry that carries `joinToUnit` and is not a `combined` partner contributes its models to the
-unit it names, ruled 2026-09-06. `Merge` returns a host entry plus the entries joining it, and
+unit it names (the plan's ruling 2). `Merge` returns a host entry plus the entries joining it, and
 `Section` appends one entry's slots to the unit under construction. The host's slots come first,
 then each joining entry's in export order. `ModelSlot.Ordinal` counts over the merged unit, while
 the slot name is `"{entry name} {index within that entry}"`. The two coincide for a unit nothing
@@ -651,30 +651,30 @@ base comes from its own `bases.round`, and its height is scaled from that base.
 Every rule on a joining entry becomes a slot property on that entry's slots, whatever level
 `CatalogKinds` gives the name. The unit's stats and properties stay the host's. A stat read for the unit reads the
 host's value; a stat read for a model reads that model's slot and falls back to the host's, which
-is how a joined hero's own `Quality` reaches its hit roll (rulebook p.4, owner ruling of
-2026-09-06). A `unit`-kind rule on a joined slot is the whole unit's. Two obligations on the
+is how a joined hero's own `Quality` reaches its hit roll (rulebook p.4). A `unit`-kind rule on a
+joined slot is the whole unit's. Two obligations on the
 interpreter follow, in *Obligations this module places on others*.
 
 Join resolution is one pass over what the combined pass left. An absorbed `combined` partner's
 `selectionId` resolves to the entry that absorbed it, so a hero naming either half of a combined
 pair joins the merged unit of ten. Combined pairing requires `combined: true` on both entries, so a
 hero is never absorbed as a partner and the two mechanisms cannot collide. A `joinToUnit` that no
-surviving entry answers leaves the entry as its own unit, the behaviour this module had before the
-ruling. A `joinToUnit` naming an entry that itself joins does the same, so joins are never chained
+surviving entry answers leaves the entry as its own unit. A `joinToUnit` naming an entry that
+itself joins does the same, so joins are never chained
 and a cycle needs no walk.
 
 Defaults where nothing supplies one: `DefaultBody`, a 221 × 119 × 113 mm vehicle hull, when
-`bases.round` is absent. Ruled 2026-09-09, over the `Base.Circle(32/25.4)` that stood before: Army
-Forge publishes `bases.round` reliably for infantry, so a missing base means a vehicle or monster in
-practice, and a 32 mm circle put a tank's whole 6" disembark region — and its movement, cover and
-line of sight — inside its own hull. The default carries its own height rather than going through
-`HeightFromBase`, which would scale 221 mm into a 13" tall tank. The army spec says bases default to
-"whatever the ruleset says" and no ruleset value exists anywhere in the model (question 3; spec
-correction 5). The player corrects it per model through `SlotPatch.Base`, which the web app's base
-editor already writes.
+`bases.round` is absent, not a 32 mm infantry circle: Army Forge publishes `bases.round` reliably
+for infantry, so a missing base means a vehicle or monster in practice, and a 32 mm circle would put
+a tank's whole 6" disembark region — and its movement, cover and line of sight — inside its own
+hull (open questions → *The default base for a model that publishes none*). The default carries its
+own height rather than going through `HeightFromBase`, which would scale 221 mm into a 13" tall
+tank. The army spec says bases default to "whatever the ruleset says" and no ruleset value exists
+anywhere in the model (the plan's ruling 3; the army → *Base shape and height*). The player corrects
+it per model through `SlotPatch.Base`, which the web app's base editor already writes.
 
-`HeightFromBase(base)` is `HeightScale * base.A`, `1.5 ×` the base's long axis, ruled 2026-09-06.
-A 25.4 mm circle gets 1.5", a 32 mm circle 1.89", a 60x35 mm oval 3.54" and a 120x92 mm oval 7.09".
+`HeightFromBase(base)` is `HeightScale * base.A`, `1.5 ×` the base's long axis (the plan's ruling
+3). A 25.4 mm circle gets 1.5", a 32 mm circle 1.89", a 60x35 mm oval 3.54" and a 120x92 mm oval 7.09".
 Neither ruleset publishes a height and neither does Army Forge, so the base is the only physical
 dimension available to scale from and the factor is a guess. The player corrects it per slot with
 `SlotPatch.Height`.
@@ -690,8 +690,8 @@ reference*).
 `PATCH /v1/armies/{id}` is **a patch, not a document**: `PatchArmyRequest(Name?, Units?, Slots?)`
 where `UnitPatch(UnitId, AssetId?)` sets the unit default across every slot and
 `SlotPatch(SlotId, AssetId?, ClearAsset, Base?, Height?)` overrides one. That is the army spec's
-shape: the pack or the import supplies a default, and the user overrides per slot. Spec correction
-3 settles the spec's open question about document versus patch. There is no `Name?` on either
+shape: the pack or the import supplies a default, and the user overrides per slot (management API
+→ *Deliberately not decided*, the `PATCH` item). There is no `Name?` on either
 patch. Names are the list's. Appearance and physical presence are the user's.
 
 A changed list means a re-import, with no reconciliation and no preserved bindings. The army spec
@@ -764,12 +764,11 @@ in the database enforces it: no trigger, no per-column grant, no status guard. T
 read `game.status` before writing `'ended'`. The game server does not check whether management has
 deleted the game under it.
 
-`participant` needs two columns `schema.md` does not yet have, both proposed by the contracts plan:
-`game_id uuid not null references game(id) on delete cascade` with `unique (game_id, account_id)`
-(its spec correction 4: ruling 5 made `team_id` nullable, which left a team-less participant
-attached to nothing), and `army_id uuid references army(id) on delete set null` (its spec
-correction 2: the lobby's pick, which the manifest reads before a snapshot exists). This module's
-SQL depends on both.
+`participant` carries two columns this module's SQL depends on (`docs/schema.md` → *`participant`
+links to its game, and holds the army it picked*): `game_id uuid not null references game(id) on
+delete cascade` with `unique (game_id, account_id)`, because `team_id` is nullable and a team-less
+participant would otherwise be attached to nothing; and `army_id uuid references army(id) on delete
+set null`, the lobby's pick, which the manifest reads before a snapshot exists.
 
 Endpoint behaviour:
 
@@ -778,9 +777,9 @@ Endpoint behaviour:
   with. An unknown hash is `422` with a pointer to `GET /v1/properties`.
 - `GET /v1/games` lists **every status**, keyset over `id`, **descending**. Filtering is the user's, not
   the server's. "Open games" was the wrong phrase. Nothing is hidden by status (accounts → *Still
-  open*). Descending by id means newest first, ruled 2026-09-09 over the ascending order the cursor
-  gave for free: the list filters by status, name and created-by-me, which is a filter set for
-  finding something recent, and ascending puts every finished game ahead of tonight's (question 7).
+  open*). Descending by id means newest first: the list filters by status, name and created-by-me,
+  which is a filter set for finding something recent, and ascending puts every finished game ahead
+  of tonight's (the plan's ruling 7).
   `id < @after order by id desc`; `Page<T>.Next` still holds the last id.
 - `POST /v1/games/{id}/join` is `insert ... on conflict (game_id, account_id) do nothing` guarded by
   `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
@@ -911,30 +910,28 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 
 ## Key decisions
 
-### Contested and re-decided
-
-Each of these was decided, reversed, and in several cases reversed again.
+### Contested decisions
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
-| **No token of our own.** Stytch's session JWT is the only credential. Both servers verify it locally against Stytch's JWKS | our UUID is the identifier on both sides, so swapping vendors changes what issues the token, not what it means. Verification is local, so nothing calls Stytch on the request path. Short expiry covers revocation | two opaque token tables, a `session` table and a join token, both designed in this session and both dropped 08-30 | management API → *We issue no tokens of our own*; accounts → *Auth is a module* (revised 08-30) |
+| **No token of our own.** Stytch's session JWT is the only credential. Both servers verify it locally against Stytch's JWKS | our UUID is the identifier on both sides, so swapping vendors changes what issues the token, not what it means. Verification is local, so nothing calls Stytch on the request path. Short expiry covers revocation | two opaque token tables, a `session` table and a join token | management API → *We issue no tokens of our own*; accounts → *Auth is a module, not a vendor* |
 | **The join token is gone.** A game has an id, a session says who you are, `participant` records who is allowed in | the token restated three facts and added an expiry that could lapse mid-game. A four-player game runs hours, so a token issued at the lobby could be dead when a player who dropped at hour three reconnects | a fourth frozen contract between two servers that never call each other | accounts → *A game is a lobby*; `architecture.md` → *Contracts to freeze* |
-| **The client has its own login screen. Both it and the web app call the same two methods** | reversed twice: accounts put login in the client, the web app moved it to the browser because one existed, and the client shell removed social login and magic links so nothing needs a page to redirect to. Accounts' original routing stands | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* (corrected 09-04) |
-| **The account id rides in a custom claim the Stytch claim template renders, not in `external_id`** | Stytch's JWT names the user by its own `sub`. The spec's 08-30 confirmation allowed a custom claim if `external_id` could not ride, and it cannot. The `SESSION` template renders `{{ user.external_id }}` on every mint, so the claim costs nothing at run time | reading `external_id` from the token; stamping the claim per login with `session_custom_claims`, which cost an extra Stytch call on every login and every refresh (question 1, ruled 09-06 in favour of the template) | management API → *Confirmed 2026-08-30*; owner ruling 2026-09-06; plan Task 5 |
+| **The client has its own login screen. Both it and the web app call the same two methods** | there is no social login and no magic link, so nothing needs a browser page to redirect to, and email plus password or one-time code costs the client the same two management calls the web app makes | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* |
+| **The account id rides in a custom claim the Stytch claim template renders, not in `external_id`** | Stytch's JWT names the user by its own `sub` and does not carry `external_id`, so our id has to ride in a custom claim. The `SESSION` template renders `{{ user.external_id }}` on every mint, so the claim costs nothing at run time | reading `external_id` from the token, which the JWT does not carry; stamping the claim per login with `session_custom_claims`, which costs an extra Stytch call on every login and every refresh | management API → *Authentication*; the plan's ruling 1; plan Task 5 |
 | **GLB only**, narrowed from "glTF/GLB" | a `.gltf` with external buffers is several files with relative references: single-object presigned upload breaks, the header read becomes pointless, and serving it to another player's client can fail | accepting `.gltf` with sidecar buffers | management API → *GLB only*; `architecture.md` → *GLB only* |
-| **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* (settled 09-04) |
-| **`enforcement` is `silent \| warn \| strict`**, not a boolean | identity and enumerations ruled a boolean and argued that a blocking mode contradicts the product. Action sequences and the scheduler then both wrote a refusing mode. The owner kept `strict` | `warns boolean`. This module only stores and validates the column | whole-design review ruling 1 |
-| **A participant has no team until they pick one, and picking is not joining** | nothing said what team `join` assigned. `POST /v1/games/{id}/join` inserts the row and sets no team, at any status; taking a team is a game-server lobby edit before play. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team", superseded; and the reading that made `join` assign a team, which conflated the two operations | whole-design review ruling 5; owner ruling 1 of 2026-09-06; game flow → *Teams are frozen at the flip, and a team is a slot* |
-| **A development-only route mints a real Stytch session for a named account.** `POST /v1/dev/sessions`, gated on `IHostEnvironment.IsDevelopment()` | the simulator's socket driver has to hold a session token per team, and hand-pasting four of them was rejected. Management holds the project secret and already creates users and authenticates sessions, so the mint costs four Stytch calls and no new machinery. Minting a real token keeps the socket driver on the production verification path, which is the only reason that driver exists | a hand-pasted `TABLETOP_SIM_JWT`; a second signing key or a local trust anchor for either verifier, which would put a bypass in the auth path; a feature flag, which a deployment could set by accident | owner ruling 4 of 2026-09-06; simulation design → *How a socket run gets its session JWTs* |
+| **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* |
+| **`enforcement` is `silent \| warn \| strict`**, not a boolean | action sequences and the scheduler both carry a refusing mode, which a boolean cannot express | `warns boolean`, on the reading that a blocking mode contradicts the product. This module only stores and validates the column | whole-design review ruling 1 |
+| **A participant has no team until they pick one, and picking is not joining** | nothing said what team `join` assigned. `POST /v1/games/{id}/join` inserts the row and sets no team, at any status; taking a team is a game-server lobby edit before play. A team-less participant is never addressed by an Ask, which is what a spectator is | presence's "joins a third team"; and a `join` that assigns a team, which conflates the two operations | whole-design review ruling 5; game flow → *Teams are frozen at the flip, and a team is a slot* |
+| **A development-only route mints a real Stytch session for a named account.** `POST /v1/dev/sessions`, gated on `IHostEnvironment.IsDevelopment()` | the simulator's socket driver has to hold a session token per team, and hand-pasting four of them is not acceptable. Management holds the project secret and already creates users and authenticates sessions, so the mint costs four Stytch calls and no new machinery. Minting a real token keeps the socket driver on the production verification path, which is the only reason that driver exists | a hand-pasted `TABLETOP_SIM_JWT`; a second signing key or a local trust anchor for either verifier, which would put a bypass in the auth path; a feature flag, which a deployment could set by accident | simulation design → *How a socket run gets its session JWTs* |
 | **The game server writes a game's own rows before play** | three documents said it was read-only and wrote only events. The setup phase had it flipping status, writing the draft, and taking team and army picks over the socket | keeping management the sole writer, which would have meant endpoints for every lobby and setup edit | whole-design review ruling 4 |
 | **Layouts stay management's** even though the game server owns the draft | the client saves by `POST /v1/layouts` from its own copy of the draft and loads by `GET` plus a replace-draft edit, so the game server never writes an owner-side row | letting the game server write the layout directly, which would have put an owner's row in the other service's write set | whole-design review ruling 4; setup phase → *Layouts* |
-| **Grimdark Future and Age of Fantasy both import**, both carrying `game_system = "grimdark-future"` | the mechanics are the same and only the content differs, which is what `architecture.md` → *Rules as data* already records when it rules Age of Fantasy out as a second ruleset: its terrain rules are word for word identical. One rules implementation therefore serves both, and the list's `gameSystem` selects nothing but whether the list is accepted | `gf` alone, on the reading that Age of Fantasy is not a second ruleset and so not a second import; a second `GameRules` identifier, which would need a second engine to mean anything. The skirmish and regiment variants stay refused, being different mechanics rather than different content | owner ruling 2026-09-06; question 5; plan Task 9 |
-| **A slot's starting height is scaled from its base**, `1.5 ×` the long axis | a flat 1.5" gave a 120 mm monster the height of an infantryman, and the base is the only physical dimension Army Forge publishes. The scale is arbitrary and reads as arbitrary, which suits a value the player is expected to correct per slot through `SlotPatch.Height` | the flat `DefaultHeight = 1.5`; per-`GameRules` heights from `Properties`, which needs a table that does not exist | owner ruling 2026-09-06; question 3; plan Task 9 |
-| **Only the creator may `/end` or `DELETE` a game**, and still may after leaving it | the creator already starts and ends setup, so ending and destroying the game belong to the same account. `game.created_by` has no `on delete` action and outlives the participant row, so leaving does not surrender the right | any participant, on the reading that the setup phase leaves a game "unowned" (question 6). A game whose creator's account is deleted is not stranded: account deletion destroys every game the account created as well as every game it played in | owner ruling 2026-09-06; question 6; plan Task 12 |
-| **A joined hero is a model of the unit it joined**, with its own quality, defence and rules on its own slot | Army Forge publishes the attachment on the joining entry, and dropping it imports a squad of five plus a hero of one where the list describes one unit of six. `ModelSlot` already carries `Stats` and `Properties`, `slot_stat` and `slot_property` are already written and read back, and content values declares stats at model level, so the merge cost a restructuring of `ArmyForgeImport` and no schema change | importing the hero as its own unit and losing the join, on the reading that no column records it; a host column on `unit`, which the army tables do not have and which only import would ever write | owner ruling 2026-09-06; question 2; plan Task 9 |
-| **A changed list means a re-import**, losing per-slot bindings | the army session originally copied an army and applied the new list to the copy so bindings survived. Armies are cheap to rebuild and list changes are rare | reconciliation, copy-on-write, and the `Binding` table and `list_entry` column that served them, all dropped | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
-| **Dedup is per user**, `blob` keyed `(owner_id, hash)` | `architecture.md` deduped globally. Nobody shares storage, so cross-user reference counting never has to exist, and deleting an asset checks only the owner's own rows | global content addressing with reference counts | asset library → *Two records*; `schema.md` → *Identifiers* |
-| **Normalised, not `jsonb`** | with `jsonb` the database checks nothing, at the layer where checking is cheapest. An earlier draft had the army tree, the table state and the asset profile as documents | document columns per aggregate. Two `jsonb` columns survive for opposite reasons: `game_event.payload` is heterogeneous, and `participant.army_snapshot` **must not** be reasoned about | `schema.md` → *Normalised, not documents*, *Where `jsonb` survives* |
+| **Grimdark Future and Age of Fantasy both import**, both carrying `game_system = "grimdark-future"` | the mechanics are the same and only the content differs, which is what `architecture.md` → *Rules as data* already records when it rules Age of Fantasy out as a second ruleset: its terrain rules are word for word identical. One rules implementation therefore serves both, and the list's `gameSystem` selects nothing but whether the list is accepted | `gf` alone, on the reading that Age of Fantasy is not a second ruleset and so not a second import; a second `GameRules` identifier, which would need a second engine to mean anything. The skirmish and regiment variants stay refused, being different mechanics rather than different content | the plan's ruling 5; plan Task 9 |
+| **A slot's starting height is scaled from its base**, `1.5 ×` the long axis | a flat 1.5" would give a 120 mm monster the height of an infantryman, and the base is the only physical dimension Army Forge publishes. The scale is arbitrary and reads as arbitrary, which suits a value the player is expected to correct per slot through `SlotPatch.Height` | the flat `DefaultHeight = 1.5`; per-`GameRules` heights from `Properties`, which needs a table that does not exist | the plan's ruling 3; plan Task 9 |
+| **Only the creator may `/end` or `DELETE` a game**, and still may after leaving it | the creator already starts and ends setup, so ending and destroying the game belong to the same account. `game.created_by` has no `on delete` action and outlives the participant row, so leaving does not surrender the right | any participant, on the reading that the setup phase leaves a game "unowned". A game whose creator's account is deleted is not stranded: account deletion destroys every game the account created as well as every game it played in | the plan's ruling 6; plan Task 12; accounts → *Ending is a flag, not a state* |
+| **A joined hero is a model of the unit it joined**, with its own quality, defence and rules on its own slot | Army Forge publishes the attachment on the joining entry, and dropping it imports a squad of five plus a hero of one where the list describes one unit of six. `ModelSlot` already carries `Stats` and `Properties`, `slot_stat` and `slot_property` are already written and read back, and content values declares stats at model level, so the merge is a restructuring of `ArmyForgeImport` and no schema change | importing the hero as its own unit and losing the join, on the reading that no column records it; a host column on `unit`, which the army tables do not have and which only import would ever write | the plan's ruling 2; plan Task 9 |
+| **A changed list means a re-import**, losing per-slot bindings | armies are cheap to rebuild and list changes are rare | reconciliation and copy-on-write, with a `Binding` table and a `list_entry` column to serve them | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
+| **Dedup is per user**, `blob` keyed `(owner_id, hash)` | nobody shares storage, so cross-user reference counting never has to exist, and deleting an asset checks only the owner's own rows | global content addressing with reference counts | asset library → *Two records*; `schema.md` → *Identifiers* |
+| **Normalised, not `jsonb`** | with `jsonb` the database checks nothing, at the layer where checking is cheapest | document columns per aggregate: the army tree, the table state and the asset profile as `jsonb`. Two `jsonb` columns survive for opposite reasons: `game_event.payload` is heterogeneous, and `participant.army_snapshot` **must not** be reasoned about | `schema.md` → *Normalised, not documents*, *Where `jsonb` survives* |
 
 ### Taken as designed
 
@@ -955,12 +952,12 @@ Each of these was decided, reversed, and in several cases reversed again.
 
 | Question the specs do not answer | What the plan does | What it costs if wrong |
 | --- | --- | --- |
-| Is a request with no version header accepted? | yes, the web app ships with the API and does not send one (spec correction 7) | a stale cached SPA would not be told to reload. The mechanism was built for the desktop client |
-| Does `PATCH /v1/armies/{id}` take a document or a patch? | a patch: `Name?`, `UnitPatch` (unit default), `SlotPatch` (per-slot asset, base, height), spec correction 3 | a whole-document `PUT` would need the client to hold the full tree and would race with itself |
-| What are the error shapes? | RFC 7807 `application/problem+json` throughout. Another owner's row is `404`, spec correction 3 | nothing. The spec listed this under *Deliberately not decided* |
-| How are partial weapon counts dealt onto models? | an advancing cursor. `9x Rifle, 1x Flamer` puts the flamer last (question 4) | if the user must be asked, import cannot expand deterministically and the web app needs a weapon editor that is not designed |
-| Is the game browser newest-first? | **yes**, ruled 2026-09-09 (question 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id, so the cursor mechanism is unchanged |
-| Does the texture kind accept WebP? | **yes**, ruled 2026-09-09 (question 8): Godot 4 loads it natively and every client in a game downloads the table texture | one value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's intake |
+| Is a request with no version header accepted? | yes, the web app ships with the API and does not send one | a stale cached SPA would not be told to reload. The mechanism was built for the desktop client |
+| Does `PATCH /v1/armies/{id}` take a document or a patch? | a patch: `Name?`, `UnitPatch` (unit default), `SlotPatch` (per-slot asset, base, height) | a whole-document `PUT` would need the client to hold the full tree and would race with itself |
+| What are the error shapes? | RFC 7807 `application/problem+json` throughout. Another owner's row is `404` | nothing. The spec listed this under *Deliberately not decided* |
+| How are partial weapon counts dealt onto models? | an advancing cursor. `9x Rifle, 1x Flamer` puts the flamer last (the plan's ruling 4) | if the user must be asked, import cannot expand deterministically and the web app needs a weapon editor that is not designed |
+| Is the game browser newest-first? | **yes** (the plan's ruling 7) | `id < @after order by id desc`; `Page<T>.Next` still holds the last id, so the cursor mechanism is unchanged |
+| Does the texture kind accept WebP? | **yes** (the plan's ruling 8): Godot 4 loads it natively and every client in a game downloads the table texture | one value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's intake |
 | Is the manifest re-issued on reconnect? | not decided here. The client re-requests it. `ExpiresAt` is 60 minutes and a game runs hours | management API → *Deliberately not decided*; the client must handle expiry |
 
 ---
@@ -1057,12 +1054,12 @@ and a build whose environment is unset serves `404` for it.
 | Module | Must honour |
 | --- | --- |
 | Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string; verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
-| Interpreter, through the OPR properties document | author an Age of Fantasy content set. `aof` lists import as of the 2026-09-06 ruling, a game pins a set by `properties.content_hash`, and the only authored document is `grimdark-future-core.properties.json`, whose catalog is Grimdark Future's army books and spells. An Age of Fantasy army can therefore be imported before anything exists to play it with, and nothing detects the mismatch: `army.game_system` and `properties.game_rules` are both `grimdark-future`, which is what lets one rules implementation serve both |
-| Interpreter, through the OPR properties document | declare `Quality` and `Defense` at `model` level beside their `unit` declarations, because a joined hero's slots carry both as slot stats and `slot_stat` has no foreign key to `stat_definition` to catch the gap. **Both are discharged.** The owner ruled on 2026-09-06 that a joined hero attacks at its own Quality and blocks on the unit's Defense until every other model is dead, so the slot's `Quality` is read for every hit roll and the slot's `Defense` once the unit holds one model, and a `unit`-kind entry on a slot is the whole unit's rule in both readers. Interpreter question 13 records the mechanism |
+| Interpreter, through the OPR properties document | author an Age of Fantasy content set. `aof` lists import (the plan's ruling 5), a game pins a set by `properties.content_hash`, and the only authored document is `grimdark-future-core.properties.json`, whose catalog is Grimdark Future's army books and spells. An Age of Fantasy army can therefore be imported before anything exists to play it with, and nothing detects the mismatch: `army.game_system` and `properties.game_rules` are both `grimdark-future`, which is what lets one rules implementation serve both |
+| Interpreter, through the OPR properties document | declare `Quality` and `Defense` at `model` level beside their `unit` declarations, because a joined hero's slots carry both as slot stats and `slot_stat` has no foreign key to `stat_definition` to catch the gap. **Both are discharged.** A joined hero attacks at its own Quality and blocks on the unit's Defense until every other model is dead, so the slot's `Quality` is read for every hit roll and the slot's `Defense` once the unit holds one model, and a `unit`-kind entry on a slot is the whole unit's rule in `Gather` and `UnitHas` alike (the interpreter design's ruling 13) |
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
 | Simulator | call `POST /v1/dev/sessions` once per team plus once for the recorder, and seed `participant` rows for the account ids it returns. It needs this service running under `ASPNETCORE_ENVIRONMENT=Development` with the Stytch secret set, and network access to the Stytch test project |
-| Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a redirect URL; the `SESSION` custom claim template set to exactly `{"account_id": "{{ user.external_id }}"}`, in the test environment and again in live, because its absence takes both services down with no Stytch error; the two URLs registered 08-24 for OAuth and magic links can go |
+| Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a redirect URL; the `SESSION` custom claim template set to exactly `{"account_id": "{{ user.external_id }}"}`, in the test environment and again in live, because its absence takes both services down with no Stytch error; the OAuth and magic-link redirect URLs are unused and can go |
 
 ---
 
@@ -1439,7 +1436,7 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 | Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes. The only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
 | S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
 | Account deletion: Stytch fails with anything but `404` | content and games are already gone. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
-| A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Open questions* |
+| A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Notable gaps* |
 | The `SESSION` claim template missing or misspelled | every JWT mints without `account_id`, so every management request is the row above and the game server rejects every connection. Stytch reports no error anywhere | **not defended.** The template is configuration living outside the repo, so no test can see it. The manual pass at the end of Task 5, reading the JWT at jwt.io, is the only evidence it exists |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
 | Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
@@ -1544,23 +1541,23 @@ Stytch user and no re-mint, with the second JWT accepted by `GET /v1/account`.
 
 ---
 
-## Open questions and deferred work
+## Rulings and deferred work
 
-### The plan's questions, with the assumption taken
+### Rulings
 
-| Question | Assumption | If the answer differs |
+| Question | Decision | Reason |
 | --- | --- | --- |
-| ~~1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)?~~ | **ruled 2026-09-06: the template.** The code path's advantage, in the repo and testable, did not survive the extra Stytch call it cost on every login and every refresh | already applied above. `Sessions.Complete` makes no second call on a returning login or a refresh, `external_id` becomes the mechanism, and the template is environment setup whose absence fails silently |
-| ~~2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit?~~ | **ruled 2026-09-06: the hero is a model of the unit it joined.** The assumption had been that the join was lost, no table recording it | already applied above. `Merge` returns a host plus the entries joining it, `Section` appends one entry's slots with its own stats, base and cursor, the unit's stats and properties stay the host's, and an unresolvable `joinToUnit` keeps the old behaviour |
-| ~~3. Default base and height when Army Forge gives none?~~ | **ruled 2026-09-06: the base default stands, the height is scaled from the base.** `1.5 ×` its long axis, replacing the flat 1.5" | already applied above. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would replace it |
-| 4. How are partial weapon counts dealt onto models? | an advancing cursor, and the flamer lands last | if the user must choose, import cannot expand deterministically and the web app needs a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
-| ~~5. Which game systems import?~~ | **ruled 2026-09-06: Grimdark Future and Age of Fantasy, both as `grimdark-future`.** The mechanics are the same and only the content differs | already applied above. No Age of Fantasy content set exists, so such a list imports before anything can play it, recorded against the interpreter |
-| ~~6. Who may `/end` and `DELETE` a game?~~ | **ruled 2026-09-06: the creator alone**, still so after leaving | already applied above. `GameRepository.IsCreator` gates both routes and anyone else gets `404` |
-| 7. Is `GET /v1/games` newest-first? | **yes**, ruled 2026-09-09 | `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
-| 8. Does the texture kind accept `image/webp`? | **yes**, ruled 2026-09-09 | one value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's `ContentType` union and `classifyFiles` |
+| 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | **the template** | a per-login claim costs an extra Stytch call on every login and every refresh, which outweighs the code path's advantage of living in the repo and being testable. `Sessions.Complete` makes no second call on a returning login or a refresh, `external_id` is the mechanism, and the template is environment setup whose absence fails silently |
+| 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | **no: the hero is a model of the unit it joined** | Army Forge publishes the attachment on the joining entry, and `ModelSlot` already carries the stats and properties the hero needs, so no table records the join. `Merge` returns a host plus the entries joining it, `Section` appends one entry's slots with its own stats, base and cursor, the unit's stats and properties stay the host's, and an unresolvable `joinToUnit` imports as a unit of its own |
+| 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 221 × 119 × 113 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its long axis** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
+| 4. How are partial weapon counts dealt onto models? | **an advancing cursor**, and the flamer lands last | import expands deterministically; asking the user would need a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
+| 5. Which game systems import? | **Grimdark Future and Age of Fantasy, both as `grimdark-future`** | the mechanics are the same and only the content differs. No Age of Fantasy content set exists, so such a list imports before anything can play it, recorded against the interpreter |
+| 6. Who may `/end` and `DELETE` a game? | **the creator alone**, still so after leaving | the creator starts and ends setup, so ending and destroying the game belong to the same account. `GameRepository.IsCreator` gates both routes and anyone else gets `404` |
+| 7. Is `GET /v1/games` newest-first? | **yes** | the list's filters are for finding something recent, and ascending would put every finished game ahead of tonight's. `id < @after order by id desc`; `Page<T>.Next` still holds the last id |
+| 8. Does the texture kind accept `image/webp`? | **yes** | Godot 4 loads it natively and every client in a game downloads the table texture. One value in `AssetRules.ContentTypes`, one in the `002` check constraint, and the web app's `ContentType` union and `classifyFiles` |
 
-A ninth question, whether a missing version header is accepted, was struck on 09-06. The specs
-answer it: the check exists for the downloaded desktop client, and the client shell says the client
+A request with no version header is accepted (management API → *Authentication*, the version
+check): the check exists for the downloaded desktop client, and the client shell says the client
 sends its version on every request.
 
 ### Deferred, with where it is recorded
@@ -1573,19 +1570,10 @@ sends its version on every request.
 | The JWT lifetime and refresh interval as anything but working figures | management API → *Deliberately not decided*. Five minutes and one minute are used here |
 | How authored `Properties` content reaches the eight tables | `architecture.md` → *Rules as data*; whole-design review → *Left as first-pass assertions*. Until it exists, `GET /v1/properties` is empty and no game can be created |
 | Indexes beyond primary and foreign keys | `schema.md` → *Still open*; the game browser's listing query is the first candidate |
-| Whether the two schemas become two databases | contracts plan spec correction 5 settles one database for local development; hosting may revisit |
-| Hosting, and therefore how a migration is coordinated with a running game server | `architecture.md` → *Deployment* (deferred 09-04) |
+| Whether the two schemas become two databases | contracts design → *Two Postgres schemas in one database*: one database for local development; hosting may revisit |
+| Hosting, and therefore how a migration is coordinated with a running game server | `architecture.md` → *Deployment* |
 | Whether the client ever edits an army | web app → *Still open* |
 | Password-protected games, friend-joining, a relationship graph | accounts → *Deliberately not decided* |
-
-### Spec corrections this module proposes
-
-Seven, all listed in the plan's *Spec corrections proposed* and none applied here: `blob.uploaded`
-and `blob.content_type` in `schema.md`; the full `/v1/auth/*` list and the claim-template paragraph
-in the management API spec; striking two of its *Deliberately not decided* items (army `PATCH`
-shape, error conventions); the Army Forge source format and mapping rules; Army Forge's
-`bases.round` as the import default in the army spec; the creator as the rule for `/end` and
-`DELETE` in accounts; and the missing-version-header rule.
 
 ---
 
@@ -1593,7 +1581,7 @@ shape, error conventions); the Army Forge source format and mapping rules; Army 
 
 **Plan.** `docs/superpowers/plans/2026-09-05-management-api.md` is the source of truth for what
 gets built: fourteen tasks, the File Structure, every `Interfaces` block, the *Interfaces →
-Produces* tables, *Rows by writer*, the seven spec corrections and the eight owner questions.
+Produces* tables, *Rows by writer* and the eight rulings.
 
 **Specs**, in the order the plan names them:
 
@@ -1611,20 +1599,19 @@ Produces* tables, *Rows by writer*, the seven spec corrections and the eight own
 - `docs/superpowers/specs/2026-09-04-whole-design-review.md` (newest, wins)
 
 **Repo documents.** `docs/architecture.md`, `docs/data-model.md`, `docs/schema.md`, `CLAUDE.md`.
-`docs/workstreams/03-management-identity.md` and `09-management-collections.md` are stale and not
-followed.
 
 **Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` supplies the
 three libraries, `001_schema.sql`, `docker-compose.yml`, the `TABLETOP_*` names, and the reserved
 ports.
-Its spec corrections 2 and 4 (`participant.army_id`, `participant.game_id` and its unique
-constraint) are prerequisites for this module's SQL.
+Its `001_schema.sql` carries `participant.army_id` and `participant.game_id` with its unique
+constraint (`docs/schema.md` → *`participant` links to its game, and holds the army it picked*),
+which this module's SQL depends on.
 
-**External, verified.** Stytch Consumer API reference, read 2026-09-05 and re-checked page by page
-2026-09-06 (test project `project-test-437432c7-798d-49d2-9dc4-eff103937e0f`, base
-`https://test.stytch.com`); the JWKS endpoint's lack of required credentials confirmed by an
-unauthenticated `curl` on both dates. Army Forge `GET https://army-forge.onepagerules.com/api/tts?id=c2-6YsWRH3py`
-fetched live 2026-09-06 (`200`, 26 KB, `access-control-allow-origin: *`) and saved as the fixture.
+**External, verified.** Stytch Consumer API reference, checked page by page against the test
+project `project-test-437432c7-798d-49d2-9dc4-eff103937e0f` at base `https://test.stytch.com`; the
+JWKS endpoint takes no credentials, which an unauthenticated `curl` shows. Army Forge
+`GET https://army-forge.onepagerules.com/api/tts?id=c2-6YsWRH3py` fetched live (`200`, 26 KB,
+`access-control-allow-origin: *`) and saved as the fixture.
 
 **Rulebook.** No page of Grimdark Future is read by this module. It stores content and enforces no
 rule. The one number from the rules side is the triangle warning threshold, 100,000, and that is a

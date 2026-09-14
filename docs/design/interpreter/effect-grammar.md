@@ -48,8 +48,7 @@ sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid
 `Artillery` needs most of it at once. The property sits on the target model, and the effect is −2
 to the **opponent's** hit roll. `Counter` is the case that also tests **self**: the property is
 the defender's, the effect takes a roll off the *charger's* `Impact`, and the condition is *when
-charged*. 3.4.1's `Entrenched` did both in one rule, and 3.5.1's `Artillery` needs no movement
-condition because it *may only use Hold actions*.
+charged*. `Artillery` needs no movement condition because it *may only use Hold actions*.
 
 ## The eight predicates
 
@@ -157,7 +156,7 @@ depth-first and `Validate` recurses.
 A kind-5 roll is recorded as a `RollRecord` whose `Roll` is the **entry's** name, such as
 `Regeneration`, `Impact` or `Fearless`, with the effect row's threshold. It is not a `roll` row,
 because nothing targets it. `AddModifier` therefore cannot name it, so a player cannot
-hand-modify a `Regeneration` roll (proposed spec correction 3).
+hand-modify a `Regeneration` roll ([the effect grammar spec](../../superpowers/specs/2026-08-29-effect-grammar-design.md) → `Roll` nests).
 
 ## Pass one: `LiveProperties.Settle`
 
@@ -197,11 +196,10 @@ Conditions are re-judged at application time rather than at candidate time. `Ban
 can read it, and a rule that suppresses a rule that grants a rule resolves in the order the
 author wrote.
 
-**`ordinal` diverges from p.13's rules priority, deliberately.** 3.5.1 added a tie-break that
-3.4.1 lacked: *"If multiple special rules happen at the same time, and it's not clear which
-should be done first, if all the rules affect only one player, then that player may decide the
-order. If the rules affect multiple players, then the players roll-off and the winner picks the
-order."* The engine never reaches that case, because `ordinal` makes every order explicit in the
+**`ordinal` diverges from p.13's rules priority, deliberately.** p.13: *"If multiple special
+rules happen at the same time, and it's not clear which should be done first, if all the rules
+affect only one player, then that player may decide the order. If the rules affect multiple
+players, then the players roll-off and the winner picks the order."* The engine never reaches that case, because `ordinal` makes every order explicit in the
 content document, and a deterministic order is what replay needs. The cost is that a player
 cannot choose an order the document already fixed, which no core rule requires.
 
@@ -267,7 +265,7 @@ order, last wins. Modify runs second, summed. `TargetNumber` takes an optional m
 falls back to the unit's where the slot declares none, and a model-level ref with no model throws
 `NotSupportedException`. Grimdark Future declares `Quality` and `Defense` at `model` level as well
 as `unit` level, and a joined hero's slot carries its own pair, which p.4 makes the values its
-Quality tests use (design.md → question 13). The replace and modify scans match on the stat's
+Quality tests use (design.md → Rulings, 13). The replace and modify scans match on the stat's
 **name** at either level rather than on the ref, because a target number is one stat with a
 declaration at each level and every catalog row names the unit-level ref; that is what puts
 `Reliable`'s *"attacks at Quality 2+"* over a hero's own value as well as over a squad's.
@@ -298,8 +296,8 @@ is conditional and the other is not, and a single condition list on the entry wo
 right in all three where the modifier was right in one: a weapon with `AP(1)` reaches 2 either way,
 because `LiveSet.Parameter` sums an entry's instances; a weapon with **no** `AP` gets 1 from the
 grant and nothing at all from the modifier; and a weapon whose `Rending` has already granted `AP(4)`
-on a 6 gets 6 from the grant and 7 from the modifier, which adds to both instances. Ruled
-2026-09-09, [closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md).
+on a 6 gets 6 from the grant and 7 from the modifier, which adds to both instances
+([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)).
 `ModifyParameter` keeps its place in the grammar for `Counter`, which genuinely modifies an existing
 instance's parameter rather than adding one.
 
@@ -337,9 +335,9 @@ too, or a granted hook-name rule would never fire.
 - **A grant's parameter is the granting effect's `amount`,** read from the pinned set by
   `EffectId`. The grant row carries none, so the id's database-locality matters (design.md →
   Failure modes).
-- **Conditions stay names.** Game flow kept containment out of the condition store because it
-  carried one reference. A grant carries three, so it is not a condition either. Writing the rule
-  into the unit's property list was rejected because that list is the frozen army snapshot's copy.
+- **Conditions stay names.** Game flow keeps containment out of the condition store because it
+  carries one reference. A grant carries three, so it is not a condition either. The rule is not
+  written into the unit's property list, because that list is the frozen army snapshot's copy.
 
 ## Name checks handled by `GameRules`
 

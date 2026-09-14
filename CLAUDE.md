@@ -3,16 +3,17 @@
 Virtual tabletop for One Page Rules and Warhammer 40,000: a Godot 4.7 / C# client and
 .NET servers. Currently at scaffold stage — only the client exists.
 
-`docs/architecture.md` records the design decisions and why they were made.
-`docs/data-model.md` is the entity diagram, `docs/schema.md` the Postgres tables, and
-`docs/superpowers/specs/` the per-module design sessions — every module is designed as of
-2026-09-04. `docs/handoff.md` says where things stand and what to pick up.
+`docs/handoff.md` says where things stand and what to pick up. `docs/design/README.md` is the
+system design and defines the vocabulary; `docs/design/<module>/design.md` is each module's
+structure and `docs/superpowers/plans/` its implementation plan. `docs/superpowers/specs/` are
+the design sessions that settle behaviour, `docs/architecture.md` the cross-cutting decisions and
+why, `docs/data-model.md` the entity diagram and `docs/schema.md` the Postgres tables.
 
-Where `architecture.md` and a design doc disagree, **the design doc is newer**.
+When documents disagree: specs settle behaviour, plans settle what gets written, design docs
+settle structure, and a later document beats an earlier one.
 
-Each module is planned separately before it is built. Do not scaffold ahead of a plan — no
-speculative folders, interfaces, or placeholder systems for work that has not been designed
-yet.
+Every module has a plan; build from it. Do not scaffold ahead of a plan — no speculative folders,
+interfaces, or placeholder systems for work that has not been designed yet.
 
 ## Environment
 
@@ -43,8 +44,8 @@ Three kinds of top-level directory:
 
 - **Deliverables** — `client/`, `server/`, `web/`, `sim/`, `viewer/`. These ship. The first three
   ship to players; `sim/` and `viewer/` ship to developers, so neither is in the client's export,
-  neither is referenced by a server, and a release that omits both is complete. Ruled 2026-09-06,
-  `docs/superpowers/specs/2026-09-06-simulation-design.md`.
+  neither is referenced by a server, and a release that omits both is complete
+  (`docs/superpowers/specs/2026-09-06-simulation-design.md`).
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
 - **Repo-level support** — `docs/`, `scripts/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
