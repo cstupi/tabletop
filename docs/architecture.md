@@ -62,7 +62,7 @@ Three libraries in `libs/`, and nothing else:
 | Library | Shared by | Contents |
 | --- | --- | --- |
 | `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
-| `Tabletop.Protocol` | client, game server | Commands, events, Asks, presence, setup edits, the rules-free event applier, wire format |
+| `Tabletop.Protocol` | client, both servers | Commands, events, Asks, presence, setup edits, the rules-free event applier, wire format. Management reads only `ProtocolVersion` and the game-row enums `GameStatus`, `SchedulerShape` and `Enforcement` |
 | `Tabletop.Content` | client, both servers | Army, unit, model slot and weapon types; the table state (board, terrain placements, markers, deployment zones) |
 
 Geometry is shared because the client draws with it and the server adjudicates with it, and
@@ -588,7 +588,7 @@ web/                     Svelte SPA
 sim/                     headless full-game simulator (developers)
 viewer/                  recording viewer, a static page (developers)
 libs/                    Tabletop.Geometry, Tabletop.Protocol, Tabletop.Content
-tests/                   xUnit projects, one per library
+tests/                   xUnit projects: one per library, per server, and for the client's Godot-free core
 docs/  scripts/          repo-level support
 ```
 
@@ -698,7 +698,7 @@ until they are settled.
 | Contract | Between |
 | --- | --- |
 | `Tabletop.Geometry` API surface | client, game server |
-| `Tabletop.Protocol` command, event, Ask, presence and setup-edit schema, and the event applier | client, game server |
+| `Tabletop.Protocol` command, event, Ask, presence and setup-edit schema, and the event applier | client, game server; management for `ProtocolVersion` and the game-row enums |
 | `Tabletop.Content` army snapshot types | client, both servers |
 
 **Auth is not on this list.** A game has an id, the session JWT says who you are, and the

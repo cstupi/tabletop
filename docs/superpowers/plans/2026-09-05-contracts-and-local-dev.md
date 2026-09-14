@@ -26,7 +26,7 @@
   - **Supplied by `GameRules`**, which is per-ruleset C# and of which only OPR's is built: Ask question names other than the engine's own in `AskQuestions`, sequence names, step names, phase names, window kinds (action sequences → constraint 9; scheduler → The line).
   - **Content inventories deliberately left undecided**: built-in mesh, texture and marker-visual names, and zone style and shape ids (setup content → the inventories; geometry values → Deployment shapes).
 - What is **not** a string, and must not become one: `GameStatus`, `SchedulerShape`, `Enforcement`, `MarkerKind`, `SubjectKind`, `PlacementKind`, `BaseShape`, `FootprintKind`, `VolumeKind`, `TerrainDeclarations`, `StatKind`, `RejectReason`, `RefusalReason`, and the `StateChange`, `EventPayload`, `Command`, `Edit`, `LegalSet`, `AskAnswer`, `Location` and `SocketMessage` unions. The closed shape of a legal set and its answer is what makes the free-string question safe.
-- Events carry every state change they made; the applier copies and never derives (client shell → The connection and the projection).
+- Events carry every state change they made; the applier copies and never derives, except three spec-backed clears: `round_started` clears the round's order, active team and passes; `turn_ended` clears the active team; and `step_completed` clears a roll's pending modifiers when the completed step records that roll (client shell → The connection and the projection).
 - JSON wire format: camelCase properties, string enums, `"kind"` type discriminator in snake_case, nulls omitted.
 - Local only: Postgres and MinIO in Docker; no AWS; no hosting (`architecture.md` → Deployment).
 - Commit after every task with a message in the repo's style (imperative, one line, no prefix), ending with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
@@ -653,7 +653,7 @@ public sealed record ArmySnapshot(Guid Id, string Name, string GameSystem, IRead
 
 **Interfaces:**
 - Consumes: `Point3`, `Yaw`, `TableSize`, `Volume`, `TerrainTransform`, `WorldVolume` (Task 2); `Army` and `ArmyTests.Sample()` (Task 4) for the JSON round-trip test.
-- Produces: `VisualRef(string? Builtin, Guid? AssetId)` + `OfBuiltin(string)`, `OfAsset(Guid)`, `bool IsBuiltin`; `TerrainVolume(Guid Id, Volume Volume)`; `TerrainPlacement(Guid Id, VisualRef Mesh, Point3 Position, Yaw Yaw, double Scale, IReadOnlyList<TerrainVolume> Volumes)` + `TerrainTransform Transform`, `IReadOnlyList<WorldVolume> WorldVolumes()`; `MarkerKind { Objective, Token }`; `Marker(Guid Id, MarkerKind Kind, Point3 Position, Yaw Yaw, double Diameter, string? Label, VisualRef Visual)`; `DeploymentZone(Guid Id, string Shape, int TeamOrdinal)`; `TableState(Guid Id, string? Name, TableSize Size, VisualRef Texture, IReadOnlyList<TerrainPlacement> Terrain, IReadOnlyList<Marker> Markers, IReadOnlyList<DeploymentZone> Zones)`; `ContentJson.Options`, `ContentJson.Serialize<T>(T)`, `ContentJson.Deserialize<T>(string)`.
+- Produces: `VisualRef(string? Builtin, Guid? AssetId)` + `OfBuiltin(string)`, `OfAsset(Guid)`, `bool IsBuiltin`, `bool IsValid` (false only for `default(VisualRef)`; servers check it on every inbound edit and layout before writing a row), `[JsonConverter(typeof(VisualRefJsonConverter))]` which throws `JsonException` for a present-but-invalid object at the parse boundary; `TerrainVolume(Guid Id, Volume Volume)`; `TerrainPlacement(Guid Id, VisualRef Mesh, Point3 Position, Yaw Yaw, double Scale, IReadOnlyList<TerrainVolume> Volumes)` + `TerrainTransform Transform`, `IReadOnlyList<WorldVolume> WorldVolumes()`; `MarkerKind { Objective, Token }`; `Marker(Guid Id, MarkerKind Kind, Point3 Position, Yaw Yaw, double Diameter, string? Label, VisualRef Visual)`; `DeploymentZone(Guid Id, string Shape, int TeamOrdinal)`; `TableState(Guid Id, string? Name, TableSize Size, VisualRef Texture, IReadOnlyList<TerrainPlacement> Terrain, IReadOnlyList<Marker> Markers, IReadOnlyList<DeploymentZone> Zones)`; `ContentJson.Options`, `ContentJson.Serialize<T>(T)`, `ContentJson.Deserialize<T>(string)`.
 - `TableState` is in Content, not Protocol, because management stores it as a layout, the game server writes it as the draft, and the client saves and loads it over HTTP (setup phase → Layouts; whole-design review ruling 4).
 - A placement's `Volumes` is always populated — copied from the asset or the built-in on add — so the draft and snapshot are self-contained and the game server never resolves `asset_volume` (`schema.md` → A terrain placement names a built-in or an asset).
 
@@ -731,12 +731,14 @@ public class TableStateTests
 - [ ] **Step 2: Run; expect compile errors. Write `TableState.cs`:**
 
 ```csharp
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Tabletop.Geometry;
 
 namespace Tabletop.Content;
 
 /// <summary>A built-in name or a library asset, exactly one (schema.md → Built-in or asset, exactly one).</summary>
+[JsonConverter(typeof(VisualRefJsonConverter))]
 public readonly record struct VisualRef
 {
     public string? Builtin { get; }
@@ -753,6 +755,9 @@ public readonly record struct VisualRef
 
     /// <summary>Derived, never serialised.</summary>
     [JsonIgnore] public bool IsBuiltin => Builtin is not null;
+    /// <summary>False only for default(VisualRef): a property the JSON left out never reaches the converter, so the parent's
+    /// constructor receives the default. Servers check this on every inbound edit or layout before writing a row.</summary>
+    [JsonIgnore] public bool IsValid => (Builtin is null) != (AssetId is null);
     public static VisualRef OfBuiltin(string name) => new(name, null);
     public static VisualRef OfAsset(Guid assetId) => new(null, assetId);
 }
@@ -779,6 +784,43 @@ public sealed record DeploymentZone(Guid Id, string Shape, int TeamOrdinal);
 public sealed record TableState(
     Guid Id, string? Name, TableSize Size, VisualRef Texture,
     IReadOnlyList<TerrainPlacement> Terrain, IReadOnlyList<Marker> Markers, IReadOnlyList<DeploymentZone> Zones);
+
+/// <summary>
+/// Reads and writes a VisualRef as <c>{"builtin": …}</c> or <c>{"assetId": …}</c>, the same shape the naming policy produced before,
+/// and turns an object with neither or both members into a JsonException at the parse boundary instead of an ArgumentException
+/// out of the constructor. The property names are written literally in camelCase because a converter bypasses the naming policy.
+/// </summary>
+public sealed class VisualRefJsonConverter : JsonConverter<VisualRef>
+{
+    public override VisualRef Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("A VisualRef is an object.");
+        string? builtin = null;
+        Guid? assetId = null;
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName) throw new JsonException("Expected a property name in a VisualRef.");
+            var name = reader.GetString();
+            reader.Read();
+            switch (name)
+            {
+                case "builtin": builtin = reader.TokenType == JsonTokenType.Null ? null : reader.GetString(); break;
+                case "assetId": assetId = reader.TokenType == JsonTokenType.Null ? null : reader.GetGuid(); break;
+                default: reader.Skip(); break;
+            }
+        }
+        try { return new VisualRef(builtin, assetId); }
+        catch (ArgumentException e) { throw new JsonException(e.Message, e); }
+    }
+
+    public override void Write(Utf8JsonWriter writer, VisualRef value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        if (value.Builtin is not null) writer.WriteString("builtin", value.Builtin);
+        if (value.AssetId is not null) writer.WriteString("assetId", value.AssetId.Value);
+        writer.WriteEndObject();
+    }
+}
 ```
 
 - [ ] **Step 3: Write `ContentJson.cs`**
@@ -1672,8 +1714,8 @@ public static class Samples
         [new Participant(P1, Guid.CreateVersion7(), "Clay", Team1, null)]);
     public static Board Board => new(TableStateTests.Sample(), [new ArmyInPlay(P1, ArmySnapshot.Of(Army, Guid.CreateVersion7()))]);
     public static RollRecord Hit => new(Roll, "hit", 4, [new RollModifier("AP", -1)], [new Die(6, 6, true), new Die(2, 2, false)]);
-    public static Marker Token => new(Guid.CreateVersion7(), MarkerKind.Token, new Point3(1, 1, 0), new Yaw(0), 1, "smoke", VisualRef.OfBuiltin("chip"));
-    public static Grant Grant => new(Guid.CreateVersion7(), Guid.CreateVersion7(), "Regeneration", Unit, 1);
+    public static readonly Marker Token = new(Guid.CreateVersion7(), MarkerKind.Token, new Point3(1, 1, 0), new Yaw(0), 1, "smoke", VisualRef.OfBuiltin("chip"));
+    public static readonly Grant Grant = new(Guid.CreateVersion7(), Guid.CreateVersion7(), "Regeneration", Unit, 1);
 
     public static readonly LegalSet[] LegalSets =
     [
@@ -1852,8 +1894,21 @@ public static class WireJson
 
     public static string Serialize(SocketMessage message) => JsonSerializer.Serialize(message, Options);
     public static SocketMessage Deserialize(string json) => Deserialize<SocketMessage>(json);
-    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
+    /// <summary>Serializes as the nearest polymorphic ancestor of T (or T itself), so a concrete union member
+    /// passed with its own static type still writes its "kind" — the wire shape never depends on the caller's
+    /// declared type.</summary>
+    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, PolymorphicTypeOf(typeof(T)), Options);
+    /// <summary>Reads with T itself, not its polymorphic root: a union is read through its base type. A concrete T whose JSON
+    /// carries "kind" relies on the options' default UnmappedMemberHandling.Skip to ignore the discriminator.</summary>
     public static T Deserialize<T>(string json) => JsonSerializer.Deserialize<T>(json, Options) ?? throw new JsonException("null frame");
+
+    static Type PolymorphicTypeOf(Type type)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+            if (t.IsDefined(typeof(JsonPolymorphicAttribute), inherit: false))
+                return t;
+        return type;
+    }
 }
 ```
 
@@ -2017,8 +2072,8 @@ public sealed class OpenAsk(Ask ask)
 
 **Interfaces:**
 - Consumes: `Board`, `GameInfo` (Task 6); every `StateChange` (Task 7); every `EventPayload` and `GameEvent` (Task 9); `Projection` and its views (Task 13); `Samples` (Task 12) in the tests.
-- Produces: `sealed class EventApplier(Board board, GameInfo game)` with `Projection Projection { get; }`, `IReadOnlyList<GameEvent> Log` (every event received, undone included), `void Apply(GameEvent e)`, `void ApplyAll(IEnumerable<GameEvent> events)`, `Projection ProjectTo(long seq)` (a fresh projection of the live log up to `seq`, for local undo prediction), `static IReadOnlyList<GameEvent> EffectiveLog(IReadOnlyList<GameEvent> log)` (drops every undone range and the `undone` markers), `static void ApplyTo(Projection p, GameEvent e)`, `static void ApplyChange(Projection p, StateChange change)`. Also `sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception` with `string Kind` and `Guid UnknownId`, declared in the same file.
-- Desync: every lookup that can miss throws `ProjectionDesyncException`, carrying the event kind (`EventKinds.Of(payload)`) and the id that was not found; a change riding inside `round_started`, `turn_ended` or `step_completed` reports its own kind rather than the carrier's. Sixteen lookups can miss: `ModelsMut` under `models_moved`, `wounds_set`, `condition_set` on a model and `spell_tokens_set`; `UnitsMut` under `condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`, `grant_removed` and `wounds_this_activation_set`; `MarkersMut` under `marker_moved`; `OpenAsksMut` under `ask_answered`; `FrameOf` under `step_completed`, `modifier_added` and `ReplaceDice`; and the roll lookup inside `ReplaceDice`. It means the projection is unusable, not that the event was bad: nothing is unwound, the failed event is already in `Log`, and the caller throws the whole applier away. The client rebuilds from the log; the game server faults the session, because it is applying events it wrote itself and a rebuild throws again at the same event.
+- Produces: `sealed class EventApplier(Board board, GameInfo game)` with `Projection Projection { get; }` (replaced by a fresh instance after every `Undone`; callers read it through the applier each time and never cache it), `IReadOnlyList<GameEvent> Log` (every event received, undone included), `void Apply(GameEvent e)`, `void ApplyAll(IEnumerable<GameEvent> events)`, `Projection ProjectTo(long seq)` (a fresh projection of the live log up to `seq`, for local undo prediction), `static IReadOnlyList<GameEvent> EffectiveLog(IReadOnlyList<GameEvent> log)` (drops every undone range and the `undone` markers), `static void ApplyTo(Projection p, GameEvent e)`, `static void ApplyChange(Projection p, StateChange change)`. Also `sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception` with `string Kind` and `Guid UnknownId`, declared in the same file.
+- Desync: every lookup that can miss throws `ProjectionDesyncException`, carrying the event kind (`EventKinds.Of(payload)`) and the id that was not found; a change riding inside `round_started`, `turn_ended` or `step_completed` reports its own kind rather than the carrier's. Nineteen lookups can miss: `ModelsMut` under `models_moved`, `wounds_set`, `condition_set` on a model and `spell_tokens_set`; `UnitsMut` under `condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`, `grant_removed` and `wounds_this_activation_set`; `MarkersMut` under `marker_moved`; `OpenAsksMut` under `ask_answered`; `FrameOf` under `step_completed`, `modifier_added` and `ReplaceDice`; the frame `Pop` looks for under `sequence_finished` and `sequence_abandoned`; and, inside `ReplaceDice`, the roll lookup and the `DieReplacement.Index` bound. It means the projection is unusable, not that the event was bad: nothing is unwound, the failed event is already in `Log`, and the caller throws the whole applier away. The client rebuilds from the log; the game server faults the session, because it is applying events it wrote itself and a rebuild throws again at the same event.
 - Contract: the applier copies. It never decides legality, never derives a location, never clears a store on its own. `Undone(N)` drops live events with `Seq > N`; `N` must be the seq of a live event or 0 (the server refuses anything else). Pending modifiers for roll `R` are cleared when a `step_completed` carries a roll named `R`, because the record already folds them in (action sequences → One roll primitive). Open Asks close only on `ask_closed`; the server emits it when a frame with open Asks is abandoned.
 
 Spec: client shell → The connection and the projection (applier rules-free; undo local first; reconnect is connect); scheduler → State, Re-entering a round (the pass stands); action sequences → The resolution stack; `architecture.md` → Undo.
@@ -2173,11 +2228,16 @@ public sealed class ProjectionDesyncException(string kind, Guid unknownId)
     public Guid UnknownId { get; } = unknownId;
 }
 
-/// <summary>Builds a Projection by copying what events say. Rules-free: it never derives, decides or clears on its own.</summary>
+/// <summary>
+/// Builds a Projection by copying what events say. Rules-free: it decides nothing and derives nothing. The only stores it clears
+/// on its own are the three the specs name — the round's order, active team and passes on round_started, the active team on
+/// turn_ended, and a roll's pending modifiers when a step_completed records that roll.
+/// </summary>
 public sealed class EventApplier(Board board, GameInfo game)
 {
     private readonly List<GameEvent> _log = new();
 
+    /// <summary>Replaced by a fresh instance on every Undone. Read it through the applier each time; never cache it.</summary>
     public Projection Projection { get; private set; } = Projection.Initial(board, game);
     public IReadOnlyList<GameEvent> Log => _log;
 
@@ -2239,8 +2299,8 @@ public sealed class EventApplier(Board board, GameInfo game)
                 foreach (var c in s.Changes) ApplyChange(p, c);
                 break;
             }
-            case SequenceFinished f: Pop(p, f.FrameId); break;
-            case SequenceAbandoned f: Pop(p, f.FrameId); break;
+            case SequenceFinished f: Pop(p, f.FrameId, f); break;
+            case SequenceAbandoned f: Pop(p, f.FrameId, f); break;
             case AskOpened a: p.OpenAsksMut[a.Ask.Id] = new OpenAsk(a.Ask); break;
             case AskAnswered a: Need(p.OpenAsksMut, a.AskId, a).AnswersMut[a.TeamId] = a.Answer; break;
             case AskClosed a: p.OpenAsksMut.Remove(a.AskId); break;
@@ -2294,10 +2354,11 @@ public sealed class EventApplier(Board board, GameInfo game)
     private static Frame FrameOf(Projection p, Guid frameId, EventPayload payload) =>
         p.StackMut.FirstOrDefault(f => f.Id == frameId) ?? throw new ProjectionDesyncException(EventKinds.Of(payload), frameId);
 
-    private static void Pop(Projection p, Guid frameId)
+    private static void Pop(Projection p, Guid frameId, EventPayload payload)
     {
         var index = p.StackMut.FindIndex(f => f.Id == frameId);
-        if (index >= 0) p.StackMut.RemoveRange(index, p.StackMut.Count - index);
+        if (index < 0) throw new ProjectionDesyncException(EventKinds.Of(payload), frameId);
+        p.StackMut.RemoveRange(index, p.StackMut.Count - index);
     }
 
     private static void ReplaceDice(Projection p, EventPayload payload, Guid frameId, Guid rollId, IReadOnlyList<DieReplacement> replaced)
@@ -2306,13 +2367,17 @@ public sealed class EventApplier(Board board, GameInfo game)
             ?? throw new ProjectionDesyncException(EventKinds.Of(payload), rollId);
         var i = step.RollsMut.FindIndex(r => r.Id == rollId);
         var dice = step.RollsMut[i].Dice.ToList();
-        foreach (var r in replaced) dice[r.Index] = r.New;
+        foreach (var r in replaced)
+        {
+            if (r.Index < 0 || r.Index >= dice.Count) throw new ProjectionDesyncException(EventKinds.Of(payload), rollId);
+            dice[r.Index] = r.New;
+        }
         step.RollsMut[i] = step.RollsMut[i] with { Dice = dice };
     }
 }
 ```
 
-- [ ] **Step 4: Run `dotnet test`; expect every project green (Geometry 12, Content 15, Protocol 32). Commit: `Implement the rules-free event applier`.**
+- [ ] **Step 4: Run `dotnet test`; expect every project green (Geometry 12, Content 15, Protocol 34). Commit: `Implement the rules-free event applier`.**
 
 ### Task 15: Local development — Postgres, MinIO and the schema
 
@@ -2351,7 +2416,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-00Z
+    image: quay.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${TABLETOP_S3_ACCESS_KEY:-tabletop}
@@ -2368,7 +2433,7 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc:RELEASE.2024-11-17T19-35-25Z
+    image: quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z
     depends_on:
       minio:
         condition: service_healthy
@@ -2382,6 +2447,8 @@ volumes:
   postgres-data:
   minio-data:
 ```
+
+Both MinIO images come from `quay.io/minio`, because Docker Hub no longer serves `minio/*`.
 
 - [ ] **Step 2: Write `.env.example`** (copy to `.env` locally; `.gitignore` already excludes `.env` and keeps `.env.example`)
 
@@ -2819,7 +2886,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed record Unit(Guid Id, int Ordinal, string Name, IRD<string,string> Stats, IRL<PropertyInstance> Properties, IRL<ModelSlot> Models)` | |
 | `sealed record Army(Guid Id, string Name, string GameSystem, string Source, IRL<Unit> Units)` | |
 | `sealed record ArmySnapshot(Guid Id, string Name, string GameSystem, IRL<Unit> Units)` | `static ArmySnapshot Of(Army, Guid id)` |
-| `readonly record struct VisualRef` | `string? Builtin`, `Guid? AssetId`, `VisualRef(string?, Guid?)` (throws unless exactly one), `bool IsBuiltin`, `static OfBuiltin(string)`, `static OfAsset(Guid)` |
+| `readonly record struct VisualRef` | `string? Builtin`, `Guid? AssetId`, `VisualRef(string?, Guid?)` (throws unless exactly one), `bool IsBuiltin`, `bool IsValid` (false only for the absent default), `static OfBuiltin(string)`, `static OfAsset(Guid)`; `[JsonConverter(typeof(VisualRefJsonConverter))]` throws `JsonException` for a present-but-invalid object |
 | `sealed record TerrainVolume(Guid Id, Volume Volume)` | |
 | `sealed record TerrainPlacement(Guid Id, VisualRef Mesh, Point3 Position, Yaw Yaw, double Scale, IRL<TerrainVolume> Volumes)` | `TerrainTransform Transform`, `IRL<WorldVolume> WorldVolumes()` |
 | `enum MarkerKind { Objective, Token }` | |
@@ -2876,7 +2943,7 @@ Zone style resolution is `Tabletop.Geometry.ZoneStyles` (geometry plan, Task 13)
 | `sealed class Frame` | `Guid Id`, `string Sequence`, `SequenceContext Context`, `IRL<CompletedStep> Steps`, `IRD<string, IRL<RollModifier>> PendingModifiers` |
 | `sealed class CompletedStep` | `string Step`, `AskAnswer? Answer`, `IRL<RollRecord> Rolls`, `IRL<StateChange> Changes`, `IRD<string,int>? Values` |
 | `sealed class OpenAsk` | `Ask Ask`, `IRD<Guid, AskAnswer?> Answers` |
-| `sealed class EventApplier(Board, GameInfo)` | `Projection Projection`, `IRL<GameEvent> Log`, `void Apply(GameEvent)`, `void ApplyAll(IEnumerable<GameEvent>)`, `Projection ProjectTo(long seq)`, `static IRL<GameEvent> EffectiveLog(IRL<GameEvent>)`, `static void ApplyTo(Projection, GameEvent)`, `static void ApplyChange(Projection, StateChange)` |
+| `sealed class EventApplier(Board, GameInfo)` | `Projection Projection` (replaced by a fresh instance after every `Undone`; never cache it), `IRL<GameEvent> Log`, `void Apply(GameEvent)`, `void ApplyAll(IEnumerable<GameEvent>)`, `Projection ProjectTo(long seq)`, `static IRL<GameEvent> EffectiveLog(IRL<GameEvent>)`, `static void ApplyTo(Projection, GameEvent)`, `static void ApplyChange(Projection, StateChange)` |
 | `sealed class ProjectionDesyncException(string kind, Guid unknownId) : Exception` | `string Kind`, `Guid UnknownId`. Thrown by `Apply`, `ApplyAll`, `ApplyTo` and `ApplyChange` when an event names an id the projection does not hold. It means the projection is unusable and must be rebuilt: the client drops it, reconnects and replays the log; the game server faults the session |
 
 ### Local development
@@ -2946,12 +3013,12 @@ None consumed. Obligations this plan places on later plans, stated as the signat
 
 - **Geometry plan**: implement every body in `libs/Tabletop.Geometry/Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests.
 - **Every plan that constructs `GameInfo`**: `RngSeed` is positional and last among the scalars, so every construction supplies it. It is positional rather than an init-only property because an init-only property would leave the six consuming plans' constructions compiling untouched, but a construction that forgot the seed would silently get `0`, and a `0` seed is a real game whose dice match every other game that forgot. Nothing is implemented yet, so the compile error costs a text edit in each plan and buys the guarantee that no game can be built without a seed.
-- **Game server plan**: check a `TokensSpent` against `TokenSpend` by keys and per-key caps — every key of `Counts` is a key of `MaxByModel`, every value between zero and that key's cap — and by no total, since a spend is any number up to a maximum; leave which team owns a key to the spend step, as `MoveRegion`'s distances are left to the move step. Read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; the interpreter plan owns the `Properties` catalog types. Send `AtRest(Seq)` once it has finished processing an inbound `connect` or `command`, after the last frame that processing produced, with `Seq` the log's high-water mark: **broadcast to every socket when the batch appended an event, to the provoking client alone when it did not** — so a `connect` rests the connecting socket only — and **no frame after a lobby or setup edit** or a relayed `presence` or `ping`. When the frame is sent is the game server plan's to decide (its *Interfaces needed* §5). Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild throws again at the same event.
-- **Management API plan**: write `rng_seed` on `POST /v1/games`, generated in application code (`Random.Shared.NextInt64()` is enough — the seed is not a secret, since editing dice is already a first-class command) and never updated; return it in the game representation the game server and client read. Adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing.
+- **Game server plan**: check a `TokensSpent` against `TokenSpend` by keys and per-key caps — every key of `Counts` is a key of `MaxByModel`, every value between zero and that key's cap — and by no total, since a spend is any number up to a maximum; leave which team owns a key to the spend step, as `MoveRegion`'s distances are left to the move step. Read `game.rng_seed` with the rest of the game's row at hydration and pass it into `GameInfo.RngSeed`; never write it. Also emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` (from `EventKinds.Of`) to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` with the whole draft after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; the interpreter plan owns the `Properties` catalog types. Send `AtRest(Seq)` once it has finished processing an inbound `connect` or `command`, after the last frame that processing produced, with `Seq` the log's high-water mark: **broadcast to every socket when the batch appended an event, to the provoking client alone when it did not** — so a `connect` rests the connecting socket only — and **no frame after a lobby or setup edit** or a relayed `presence` or `ping`. When the frame is sent is the game server plan's to decide (its *Interfaces needed* §5). Fault the session when its own `EventApplier` throws `ProjectionDesyncException`, rather than resyncing: it is applying events it wrote itself, so a rebuild throws again at the same event. Never cache `EventApplier.Projection`; it is replaced by a fresh instance after every `Undone`, so read it through the applier each time. Check `VisualRef.IsValid` on every inbound edit before writing a row.
+- **Management API plan**: write `rng_seed` on `POST /v1/games`, generated in application code (`Random.Shared.NextInt64()` is enough — the seed is not a secret, since editing dice is already a first-class command) and never updated; return it in the game representation the game server and client read. Adopt `scripts/postgres/init/001_schema.sql` as migration 001 and pick the migration tool; read `TABLETOP_*` variables from `.env.example`; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing. Check `VisualRef.IsValid` on every inbound layout before writing a row.
 - **Interpreter plan**: build `TokenSpend.MaxByModel` from p.13's eligibility predicate over every addressed team's models, each keyed to the tokens it holds, the caster's own model included with what is left after the spell's cost; read `TokensSpent.Counts` and deduct each model's own spend with `SpellTokensSet` on that model; sum every team's counts for the roll modifier. `TokenSpend` carries no single maximum, so there is no per-team clamp to compute. Open a `Takedown`'s target as a `PieceSelection(models, 1, 1)` under a `GameRules` question name and write the wound as `WoundsSet` on the chosen model, opening no `assign` Ask: p.15's wounded-`Tough`-first and heroes-last ordering is consulted only when one is opened. Also set `GameState.RngSeed` from `GameInfo.RngSeed` — `unchecked((ulong)info.RngSeed)` keeps `GameState.RngSeed : ulong`, so `IDiceSource.Draw(ulong seed, …)`, `Roller` and SplitMix64 take it unchanged — and derive nothing from `Info.Id`: two games with the same seed roll the same dice.
-- **Simulation plan**: answer a `TokenSpend` with a count per model within that model's own cap, rather than one integer within a single maximum. Set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`, with no exception to the UUIDv7 rule. Wait for `at_rest` as the end of a step: a socket run's pacing is the frame, not a quiet-window timer.
+- **Simulation plan**: answer a `TokenSpend` with a count per model within that model's own cap, rather than one integer within a single maximum. Set `GameInfo.RngSeed` from the run seed and generate ids with `Guid.CreateVersion7()`, with no exception to the UUIDv7 rule. Wait for `at_rest` as the end of a step: a socket run's pacing is the frame, not a quiet-window timer. Never cache `EventApplier.Projection`; it is replaced after every `Undone`.
 - **Viewer plan**: ignore `at_rest`, and ignore any other `SocketMessage` kind it does not handle without faulting. It reads the log and has nothing to do at a rest point.
-- **Client shell plan**: render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map; resolve a clicked piece's own id before the unit its selection widened to, because a `PieceSelection` may be model-grain. Catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect and rebuild from the log — never skip the event and carry on; ignore `at_rest`, and any other kind it does not handle, without faulting. Add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
+- **Client shell plan**: render `AskMode.TokenSpend` as one private spinner per key of `MaxByModel`, each bounded by that key's cap, and answer `TokensSpent` with the map; resolve a clicked piece's own id before the unit its selection widened to, because a `PieceSelection` may be model-grain. Catch `ProjectionDesyncException` around every `Apply`, `ApplyAll` and `ProjectTo` call, drop the projection, reconnect and rebuild from the log — never skip the event and carry on; ignore `at_rest`, and any other kind it does not handle, without faulting. Never cache `EventApplier.Projection`; it is replaced by a fresh instance after every `Undone`. Add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/` for them; consume `Tabletop.Geometry.ZoneStyles` for zone-style resolution (`ShapesOf` into `SetZoneStyle.Shapes`, `Resolve` to draw) and `Tabletop.Geometry.Table.ContainsPoint` as the on-slab check — the library answers in the wire frame, so the client converts nothing; render `MoveRegion.Containment` in the move Ask — a click on a listed `Enterable` container answers `Destinations` with `Inside(container)` for every model, and a non-null `ExitingId` draws the exit region with `Tabletop.Geometry.Containment.BaseFullyWithin` instead of `Movement.Region` and drags the occupants out of the container's model node.
 
 ## Rulings
 

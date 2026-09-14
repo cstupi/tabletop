@@ -1,13 +1,17 @@
-# Handoff — 2026-09-13
+# Handoff — 2026-09-13, end of day
 
-Where the project stands, and what to pick up next. **Design, planning and documentation cleanup
-are complete. The next session builds it.**
+Where the project stands, and what to pick up next. **Implementation has started. The contracts plan
+is built, reviewed and merged; the next session launches the three plans that require only it.**
 
 ## State
 
-Tree is clean. **No code exists** beyond the Godot scaffold: `client/Tabletop.csproj` and
-`client/src/Main.cs` are the only source files, and `server/`, `libs/`, `web/`, `sim/` and `viewer/`
-are empty or absent. Every module is designed, planned and documented. Nothing is implemented.
+Tree is clean at `main`. The contracts plan is merged (`bd10e5f`, 19 commits on the `contracts`
+branch, which is kept): `libs/Tabletop.Geometry`, `libs/Tabletop.Content` and `libs/Tabletop.Protocol`
+exist as the plan specifies, with `tests/` holding one xUnit project per library, `docker-compose.yml`
+and `.env.example` at the root, and `scripts/postgres/init/001_schema.sql`. `dotnet build` is clean
+and `dotnet test` passes 65 tests: Geometry 12, Content 17, Protocol 36. The Postgres and MinIO
+containers were left running. Every other module is designed and planned and has no code:
+`server/`, `web/`, `sim/` and `viewer/` are empty or absent, and `client/` is the Godot scaffold.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -38,11 +42,25 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 job is the graph, not the code: launch a plan when its `Requires landed:` line is satisfied, give each
 tree its own worktree, merge when a tree's whole-tree check is green, and resolve the two textual
 conflicts that are expected rather than wrong — `Tabletop.sln` (re-run both trees' `dotnet sln add`
-lines) and `.env.example` (keep both appends). Nothing else two concurrent trees write overlaps. The
-graph, from `docs/design/README.md` → *Build order and why*:
+lines) and `.env.example` (keep both appends). Nothing else two concurrent trees write overlaps.
 
-1. contracts, alone — `superpowers/plans/2026-09-05-contracts-and-local-dev.md`;
-2. geometry, management, game-server skeleton — together;
+How the contracts tree ran, and what the next trees copy. The manager forked one controller per plan
+with the worktree path, the model tiers, the commit-trailer rule, the hard limits (no merge, no push,
+no `docs/` edits, no worktree removal) and a seven-item final-report contract; the controller ran the
+SDD loop inside `.worktrees/<plan>` on branch `<plan>`. The manager's own ledger is
+`.superpowers/manager.md`, git-ignored, in the main working tree; each tree's SDD ledger lives inside
+its worktree and is deleted when the tree finishes, so the final report is the only record of a
+tree's rulings and the manager copies them into `docs/` itself. A commit trailer names the model that
+produced the commit. `dotnet sln add` rewrites `Tabletop.sln` from CRLF to LF and adds x64/x86 rows,
+so the expected `.sln` conflict is textual and the LF form is what lands. A spend-limit `429` kills a
+controller mid-task with its implementer; the controller resumes from its ledger when messaged, and
+uncommitted files in the worktree are the dead implementer's partial work, to be finished or replaced.
+
+The graph, from `docs/design/README.md` → *Build order and why*:
+
+1. contracts, alone — `superpowers/plans/2026-09-05-contracts-and-local-dev.md`. **Landed.**
+2. geometry, management, game-server skeleton — together. **Next: three worktrees, three controllers,
+   dispatched in one message.**
 3. web app, client, interpreter — together;
 4. scheduler;
 5. simulator;
@@ -53,9 +71,8 @@ run through the simulator.
 
 **What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle: two
 counts in the game-server plan (Tasks 4 and 6) come from data-driven theories whose case counts the
-plan does not show, so a disagreement there is decided by the test runner. Nothing has verified that
-any task's implementation satisfies its own tests — that is what each task's red-then-green step
-exists to do.
+plan does not show, so a disagreement there is decided by the test runner. The contracts plan's counts
+were off by two at Task 14 and the runner decided.
 
 **Merge hazards.** Three files are touched by more than one plan: `CLAUDE.md` (each plan edits only
 the lines it owns and appends the rest, per the ownership rule at the top of every plan's `CLAUDE.md`
@@ -72,6 +89,48 @@ the scheduler plan's Task 1 reads them.
 
 Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects.md` carry more mechanism than a
 summary of them shows; read them as they stand.
+
+## Before the management tree starts
+
+The contracts plan's final reviewer raised five points about `001_schema.sql` and its surroundings.
+Management adopts that file as its migration 001, so each is ruled before its tree is dispatched and
+the ruling is carried in that tree's brief; the game-server skeleton reads the same rows. The
+manager's recommendation stands beside each.
+
+- `deployment_zone.style` holds a zone shape id and `Tabletop.Content.DeploymentZone` calls the same
+  value `Shape`. Rename the column to `shape` in `docs/schema.md`, `docs/data-model.md` and the SQL,
+  so the row and the record agree.
+- Coordinates and yaws are `real` columns. `double precision` matches the C# `double` the values
+  round-trip through; `real` loses digits on every write.
+- No foreign-key column has an index. Add one per FK column that a `WHERE` in the management plan
+  reads by; the plan's queries say which.
+- `TABLETOP_DB_CONNECTION` in `.env.example` names no `Search Path=management` and repeats the
+  password `TABLETOP_DB_PASSWORD` already carries. Add the search path and keep the repetition, since
+  compose reads the one variable and the servers read the other.
+- The Stytch configuration below is load-bearing and still not in the repo.
+
+## What the contracts tree settled that the plans did not say
+
+Obligations the contracts implementation places on later trees, beyond the plan's *Interfaces needed*
+section, which mirrors the code:
+
+- `VisualRef` carries a `JsonConverter` that rejects a present-but-invalid object and a
+  `[JsonIgnore] bool IsValid`; an absent property deserializes to `default`. The game server and
+  management check `IsValid` on every inbound edit and layout before writing a row.
+- `EventApplier.Projection` is a new instance after every `Undone`; no consumer caches it. A
+  `sequence_finished` or `sequence_abandoned` for a frame not on the stack and an out-of-range
+  `DieReplacement.Index` are both `ProjectionDesyncException`, which the client answers by rebuilding
+  and the game server by faulting the session.
+- `WireJson.Serialize<T>` serializes with the nearest `[JsonPolymorphic]` ancestor of `T` as the input
+  type, so a call typed to a concrete union member still writes `"kind"`.
+- Docker Hub no longer serves `minio/*`; the compose file pulls the server and `mc` from `quay.io`.
+- Deferred minors the final review triaged as not blocking merge, for whichever tree touches the
+  area: `Samples.Game` and `Samples.Board` mint fresh Guids per access; `Tabletop.Protocol.Tests`
+  references `Tabletop.Content.Tests` for its sample builders; the union registration tests run the
+  snake_case regex over `StateChange` only, and the reviewer recommends it over all seven bases;
+  `ContentJson.Configure` mutates the options it is given; `EventApplier.Log` exposes its live list;
+  a wrong-typed `builtin` or `assetId` value throws `FormatException` from the converter rather than
+  `JsonException`.
 
 ## The activate Ask's option label
 
@@ -160,10 +219,11 @@ everything waiting on a second ruleset, which is Warhammer rather than Age of Fa
 
 ## Environment
 
-WSL `dotnet` 10.0.400 on PATH; Docker 29.7 and Compose v5.4; `./venv` has `pypdf` for the rulebook;
-Godot 4.7.2 Mono on the Windows host, opened with `./scripts/godot -e`. No `pdftotext`, and headless
-Chrome cannot launch (missing `libnspr4`), so the rulebook's diagrams are read by extracting images
-with `pypdf` and Pillow.
+WSL is Ubuntu 26.04. `dotnet` 10.0.400 on PATH; Docker 29.7 and Compose v5.4 reach WSL only while
+Docker Desktop is running on the Windows host, and `docker: command not found` means it is not;
+`./venv` has `pypdf` for the rulebook; Godot 4.7.2 Mono on the Windows host, opened with
+`./scripts/godot -e`. No `pdftotext`, and headless Chrome cannot launch (missing `libnspr4`), so the
+rulebook's diagrams are read by extracting images with `pypdf` and Pillow.
 
 Stytch: project `TabletopWar`, vertical CONSUMER, test project
 `project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. A live project exists and is unconfigured;

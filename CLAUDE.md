@@ -18,16 +18,16 @@ interfaces, or placeholder systems for work that has not been designed yet.
 
 ## Environment
 
-The repo lives in WSL (Ubuntu 20.04); the Godot editor runs on the **Windows host** and
-reaches the project over `\\wsl.localhost\Ubuntu-20.04\home\cstupi\src\tabletop`.
+The repo lives in WSL (Ubuntu 26.04); the Godot editor runs on the **Windows host** and
+reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`.
 
 - WSL `dotnet` is 10.0.400 from `~/.dotnet` (`dotnet-install.sh`), exported in `~/.bashrc`.
-  Ubuntu 20.04 has no apt package for .NET 10, and apt's `dotnet-sdk-8.0` is still installed
-  at `/usr/bin/dotnet` — PATH order is what picks the right one.
+  apt's `dotnet-sdk-8.0` is also installed at `/usr/bin/dotnet` — PATH order is what picks the right one.
 - Windows has Godot 4.7.2 Mono and .NET SDK 10.0.400, both via winget.
 - `Directory.Build.props` gives each OS its own `obj/` (`obj/Unix`, `obj/Windows_NT`);
   a shared one breaks restore, since it records absolute OS-specific paths.
-- Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
+- Docker reaches WSL through Docker Desktop on the Windows host; if `docker` is not found, Docker Desktop is not
+  running. Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
   the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
   management 5100, game server 5200.
 
