@@ -19,7 +19,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-00Z
+    image: quay.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${TABLETOP_S3_ACCESS_KEY:-tabletop}
@@ -36,7 +36,7 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc:RELEASE.2024-11-17T19-35-25Z
+    image: quay.io/minio/mc:RELEASE.2024-11-17T19-35-25Z
     depends_on:
       minio:
         condition: service_healthy
