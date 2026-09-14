@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../libs/Tabletop.Protocol/Tabletop.Protocol.csproj" />
+    <ProjectReference Include="../Tabletop.Content.Tests/Tabletop.Content.Tests.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
