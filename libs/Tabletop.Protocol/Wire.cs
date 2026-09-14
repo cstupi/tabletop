@@ -61,6 +61,17 @@ public static class WireJson
 
     public static string Serialize(SocketMessage message) => JsonSerializer.Serialize(message, Options);
     public static SocketMessage Deserialize(string json) => Deserialize<SocketMessage>(json);
-    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
+    /// <summary>Serializes as the nearest polymorphic ancestor of T (or T itself), so a concrete union member
+    /// passed with its own static type still writes its "kind" — the wire shape never depends on the caller's
+    /// declared type.</summary>
+    public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, PolymorphicTypeOf(typeof(T)), Options);
     public static T Deserialize<T>(string json) => JsonSerializer.Deserialize<T>(json, Options) ?? throw new JsonException("null frame");
+
+    static Type PolymorphicTypeOf(Type type)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+            if (t.IsDefined(typeof(JsonPolymorphicAttribute), inherit: false))
+                return t;
+        return type;
+    }
 }
