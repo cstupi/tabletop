@@ -42,9 +42,18 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
         if (!result.IsValid)
         {
             // Refetch only if the kid is unknown; all other failures return null without refetch
+            JsonWebToken? headerToken = null;
             try
             {
-                var headerToken = _handler.ReadJsonWebToken(jwt);
+                headerToken = _handler.ReadJsonWebToken(jwt);
+            }
+            catch
+            {
+                // Malformed JWT header — can't check if kid is unknown, so don't refetch
+            }
+
+            if (headerToken != null)
+            {
                 var currentKeys = await keys.GetAsync(ct);
                 if (!currentKeys.Keys.Any(k => k.KeyId == headerToken.Kid) && keys is HttpJwksSource http)
                 {
@@ -52,7 +61,7 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
                     result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct));
                 }
             }
-            catch { }
+
             if (!result.IsValid) return null;
         }
         var token = (JsonWebToken)result.SecurityToken;
