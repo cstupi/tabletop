@@ -35,7 +35,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         Guid? participantId;
         try { participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted); }
         catch (Exception ex)
-        { log.LogError(ex, "cannot verify the session for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
+        { log.LogError(ex, "cannot look up the participant for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
         if (participantId is null) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
 
         if (registry.Draining) { await CloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
