@@ -22,7 +22,7 @@ builder.Services.AddSingleton<IRulesEngineFactory, InertEngineFactory>();
 builder.Services.AddSingleton<SessionServices>();
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<ConnectionHandshake>();
-// Task 9 registers: SessionHost.
+builder.Services.AddHostedService<SessionHost>();
 
 var app = builder.Build();
 var options = app.Services.GetRequiredService<GameServerOptions>();
