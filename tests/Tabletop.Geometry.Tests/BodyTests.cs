@@ -47,6 +47,17 @@ public class BodyTests
         Assert.False(o.Contains(new(12.5, 12)));
         Assert.True(o.Contains(new(11.5, 12)));
     }
+    [Fact] public void World_yaw_composes_but_world_centre_turns_by_the_transform_yaw_only()
+    {
+        var piece = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(2, 2), new Point2(1, 0), new Yaw(30), 0, 1, TerrainDeclarations.None, null),
+            new TerrainTransform(new Point3(5, 5, 0), new Yaw(60), 1));
+        Assert.Equal(90, piece.WorldYaw().Degrees, 6);
+        var expected = new Point3(5, 5, 0).Horizontal + new Point2(1, 0).Rotate(new Yaw(60));   // the transform's yaw (60), not the composed 90
+        var c = piece.WorldCentre();
+        Assert.Equal(expected.X, c.X, 6);
+        Assert.Equal(expected.Y, c.Y, 6);
+    }
     [Fact] public void Circle_footprint_scales_its_radius() =>
         Assert.True(Fx.Cylinder(0, 0, 1, 0, 2, scale: 3).WorldOutline().Contains(new(2.9, 0)));
     [Fact] public void Segment_through_a_prism()
