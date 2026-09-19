@@ -1,0 +1,100 @@
+using Dapper;
+using Tabletop.Content;
+using Tabletop.Geometry;
+using Tabletop.Management.Persistence;
+
+namespace Tabletop.Management.Content.Assets;
+
+public sealed class AssetRepository(Database db)
+{
+    private sealed record Row(Guid Id, Guid OwnerId, string Name, string Kind, string BlobHash, long ByteSize, string ContentType, bool Uploaded, double Scale,
+        double OrientationPitch, double OrientationYaw, double OrientationRoll, string? ModelledBaseShape, double? ModelledBaseA, double? ModelledBaseB)
+    {
+        public AssetDto ToDto() => new(Id, Name, AssetRules.Kind(Kind), BlobHash, ByteSize, ContentType, Uploaded, Scale, new Orientation(OrientationPitch, OrientationYaw, OrientationRoll),
+            ModelledBaseShape is null ? null : new Base(AssetRules.Shape(ModelledBaseShape), ModelledBaseA!.Value, ModelledBaseB!.Value));
+    }
+
+    private const string Select = @"select a.id as Id, a.owner_id as OwnerId, a.name as Name, a.kind as Kind, a.blob_hash as BlobHash, b.byte_size as ByteSize, b.content_type as ContentType,
+        b.uploaded as Uploaded, a.scale::float8 as Scale, a.orientation_pitch::float8 as OrientationPitch, a.orientation_yaw::float8 as OrientationYaw, a.orientation_roll::float8 as OrientationRoll,
+        a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
+        from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
+
+    public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r)
+    {
+        await using var c = await db.Open();
+        await using var tx = await c.BeginTransactionAsync();
+        await c.ExecuteAsync("insert into blob (owner_id, hash, s3_key, byte_size, content_type) values (@ownerId, @hash, @key, @size, @ct) on conflict (owner_id, hash) do nothing",
+            new { ownerId, hash = r.Hash, key = IBlobStore.Key(ownerId, r.Hash), size = r.ByteSize, ct = r.ContentType }, tx);
+        var id = Guid.CreateVersion7();
+        await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b)
+            values (@id, @ownerId, @hash, @name, @kind, @scale, @p, @y, @r, @shape, @a, @b)",
+            new { id, ownerId, hash = r.Hash, name = r.Name, kind = AssetRules.Kind(r.Kind), scale = r.Scale, p = r.Orientation.Pitch, y = r.Orientation.Yaw, r = r.Orientation.Roll,
+                  shape = r.ModelledBase is { } mb ? AssetRules.Shape(mb.Shape) : null, a = r.ModelledBase?.A, b = r.ModelledBase?.B }, tx);
+        await tx.CommitAsync();
+        return (await Get(ownerId, id))!;
+    }
+
+    public async Task<AssetDto?> Get(Guid ownerId, Guid id)
+    {
+        await using var c = await db.Open();
+        return (await c.QuerySingleOrDefaultAsync<Row>(Select + " where a.id = @id and a.owner_id = @ownerId", new { id, ownerId }))?.ToDto();
+    }
+
+    public async Task<IReadOnlyList<AssetDto>> List(Guid ownerId, Http.Keyset page, AssetKind? kind)
+    {
+        await using var c = await db.Open();
+        var rows = await c.QueryAsync<Row>(Select + " where a.owner_id = @ownerId and (@after::uuid is null or a.id > @after::uuid) and (@kind::text is null or a.kind = @kind::text) order by a.id limit @limit",
+            new { ownerId, after = page.After, kind = kind is null ? null : AssetRules.Kind(kind.Value), limit = page.Limit });
+        return rows.Select(r => r.ToDto()).ToList();
+    }
+
+    public async Task<AssetDto?> Patch(Guid ownerId, Guid id, PatchAssetRequest p)
+    {
+        await using var c = await db.Open();
+        var n = await c.ExecuteAsync(@"update asset set name = coalesce(@name, name), scale = coalesce(@scale, scale),
+            orientation_pitch = coalesce(@p, orientation_pitch), orientation_yaw = coalesce(@y, orientation_yaw), orientation_roll = coalesce(@r, orientation_roll),
+            modelled_base_shape = coalesce(@shape, modelled_base_shape), modelled_base_a = coalesce(@a, modelled_base_a), modelled_base_b = coalesce(@b, modelled_base_b)
+            where id = @id and owner_id = @ownerId",
+            new { id, ownerId, name = p.Name, scale = p.Scale, p = p.Orientation?.Pitch, y = p.Orientation?.Yaw, r = p.Orientation?.Roll,
+                  shape = p.ModelledBase is { } mb ? AssetRules.Shape(mb.Shape) : null, a = p.ModelledBase?.A, b = p.ModelledBase?.B });
+        return n == 1 ? await Get(ownerId, id) : null;
+    }
+
+    public async Task MarkUploaded(Guid ownerId, string hash)
+    {
+        await using var c = await db.Open();
+        await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash });
+    }
+
+    /// <summary>Deletes the asset; when it was the owner's last reference to the blob, deletes the blob row too and returns its S3 key.</summary>
+    public async Task<(bool Found, string? OrphanedKey)> Delete(Guid ownerId, Guid id)
+    {
+        await using var c = await db.Open();
+        await using var tx = await c.BeginTransactionAsync();
+        var hash = await c.ExecuteScalarAsync<string?>("delete from asset where id = @id and owner_id = @ownerId returning blob_hash", new { id, ownerId }, tx);
+        if (hash is null) return (false, null);
+        var key = await c.ExecuteScalarAsync<string?>(@"delete from blob where owner_id = @ownerId and hash = @hash
+            and not exists (select 1 from asset where owner_id = @ownerId and blob_hash = @hash) returning s3_key", new { ownerId, hash }, tx);
+        await tx.CommitAsync();
+        return (true, key);
+    }
+
+    public async Task<IReadOnlyList<TerrainVolume>> GetVolumes(Guid ownerId, Guid assetId)
+    {
+        await using var c = await db.Open();
+        var rows = await c.QueryAsync<VolumeRow>($"select {VolumeRow.Columns} from asset_volume where asset_id = @assetId and exists (select 1 from asset where id = @assetId and owner_id = @ownerId) order by id", new { assetId, ownerId });
+        return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
+    }
+
+    public async Task<IReadOnlyList<TerrainVolume>> PutVolumes(Guid assetId, IReadOnlyList<Volume> volumes)
+    {
+        var rows = volumes.Select(v => VolumeRow.From(Guid.CreateVersion7(), v)).ToList();
+        await using var c = await db.Open();
+        await using var tx = await c.BeginTransactionAsync();
+        await c.ExecuteAsync("delete from asset_volume where asset_id = @assetId", new { assetId }, tx);
+        foreach (var r in rows)
+            await c.ExecuteAsync($"insert into asset_volume (asset_id, {VolumeRow.InsertColumns}) values (@AssetId, {VolumeRow.InsertValues})", new { AssetId = assetId, r.Id, r.Kind, r.Footprint, r.DimA, r.DimB, r.OffsetX, r.OffsetY, r.Yaw, r.Bottom, r.Top, r.Impassable, r.BlocksLos, r.SeeInOut, r.Cover, r.Difficult, r.Dangerous, r.Notes }, tx);
+        await tx.CommitAsync();
+        return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
+    }
+}

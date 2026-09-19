@@ -32,14 +32,3 @@ public class DevSessionTests(ManagementFactory f) : IClassFixture<ManagementFact
         Assert.Equal(first.Account.Id, (await c.GetFromJsonAsync<AccountRow>("/v1/account"))!.Id);
     }
 }
-
-/// <summary>POST a JSON body and parse the JSON response — not defined by System.Net.Http.Json, and used only here.</summary>
-internal static class HttpClientPostJsonExtensions
-{
-    public static async Task<T> PostJson<T>(this HttpClient client, string url, object body)
-    {
-        var response = await client.PostAsJsonAsync(url, body);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<T>())!;
-    }
-}
