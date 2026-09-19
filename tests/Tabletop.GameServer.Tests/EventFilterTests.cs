@@ -1,6 +1,7 @@
 using Tabletop.GameServer.Dispatch;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
+using Tabletop.GameServer.Log;
 
 namespace Tabletop.GameServer.Tests;
 
@@ -51,5 +52,28 @@ public class EventFilterTests
         var batch = new[] { Ev(7, new AskAnswered(Sealed, Samples.Team1, SpentByTeam1, false)) };
         Assert.Null(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid> { Sealed })[0].Payload).Answer);
         Assert.NotNull(((AskAnswered)EventFilter.ForViewer(batch, Samples.Team2, new HashSet<Guid>())[0].Payload).Answer);
+    }
+
+    [Fact]
+    public void SealedOpenAsks_extracts_sealed_ask_ids_from_projection()
+    {
+        var sealedAskId = Guid.CreateVersion7();
+        var openAskId = Guid.CreateVersion7();
+        var closedSealedAskId = Guid.CreateVersion7();
+        var events = new[]
+        {
+            Ev(1, new AskOpened(new Ask(sealedAskId, AskQuestions.SpendTokens, "Sealed spend", [Samples.Team1], new TokenSpend(new Dictionary<Guid, int> { [Samples.Model] = 2 }), true, true, null, null))),
+            Ev(2, new AskOpened(new Ask(openAskId, AskQuestions.Activate, "Open activate", [Samples.Team1], new Options([]), true, false, null, null))),
+            Ev(3, new AskOpened(new Ask(closedSealedAskId, AskQuestions.Activate, "Closed sealed", [Samples.Team1], new Options([]), true, true, null, null))),
+            Ev(4, new AskClosed(closedSealedAskId, [new TeamAnswer(Samples.Team1, new Passed())])),
+        };
+
+        var applier = new EventApplier(Samples.Board, Samples.Game);
+        applier.ApplyAll(events);
+        var sealedAsks = EventFilter.SealedOpenAsks(applier.Projection);
+
+        Assert.Contains(sealedAskId, sealedAsks);
+        Assert.DoesNotContain(openAskId, sealedAsks);
+        Assert.DoesNotContain(closedSealedAskId, sealedAsks);
     }
 }
