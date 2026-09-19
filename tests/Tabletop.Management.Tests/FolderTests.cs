@@ -38,4 +38,14 @@ public class FolderTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.NotFound, (await theirs.DeleteAsync($"/v1/folders/{f.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await theirs.PostAsJsonAsync("/v1/folders", new FolderRequest("Under yours", f.Id), Tabletop.Content.ContentJson.Options)).StatusCode);
     }
+
+    [Fact]
+    public async Task Patching_a_blank_name_is_rejected_and_leaves_the_name_unchanged()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var f = await c.PostJson<FolderDto>("/v1/folders", new FolderRequest("Named", null));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchJson($"/v1/folders/{f.Id}", new FolderRequest("   ", null))).StatusCode);
+        var tree = await c.GetJson<List<FolderDto>>("/v1/folders");
+        Assert.Equal("Named", tree.Single(x => x.Id == f.Id).Name);
+    }
 }

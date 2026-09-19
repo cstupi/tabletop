@@ -14,6 +14,7 @@ public static class FolderEndpoints
             : await folders.Create(CurrentAccount.Id(u), r) is { } f ? Results.Created($"/v1/folders/{f.Id}", f) : Problems.Unprocessable("parentId is not one of your folders"));
         g.MapPatch("/{id:guid}", async (ClaimsPrincipal u, Guid id, FolderRequest r, FolderRepository folders) =>
         {
+            if (string.IsNullOrWhiteSpace(r.Name)) return Problems.Unprocessable("name is required");
             var (found, valid) = await folders.Patch(CurrentAccount.Id(u), id, r);
             return !found ? Problems.NotFound() : !valid ? Problems.Unprocessable("parentId must be your folder and not this folder or one below it") : Results.NoContent();
         });
