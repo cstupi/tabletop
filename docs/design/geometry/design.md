@@ -260,7 +260,9 @@ rotated wall footprint is the ordinary case here.
 on the segment is within the radius. A polygon does when either endpoint is inside or any edge
 crosses. `SegmentsIntersect` uses the four-cross-product orientation test with a collinear
 fallback through `Polygon.OnSegment`. That is the same tolerance-aware on-segment predicate
-`Polygon.Contains` uses for boundary inclusion.
+`Polygon.Contains` uses for boundary inclusion. `OnSegment` treats a zero-length segment as
+containing only its own point, rather than the degenerate cross- and dot-product test that would
+otherwise call it collinear with every point in the plane.
 
 **Boundary inclusion is uniform: on the boundary is inside.** Every `Contains`, every
 `ContainsPoint`, `Table.ContainsPoint`, `Polygon.Contains` and the vertical range test are
@@ -298,6 +300,12 @@ body. It supplies one adapter,
 sight blockers"* without the library knowing what a unit is. The caller passes the models it
 wants treated as blockers, so p.8's *"models may always ignore friendly models from their own
 unit"* is the caller leaving them out. No friend/foe concept enters the library.
+
+A `WorldVolume`'s `Id` is a `terrain_volume` id for terrain, but for a `WorldVolume` built by
+`AsBlockingVolume` it is the model's id, since the caller supplies it. A Guid list such as
+`LineOfSightResult.ObstructedBy` or `Cover.SightBlockersBetween` mixes the two kinds with no
+discriminator to tell them apart; the caller knows which ids it passed in and can tell them
+apart itself.
 
 `AsBlockingVolume` is asymmetric. An oval base becomes its **bounding rectangle**
 (`Footprint.Rect(b.B, b.A)`), because `Footprint` has no oval kind; a rect base already is one and
@@ -403,8 +411,12 @@ The shooter end is a single point at the **centre of its body**: the base centre
 the height. That is the only point that is the centre in all three axes; the top centre is the
 centre of the top face. Half height keeps the eye inside the body, so a blocker as tall as the
 shooter is opaque to it and one of half its height cuts the centre line while leaving the upper
-lines clear. It also puts the centre-to-centre line in the sample set of both directions, so
-mutual visibility does not depend on which model is shooting.
+lines clear. The centre-to-centre line sits in both directions' sample sets, so a clear centre
+line is clear from either end. `LineOfSight.Check` is otherwise asymmetric: the eye height comes
+from the caller's body and the sampled heights from the target's, so a blocked centre line can
+leave `Check(a, b)` and `Check(b, a)` disagreeing when the two bodies differ in height — a 1.9"
+wall between a 1"-tall and a 4"-tall model blocks one direction and not the other. The rules
+module calls it from the shooter's side.
 
 The target end samples the body at three heights, its base, half height and its top, with the
 centre and up to eight rim points at each. Sight is clear when **any one** line reaches its
@@ -439,10 +451,12 @@ part falls between samples. Two rings left that error unbounded vertically. A ta
 behind a wall with a canopy above it is visible only through the band between them, and with
 samples at the top and the base alone that band is missed however tall it is. A ring at half
 height bounds the vertical gap by half the model's height. The horizontal gap needed no such
-fix: eight rim points on a 1.26" base subtend 2.8° at 10", so the sliver that slips between
-adjacent rays is under 0.24" wide at mid-range, finer than any terrain a table carries. The cost
-is 27 rays a pair rather than 17, each a segment-prism test against every blocker, and there is
-still no broad phase.
+fix on a circular base: eight rim points on a 1.26" base subtend 2.8° at 10", so the sliver that
+slips between adjacent rays is under 0.24" wide at mid-range, finer than any terrain a table
+carries. On a 64-gon oval, `Rim` takes every eighth vertex by index, even in parametric angle
+rather than in arc length, so the 2.8° and 0.24" figures are exact only for the circular case.
+The cost is 27 rays a pair rather than 17, each a segment-prism test against every blocker, and
+there is still no broad phase.
 
 **Counting visible models.** p.11's majority read from the attacker's side: fewer than half of a
 unit's models seen is more than half of them hidden. Cover was served only by a blocker list from one model to one
@@ -621,12 +635,12 @@ And the region says nothing about whether the path taken to a reachable point wa
 `Step = 0.25`, and near an obstacle it under-reports reach by up to a quarter inch. The plan's
 test asserts a range (`Assert.InRange(r.Boundary[0].X, 2.5, 2.87)`) rather than a value.
 Bisecting the last interval would cost about five more samples per ray and take the error to
-1e-2. The march costs 180 rays × up to `allowance / 0.25` samples. Each sample constructs a
-base outline and runs `InteriorsIntersect` against **every** volume in both lists. There is no
-bounding-box or bounding-circle broad phase anywhere in `Outline`. For a 6" allowance that is
-roughly 4,300 displaced-base tests per volume. With an oval base (a 64-gon, 68 SAT axes) and
-ten impassable pieces it is tens of millions of dot products for one region. It runs once per
-move Ask rather than per frame. It is the first thing to profile and the cheapest thing to fix.
+1e-2. The march costs 180 rays × up to `allowance / 0.25` samples, but `Region` hoists each
+volume's world outline and bounding circle once before the ray loop (`Prefilter`) and drops any
+volume whose bounding circle is out of reach; each sample then rejects a volume by bounding
+circle before running the exact `InteriorsIntersect` test. On a 72×48 table with 30 pieces, one
+`Region` call at a 12" allowance measures about 15 ms. It runs once per move Ask rather than per
+frame.
 
 `Movement.Check(start, destination, …)` judges one straight move against the same parameters and
 returns `MoveCheck(Distance, EffectiveAllowance, WithinAllowance, CrossesImpassable,
@@ -820,7 +834,7 @@ Decisions the plan took because **no spec said anything**:
 | Free-for-all's *2'x1'* is 24" along the long edge by 12" along the short | p.50 gives no orientation | The other way round, a two-number change per corner | The plan's ruling 5; Task 13 |
 | Side Battle legs are `0.75` of the long edge and `0.625` of the short | The style is proportional to the table; those fractions are the p.22 diagram's 54" and 30" on 72×48 | `edge - 18`, which invents a constant no page states and degenerates at 18"; fixed 54"/30" legs, which overrun any table shorter than 54" or narrower than 30" | The plan's ruling 6; Task 13; geometry values → Deployment shapes |
 | `Rays = 180`, `Step = 0.25` | 2° angular resolution and a quarter-inch radial one, for a region redrawn once per Ask | Fewer rays with interpolation; a bisection refinement pass | Task 12 |
-| `RimSamples = 8`, `OvalVertices = 64` | Eight rim points subtend 2.8° on a 1.26" base at 10", so the sliver between adjacent rays is under 0.24" at mid-range; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
+| `RimSamples = 8`, `OvalVertices = 64` | On a circular base, eight rim points subtend 2.8° at 10", so the sliver between adjacent rays is under 0.24" at mid-range; a 64-gon oval samples every eighth vertex by index, even in parametric angle rather than arc length, so the figure holds only for the circle; 64 keeps the ellipse error negligible | Sixteen rim points, at twice the ray cost for a gap nothing on a table occupies; any other constants. Both are `public const`, so a caller can see them but not change them | Tasks 3 and 8 |
 | `BaseFullyWithin` takes a `PlacedModel` container only | Only `Transport(X)` is automated; a solid building holds models through the client's menu, which places by hand, and releases them the same way | A `WorldVolume` overload: five lines and one test, declined | The plan's ruling 8; Task 6 |
 
 ## Interfaces
@@ -1081,7 +1095,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, and `VisibleModels` under-counts, which biases toward granting cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
 | A model dragged into a wall by the client | The client's region already excluded it, but nothing stops a hand-placed model overlapping a Solid. `Overlap.WithSolid` flags it | Yes |
-| Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list | **Trap.** Nothing in this library compares polygons, but a consumer might |
+| Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list. `PolygonOutline` is the same shape over `Vertices` and shares the hazard | **Trap.** Nothing in this library compares polygons, but a consumer might |
 
 There is no shared mutable state, no I/O and no async, so every call is thread-safe and
 reentrant. The two remaining hazards are **ordering** and **cost**:
@@ -1100,7 +1114,7 @@ reentrant. The two remaining hazards are **ordering** and **cost**:
 
 ## Testing
 
-Thirteen test classes in `tests/Tabletop.Geometry.Tests`, one per subject, roughly 112 facts,
+Thirteen test classes in `tests/Tabletop.Geometry.Tests`, one per subject, 131 facts,
 all headless and all `dotnet test` with no infrastructure. **Nothing in this module needs
 Docker, a database, a socket or Godot.** `architecture.md`'s build-order note gives geometry
 *"headless tests, zero dependencies"*.
@@ -1175,11 +1189,13 @@ the answer differs.
 
 Two further items the plan does not ask about:
 
-- **`PolygonOutline` still accepts a degenerate polygon.** Its `Axes` divides an edge vector by
-  its own length, so a zero-area or collinear triangle divides by zero. Side Battle is
-  proportional, a fraction of a positive edge is positive, and no built-in style can produce
-  one. The guard belongs in `PolygonOutline`, which rejects
-  fewer than three vertices but not three collinear ones.
+- **`PolygonOutline` rejects a degenerate polygon at construction.** The constructor computes
+  twice the signed area and throws `ArgumentException` when it is within `Tolerance.Distance` of
+  zero, catching a zero-area vertex list before `Axes` can divide an edge vector by its own zero
+  length. `Axes` itself skips any edge shorter than `Tolerance.Distance`. The guard is reachable:
+  `default(TerrainTransform).Scale == 0` (a wire message that omits `scale`) and `TableSize(0, 0)`
+  each drove a degenerate outline that contained every point, measured 0" from anything, and
+  reported every model as contained, before the constructor closed that path.
 - **No broad phase.** A bounding-circle rejection at the top of `InteriorsIntersect` and
   `Separation` would be a handful of lines and would change the cost of `Movement.Region` and
   `Coherency.Check` by an order of magnitude. Line of sight would gain the most: 27 rays a pair,
