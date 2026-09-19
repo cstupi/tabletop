@@ -72,7 +72,30 @@ public sealed partial class PostgresGameRows
         await tx.CommitAsync(ct);
     }
 
-    public Task EndSetupAsync(Guid gameId, TableState snapshot, IReadOnlyDictionary<Guid, ArmySnapshot?> snapshotsByParticipant, CancellationToken ct) => throw new NotImplementedException();
+    public async Task EndSetupAsync(Guid gameId, TableState snapshot, IReadOnlyDictionary<Guid, ArmySnapshot?> snapshotsByParticipant, CancellationToken ct)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using (var cmd = new NpgsqlCommand("update management.table_state set width = $3, length = $4, texture_builtin = $5, texture_asset_id = $6 where id = $1 and game_id = $2", conn, tx))
+        {
+            cmd.Parameters.AddWithValue(snapshot.Id); cmd.Parameters.AddWithValue(gameId);
+            cmd.Parameters.AddWithValue(snapshot.Size.Width); cmd.Parameters.AddWithValue(snapshot.Size.Length);
+            cmd.Parameters.AddWithValue((object?)snapshot.Texture.Builtin ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)snapshot.Texture.AssetId ?? DBNull.Value);
+            if (await cmd.ExecuteNonQueryAsync(ct) != 1) throw new InvalidOperationException("no draft row for this game");
+        }
+        await WriteTreeAsync(conn, tx, snapshot, ct);
+        foreach (var (participantId, army) in snapshotsByParticipant)
+        {
+            await using var cmd = new NpgsqlCommand("update management.participant set army_snapshot = $2 where id = $1 and game_id = $3", conn, tx);
+            cmd.Parameters.AddWithValue(participantId);
+            cmd.Parameters.Add(new NpgsqlParameter { Value = army is null ? DBNull.Value : ContentJson.Serialize(army), NpgsqlDbType = NpgsqlDbType.Jsonb });
+            cmd.Parameters.AddWithValue(gameId);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        await using (var cmd = new NpgsqlCommand("update management.game set status = 'playing' where id = $1 and status = 'setup'", conn, tx) { Parameters = { new NpgsqlParameter { Value = gameId } } })
+            if (await cmd.ExecuteNonQueryAsync(ct) != 1) throw new InvalidOperationException("game is not in setup");
+        await tx.CommitAsync(ct);
+    }
 
     /// <summary>Children are replaced whole: the draft is a value and one drop is one write.</summary>
     internal static async Task WriteTreeAsync(NpgsqlConnection conn, NpgsqlTransaction tx, TableState draft, CancellationToken ct)

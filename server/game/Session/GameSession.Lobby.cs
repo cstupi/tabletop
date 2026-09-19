@@ -55,11 +55,8 @@ public sealed partial class GameSession
                 await ReloadInfoAsync();
                 await BroadcastAsync(new BoardMessage(new Board(draft, [])));
                 return;
-            case EndSetup: await HandleEndSetupAsync(from, editId); return;   // Task 12
+            case EndSetup: await HandleEndSetupAsync(from, editId); return;
         }
         await ReloadInfoAsync();
     }
-
-    // Task 12 writes this.
-    private Task HandleEndSetupAsync(ISessionClient from, Guid editId) => RefuseEdit(from, editId, RefusalReason.WrongStatus, "end setup is not handled yet");
 }
