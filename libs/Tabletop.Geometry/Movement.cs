@@ -19,14 +19,24 @@ public static class Movement
     public const int Rays = 180;
     public const double Step = 0.25;
 
+    /// <summary>A volume's world outline, hoisted once, with the bounding circle used to reject it cheaply.</summary>
+    readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
+
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table)
     {
         var origin = start.Placement.Position.Horizontal;
+        var baseOutline = start.BaseOutline();
+        var (_, baseRadius) = baseOutline.BoundingCircle();
+        var reach = allowance + baseRadius;
+        var impassableNear = Prefilter(impassable, origin, reach);
+        var difficultNear = Prefilter(difficult, origin, reach);
+        var slab = table is { } t ? Table.Outline(t) : null;
+
         var boundary = new List<Point2>(Rays);
         var capped = false;
         var startLimit = allowance;
-        if (difficultCap is { } cap0 && cap0 < startLimit && Touches(start, difficult))
+        if (difficultCap is { } cap0 && cap0 < startLimit && Touches(origin, baseRadius, baseOutline, difficultNear))
         {
             startLimit = cap0;
             capped = true;
@@ -40,9 +50,10 @@ public static class Movement
             for (var k = 1; ; k++)
             {
                 var d = Math.Min(k * Step, limit);
-                var at = Displace(start, dir * d);
-                if (Touches(at, impassable) || (table is { } t && !Table.ContainsBase(t, at))) break;
-                if (difficultCap is { } cap && cap < limit && Touches(at, difficult))
+                var at = origin + dir * d;
+                var atOutline = baseOutline.Shift(dir * d);
+                if (Touches(at, baseRadius, atOutline, impassableNear) || (slab is not null && !slab.ContainsOutline(atOutline))) break;
+                if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
                     limit = cap;
                     capped = true;
@@ -63,13 +74,21 @@ public static class Movement
         var delta = destination - origin;
         var distance = delta.Length;
         var steps = Math.Max(1, (int)Math.Ceiling(distance / Step));
+        var baseOutline = start.BaseOutline();
+        var (_, baseRadius) = baseOutline.BoundingCircle();
+        var reach = distance + baseRadius;
+        var impassableNear = Prefilter(impassable, origin, reach);
+        var difficultNear = Prefilter(difficult, origin, reach);
+        var slab = table is { } t ? Table.Outline(t) : null;
         bool crosses = false, enters = false, leaves = false;
         for (var k = 0; k <= steps; k++)
         {
-            var at = Displace(start, delta * ((double)k / steps));
-            crosses |= Touches(at, impassable);
-            enters |= Touches(at, difficult);
-            leaves |= table is { } t && !Table.ContainsBase(t, at);
+            var by = delta * ((double)k / steps);
+            var at = origin + by;
+            var atOutline = baseOutline.Shift(by);
+            crosses |= Touches(at, baseRadius, atOutline, impassableNear);
+            enters |= Touches(at, baseRadius, atOutline, difficultNear);
+            leaves |= slab is not null && !slab.ContainsOutline(atOutline);
         }
         var effective = enters && difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
         return new MoveCheck(distance, effective, distance <= effective + Tolerance.Distance, crosses, enters, leaves);
@@ -81,27 +100,46 @@ public static class Movement
     /// </summary>
     public static IReadOnlyList<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IReadOnlyList<WorldVolume> volumes)
     {
-        var delta = destination - start.Placement.Position.Horizontal;
+        var origin = start.Placement.Position.Horizontal;
+        var delta = destination - origin;
         var steps = Math.Max(1, (int)Math.Ceiling(delta.Length / Step));
+        var baseOutline = start.BaseOutline();
+        var (_, baseRadius) = baseOutline.BoundingCircle();
+        var near = Prefilter(volumes, origin, delta.Length + baseRadius);
         var touched = new HashSet<Guid>();
         for (var k = 0; k <= steps; k++)
         {
-            var outline = Displace(start, delta * ((double)k / steps)).BaseOutline();
-            foreach (var v in volumes)
-                if (Outline.InteriorsIntersect(outline, v.WorldOutline())) touched.Add(v.Id);
+            var by = delta * ((double)k / steps);
+            var at = origin + by;
+            var atOutline = baseOutline.Shift(by);
+            foreach (var v in near)
+                if (at.DistanceTo(v.Centre) <= baseRadius + v.Radius + Tolerance.Distance && Outline.InteriorsIntersect(atOutline, v.Outline))
+                    touched.Add(v.Id);
         }
         return volumes.Where(v => touched.Contains(v.Id)).Select(v => v.Id).ToList();
     }
 
-    static PlacedModel Displace(PlacedModel start, Point2 by)
+    /// <summary>Volumes whose bounding circle lies within reach of origin, with their world outline hoisted out of the sampling loop.</summary>
+    static List<NearVolume> Prefilter(IReadOnlyList<WorldVolume> volumes, Point2 origin, double reach)
     {
-        var p = start.Placement.Position;
-        return start with { Placement = start.Placement with { Position = new Point3(p.X + by.X, p.Y + by.Y, p.Z) } };
+        var result = new List<NearVolume>(volumes.Count);
+        foreach (var v in volumes)
+        {
+            var outline = v.WorldOutline();
+            var (centre, radius) = outline.BoundingCircle();
+            if (origin.DistanceTo(centre) <= reach + radius + Tolerance.Distance) result.Add(new NearVolume(v.Id, outline, centre, radius));
+        }
+        return result;
     }
 
-    static bool Touches(PlacedModel at, IReadOnlyList<WorldVolume> volumes)
+    /// <summary>Bounding-circle rejection, then the exact test, against the pre-hoisted near volumes.</summary>
+    static bool Touches(Point2 at, double atRadius, Outline atOutline, IReadOnlyList<NearVolume> volumes)
     {
-        var outline = at.BaseOutline();
-        return volumes.Any(v => Outline.InteriorsIntersect(outline, v.WorldOutline()));
+        foreach (var v in volumes)
+        {
+            if (at.DistanceTo(v.Centre) > atRadius + v.Radius + Tolerance.Distance) continue;
+            if (Outline.InteriorsIntersect(atOutline, v.Outline)) return true;
+        }
+        return false;
     }
 }
