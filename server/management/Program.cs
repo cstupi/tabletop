@@ -9,12 +9,23 @@ builder.WebHost.UseUrls(builder.Configuration["MANAGEMENT_URL"] ?? "http://0.0.0
 // file runs.
 builder.Services.AddSingleton(sp => ManagementOptions.From(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(sp => new Tabletop.Management.Persistence.Database(sp.GetRequiredService<ManagementOptions>().DbConnection));
+builder.Services.ConfigureHttpJsonOptions(o => Tabletop.Content.ContentJson.Configure(o.SerializerOptions));
+builder.Services.AddProblemDetails();
+builder.Services.AddCors();
 
 var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
 // missing required configuration fails startup instead of being silently deferred to first use.
 var options = app.Services.GetRequiredService<ManagementOptions>();
 Tabletop.Management.Persistence.Migrator.Run(options.DbConnection);
+app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
+    statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error is ArgumentOutOfRangeException ? 400 : 500)
+    .ExecuteAsync(ctx)));
+app.UseCors(p => p
+    .WithOrigins(options.WebUrl.TrimEnd('/'))
+    .WithHeaders("Authorization", "Content-Type", Tabletop.Protocol.ProtocolVersion.Header)
+    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE"));
+app.UseMiddleware<Tabletop.Management.Http.ClientVersionMiddleware>();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 
