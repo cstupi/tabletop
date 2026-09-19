@@ -14,13 +14,6 @@ public static class LineOfSight
         throw new NotImplementedException("Implemented by the geometry plan.");
 }
 
-/// <summary>Ids of the volumes whose footprint and vertical range contain the model's base centre (Area or Solid).</summary>
-public static class Containment
-{
-    public static IReadOnlyList<Guid> VolumesContaining(PlacedModel model, IReadOnlyList<WorldVolume> volumes) =>
-        throw new NotImplementedException("Implemented by the geometry plan.");
-}
-
 /// <summary>Flagged, never prevented: base overlap and terrain intersection (architecture.md → Rules enforcement).</summary>
 public static class Overlap
 {
