@@ -16,22 +16,31 @@ public sealed class StytchJwks(HttpClient http, ManagementOptions options)
 
     public async Task<IReadOnlyList<SecurityKey>> Resolve(string? kid, CancellationToken ct = default)
     {
-        var keys = _keys ?? await Fetch(ct);
-        var match = keys.Keys.Where(k => kid is null || k.Kid == kid).ToList();
-        if (match.Count == 0 && DateTimeOffset.UtcNow - _lastMissRefetch > TimeSpan.FromSeconds(30))
-        {
-            _lastMissRefetch = DateTimeOffset.UtcNow;
-            match = (await Fetch(ct)).Keys.Where(k => k.Kid == kid).ToList();
-        }
-        return match;
+        var keys = await EnsureLoaded(kid, ct);
+        return keys.Keys.Where(k => kid is null || k.Kid == kid).ToList();
     }
 
-    private async Task<JsonWebKeySet> Fetch(CancellationToken ct)
+    private bool Holds(string? kid) => _keys is { } k && (kid is null || k.Keys.Any(key => key.Kid == kid));
+
+    private async Task<JsonWebKeySet> EnsureLoaded(string? kid, CancellationToken ct)
     {
+        if (Holds(kid)) return _keys!; // fast path: no lock needed once we already hold the kid
+
         await _gate.WaitAsync(ct);
         try
         {
+            // Re-check now that we hold the lock: a concurrent caller queued ahead of us may
+            // already have fetched the kid we need, or may already have hit the floor below.
+            if (Holds(kid)) return _keys!;
+
+            var alreadyLoaded = _keys is not null;
+            // The floor only throttles a repeat miss once we hold *some* key set; the very
+            // first load (nothing cached yet) always goes through regardless of timing.
+            if (alreadyLoaded && DateTimeOffset.UtcNow - _lastMissRefetch <= TimeSpan.FromSeconds(30))
+                return _keys!;
+
             _keys = new JsonWebKeySet(await http.GetStringAsync(Url, ct));
+            if (alreadyLoaded) _lastMissRefetch = DateTimeOffset.UtcNow;
             return _keys;
         }
         finally { _gate.Release(); }

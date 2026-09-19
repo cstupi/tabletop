@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Tabletop.Management.Tests;
 
@@ -38,6 +39,22 @@ public class JwtTests : IClassFixture<ManagementFactory>
         TestKeys.Rotate();
         var rotated = await _f.AuthenticatedClient(Guid.CreateVersion7(), "B");
         Assert.True((await rotated.GetAsync("/v1/account")).IsSuccessStatusCode);
+        Assert.Equal(before + 1, TestKeys.Fetches);
+    }
+
+    [Fact]
+    public async Task Concurrent_unknown_kid_requests_collapse_into_one_refetch()
+    {
+        // A fresh StytchJwks, isolated from other tests' floor state, sharing the fake JWKS
+        // endpoint and its Fetches counter.
+        var options = _f.Services.GetRequiredService<Tabletop.Management.Configuration.ManagementOptions>();
+        var jwks = new Identity.StytchJwks(new HttpClient(TestKeys.JwksHandler), options);
+        await jwks.Resolve(null); // the lazy first load; does not count toward the floor
+        var before = TestKeys.Fetches;
+
+        var tasks = Enumerable.Range(0, 8).Select(_ => jwks.Resolve("kid-does-not-exist"));
+        await Task.WhenAll(tasks);
+
         Assert.Equal(before + 1, TestKeys.Fetches);
     }
 }
