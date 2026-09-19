@@ -123,6 +123,16 @@ public sealed class PostgresFixture : IAsyncLifetime
         return army;
     }
 
+    // A table_state row for a game seeded at setup/playing/ended, when the test does not go through StartSetup.
+    public async Task<Guid> SeedTableStateAsync(Guid gameId, double width = 72, double length = 48)
+    {
+        var id = Guid.CreateVersion7();
+        await using var cmd = Db.CreateCommand("insert into management.table_state (id, game_id, width, length, texture_builtin) values ($1, $2, $3, $4, 'grass')");
+        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(width); cmd.Parameters.AddWithValue(length);
+        await cmd.ExecuteNonQueryAsync();
+        return id;
+    }
+
     public async Task<int> CountAsync(string sql, params object[] args)
     {
         await using var cmd = Db.CreateCommand(sql);

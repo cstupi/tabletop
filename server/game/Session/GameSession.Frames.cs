@@ -27,6 +27,7 @@ public sealed partial class GameSession
                 case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
                 case Applied a: await AppendAsync(a.Events, from.ParticipantId, a.Warning); await AdvanceAsync(); break;
             }
+        if (Faulted) return;
         var rest = Rest();
         if (rest.Seq > before) await BroadcastAsync(rest); else await from.SendAsync(rest);
     }
