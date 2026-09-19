@@ -32,10 +32,23 @@ public static class DraftEditor
                 var zoneA = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalA); var zoneB = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalB);
                 if (zoneA is null || zoneB is null) return Miss(out missing, "no zone for one of the ordinals");
                 return d with { Zones = d.Zones.Select(z => z.TeamOrdinal == zoneA.TeamOrdinal ? z with { Shape = zoneB.Shape } : z.TeamOrdinal == zoneB.TeamOrdinal ? z with { Shape = zoneA.Shape } : z).ToList() };
-            case ReplaceDraft r: return r.Draft with { Id = d.Id, Name = d.Name };
+            case ReplaceDraft r: return Adopt(r.Draft, d);
             default: return Miss(out missing, $"unknown edit {edit.GetType().Name}");
         }
     }
+
+    /// <summary>A loaded layout becomes this game's draft: it keeps the draft row's own identity, and every child gets a fresh id.
+    /// terrain_placement, terrain_volume, marker and deployment_zone ids are global primary keys and layouts share the table_state
+    /// tree with drafts, so reusing the layout's would make the draft write a unique violation (management plan: on replace_draft
+    /// from a loaded layout, regenerate every child id).</summary>
+    static TableState Adopt(TableState layout, TableState draft) => layout with
+    {
+        Id = draft.Id,
+        Name = draft.Name,
+        Terrain = layout.Terrain.Select(t => t with { Id = Guid.CreateVersion7(), Volumes = t.Volumes.Select(v => v with { Id = Guid.CreateVersion7() }).ToList() }).ToList(),
+        Markers = layout.Markers.Select(m => m with { Id = Guid.CreateVersion7() }).ToList(),
+        Zones = layout.Zones.Select(z => z with { Id = Guid.CreateVersion7() }).ToList(),
+    };
 
     /// <summary>Names the first invalid VisualRef an edit references, or null when every one it carries is valid.</summary>
     static string? InvalidVisual(SetupEdit edit) => edit switch

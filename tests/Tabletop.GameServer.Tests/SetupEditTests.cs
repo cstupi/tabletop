@@ -32,8 +32,8 @@ public class SetupEditTests(PostgresFixture pg)
         var board = (await creator.ExpectAsync<BoardMessage>()).Board;
         Assert.Equal(hill.Id, board.Table.Terrain.Single().Id);
         Assert.Equal(hill.Id, (await watcher.ExpectAsync<BoardMessage>()).Board.Table.Terrain.Single().Id);
-        await Task.Delay(200);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_placement where id = $1", hill.Id));
+        await Wait.UntilAsync(async () => await pg.CountAsync("select count(*) from management.terrain_placement where id = $1", hill.Id) == 1,
+            "the added terrain never reached the draft row");
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_volume where terrain_placement_id = $1", hill.Id));
 
         await creator.SendAsync(Edit(new SetZoneStyle("long-edges", ["long-edges/1", "long-edges/2"])));
@@ -55,9 +55,36 @@ public class SetupEditTests(PostgresFixture pg)
         var table = (await watcher.ExpectAsync<BoardMessage>()).Board.Table;
         Assert.Equal((44.0, layout.Terrain.Count, layout.Markers.Count, layout.Zones.Count), (table.Size.Width, table.Terrain.Count, table.Markers.Count, table.Zones.Count));
         Assert.NotEqual(layout.Id, table.Id);
-        await Task.Delay(200);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.table_state where game_id = $1 and width = 44", g.GameId));
+        await Wait.UntilAsync(async () => await pg.CountAsync("select count(*) from management.table_state where game_id = $1 and width = 44", g.GameId) == 1,
+            "the replaced draft never reached the table_state row");
         Assert.Equal(layout.Markers.Count, await pg.CountAsync("select count(*) from management.marker m join management.table_state t on t.id = m.table_state_id where t.game_id = $1", g.GameId));
+    }
+
+    /// <summary>A layout's children carry the primary keys of the layout's own rows — terrain_placement, terrain_volume, marker
+    /// and deployment_zone ids are global, and layouts share table_state with drafts — so replace_draft has to mint fresh ones
+    /// or the draft write hits a unique violation and faults the session.</summary>
+    [Fact]
+    public async Task Loading_a_saved_layout_row_writes_fresh_child_ids_and_leaves_the_layout_alone()
+    {
+        var (f, g, creator, watcher) = await InSetupAsync();
+        var layout = await pg.SeedLayoutAsync(await pg.SeedAccountAsync("Layout owner"));
+
+        await creator.SendAsync(Edit(new ReplaceDraft(layout)));
+        var table = (await watcher.ExpectAsync<BoardMessage>()).Board.Table;
+        await creator.ExpectAsync<BoardMessage>();                                                               // the sender's own copy of the same broadcast
+        Assert.NotEqual(layout.Terrain[0].Id, table.Terrain[0].Id);
+        Assert.NotEqual(layout.Terrain[0].Volumes[0].Id, table.Terrain[0].Volumes[0].Id);
+        Assert.NotEqual(layout.Markers[0].Id, table.Markers[0].Id);
+        Assert.Empty(table.Zones.Select(z => z.Id).Intersect(layout.Zones.Select(z => z.Id)));
+
+        const string terrainOfGame = "select count(*) from management.terrain_placement p join management.table_state t on t.id = p.table_state_id where t.game_id = $1";
+        await Wait.UntilAsync(async () => await pg.CountAsync(terrainOfGame, g.GameId) == layout.Terrain.Count, "the loaded layout never reached the draft rows");
+        Assert.Equal(layout.Markers.Count, await pg.CountAsync("select count(*) from management.marker m join management.table_state t on t.id = m.table_state_id where t.game_id = $1", g.GameId));
+        Assert.Equal(layout.Zones.Count, await pg.CountAsync("select count(*) from management.deployment_zone z join management.table_state t on t.id = z.table_state_id where t.game_id = $1", g.GameId));
+        Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_volume where terrain_placement_id = $1", layout.Terrain[0].Id));   // the layout's own rows still stand
+
+        await creator.SendAsync(Edit(new SetTableSize(new TableSize(50, 40))));                                   // and the session did not fault
+        Assert.Equal(50.0, (await creator.ExpectAsync<BoardMessage>()).Board.Table.Size.Width);
     }
 
     [Fact]

@@ -76,4 +76,36 @@ public class EventFilterTests
         Assert.DoesNotContain(openAskId, sealedAsks);
         Assert.DoesNotContain(closedSealedAskId, sealedAsks);
     }
+
+    /// <summary>An Undone discards every event with Seq &gt; ToSeq (EventApplier.EffectiveLog), so undoing past an ask_closed
+    /// puts the sealed window back: the answers that follow are withheld again.</summary>
+    [Fact]
+    public void Undoing_past_an_ask_closed_reopens_the_sealed_window()
+    {
+        GameEvent[] log =
+        [
+            Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", Samples.Frame))),
+            Ev(2, new AskAnswered(Sealed, Samples.Team1, SpentByTeam1, false)),
+            Ev(3, new AskClosed(Sealed, [new TeamAnswer(Samples.Team1, SpentByTeam1)])),
+            Ev(4, new Undone(2)),
+            Ev(5, new AskAnswered(Sealed, Samples.Team2, SpentByTeam2, false)),
+        ];
+        Assert.Null(((AskAnswered)EventFilter.ForViewer(log, Samples.Team1, new HashSet<Guid>())[4].Payload).Answer);      // team 2's spend, still sealed from team 1
+        Assert.NotNull(((AskAnswered)EventFilter.ForViewer(log, Samples.Team2, new HashSet<Guid>())[4].Payload).Answer);   // the answering team always sees its own
+        Assert.Null(((AskAnswered)EventFilter.ForViewer(log, null, new HashSet<Guid>())[4].Payload).Answer);               // and a spectator sees none of it
+    }
+
+    /// <summary>The mirror: an undone sealed ask_opened is not open any more, so nothing it would have sealed is withheld.</summary>
+    [Fact]
+    public void Undoing_past_a_sealed_ask_opened_stops_withholding()
+    {
+        GameEvent[] log =
+        [
+            Ev(1, new AskOpened(new Ask(Sealed, AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", Samples.Frame))),
+            Ev(2, new Undone(0)),
+            Ev(3, new AskOpened(new Ask(Sealed, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([]), true, false, null, null))),   // the same id, reopened unsealed
+            Ev(4, new AskAnswered(Sealed, Samples.Team1, new Passed(), false)),
+        ];
+        Assert.NotNull(((AskAnswered)EventFilter.ForViewer(log, Samples.Team2, new HashSet<Guid>())[3].Payload).Answer);
+    }
 }

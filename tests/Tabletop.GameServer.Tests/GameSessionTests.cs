@@ -187,6 +187,30 @@ public class GameSessionTests
         Assert.Equal(WebSocketCloseStatus.InternalServerError, late.Closed!.Value.Status);
         Assert.DoesNotContain(late, session.Clients);
     }
+
+    /// <summary>Teardown on a drained session is a no-op. The handshake's finally detaches outside every catch, and two
+    /// routine paths reach it after the mailbox is gone: the SIGTERM drain with a socket still unwinding, and the
+    /// re-hydration that supersedes a faulted session. A throw here escapes the /ws endpoint and skips the send loop and
+    /// the release behind it.</summary>
+    [Fact]
+    public async Task Detaching_from_a_drained_session_is_a_no_op()
+    {
+        var (session, _, clay, _, _) = await PlayingAsync();
+        await session.DrainAsync("server shutting down");
+        await session.DetachAsync(clay);                                        // the handshake's finally, after the drain
+        await session.DrainAsync("released");                                   // and ReleaseIfEmptyAsync behind it
+        Assert.Equal(WebSocketCloseStatus.EndpointUnavailable, clay.Closed!.Value.Status);
+    }
+
+    /// <summary>Connecting is not teardown: a session released between get-or-hydrate and connect says so, which is how the
+    /// handshake knows to hydrate again instead of closing the newcomer's socket 1011.</summary>
+    [Fact]
+    public async Task Connecting_to_a_drained_session_says_so()
+    {
+        var (session, _, _, _, _) = await PlayingAsync();
+        await session.DrainAsync("released");
+        await Assert.ThrowsAsync<SessionDrainedException>(() => session.ConnectAsync(new RecordingClient(Guid.CreateVersion7())));
+    }
 }
 
 /// <summary>Emits one event naming a model nothing created, as soon as the log holds anything: the applier's desync, provoked from the server's own side.</summary>

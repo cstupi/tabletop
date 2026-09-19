@@ -8,6 +8,11 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Session;
 
+/// <summary>Work was posted to a session whose mailbox has already been completed by DrainAsync. Teardown swallows it —
+/// a drained session has nothing left to tear down — and the handshake answers it on connect by hydrating the game again.
+/// It is an InvalidOperationException so the presence tick, which already tolerates that, keeps its meaning.</summary>
+public sealed class SessionDrainedException() : InvalidOperationException("session is drained");
+
 /// <summary>
 /// One game in memory. Every mutation runs on the mailbox loop, so there is no lock: connections post frames, the loop handles
 /// them one at a time. The log is appended before anything is broadcast; the row is written after the broadcast (setup only).
@@ -50,7 +55,7 @@ public sealed partial class GameSession
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_mailbox.Writer.TryWrite(async () => { try { tcs.SetResult(await work()); } catch (Exception ex) { tcs.SetException(ex); } }))
-            tcs.SetException(new InvalidOperationException("session is drained"));
+            tcs.SetException(new SessionDrainedException());
         return tcs.Task;
     }
     private Task RunAsync(Func<Task> work) => RunAsync(async () => { await work(); return 0; });
@@ -70,11 +75,21 @@ public sealed partial class GameSession
         foreach (var value in _presence.All.Where(v => v.ParticipantId != client.ParticipantId)) await client.SendAsync(new PresenceMessage(value));
     }
 
-    public Task DetachAsync(ISessionClient client) => RunAsync(async () =>
+    /// <summary>The handshake detaches in a finally, outside every catch, and reaches a drained session by two routine paths:
+    /// the SIGTERM drain completes the mailbox while read loops are still unwinding, and a re-hydration drains the faulted
+    /// session its old loops still hold. A drained session has already closed and dropped every client, so this is a no-op
+    /// rather than a throw into the /ws endpoint.</summary>
+    public Task DetachAsync(ISessionClient client) => WhenNotDrained(RunAsync(async () =>
     {
         if (!_clients.Remove(client)) return;
         if (_clients.All(c => c.ParticipantId != client.ParticipantId)) { _presence.Remove(client.ParticipantId); await BroadcastAsync(new PresenceEnded(client.ParticipantId)); }
-    });
+    }));
+
+    /// <summary>Teardown that raced the drain it was tearing down: the work is already done by definition.</summary>
+    private static async Task WhenNotDrained(Task teardown)
+    {
+        try { await teardown; } catch (SessionDrainedException) { }
+    }
 
     public async Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)
     {
@@ -131,7 +146,7 @@ public sealed partial class GameSession
     {
         if (_drained) return;
         _drained = true;
-        await RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); });
+        await WhenNotDrained(RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); }));
         _mailbox.Writer.TryComplete();
         if (_loop is not null) await _loop;
     }

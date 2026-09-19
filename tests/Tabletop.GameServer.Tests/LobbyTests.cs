@@ -90,6 +90,27 @@ public class LobbyTests(PostgresFixture pg)
         Assert.Equal(RefusalReason.WrongStatus, (await client.ExpectAsync<Refused>()).Reason);
     }
 
+    /// <summary>Management's join inserts the participant row whenever it likes, and hydration read the rows once. A
+    /// participant the session has never seen re-reads them on connect, so Welcome carries their row and their first
+    /// lobby edit finds them instead of throwing out of the handshake.</summary>
+    [Fact]
+    public async Task A_participant_who_joins_after_hydration_is_in_their_welcome_and_can_pick_a_team()
+    {
+        using var factory = new GameServerFactory();
+        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        await using var creator = await TestClient.OpenAsync(factory);
+        await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);                 // hydrates the session from the rows as they stand
+        var joined = await pg.SeedParticipantAsync(seeded.GameId, await pg.SeedAccountAsync("Latecomer"), null);
+
+        await using var late = await TestClient.OpenAsync(factory);
+        var welcome = await late.ConnectAsync(joined.AccountId, seeded.GameId);
+        Assert.Equal(joined.ParticipantId, welcome.ParticipantId);
+        Assert.Contains(welcome.Game.Participants, p => p.Id == joined.ParticipantId);
+
+        await late.SendAsync(Edit(new PickTeam(seeded.TeamIds[1])));
+        Assert.Equal(seeded.TeamIds[1], (await late.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == joined.ParticipantId).TeamId);
+    }
+
     // The team list is locked at the flip to playing (game flow → Teams are frozen at the flip, and a team is a slot),
     // and a participant who reconnects during play is returned to the slot their participant row already names.
     [Fact]

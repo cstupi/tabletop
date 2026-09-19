@@ -133,6 +133,39 @@ public sealed class PostgresFixture : IAsyncLifetime
         return id;
     }
 
+    /// <summary>A saved layout: a table_state owned by an account rather than a game (owner_id set, game_id null), with its
+    /// terrain, volumes, markers and zones as rows. Returns exactly what it inserted, so a replace_draft built from it carries
+    /// the layout rows' own primary keys. Removed with its owner account, which the table cascades from.</summary>
+    public async Task<Tabletop.Content.TableState> SeedLayoutAsync(Guid ownerId)
+    {
+        var layout = Tabletop.Content.Tests.TableStateTests.Sample() with { Name = "Saved layout" };
+        await using var conn = await Db.OpenConnectionAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        async Task Run(string sql, params object?[] args)
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn, tx);
+            foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await Run("insert into management.table_state (id, owner_id, name, width, length, texture_builtin, texture_asset_id) values ($1, $2, $3, $4, $5, $6, $7)",
+            layout.Id, ownerId, layout.Name, layout.Size.Width, layout.Size.Length, layout.Texture.Builtin, layout.Texture.AssetId);
+        foreach (var t in layout.Terrain)
+        {
+            await Run("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                t.Id, layout.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
+            foreach (var v in t.Volumes)
+                await Run($"insert into management.terrain_volume (id, terrain_placement_id, {RowMapping.VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 16).Select(i => "$" + i))})",
+                    [v.Id, t.Id, .. RowMapping.VolumeValues(v.Volume)]);
+        }
+        foreach (var m in layout.Markers)
+            await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                m.Id, layout.Id, RowMapping.EnumText(m.Kind), m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees, m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
+        foreach (var z in layout.Zones)
+            await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, layout.Id, z.Shape, z.TeamOrdinal);
+        await tx.CommitAsync();
+        return layout;
+    }
+
     public async Task<int> CountAsync(string sql, params object[] args)
     {
         await using var cmd = Db.CreateCommand(sql);

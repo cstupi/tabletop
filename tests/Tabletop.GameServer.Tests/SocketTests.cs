@@ -153,25 +153,12 @@ public class SocketTests(PostgresFixture pg)
             await client.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[0], 3)));
             await client.ExpectAsync<EventsMessage>();
         }
-        await WaitUntilAsync(() => !registry.Live.Any(s => s.GameId == seeded.GameId), TimeSpan.FromSeconds(5),
-            "the session was not released within 5s of the last socket leaving");
+        await Wait.UntilAsync(() => !registry.Live.Any(s => s.GameId == seeded.GameId), "the session was not released within 5s of the last socket leaving");
         Assert.DoesNotContain(registry.Live, s => s.GameId == seeded.GameId);
         await using var again = await TestClient.OpenAsync(factory);
         await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await again.ExpectAsync<BoardMessage>();
         Assert.Equal(3, ((ScoreSet)(await again.ExpectAsync<EventsMessage>()).Events.Single().Payload).Score);
-    }
-
-    /// <summary>Polls a condition that becomes true asynchronously (here: the registry noticing a detach) instead of
-    /// sleeping a fixed guess. Fails with a clear message rather than the bare assertion that follows it timing out first.</summary>
-    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout, string message)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!condition())
-        {
-            if (DateTime.UtcNow >= deadline) throw new Xunit.Sdk.XunitException(message);
-            await Task.Delay(TimeSpan.FromMilliseconds(20));
-        }
     }
 }
 

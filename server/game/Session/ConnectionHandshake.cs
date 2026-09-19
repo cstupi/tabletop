@@ -49,9 +49,18 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
 
         var connection = new SocketConnection(socket, participantId.Value, log);
         var sending = connection.RunSendLoopAsync(CancellationToken.None);
-        await game.ConnectAsync(connection);
         try
         {
+            try { await game.ConnectAsync(connection); }
+            // ReleaseIfEmptyAsync can take the registry's gate between the hydrate above and this connect — the previous
+            // socket's departure emptying the session under this one. Nothing is lost, because the log and the rows hold
+            // everything: hydrating again returns the instance that replaced it. Once more only, and not while shutting down.
+            catch (SessionDrainedException)
+            {
+                if (registry.Draining) { await connection.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
+                game = await registry.GetOrHydrateAsync(connect.GameId, aborted);
+                await game.ConnectAsync(connection);
+            }
             while (await SocketConnection.ReadFrameAsync(socket, aborted) is { } frame) await game.ReceiveAsync(connection, frame);
         }
         catch (ProtocolViolationException ex) { await connection.CloseAsync(WebSocketCloseStatus.ProtocolError, ex.Message); }
