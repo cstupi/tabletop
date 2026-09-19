@@ -164,6 +164,29 @@ public class GameSessionTests
         Assert.Equal(WebSocketCloseStatus.InternalServerError, opponent.Closed!.Value.Status);
         Assert.Empty(session.Clients);
     }
+
+    [Fact]
+    public async Task A_faulted_session_drops_every_further_frame_and_refuses_new_attachments()
+    {
+        var (session, log, clay, opponent, _) = await PlayingAsync();
+        await log.AppendAsync(session.GameId, [new GameEvent(1, null, new PhaseStarted("elsewhere"), null)], CancellationToken.None);
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        Assert.True(session.Faulted);
+        var (clayBefore, opponentBefore) = (clay.Received.Count, opponent.Received.Count);
+
+        await session.ReceiveAsync(opponent, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 9)));
+        await session.ReceiveAsync(opponent, new PresenceMessage(new Presence(Guid.CreateVersion7(), null, null, [], null)));
+        await session.TickPresenceAsync();
+
+        Assert.Equal([1L], (await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Select(e => e.Seq));   // nothing further appended
+        Assert.Equal(clayBefore, clay.Received.Count);       // nothing further reaches a client that was already closed
+        Assert.Equal(opponentBefore, opponent.Received.Count);
+
+        var late = new RecordingClient(Guid.CreateVersion7());
+        await session.AttachAsync(late);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, late.Closed!.Value.Status);
+        Assert.DoesNotContain(late, session.Clients);
+    }
 }
 
 /// <summary>Emits one event naming a model nothing created, as soon as the log holds anything: the applier's desync, provoked from the server's own side.</summary>

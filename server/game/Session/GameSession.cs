@@ -20,6 +20,7 @@ public sealed partial class GameSession
     private readonly SessionServices _services;
     private readonly ILogger _log;
     private Task? _loop;
+    private bool _drained;
 
     public GameSession(Guid gameId, GameInfo info, IGameRules rules, TableState? draft, GameState? play, IRulesEngine? engine, SessionServices services)
     {
@@ -62,6 +63,7 @@ public sealed partial class GameSession
     /// <summary>One connection per participant: a newer socket replaces the older one. The newcomer gets everyone else's current presence.</summary>
     private async Task AttachCoreAsync(ISessionClient client)
     {
+        if (Faulted) { await client.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted"); return; }
         var replaced = _clients.FirstOrDefault(c => c.ParticipantId == client.ParticipantId);
         if (replaced is not null) { _clients.Remove(replaced); await replaced.CloseAsync(WebSocketCloseStatus.NormalClosure, "replaced by a newer connection"); }
         _clients.Add(client);
@@ -121,9 +123,14 @@ public sealed partial class GameSession
         _clients.Clear();
     }
 
-    /// <summary>Finishes queued work, closes every socket with 1001, and stops the loop. Everything durable was already written when it was queued.</summary>
+    /// <summary>Finishes queued work, closes every socket with 1001, and stops the loop. Everything durable was already written when it was queued.
+    /// Idempotent: a faulted session already has no clients to close, and the registry may drain it once itself (superseding it in
+    /// GetOrHydrateAsync) and again through ReleaseIfEmptyAsync on the same instance; the second call is a no-op rather than a
+    /// write to an already-completed mailbox.</summary>
     public async Task DrainAsync(string reason)
     {
+        if (_drained) return;
+        _drained = true;
         await RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); });
         _mailbox.Writer.TryComplete();
         if (_loop is not null) await _loop;

@@ -15,7 +15,11 @@ public sealed class SessionRegistry(SessionServices services)
         try
         {
             if (Draining) throw new InvalidOperationException("shutting down");
-            if (_live.TryGetValue(gameId, out var existing) && !existing.Faulted) return existing;
+            if (_live.TryGetValue(gameId, out var existing))
+            {
+                if (!existing.Faulted) return existing;
+                await existing.DrainAsync("faulted");   // its clients are already closed; this only stops its mailbox loop
+            }
             var session = await Hydrator.HydrateAsync(gameId, services, ct);
             await session.StartAsync();
             lock (_live) _live[gameId] = session;
