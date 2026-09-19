@@ -46,8 +46,4 @@ public sealed partial class GameSession
         foreach (var value in _presence.TakeDirty())
             foreach (var c in _clients.ToList()) if (c.ParticipantId != value.ParticipantId) await c.SendAsync(new PresenceMessage(value));
     });
-
-    // Task 10 (lobby edits) and Task 11 (setup edits) replace this body.
-    private Task HandleEditAsync(ISessionClient from, EditMessage message) =>
-        from.SendAsync(new Protocol.Refused(message.EditId, RefusalReason.WrongStatus, "edits are not handled yet")).AsTask();
 }
