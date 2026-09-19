@@ -6,4 +6,7 @@
     <LangVersion>12</LangVersion>
     <RootNamespace>Tabletop.Geometry</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tabletop.Geometry.Tests" />
+  </ItemGroup>
 </Project>
