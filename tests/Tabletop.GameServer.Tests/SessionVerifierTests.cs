@@ -34,4 +34,20 @@ public class SessionVerifierTests
         };
         Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task Token_signed_by_unknown_key_yields_null()
+    {
+        var account = Guid.CreateVersion7();
+        var jwt = TestKeys.Mint(account, signingKey: TestKeys.OtherKey);
+        Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Token_with_non_guid_account_claim_yields_null()
+    {
+        var account = Guid.CreateVersion7();
+        var jwt = TestKeys.Mint(account, accountClaimValue: "not-a-guid");
+        Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
+    }
 }

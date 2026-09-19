@@ -41,7 +41,18 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
         var result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct));
         if (!result.IsValid)
         {
-            if (keys is HttpJwksSource http) { http.Invalidate(); result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct)); }
+            // Refetch only if the kid is unknown; all other failures return null without refetch
+            try
+            {
+                var headerToken = _handler.ReadJsonWebToken(jwt);
+                var currentKeys = await keys.GetAsync(ct);
+                if (!currentKeys.Keys.Any(k => k.KeyId == headerToken.Kid) && keys is HttpJwksSource http)
+                {
+                    http.Invalidate();
+                    result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct));
+                }
+            }
+            catch { }
             if (!result.IsValid) return null;
         }
         var token = (JsonWebToken)result.SecurityToken;
