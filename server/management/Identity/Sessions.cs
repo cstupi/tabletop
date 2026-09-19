@@ -21,8 +21,12 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
         else
         {
             accountId = Guid.CreateVersion7();
-            await accounts.Insert(accountId, name);
+            // Link first: if this throws, no row is ever inserted for this attempt, so a retry
+            // (a fresh v7 id) leaves nothing orphaned. If the row-insert or the re-mint below
+            // throws instead, the user is already linked, and the next login takes the branch
+            // above, which inserts the row that is missing — that is the self-heal.
             await stytch.SetExternalId(session.User.UserId, accountId.ToString());
+            await accounts.Insert(accountId, name);
             // The session above was minted before the user was linked, so its JWT has no account_id.
             // Re-minting is the documented way to pick the template up ("You must authenticate again to update claims").
             // First login only; every later login and every refresh skips this branch.

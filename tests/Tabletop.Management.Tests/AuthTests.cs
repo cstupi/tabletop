@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Dapper;
+using Microsoft.Extensions.DependencyInjection;
 using Tabletop.Management.Identity;
+using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Tests;
 
@@ -81,5 +84,39 @@ public class AuthTests : IClassFixture<ManagementFactory>
         c.DefaultRequestHeaders.Authorization = new("Bearer", refreshed.SessionJwt);
         Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync("/v1/auth/session")).StatusCode);
         Assert.Contains(refreshed.SessionJwt, _f.Stytch.Revoked);
+    }
+
+    [Fact]
+    public async Task A_non_json_stytch_response_maps_to_502()
+    {
+        var c = _f.CreateClient();
+        _f.Stytch.Break = ("/v1/otps/email/login_or_create", 503, "<html>Bad Gateway</html>");
+        var r = await c.PostAsJsonAsync("/v1/auth/otp", new { email = "gateway@example.com" });
+        Assert.Equal(HttpStatusCode.BadGateway, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_failed_link_leaves_no_orphaned_account_and_self_heals_next_login()
+    {
+        var c = _f.CreateClient();
+        var db = _f.Services.GetRequiredService<Database>();
+        async Task<long> AccountCount()
+        {
+            await using var conn = await db.Open();
+            return await conn.ExecuteScalarAsync<long>("select count(*) from account");
+        }
+
+        var before = await AccountCount();
+        var sent = await (await c.PostAsJsonAsync("/v1/auth/otp", new { email = "orphan@example.com" })).Content.ReadFromJsonAsync<OtpSentResponse>();
+        var userId = _f.Stytch.Users["orphan@example.com"].Id;
+        _f.Stytch.Break = ($"/v1/users/{userId}", 500, "<html>boom</html>");
+
+        var failed = await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent!.MethodId, code = FakeStytch.Code });
+        Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+        Assert.Equal(before, await AccountCount());   // the failed link left no row behind
+
+        var ok = await (await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent.MethodId, code = FakeStytch.Code })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.NotNull(ok);
+        Assert.Equal(before + 1, await AccountCount());   // the next login self-heals: exactly one row created
     }
 }

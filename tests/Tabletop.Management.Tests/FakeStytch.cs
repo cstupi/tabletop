@@ -16,12 +16,20 @@ public sealed class FakeStytch : HttpMessageHandler
     public readonly List<string> Calls = new();               // every path, so tests can count round trips
     public int Authenticates => Calls.Count(p => p == "/v1/sessions/authenticate");
 
+    /// <summary>Test hook: the next request to this exact path gets this raw, possibly non-JSON, response instead of any normal handling. Consumed on the first match.</summary>
+    public (string Path, int Status, string Body)? Break;
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
     {
         Assert.StartsWith("Basic ", req.Headers.Authorization?.ToString());
         var body = req.Content is null ? new JsonObject() : JsonNode.Parse(await req.Content.ReadAsStringAsync(ct))!.AsObject();
         var path = req.RequestUri!.AbsolutePath;
         Calls.Add(path);
+        if (Break is { } brk && brk.Path == path)
+        {
+            Break = null;
+            return new HttpResponseMessage((HttpStatusCode)brk.Status) { Content = new StringContent(brk.Body, System.Text.Encoding.UTF8, "text/html") };
+        }
         string S(string k) => body[k]?.GetValue<string>() ?? "";
         switch (path)
         {

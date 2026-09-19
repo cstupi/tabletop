@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -75,12 +76,34 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
         using var request = new HttpRequestMessage(method, options.StytchBaseUrl.TrimEnd('/') + path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{options.StytchProjectId}:{options.StytchSecret}")));
         if (body is not null) request.Content = new StringContent(JsonSerializer.Serialize(body, Json), Encoding.UTF8, "application/json");
-        using var response = await http.SendAsync(request);
-        var text = await response.Content.ReadAsStringAsync();
-        var json = text.Length == 0 ? JsonDocument.Parse("{}").RootElement : JsonDocument.Parse(text).RootElement.Clone();
-        if (response.IsSuccessStatusCode) return json;
-        var type = json.TryGetProperty("error_type", out var t) ? t.GetString() ?? "unknown" : "unknown";
-        var message = json.TryGetProperty("error_message", out var m) ? m.GetString() ?? type : type;
-        throw new StytchException((int)response.StatusCode, type, message);
+
+        HttpResponseMessage response;
+        try { response = await http.SendAsync(request); }
+        // A transport failure (DNS, connect, timeout) never reaches Stytch at all; report it the
+        // same way an upstream 5xx is reported, rather than letting it fall through as a 500.
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or SocketException)
+        {
+            throw new StytchException(502, "transport", e.Message);
+        }
+        using (response)
+        {
+            var text = await response.Content.ReadAsStringAsync();
+            JsonElement json;
+            try
+            {
+                json = text.Length == 0 ? JsonDocument.Parse("{}").RootElement : JsonDocument.Parse(text).RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                // A non-JSON body (a proxy's HTML error page) still needs to fail the documented
+                // way: keep the real status when it is already a server error, otherwise call it 502.
+                var status = (int)response.StatusCode >= 500 ? (int)response.StatusCode : 502;
+                throw new StytchException(status, "unparseable_response", text.Length > 0 ? text : "empty body");
+            }
+            if (response.IsSuccessStatusCode) return json;
+            var type = json.TryGetProperty("error_type", out var t) ? t.GetString() ?? "unknown" : "unknown";
+            var message = json.TryGetProperty("error_message", out var m) ? m.GetString() ?? type : type;
+            throw new StytchException((int)response.StatusCode, type, message);
+        }
     }
 }
