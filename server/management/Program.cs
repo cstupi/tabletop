@@ -19,6 +19,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddCors();
 builder.Services.AddStytchJwt();
 builder.Services.AddSingleton<AccountRepository>();
+builder.Services.AddSingleton<AccountDeleter>();
 builder.Services.AddHttpClient(StytchClient.HttpClientName);
 builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp => new Tabletop.Management.Content.Assets.S3BlobStore(sp.GetRequiredService<ManagementOptions>()));
