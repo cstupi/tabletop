@@ -1,12 +1,5 @@
 namespace Tabletop.Geometry;
 
-/// <summary>Edge-to-edge between bases, never centre-to-centre. Horizontal, in inches; 0 when the outlines overlap.</summary>
-public static class Distance
-{
-    public static double EdgeToEdge(PlacedModel a, PlacedModel b) => throw new NotImplementedException("Implemented by the geometry plan.");
-    public static double EdgeToEdge(PlacedModel a, Point2 point) => throw new NotImplementedException("Implemented by the geometry plan.");
-}
-
 /// <summary>Which volumes obstruct the line. Empty when clear.</summary>
 public sealed record LineOfSightResult(bool Clear, IReadOnlyList<Guid> ObstructedBy);
 
