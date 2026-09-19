@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run the management API from WSL. Reads .env (docker compose's file) for Postgres, MinIO and Stytch settings;
+# the Stytch secret comes from `dotnet user-secrets` (server/management) or TABLETOP_STYTCH_SECRET.
+# Development is what maps POST /v1/dev/sessions, which the simulator's socket driver calls for its tokens.
+set -euo pipefail
+export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
+cd "$(dirname "$0")/.."
+exec dotnet run --project server/management/Tabletop.Management.csproj "$@"

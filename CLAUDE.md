@@ -30,6 +30,14 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   running. Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
   the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
   management 5100, game server 5200.
+- The management API needs the Stytch test project (`TabletopWar`, id in `.env.example`) configured in two ways
+  that live in the Stytch dashboard, not in this repo, and fail silently when missing: the `SESSION` custom
+  claim template must be exactly `{"account_id": "{{ user.external_id }}"}` — without it every JWT lacks
+  `account_id`, every authenticated management request answers 401 and the game server rejects every
+  socket — and `{TABLETOP_WEB_URL}/reset-password` (`http://localhost:5173/reset-password` locally) must be a
+  registered `RESET_PASSWORD` redirect URL, or password resets fail at Stytch. The secret is set once per
+  machine with `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`; a real login through
+  `./scripts/management` and a look at the JWT's claims is the only check that the template is in place.
 
 ## Commands
 
@@ -39,6 +47,8 @@ dotnet build                 # compile; output goes to client/.godot/mono/temp/b
 ./scripts/godot              # run
 dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d
 cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO (9000/9001) in WSL
+./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret)
+cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine; never in a file
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -62,8 +72,7 @@ Three kinds of top-level directory:
   - `src/` — all client C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
   - `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
 - `server/game/` — live game sessions, rules engine, event log. WebSocket. Empty.
-- `server/management/` — ASP.NET Core CRUD API: accounts, armies, assets, layouts, games.
-  Empty.
+- `server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack.
 - `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
   browser, the account, and login. Does not exist yet.
 - `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
@@ -99,3 +108,4 @@ Each module is designed before it is built.
   when necessary, and never reformat them.
 - Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free
   `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it.
+- Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`; management writes them at creation and at end/leave/delete (management plan → Rows by writer).
