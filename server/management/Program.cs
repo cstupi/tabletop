@@ -1,6 +1,7 @@
 using Tabletop.Management.Configuration;
 using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
+using Tabletop.Management.Content.Layouts;
 using Tabletop.Management.Identity;
 
 DotEnv.Load();
@@ -26,6 +27,7 @@ builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName);
 builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName)));
 builder.Services.AddSingleton<CatalogKinds>();
 builder.Services.AddSingleton<ArmyRepository>();
+builder.Services.AddSingleton<LayoutRepository>();
 builder.Services.AddSingleton<Sessions>();
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
@@ -54,6 +56,7 @@ app.MapAuth();
 app.MapAssets();
 app.MapFolders();
 app.MapArmies();
+app.MapLayouts();
 if (app.Environment.IsDevelopment()) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
