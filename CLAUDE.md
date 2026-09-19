@@ -71,7 +71,7 @@ Three kinds of top-level directory:
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
   live game as a spectator. Does not exist yet.
 - `libs/` — `net10.0`, Godot-free, persistence-free. One child per library:
-  - `Tabletop.Geometry` — values, and the distance/LoS/settling API declared here and implemented by the geometry plan.
+  - `Tabletop.Geometry` — values; distance, line of sight, cover, settling, containment, overlap, coherency, the movement region, the slab, and the built-in zone styles — all headless, all tested.
   - `Tabletop.Content` — the army snapshot and the table state.
   - `Tabletop.Protocol` — every socket message, the wire JSON, `EventApplier` and `Projection`.
 - `tests/` — one xUnit project per library, per server, and for the client's Godot-free core; the set is whatever
