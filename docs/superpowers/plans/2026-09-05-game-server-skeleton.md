@@ -26,7 +26,8 @@
 - Local only: Postgres from `docker-compose.yml` at `TABLETOP_DB_CONNECTION`; the server binds `http://0.0.0.0:5200` (contracts plan → Local development, reserved ports). No AWS, no hosting.
 - Wire format is `WireJson`; the socket carries one `SocketMessage` per text frame.
 - Tests: xUnit in `tests/Tabletop.GameServer.Tests`; the log, replay, legality, the dispatcher, the draft editor and the verifier are unit-tested headlessly; the socket is exercised end to end with a test client against the Docker Postgres (collection `Postgres`).
-- Commit after every task, one-line imperative message, with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
+- Commit after every task, one-line imperative message, with one `Co-Authored-By` trailer naming the model that produced the commit.
+- The "expect N passed" checkpoints are a snapshot at the time each task was written; the runner decides when a task's actual count disagrees.
 
 ---
 
@@ -43,7 +44,7 @@ server/game/
   Auth/SessionVerification.cs                       ISessionVerifier, VerifiedSession, IJwksSource, HttpJwksSource, StytchJwtVerifier
   Persistence/IGameRows.cs                          the rows the server reads and writes
   Persistence/PostgresGameRows.cs                   reads: game, teams, participants, draft, snapshots, army
-  Persistence/PostgresGameRows.Writes.cs            writes: lobby edits, start/end setup, the draft
+  Persistence/PostgresGameRows.Writes.cs            writes: lobby edits, start/end setup, the draft (stub in Task 3; filled by Tasks 10 and 12)
   Persistence/RowMapping.cs                         TableState/Army <-> rows, enum <-> text
   Log/IEventLog.cs                                  append and read
   Log/PostgresEventLog.cs
@@ -224,7 +225,7 @@ public class EndpointTests
 - [ ] **Step 4: Add to the solution and run; expect compile errors (`GameServerOptions`, `Program` undefined)**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 dotnet sln Tabletop.sln add --solution-folder server server/game/Tabletop.GameServer.csproj
 dotnet sln Tabletop.sln add --solution-folder tests tests/Tabletop.GameServer.Tests/Tabletop.GameServer.Tests.csproj
 dotnet test tests/Tabletop.GameServer.Tests
@@ -362,13 +363,14 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 public static class TestKeys
 {
     public static readonly RsaSecurityKey Key = new(RSA.Create(2048)) { KeyId = "test-kid-1" };
+    public static readonly RsaSecurityKey OtherKey = new(RSA.Create(2048)) { KeyId = "test-kid-2" };
     public static readonly JsonWebKeySet Jwks = new() { Keys = { JsonWebKeyConverter.ConvertFromRSASecurityKey(Key) } };
     public static IJwksSource Source => new StaticJwksSource(Jwks);
 
-    public static string Mint(Guid accountId, string? issuer = null, string? audience = null, TimeSpan? lifetime = null, bool includeAccountClaim = true)
+    public static string Mint(Guid accountId, string? issuer = null, string? audience = null, TimeSpan? lifetime = null, bool includeAccountClaim = true, RsaSecurityKey? signingKey = null, string? accountClaimValue = null)
     {
         var claims = new Dictionary<string, object> { ["sub"] = "user-test-" + accountId.ToString("N")[..12] };
-        if (includeAccountClaim) claims[StytchJwtVerifier.AccountClaim] = accountId.ToString();
+        if (includeAccountClaim) claims[StytchJwtVerifier.AccountClaim] = accountClaimValue ?? accountId.ToString();
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = issuer ?? $"stytch.com/{GameServerFactory.ProjectId}",
@@ -376,7 +378,7 @@ public static class TestKeys
             Expires = DateTime.UtcNow + (lifetime ?? TimeSpan.FromMinutes(5)),
             IssuedAt = DateTime.UtcNow,
             Claims = claims,
-            SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.RsaSha256),
+            SigningCredentials = new SigningCredentials(signingKey ?? Key, SecurityAlgorithms.RsaSha256),
         });
     }
 }
@@ -424,6 +426,22 @@ public class SessionVerifierTests
             "no-claim" => TestKeys.Mint(account, includeAccountClaim: false),
             _ => "not.a.jwt",
         };
+        Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Token_signed_by_unknown_key_yields_null()
+    {
+        var account = Guid.CreateVersion7();
+        var jwt = TestKeys.Mint(account, signingKey: TestKeys.OtherKey);
+        Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Token_with_non_guid_account_claim_yields_null()
+    {
+        var account = Guid.CreateVersion7();
+        var jwt = TestKeys.Mint(account, accountClaimValue: "not-a-guid");
         Assert.Null(await Verifier().VerifyAsync(jwt, CancellationToken.None));
     }
 }
@@ -475,7 +493,21 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
         var result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct));
         if (!result.IsValid)
         {
-            if (keys is HttpJwksSource http) { http.Invalidate(); result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct)); }
+            // Refetch only if the kid is unknown; every other failure returns null without refetching.
+            JsonWebToken? headerToken = null;
+            try { headerToken = _handler.ReadJsonWebToken(jwt); }
+            catch { /* malformed header: can't check the kid, so don't refetch */ }
+
+            if (headerToken is not null)
+            {
+                var currentKeys = await keys.GetAsync(ct);
+                if (!currentKeys.Keys.Any(k => k.KeyId == headerToken.Kid) && keys is HttpJwksSource http)
+                {
+                    http.Invalidate();
+                    result = await _handler.ValidateTokenAsync(jwt, await ParametersAsync(ct));
+                }
+            }
+
             if (!result.IsValid) return null;
         }
         var token = (JsonWebToken)result.SecurityToken;
@@ -502,12 +534,12 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
 ### Task 3: Management's rows — the interface, reads, and the Postgres test fixture
 
 **Files:**
-- Create: `server/game/Persistence/IGameRows.cs`, `server/game/Persistence/RowMapping.cs`, `server/game/Persistence/PostgresGameRows.cs`
+- Create: `server/game/Persistence/IGameRows.cs`, `server/game/Persistence/RowMapping.cs`, `server/game/Persistence/PostgresGameRows.cs`, `server/game/Persistence/PostgresGameRows.Writes.cs` (stub bodies; Task 10 fills six, Task 12 the seventh)
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/PostgresFixture.cs`, `tests/Tabletop.GameServer.Tests/GameRowsReadTests.cs`
 
 **Interfaces:**
 - Consumes: `GameInfo`, `Team`, `Participant`, `GameStatus`, `SchedulerShape`, `Enforcement`, `ArmyInPlay` (Protocol); `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `DeploymentZone`, `VisualRef`, `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `ArmySnapshot`, `ContentJson` (Content); `Volume`, `Footprint`, `Base`, `TerrainDeclarations`, `Point2`, `Point3`, `Yaw`, `TableSize` (Geometry); the tables in `scripts/postgres/init/001_schema.sql`. That file reaches a fresh database two ways that agree: the compose init applies it on first volume creation, and management's DbUp migrator carries the same bytes as its `001_schema.sql`, journals it as applied when it finds the tables already there, and adds `002_blob_uploaded.sql` (columns on `blob` this server never reads). So this server never migrates, and a bare `docker compose up -d` is enough for `PostgresFixture`.
-- Produces: `interface IGameRows` — reads `Task<GameInfo?> ReadGameAsync(Guid gameId, CancellationToken ct)`, `Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)`, `Task<TableState?> ReadDraftAsync(Guid gameId, CancellationToken ct)`, `Task<IReadOnlyList<ArmyInPlay>> ReadSnapshotsAsync(Guid gameId, CancellationToken ct)`, `Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct)`, `Task<bool> PropertiesExistAsync(string hash, CancellationToken ct)`; writes (implemented in Tasks 10–12) `Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct)`, `Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct)`, `Task SetParticipantArmyAsync(Guid participantId, Guid? armyId, CancellationToken ct)`, `Task SetConfigurationAsync(Guid gameId, SetConfiguration configuration, CancellationToken ct)`, `Task StartSetupAsync(Guid gameId, TableState draft, CancellationToken ct)`, `Task WriteDraftAsync(Guid gameId, TableState draft, CancellationToken ct)`, `Task EndSetupAsync(Guid gameId, TableState snapshot, IReadOnlyDictionary<Guid, ArmySnapshot?> snapshotsByParticipant, CancellationToken ct)`; `sealed record OwnedArmy(Army Army, Guid OwnerId)`; `sealed class PostgresGameRows(NpgsqlDataSource db) : IGameRows`; `static class RowMapping` with `string EnumText<T>(T value)`, `T EnumFrom<T>(string text)`, `VisualRef Visual(string?, Guid?)`, `Volume VolumeFrom(NpgsqlDataReader, int start)`, `const string VolumeColumns`, `object?[] VolumeValues(Volume)`, `NullableGuid`, `NullableString`; `PostgresGameRows.ReadTableStateAsync(NpgsqlConnection, NpgsqlTransaction?, Guid gameId, CancellationToken)` (internal static). Test infrastructure `PostgresFixture` (`NpgsqlDataSource Db`, `const long DefaultRngSeed`, `Task<SeededGame> SeedGameAsync(GameStatus status, int teams = 2, int participantsPerTeam = 1, int spectators = 0, Enforcement enforcement = Enforcement.Warn, long rngSeed = DefaultRngSeed)`, `Task<Army> SeedArmyAsync(Guid ownerId)`, `Task<string> SeedPropertiesAsync()`), `sealed record SeededGame(Guid GameId, Guid CreatorAccountId, IReadOnlyList<Guid> TeamIds, IReadOnlyList<SeededParticipant> Participants, string PropertiesHash, long RngSeed)`, `sealed record SeededParticipant(Guid ParticipantId, Guid AccountId, Guid? TeamId)`, and `[CollectionDefinition("Postgres")]`.
+- Produces: `interface IGameRows` — reads `Task<GameInfo?> ReadGameAsync(Guid gameId, CancellationToken ct)`, `Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct)`, `Task<TableState?> ReadDraftAsync(Guid gameId, CancellationToken ct)`, `Task<IReadOnlyList<ArmyInPlay>> ReadSnapshotsAsync(Guid gameId, CancellationToken ct)`, `Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct)`, `Task<bool> PropertiesExistAsync(string hash, CancellationToken ct)`; writes (implemented in Tasks 10–12) `Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct)`, `Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct)`, `Task SetParticipantArmyAsync(Guid participantId, Guid? armyId, CancellationToken ct)`, `Task SetConfigurationAsync(Guid gameId, SetConfiguration configuration, CancellationToken ct)`, `Task StartSetupAsync(Guid gameId, TableState draft, CancellationToken ct)`, `Task WriteDraftAsync(Guid gameId, TableState draft, CancellationToken ct)`, `Task EndSetupAsync(Guid gameId, TableState snapshot, IReadOnlyDictionary<Guid, ArmySnapshot?> snapshotsByParticipant, CancellationToken ct)`; `sealed record OwnedArmy(Army Army, Guid OwnerId)`; `sealed class PostgresGameRows(NpgsqlDataSource db) : IGameRows`; `static class RowMapping` with `string EnumText<T>(T value)`, `T EnumFrom<T>(string text)`, `VisualRef Visual(string?, Guid?)`, `Volume VolumeFrom(NpgsqlDataReader, int start)`, `const string VolumeColumns`, `object?[] VolumeValues(Volume)`, `NullableGuid`, `NullableString`; `PostgresGameRows.ReadTableStateAsync(NpgsqlConnection, NpgsqlTransaction?, Guid gameId, CancellationToken)` (internal static). Test infrastructure `PostgresFixture` (`NpgsqlDataSource Db`, `const long DefaultRngSeed`, `Task<SeededGame> SeedGameAsync(GameStatus status, int teams = 2, int participantsPerTeam = 1, int spectators = 0, Enforcement enforcement = Enforcement.Warn, long rngSeed = DefaultRngSeed)`, `Task<Army> SeedArmyAsync(Guid ownerId)`, `Task<string> SeedPropertiesAsync()`, `Task<TableState> SeedLayoutAsync(Guid ownerId)` — an owner-held layout row with its terrain, volumes, markers and zones, used from Task 11 on to build a `ReplaceDraft`), `sealed record SeededGame(Guid GameId, Guid CreatorAccountId, IReadOnlyList<Guid> TeamIds, IReadOnlyList<SeededParticipant> Participants, string PropertiesHash, long RngSeed)`, `sealed record SeededParticipant(Guid ParticipantId, Guid AccountId, Guid? TeamId)`, and `[CollectionDefinition("Postgres")]`.
 
 Spec: `architecture.md` → Game management data model (the game server reads management's schema at hydration; a read is not a join across the boundary — it is one database, two schemas); `schema.md` → the tables, Enumerations are `text` with a check constraint. Enum names on the wire and in the database are the same closed-set spellings, so `RowMapping` gets them from `WireJson` rather than keeping a second table. Army rows are read at `PickArmy`, to check the picker owns the army (Task 10), and at end-setup, to write the snapshot (setup phase → The lifecycle); nothing else reads them. `game.rng_seed` (`bigint not null`, no default) is read with the rest of the game's row into `GameInfo.RngSeed` and never written here — management writes it once on `POST /v1/games`. Because the column has no default, `PostgresFixture.SeedGameAsync` has to supply one, which is why it takes an `rngSeed` parameter.
 
@@ -562,8 +594,13 @@ public class PostgresCollection : ICollectionFixture<PostgresFixture>;
 public sealed record SeededParticipant(Guid ParticipantId, Guid AccountId, Guid? TeamId);
 public sealed record SeededGame(Guid GameId, Guid CreatorAccountId, IReadOnlyList<Guid> TeamIds, IReadOnlyList<SeededParticipant> Participants, string PropertiesHash, long RngSeed);
 
-/// <summary>Talks to the Docker Postgres from docker-compose.yml. Every row it seeds is deleted on dispose.</summary>
-public sealed class PostgresFixture : IAsyncDisposable
+/// <summary>
+/// Talks to the Docker Postgres from docker-compose.yml. Every row it seeds is deleted on dispose.
+/// Implements xunit's own IAsyncLifetime, not the BCL IAsyncDisposable: xUnit.net v2 only awaits the
+/// former for a collection fixture's teardown, so IAsyncDisposable alone is never invoked and every
+/// seeded row would otherwise leak into the shared database.
+/// </summary>
+public sealed class PostgresFixture : IAsyncLifetime
 {
     public static readonly string ConnectionString = Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION")
         ?? "Host=localhost;Port=5432;Database=tabletop;Username=tabletop;Password=tabletop";
@@ -583,7 +620,9 @@ public sealed class PostgresFixture : IAsyncDisposable
 
     public async Task<string> SeedPropertiesAsync()
     {
-        var hash = "sha256:test-" + Guid.CreateVersion7().ToString("N")[..8];
+        // [24..32], not [..8]: a v7 guid's leading hex digits are its millisecond timestamp, identical across
+        // calls made within the same test run, so a leading slice collides on properties_pkey; the tail is random.
+        var hash = "sha256:test-" + Guid.CreateVersion7().ToString("N")[24..32];
         await using var cmd = Db.CreateCommand("insert into management.properties (content_hash, name, game_rules) values ($1, 'GF test', 'grimdark-future')");
         cmd.Parameters.AddWithValue(hash);
         await cmd.ExecuteNonQueryAsync();
@@ -632,6 +671,39 @@ public sealed class PostgresFixture : IAsyncDisposable
         return new SeededParticipant(id, accountId, teamId);
     }
 
+    /// <summary>A saved layout: a table_state owned by an account rather than a game (owner_id set, game_id null), with its
+    /// terrain, volumes, markers and zones as rows. Returns exactly what it inserted, so a replace_draft built from it carries
+    /// the layout rows' own primary keys. Removed with its owner account, which the table cascades from.</summary>
+    public async Task<Tabletop.Content.TableState> SeedLayoutAsync(Guid ownerId)
+    {
+        var layout = Tabletop.Content.Tests.TableStateTests.Sample() with { Name = "Saved layout" };
+        await using var conn = await Db.OpenConnectionAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        async Task Run(string sql, params object?[] args)
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn, tx);
+            foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await Run("insert into management.table_state (id, owner_id, name, width, length, texture_builtin, texture_asset_id) values ($1, $2, $3, $4, $5, $6, $7)",
+            layout.Id, ownerId, layout.Name, layout.Size.Width, layout.Size.Length, layout.Texture.Builtin, layout.Texture.AssetId);
+        foreach (var t in layout.Terrain)
+        {
+            await Run("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                t.Id, layout.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
+            foreach (var v in t.Volumes)
+                await Run($"insert into management.terrain_volume (id, terrain_placement_id, {RowMapping.VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 16).Select(i => "$" + i))})",
+                    [v.Id, t.Id, .. RowMapping.VolumeValues(v.Volume)]);
+        }
+        foreach (var m in layout.Markers)
+            await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                m.Id, layout.Id, RowMapping.EnumText(m.Kind), m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees, m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
+        foreach (var z in layout.Zones)
+            await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, layout.Id, z.Shape, z.TeamOrdinal);
+        await tx.CommitAsync();
+        return layout;
+    }
+
     public async Task<int> CountAsync(string sql, params object[] args)
     {
         await using var cmd = Db.CreateCommand(sql);
@@ -639,7 +711,9 @@ public sealed class PostgresFixture : IAsyncDisposable
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         foreach (var g in _games) { await Exec("delete from game.game_event where game_id = $1", g); await Exec("delete from management.game where id = $1", g); }
         foreach (var a in _accounts) await Exec("delete from management.account where id = $1", a);
@@ -677,7 +751,7 @@ public sealed class PostgresFixture : IAsyncDisposable
             foreach (var s in u.Models)
             {
                 await Run("insert into management.model_slot (id, unit_id, ordinal, name, base_shape, base_a, base_b, height, asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                    s.Id, u.Id, s.Ordinal, s.Name, RowMapping.EnumText(s.Base.Shape), (float)s.Base.A, (float)s.Base.B, (float)s.Height, s.AssetId);
+                    s.Id, u.Id, s.Ordinal, s.Name, RowMapping.EnumText(s.Base.Shape), s.Base.A, s.Base.B, s.Height, s.AssetId);
                 foreach (var (k, v) in s.Stats) await Run("insert into management.slot_stat values ($1, $2, $3)", s.Id, k, v);
                 foreach (var p in s.Properties) await Run("insert into management.slot_property values ($1, $2, $3)", s.Id, p.Name, p.Parameter);
                 foreach (var w in s.Weapons)
@@ -767,8 +841,8 @@ public static class RowMapping
     public static VisualRef Visual(string? builtin, Guid? assetId) => builtin is not null ? VisualRef.OfBuiltin(builtin) : VisualRef.OfAsset(assetId!.Value);
 
     public static Volume VolumeFrom(NpgsqlDataReader r, int start) => new(
-        EnumFrom<VolumeKind>(r.GetString(start)), new Footprint(EnumFrom<FootprintKind>(r.GetString(start + 1)), r.GetFloat(start + 2), r.GetFloat(start + 3)),
-        new Point2(r.GetFloat(start + 4), r.GetFloat(start + 5)), new Yaw(r.GetFloat(start + 6)), r.GetFloat(start + 7), r.GetFloat(start + 8),
+        EnumFrom<VolumeKind>(r.GetString(start)), new Footprint(EnumFrom<FootprintKind>(r.GetString(start + 1)), r.GetDouble(start + 2), r.GetDouble(start + 3)),
+        new Point2(r.GetDouble(start + 4), r.GetDouble(start + 5)), new Yaw(r.GetDouble(start + 6)), r.GetDouble(start + 7), r.GetDouble(start + 8),
         Declarations(r, start + 9), r.IsDBNull(start + 15) ? null : r.GetString(start + 15));
 
     static TerrainDeclarations Declarations(NpgsqlDataReader r, int i)
@@ -787,8 +861,8 @@ public static class RowMapping
 
     public static object?[] VolumeValues(Volume v) =>
     [
-        EnumText(v.Kind), EnumText(v.Footprint.Kind), (float)v.Footprint.A, (float)v.Footprint.B, (float)v.Offset.X, (float)v.Offset.Y, (float)v.Yaw.Degrees,
-        (float)v.Bottom, (float)v.Top, v.Declarations.HasFlag(TerrainDeclarations.Impassable), v.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight),
+        EnumText(v.Kind), EnumText(v.Footprint.Kind), v.Footprint.A, v.Footprint.B, v.Offset.X, v.Offset.Y, v.Yaw.Degrees,
+        v.Bottom, v.Top, v.Declarations.HasFlag(TerrainDeclarations.Impassable), v.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight),
         v.Declarations.HasFlag(TerrainDeclarations.SeeInAndOut), v.Declarations.HasFlag(TerrainDeclarations.Cover), v.Declarations.HasFlag(TerrainDeclarations.Difficult),
         v.Declarations.HasFlag(TerrainDeclarations.Dangerous), v.Notes,
     ];
@@ -861,7 +935,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var r = await cmd.ExecuteReaderAsync(ct))
         {
             if (!await r.ReadAsync(ct)) return null;
-            (id, name, size, texture) = (r.GetGuid(0), NullableString(r, 1), new TableSize(r.GetFloat(2), r.GetFloat(3)), Visual(NullableString(r, 4), NullableGuid(r, 5)));
+            (id, name, size, texture) = (r.GetGuid(0), NullableString(r, 1), new TableSize(r.GetDouble(2), r.GetDouble(3)), Visual(NullableString(r, 4), NullableGuid(r, 5)));
         }
         var volumes = new Dictionary<Guid, List<TerrainVolume>>();
         await using (var cmd = new NpgsqlCommand($"select v.id, v.terrain_placement_id, {string.Join(", ", VolumeColumns.Split(", ").Select(c => "v." + c))} from management.terrain_volume v join management.terrain_placement p on p.id = v.terrain_placement_id where p.table_state_id = $1 order by v.id", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
@@ -875,13 +949,13 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var cmd = new NpgsqlCommand("select id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale from management.terrain_placement where table_state_id = $1 order by id", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct))
-                terrain.Add(new TerrainPlacement(r.GetGuid(0), Visual(NullableString(r, 1), NullableGuid(r, 2)), new Point3(r.GetFloat(3), r.GetFloat(4), r.GetFloat(5)), new Yaw(r.GetFloat(6)), r.GetFloat(7),
+                terrain.Add(new TerrainPlacement(r.GetGuid(0), Visual(NullableString(r, 1), NullableGuid(r, 2)), new Point3(r.GetDouble(3), r.GetDouble(4), r.GetDouble(5)), new Yaw(r.GetDouble(6)), r.GetDouble(7),
                     volumes.TryGetValue(r.GetGuid(0), out var vs) ? vs : []));
         var markers = new List<Marker>();
         await using (var cmd = new NpgsqlCommand("select id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id from management.marker where table_state_id = $1 order by id", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct))
-                markers.Add(new Marker(r.GetGuid(0), EnumFrom<MarkerKind>(r.GetString(1)), new Point3(r.GetFloat(2), r.GetFloat(3), r.GetFloat(4)), new Yaw(r.GetFloat(5)), r.GetFloat(6), NullableString(r, 7), Visual(NullableString(r, 8), NullableGuid(r, 9))));
+                markers.Add(new Marker(r.GetGuid(0), EnumFrom<MarkerKind>(r.GetString(1)), new Point3(r.GetDouble(2), r.GetDouble(3), r.GetDouble(4)), new Yaw(r.GetDouble(5)), r.GetDouble(6), NullableString(r, 7), Visual(NullableString(r, 8), NullableGuid(r, 9))));
         var zones = new List<DeploymentZone>();
         await using (var cmd = new NpgsqlCommand("select id, shape, team_ordinal from management.deployment_zone where table_state_id = $1 order by team_ordinal", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
@@ -911,8 +985,10 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         }
         var stats = new Dictionary<Guid, Dictionary<string, string>>();
         var props = new Dictionary<Guid, List<PropertyInstance>>();
+        // order by s.ctid: a stat has no ordinal column, so the only way to hand each slot's Stats dictionary
+        // back in the order it was written (and so serialize identically) is physical insertion order.
         foreach (var (table, owner_col, parent) in new[] { ("unit_stat", "unit_id", "unit u on u.id = s.unit_id where u.army_id"), ("slot_stat", "slot_id", "model_slot m on m.id = s.slot_id join management.unit u on u.id = m.unit_id where u.army_id"), ("weapon_stat", "weapon_id", "weapon w on w.id = s.weapon_id join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id") })
-        await using (var cmd = new NpgsqlCommand($"select s.{owner_col}, s.stat, s.value from management.{table} s join management.{parent} = $1", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        await using (var cmd = new NpgsqlCommand($"select s.{owner_col}, s.stat, s.value from management.{table} s join management.{parent} = $1 order by s.ctid", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) (stats.TryGetValue(r.GetGuid(0), out var d) ? d : stats[r.GetGuid(0)] = new())[r.GetString(1)] = r.GetString(2);
         foreach (var (table, owner_col, parent) in new[] { ("unit_property", "unit_id", "unit u on u.id = s.unit_id where u.army_id"), ("slot_property", "slot_id", "model_slot m on m.id = s.slot_id join management.unit u on u.id = m.unit_id where u.army_id"), ("weapon_property", "weapon_id", "weapon w on w.id = s.weapon_id join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id") })
@@ -931,7 +1007,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct))
                 (slots.TryGetValue(r.GetGuid(1), out var l) ? l : slots[r.GetGuid(1)] = new()).Add(new ModelSlot(r.GetGuid(0), r.GetInt32(2), r.GetString(3), S(r.GetGuid(0)), P(r.GetGuid(0)),
-                    new Base(EnumFrom<BaseShape>(r.GetString(4)), r.GetFloat(5), r.GetFloat(6)), r.GetFloat(7), NullableGuid(r, 8), weapons.TryGetValue(r.GetGuid(0), out var ws) ? ws : []));
+                    new Base(EnumFrom<BaseShape>(r.GetString(4)), r.GetDouble(5), r.GetDouble(6)), r.GetDouble(7), NullableGuid(r, 8), weapons.TryGetValue(r.GetGuid(0), out var ws) ? ws : []));
         var units = new List<Unit>();
         await using (var cmd = new NpgsqlCommand("select id, ordinal, name from management.unit where army_id = $1 order by ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
@@ -943,9 +1019,31 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
 
 Every length, coordinate and yaw column is `double precision` and comes back as `double`, which `TableSize`, `Point3` and `Base` take directly, so the sample's `1.26` base round-trips exactly and the JSON comparison in `Reads_an_army_tree_back_to_the_sample` compares equal.
 
-- [ ] **Step 7: Register `IGameRows` in `Program.cs`**: `builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection)); builder.Services.AddSingleton<IGameRows, PostgresGameRows>();`
+- [ ] **Step 7: Write `PostgresGameRows.Writes.cs` with a stub body per write member**
 
-- [ ] **Step 8: Run `docker compose up -d` then `dotnet test tests/Tabletop.GameServer.Tests`; expect 11 passed. Commit: `Read a game's rows from management's schema`.**
+`PostgresGameRows` is `sealed partial`, and `IGameRows` declares its seven write members alongside the six reads Step 6 implements; the class does not compile until every interface member has a body somewhere across its partial files. This stub is that body until Task 10 fills six of the seven and Task 12 the last (`EndSetupAsync`).
+
+```csharp
+using Tabletop.Content;
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Persistence;
+
+public sealed partial class PostgresGameRows
+{
+    public Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct) => throw new NotImplementedException();
+    public Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct) => throw new NotImplementedException();
+    public Task SetParticipantArmyAsync(Guid participantId, Guid? armyId, CancellationToken ct) => throw new NotImplementedException();
+    public Task SetConfigurationAsync(Guid gameId, SetConfiguration configuration, CancellationToken ct) => throw new NotImplementedException();
+    public Task StartSetupAsync(Guid gameId, TableState draft, CancellationToken ct) => throw new NotImplementedException();
+    public Task WriteDraftAsync(Guid gameId, TableState draft, CancellationToken ct) => throw new NotImplementedException();
+    public Task EndSetupAsync(Guid gameId, TableState snapshot, IReadOnlyDictionary<Guid, ArmySnapshot?> snapshotsByParticipant, CancellationToken ct) => throw new NotImplementedException();
+}
+```
+
+- [ ] **Step 8: Register `IGameRows` in `Program.cs`**: `builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection)); builder.Services.AddSingleton<IGameRows, PostgresGameRows>();`
+
+- [ ] **Step 9: Run `docker compose up -d` then `dotnet test tests/Tabletop.GameServer.Tests`; expect 11 passed. Commit: `Read a game's rows from management's schema`.**
 
 `/docker-entrypoint-initdb.d` runs only when the data directory is empty, and `PostgresFixture` neither migrates nor checks. On a volume created before `001_schema.sql` existed the tests fail with `relation "management.game" does not exist`; the reset is `docker compose down -v && docker compose up -d` (contracts plan → Local development).
 
@@ -1925,7 +2023,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
 
 **Interfaces:**
 - Consumes: Tasks 3–6 (`IGameRows`, `IEventLog`, `DuplicateSequenceException`, `GameState`, `Actor`, `IRulesEngine`, `IRulesEngineFactory`, `CommandDispatcher`, `Applied`, `Refused`, `EventFilter`, `GameRulesRegistry`); `SocketMessage` kinds, `AtRest`, `GameEvent`, `ProjectionDesyncException`, `Presence`, `Ping`, `GameStatus` (Protocol); `TableState` (Content).
-- Produces: `interface ISessionClient { Guid ConnectionId { get; } Guid ParticipantId { get; } ValueTask SendAsync(SocketMessage message); ValueTask CloseAsync(System.Net.WebSockets.WebSocketCloseStatus status, string reason); }`; `sealed record SessionServices(IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging)`; `sealed class PresenceTable` with `void Set(Presence value)`, `void Remove(Guid participantId)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All`; `sealed class GameSession` with `Guid GameId`, `GameInfo Info`, `IGameRules Rules`, `TableState? Draft`, `GameState? Play`, `IReadOnlyList<ISessionClient> Clients`, `bool Faulted`, `Task StartAsync()`, `Task AttachAsync(ISessionClient)`, `Task DetachAsync(ISessionClient)`, `Task ReceiveAsync(ISessionClient from, SocketMessage frame)`, `Task TickPresenceAsync()`, `Task<T> RunAsync<T>(Func<Task<T>> work)` (posts to the mailbox and awaits), `Task DrainAsync(string reason)`, `Guid? TeamOf(Guid participantId)`, `Actor ActorOf(ISessionClient)`; `static class Hydrator { static Task<GameSession> HydrateAsync(Guid gameId, SessionServices services, CancellationToken ct); }` (throws `GameNotFoundException`); `sealed class SessionRegistry(SessionServices services)` with `Task<GameSession> GetOrHydrateAsync(Guid gameId, CancellationToken ct)`, `Task ReleaseIfEmptyAsync(GameSession session)`, `IReadOnlyCollection<GameSession> Live`, `Task DrainAllAsync(string reason)`, `bool Draining`.
+- Produces: `interface ISessionClient { Guid ConnectionId { get; } Guid ParticipantId { get; } ValueTask SendAsync(SocketMessage message); ValueTask CloseAsync(System.Net.WebSockets.WebSocketCloseStatus status, string reason); }`; `sealed record SessionServices(IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging)`; `sealed class PresenceTable` with `void Set(Presence value)`, `void Remove(Guid participantId)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All`; `sealed class SessionDrainedException() : InvalidOperationException("session is drained")` (a completed mailbox refuses posted work; teardown swallows it, the handshake answers it by re-hydrating); `sealed class GameSession` with `Guid GameId`, `GameInfo Info`, `IGameRules Rules`, `TableState? Draft`, `GameState? Play`, `IReadOnlyList<ISessionClient> Clients`, `bool Faulted`, `Task StartAsync()`, `Task AttachAsync(ISessionClient)`, `Task DetachAsync(ISessionClient)`, `Task ReceiveAsync(ISessionClient from, SocketMessage frame)`, `Task TickPresenceAsync()`, `Task<T> RunAsync<T>(Func<Task<T>> work)` (posts to the mailbox and awaits; throws `SessionDrainedException` once the mailbox is complete), `Task DrainAsync(string reason)` (idempotent), `Guid? TeamOf(Guid participantId)`, `Actor ActorOf(ISessionClient)`; `static class Hydrator { static Task<GameSession> HydrateAsync(Guid gameId, SessionServices services, CancellationToken ct); }` (throws `GameNotFoundException`); `sealed class SessionRegistry(SessionServices services)` with `Task<GameSession> GetOrHydrateAsync(Guid gameId, CancellationToken ct)` (drains a superseded faulted session before re-hydrating), `Task ReleaseIfEmptyAsync(GameSession session)`, `IReadOnlyCollection<GameSession> Live`, `Task DrainAllAsync(string reason)`, `bool Draining`.
 - **The dice seed arrives by hydration and needs no code of its own.** `Hydrator.HydrateAsync` already takes the whole game row through `IGameRows.ReadGameAsync`, so `GameInfo.RngSeed` is populated before the session exists, and the `new GameState(info, board, applier, rules)` in the playing branch carries it in. Nothing here reads the seed or writes it: the value's *use* — `GameState.RngSeed` becoming the stored seed instead of a hash of `Info.Id` — is the **interpreter plan's** change to `GameState`, not this plan's, and it lands with the dice (interpreter plan Task 5). `GameSession.ReloadInfoAsync` (Task 10) and the end-setup re-read (Task 12) both re-read the row, and both get the same unchanged seed back, because nobody ever updates the column.
 - Internal to the session and used by Tasks 10–12: `Task AppendAsync(IReadOnlyList<EventPayload> events, Guid? actor, string? warning)` (assigns seq, appends to the log **first**, applies, broadcasts per viewer), `Task AdvanceAsync()` (the `IRulesEngine.Advance` loop, capped at 10 000 iterations), `Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)`, `AtRest Rest()` (the rest frame for the log as it stands).
 - **The rest frame.** `AtRest(long Seq)` says "nothing further is coming from me right now, and the log ends at `Seq`". `Seq` is always the log's high-water mark, `Play?.Projection.LastSeq ?? 0`, so it is `0` before the log opens and unchanged when the batch appended nothing. The frame follows its batch: it is broadcast when the batch appended at least one event, and sent to the provoking client alone when it appended none, so a refusal still disturbs nobody but its sender. There are three call sites and no others: the end of `HandleCommandAsync` whatever the outcome (Step 3), the end of `HandleEndSetupAsync` after `AdvanceAsync` (Task 12), and the end of `ConnectAsync` at every status (Task 8). Lobby and setup edits do not emit it, because they touch no log, `Seq` would name nothing, and the `GameInfoMessage` or `BoardMessage` carrying the whole settled value is itself the terminator. The simulator waits for this frame to know the server has settled, rather than for a quiet window.
@@ -2001,6 +2099,11 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Session;
 
+/// <summary>Work was posted to a session whose mailbox has already been completed by DrainAsync. Teardown swallows it —
+/// a drained session has nothing left to tear down — and the handshake answers it on connect by hydrating the game again.
+/// It is an InvalidOperationException so the presence tick, which already tolerates that, keeps its meaning.</summary>
+public sealed class SessionDrainedException() : InvalidOperationException("session is drained");
+
 /// <summary>
 /// One game in memory. Every mutation runs on the mailbox loop, so there is no lock: connections post frames, the loop handles
 /// them one at a time. The log is appended before anything is broadcast; the row is written after the broadcast (setup only).
@@ -2013,6 +2116,7 @@ public sealed partial class GameSession
     private readonly SessionServices _services;
     private readonly ILogger _log;
     private Task? _loop;
+    private bool _drained;
 
     public GameSession(Guid gameId, GameInfo info, IGameRules rules, TableState? draft, GameState? play, IRulesEngine? engine, SessionServices services)
     {
@@ -2042,7 +2146,7 @@ public sealed partial class GameSession
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_mailbox.Writer.TryWrite(async () => { try { tcs.SetResult(await work()); } catch (Exception ex) { tcs.SetException(ex); } }))
-            tcs.SetException(new InvalidOperationException("session is drained"));
+            tcs.SetException(new SessionDrainedException());
         return tcs.Task;
     }
     private Task RunAsync(Func<Task> work) => RunAsync(async () => { await work(); return 0; });
@@ -2055,17 +2159,28 @@ public sealed partial class GameSession
     /// <summary>One connection per participant: a newer socket replaces the older one. The newcomer gets everyone else's current presence.</summary>
     private async Task AttachCoreAsync(ISessionClient client)
     {
+        if (Faulted) { await client.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted"); return; }
         var replaced = _clients.FirstOrDefault(c => c.ParticipantId == client.ParticipantId);
         if (replaced is not null) { _clients.Remove(replaced); await replaced.CloseAsync(WebSocketCloseStatus.NormalClosure, "replaced by a newer connection"); }
         _clients.Add(client);
         foreach (var value in _presence.All.Where(v => v.ParticipantId != client.ParticipantId)) await client.SendAsync(new PresenceMessage(value));
     }
 
-    public Task DetachAsync(ISessionClient client) => RunAsync(async () =>
+    /// <summary>The handshake detaches in a finally, outside every catch, and reaches a drained session by two routine paths:
+    /// the SIGTERM drain completes the mailbox while read loops are still unwinding, and a re-hydration drains the faulted
+    /// session its old loops still hold. A drained session has already closed and dropped every client, so this is a no-op
+    /// rather than a throw into the /ws endpoint.</summary>
+    public Task DetachAsync(ISessionClient client) => WhenNotDrained(RunAsync(async () =>
     {
         if (!_clients.Remove(client)) return;
         if (_clients.All(c => c.ParticipantId != client.ParticipantId)) { _presence.Remove(client.ParticipantId); await BroadcastAsync(new PresenceEnded(client.ParticipantId)); }
-    });
+    }));
+
+    /// <summary>Teardown that raced the drain it was tearing down: the work is already done by definition.</summary>
+    private static async Task WhenNotDrained(Task teardown)
+    {
+        try { await teardown; } catch (SessionDrainedException) { }
+    }
 
     public async Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)
     {
@@ -2114,10 +2229,15 @@ public sealed partial class GameSession
         _clients.Clear();
     }
 
-    /// <summary>Finishes queued work, closes every socket with 1001, and stops the loop. Everything durable was already written when it was queued.</summary>
+    /// <summary>Finishes queued work, closes every socket with 1001, and stops the loop. Everything durable was already written when it was queued.
+    /// Idempotent: a faulted session already has no clients to close, and the registry may drain it once itself (superseding it in
+    /// GetOrHydrateAsync) and again through ReleaseIfEmptyAsync on the same instance; the second call is a no-op rather than a
+    /// write to an already-completed mailbox.</summary>
     public async Task DrainAsync(string reason)
     {
-        await RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); });
+        if (_drained) return;
+        _drained = true;
+        await WhenNotDrained(RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); }));
         _mailbox.Writer.TryComplete();
         if (_loop is not null) await _loop;
     }
@@ -2134,8 +2254,8 @@ namespace Tabletop.GameServer.Session;
 
 public sealed partial class GameSession
 {
-    /// <summary>Every inbound frame after Connect lands here, on the mailbox.</summary>
-    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => frame switch
+    /// <summary>Every inbound frame after Connect lands here, on the mailbox. A faulted session is done: every frame kind, including presence and ping, is dropped.</summary>
+    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => Faulted ? Task.CompletedTask : frame switch
     {
         CommandMessage c => HandleCommandAsync(from, c),
         PresenceMessage p => HandlePresence(from, p.Presence),
@@ -2156,6 +2276,7 @@ public sealed partial class GameSession
                 case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
                 case Applied a: await AppendAsync(a.Events, from.ParticipantId, a.Warning); await AdvanceAsync(); break;
             }
+        if (Faulted) return;
         var rest = Rest();
         if (rest.Seq > before) await BroadcastAsync(rest); else await from.SendAsync(rest);
     }
@@ -2167,9 +2288,10 @@ public sealed partial class GameSession
         return Task.CompletedTask;
     }
 
-    /// <summary>Called at PresenceRelayHz by SessionHost. Relays each changed value to everyone but its owner.</summary>
+    /// <summary>Called at PresenceRelayHz by SessionHost. Relays each changed value to everyone but its owner. A faulted session has no one to relay to.</summary>
     public Task TickPresenceAsync() => RunAsync(async () =>
     {
+        if (Faulted) return;
         foreach (var value in _presence.TakeDirty())
             foreach (var c in _clients.ToList()) if (c.ParticipantId != value.ParticipantId) await c.SendAsync(new PresenceMessage(value));
     });
@@ -2239,7 +2361,11 @@ public sealed class SessionRegistry(SessionServices services)
         try
         {
             if (Draining) throw new InvalidOperationException("shutting down");
-            if (_live.TryGetValue(gameId, out var existing) && !existing.Faulted) return existing;
+            if (_live.TryGetValue(gameId, out var existing))
+            {
+                if (!existing.Faulted) return existing;
+                await existing.DrainAsync("faulted");   // its clients are already closed; this only stops its mailbox loop
+            }
             var session = await Hydrator.HydrateAsync(gameId, services, ct);
             await session.StartAsync();
             lock (_live) _live[gameId] = session;
@@ -2486,10 +2612,10 @@ public sealed class DesyncingEngineFactory : IRulesEngineFactory
 **Files:**
 - Create: `server/game/Session/SocketConnection.cs`, `server/game/Session/ConnectionHandshake.cs`, `server/game/Session/GameSession.Connect.cs`
 - Modify: `server/game/Program.cs` (the `/ws` body)
-- Test: `tests/Tabletop.GameServer.Tests/Infrastructure/TestClient.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/PostgresFixture.cs` (add `SeedTableStateAsync`), `tests/Tabletop.GameServer.Tests/SocketTests.cs`
+- Test: `tests/Tabletop.GameServer.Tests/Infrastructure/TestClient.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/Wait.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/PostgresFixture.cs` (add `SeedTableStateAsync`), `tests/Tabletop.GameServer.Tests/SocketTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 2, 3, 7; `Connect`, `Welcome`, `Rejected`, `RejectReason`, `BoardMessage`, `EventsMessage`, `Board`, `WireJson`, `ProtocolVersion` (Protocol).
+- Consumes: Tasks 2, 3, 7; `Connect`, `Welcome`, `Rejected`, `RejectReason`, `BoardMessage`, `EventsMessage`, `Board`, `WireJson`, `ProtocolVersion` (Protocol); Task 10's `GameSession.ReloadInfoAsync()`, forward-referenced from `ConnectAsync`.
 - Produces: `sealed class SocketConnection(WebSocket socket, Guid participantId, ILogger log) : ISessionClient` with `Task RunSendLoopAsync(CancellationToken ct)`, `static Task<SocketMessage?> ReadFrameAsync(WebSocket socket, CancellationToken ct)` (null when the peer closed; throws `ProtocolViolationException` on a binary frame, a frame over 4 MiB, or unparseable JSON); `sealed class ConnectionHandshake(GameServerOptions options, ISessionVerifier verifier, IGameRows rows, SessionRegistry registry, ILogger<ConnectionHandshake> log)` with `Task RunAsync(WebSocket socket, CancellationToken aborted)`; `GameSession.ConnectAsync(ISessionClient client)` — the connect sequence in one mailbox turn: `Welcome`, then `BoardMessage` from `setup` on, then the log as `EventsMessage`s of at most 500 events filtered for the viewer, then attach (presence snapshot). Test infrastructure `TestClient` with `static Task<TestClient> OpenAsync(GameServerFactory factory)`, `Task SendAsync(SocketMessage)`, `Task<SocketMessage> ReceiveAsync(TimeSpan? timeout = null)`, `Task<T> ExpectAsync<T>() where T : SocketMessage` (skips frames of other kinds), `Task<Welcome> ConnectAsync(Guid accountId, Guid gameId, int? version = null, string? jwt = null)`, `Task<WebSocketCloseStatus?> WaitClosedAsync()`, `Task AssertSilentAsync(TimeSpan)`.
 
 Spec: `architecture.md` → Two servers → `server/game/` (the client opens its socket with the session JWT and a game id; the server verifies locally, reads the account UUID, checks for a `participant` row); accounts → A game is a lobby (creating and joining are management endpoints; the socket follows); client shell → The connection and the projection (Welcome with teams, participants, configuration; from `setup` on the draft or the snapshot; then the log from the start; at `lobby` no board; reconnect is connect); management API → The version check (`426`; on the socket this is `Rejected(UpgradeRequired)`, contracts plan Task 12); contracts plan Task 12 (the connect sequence and the `Rejected` frame, after which the server closes the socket).
@@ -2497,6 +2623,7 @@ Spec: `architecture.md` → Two servers → `server/game/` (the client opens its
 - [ ] **Step 1: Write `SocketConnection.cs`**
 
 ```csharp
+using System.IO;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
@@ -2534,7 +2661,9 @@ public sealed class SocketConnection(WebSocket socket, Guid participantId, ILogg
             var (status, reason) = (await _close.Task) ?? (WebSocketCloseStatus.NormalClosure, "bye");
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await socket.CloseOutputAsync(status, reason, CancellationToken.None);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException) { log.LogDebug(ex, "send loop ended for {Connection}", ConnectionId); }
+        // The transport reports an abrupt disconnect as IOException, not WebSocketException, when the peer tears down the
+        // connection without a close handshake (a crashed client): the same "gone, not a bug" ending as a clean close.
+        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException or IOException) { log.LogDebug(ex, "send loop ended for {Connection}", ConnectionId); }
     }
 
     public static async Task<SocketMessage?> ReadFrameAsync(WebSocket socket, CancellationToken ct)
@@ -2571,6 +2700,10 @@ public sealed partial class GameSession
     /// <summary>The connect sequence (client shell → The connection and the projection), in one mailbox turn so no event slips between the log and live delivery.</summary>
     public Task ConnectAsync(ISessionClient client) => RunAsync(async () =>
     {
+        // Hydration read the participant rows once and management's join inserts them whenever it likes, so a participant this
+        // session has never seen re-reads them first: Welcome carries their row (client shell → Welcome names the connecting
+        // participant), TeamOf finds their team, and the lobby edits that look themselves up find them too.
+        if (Info.Participants.All(p => p.Id != client.ParticipantId)) await ReloadInfoAsync();
         await client.SendAsync(new Welcome(client.ParticipantId, Info));
         if (Draft is not null) await client.SendAsync(new BoardMessage(new Board(Draft, [])));
         if (Play is not null)
@@ -2587,6 +2720,8 @@ public sealed partial class GameSession
 ```
 
 An empty `EventsMessage` at `playing` tells the client the log has been delivered in full; the client shell treats "the log from the start" as one thing, so it must always arrive.
+
+`ReloadInfoAsync` is Task 10's (`GameSession.Lobby.cs`); `GameSession` is one partial class and this method is forward-referenced here because a connecting participant management joined after hydration is the same gap the lobby edits close by re-reading the row, so both call the one method that does it.
 
 **A rejoin is the ordinary connect, not a special case** (game flow → Teams are frozen at the flip, and a team is a slot). `FindParticipantAsync(gameId, accountId)` finds the row, and the participant's team is whatever `participant.team_id` already holds: `Welcome` carries it inside `Info.Participants`, and `TeamOf` filters the log by it. So a socket arriving at `playing` for a participant who has a team is that team's player again, with no re-pick, no re-derivation and no branch on status anywhere in `ConnectionHandshake` or `ConnectAsync`. A spectator is a participant whose `team_id` is null, which is a fact about the row rather than about how the socket arrived, so someone who first joined after the flip watches and a returning player does not.
 
@@ -2620,10 +2755,21 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         if (first is not Connect connect) { await CloseAsync(socket, WebSocketCloseStatus.ProtocolError, "the first frame must be connect"); return; }
 
         if (connect.ClientVersion < options.MinimumClientVersion) { await RejectAsync(socket, RejectReason.UpgradeRequired); return; }
-        var session = await verifier.VerifyAsync(connect.SessionJwt, aborted);
+
+        // A verifier or database exception (a JWKS fetch failure, a database outage) means the server could not check the
+        // session, not that the session is bad — that is Rejected(InvalidSession)'s job. "Could not check" closes 1011.
+        VerifiedSession? session;
+        try { session = await verifier.VerifyAsync(connect.SessionJwt, aborted); }
+        catch (Exception ex)
+        { log.LogError(ex, "cannot verify the session for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
         if (session is null) { await RejectAsync(socket, RejectReason.InvalidSession); return; }
-        var participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted);
+
+        Guid? participantId;
+        try { participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted); }
+        catch (Exception ex)
+        { log.LogError(ex, "cannot look up the participant for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
         if (participantId is null) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
+
         if (registry.Draining) { await CloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
 
         GameSession game;
@@ -2635,13 +2781,24 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
 
         var connection = new SocketConnection(socket, participantId.Value, log);
         var sending = connection.RunSendLoopAsync(CancellationToken.None);
-        await game.ConnectAsync(connection);
         try
         {
+            try { await game.ConnectAsync(connection); }
+            // ReleaseIfEmptyAsync can take the registry's gate between the hydrate above and this connect — the previous
+            // socket's departure emptying the session under this one. Nothing is lost, because the log and the rows hold
+            // everything: hydrating again returns the instance that replaced it. Once more only, and not while shutting down.
+            catch (SessionDrainedException)
+            {
+                if (registry.Draining) { await connection.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
+                game = await registry.GetOrHydrateAsync(connect.GameId, aborted);
+                await game.ConnectAsync(connection);
+            }
             while (await SocketConnection.ReadFrameAsync(socket, aborted) is { } frame) await game.ReceiveAsync(connection, frame);
         }
         catch (ProtocolViolationException ex) { await connection.CloseAsync(WebSocketCloseStatus.ProtocolError, ex.Message); }
-        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException) { }
+        // The transport reports a crashed client (no close handshake) as IOException, not WebSocketException; either way
+        // the peer is gone, which is not a server failure.
+        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException or System.IO.IOException) { }
         // Last resort: whatever a handler threw, this connection closes with a reason instead of the frame silently ending the
         // loop. Failures the session cannot survive have already called FaultAsync and closed every socket themselves.
         catch (Exception ex) { log.LogError(ex, "handling a frame for {GameId} failed", connect.GameId); await connection.CloseAsync(WebSocketCloseStatus.InternalServerError, "the server failed to handle a frame"); }
@@ -2670,7 +2827,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
 
 In `Program.cs`: `builder.Services.AddSingleton<ConnectionHandshake>();` and replace the `/ws` body's last line with `await context.RequestServices.GetRequiredService<ConnectionHandshake>().RunAsync(socket, context.RequestAborted);`.
 
-- [ ] **Step 4: Write `TestClient.cs` and add `SeedTableStateAsync` to the fixture**
+- [ ] **Step 4: Write `TestClient.cs`, `Infrastructure/Wait.cs`, and add `SeedTableStateAsync` to the fixture**
 
 ```csharp
 using System.Net.WebSockets;
@@ -2740,10 +2897,36 @@ public sealed class TestClient(WebSocket socket) : IAsyncDisposable
     {
         var id = Guid.CreateVersion7();
         await using var cmd = Db.CreateCommand("insert into management.table_state (id, game_id, width, length, texture_builtin) values ($1, $2, $3, $4, 'grass')");
-        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue((float)width); cmd.Parameters.AddWithValue((float)length);
+        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(width); cmd.Parameters.AddWithValue(length);
         await cmd.ExecuteNonQueryAsync();
         return id;
     }
+```
+
+A test that waits for something to become true asynchronously — the registry noticing a detach, a draft row a broadcast does not wait for — polls a condition instead of sleeping a fixed guess, and every such test shares one helper rather than each writing its own:
+
+```csharp
+namespace Tabletop.GameServer.Tests.Infrastructure;
+
+/// <summary>Polls a condition that becomes true asynchronously instead of sleeping a fixed guess. Fails with a clear
+/// message rather than the bare assertion that follows it timing out first.</summary>
+public static class Wait
+{
+    public static readonly TimeSpan Default = TimeSpan.FromSeconds(5);
+
+    public static Task UntilAsync(Func<bool> condition, string message, TimeSpan? timeout = null) =>
+        UntilAsync(() => Task.FromResult(condition()), message, timeout);
+
+    public static async Task UntilAsync(Func<Task<bool>> condition, string message, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? Default);
+        while (!await condition())
+        {
+            if (DateTime.UtcNow >= deadline) throw new Xunit.Sdk.XunitException(message);
+            await Task.Delay(TimeSpan.FromMilliseconds(20));
+        }
+    }
+}
 ```
 
 - [ ] **Step 5: Write the failing end-to-end tests**
@@ -2824,6 +3007,7 @@ public class SocketTests(PostgresFixture pg)
         Assert.Equal(3, live.Events.Single().Seq);
         Assert.Equal(seeded.Participants[0].ParticipantId, live.Events.Single().Actor);
         Assert.Equal(7, ((ScoreSet)(await b.ExpectAsync<EventsMessage>()).Events.Single().Payload).Score);
+        await b.ExpectAsync<AtRest>();   // drain the rest frame this broadcast owes b, so the next silence check isn't fooled by a stale frame
         Assert.Equal(1, await pg.CountAsync("select count(*) from game.game_event where game_id = $1 and seq = 3", seeded.GameId));
 
         await a.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetWounds(Guid.CreateVersion7(), 1)));
@@ -2890,7 +3074,7 @@ public class SocketTests(PostgresFixture pg)
             await client.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[0], 3)));
             await client.ExpectAsync<EventsMessage>();
         }
-        await Task.Delay(200);
+        await Wait.UntilAsync(() => !registry.Live.Any(s => s.GameId == seeded.GameId), "the session was not released within 5s of the last socket leaving");
         Assert.DoesNotContain(registry.Live, s => s.GameId == seeded.GameId);
         await using var again = await TestClient.OpenAsync(factory);
         await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
@@ -2992,7 +3176,8 @@ public sealed class SessionHost(SessionRegistry registry, GameServerOptions opti
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 foreach (var session in registry.Live)
                     try { await session.TickPresenceAsync(); }
-                    catch (InvalidOperationException) { /* drained between Live and Tick */ }
+                    catch (InvalidOperationException) { log.LogDebug("Game {GameId}: drained between Live and Tick", session.GameId); }
+                    catch (Exception ex) { log.LogError(ex, "presence tick failed for {GameId}", session.GameId); }
         }
         catch (OperationCanceledException) { }
     }
@@ -3012,8 +3197,8 @@ public sealed class SessionHost(SessionRegistry registry, GameServerOptions opti
 ### Task 10: The lobby — team, army and configuration picks, and starting setup
 
 **Files:**
-- Create: `server/game/Persistence/PostgresGameRows.Writes.cs`, `server/game/Session/GameSession.Lobby.cs`
-- Modify: `server/game/Session/GameSession.Frames.cs` (`HandleEditAsync`)
+- Create: `server/game/Session/GameSession.Lobby.cs`
+- Modify: `server/game/Persistence/PostgresGameRows.Writes.cs` (fills six of Task 3's seven stubs), `server/game/Session/GameSession.Frames.cs` (`HandleEditAsync`)
 - Test: `tests/Tabletop.GameServer.Tests/LobbyTests.cs`
 
 **Interfaces:**
@@ -3143,7 +3328,7 @@ public class LobbyTests(PostgresFixture pg)
 }
 ```
 
-- [ ] **Step 2: Run; expect refusals where the tests want rows. Write `PostgresGameRows.Writes.cs`**
+- [ ] **Step 2: Run; expect refusals where the tests want rows. Fill six of `PostgresGameRows.Writes.cs`'s seven stubs**
 
 ```csharp
 using Npgsql;
@@ -3195,7 +3380,7 @@ public sealed partial class PostgresGameRows
         await using (var cmd = new NpgsqlCommand("insert into management.table_state (id, game_id, name, width, length, texture_builtin, texture_asset_id) values ($1, $2, $3, $4, $5, $6, $7)", conn, tx))
         {
             cmd.Parameters.AddWithValue(draft.Id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue((object?)draft.Name ?? DBNull.Value);
-            cmd.Parameters.AddWithValue((float)draft.Size.Width); cmd.Parameters.AddWithValue((float)draft.Size.Length);
+            cmd.Parameters.AddWithValue(draft.Size.Width); cmd.Parameters.AddWithValue(draft.Size.Length);
             cmd.Parameters.AddWithValue((object?)draft.Texture.Builtin ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)draft.Texture.AssetId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(ct);
         }
@@ -3212,7 +3397,7 @@ public sealed partial class PostgresGameRows
         await using (var cmd = new NpgsqlCommand("update management.table_state set name = $3, width = $4, length = $5, texture_builtin = $6, texture_asset_id = $7 where id = $1 and game_id = $2", conn, tx))
         {
             cmd.Parameters.AddWithValue(draft.Id); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue((object?)draft.Name ?? DBNull.Value);
-            cmd.Parameters.AddWithValue((float)draft.Size.Width); cmd.Parameters.AddWithValue((float)draft.Size.Length);
+            cmd.Parameters.AddWithValue(draft.Size.Width); cmd.Parameters.AddWithValue(draft.Size.Length);
             cmd.Parameters.AddWithValue((object?)draft.Texture.Builtin ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)draft.Texture.AssetId ?? DBNull.Value);
             if (await cmd.ExecuteNonQueryAsync(ct) != 1) throw new InvalidOperationException("no draft row for this game");
         }
@@ -3233,14 +3418,14 @@ public sealed partial class PostgresGameRows
         foreach (var t in draft.Terrain)
         {
             await Run("insert into management.terrain_placement (id, table_state_id, builtin, asset_id, pos_x, pos_y, pos_z, yaw, scale) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                t.Id, draft.Id, t.Mesh.Builtin, t.Mesh.AssetId, (float)t.Position.X, (float)t.Position.Y, (float)t.Position.Z, (float)t.Yaw.Degrees, (float)t.Scale);
+                t.Id, draft.Id, t.Mesh.Builtin, t.Mesh.AssetId, t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale);
             foreach (var v in t.Volumes)
                 await Run($"insert into management.terrain_volume (id, terrain_placement_id, {VolumeColumns}) values ($1, $2, {string.Join(", ", Enumerable.Range(3, 16).Select(i => "$" + i))})",
                     [v.Id, t.Id, .. VolumeValues(v.Volume)]);
         }
         foreach (var m in draft.Markers)
             await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-                m.Id, draft.Id, EnumText(m.Kind), (float)m.Position.X, (float)m.Position.Y, (float)m.Position.Z, (float)m.Yaw.Degrees, (float)m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
+                m.Id, draft.Id, EnumText(m.Kind), m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees, m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
         foreach (var z in draft.Zones)
             await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, draft.Id, z.Shape, z.TeamOrdinal);
     }
@@ -3332,6 +3517,7 @@ Delete the placeholder `HandleEditAsync` from `GameSession.Frames.cs` (Task 7 St
 **Interfaces:**
 - Consumes: `SetupEdit` and its fourteen kinds, `BoardMessage`, `Board` (Protocol); `TableState`, `TerrainPlacement`, `Marker`, `DeploymentZone` (Content); `IGameRows.WriteDraftAsync`.
 - Produces: `static class DraftEditor { static TableState? Apply(TableState draft, SetupEdit edit, out string? missing); static TableState DropOffSlab(TableState draft); static bool OnSlab(TableState draft, Point3 position); }`; `GameSession.HandleSetupEditAsync(ISessionClient from, Guid editId, SetupEdit edit)`.
+- `Apply` refuses before touching the draft when an edit carries an invalid `VisualRef`: a JSON property left out never reaches the converter, so the parent record arrives as `default(VisualRef)` (both fields null, `IsValid` false), and the row's check constraint would otherwise reject the write after the board was already broadcast. `ReplaceDraft` keeps the draft row's own id but regenerates every child id (`terrain_placement`, `terrain_volume`, `marker`, `deployment_zone`): those are global primary keys, and a layout's rows live in the same tables a draft's do, so adopting a layout's ids verbatim would collide with a row that already exists.
 - Zones are rows per **shape**, keyed by team ordinal: `SetZoneStyle(style, shapes)` writes one `DeploymentZone` per shape with ordinals `1..n` whether or not a team with that ordinal exists yet, so "zones re-derive when the team list changes" is a join at render time and the server keeps no style state. `SwapZones(a, b)` swaps the two ordinals' shapes. Setup phase → Zones states this.
 - The table's coordinate origin is its corner: a position is on the slab when `0 ≤ x ≤ width` and `0 ≤ y ≤ length` (the contracts plan's samples place terrain at `(12, 12)` on a 72×48 table). The frame is geometry values → Height, position and facing → The frame; the geometry plan's `Tabletop.Geometry.Table.ContainsPoint(TableSize, Point2)` (its Task 13) is the same rule, so `OnSlab` may delegate to it once that plan has landed; it is written out here because nothing in the contracts plan produces `Table` and this plan must build against the libraries as the contracts plan leaves them.
 
@@ -3420,6 +3606,29 @@ public class DraftEditorTests
         Assert.False(DraftEditor.OnSlab(d, new Point3(72.5, 48, 0)));
         Assert.Single(DraftEditor.DropOffSlab(d).Terrain);
     }
+
+    // A JSON property left out never reaches the VisualRef converter, so the parent record receives default(VisualRef) —
+    // both fields null, IsValid false. The row's check constraint would reject the write after the board was already
+    // broadcast, so DraftEditor.Apply must catch this itself and name the visual in `missing`.
+    public static IEnumerable<object[]> EditsWithAnInvalidVisual()
+    {
+        var hill = Hill(10, 10);
+        var withHill = Empty with { Terrain = [hill] };
+        yield return new object[] { Empty, new SetTexture(default) };
+        yield return new object[] { Empty, new AddTerrain(TableStateTests.Sample().Terrain[0] with { Id = Guid.CreateVersion7(), Mesh = default }) };
+        yield return new object[] { withHill, new SwapTerrainMesh(hill.Id, default) };
+        yield return new object[] { Empty, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(0, 0, 0), new Yaw(0), 3, null, default)) };
+        yield return new object[] { Empty, new ReplaceDraft(TableStateTests.Sample() with { Texture = default }) };
+    }
+
+    [Theory]
+    [MemberData(nameof(EditsWithAnInvalidVisual))]
+    public void An_edit_naming_an_invalid_visual_is_refused(TableState draft, SetupEdit edit)
+    {
+        var result = DraftEditor.Apply(draft, edit, out var missing);
+        Assert.Null(result);
+        Assert.NotNull(missing);
+    }
 }
 ```
 
@@ -3438,6 +3647,10 @@ public static class DraftEditor
     public static TableState? Apply(TableState d, SetupEdit edit, out string? missing)
     {
         missing = null;
+        // A JSON property left out never reaches the VisualRef converter, so the parent record receives default(VisualRef):
+        // both fields null, IsValid false. The row's check constraint (builtin is null) <> (asset_id is null) would then
+        // reject the write after the board was already broadcast, so this is caught here, before any of it happens.
+        if (InvalidVisual(edit) is { } bad) return Miss(out missing, $"{bad} is not a valid visual");
         switch (edit)
         {
             case SetTableSize s: return d with { Size = s.Size };
@@ -3453,13 +3666,39 @@ public static class DraftEditor
             case RemoveSetupMarker r: return d.Markers.Any(x => x.Id == r.MarkerId) ? d with { Markers = d.Markers.Where(x => x.Id != r.MarkerId).ToList() } : Miss(out missing, $"no marker {r.MarkerId}");
             case SetZoneStyle z: return d with { Zones = z.Shapes.Select((shape, i) => new DeploymentZone(Guid.CreateVersion7(), shape, i + 1)).ToList() };
             case SwapZones s:
-                var a = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalA); var b = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalB);
-                if (a is null || b is null) return Miss(out missing, "no zone for one of the ordinals");
-                return d with { Zones = d.Zones.Select(z => z.TeamOrdinal == a.TeamOrdinal ? z with { Shape = b.Shape } : z.TeamOrdinal == b.TeamOrdinal ? z with { Shape = a.Shape } : z).ToList() };
-            case ReplaceDraft r: return r.Draft with { Id = d.Id, Name = d.Name };
+                var zoneA = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalA); var zoneB = d.Zones.FirstOrDefault(z => z.TeamOrdinal == s.TeamOrdinalB);
+                if (zoneA is null || zoneB is null) return Miss(out missing, "no zone for one of the ordinals");
+                return d with { Zones = d.Zones.Select(z => z.TeamOrdinal == zoneA.TeamOrdinal ? z with { Shape = zoneB.Shape } : z.TeamOrdinal == zoneB.TeamOrdinal ? z with { Shape = zoneA.Shape } : z).ToList() };
+            case ReplaceDraft r: return Adopt(r.Draft, d);
             default: return Miss(out missing, $"unknown edit {edit.GetType().Name}");
         }
     }
+
+    /// <summary>A loaded layout becomes this game's draft: it keeps the draft row's own identity, and every child gets a fresh id.
+    /// terrain_placement, terrain_volume, marker and deployment_zone ids are global primary keys and layouts share the table_state
+    /// tree with drafts, so reusing the layout's would make the draft write a unique violation (management plan: on replace_draft
+    /// from a loaded layout, regenerate every child id).</summary>
+    static TableState Adopt(TableState layout, TableState draft) => layout with
+    {
+        Id = draft.Id,
+        Name = draft.Name,
+        Terrain = layout.Terrain.Select(t => t with { Id = Guid.CreateVersion7(), Volumes = t.Volumes.Select(v => v with { Id = Guid.CreateVersion7() }).ToList() }).ToList(),
+        Markers = layout.Markers.Select(m => m with { Id = Guid.CreateVersion7() }).ToList(),
+        Zones = layout.Zones.Select(z => z with { Id = Guid.CreateVersion7() }).ToList(),
+    };
+
+    /// <summary>Names the first invalid VisualRef an edit references, or null when every one it carries is valid.</summary>
+    static string? InvalidVisual(SetupEdit edit) => edit switch
+    {
+        SetTexture t when !t.Texture.IsValid => "the texture",
+        AddTerrain a when !a.Placement.Mesh.IsValid => $"terrain {a.Placement.Id}'s mesh",
+        SwapTerrainMesh s when !s.Mesh.IsValid => $"terrain {s.PlacementId}'s new mesh",
+        AddSetupMarker a when !a.Marker.Visual.IsValid => $"marker {a.Marker.Id}'s visual",
+        ReplaceDraft r when !r.Draft.Texture.IsValid => "the layout's texture",
+        ReplaceDraft r when r.Draft.Terrain.FirstOrDefault(t => !t.Mesh.IsValid) is { } badTerrain => $"the layout terrain {badTerrain.Id}'s mesh",
+        ReplaceDraft r when r.Draft.Markers.FirstOrDefault(m => !m.Visual.IsValid) is { } badMarker => $"the layout marker {badMarker.Id}'s visual",
+        _ => null,
+    };
 
     /// <summary>The corner is the origin: a position is on the slab when 0 ≤ x ≤ width and 0 ≤ y ≤ length.</summary>
     public static bool OnSlab(TableState d, Point3 p) => p.X >= 0 && p.X <= d.Size.Width && p.Y >= 0 && p.Y <= d.Size.Length;
@@ -3514,8 +3753,8 @@ public class SetupEditTests(PostgresFixture pg)
         var board = (await creator.ExpectAsync<BoardMessage>()).Board;
         Assert.Equal(hill.Id, board.Table.Terrain.Single().Id);
         Assert.Equal(hill.Id, (await watcher.ExpectAsync<BoardMessage>()).Board.Table.Terrain.Single().Id);
-        await Task.Delay(200);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_placement where id = $1", hill.Id));
+        await Wait.UntilAsync(async () => await pg.CountAsync("select count(*) from management.terrain_placement where id = $1", hill.Id) == 1,
+            "the added terrain never reached the draft row");
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_volume where terrain_placement_id = $1", hill.Id));
 
         await creator.SendAsync(Edit(new SetZoneStyle("long-edges", ["long-edges/1", "long-edges/2"])));
@@ -3537,9 +3776,36 @@ public class SetupEditTests(PostgresFixture pg)
         var table = (await watcher.ExpectAsync<BoardMessage>()).Board.Table;
         Assert.Equal((44.0, layout.Terrain.Count, layout.Markers.Count, layout.Zones.Count), (table.Size.Width, table.Terrain.Count, table.Markers.Count, table.Zones.Count));
         Assert.NotEqual(layout.Id, table.Id);
-        await Task.Delay(200);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.table_state where game_id = $1 and width = 44", g.GameId));
+        await Wait.UntilAsync(async () => await pg.CountAsync("select count(*) from management.table_state where game_id = $1 and width = 44", g.GameId) == 1,
+            "the replaced draft never reached the table_state row");
         Assert.Equal(layout.Markers.Count, await pg.CountAsync("select count(*) from management.marker m join management.table_state t on t.id = m.table_state_id where t.game_id = $1", g.GameId));
+    }
+
+    /// <summary>A layout's children carry the primary keys of the layout's own rows — terrain_placement, terrain_volume, marker
+    /// and deployment_zone ids are global, and layouts share table_state with drafts — so replace_draft has to mint fresh ones
+    /// or the draft write hits a unique violation and faults the session.</summary>
+    [Fact]
+    public async Task Loading_a_saved_layout_row_writes_fresh_child_ids_and_leaves_the_layout_alone()
+    {
+        var (f, g, creator, watcher) = await InSetupAsync();
+        var layout = await pg.SeedLayoutAsync(await pg.SeedAccountAsync("Layout owner"));
+
+        await creator.SendAsync(Edit(new ReplaceDraft(layout)));
+        var table = (await watcher.ExpectAsync<BoardMessage>()).Board.Table;
+        await creator.ExpectAsync<BoardMessage>();                                                               // the sender's own copy of the same broadcast
+        Assert.NotEqual(layout.Terrain[0].Id, table.Terrain[0].Id);
+        Assert.NotEqual(layout.Terrain[0].Volumes[0].Id, table.Terrain[0].Volumes[0].Id);
+        Assert.NotEqual(layout.Markers[0].Id, table.Markers[0].Id);
+        Assert.Empty(table.Zones.Select(z => z.Id).Intersect(layout.Zones.Select(z => z.Id)));
+
+        const string terrainOfGame = "select count(*) from management.terrain_placement p join management.table_state t on t.id = p.table_state_id where t.game_id = $1";
+        await Wait.UntilAsync(async () => await pg.CountAsync(terrainOfGame, g.GameId) == layout.Terrain.Count, "the loaded layout never reached the draft rows");
+        Assert.Equal(layout.Markers.Count, await pg.CountAsync("select count(*) from management.marker m join management.table_state t on t.id = m.table_state_id where t.game_id = $1", g.GameId));
+        Assert.Equal(layout.Zones.Count, await pg.CountAsync("select count(*) from management.deployment_zone z join management.table_state t on t.id = z.table_state_id where t.game_id = $1", g.GameId));
+        Assert.Equal(1, await pg.CountAsync("select count(*) from management.terrain_volume where terrain_placement_id = $1", layout.Terrain[0].Id));   // the layout's own rows still stand
+
+        await creator.SendAsync(Edit(new SetTableSize(new TableSize(50, 40))));                                   // and the session did not fault
+        Assert.Equal(50.0, (await creator.ExpectAsync<BoardMessage>()).Board.Table.Size.Width);
     }
 
     [Fact]
@@ -3690,7 +3956,7 @@ public class EndSetupTests(PostgresFixture pg)
         await using (var cmd = new NpgsqlCommand("update management.table_state set width = $3, length = $4, texture_builtin = $5, texture_asset_id = $6 where id = $1 and game_id = $2", conn, tx))
         {
             cmd.Parameters.AddWithValue(snapshot.Id); cmd.Parameters.AddWithValue(gameId);
-            cmd.Parameters.AddWithValue((float)snapshot.Size.Width); cmd.Parameters.AddWithValue((float)snapshot.Size.Length);
+            cmd.Parameters.AddWithValue(snapshot.Size.Width); cmd.Parameters.AddWithValue(snapshot.Size.Length);
             cmd.Parameters.AddWithValue((object?)snapshot.Texture.Builtin ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)snapshot.Texture.AssetId ?? DBNull.Value);
             if (await cmd.ExecuteNonQueryAsync(ct) != 1) throw new InvalidOperationException("no draft row for this game");
         }
@@ -3798,14 +4064,16 @@ In `.env.example`, append at the end of the file (not at an anchor — the manag
 - [ ] **Step 2: Run the whole check**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d && dotnet build && dotnet test
 find server tests -path '*/obj/*' -maxdepth 3 -type d | grep -v Unix
 (dotnet run --project server/game &) ; sleep 8; curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5200/ws; kill %1 2>/dev/null
 git status --short
 ```
 
-Expected: build clean; every test green (Geometry, Content, Protocol from the contracts plan, Management from its plan, plus 133 here); the `find` prints nothing; `curl` prints `400` (a plain GET on the WebSocket endpoint). From Windows PowerShell, `Test-NetConnection localhost -Port 5200` reports `TcpTestSucceeded : True` while the server runs, which is the client shell plan's connection target.
+`git rev-parse --show-toplevel` names the repo root of whichever tree this check runs in — the main checkout or a plan's own worktree — never a hardcoded path.
+
+Expected: build clean; every test green (Geometry, Content, Protocol from the contracts plan, plus 133 here, and Management once the management plan has landed in this tree); the `find` prints nothing; `curl` prints `400` (a plain GET on the WebSocket endpoint). From Windows PowerShell, `Test-NetConnection localhost -Port 5200` reports `TcpTestSucceeded : True` while the server runs, which is the client shell plan's connection target.
 
 - [ ] **Step 3: Commit**
 
@@ -3902,7 +4170,7 @@ public interface IGameRules
 
 ### Test infrastructure (`tests/Tabletop.GameServer.Tests/Infrastructure`)
 
-`PostgresFixture` (collection `Postgres`; `DefaultRngSeed`, `SeedGameAsync` — whose `rngSeed` parameter fills the no-default `management.game.rng_seed` — `SeedAccountAsync`, `SeedParticipantAsync`, `SeedPropertiesAsync`, `SeedArmyAsync`, `SeedTableStateAsync`, `CountAsync`), `GameServerFactory` (`ConfigureTestServices`, `ProjectId`), `TestKeys` (`Mint`, `Source`), `TestClient`, `RecordingClient`, `FixedAskEngine` / `FixedAskEngineFactory`. The scheduler and interpreter plans reuse these for their end-to-end tests.
+`PostgresFixture` (implements xunit's `IAsyncLifetime`, collection `Postgres`; `DefaultRngSeed`, `SeedGameAsync` — whose `rngSeed` parameter fills the no-default `management.game.rng_seed` — `SeedAccountAsync`, `SeedParticipantAsync`, `SeedPropertiesAsync`, `SeedArmyAsync`, `SeedTableStateAsync`, `SeedLayoutAsync`, `CountAsync`), `GameServerFactory` (`ConfigureTestServices`, `ProjectId`), `TestKeys` (`Mint`, `Source`), `TestClient`, `Wait` (`UntilAsync`, polling instead of a fixed sleep), `RecordingClient`, `FixedAskEngine` / `FixedAskEngineFactory`. The scheduler and interpreter plans reuse these for their end-to-end tests.
 
 ---
 

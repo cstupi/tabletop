@@ -94,7 +94,10 @@ and one token format.
 **The token seam.** The client logs in against management, which calls Stytch and gets back a
 session JWT. The client then opens `ws://.../ws` and sends `Connect(SessionJwt, GameId,
 ClientVersion)`. `StytchJwtVerifier` validates it locally: RS256, issuer `stytch.com/{project}`,
-audience the project id, 30 s clock skew, keys from `HttpJwksSource`. It reads the account UUID
+audience the project id, 30 s clock skew, keys from `HttpJwksSource`. A key id the cache does not
+hold triggers one refetch; every other validation failure answers null with no fetch. A JWKS fetch
+that fails propagates, and the handshake closes the socket `1011` rather than sending `Rejected`,
+because a check that could not run is not a refusal. It reads the account UUID
 out of the top-level custom claim `account_id`. The claim is there because the Stytch project's
 `SESSION` claim template renders `{{ user.external_id }}` into it on every mint, and management
 keeps `external_id` equal to the account id; no call from either server passes
@@ -540,7 +543,9 @@ The game server writes management's rows while the game is `lobby` or `setup`
 
 It never writes an account's `layout` row. Layouts stay management's. The client saves one with
 `POST /v1/layouts` from its own copy of the draft, and loads one with `GET /v1/layouts/{id}`
-followed by a `ReplaceDraft` edit.
+followed by a `ReplaceDraft` edit. `ReplaceDraft` copies the layout's placements, markers and zones under
+fresh ids, because those ids are global primary keys and the layout's rows keep theirs; the client
+reads the ids back from the `BoardMessage` and never holds the layout's.
 
 `WriteDraftAsync` and `WriteTreeAsync` rewrite the children **whole**: delete every
 `terrain_placement`, `marker` and `deployment_zone` for the draft, then reinsert. The draft is a
@@ -1142,17 +1147,16 @@ edge back to `absent` is recovered by hydrating again.
   Faulting is reserved for the two places where memory and the database can disagree: the log
   path, and the draft write whose broadcast has already gone out. A lobby or end-setup write that
   throws rolls back and leaves the session's own state untouched, so only the connection goes.
-- **A faulted session's mailbox loop is never completed.** `FaultAsync` closes and clears the
-  clients but does not complete the channel writer. The loop is stopped only by `DrainAsync`,
-  which runs from `ReleaseIfEmptyAsync` or the global drain. A faulted session whose clients all
-  reconnected onto a fresh instance leaves one idle loop behind.
-- **`GameInfo` is only refreshed on the paths that write it.** `ConnectAsync` does not
-  re-read the rows, so a participant who joined through management *after* the session hydrated
-  is absent from the in-memory `GameInfo`. Their socket is accepted, because
-  `FindParticipantAsync` reads the row directly. But `Welcome` describes a game they are not in,
-  `TeamOf` returns null so they act as a spectator, and `HandleLobbyEditAsync`'s
-  `Info.Participants.First(...)` throws for them. A two-player lobby hits it: A creates and
-  connects, B joins and connects.
+- **A faulted session accepts nothing after the fault.** `FaultAsync` closes and clears the
+  clients; every later frame and presence tick is ignored, an attaching client is closed `1011`, and
+  `GetOrHydrateAsync` drains the faulted instance before storing its replacement, so no mailbox loop
+  outlives it. `DrainAsync` is idempotent, and `RunAsync` on a drained mailbox throws
+  `SessionDrainedException`, which the handshake answers with one retry of `GetOrHydrateAsync`.
+- **`GameInfo` is re-read when a connecting participant is missing from it.** `ConnectAsync`
+  reloads the rows when the connecting account is not in `Info.Participants`, so a participant who
+  joined through management after the session hydrated receives a `Welcome` that names them and
+  the connected clients receive a `GameInfoMessage`. Every other path that changes the rows
+  refreshes `GameInfo` as it writes.
 - **A game deleted while a session is live.** `DELETE /v1/games/{id}` removes the rows and the
   log. The session keeps serving from memory until its sockets close. The next append fails on
   the foreign key rather than on the primary key, so it is not the duplicate path.
