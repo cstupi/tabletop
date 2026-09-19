@@ -28,4 +28,6 @@ public class TableTests
         Assert.True(Table.ContainsBase(Opr, Fx.Model(Base.Rect(2, 2), 71, 47)));
         Assert.False(Table.ContainsBase(Opr, Fx.Model(Base.Rect(2, 2), 71, 47, yaw: 45)));
     }
+    [Fact] public void A_zero_size_table_has_no_slab_to_contain_a_base() =>
+        Assert.Throws<ArgumentException>(() => Table.ContainsBase(new TableSize(0, 0), Fx.Model(0, 0)));
 }

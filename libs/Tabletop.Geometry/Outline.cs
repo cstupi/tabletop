@@ -14,6 +14,23 @@ internal abstract record Outline
     public abstract bool IntersectsSegment(Point2 a, Point2 b);
     /// <summary>Points on the boundary, for sampling sight lines.</summary>
     public abstract IReadOnlyList<Point2> BoundaryPoints(int count);
+    /// <summary>Translates the whole outline by delta; vertex order (and so winding) is preserved.</summary>
+    internal abstract Outline Shift(Point2 delta);
+
+    /// <summary>A circle guaranteed to contain the whole outline, for cheap rejection before an exact test.</summary>
+    internal (Point2 Centre, double Radius) BoundingCircle() => this switch
+    {
+        CircleOutline c => (c.Centre, c.Radius),
+        PolygonOutline p => PolygonBoundingCircle(p),
+        _ => throw new ArgumentOutOfRangeException(),
+    };
+
+    static (Point2 Centre, double Radius) PolygonBoundingCircle(PolygonOutline p)
+    {
+        var centre = new Point2(p.Vertices.Average(v => v.X), p.Vertices.Average(v => v.Y));
+        var radius = p.Vertices.Max(v => v.DistanceTo(centre));
+        return (centre, radius);
+    }
 
     /// <summary>The whole of inner lies inside this outline. Both convex.</summary>
     public bool ContainsOutline(Outline inner) => inner switch
@@ -122,6 +139,7 @@ internal sealed record CircleOutline(Point2 Centre, double Radius) : Outline
     public override IReadOnlyList<Point2> BoundaryPoints(int count) => Enumerable.Range(0, count)
         .Select(i => { var t = 2 * Math.PI * i / count; return Centre + new Point2(Math.Cos(t), Math.Sin(t)) * Radius; })
         .ToList();
+    internal override Outline Shift(Point2 delta) => new CircleOutline(Centre + delta, Radius);
 }
 
 /// <summary>A convex polygon. The constructor orders the vertices counter-clockwise.</summary>
@@ -134,6 +152,7 @@ internal sealed record PolygonOutline : Outline
         if (vertices.Count < 3) throw new ArgumentException("A polygon outline needs at least three vertices.", nameof(vertices));
         double twiceArea = 0;
         for (int i = 0, j = vertices.Count - 1; i < vertices.Count; j = i++) twiceArea += vertices[j].Cross(vertices[i]);
+        if (Math.Abs(twiceArea) < Tolerance.Distance) throw new ArgumentException("A polygon outline needs positive area.", nameof(vertices));
         Vertices = twiceArea < 0 ? vertices.Reverse().ToList() : vertices.ToList();
     }
 
@@ -180,6 +199,8 @@ internal sealed record PolygonOutline : Outline
         return pts;
     }
 
+    internal override Outline Shift(Point2 delta) => new PolygonOutline(Vertices.Select(v => v + delta).ToList());
+
     internal static bool SeparatingAxisTest(PolygonOutline a, PolygonOutline b)
     {
         foreach (var axis in Axes(a).Concat(Axes(b)))
@@ -196,6 +217,7 @@ internal sealed record PolygonOutline : Outline
         for (int i = 0, j = p.Vertices.Count - 1; i < p.Vertices.Count; j = i++)
         {
             var e = p.Vertices[i] - p.Vertices[j];
+            if (e.Length < Tolerance.Distance) continue;
             yield return new Point2(-e.Y, e.X) * (1 / e.Length);
         }
     }

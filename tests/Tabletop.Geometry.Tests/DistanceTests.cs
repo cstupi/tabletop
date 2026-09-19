@@ -39,4 +39,11 @@ public class DistanceTests
         Assert.False(Distance.InRange(Fx.Model(0, 0), Fx.Model(6, 0), 4.7));
     }
     [Fact] public void Vertical_is_the_difference_of_base_heights() => Assert.Equal(3, Distance.Vertical(Fx.Model(0, 0, 0), Fx.Model(1, 0, 3)));
+    [Fact] public void A_zero_scale_volume_has_no_footprint_to_measure_to()
+    {
+        var zeroScale = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(4, 4), new Point2(0, 0), new Yaw(0), 0, 2, TerrainDeclarations.None, null),
+            new TerrainTransform(new Point3(5, 0, 0), new Yaw(0), 0));
+        Assert.Throws<ArgumentException>(() => Distance.EdgeToEdge(Fx.Model(0, 0, diameter: 1), zeroScale));
+    }
 }

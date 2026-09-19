@@ -69,4 +69,12 @@ public class OutlineTests
         Assert.Equal(8, pts.Count);
         Assert.All(pts, p => Assert.Equal(2, p.DistanceTo(new(1, 1)), 6));
     }
+    [Fact] public void A_degenerate_polygon_has_no_area() =>
+        Assert.Throws<ArgumentException>(() => new PolygonOutline([new(0, 0), new(0, 0), new(0, 0), new(0, 0)]));
+    [Fact] public void A_duplicated_vertex_does_not_break_intersection_with_positive_area()
+    {
+        var p = new PolygonOutline([new(0, 0), new(0, 0), new(2, 0), new(2, 2), new(0, 2)]);
+        Assert.True(Outline.InteriorsIntersect(p, Rect(1, 1, 2, 2)));
+        Assert.False(Outline.InteriorsIntersect(p, Rect(10, 10, 2, 2)));
+    }
 }
