@@ -68,6 +68,7 @@ public sealed record Polygon(IReadOnlyList<Point2> Vertices)
     {
         var ab = b - a;
         var ap = p - a;
+        if (ab.Length < Tolerance.Distance) return ap.Length <= Tolerance.Distance;
         if (Math.Abs(ab.Cross(ap)) > Tolerance.Distance * Math.Max(1, ab.Length)) return false;
         var t = ab.Dot(ap);
         return t >= -Tolerance.Distance && t <= ab.Dot(ab) + Tolerance.Distance;
