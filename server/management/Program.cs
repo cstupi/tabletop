@@ -8,11 +8,13 @@ builder.WebHost.UseUrls(builder.Configuration["MANAGEMENT_URL"] ?? "http://0.0.0
 // applies its ConfigureAppConfiguration overrides during builder.Build(), after this point in the
 // file runs.
 builder.Services.AddSingleton(sp => ManagementOptions.From(sp.GetRequiredService<IConfiguration>()));
+builder.Services.AddSingleton(sp => new Tabletop.Management.Persistence.Database(sp.GetRequiredService<ManagementOptions>().DbConnection));
 
 var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
 // missing required configuration fails startup instead of being silently deferred to first use.
-app.Services.GetRequiredService<ManagementOptions>();
+var options = app.Services.GetRequiredService<ManagementOptions>();
+Tabletop.Management.Persistence.Migrator.Run(options.DbConnection);
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 
