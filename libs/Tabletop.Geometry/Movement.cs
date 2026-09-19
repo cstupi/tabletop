@@ -25,11 +25,17 @@ public static class Movement
         var origin = start.Placement.Position.Horizontal;
         var boundary = new List<Point2>(Rays);
         var capped = false;
+        var startLimit = allowance;
+        if (difficultCap is { } cap0 && cap0 < startLimit && Touches(start, difficult))
+        {
+            startLimit = cap0;
+            capped = true;
+        }
         for (var r = 0; r < Rays; r++)
         {
             var angle = 2 * Math.PI * r / Rays;
             var dir = new Point2(Math.Cos(angle), Math.Sin(angle));
-            var limit = allowance;
+            var limit = startLimit;
             var reached = 0.0;
             for (var k = 1; ; k++)
             {

@@ -56,6 +56,16 @@ public class MovementTests
         Assert.Empty(Containment.VolumesContaining(Fx.Model(8, 0), [pit]));                 // which the landing position alone does not say
         Assert.Empty(Movement.VolumesCrossed(Start, new(0, 8), [pit]));
     }
+    [Fact] public void A_start_already_touching_difficult_terrain_is_capped_from_the_first_ray()
+    {
+        var overlapping = Fx.Cylinder(1.5, 0, 1, 0, 8, VolumeKind.Area, TerrainDeclarations.Difficult);
+        var r = Movement.Region(Start, 12, [], [overlapping], 6, null);
+        Assert.True(r.CappedByDifficultTerrain);
+        Assert.All(r.Boundary, p => Assert.True(p.DistanceTo(r.Origin) <= 6 + 1e-6));
+        var check = Movement.Check(Start, new(-12, 0), 12, [], [overlapping], 6, null);
+        Assert.True(check.EntersDifficult);
+        Assert.False(check.WithinAllowance);
+    }
     [Fact] public void Check_applies_the_difficult_cap()
     {
         var r = Movement.Check(Start, new(8, 0), 12, [], [Forest], 6, null);
