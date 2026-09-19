@@ -26,6 +26,7 @@ public class ManagementFactory : WebApplicationFactory<Program>
         {
             s.AddHttpClient(Identity.StytchAuthentication.JwksClient).ConfigurePrimaryHttpMessageHandler(() => TestKeys.JwksHandler);
             s.AddHttpClient(Identity.StytchClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stytch);
+            s.AddHttpClient(Content.Armies.ArmyForgeClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new FakeArmyForge());
         });
     }
 

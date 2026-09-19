@@ -1,4 +1,5 @@
 using Tabletop.Management.Configuration;
+using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Identity;
 
@@ -21,6 +22,10 @@ builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttp
 builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp => new Tabletop.Management.Content.Assets.S3BlobStore(sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<AssetRepository>();
 builder.Services.AddSingleton<FolderRepository>();
+builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName);
+builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName)));
+builder.Services.AddSingleton<CatalogKinds>();
+builder.Services.AddSingleton<ArmyRepository>();
 builder.Services.AddSingleton<Sessions>();
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
@@ -48,6 +53,7 @@ app.MapAccount();
 app.MapAuth();
 app.MapAssets();
 app.MapFolders();
+app.MapArmies();
 if (app.Environment.IsDevelopment()) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
