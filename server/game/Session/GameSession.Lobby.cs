@@ -60,7 +60,6 @@ public sealed partial class GameSession
         await ReloadInfoAsync();
     }
 
-    // Task 11 and Task 12 write these.
-    private Task HandleSetupEditAsync(ISessionClient from, Guid editId, SetupEdit edit) => RefuseEdit(from, editId, RefusalReason.WrongStatus, "setup edits are not handled yet");
+    // Task 12 writes this.
     private Task HandleEndSetupAsync(ISessionClient from, Guid editId) => RefuseEdit(from, editId, RefusalReason.WrongStatus, "end setup is not handled yet");
 }
