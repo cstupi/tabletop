@@ -1,4 +1,5 @@
 using Tabletop.Management.Configuration;
+using Tabletop.Management.Identity;
 
 DotEnv.Load();
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,8 @@ builder.Services.AddSingleton(sp => new Tabletop.Management.Persistence.Database
 builder.Services.ConfigureHttpJsonOptions(o => Tabletop.Content.ContentJson.Configure(o.SerializerOptions));
 builder.Services.AddProblemDetails();
 builder.Services.AddCors();
+builder.Services.AddStytchJwt();
+builder.Services.AddSingleton<AccountRepository>();
 
 var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
@@ -19,13 +22,21 @@ var app = builder.Build();
 var options = app.Services.GetRequiredService<ManagementOptions>();
 Tabletop.Management.Persistence.Migrator.Run(options.DbConnection);
 app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
-    statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error is ArgumentOutOfRangeException ? 400 : 500)
+    statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error switch
+    {
+        ArgumentOutOfRangeException => 400,
+        UnauthorizedAccessException => 401,
+        _ => 500,
+    })
     .ExecuteAsync(ctx)));
 app.UseCors(p => p
     .WithOrigins(options.WebUrl.TrimEnd('/'))
     .WithHeaders("Authorization", "Content-Type", Tabletop.Protocol.ProtocolVersion.Header)
     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE"));
 app.UseMiddleware<Tabletop.Management.Http.ClientVersionMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapAccount();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Tabletop.Management.Tests;
 
@@ -14,10 +16,19 @@ public class ManagementFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["STYTCH_PROJECT_ID"] = "project-test-00000000-0000-0000-0000-000000000000",
+            ["STYTCH_PROJECT_ID"] = TestKeys.ProjectId,
             ["STYTCH_SECRET"] = "secret-test",
             ["DB_CONNECTION"] = Database.ConnectionString,
         }));
+        builder.ConfigureTestServices(s => s.AddHttpClient(Identity.StytchAuthentication.JwksClient).ConfigurePrimaryHttpMessageHandler(() => TestKeys.JwksHandler));
+    }
+
+    public async Task<HttpClient> AuthenticatedClient(Guid accountId, string name = "Test")
+    {
+        await Services.GetRequiredService<Identity.AccountRepository>().Insert(accountId, name);
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", TestKeys.Mint(accountId));
+        return client;
     }
 
     protected override void Dispose(bool disposing)
