@@ -30,6 +30,20 @@ public static class TestKeys
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    /// <summary>As Mint, but for FakeStytch: sub is the Stytch user id, and the account_id claim is present only when the user is linked (the custom claim template's behavior).</summary>
+    public static string MintForUser(string userId, Guid? accountId)
+    {
+        var exp = DateTimeOffset.UtcNow.AddMinutes(5);
+        List<Claim> claims = [new Claim("sub", userId)];
+        if (accountId is { } id) claims.Add(new Claim(Identity.StytchAuthentication.AccountClaim, id.ToString()));
+        var token = new JwtSecurityToken(
+            issuer: $"stytch.com/{ProjectId}", audience: ProjectId,
+            claims: claims,
+            notBefore: DateTimeOffset.UtcNow.AddMinutes(-1).UtcDateTime, expires: exp.UtcDateTime,
+            signingCredentials: new SigningCredentials(_key, SecurityAlgorithms.RsaSha256));
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     public static HttpMessageHandler JwksHandler => new Handler();
 
     private sealed class Handler : HttpMessageHandler

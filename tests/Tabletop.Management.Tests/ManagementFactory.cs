@@ -10,17 +10,23 @@ namespace Tabletop.Management.Tests;
 public class ManagementFactory : WebApplicationFactory<Program>
 {
     public TestDatabase Database { get; } = new();
+    public FakeStytch Stytch { get; } = new();
+    public string HostEnvironment { get; init; } = "Testing";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(HostEnvironment);
         builder.ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["STYTCH_PROJECT_ID"] = TestKeys.ProjectId,
             ["STYTCH_SECRET"] = "secret-test",
             ["DB_CONNECTION"] = Database.ConnectionString,
         }));
-        builder.ConfigureTestServices(s => s.AddHttpClient(Identity.StytchAuthentication.JwksClient).ConfigurePrimaryHttpMessageHandler(() => TestKeys.JwksHandler));
+        builder.ConfigureTestServices(s =>
+        {
+            s.AddHttpClient(Identity.StytchAuthentication.JwksClient).ConfigurePrimaryHttpMessageHandler(() => TestKeys.JwksHandler);
+            s.AddHttpClient(Identity.StytchClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stytch);
+        });
     }
 
     public async Task<HttpClient> AuthenticatedClient(Guid accountId, string name = "Test")

@@ -15,6 +15,10 @@ builder.Services.AddProblemDetails();
 builder.Services.AddCors();
 builder.Services.AddStytchJwt();
 builder.Services.AddSingleton<AccountRepository>();
+builder.Services.AddHttpClient(StytchClient.HttpClientName);
+builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), sp.GetRequiredService<ManagementOptions>()));
+builder.Services.AddSingleton<Sessions>();
+if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
 var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
@@ -37,6 +41,8 @@ app.UseMiddleware<Tabletop.Management.Http.ClientVersionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapAccount();
+app.MapAuth();
+if (app.Environment.IsDevelopment()) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 
