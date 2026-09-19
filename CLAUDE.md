@@ -31,6 +31,8 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
   management 5100, game server 5200.
 
+`.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection("Postgres")]` need the Docker Postgres up.
+
 ## Commands
 
 ```bash
@@ -39,6 +41,7 @@ dotnet build                 # compile; output goes to client/.godot/mono/temp/b
 ./scripts/godot              # run
 dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d
 cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO (9000/9001) in WSL
+dotnet run --project server/game   # the game server on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -61,7 +64,11 @@ Three kinds of top-level directory:
   - `Tabletop.csproj` / root namespace `Tabletop`, `net10.0`
   - `src/` — all client C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
   - `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
-- `server/game/` — live game sessions, rules engine, event log. WebSocket. Empty.
+- `server/game/` — the WebSocket game server (`Tabletop.GameServer`, `net10.0`): the connect handshake and Stytch JWT
+  verification, a `GameSession` per game hydrated from management's rows plus `game.game_event`, the append-only log and
+  replay, `CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes. Tested in
+  `tests/Tabletop.GameServer.Tests`. What sits behind the rules seam is listed by the children below; with none, the
+  engine is `InertEngine`.
 - `server/management/` — ASP.NET Core CRUD API: accounts, armies, assets, layouts, games.
   Empty.
 - `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
