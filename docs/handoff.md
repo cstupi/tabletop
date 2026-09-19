@@ -1,17 +1,15 @@
-# Handoff — 2026-09-13, end of day
+# Handoff — 2026-09-19, paused mid step 2
 
-Where the project stands, and what to pick up next. **Implementation has started. The contracts plan
-is built, reviewed and merged; the next session launches the three plans that require only it.**
+Where the project stands, and what to pick up next. **Step 1 and two thirds of step 2 are merged. The
+management API is built and task-reviewed in its worktree, waiting on its final whole-branch review;
+the session stopped there on the weekly spend limit, which resets 2026-09-21 10:00 America/Los_Angeles.**
 
 ## State
 
-Tree is clean at `main`. The contracts plan is merged (`bd10e5f`, 19 commits on the `contracts`
-branch, which is kept): `libs/Tabletop.Geometry`, `libs/Tabletop.Content` and `libs/Tabletop.Protocol`
-exist as the plan specifies, with `tests/` holding one xUnit project per library, `docker-compose.yml`
-and `.env.example` at the root, and `scripts/postgres/init/001_schema.sql`. `dotnet build` is clean
-and `dotnet test` passes 65 tests: Geometry 12, Content 17, Protocol 36. The Postgres and MinIO
-containers were left running. Every other module is designed and planned and has no code:
-`server/`, `web/`, `sim/` and `viewer/` are empty or absent, and `client/` is the Godot scaffold.
+`main` is at `abf617e`, tree clean. Merged, in order: the contracts plan (`bd10e5f`), the geometry plan
+(`ee62d19`, branch `geometry` kept) and the game-server skeleton (`862072a`, branch `game-server-skeleton`
+kept). `dotnet build` is clean with no warnings and `dotnet test` passes 333 tests: Geometry 131,
+Content 17, Protocol 36, GameServer 149. The GameServer suite needs the compose stack up.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -19,14 +17,27 @@ containers were left running. Every other module is designed and planned and has
 | Implementation plans | `docs/superpowers/plans/`, 10 files | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
-The documents state the current design only. Decisions carry their reason, not their history: each
-plan's `## Rulings` section lists the owner's decisions by number with the rulebook or design reason,
-and the design docs cite them as "the plan's ruling N". A document that needs correcting is rewritten
-in place; nothing is appended as a correction note.
+The geometry and skeleton plans and their design docs are level with the code: every correction the
+trees' final reports named has been applied in place. The documents state the current design only.
 
-**Read in this order from cold:** this file, then `docs/design/README.md`, which is the system design
-document and defines the vocabulary. Then `docs/architecture.md`. Then the design document for
-whatever you are touching, and its plan beside it.
+**The management tree, not merged.** Worktree `.worktrees/management`, branch `management`, base
+`f8b7f2c`, head `62b4e56`, 21 commits, nothing uncommitted. All fourteen tasks are built and each passed
+its task review; the tree's own whole-tree check at Task 14 was build clean and 12/17/36/64 (the
+Geometry count is the base's, before geometry merged). The final whole-branch review was dispatched on
+Opus over `f8b7f2c..62b4e56` and died with the session. Its records:
+
+- SDD ledger: `.worktrees/management/.superpowers/sdd/2026-09-05-management-api/progress.md`, every
+  ruling and deferred minor so far.
+- Draft report: `.superpowers/reports/management.draft.md`, written by the controller before the final
+  review; sections 4 to 7 are the ones the merge needs.
+- Controller brief: `.superpowers/briefs/management.md`, the rules the tree ran under.
+
+`.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
+`game-server-skeleton.md` are the two merged trees' final reports, kept for their deferred-minor lists,
+which no `docs/` file repeats.
+
+**Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
+then the design document for whatever you are touching and its plan beside it.
 
 Precedence, when two documents disagree: **the specs settle behaviour, the plans settle what gets
 written, the design docs settle structure.** A later document beats an earlier one. Where a design
@@ -35,79 +46,171 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 `2026-09-06-ruleset-3-5-1-design.md` (on the ruleset only) and `2026-09-09-open-questions-design.md`
 (on the twenty-five questions it names only).
 
+## Next: finish management, then step 3
+
+1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
+   `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
+   `docker compose up -d` follows. `.env` exists (a copy of `.env.example`). Never `down -v` while a
+   tree is running: the volume holds the schema every server test reads.
+2. **Dispatch a fresh controller for the management tree**, with the brief, the ledger path and this
+   instruction: every task has a `complete` line; dispatch the final whole-branch review (Opus) over
+   `f8b7f2c..62b4e56` per `superpowers:subagent-driven-development`, one fix wave, one scoped
+   re-review, adjudicate residuals, run the whole-tree check from the worktree root, write the
+   seven-section report to `.superpowers/reports/management.md`. The dead controller's fork cannot be
+   resumed from a new session; the ledger is the memory.
+3. **Merge.** Re-run `dotnet build` and `dotnet test` in the worktree yourself, then
+   `git merge --no-ff management` into `main`. Three files conflict, all textual: `Tabletop.sln` (keep
+   the skeleton's rows and add management's two projects, `server/management/Tabletop.Management.csproj`
+   under `server` and `tests/Tabletop.Management.Tests` under `tests`, by re-running its `dotnet sln add`
+   lines; LF, x64/x86 rows are what lands), `.env.example` (keep the skeleton's trailing
+   `TABLETOP_STYTCH_JWKS_URL` comment and management's Stytch, `TABLETOP_MANAGEMENT_URL` and
+   `TABLETOP_WEB_URL` lines), `CLAUDE.md` (management replaces its own `server/management/` bullet and
+   appends to Commands, Conventions and Environment; the skeleton's lines stay). Then the whole-tree
+   check on `main`, then the report's section 6 corrections into `docs/` and its section 7 obligations
+   into this file, as the two sections below do for geometry and the skeleton. Remove the worktree, keep
+   the branch.
+4. **Step 3** is the web app, the client and the interpreter, together, each when its plan's
+   `Requires landed:` line is satisfied. Carry the geometry guard obligation below into the interpreter's
+   brief, and the activate Ask ruling into the client's.
+
+**Owner actions outstanding.** In the Stytch test project
+`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`: register `http://localhost:5173/reset-password`
+as a `RESET_PASSWORD` redirect URL (the registered ones are `http://localhost:3000/authenticate`,
+default for every type, and `https://tt.cstupi.com/authenticate`; the Stytch MCP call to add it was
+denied by the permission classifier), and confirm the `SESSION` custom claim template is
+`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. The management plan's Task 5
+Step 8, a manual login against the real project with the secret and an emailed code, has not been
+run; the tree's tests use a fake Stytch. `TABLETOP_STYTCH_SECRET` is set nowhere on this machine.
+
 ## The mode
 
 **One manager agent, and each plan on its own tree of subagents**, with
 `superpowers:subagent-driven-development` inside each tree as every plan's header says. The manager's
 job is the graph, not the code: launch a plan when its `Requires landed:` line is satisfied, give each
-tree its own worktree, merge when a tree's whole-tree check is green, and resolve the two textual
-conflicts that are expected rather than wrong — `Tabletop.sln` (re-run both trees' `dotnet sln add`
-lines) and `.env.example` (keep both appends). Nothing else two concurrent trees write overlaps.
+tree its own worktree, merge when a tree's whole-tree check is green under the manager's own run, and
+resolve the textual conflicts that are expected rather than wrong. Nothing else two concurrent trees
+write overlaps.
 
-How the contracts tree ran, and what the next trees copy. The manager forked one controller per plan
-with the worktree path, the model tiers, the commit-trailer rule, the hard limits (no merge, no push,
-no `docs/` edits, no worktree removal) and a seven-item final-report contract; the controller ran the
-SDD loop inside `.worktrees/<plan>` on branch `<plan>`. The manager's own ledger is
-`.superpowers/manager.md`, git-ignored, in the main working tree; each tree's SDD ledger lives inside
-its worktree and is deleted when the tree finishes, so the final report is the only record of a
-tree's rulings and the manager copies them into `docs/` itself. A commit trailer names the model that
-produced the commit. `dotnet sln add` rewrites `Tabletop.sln` from CRLF to LF and adds x64/x86 rows,
-so the expected `.sln` conflict is textual and the LF form is what lands. A spend-limit `429` kills a
-controller mid-task with its implementer; the controller resumes from its ledger when messaged, and
-uncommitted files in the worktree are the dead implementer's partial work, to be finished or replaced.
+How a tree runs. The manager forks one controller per plan and hands it a brief file
+(`.superpowers/briefs/<tree>.md`): worktree path, model tiers (Haiku for implementers transcribing
+code the plan already contains, Sonnet for implementers working from prose and for task reviewers,
+Opus for the final review and fix-loop rounds 4-5), the commit-trailer rule, the hard limits (no
+merge, no push, no `docs/` edits, no worktree removal, no `docker compose down`) and the seven-section
+report contract (status; branch; whole-tree check; rulings; parked and deferred findings; docs
+corrections; obligations on later trees). The controller runs the SDD loop inside
+`.worktrees/<plan>` on branch `<plan>`; its ledger lives inside the worktree and dies with it, so the
+report is the record and the manager copies its sections 6 and 7 into `docs/` itself. The manager's
+own ledger is `.superpowers/manager.md`. Each commit's `Co-Authored-By` names the model that produced
+it. `dotnet sln add` rewrites `Tabletop.sln` from CRLF to LF and adds x64/x86 rows.
+
+Spend limits are the failure mode. A `429` kills a controller and its live implementer mid-task;
+uncommitted files in the worktree are the dead implementer's partial work. Within the same session
+the fork resumes when messaged and picks up from its ledger. A new session cannot reach the old
+forks: dispatch a fresh controller with the brief and the ledger path, and the ledger's `complete`
+lines say what not to redo.
 
 The graph, from `docs/design/README.md` → *Build order and why*:
 
-1. contracts, alone — `superpowers/plans/2026-09-05-contracts-and-local-dev.md`. **Landed.**
-2. geometry, management, game-server skeleton — together. **Next: three worktrees, three controllers,
-   dispatched in one message.**
-3. web app, client, interpreter — together;
+1. contracts, alone. **Landed.**
+2. geometry, management, game-server skeleton, together. **Geometry and the skeleton landed;
+   management is built and awaits its final review.**
+3. web app, client, interpreter, together;
 4. scheduler;
 5. simulator;
 6. viewer.
 
-The simulator and the viewer come last and repay early, because the rules modules' full-game tests
-run through the simulator.
-
-**What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle: two
-counts in the game-server plan (Tasks 4 and 6) come from data-driven theories whose case counts the
-plan does not show, so a disagreement there is decided by the test runner. The contracts plan's counts
-were off by two at Task 14 and the runner decided.
+**What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle;
+every tree so far has overshot it as rulings added tests, and the runner decides. The controllers'
+rulings lists are exhaustive by contract, and each ends with what it costs if wrong.
 
 **Merge hazards.** Three files are touched by more than one plan: `CLAUDE.md` (each plan edits only
-the lines it owns and appends the rest, per the ownership rule at the top of every plan's `CLAUDE.md`
-step), `Tabletop.sln` and `.env.example` (the contracts plan creates it, management adds the Stytch
-lines, the skeleton appends one comment). Everything else a later plan modifies belongs to a plan it
-already requires.
+the lines it owns and appends the rest), `Tabletop.sln` and `.env.example`. Everything else a later
+plan modifies belongs to a plan it already requires.
 
 **The interpreter precedes the scheduler.** The scheduler consumes the interpreter's `RulesEngine`,
 `ISchedulerFactory`, `ISequenceStarter` and `SequenceStart`, and its `CLAUDE.md` step assumes the
 interpreter's bullet text is present. The interpreter's `IGameRules` members reference the
 scheduler's seam records (`TurnContext`, `TurnAsk`, `Activation`, `HookResult`, `FirstTeamDecision`,
 `ActivationOption`), so the interpreter plan's Task 8 declares them in `server/game/Scheduler/` and
-the scheduler plan's Task 1 reads them.
+the scheduler plan's Task 1 reads them. The skeleton already ships `IGameRules`, `GrimdarkFutureRules`
+(partial), `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`,
+`CommandDispatcher`, `DispatchOutcome`, `CommandClass` and `MenuTranslation` exactly as its plan's
+*Interfaces → Produces* table spells them; with no engine registered the session runs `InertEngine`.
 
 Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects.md` carry more mechanism than a
 summary of them shows; read them as they stand.
 
-## Before the management tree starts
+## What step 2 settled in the schema
 
-The contracts plan's final reviewer raised five points about `001_schema.sql` and its surroundings.
-Management adopts that file as its migration 001, so each is ruled before its tree is dispatched and
-the ruling is carried in that tree's brief; the game-server skeleton reads the same rows. The
-manager's recommendation stands beside each.
+Ruled on `main` before the step 2 trees were dispatched, and applied to `001_schema.sql`, the contracts
+plan's copy, `docs/schema.md`, `docs/data-model.md`, every design erDiagram and both server plans:
 
-- `deployment_zone.style` holds a zone shape id and `Tabletop.Content.DeploymentZone` calls the same
-  value `Shape`. Rename the column to `shape` in `docs/schema.md`, `docs/data-model.md` and the SQL,
-  so the row and the record agree.
-- Coordinates and yaws are `real` columns. `double precision` matches the C# `double` the values
-  round-trip through; `real` loses digits on every write.
-- No foreign-key column has an index. Add one per FK column that a `WHERE` in the management plan
-  reads by; the plan's queries say which.
-- `TABLETOP_DB_CONNECTION` in `.env.example` names no `Search Path=management` and repeats the
-  password `TABLETOP_DB_PASSWORD` already carries. Add the search path and keep the repetition, since
-  compose reads the one variable and the servers read the other.
-- The Stytch configuration below is load-bearing and still not in the repo.
+- `deployment_zone.shape` holds the zone shape id (`frontline/1`); it is the same value as
+  `Tabletop.Content.DeploymentZone.Shape`. No column is named `style`.
+- Every length, coordinate, yaw and scale column is `double precision` (`float8` in the diagrams). The
+  libraries carry `double`; rows round-trip exactly.
+- Every foreign-key column that does not lead a primary key or unique constraint has an index: 21 of
+  them, at the end of the management schema.
+- `TABLETOP_DB_CONNECTION` in `.env.example` ends `;Search Path=management,game,public`, the value
+  management's `Database` also sets in code. The skeleton qualifies table names with `management.`.
+
+Management's migrator adopts that file byte for byte as migration 001 and recognises a compose-built
+database. The compose volume on this machine was rebuilt from it: 33 tables, 21 indexes.
+
+## What the geometry tree settled that the plans did not say
+
+- A degenerate outline throws `ArgumentException` at construction: a `WorldVolume` whose
+  `Transform.Scale` is 0 (`default(TerrainTransform)`, or a wire message that omits `scale`), a footprint
+  with a zero dimension, or a `TableSize` with a zero edge. **Neither server guards this yet.** The
+  skeleton's `DraftEditor.Apply` refuses an invalid `VisualRef` but not a zero scale or zero table edge,
+  and nothing in `server/game` calls geometry today. The interpreter tree, the first server-side caller,
+  adds the refusal to `DraftEditor.Apply` alongside the `VisualRef` check; management's layout
+  validation (`POST`/`PATCH /v1/layouts`, 422) does the same.
+- `LineOfSight.Check` is asymmetric: the eye is the caller's body centre and the target is sampled, so
+  `Check(a, b).Clear` and `Check(b, a).Clear` differ when the centre line is blocked. The rules module
+  calls it from the shooter's side. It returns on the first clear line, so `ObstructedBy` is complete
+  only when `Clear` is false; `Cover.SightBlockersBetween` walks every line.
+- `LineOfSightResult.ObstructedBy`, `Cover.SightBlockersBetween` and `Movement.VolumesCrossed` return
+  ids in the order of the `volumes` argument. `ObstructedBy` mixes terrain-volume ids and model ids
+  (from `Bodies.AsBlockingVolume`) without a discriminator.
+- `Movement.Region` reads the difficult cap at the start position as `Movement.Check` does. The
+  server judges a landed move with `Check`; the region is the client's prediction.
+- `Settling.SurfaceHeightAt` never returns a height below 0; a sunken floor cannot be a Solid with a
+  negative top.
+- `Polygon.OnSegment` treats a zero-length segment as its one point. `PolygonOutline` validates only
+  the vertex count and positive area; consecutive duplicate vertices give a NaN axis, so a consumer
+  building one from user data de-duplicates first.
+- `ZoneStyles.Resolve` and `ShapesOf` throw `ArgumentException` for an unknown style, a missing slash,
+  a non-numeric ordinal, and ordinal 0 or out of range.
+- `LineOfSight.Blockers` is recomputed per `Check`; a server checking many pairs against one board
+  pre-filters to `BlocksLineOfSight` volumes itself, which `Check` accepts unchanged.
+
+## What the skeleton tree settled that the plans did not say
+
+- **Client plan.** `Welcome` carries the connecting participant's row even when they joined after the
+  session hydrated; the others receive a `GameInfoMessage`. A `Rejected` is sent only for a version,
+  session or participant refusal; a server-side failure to verify or look up closes `1011` with no
+  `Rejected`. A `ReplaceDraft` loaded from a layout comes back in `BoardMessage` with fresh child ids,
+  so the client never holds the layout's ids. A `SetupEdit` whose `VisualRef` is absent is refused with
+  the visual named in `Refused.Detail`.
+- **Scheduler and interpreter plans.** `GameSession.AdvanceAsync` caps at 10 000 iterations and logs.
+  A faulted session drops every frame, tick and attach; an engine that throws inside `Advance` faults
+  the session through `AppendAsync`'s catch. `EventFilter.ForViewer` understands `Undone`, so an engine
+  that emits sealed Asks needs nothing more. `HttpJwksSource` refetches only on an unknown `kid`; a
+  JWKS fetch failure propagates and the handshake closes `1011`.
+- **Management plan.** `TABLETOP_DB_CONNECTION` is read from `.env` through `DotEnv.Load`, which walks
+  up from the working directory. Until management's `.env.example` lines land,
+  `dotnet run --project server/game` fails with `TABLETOP_STYTCH_PROJECT_ID is not set`.
+- **Simulator plan.** `AtRest(Seq)` follows every command (broadcast when the batch appended,
+  sender-only when it did not), every connect at every status, and end-setup; it never follows a lobby
+  or setup edit, where the `GameInfoMessage` or `BoardMessage` is the terminator.
+  `SocketConnection.ReadFrameAsync` rejects binary frames, frames over 4 MiB and unparseable JSON with a
+  `1002` close.
+- **Environment.** `PostgresFixture` runs against the shared compose database and cleans its own rows
+  through `Xunit.IAsyncLifetime`; a sibling suite may run concurrently. Tests bind an in-process Kestrel
+  per `GameServerFactory`, not port 5200; only `dotnet run` takes 5200. `ReadArmyAsync` orders stat rows
+  by `ctid` for the exact-JSON round trip; the durable fix is an `ordinal` column on `weapon` and the six
+  stat and property tables, a schema change management owns as a later migration.
 
 ## What the contracts tree settled that the plans did not say
 
