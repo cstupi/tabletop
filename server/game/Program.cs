@@ -4,6 +4,7 @@ using Tabletop.GameServer.Configuration;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Session;
 
 DotEnv.Load(Directory.GetCurrentDirectory());
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +19,9 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredServic
 builder.Services.AddSingleton<IGameRows, PostgresGameRows>();
 builder.Services.AddSingleton<IEventLog, PostgresEventLog>();
 builder.Services.AddSingleton<IRulesEngineFactory, InertEngineFactory>();
-// Tasks 7-9 register: SessionRegistry, ConnectionHandshake, SessionHost.
+builder.Services.AddSingleton<SessionServices>();
+builder.Services.AddSingleton<SessionRegistry>();
+// Tasks 8-9 register: ConnectionHandshake, SessionHost.
 
 var app = builder.Build();
 var options = app.Services.GetRequiredService<GameServerOptions>();
