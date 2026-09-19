@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Tabletop.GameServer.Auth;
 using Tabletop.GameServer.Configuration;
 
 namespace Tabletop.GameServer.Tests.Infrastructure;
@@ -26,6 +27,7 @@ public class GameServerFactory : WebApplicationFactory<Program>
                 HandshakeTimeout = TimeSpan.FromSeconds(2),
             });
             ConfigureTestServices?.Invoke(services);
+            services.AddSingleton<IJwksSource>(TestKeys.Source);
         });
     }
 }

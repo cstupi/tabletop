@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Auth;
 using Tabletop.GameServer.Configuration;
 
 DotEnv.Load(Directory.GetCurrentDirectory());
@@ -6,7 +7,10 @@ builder.Configuration.AddEnvironmentVariables();
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(30));
 if (!builder.Environment.IsEnvironment("Test"))
     builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration));
-// Tasks 2-9 register: ISessionVerifier, IGameRows, IEventLog, IRulesEngineFactory, SessionRegistry, ConnectionHandshake, SessionHost.
+builder.Services.AddHttpClient<HttpJwksSource>();
+builder.Services.AddSingleton<IJwksSource>(sp => sp.GetRequiredService<HttpJwksSource>());
+builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
+// Tasks 3-9 register: IGameRows, IEventLog, IRulesEngineFactory, SessionRegistry, ConnectionHandshake, SessionHost.
 
 var app = builder.Build();
 var options = app.Services.GetRequiredService<GameServerOptions>();
