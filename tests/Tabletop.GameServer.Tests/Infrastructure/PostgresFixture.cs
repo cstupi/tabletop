@@ -1,0 +1,144 @@
+using Npgsql;
+using Tabletop.GameServer.Persistence;
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Tests.Infrastructure;
+
+[CollectionDefinition("Postgres")]
+public class PostgresCollection : ICollectionFixture<PostgresFixture>;
+
+public sealed record SeededParticipant(Guid ParticipantId, Guid AccountId, Guid? TeamId);
+public sealed record SeededGame(Guid GameId, Guid CreatorAccountId, IReadOnlyList<Guid> TeamIds, IReadOnlyList<SeededParticipant> Participants, string PropertiesHash, long RngSeed);
+
+/// <summary>
+/// Talks to the Docker Postgres from docker-compose.yml. Every row it seeds is deleted on dispose.
+/// Implements xunit's own IAsyncLifetime, not the BCL IAsyncDisposable: xUnit.net v2 only awaits the
+/// former for a collection fixture's teardown, so IAsyncDisposable alone is never invoked and every
+/// seeded row would otherwise leak into the shared database.
+/// </summary>
+public sealed class PostgresFixture : IAsyncLifetime
+{
+    public static readonly string ConnectionString = Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION")
+        ?? "Host=localhost;Port=5432;Database=tabletop;Username=tabletop;Password=tabletop";
+    public NpgsqlDataSource Db { get; } = NpgsqlDataSource.Create(ConnectionString);
+    private readonly List<Guid> _games = new(), _accounts = new();
+    private readonly List<string> _properties = new();
+
+    public async Task<Guid> SeedAccountAsync(string name)
+    {
+        var id = Guid.CreateVersion7();
+        await using var cmd = Db.CreateCommand("insert into management.account (id, name) values ($1, $2)");
+        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(name);
+        await cmd.ExecuteNonQueryAsync();
+        _accounts.Add(id);
+        return id;
+    }
+
+    public async Task<string> SeedPropertiesAsync()
+    {
+        // [24..32], not [..8]: a v7 guid's leading hex digits are its millisecond timestamp, identical across
+        // calls made within the same test run, so a leading slice collides on properties_pkey; the tail is random.
+        var hash = "sha256:test-" + Guid.CreateVersion7().ToString("N")[24..32];
+        await using var cmd = Db.CreateCommand("insert into management.properties (content_hash, name, game_rules) values ($1, 'GF test', 'grimdark-future')");
+        cmd.Parameters.AddWithValue(hash);
+        await cmd.ExecuteNonQueryAsync();
+        _properties.Add(hash);
+        return hash;
+    }
+
+    /// <summary>The dice seed a seeded game gets. management.game.rng_seed has no default, so every insert names one; a fixed value keeps seeded games' dice identical run to run.</summary>
+    public const long DefaultRngSeed = 8675309;
+
+    public async Task<SeededGame> SeedGameAsync(GameStatus status, int teams = 2, int participantsPerTeam = 1, int spectators = 0, Enforcement enforcement = Enforcement.Warn, long rngSeed = DefaultRngSeed)
+    {
+        var hash = await SeedPropertiesAsync();
+        var creator = await SeedAccountAsync("Creator");
+        var gameId = Guid.CreateVersion7();
+        await using (var cmd = Db.CreateCommand(
+            "insert into management.game (id, name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, rng_seed, created_by) " +
+            "values ($1, 'Friday', $2, 'grimdark-future', $3, 'alternating-activation', $4, false, $5, $6)"))
+        {
+            cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(RowMapping.EnumText(status));
+            cmd.Parameters.AddWithValue(hash); cmd.Parameters.AddWithValue(RowMapping.EnumText(enforcement)); cmd.Parameters.AddWithValue(rngSeed); cmd.Parameters.AddWithValue(creator);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        _games.Add(gameId);
+        var teamIds = new List<Guid>(); var participants = new List<SeededParticipant>();
+        for (var t = 1; t <= teams; t++)
+        {
+            var teamId = Guid.CreateVersion7(); teamIds.Add(teamId);
+            await using var cmd = Db.CreateCommand("insert into management.team (id, game_id, ordinal) values ($1, $2, $3)");
+            cmd.Parameters.AddWithValue(teamId); cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(t);
+            await cmd.ExecuteNonQueryAsync();
+            for (var p = 0; p < participantsPerTeam; p++)
+                participants.Add(await SeedParticipantAsync(gameId, t == 1 && p == 0 ? creator : await SeedAccountAsync($"Player {t}.{p}"), teamId));
+        }
+        for (var s = 0; s < spectators; s++) participants.Add(await SeedParticipantAsync(gameId, await SeedAccountAsync($"Watcher {s}"), null));
+        return new SeededGame(gameId, creator, teamIds, participants, hash, rngSeed);
+    }
+
+    public async Task<SeededParticipant> SeedParticipantAsync(Guid gameId, Guid accountId, Guid? teamId)
+    {
+        var id = Guid.CreateVersion7();
+        await using var cmd = Db.CreateCommand("insert into management.participant (id, game_id, team_id, account_id) values ($1, $2, $3, $4)");
+        cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(gameId);
+        cmd.Parameters.AddWithValue((object?)teamId ?? DBNull.Value); cmd.Parameters.AddWithValue(accountId);
+        await cmd.ExecuteNonQueryAsync();
+        return new SeededParticipant(id, accountId, teamId);
+    }
+
+    /// <summary>Inserts ArmyTests.Sample() under owner and returns exactly what it inserted (the sample makes fresh ids per call).</summary>
+    public async Task<Tabletop.Content.Army> SeedArmyAsync(Guid ownerId)
+    {
+        var army = Tabletop.Content.Tests.ArmyTests.Sample();
+        await using var conn = await Db.OpenConnectionAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        async Task Run(string sql, params object?[] args)
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn, tx);
+            foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await Run("insert into management.army (id, owner_id, name, game_system, source) values ($1, $2, $3, $4, $5)", army.Id, ownerId, army.Name, army.GameSystem, army.Source);
+        foreach (var u in army.Units)
+        {
+            await Run("insert into management.unit (id, army_id, ordinal, name) values ($1, $2, $3, $4)", u.Id, army.Id, u.Ordinal, u.Name);
+            foreach (var (k, v) in u.Stats) await Run("insert into management.unit_stat values ($1, $2, $3)", u.Id, k, v);
+            foreach (var p in u.Properties) await Run("insert into management.unit_property values ($1, $2, $3)", u.Id, p.Name, p.Parameter);
+            foreach (var s in u.Models)
+            {
+                await Run("insert into management.model_slot (id, unit_id, ordinal, name, base_shape, base_a, base_b, height, asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                    s.Id, u.Id, s.Ordinal, s.Name, RowMapping.EnumText(s.Base.Shape), s.Base.A, s.Base.B, s.Height, s.AssetId);
+                foreach (var (k, v) in s.Stats) await Run("insert into management.slot_stat values ($1, $2, $3)", s.Id, k, v);
+                foreach (var p in s.Properties) await Run("insert into management.slot_property values ($1, $2, $3)", s.Id, p.Name, p.Parameter);
+                foreach (var w in s.Weapons)
+                {
+                    await Run("insert into management.weapon (id, slot_id, name) values ($1, $2, $3)", w.Id, s.Id, w.Name);
+                    foreach (var (k, v) in w.Stats) await Run("insert into management.weapon_stat values ($1, $2, $3)", w.Id, k, v);
+                    foreach (var p in w.Properties) await Run("insert into management.weapon_property values ($1, $2, $3)", w.Id, p.Name, p.Parameter);
+                }
+            }
+        }
+        await tx.CommitAsync();
+        return army;
+    }
+
+    public async Task<int> CountAsync(string sql, params object[] args)
+    {
+        await using var cmd = Db.CreateCommand(sql);
+        foreach (var a in args) cmd.Parameters.AddWithValue(a);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        foreach (var g in _games) { await Exec("delete from game.game_event where game_id = $1", g); await Exec("delete from management.game where id = $1", g); }
+        foreach (var a in _accounts) await Exec("delete from management.account where id = $1", a);
+        foreach (var p in _properties) await Exec("delete from management.properties where content_hash = $1", p);
+        await Db.DisposeAsync();
+    }
+
+    private async Task Exec(string sql, object arg) { await using var cmd = Db.CreateCommand(sql); cmd.Parameters.AddWithValue(arg); await cmd.ExecuteNonQueryAsync(); }
+}
