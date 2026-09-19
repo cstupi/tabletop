@@ -14,7 +14,8 @@ public sealed class SessionHost(SessionRegistry registry, GameServerOptions opti
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 foreach (var session in registry.Live)
                     try { await session.TickPresenceAsync(); }
-                    catch (InvalidOperationException) { /* drained between Live and Tick */ }
+                    catch (InvalidOperationException) { log.LogDebug("Game {GameId}: drained between Live and Tick", session.GameId); }
+                    catch (Exception ex) { log.LogError(ex, "presence tick failed for {GameId}", session.GameId); }
         }
         catch (OperationCanceledException) { }
     }
