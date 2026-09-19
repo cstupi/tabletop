@@ -13,10 +13,3 @@ public static class LineOfSight
     public static LineOfSightResult Check(PlacedModel from, PlacedModel to, IReadOnlyList<WorldVolume> volumes) =>
         throw new NotImplementedException("Implemented by the geometry plan.");
 }
-
-/// <summary>Flagged, never prevented: base overlap and terrain intersection (architecture.md → Rules enforcement).</summary>
-public static class Overlap
-{
-    public static bool Bases(PlacedModel a, PlacedModel b) => throw new NotImplementedException("Implemented by the geometry plan.");
-    public static bool WithSolid(PlacedModel model, WorldVolume volume) => throw new NotImplementedException("Implemented by the geometry plan.");
-}
