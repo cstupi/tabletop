@@ -762,7 +762,7 @@ The seven styles as implemented:
 `Contains(shapeId, table, point)` is the flat test. `BaseFullyWithin(shapeId, table, model)` is
 p.6's *"fully within"*, the whole base inside **one** of the zone's polygons. Unknown styles and
 malformed ids throw `ArgumentException` rather than returning empty, so a typo in a stored
-`deployment_zone.style` fails loudly. The p.23–24 styles are not shipped here.
+`deployment_zone.shape` fails loudly. The p.23–24 styles are not shipped here.
 
 ### 16. Determinism and tolerance
 
@@ -1009,26 +1009,26 @@ erDiagram
     TERRAIN_PLACEMENT ||--o{ TERRAIN_VOLUME : "footprint and declarations"
     UNIT ||--o{ MODEL : slots
     TABLE_STATE {
-        real width
-        real length
+        float8 width
+        float8 length
     }
     TERRAIN_PLACEMENT {
-        real pos_x
-        real pos_y
-        real pos_z
-        real yaw
-        real scale
+        float8 pos_x
+        float8 pos_y
+        float8 pos_z
+        float8 yaw
+        float8 scale
     }
     TERRAIN_VOLUME {
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real offset_x
-        real offset_y
-        real yaw
-        real bottom
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 offset_x
+        float8 offset_y
+        float8 yaw
+        float8 bottom
+        float8 top
         bool impassable
         bool blocks_los
         bool see_in_out
@@ -1037,21 +1037,21 @@ erDiagram
         bool dangerous
     }
     DEPLOYMENT_ZONE {
-        text style
+        text shape
         int team_ordinal
     }
     MODEL {
         text base_shape
-        real base_a
-        real base_b
-        real height
+        float8 base_a
+        float8 base_b
+        float8 height
     }
 ```
 
 Dimensions are stored flat as `(shape, dim_a, dim_b)` and `(base_shape, base_a, base_b)`, so
 `Base` and `Footprint` are flat `(Kind, A, B)` triples with symmetric shapes repeating the
-value in both. `(A, B)` is always the extent. `deployment_zone.style` holds a **shape id**
-(`'frontline/1'`), not a style name, despite the column's name.
+value in both. `(A, B)` is always the extent. `deployment_zone.shape` holds a **shape id**
+(`'frontline/1'`), not a style name.
 
 Two columns absent from these tables because of this module:
 
@@ -1074,7 +1074,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | A zone style's absolute inset on a table dimension smaller than the inset | Per style: `frontline`'s two 12" bands overlap below a 24" short edge, and each covers the whole board at 12" or under; `ground-war`'s two 24" bands overlap below a 48" long edge, and each covers the whole board at 24" or under; `spearhead`'s two apexes cross below a 48" long edge, and sit on or past the opposite short edge at 24" or under; `opposing-forces`' 24"×24" squares overrun the short edge below 24", and the two overlap when both edges are under 48"; `free-for-all`'s four corners overlap along the long edge below 48" and along the short edge below 24". `side-battle` and `disordered` are fractions of the edges and of the edge midpoints, so neither degenerates at any positive size | **Accepted limit**, not a bug: small tables are out of scope (`architecture.md` → Table and layout). Every polygon stays well formed, so nothing throws, nothing divides by zero, and the only symptom is a zone that overlaps its opponent's or the whole board |
 | A base outline with fewer than three vertices | `PolygonOutline`'s constructor throws `ArgumentException` | Yes, loudly |
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
-| An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.style` must not draw nothing |
+| An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
 | Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list. The server warns under `warn` and refuses only under `strict` | Yes, flagged never prevented |
 | A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, straight-line reach (the plan's ruling 4) |

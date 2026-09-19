@@ -1061,26 +1061,26 @@ erDiagram
         text blob_hash FK
         text name
         text kind
-        real scale
-        real orientation_pitch
-        real orientation_yaw
-        real orientation_roll
+        float8 scale
+        float8 orientation_pitch
+        float8 orientation_yaw
+        float8 orientation_roll
         text modelled_base_shape
-        real modelled_base_a
-        real modelled_base_b
+        float8 modelled_base_a
+        float8 modelled_base_b
     }
     ASSET_VOLUME {
         uuid id PK
         uuid asset_id FK
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real offset_x
-        real offset_y
-        real yaw
-        real bottom
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 offset_x
+        float8 offset_y
+        float8 yaw
+        float8 bottom
+        float8 top
         bool impassable
         bool blocks_los
         bool see_in_out
@@ -1110,9 +1110,9 @@ erDiagram
         uuid id PK
         uuid unit_id FK
         text base_shape
-        real base_a
-        real base_b
-        real height
+        float8 base_a
+        float8 base_b
+        float8 height
         uuid asset_id FK
     }
 ```

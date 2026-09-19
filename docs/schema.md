@@ -75,26 +75,26 @@ erDiagram
         text blob_hash FK
         text name
         text kind
-        real scale
-        real orientation_pitch
-        real orientation_yaw
-        real orientation_roll
+        float8 scale
+        float8 orientation_pitch
+        float8 orientation_yaw
+        float8 orientation_roll
         text modelled_base_shape
-        real modelled_base_a
-        real modelled_base_b
+        float8 modelled_base_a
+        float8 modelled_base_b
     }
     ASSET_VOLUME {
         uuid id PK
         uuid asset_id FK
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real offset_x
-        real offset_y
-        real yaw
-        real bottom
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 offset_x
+        float8 offset_y
+        float8 yaw
+        float8 bottom
+        float8 top
         bool impassable
         bool blocks_los
         bool see_in_out
@@ -142,9 +142,9 @@ erDiagram
         int ordinal
         text name
         text base_shape
-        real base_a
-        real base_b
-        real height
+        float8 base_a
+        float8 base_b
+        float8 height
         uuid asset_id FK
     }
     SLOT_STAT {
@@ -177,8 +177,8 @@ erDiagram
         uuid owner_id FK
         uuid game_id FK
         text name
-        real width
-        real length
+        float8 width
+        float8 length
         text texture_builtin
         uuid texture_asset_id FK
     }
@@ -187,24 +187,24 @@ erDiagram
         uuid table_state_id FK
         text builtin
         uuid asset_id FK
-        real pos_x
-        real pos_y
-        real pos_z
-        real yaw
-        real scale
+        float8 pos_x
+        float8 pos_y
+        float8 pos_z
+        float8 yaw
+        float8 scale
     }
     TERRAIN_VOLUME {
         uuid id PK
         uuid terrain_placement_id FK
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real offset_x
-        real offset_y
-        real yaw
-        real bottom
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 offset_x
+        float8 offset_y
+        float8 yaw
+        float8 bottom
+        float8 top
         bool impassable
         bool blocks_los
         bool see_in_out
@@ -217,11 +217,11 @@ erDiagram
         uuid id PK
         uuid table_state_id FK
         text kind
-        real pos_x
-        real pos_y
-        real pos_z
-        real yaw
-        real diameter
+        float8 pos_x
+        float8 pos_y
+        float8 pos_z
+        float8 yaw
+        float8 diameter
         text label
         text visual_builtin
         uuid visual_asset_id FK
@@ -229,7 +229,7 @@ erDiagram
     DEPLOYMENT_ZONE {
         uuid id PK
         uuid table_state_id FK
-        text style
+        text shape
         int team_ordinal
     }
     GAME {
@@ -266,7 +266,7 @@ erDiagram
     ACTION {
         text properties_hash PK
         text name PK
-        real distance
+        float8 distance
     }
     ROLL {
         text properties_hash PK
@@ -290,7 +290,7 @@ erDiagram
         text target_side
         text target_grain
         int target_count
-        real target_range
+        float8 target_range
     }
     EFFECT {
         uuid id PK
@@ -575,6 +575,18 @@ Not Postgres `enum` types. The values are closed and extending them is a code ch
 accepted — but `ALTER TYPE ADD VALUE` has transaction restrictions that bite in migrations,
 while altering a check constraint is ordinary DDL. Text also reads directly in queries.
 
+### Lengths, coordinates and angles are `double precision`
+
+Every length, coordinate, yaw and scale column is `double precision`, which Postgres also names
+`float8` and the diagram writes that way. `Tabletop.Geometry` and `Tabletop.Content` carry these
+values as `double`, so the round trip is exact; a `real` column would lose digits on every write.
+
+### Every foreign-key column is indexed
+
+Postgres indexes a primary key and a unique constraint, not a foreign key. Each foreign-key column
+that does not already lead one of those has its own index in `001_schema.sql`, so the tree reads
+(`where army_id = …`, `where table_state_id = …`) and the delete cascades are index lookups.
+
 ### `table_state` has two nullable owners
 
 `owner_id` is set when it is an account's saved layout; `game_id` is set when it is a game's
@@ -657,6 +669,9 @@ tables and the init SQL differ on purpose.
 A saved layout has deployment zones but no game, so no `team` rows exist to point at. The zone
 records `team_ordinal`, and a game maps ordinals onto its actual teams when the layout is
 loaded.
+
+`shape` holds a zone shape id from `Tabletop.Geometry.ZoneStyles` (`'frontline/1'`), namespaced by
+style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The style name is not stored.
 
 ### Deleting an account is application logic
 

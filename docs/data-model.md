@@ -211,7 +211,7 @@ erDiagram
         string label
     }
     DEPLOYMENTZONE {
-        id style
+        id shape
         int team_ordinal
     }
 ```
@@ -247,8 +247,9 @@ with the rest of its rows. The edge is nullable and cleared rather than cascaded
 deleted. `ARMYSNAPSHOT` is written from it when setup ends, and the snapshot is what plays from
 there.
 
-**`DEPLOYMENTZONE` names a built-in style**, which resolves to a **set** of polygons — one
-of OPR's standard styles gives each team two diagonally opposite corners. Six of the seven
+**`DEPLOYMENTZONE` names one shape of a built-in style** (`frontline/1`). A style resolves to a
+**set** of polygons, one row per shape; one of OPR's standard styles gives each team two diagonally
+opposite corners. Six of the seven
 built-in styles anchor their measurements to table features rather than writing them as
 absolutes, and Side Battle scales its two legs with the edges they run along. Tables far from 72×48 are out of scope either way. Custom shapes are a later
 expansion. **The polygons are not stored**: a built-in is not a row, so

@@ -166,7 +166,7 @@ erDiagram
     }
     ACTION {
         text name PK
-        real distance
+        float8 distance
     }
     ROLL {
         text name PK
@@ -187,7 +187,7 @@ erDiagram
         text target_side
         text target_grain
         int target_count
-        real target_range
+        float8 target_range
     }
     EFFECT {
         uuid id PK

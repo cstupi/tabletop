@@ -1005,15 +1005,15 @@ erDiagram
         uuid id PK
         uuid owner_id FK
         uuid game_id FK
-        real width
-        real length
+        float8 width
+        float8 length
         text texture_builtin
         uuid texture_asset_id FK
     }
     DEPLOYMENT_ZONE {
         uuid id PK
         uuid table_state_id FK
-        text style
+        text shape
         int team_ordinal
     }
     GAME_EVENT {
@@ -1025,7 +1025,7 @@ erDiagram
 ```
 
 Every table but `game_event` is management's. This server writes them only while the status is
-`lobby` or `setup`. `deployment_zone.style` holds a shape id namespaced by style
+`lobby` or `setup`. `deployment_zone.shape` holds a shape id namespaced by style
 (`frontline/1`), not a style name.
 
 `participant.game_id` and `participant.army_id` are `docs/schema.md` → PARTICIPANT columns

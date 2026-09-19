@@ -318,8 +318,7 @@ Four decisions are carried in this shape.
 - **`DeploymentZone` names a *shape id* and a team ordinal**, never a team, because a saved layout
   has zones and no game. Shape ids are namespaced by style (`"frontline/1"`), the ids
   `Tabletop.Geometry.ZoneStyles.ShapesOf(style)` lists, one row per shape, keyed by ordinal `1..n`.
-  The C# property is `Shape` and the column is `deployment_zone.style`. That mismatch is unfixed
-  ([Rulings and deferred work](#rulings-and-deferred-work)).
+  The C# property is `Shape` and the column is `deployment_zone.shape`.
 
 **`ContentJson` is the single JSON configuration.** `Configure(JsonSerializerOptions)` sets
 camelCase properties, `WhenWritingNull` ignore, `JsonStringEnumConverter(SnakeCaseLower)` and
@@ -973,7 +972,7 @@ erDiagram
     }
     DEPLOYMENT_ZONE {
         uuid id PK
-        text style "holds a shape id, e.g. frontline/1"
+        text shape "holds a shape id, e.g. frontline/1"
         int team_ordinal
     }
     EFFECT {

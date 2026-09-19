@@ -170,7 +170,7 @@ Setting a zone style creates its zones and assigns them to team ordinals in orde
 zone one. The client sends the style's zone shape ids with the edit, taken from the geometry
 library's zone style inventory that both ends reference. The server writes one `deployment_zone`
 row per shape, keyed by team ordinal `1..n`, whether or not a team with that ordinal exists yet.
-`deployment_zone.style` holds a shape id namespaced by its style, such as `frontline/1`; the style
+`deployment_zone.shape` holds a shape id namespaced by its style, such as `frontline/1`; the style
 name itself is never stored, only its expansion. A team created during setup therefore finds its
 zone by its ordinal, and nothing has to be re-derived. A style with fewer shapes than there are
 teams leaves the later ordinals with no zone until a client sends `set_zone_style` again, which is

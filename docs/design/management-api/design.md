@@ -1189,22 +1189,22 @@ erDiagram
         text blob_hash FK
         text name
         text kind
-        real scale
-        real orientation_pitch
-        real orientation_yaw
-        real orientation_roll
+        float8 scale
+        float8 orientation_pitch
+        float8 orientation_yaw
+        float8 orientation_roll
         text modelled_base_shape
-        real modelled_base_a
-        real modelled_base_b
+        float8 modelled_base_a
+        float8 modelled_base_b
     }
     ASSET_VOLUME {
         uuid id PK
         uuid asset_id FK
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 top
         bool impassable
         bool blocks_los
         bool cover
@@ -1268,9 +1268,9 @@ erDiagram
         int ordinal
         text name
         text base_shape
-        real base_a
-        real base_b
-        real height
+        float8 base_a
+        float8 base_b
+        float8 height
         uuid asset_id
     }
     SLOT_STAT {
@@ -1354,8 +1354,8 @@ erDiagram
         uuid owner_id FK
         uuid game_id FK
         text name
-        real width
-        real length
+        float8 width
+        float8 length
         text texture_builtin
         uuid texture_asset_id
     }
@@ -1364,28 +1364,28 @@ erDiagram
         uuid table_state_id FK
         text builtin
         uuid asset_id
-        real pos_x
-        real pos_y
-        real yaw
-        real scale
+        float8 pos_x
+        float8 pos_y
+        float8 yaw
+        float8 scale
     }
     TERRAIN_VOLUME {
         uuid id PK
         uuid terrain_placement_id FK
         text kind
         text footprint
-        real dim_a
-        real dim_b
-        real top
+        float8 dim_a
+        float8 dim_b
+        float8 top
         text notes
     }
     MARKER {
         uuid id PK
         uuid table_state_id FK
         text kind
-        real pos_x
-        real pos_y
-        real diameter
+        float8 pos_x
+        float8 pos_y
+        float8 diameter
         text label
         text visual_builtin
         uuid visual_asset_id
@@ -1393,7 +1393,7 @@ erDiagram
     DEPLOYMENT_ZONE {
         uuid id PK
         uuid table_state_id FK
-        text style
+        text shape
         int team_ordinal
     }
 ```

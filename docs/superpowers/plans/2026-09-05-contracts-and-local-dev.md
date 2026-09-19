@@ -2455,7 +2455,7 @@ Both MinIO images come from `quay.io/minio`, because Docker Hub no longer serves
 ```bash
 # Local development only. Copy to .env; docker compose and both servers read it.
 TABLETOP_DB_PASSWORD=tabletop
-TABLETOP_DB_CONNECTION=Host=localhost;Port=5432;Database=tabletop;Username=tabletop;Password=tabletop
+TABLETOP_DB_CONNECTION=Host=localhost;Port=5432;Database=tabletop;Username=tabletop;Password=tabletop;Search Path=management,game,public
 TABLETOP_S3_ENDPOINT=http://localhost:9000
 TABLETOP_S3_BUCKET=tabletop-blobs
 TABLETOP_S3_ACCESS_KEY=tabletop
@@ -2491,13 +2491,13 @@ create table asset (
     blob_hash           text not null,
     name                text not null,
     kind                text not null check (kind in ('miniature', 'terrain', 'texture')),
-    scale               real not null default 1,
-    orientation_pitch   real not null default 0,
-    orientation_yaw     real not null default 0,
-    orientation_roll    real not null default 0,
+    scale               double precision not null default 1,
+    orientation_pitch   double precision not null default 0,
+    orientation_yaw     double precision not null default 0,
+    orientation_roll    double precision not null default 0,
     modelled_base_shape text check (modelled_base_shape in ('circle', 'oval', 'rect')),
-    modelled_base_a     real,
-    modelled_base_b     real,
+    modelled_base_a     double precision,
+    modelled_base_b     double precision,
     foreign key (owner_id, blob_hash) references blob(owner_id, hash),
     check ((kind = 'miniature') = (modelled_base_shape is not null))
 );
@@ -2507,13 +2507,13 @@ create table asset_volume (
     asset_id    uuid not null references asset(id) on delete cascade,
     kind        text not null check (kind in ('solid', 'area')),
     footprint   text not null check (footprint in ('circle', 'rect')),
-    dim_a       real not null,
-    dim_b       real not null,
-    offset_x    real not null default 0,
-    offset_y    real not null default 0,
-    yaw         real not null default 0,
-    bottom      real not null default 0,
-    top         real not null,
+    dim_a       double precision not null,
+    dim_b       double precision not null,
+    offset_x    double precision not null default 0,
+    offset_y    double precision not null default 0,
+    yaw         double precision not null default 0,
+    bottom      double precision not null default 0,
+    top         double precision not null,
     impassable  boolean not null default false,
     blocks_los  boolean not null default false,
     see_in_out  boolean not null default false,
@@ -2560,9 +2560,9 @@ create table model_slot (
     ordinal    int  not null,
     name       text not null,
     base_shape text not null check (base_shape in ('circle', 'oval', 'rect')),
-    base_a     real not null,
-    base_b     real not null,
-    height     real not null,
+    base_a     double precision not null,
+    base_b     double precision not null,
+    height     double precision not null,
     asset_id   uuid,            -- soft reference: appearance only, no FK
     unique (unit_id, ordinal)
 );
@@ -2587,7 +2587,7 @@ create table properties (
     name         text not null,
     game_rules   text not null
 );
-create table action (properties_hash text not null references properties(content_hash) on delete cascade, name text not null, distance real not null, primary key (properties_hash, name));
+create table action (properties_hash text not null references properties(content_hash) on delete cascade, name text not null, distance double precision not null, primary key (properties_hash, name));
 create table roll   (properties_hash text not null references properties(content_hash) on delete cascade, name text not null, primary key (properties_hash, name));
 
 create table stat_definition (
@@ -2610,7 +2610,7 @@ create table catalog_entry (
     target_side     text check (target_side in ('friendly', 'enemy')),
     target_grain    text check (target_grain in ('unit', 'model')),
     target_count    int,
-    target_range    real,
+    target_range    double precision,
     primary key (properties_hash, name),
     check ((kind = 'model') = (aggregation is not null)),
     check ((kind = 'spell') = (cost is not null and target_side is not null and target_grain is not null and target_count is not null and target_range is not null)),
@@ -2698,8 +2698,8 @@ create table table_state (
     owner_id         uuid references account(id) on delete cascade,
     game_id          uuid references game(id) on delete cascade,
     name             text,
-    width            real not null,
-    length           real not null,
+    width            double precision not null,
+    length           double precision not null,
     texture_builtin  text,
     texture_asset_id uuid,        -- soft reference
     check ((owner_id is null) <> (game_id is null)),
@@ -2711,9 +2711,9 @@ create table terrain_placement (
     table_state_id uuid not null references table_state(id) on delete cascade,
     builtin        text,
     asset_id       uuid,          -- soft reference
-    pos_x real not null, pos_y real not null, pos_z real not null default 0,
-    yaw   real not null default 0,
-    scale real not null default 1,
+    pos_x double precision not null, pos_y double precision not null, pos_z double precision not null default 0,
+    yaw   double precision not null default 0,
+    scale double precision not null default 1,
     check ((builtin is null) <> (asset_id is null))
 );
 
@@ -2722,9 +2722,9 @@ create table terrain_volume (
     terrain_placement_id uuid not null references terrain_placement(id) on delete cascade,
     kind       text not null check (kind in ('solid', 'area')),
     footprint  text not null check (footprint in ('circle', 'rect')),
-    dim_a real not null, dim_b real not null,
-    offset_x real not null default 0, offset_y real not null default 0,
-    yaw real not null default 0, bottom real not null default 0, top real not null,
+    dim_a double precision not null, dim_b double precision not null,
+    offset_x double precision not null default 0, offset_y double precision not null default 0,
+    yaw double precision not null default 0, bottom double precision not null default 0, top double precision not null,
     impassable boolean not null default false, blocks_los boolean not null default false, see_in_out boolean not null default false,
     cover boolean not null default false, difficult boolean not null default false, dangerous boolean not null default false,
     notes text
@@ -2734,9 +2734,9 @@ create table marker (
     id              uuid primary key,
     table_state_id  uuid not null references table_state(id) on delete cascade,
     kind            text not null check (kind in ('objective', 'token')),
-    pos_x real not null, pos_y real not null, pos_z real not null default 0,
-    yaw             real not null default 0,
-    diameter        real not null,
+    pos_x double precision not null, pos_y double precision not null, pos_z double precision not null default 0,
+    yaw             double precision not null default 0,
+    diameter        double precision not null,
     label           text,
     visual_builtin  text,
     visual_asset_id uuid,         -- soft reference
@@ -2746,9 +2746,34 @@ create table marker (
 create table deployment_zone (
     id             uuid primary key,
     table_state_id uuid not null references table_state(id) on delete cascade,
-    style          text not null,   -- a zone shape id from Tabletop.Geometry.ZoneStyles, e.g. 'frontline/1'
+    shape          text not null,   -- a zone shape id from Tabletop.Geometry.ZoneStyles, e.g. 'frontline/1'
     team_ordinal   int  not null
 );
+
+
+-- Indexes on the foreign-key columns that reads and cascades look up by. A column that already leads a
+-- primary key or unique constraint has one; the rest are here.
+create index asset_owner_id_blob_hash_idx            on asset (owner_id, blob_hash);
+create index asset_volume_asset_id_idx               on asset_volume (asset_id);
+create index folder_owner_id_idx                     on folder (owner_id);
+create index folder_parent_id_idx                    on folder (parent_id);
+create index asset_folder_folder_id_idx              on asset_folder (folder_id);
+create index army_owner_id_idx                       on army (owner_id);
+create index weapon_slot_id_idx                      on weapon (slot_id);
+create index effect_properties_hash_entry_name_idx   on effect (properties_hash, entry_name);
+create index effect_parent_effect_id_idx             on effect (parent_effect_id);
+create index effect_condition_effect_id_idx          on effect_condition (effect_id);
+create index game_properties_hash_idx                on game (properties_hash);
+create index game_created_by_idx                     on game (created_by);
+create index participant_account_id_idx              on participant (account_id);
+create index participant_team_id_idx                 on participant (team_id);
+create index participant_army_id_idx                 on participant (army_id);
+create index table_state_owner_id_idx                on table_state (owner_id);
+create index table_state_game_id_idx                 on table_state (game_id);
+create index terrain_placement_table_state_id_idx    on terrain_placement (table_state_id);
+create index terrain_volume_terrain_placement_id_idx on terrain_volume (terrain_placement_id);
+create index marker_table_state_id_idx               on marker (table_state_id);
+create index deployment_zone_table_state_id_idx      on deployment_zone (table_state_id);
 
 -- The game server's schema: one table, append-only. No FK across the boundary; account deletion is application logic.
 create table game.game_event (

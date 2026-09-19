@@ -2914,7 +2914,7 @@ public static class ArmyEndpoints
 **Interfaces:**
 - Consumes: `Tabletop.Content.TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `MarkerKind`, `DeploymentZone`, `VisualRef`; `Tabletop.Geometry.TableSize`, `Point3`, `Yaw`; `VolumeRow`.
 - Produces: `LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers)`; `PatchLayoutRequest(string? Name, TableState? State)`; `LayoutRepository(Database)` with `Save(ownerId, TableState) : TableState` (every id regenerated — the rows are copies, never the game's), `Get(ownerId, id) : TableState?`, `List(ownerId) : IReadOnlyList<LayoutSummary>`, `Patch(ownerId, id, PatchLayoutRequest) : TableState?`, `Delete(ownerId, id) : bool`, and `static TableState ReadTree(NpgsqlConnection, Guid tableStateId, string? name, TableSize, VisualRef)` reused by the game manifest; endpoints `GET /v1/layouts → LayoutSummary[]`, `POST /v1/layouts (TableState with Name) → 201 TableState`, `GET /v1/layouts/{id} → TableState`, `PATCH /v1/layouts/{id} → TableState`, `DELETE /v1/layouts/{id} → 204`.
-- Column mapping: `table_state(owner_id, name, width, length, texture_builtin | texture_asset_id)`; `terrain_placement(builtin | asset_id, pos_x, pos_y, pos_z, yaw, scale)` + `terrain_volume` rows (always written — a placement's volumes travel with it, contracts plan spec correction 1); `marker(kind, pos_*, yaw, diameter, label, visual_builtin | visual_asset_id)`; `deployment_zone(style = DeploymentZone.Shape, team_ordinal)`.
+- Column mapping: `table_state(owner_id, name, width, length, texture_builtin | texture_asset_id)`; `terrain_placement(builtin | asset_id, pos_x, pos_y, pos_z, yaw, scale)` + `terrain_volume` rows (always written — a placement's volumes travel with it, contracts plan spec correction 1); `marker(kind, pos_*, yaw, diameter, label, visual_builtin | visual_asset_id)`; `deployment_zone(shape = DeploymentZone.Shape, team_ordinal)`.
 
 Spec: setup content → The setup phase is snapshotted ("A Layout is this same record, owned by a user rather than a game"); setup phase → Layouts ("Saving copies the draft into a new row owned by the saver, with a name"; "Loading copies, so the layout row is untouched"); whole-design review ruling 4 ("Layouts stay management's"); `schema.md` → `table_state` has two nullable owners.
 
@@ -2995,7 +2995,7 @@ public sealed class LayoutRepository(Database db)
     private sealed record Head(Guid Id, string? Name, double Width, double Length, string? TextureBuiltin, Guid? TextureAssetId);
     private sealed record PlacementRow(Guid Id, string? Builtin, Guid? AssetId, double PosX, double PosY, double PosZ, double Yaw, double Scale);
     private sealed record MarkerRow(Guid Id, string Kind, double PosX, double PosY, double PosZ, double Yaw, double Diameter, string? Label, string? VisualBuiltin, Guid? VisualAssetId);
-    private sealed record ZoneRow(Guid Id, string Style, int TeamOrdinal);
+    private sealed record ZoneRow(Guid Id, string Shape, int TeamOrdinal);
 
     public async Task<TableState> Save(Guid ownerId, TableState state)
     {
@@ -3028,7 +3028,7 @@ public sealed class LayoutRepository(Database db)
             await c.ExecuteAsync("insert into marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values (@id, @tableStateId, @kind, @x, @y, @z, @yaw, @d, @label, @vb, @va)",
                 new { id = Guid.CreateVersion7(), tableStateId, kind = m.Kind.ToString().ToLowerInvariant(), x = m.Position.X, y = m.Position.Y, z = m.Position.Z, yaw = m.Yaw.Degrees, d = m.Diameter, label = m.Label, vb = m.Visual.Builtin, va = m.Visual.AssetId }, tx);
         foreach (var z in s.Zones)
-            await c.ExecuteAsync("insert into deployment_zone (id, table_state_id, style, team_ordinal) values (@id, @tableStateId, @style, @ord)", new { id = Guid.CreateVersion7(), tableStateId, style = z.Shape, ord = z.TeamOrdinal }, tx);
+            await c.ExecuteAsync("insert into deployment_zone (id, table_state_id, shape, team_ordinal) values (@id, @tableStateId, @shape, @ord)", new { id = Guid.CreateVersion7(), tableStateId, shape = z.Shape, ord = z.TeamOrdinal }, tx);
     }
 
     public static async Task<TableState> ReadTree(NpgsqlConnection c, Guid id, string? name, TableSize size, VisualRef texture)
@@ -3038,11 +3038,11 @@ public sealed class LayoutRepository(Database db)
         foreach (var p in placements)
             volumes[p.Id] = (await c.QueryAsync<VolumeRow>($"select {VolumeRow.Columns} from terrain_volume where terrain_placement_id = @pid order by id", new { pid = p.Id })).Select(v => new TerrainVolume(v.Id, v.ToVolume())).ToList();
         var markers = await c.QueryAsync<MarkerRow>("select id as Id, kind as Kind, pos_x::float8 as PosX, pos_y::float8 as PosY, pos_z::float8 as PosZ, yaw::float8 as Yaw, diameter::float8 as Diameter, label as Label, visual_builtin as VisualBuiltin, visual_asset_id as VisualAssetId from marker where table_state_id = @id order by id", new { id });
-        var zones = await c.QueryAsync<ZoneRow>("select id as Id, style as Style, team_ordinal as TeamOrdinal from deployment_zone where table_state_id = @id order by team_ordinal", new { id });
+        var zones = await c.QueryAsync<ZoneRow>("select id as Id, shape as Shape, team_ordinal as TeamOrdinal from deployment_zone where table_state_id = @id order by team_ordinal", new { id });
         return new TableState(id, name, size, texture,
             placements.Select(p => new TerrainPlacement(p.Id, new VisualRef(p.Builtin, p.AssetId), new Point3(p.PosX, p.PosY, p.PosZ), new Yaw(p.Yaw), p.Scale, volumes[p.Id])).ToList(),
             markers.Select(m => new Marker(m.Id, Enum.Parse<MarkerKind>(m.Kind, true), new Point3(m.PosX, m.PosY, m.PosZ), new Yaw(m.Yaw), m.Diameter, m.Label, new VisualRef(m.VisualBuiltin, m.VisualAssetId))).ToList(),
-            zones.Select(z => new DeploymentZone(z.Id, z.Style, z.TeamOrdinal)).ToList());
+            zones.Select(z => new DeploymentZone(z.Id, z.Shape, z.TeamOrdinal)).ToList());
     }
 
     public async Task<TableState?> Get(Guid ownerId, Guid id)

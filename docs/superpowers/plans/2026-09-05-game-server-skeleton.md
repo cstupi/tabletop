@@ -883,7 +883,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
             while (await r.ReadAsync(ct))
                 markers.Add(new Marker(r.GetGuid(0), EnumFrom<MarkerKind>(r.GetString(1)), new Point3(r.GetFloat(2), r.GetFloat(3), r.GetFloat(4)), new Yaw(r.GetFloat(5)), r.GetFloat(6), NullableString(r, 7), Visual(NullableString(r, 8), NullableGuid(r, 9))));
         var zones = new List<DeploymentZone>();
-        await using (var cmd = new NpgsqlCommand("select id, style, team_ordinal from management.deployment_zone where table_state_id = $1 order by team_ordinal", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
+        await using (var cmd = new NpgsqlCommand("select id, shape, team_ordinal from management.deployment_zone where table_state_id = $1 order by team_ordinal", conn, tx) { Parameters = { new NpgsqlParameter { Value = id } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) zones.Add(new DeploymentZone(r.GetGuid(0), r.GetString(1), r.GetInt32(2)));
         return new TableState(id, name, size, texture, terrain, markers, zones);
@@ -941,7 +941,7 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
 }
 ```
 
-`real` columns come back as `float`; `TableSize`, `Point3` and `Base` take `double`, so the widening is implicit. The sample's `1.26` base survives `real` only approximately: if the JSON comparison in `Reads_an_army_tree_back_to_the_sample` fails on `1.26` vs `1.2599999904632568`, compare with `Assert.Equal(expected.A, actual.A, precision: 5)` per numeric field instead of the JSON string — do not change the column types.
+Every length, coordinate and yaw column is `double precision` and comes back as `double`, which `TableSize`, `Point3` and `Base` take directly, so the sample's `1.26` base round-trips exactly and the JSON comparison in `Reads_an_army_tree_back_to_the_sample` compares equal.
 
 - [ ] **Step 7: Register `IGameRows` in `Program.cs`**: `builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection)); builder.Services.AddSingleton<IGameRows, PostgresGameRows>();`
 
@@ -3242,7 +3242,7 @@ public sealed partial class PostgresGameRows
             await Run("insert into management.marker (id, table_state_id, kind, pos_x, pos_y, pos_z, yaw, diameter, label, visual_builtin, visual_asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
                 m.Id, draft.Id, EnumText(m.Kind), (float)m.Position.X, (float)m.Position.Y, (float)m.Position.Z, (float)m.Yaw.Degrees, (float)m.Diameter, m.Label, m.Visual.Builtin, m.Visual.AssetId);
         foreach (var z in draft.Zones)
-            await Run("insert into management.deployment_zone (id, table_state_id, style, team_ordinal) values ($1, $2, $3, $4)", z.Id, draft.Id, z.Shape, z.TeamOrdinal);
+            await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, draft.Id, z.Shape, z.TeamOrdinal);
     }
 }
 ```
