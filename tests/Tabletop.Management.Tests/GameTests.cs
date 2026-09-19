@@ -65,4 +65,16 @@ public class GameTests : IClassFixture<ManagementFactory>
         Assert.Equal(0, await c.ExecuteScalarAsync<int>("select count(*) from game.game_event where game_id = @id", new { id = game.Id }));
         Assert.Equal(HttpStatusCode.NotFound, (await b.GetAsync($"/v1/games/{game.Id}")).StatusCode);
     }
+
+    [Fact]
+    public async Task Two_concurrent_last_leaves_still_end_the_game()
+    {
+        await Seed();
+        var a = await _f.AuthenticatedClient(Guid.CreateVersion7(), "A");
+        var b = await _f.AuthenticatedClient(Guid.CreateVersion7(), "B");
+        var game = await a.PostJson<GameInfo>("/v1/games", Friday());
+        await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { });
+        await Task.WhenAll(a.PostAsync($"/v1/games/{game.Id}/leave", null), b.PostAsync($"/v1/games/{game.Id}/leave", null));
+        Assert.Equal(GameStatus.Ended, (await a.GetJson<GameInfo>($"/v1/games/{game.Id}")).Status);
+    }
 }

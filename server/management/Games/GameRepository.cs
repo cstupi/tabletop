@@ -79,15 +79,21 @@ public sealed class GameRepository(Database db)
     public async Task<GameInfo?> Join(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
-        var n = await c.ExecuteAsync("insert into participant (id, game_id, account_id) select @pid, @id, @accountId where exists (select 1 from game where id = @id) on conflict (game_id, account_id) do nothing",
+        await c.ExecuteAsync("insert into participant (id, game_id, account_id) select @pid, @id, @accountId where exists (select 1 from game where id = @id) on conflict (game_id, account_id) do nothing",
             new { pid = Guid.CreateVersion7(), id, accountId });
         return await Get(id);
     }
 
+    /// <summary>
+    /// Locks the game row first so two concurrent last-leaves can't both see the other's not-yet-committed
+    /// delete under READ COMMITTED and skip ending the game. The lock serializes them: the second leave's
+    /// existence check runs only after the first has committed its delete.
+    /// </summary>
     public async Task<bool> Leave(Guid id, Guid accountId)
     {
         await using var c = await db.Open();
         await using var tx = await c.BeginTransactionAsync();
+        if (await c.ExecuteScalarAsync<int?>("select 1 from game where id = @id for update", new { id }, tx) is null) return false;
         if (await c.ExecuteAsync("delete from participant where game_id = @id and account_id = @accountId", new { id, accountId }, tx) == 0) return false;
         await c.ExecuteAsync("update game set status = 'ended' where id = @id and not exists (select 1 from participant where game_id = @id)", new { id }, tx);
         await tx.CommitAsync();
