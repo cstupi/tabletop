@@ -40,6 +40,14 @@ public class LineOfSightTests
         Assert.Equal(new[] { near.Id }, r.ObstructedBy);
     }
     [Fact] public void A_wall_off_the_line_does_nothing() => Assert.True(LineOfSight.Check(Shooter, Target, [Fx.Box(5, 5, 1, 6, 0, 4, d: Fx.Blocks)]).Clear);
+    [Fact] public void ObstructedBy_reports_input_order_not_sample_order()
+    {
+        var low = Fx.Box(5, 0, 1, 6, 0, 1, d: Fx.Blocks);
+        var tall = Fx.Box(5, 0, 1, 6, 0, 4, d: Fx.Blocks);
+        var r = LineOfSight.Check(Shooter, Target, [low, tall]);
+        Assert.False(r.Clear);
+        Assert.Equal(new[] { low.Id, tall.Id }, r.ObstructedBy);
+    }
     [Fact] public void Tall_bodies_see_over_what_short_ones_cannot()
     {
         var wall = Fx.Box(5, 0, 1, 6, 0, 2, d: Fx.Blocks);

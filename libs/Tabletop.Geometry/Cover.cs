@@ -18,10 +18,9 @@ public static class Cover
         var eye = from.Eye();
         var blockers = LineOfSight.Blockers(volumes);
         var seen = new HashSet<Guid>();
-        var ordered = new List<Guid>();
         foreach (var target in LineOfSight.TargetPoints(to))
             foreach (var id in LineOfSight.Obstructions(eye, target, blockers))
-                if (seen.Add(id)) ordered.Add(id);
-        return ordered;
+                seen.Add(id);
+        return volumes.Where(v => seen.Contains(v.Id)).Select(v => v.Id).ToList();
     }
 }

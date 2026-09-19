@@ -22,14 +22,13 @@ public static class LineOfSight
         var eye = from.Eye();
         var blockers = Blockers(volumes);
         var seen = new HashSet<Guid>();
-        var obstructed = new List<Guid>();
         foreach (var target in TargetPoints(to))
         {
             var hits = Obstructions(eye, target, blockers);
             if (hits.Count == 0) return new LineOfSightResult(true, []);
-            foreach (var id in hits) if (seen.Add(id)) obstructed.Add(id);
+            foreach (var id in hits) seen.Add(id);
         }
-        return new LineOfSightResult(false, obstructed);
+        return new LineOfSightResult(false, volumes.Where(v => seen.Contains(v.Id)).Select(v => v.Id).ToList());
     }
 
     /// <summary>
