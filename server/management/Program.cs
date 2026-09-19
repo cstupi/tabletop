@@ -20,6 +20,7 @@ builder.Services.AddHttpClient(StytchClient.HttpClientName);
 builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp => new Tabletop.Management.Content.Assets.S3BlobStore(sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<AssetRepository>();
+builder.Services.AddSingleton<FolderRepository>();
 builder.Services.AddSingleton<Sessions>();
 if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();
 
@@ -46,6 +47,7 @@ app.UseAuthorization();
 app.MapAccount();
 app.MapAuth();
 app.MapAssets();
+app.MapFolders();
 if (app.Environment.IsDevelopment()) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
