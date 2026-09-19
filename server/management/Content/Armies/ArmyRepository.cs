@@ -56,12 +56,16 @@ public sealed class ArmyRepository(Database db)
         var units = (await c.QueryAsync<UnitRow>("select id as Id, ordinal as Ordinal, name as Name from unit where army_id = @id order by ordinal", new { id })).ToList();
         var slots = (await c.QueryAsync<SlotRow>(@"select s.id as Id, s.unit_id as UnitId, s.ordinal as Ordinal, s.name as Name, s.base_shape as BaseShape, s.base_a::float8 as BaseA, s.base_b::float8 as BaseB, s.height::float8 as Height, s.asset_id as AssetId
             from model_slot s join unit u on u.id = s.unit_id where u.army_id = @id order by s.ordinal", new { id })).ToLookup(s => s.UnitId);
+        // Stat, property and weapon rows are written once at import and never updated (Patch touches only model_slot
+        // columns), so `ctid` — physical row order — is stable and equals insertion order for as long as the army
+        // exists. It stands in for an ordinal column these tables don't have; if a future patch ever writes these
+        // tables in place, an explicit ordinal must replace it.
         var weapons = (await c.QueryAsync<WeaponRow>("select w.id as Id, w.slot_id as SlotId, w.name as Name from weapon w join model_slot s on s.id = w.slot_id join unit u on u.id = s.unit_id where u.army_id = @id order by w.ctid", new { id })).ToLookup(w => w.SlotId);
-        var unitStats = (await c.QueryAsync<KV>("select us.unit_id as Owner, us.stat as Key, us.value as Value from unit_stat us join unit u on u.id = us.unit_id where u.army_id = @id", new { id })).ToLookup(x => x.Owner);
+        var unitStats = (await c.QueryAsync<KV>("select us.unit_id as Owner, us.stat as Key, us.value as Value from unit_stat us join unit u on u.id = us.unit_id where u.army_id = @id order by us.ctid", new { id })).ToLookup(x => x.Owner);
         var unitProps = (await c.QueryAsync<Prop>("select up.unit_id as Owner, up.name as Name, up.parameter as Parameter from unit_property up join unit u on u.id = up.unit_id where u.army_id = @id order by up.ctid", new { id })).ToLookup(x => x.Owner);
-        var slotStats = (await c.QueryAsync<KV>("select ss.slot_id as Owner, ss.stat as Key, ss.value as Value from slot_stat ss join model_slot s on s.id = ss.slot_id join unit u on u.id = s.unit_id where u.army_id = @id", new { id })).ToLookup(x => x.Owner);
+        var slotStats = (await c.QueryAsync<KV>("select ss.slot_id as Owner, ss.stat as Key, ss.value as Value from slot_stat ss join model_slot s on s.id = ss.slot_id join unit u on u.id = s.unit_id where u.army_id = @id order by ss.ctid", new { id })).ToLookup(x => x.Owner);
         var slotProps = (await c.QueryAsync<Prop>("select sp.slot_id as Owner, sp.name as Name, sp.parameter as Parameter from slot_property sp join model_slot s on s.id = sp.slot_id join unit u on u.id = s.unit_id where u.army_id = @id order by sp.ctid", new { id })).ToLookup(x => x.Owner);
-        var weaponStats = (await c.QueryAsync<KV>("select ws.weapon_id as Owner, ws.stat as Key, ws.value as Value from weapon_stat ws join weapon w on w.id = ws.weapon_id join model_slot s on s.id = w.slot_id join unit u on u.id = s.unit_id where u.army_id = @id", new { id })).ToLookup(x => x.Owner);
+        var weaponStats = (await c.QueryAsync<KV>("select ws.weapon_id as Owner, ws.stat as Key, ws.value as Value from weapon_stat ws join weapon w on w.id = ws.weapon_id join model_slot s on s.id = w.slot_id join unit u on u.id = s.unit_id where u.army_id = @id order by ws.ctid", new { id })).ToLookup(x => x.Owner);
         var weaponProps = (await c.QueryAsync<Prop>("select wp.weapon_id as Owner, wp.name as Name, wp.parameter as Parameter from weapon_property wp join weapon w on w.id = wp.weapon_id join model_slot s on s.id = w.slot_id join unit u on u.id = s.unit_id where u.army_id = @id order by wp.ctid", new { id })).ToLookup(x => x.Owner);
 
         IReadOnlyDictionary<string, string> Stats(ILookup<Guid, KV> l, Guid owner) => l[owner].ToDictionary(x => x.Key, x => x.Value);
