@@ -1,15 +1,16 @@
-# Handoff — 2026-09-19, paused mid step 2
+# Handoff — 2026-09-21, paused at the management merge
 
-Where the project stands, and what to pick up next. **Step 1 and two thirds of step 2 are merged. The
-management API is built and task-reviewed in its worktree, waiting on its final whole-branch review;
-the session stopped there on the weekly spend limit, which resets 2026-09-21 10:00 America/Los_Angeles.**
+Where the project stands, and what to pick up next. **Step 1 and all of step 2 are built. Geometry and the
+skeleton are merged; the management API is reviewed, fixed, green and reported, and waits only on the
+merge into `main`, which the session's permission classifier refused to let the agent run.**
 
 ## State
 
-`main` is at `abf617e`, tree clean. Merged, in order: the contracts plan (`bd10e5f`), the geometry plan
-(`ee62d19`, branch `geometry` kept) and the game-server skeleton (`862072a`, branch `game-server-skeleton`
-kept). `dotnet build` is clean with no warnings and `dotnet test` passes 333 tests: Geometry 131,
-Content 17, Protocol 36, GameServer 149. The GameServer suite needs the compose stack up.
+`main` is at `d625472`, tree clean apart from the `docs/` corrections described below. Merged, in order:
+the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch `geometry` kept) and the game-server
+skeleton (`862072a`, branch `game-server-skeleton` kept). On `main`, `dotnet build` is clean and
+`dotnet test` passes 333 tests: Geometry 131, Content 17, Protocol 36, GameServer 149. The GameServer suite
+needs the compose stack up.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -17,24 +18,22 @@ Content 17, Protocol 36, GameServer 149. The GameServer suite needs the compose 
 | Implementation plans | `docs/superpowers/plans/`, 10 files | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
-The geometry and skeleton plans and their design docs are level with the code: every correction the
-trees' final reports named has been applied in place. The documents state the current design only.
+**The management tree, complete and not merged.** Worktree `.worktrees/management`, branch `management`,
+base `f8b7f2c`, head `41937e6`, 24 commits, nothing uncommitted. All fourteen tasks passed their task
+reviews. The final whole-branch review (Opus, `f8b7f2c..62b4e56`) found no Critical and two Important
+findings, both on `POST /v1/assets/{id}/confirm` and both inherited from the plan's own code; one fix wave
+(`dda0eeb`, `55dc537`, `41937e6`) closed them with four status-code corrections and a cross-owner sweep
+test, and the scoped re-review verdicted all seven addressed with no new breakage. The whole-tree check
+from the worktree root at `41937e6`: build 0 warnings, Geometry 12 (the base's count), Content 17,
+Protocol 36, Management 80, all passed.
 
-**The management tree, not merged.** Worktree `.worktrees/management`, branch `management`, base
-`f8b7f2c`, head `62b4e56`, 21 commits, nothing uncommitted. All fourteen tasks are built and each passed
-its task review; the tree's own whole-tree check at Task 14 was build clean and 12/17/36/64 (the
-Geometry count is the base's, before geometry merged). The final whole-branch review was dispatched on
-Opus over `f8b7f2c..62b4e56` and died with the session. Its records:
-
-- SDD ledger: `.worktrees/management/.superpowers/sdd/2026-09-05-management-api/progress.md`, every
-  ruling and deferred minor so far.
-- Draft report: `.superpowers/reports/management.draft.md`, written by the controller before the final
-  review; sections 4 to 7 are the ones the merge needs.
-- Controller brief: `.superpowers/briefs/management.md`, the rules the tree ran under.
-
-`.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
-`game-server-skeleton.md` are the two merged trees' final reports, kept for their deferred-minor lists,
-which no `docs/` file repeats.
+The record is `.superpowers/reports/management.md`, seven sections: its section 4 holds every ruling, 5
+the parked and deferred findings, 6 the docs corrections, 7 the obligations. Section 7 is applied to
+this file below. **Section 6 is not applied:** the corrections to the plan, the spec, the design doc and
+`docs/schema.md` are still to do, none of them started. The plan file is 3 800 lines; the owner wants
+files that size split before anyone edits them again, so splitting the plan by task group comes first
+and the corrections land in the pieces. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md`
+and `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
 then the design document for whatever you are touching and its plan beside it.
@@ -46,41 +45,48 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 `2026-09-06-ruleset-3-5-1-design.md` (on the ruleset only) and `2026-09-09-open-questions-design.md`
 (on the twenty-five questions it names only).
 
-## Next: finish management, then step 3
+## Next: merge management, then step 3
 
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows. `.env` exists (a copy of `.env.example`). Never `down -v` while a
-   tree is running: the volume holds the schema every server test reads.
-2. **Dispatch a fresh controller for the management tree**, with the brief, the ledger path and this
-   instruction: every task has a `complete` line; dispatch the final whole-branch review (Opus) over
-   `f8b7f2c..62b4e56` per `superpowers:subagent-driven-development`, one fix wave, one scoped
-   re-review, adjudicate residuals, run the whole-tree check from the worktree root, write the
-   seven-section report to `.superpowers/reports/management.md`. The dead controller's fork cannot be
-   resumed from a new session; the ledger is the memory.
-3. **Merge.** Re-run `dotnet build` and `dotnet test` in the worktree yourself, then
-   `git merge --no-ff management` into `main`. Three files conflict, all textual: `Tabletop.sln` (keep
-   the skeleton's rows and add management's two projects, `server/management/Tabletop.Management.csproj`
-   under `server` and `tests/Tabletop.Management.Tests` under `tests`, by re-running its `dotnet sln add`
-   lines; LF, x64/x86 rows are what lands), `.env.example` (keep the skeleton's trailing
-   `TABLETOP_STYTCH_JWKS_URL` comment and management's Stytch, `TABLETOP_MANAGEMENT_URL` and
-   `TABLETOP_WEB_URL` lines), `CLAUDE.md` (management replaces its own `server/management/` bullet and
-   appends to Commands, Conventions and Environment; the skeleton's lines stay). Then the whole-tree
-   check on `main`, then the report's section 6 corrections into `docs/` and its section 7 obligations
-   into this file, as the two sections below do for geometry and the skeleton. Remove the worktree, keep
-   the branch.
+   tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
+   carries `public.schema_version` with 001 baselined and 002 applied.
+2. **Merge.** The owner runs `git merge --no-ff management` from the repo root, or grants the agent the
+   Bash permission to; the classifier refuses it under auto mode. Three files conflict, all textual and
+   all keep-both-sides:
+   - `Tabletop.sln`: take `main`'s file, then add management's two projects with
+     `dotnet sln add server/management/Tabletop.Management.csproj --solution-folder server` and
+     `dotnet sln add tests/Tabletop.Management.Tests/Tabletop.Management.Tests.csproj --solution-folder tests`
+     (LF and the x64/x86 rows are what lands).
+   - `.env.example`: keep the skeleton's trailing `# TABLETOP_STYTCH_JWKS_URL` comment and management's
+     five lines (`TABLETOP_MANAGEMENT_URL`, `TABLETOP_WEB_URL`, `TABLETOP_STYTCH_BASE_URL`,
+     `TABLETOP_STYTCH_PROJECT_ID`, the `TABLETOP_STYTCH_SECRET` comment).
+   - `CLAUDE.md`: `main`'s `server/game/` bullet, `Tabletop.Geometry` bullet, `dotnet run --project
+     server/game` command and `.env` paragraph all stay; management adds its Environment bullet, its two
+     Commands lines, its `server/management/` bullet and its Conventions bullet.
+   Then `dotnet build` and `dotnet test` on `main` (expect 333 + 80 = 413, Management 80 needs the stack),
+   commit the merge, `git worktree remove .worktrees/management`, keep the branch.
+3. **Docs.** Split `plans/2026-09-05-management-api.md` into files of a few hundred lines at most, then
+   apply the report's section 6 to the pieces, the spec, `design/management-api/design.md` and
+   `docs/schema.md`. The other nine plans run 2 000 to 6 000 lines and the design docs 1 000 to 1 700; treat each the same
+   way before editing it.
 4. **Step 3** is the web app, the client and the interpreter, together, each when its plan's
    `Requires landed:` line is satisfied. Carry the geometry guard obligation below into the interpreter's
-   brief, and the activate Ask ruling into the client's.
+   brief, the activate Ask ruling into the client's, and the management obligations below into the
+   web-app's and the client's.
 
 **Owner actions outstanding.** In the Stytch test project
 `project-test-437432c7-798d-49d2-9dc4-eff103937e0f`: register `http://localhost:5173/reset-password`
 as a `RESET_PASSWORD` redirect URL (the registered ones are `http://localhost:3000/authenticate`,
 default for every type, and `https://tt.cstupi.com/authenticate`; the Stytch MCP call to add it was
 denied by the permission classifier), and confirm the `SESSION` custom claim template is
-`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. The management plan's Task 5
-Step 8, a manual login against the real project with the secret and an emailed code, has not been
-run; the tree's tests use a fake Stytch. `TABLETOP_STYTCH_SECRET` is set nowhere on this machine.
+`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. Then set the real secret with
+`cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>` (this machine holds a
+placeholder, set during the tree to run the migrator) and do the management plan's Task 5 Step 8 once:
+a manual login through `./scripts/management` against the real project with an emailed code, reading
+the JWT's claims at jwt.io. It is the only check that proves the claim template exists; the tree's tests
+use a fake Stytch.
 
 ## The mode
 
@@ -113,7 +119,7 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Geometry and the skeleton landed;
-   management is built and awaits its final review.**
+   management is reviewed and green on its branch, awaiting the merge.**
 3. web app, client, interpreter, together;
 4. scheduler;
 5. simulator;
@@ -211,6 +217,53 @@ database. The compose volume on this machine was rebuilt from it: 33 tables, 21 
   per `GameServerFactory`, not port 5200; only `dotnet run` takes 5200. `ReadArmyAsync` orders stat rows
   by `ctid` for the exact-JSON round trip; the durable fix is an `ordinal` column on `weapon` and the six
   stat and property tables, a schema change management owns as a later migration.
+
+## What the management tree settled that the plans did not say
+
+The parked and deferred findings, each with its ruling, are section 5 of
+`.superpowers/reports/management.md`; the first post-merge work on the module is the `Migrator.Baseline`
+compose-init test and the two JWT negative tests it names.
+
+- **Game-server plan.** `TABLETOP_DB_CONNECTION` ends `;Search Path=management,game,public`; Npgsql
+  accepts it, DbUp does not, so management strips it before migrating. The skeleton qualifies table
+  names and needs nothing. It reads the army rows management writes: `weapon`, `*_stat` and `*_property`
+  have no ordering column, and a reader that needs import order uses `order by ctid` until an `ordinal`
+  column lands as management's `003_*.sql`; the skeleton's `Reads_an_army_tree_back_to_the_sample`
+  depends on this. The JWT parameters to match are those in
+  `server/management/Identity/StytchAuthentication.cs`: `MapInboundClaims = false`, RS256 only,
+  `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = project_id`, 30 s skew, a key resolver over
+  the JWKS cached with a 30 s miss floor.
+- **Interpreter plan.** `POST /v1/games` answers 422 until a `properties` row exists; management's tests
+  insert one by hand and `PropertiesSeeder` is the interpreter's. `CatalogKinds.For` throws when two
+  `properties` rows give one catalog name different kinds, so the seeder keeps kinds consistent across
+  content sets or `CatalogKinds` moves to first-wins.
+- **Web-app plan.** Response records are as the plan's table says: `SessionResponse(SessionJwt, Account)`,
+  `OtpSentResponse(MethodId)`, `Page<T>(Items, Next)`, `CreateAssetResponse(Asset, UploadUrl?)`,
+  `ConfirmResponse(Asset, Triangles?, Warning?)`, `DownloadResponse(Url, ExpiresAt)`,
+  `Manifest(Assets, ExpiresAt)`. Every error is `application/problem+json`: Stytch failures as 401, 409,
+  422, 429 or 502 (a transport failure or non-JSON body is 502), an unhandled server error as 500 with
+  `ArgumentOutOfRangeException` mapped to 400 and `UnauthorizedAccessException` to 401. CORS allows
+  exactly `Authorization`, `Content-Type`, `Tabletop-Client-Version` and five methods, and the preflight
+  echoes the whole list. `UseExceptionHandler` sits before `UseCors`, so until that is reordered a 500 may
+  reach the browser without CORS headers and read as a network error. The presigned PUT bounds nothing:
+  `ByteSize` is checked only at confirm, where a mismatch, an unreadable GLB header, JSON chunk or mesh
+  data, or a JSON chunk over 8 MiB all answer 422 and discard the object; the web app treats 422 from
+  confirm as "re-export and upload again" and enforces any upload ceiling itself. A deleted account's JWT
+  stays valid up to five minutes and its writes answer 500 in that window, not 401.
+- **Web-app and client plans.** `POST /v1/layouts` and `PATCH` reject a `TableState` whose texture, any
+  placement mesh or any marker visual is missing with 422; send every `VisualRef`. Management does not
+  check that an `asset_id` in an army slot, a layout texture, a placement or a marker belongs to the
+  caller: the spec's "private for discovery, not access" argument stands, and a client that binds
+  another owner's asset gets a manifest entry presigned under that owner's key.
+- **Client plan.** The manifest lists only `uploaded` blobs; an asset created but never confirmed is
+  absent, not present with a broken URL.
+- **Simulator plan.** `POST /v1/dev/sessions` exists only when `ASPNETCORE_ENVIRONMENT=Development`,
+  which `./scripts/management` sets by default; the test host's environment is `Testing`.
+- **Environment.** `IBlobStore.PresignUpload(key, contentType, ttl)` carries no size: an S3 query-string
+  presigned PUT cannot express a content-length condition. `ManagementOptions` is registered lazily and
+  resolved right after `Build()`, because `WebApplicationFactory` applies its configuration overrides
+  during `Build()`. The management test assembly runs with collection parallelisation disabled because
+  `TestKeys` is process-wide state. `tabletop_test_*` databases are created and dropped per test class.
 
 ## What the contracts tree settled that the plans did not say
 
