@@ -134,6 +134,18 @@ public class AssetTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task Patching_a_modelled_base_onto_a_non_miniature_is_rejected()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((3, null, true));
+        var terrain = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Ruin") with { Kind = AssetKind.Terrain, ModelledBase = null });
+        var response = await c.PatchAsJsonAsync($"/v1/assets/{terrain!.Asset.Id}", new PatchAssetRequest(null, null, null, Base.Circle(1.26)), ContentJson.Options);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var unchanged = await c.GetJson<AssetDto>($"/v1/assets/{terrain.Asset.Id}");
+        Assert.Null(unchanged!.ModelledBase);
+    }
+
+    [Fact]
     public async Task Terrain_volumes_round_trip_and_other_kinds_refuse_them()
     {
         var c = await _f.AuthenticatedClient(Guid.CreateVersion7());

@@ -40,6 +40,7 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
     {
         401 or 404 => Results.Problem(title: "Unauthorized", detail: e.ErrorType, statusCode: 401),
         _ when e.ErrorType == "duplicate_email" => Problems.Conflict("An account with that email already exists."),
+        429 => Problems.TooManyRequests(e.ErrorType),
         >= 500 => Problems.BadGateway($"Stytch: {e.ErrorType}"),
         _ => Problems.Unprocessable(e.ErrorType),
     };

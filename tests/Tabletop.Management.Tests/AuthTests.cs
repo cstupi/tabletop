@@ -96,6 +96,25 @@ public class AuthTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task A_stytch_429_maps_to_429_not_422()
+    {
+        var c = _f.CreateClient();
+        _f.Stytch.Break = ("/v1/otps/email/login_or_create", 429, "{\"error_type\":\"too_many_requests\",\"error_message\":\"slow down\"}");
+        var r = await c.PostAsJsonAsync("/v1/auth/otp", new { email = "limited@example.com" });
+        Assert.Equal(HttpStatusCode.TooManyRequests, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_returns_204_even_when_stytch_revoke_fails()
+    {
+        var c = _f.CreateClient();
+        var s = await (await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "logout-fail@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
+        c.DefaultRequestHeaders.Authorization = new("Bearer", s!.SessionJwt);
+        _f.Stytch.Break = ("/v1/sessions/revoke", 503, "<html>down</html>");
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync("/v1/auth/session")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_failed_link_leaves_no_orphaned_account_and_self_heals_next_login()
     {
         var c = _f.CreateClient();

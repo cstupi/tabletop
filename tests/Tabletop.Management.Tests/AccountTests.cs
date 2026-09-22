@@ -63,6 +63,8 @@ public class AccountTests : IClassFixture<ManagementFactory>
         Assert.Equal(1, await db.ExecuteScalarAsync<int>("select count(*) from management.game where id = @id", new { id = untouched.Id }));
         Assert.Equal(1, await db.ExecuteScalarAsync<int>("select count(*) from management.account where id = @otherId", new { otherId }));
         Assert.Contains(meId.ToString(), _f.Stytch.Deleted);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await me.GetAsync("/v1/account")).StatusCode);
+        var unauth = await me.GetAsync("/v1/account");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauth.StatusCode);
+        Assert.Equal("application/problem+json", unauth.Content.Headers.ContentType?.MediaType);
     }
 }

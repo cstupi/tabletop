@@ -23,7 +23,9 @@ public static class AuthEndpoints
         g.MapDelete("/session", async (HttpContext ctx, StytchClient s) =>
         {
             var jwt = ctx.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
-            try { await s.RevokeSession(jwt); } catch (StytchException e) when (e.Status is 401 or 404) { }
+            // Logout has nothing to roll back: whatever Stytch says (already-revoked, rate-limited,
+            // down), the client's own session is over as far as this API is concerned.
+            try { await s.RevokeSession(jwt); } catch (StytchException) { }
             return Results.NoContent();
         }).RequireAuthorization();
     }

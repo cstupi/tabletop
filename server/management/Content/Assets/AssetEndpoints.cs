@@ -34,7 +34,13 @@ public static class AssetEndpoints
             await assets.Get(CurrentAccount.Id(user), id) is { } a ? Results.Ok(a) : Problems.NotFound());
 
         g.MapPatch("/{id:guid}", async (ClaimsPrincipal user, Guid id, PatchAssetRequest p, AssetRepository assets) =>
-            await assets.Patch(CurrentAccount.Id(user), id, p) is { } a ? Results.Ok(a) : Problems.NotFound());
+        {
+            var owner = CurrentAccount.Id(user);
+            var existing = await assets.Get(owner, id);
+            if (existing is null) return Problems.NotFound();
+            if (p.ModelledBase is not null && existing.Kind != AssetKind.Miniature) return Problems.Unprocessable("A miniature carries a modelledBase; terrain and textures do not.");
+            return await assets.Patch(owner, id, p) is { } a ? Results.Ok(a) : Problems.NotFound();
+        });
 
         g.MapDelete("/{id:guid}", async (ClaimsPrincipal user, Guid id, AssetRepository assets, IBlobStore blobs) =>
         {
