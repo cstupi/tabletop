@@ -16,7 +16,7 @@ public class BlobStoreTests : IAsyncLifetime
         var glb = TestGlb.Build((36, null, true));
         Assert.Null(await _store.Size(_key));
         using var http = new HttpClient();
-        var put = await http.PutAsync(await _store.PresignUpload(_key, "model/gltf-binary", glb.Length, TimeSpan.FromMinutes(5)), new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        var put = await http.PutAsync(await _store.PresignUpload(_key, "model/gltf-binary", TimeSpan.FromMinutes(5)), new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.True(put.IsSuccessStatusCode, await put.Content.ReadAsStringAsync());
         Assert.Equal(glb.Length, await _store.Size(_key));
         var head = await _store.ReadRange(_key, 0, GlbHeader.HeaderBytes - 1);

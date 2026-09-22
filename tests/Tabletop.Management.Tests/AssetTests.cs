@@ -75,6 +75,48 @@ public class AssetTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task A_non_json_first_chunk_is_rejected_and_the_object_is_deleted()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.BuildRaw(0x004E4942, "not json"u8.ToArray());   // "BIN\0" where "JSON" belongs
+        var req = Mini(glb) with { Name = "not json chunk" };
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
+        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
+        var store = _f.Services.GetRequiredService<IBlobStore>();
+        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+    }
+
+    [Fact]
+    public async Task A_malformed_json_chunk_is_rejected_and_the_object_is_deleted()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.BuildRaw(0x4E4F534A, "{ not valid json"u8.ToArray());
+        var req = Mini(glb) with { Name = "malformed json" };
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
+        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
+        var store = _f.Services.GetRequiredService<IBlobStore>();
+        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+    }
+
+    [Fact]
+    public async Task A_size_mismatch_at_confirm_deletes_the_object()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.Build((3, null, true));
+        var req = Mini(glb) with { ByteSize = glb.Length + 1 };
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
+        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
+        var store = _f.Services.GetRequiredService<IBlobStore>();
+        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+    }
+
+    [Fact]
     public async Task Library_is_owner_only_and_paged()
     {
         var mine = await _f.AuthenticatedClient(Guid.CreateVersion7());

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Tabletop.Geometry;
 using Tabletop.Management.Http;
 
@@ -25,7 +26,7 @@ public static class AssetEndpoints
             if ((r.Kind == AssetKind.Miniature) != (r.ModelledBase is not null)) return Problems.Unprocessable("A miniature carries a modelledBase; terrain and textures do not.");
             var owner = CurrentAccount.Id(user);
             var asset = await assets.Create(owner, r);
-            var url = asset.Uploaded ? null : await blobs.PresignUpload(IBlobStore.Key(owner, r.Hash), r.ContentType, r.ByteSize, UploadTtl);
+            var url = asset.Uploaded ? null : await blobs.PresignUpload(IBlobStore.Key(owner, r.Hash), r.ContentType, UploadTtl);
             return Results.Created($"/v1/assets/{asset.Id}", new CreateAssetResponse(asset, url));
         });
 
@@ -51,15 +52,26 @@ public static class AssetEndpoints
             var key = IBlobStore.Key(owner, asset.Hash);
             var size = await blobs.Size(key);
             if (size is null) return Problems.Conflict("The bytes have not been uploaded yet.");
-            if (size != asset.ByteSize) return Problems.Unprocessable($"Uploaded {size} bytes, expected {asset.ByteSize}.");
+            if (size != asset.ByteSize) { await blobs.Delete([key]); return Problems.Unprocessable($"Uploaded {size} bytes, expected {asset.ByteSize}."); }
             long? triangles = null; string? warning = null;
             if (asset.ContentType == "model/gltf-binary")
             {
-                var head = await blobs.ReadRange(key, 0, GlbHeader.HeaderBytes - 1);
-                if (!GlbHeader.IsGlb(head)) { await blobs.Delete([key]); return Problems.Unprocessable("Not a GLB. STL and .gltf-with-external-buffers are not accepted."); }
-                var len = GlbHeader.JsonChunkLength(head);
-                triangles = GlbHeader.CountTriangles(await blobs.ReadRange(key, GlbHeader.HeaderBytes, GlbHeader.HeaderBytes + len - 1));
-                if (triangles > GlbHeader.WarnAbove) warning = $"{triangles:N0} triangles is above the 100,000 this table renders comfortably; every participant downloads it.";
+                try
+                {
+                    var head = await blobs.ReadRange(key, 0, GlbHeader.HeaderBytes - 1);
+                    if (!GlbHeader.IsGlb(head)) { await blobs.Delete([key]); return Problems.Unprocessable("Not a GLB. STL and .gltf-with-external-buffers are not accepted."); }
+                    var len = GlbHeader.JsonChunkLength(head);
+                    if (len > GlbHeader.MaxJsonChunkBytes) { await blobs.Delete([key]); return Problems.Unprocessable($"The JSON chunk declares {len:N0} bytes, above the {GlbHeader.MaxJsonChunkBytes:N0} this server will read."); }
+                    triangles = GlbHeader.CountTriangles(await blobs.ReadRange(key, GlbHeader.HeaderBytes, GlbHeader.HeaderBytes + len - 1));
+                    if (triangles > GlbHeader.WarnAbove) warning = $"{triangles:N0} triangles is above the 100,000 this table renders comfortably; every participant downloads it.";
+                }
+                // The header read told us this is a GLB; everything past that is attacker-controlled bytes
+                // read as a length-prefixed JSON document. Anything malformed here is a bad upload, not a bug.
+                catch (Exception e) when (e is FormatException or JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException or OverflowException)
+                {
+                    await blobs.Delete([key]);
+                    return Problems.Unprocessable($"Malformed GLB: {e.Message}");
+                }
             }
             await assets.MarkUploaded(owner, asset.Hash);
             return Results.Ok(new ConfirmResponse((await assets.Get(owner, id))!, triangles, warning));

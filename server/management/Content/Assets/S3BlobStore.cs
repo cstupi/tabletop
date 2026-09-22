@@ -11,7 +11,10 @@ public sealed class S3BlobStore(ManagementOptions options) : IBlobStore
         new AmazonS3Config { ServiceURL = options.S3Endpoint, ForcePathStyle = true, AuthenticationRegion = "us-east-1" });
     private readonly bool _http = options.S3Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
 
-    public async Task<Uri> PresignUpload(string key, string contentType, long byteSize, TimeSpan ttl) => new(await _s3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
+    // byteSize is not enforced here: S3 query-string (SigV4) presigned PUT URLs sign a fixed set of
+    // headers and cannot carry a content-length condition — that mechanism (content-length-range)
+    // exists only for POST-policy uploads. The confirm handler's size check is the only guard.
+    public async Task<Uri> PresignUpload(string key, string contentType, TimeSpan ttl) => new(await _s3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         { BucketName = options.S3Bucket, Key = key, Verb = HttpVerb.PUT, ContentType = contentType, Expires = DateTime.UtcNow.Add(ttl), Protocol = _http ? Amazon.S3.Protocol.HTTP : Amazon.S3.Protocol.HTTPS }));
 
     public async Task<Uri> PresignDownload(string key, TimeSpan ttl) => new(await _s3.GetPreSignedURLAsync(new GetPreSignedUrlRequest

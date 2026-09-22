@@ -10,6 +10,8 @@ public static class GlbHeader
     public const uint JsonChunkType = 0x4E4F534A; // "JSON"
     public const int HeaderBytes = 20;
     public const long WarnAbove = 100_000;
+    /// <summary>A glTF JSON chunk has no business being bigger than this; above it we refuse rather than buffer it.</summary>
+    public const int MaxJsonChunkBytes = 8 * 1024 * 1024;
 
     public static bool IsGlb(ReadOnlySpan<byte> first12) =>
         first12.Length >= 12 && BinaryPrimitives.ReadUInt32LittleEndian(first12) == Magic && BinaryPrimitives.ReadUInt32LittleEndian(first12[4..]) == 2;

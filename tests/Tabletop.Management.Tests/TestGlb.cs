@@ -17,4 +17,13 @@ public static class TestGlb
         w.Write((uint)padded.Length); w.Write(0x4E4F534Au); w.Write(padded);
         return ms.ToArray();
     }
+
+    /// <summary>A structurally valid GLB header (magic, version 2) around a first chunk of the given type and raw bytes — for exercising malformed chunk content.</summary>
+    public static byte[] BuildRaw(uint chunkType, byte[] payload)
+    {
+        using var ms = new MemoryStream(); using var w = new BinaryWriter(ms);
+        w.Write(0x46546C67u); w.Write(2u); w.Write((uint)(12 + 8 + payload.Length));
+        w.Write((uint)payload.Length); w.Write(chunkType); w.Write(payload);
+        return ms.ToArray();
+    }
 }
