@@ -38,6 +38,19 @@ public class AssetCacheTests : IDisposable
         Assert.Empty(Directory.GetFiles(_dir));
     }
 
+    [Fact]
+    public async Task Concurrent_fetches_of_the_same_hash_all_succeed()
+    {
+        var handler = new BytesHandler(Glb);
+        var cache = new AssetCache(_dir, new HttpClient(handler));
+        var hash = Hash(Glb);
+        var tasks = Enumerable.Range(0, 6).Select(_ => cache.FetchAsync(hash, new Uri("http://localhost:9000/tabletop-blobs/o/h"), CancellationToken.None)).ToList();
+        var results = await Task.WhenAll(tasks);
+        Assert.All(results, path => Assert.Equal(cache.PathFor(hash), path));
+        Assert.Equal(Glb, await File.ReadAllBytesAsync(cache.PathFor(hash)));
+        Assert.Empty(Directory.GetFiles(_dir, "*.part"));
+    }
+
     sealed class BytesHandler(byte[] bytes) : HttpMessageHandler
     {
         public int Calls;

@@ -33,7 +33,9 @@ public sealed class AssetCache(string root, HttpClient http)
                 await response.Content.CopyToAsync(hashing, ct);
             var actual = Convert.ToHexStringLower(sha.Hash!);
             if (actual != hash) { File.Delete(part); throw new HashMismatchException(hash, actual); }
-            if (File.Exists(path)) File.Delete(part); else File.Move(part, path);
+            try { if (!File.Exists(path)) File.Move(part, path); }
+            catch (IOException) when (File.Exists(path)) { }   // another call for this hash won the move; its bytes hashed to the same value
+            finally { if (File.Exists(part)) File.Delete(part); }
             return path;
         }
         catch (Exception) when (File.Exists(part)) { File.Delete(part); throw; }
