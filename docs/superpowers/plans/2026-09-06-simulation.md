@@ -31,8 +31,8 @@
 - The recording schema is version `1` in a `version` field. The spec leaves versioning undecided; the field costs one integer and a viewer that reads it can refuse a file it does not understand.
 - JSON: camelCase, string enums as plain strings, nulls omitted, indented. `sim/` owns `RecordingJson.Options`; it does **not** reuse `WireJson.Options`, because the recording is not a wire format. The one thing it does borrow from `WireJson` is the *spelling of a Protocol enum* — `WireJson.Serialize(value).Trim('"')`, in `RunLoop.BuildRecording` and `SocketRowSeeder` — so that `alternating-activation` is spelled once in the tree and not twice.
 - Enforcement in a scenario defaults to `Enforcement.Strict`, which is the opposite of every fixture's default and is the point: a policy answer outside the legal set must be refused loudly rather than logged and accepted.
-- Commit after every task, imperative one-line subject, ending with the two trailers the session requires:
-  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` and `Claude-Session: <the session URL>`.
+- Commit after every task, imperative one-line subject, ending with the `Co-Authored-By` trailer naming the
+  model that produced it, e.g. `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 
 ---
 

@@ -1,39 +1,35 @@
-# Handoff — 2026-09-21, paused at the management merge
+# Handoff — 2026-09-27, step 2 merged
 
-Where the project stands, and what to pick up next. **Step 1 and all of step 2 are built. Geometry and the
-skeleton are merged; the management API is reviewed, fixed, green and reported, and waits only on the
-merge into `main`, which the session's permission classifier refused to let the agent run.**
+Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3, the web
+app, the client and the interpreter, is next.**
 
 ## State
 
-`main` is at `d625472`, tree clean apart from the `docs/` corrections described below. Merged, in order:
-the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch `geometry` kept) and the game-server
-skeleton (`862072a`, branch `game-server-skeleton` kept). On `main`, `dotnet build` is clean and
-`dotnet test` passes 333 tests: Geometry 131, Content 17, Protocol 36, GameServer 149. The GameServer suite
-needs the compose stack up.
+Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch
+`geometry` kept), the game-server skeleton (`862072a`, branch `game-server-skeleton` kept) and the
+management API (`f0d0223`, branch `management` kept, its worktree removed). On `main`, `dotnet build` is
+clean with no warnings and `dotnet test` passes 413 tests: Geometry 131, Content 17, Protocol 36,
+GameServer 149, Management 80. The two server suites need the compose stack up.
 
 | Layer | Where | Role |
 | --- | --- | --- |
 | Design sessions | `docs/superpowers/specs/`, 24 files | the requirements; settle behaviour |
-| Implementation plans | `docs/superpowers/plans/`, 10 files | what gets written, task by task |
+| Implementation plans | `docs/superpowers/plans/`, nine files and one directory | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
-**The management tree, complete and not merged.** Worktree `.worktrees/management`, branch `management`,
-base `f8b7f2c`, head `41937e6`, 24 commits, nothing uncommitted. All fourteen tasks passed their task
-reviews. The final whole-branch review (Opus, `f8b7f2c..62b4e56`) found no Critical and two Important
-findings, both on `POST /v1/assets/{id}/confirm` and both inherited from the plan's own code; one fix wave
-(`dda0eeb`, `55dc537`, `41937e6`) closed them with four status-code corrections and a cross-owner sweep
-test, and the scoped re-review verdicted all seven addressed with no new breakage. The whole-tree check
-from the worktree root at `41937e6`: build 0 warnings, Geometry 12 (the base's count), Content 17,
-Protocol 36, Management 80, all passed.
+**The management tree's record** is `.superpowers/reports/management.md`, seven sections: 4 holds every
+ruling, 5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees.
+Sections 6 and 7 are applied: 6 to the plan, the spec, the design doc and `docs/schema.md`, 7 to this
+file. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
+`game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
 
-The record is `.superpowers/reports/management.md`, seven sections: its section 4 holds every ruling, 5
-the parked and deferred findings, 6 the docs corrections, 7 the obligations. Section 7 is applied to
-this file below. **Section 6 is not applied:** the corrections to the plan, the spec, the design doc and
-`docs/schema.md` are still to do, none of them started. The plan file is 3 800 lines; the owner wants
-files that size split before anyone edits them again, so splitting the plan by task group comes first
-and the corrections land in the pieces. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md`
-and `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
+**Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
+`2026-09-05-client-shell/` and `2026-09-05-interpreter-and-effects/` are each a `README.md` (goal,
+constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces needed*, rulings) and
+one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves against the README.
+Six task files still run 510 to 700 lines (client shell 5 and 8; interpreter 8, 11 and 14; management 5):
+split one by step before editing it at length. The other six plans run 2 000 to 4 700 lines and the design
+docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
 then the design document for whatever you are touching and its plan beside it.
@@ -45,33 +41,14 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 `2026-09-06-ruleset-3-5-1-design.md` (on the ruleset only) and `2026-09-09-open-questions-design.md`
 (on the twenty-five questions it names only).
 
-## Next: merge management, then step 3
+## Next: step 3
 
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
-   `docker compose up -d` follows. `.env` exists (a copy of `.env.example`). Never `down -v` while a
+   `docker compose up -d` follows. `.env` exists and carries the Stytch project id. Never `down -v` while a
    tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Merge.** The owner runs `git merge --no-ff management` from the repo root, or grants the agent the
-   Bash permission to; the classifier refuses it under auto mode. Three files conflict, all textual and
-   all keep-both-sides:
-   - `Tabletop.sln`: take `main`'s file, then add management's two projects with
-     `dotnet sln add server/management/Tabletop.Management.csproj --solution-folder server` and
-     `dotnet sln add tests/Tabletop.Management.Tests/Tabletop.Management.Tests.csproj --solution-folder tests`
-     (LF and the x64/x86 rows are what lands).
-   - `.env.example`: keep the skeleton's trailing `# TABLETOP_STYTCH_JWKS_URL` comment and management's
-     five lines (`TABLETOP_MANAGEMENT_URL`, `TABLETOP_WEB_URL`, `TABLETOP_STYTCH_BASE_URL`,
-     `TABLETOP_STYTCH_PROJECT_ID`, the `TABLETOP_STYTCH_SECRET` comment).
-   - `CLAUDE.md`: `main`'s `server/game/` bullet, `Tabletop.Geometry` bullet, `dotnet run --project
-     server/game` command and `.env` paragraph all stay; management adds its Environment bullet, its two
-     Commands lines, its `server/management/` bullet and its Conventions bullet.
-   Then `dotnet build` and `dotnet test` on `main` (expect 333 + 80 = 413, Management 80 needs the stack),
-   commit the merge, `git worktree remove .worktrees/management`, keep the branch.
-3. **Docs.** Split `plans/2026-09-05-management-api.md` into files of a few hundred lines at most, then
-   apply the report's section 6 to the pieces, the spec, `design/management-api/design.md` and
-   `docs/schema.md`. The other nine plans run 2 000 to 6 000 lines and the design docs 1 000 to 1 700; treat each the same
-   way before editing it.
-4. **Step 3** is the web app, the client and the interpreter, together, each when its plan's
+2. **Step 3** is the web app, the client and the interpreter, together, each when its plan's
    `Requires landed:` line is satisfied. Carry the geometry guard obligation below into the interpreter's
    brief, the activate Ask ruling into the client's, and the management obligations below into the
    web-app's and the client's.
@@ -115,8 +92,7 @@ lines say what not to redo.
 The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
-2. geometry, management, game-server skeleton, together. **Geometry and the skeleton landed;
-   management is reviewed and green on its branch, awaiting the merge.**
+2. geometry, management, game-server skeleton, together. **Landed.**
 3. web app, client, interpreter, together;
 4. scheduler;
 5. simulator;
@@ -140,7 +116,7 @@ the scheduler plan's Task 1 reads them. The skeleton already ships `IGameRules`,
 `CommandDispatcher`, `DispatchOutcome`, `CommandClass` and `MenuTranslation` exactly as its plan's
 *Interfaces → Produces* table spells them; with no engine registered the session runs `InertEngine`.
 
-Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects.md` carry more mechanism than a
+Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects/README.md` carry more mechanism than a
 summary of them shows; read them as they stand.
 
 ## What step 2 settled in the schema
@@ -300,11 +276,11 @@ activation, and free text covers the rest. `GameInfo` gains no `Actions` list. T
 | --- | --- | --- | --- |
 | Contracts and local dev | `libs/`, `docker-compose.yml`, schema SQL | `2026-09-05-contracts-and-local-dev.md` | `design/contracts/` |
 | Geometry | `libs/Tabletop.Geometry` bodies | `2026-09-05-geometry.md` | `design/geometry/` |
-| Management API | `server/management/` | `2026-09-05-management-api.md` | `design/management-api/` |
+| Management API | `server/management/` | `2026-09-05-management-api/README.md` | `design/management-api/` |
 | Game server | `server/game/`, no rules | `2026-09-05-game-server-skeleton.md` | `design/game-server/` |
-| Web app | `web/` | `2026-09-05-web-app.md` | `design/web-app/` |
-| Client | `client/` | `2026-09-05-client-shell.md` | `design/client/` |
-| Interpreter and effects | `server/game/`, the rules | `2026-09-05-interpreter-and-effects.md` | `design/interpreter/` |
+| Web app | `web/` | `2026-09-05-web-app/README.md` | `design/web-app/` |
+| Client | `client/` | `2026-09-05-client-shell/README.md` | `design/client/` |
+| Interpreter and effects | `server/game/`, the rules | `2026-09-05-interpreter-and-effects/README.md` | `design/interpreter/` |
 | Scheduler | `server/game/`, turn order | `2026-09-05-scheduler.md` | `design/scheduler/` |
 | Simulator | `sim/`, a developer tool | `2026-09-06-simulation.md` | `design/simulation/` |
 | Viewer | `viewer/`, a developer tool | `2026-09-06-viewer.md` | `design/viewer/` |

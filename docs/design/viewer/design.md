@@ -956,7 +956,7 @@ threshold for the same reason.
   the connect sequence, the frame order, the rejection cases.
 - [`2026-09-05-geometry.md`](../../superpowers/plans/2026-09-05-geometry.md): `Bodies.BaseOutline`,
   `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains`.
-- [`2026-09-05-management-api.md`](../../superpowers/plans/2026-09-05-management-api.md):
+- [`2026-09-05-management-api/README.md`](../../superpowers/plans/2026-09-05-management-api/README.md):
   `POST /v1/auth/password`, `POST /v1/auth/session/refresh`.
 
 ### Rulebook

@@ -45,7 +45,7 @@ layout). It is the module's largest drift risk.
 **Build order.** `architecture.md` puts the management API and the web app together at step 3,
 after contracts (step 1) and alongside geometry (step 2). The web app starts after
 `2026-09-05-contracts-and-local-dev.md` (the `Tabletop.Content` and `Tabletop.Geometry` JSON
-shapes, the compose stack with Postgres and MinIO) and after `2026-09-05-management-api.md` is
+shapes, the compose stack with Postgres and MinIO) and after `2026-09-05-management-api/README.md` is
 far enough along to answer `/v1`. Tasks 4, 5, 13 and 15 run the SPA against a live management
 on `:5100` and MinIO on `:9000`. Tasks 1–3 and 6–10 are the pure modules and need nothing but
 Node 24.
@@ -838,7 +838,7 @@ projects. What it produces for others are conventions and one required registrat
 
 ### Consumed from management (`/v1`)
 
-Exact paths and DTO names, from `2026-09-05-management-api.md` → *Interfaces → Produces → HTTP
+Exact paths and DTO names, from `2026-09-05-management-api/README.md` → *Interfaces → Produces → HTTP
 surface*. `client.ts` has one function per row and no others.
 
 | Group | Endpoints | Request → response |
@@ -1325,7 +1325,7 @@ Not questions the plan asks. They need deciding before implementation.
 
 ## References
 
-**Plan.** `docs/superpowers/plans/2026-09-05-web-app.md`: 17 tasks, the File Structure, the
+**Plan.** `docs/superpowers/plans/2026-09-05-web-app/README.md`: 17 tasks, the File Structure, the
 whole-project `Interfaces → Produces` table, and one ruling.
 
 **Specs**, in the order the plan's header names them:
@@ -1351,7 +1351,7 @@ whole-project `Interfaces → Produces` table, and one ruling.
 - `docs/architecture.md` → Deliverables, Content and assets, GLB only, Web frontend, Repository
   layout, Build order, Local development
 
-**Plans consumed for their seams only.** `2026-09-05-management-api.md` (the HTTP surface, DTO
+**Plans consumed for their seams only.** `2026-09-05-management-api/README.md` (the HTTP surface, DTO
 names, the CORS provision, no `Name?` on `UnitPatch`/`SlotPatch`),
 `2026-09-05-contracts-and-local-dev.md` (`Tabletop.Content` and `Tabletop.Geometry` JSON shapes,
 the compose stack), `2026-09-05-geometry.md` (the table frame: Z up, yaw 0 faces +Y, an oval's

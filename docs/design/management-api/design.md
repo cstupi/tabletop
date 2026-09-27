@@ -1579,7 +1579,7 @@ sends its version on every request.
 
 ## References
 
-**Plan.** `docs/superpowers/plans/2026-09-05-management-api.md` is the source of truth for what
+**Plan.** `docs/superpowers/plans/2026-09-05-management-api/README.md` is the source of truth for what
 gets built: fourteen tasks, the File Structure, every `Interfaces` block, the *Interfaces →
 Produces* tables, *Rows by writer* and the eight rulings.
 

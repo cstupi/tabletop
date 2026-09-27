@@ -708,6 +708,11 @@ dedup a property of the schema rather than a rule in code.
   two share a database. Hosting is still free to split them.
 - Indexes beyond primary and foreign keys. None are needed at this scale, but the game
   browser's listing query is the first candidate.
+- Ordering of an army's children. `weapon`, `unit_stat`, `unit_property`, `slot_stat`,
+  `slot_property`, `weapon_stat` and `weapon_property` carry no ordering column; they are written
+  once at import and `ArmyRepository.Get` reads them `order by ctid`, which reproduces insertion
+  order until a `VACUUM FULL` or an `UPDATE` moves a row. The durable fix is an `ordinal` column on
+  all seven, as a new `003_*.sql` migration (`001` is never edited after the fact).
 - ~~Presence has never been designed.~~ **Settled** by
   [presence](superpowers/specs/2026-08-30-presence-design.md), which changes nothing here:
   cursors, pings, measurements, selection and live placements are relayed and never written,

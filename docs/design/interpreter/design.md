@@ -1249,7 +1249,7 @@ and what else it touches.
 
 ## References
 
-**Plan.** [`docs/superpowers/plans/2026-09-05-interpreter-and-effects.md`](../../superpowers/plans/2026-09-05-interpreter-and-effects.md):
+**Plan.** [`docs/superpowers/plans/2026-09-05-interpreter-and-effects/README.md`](../../superpowers/plans/2026-09-05-interpreter-and-effects/README.md):
 19 tasks, `Interfaces → Produces`, 6 interface needs, 14 rulings.
 
 **Specs**, in the order the plan names them:

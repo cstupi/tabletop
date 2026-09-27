@@ -1442,7 +1442,7 @@ Deferred, with where it is recorded:
 
 ## References
 
-Plan: `docs/superpowers/plans/2026-09-05-client-shell.md`. 16 tasks, the File Structure block, the
+Plan: `docs/superpowers/plans/2026-09-05-client-shell/README.md`. 16 tasks, the File Structure block, the
 `Interfaces → Produces` tables, 11 consumed-interface statements and ten rulings.
 
 Specs, in the order the plan's header names them:

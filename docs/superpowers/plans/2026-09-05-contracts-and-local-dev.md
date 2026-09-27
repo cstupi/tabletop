@@ -29,7 +29,7 @@
 - Events carry every state change they made; the applier copies and never derives, except three spec-backed clears: `round_started` clears the round's order, active team and passes; `turn_ended` clears the active team; and `step_completed` clears a roll's pending modifiers when the completed step records that roll (client shell → The connection and the projection).
 - JSON wire format: camelCase properties, string enums, `"kind"` type discriminator in snake_case, nulls omitted.
 - Local only: Postgres and MinIO in Docker; no AWS; no hosting (`architecture.md` → Deployment).
-- Commit after every task with a message in the repo's style (imperative, one line, no prefix), ending with the `Co-Authored-By` and `Claude-Session` trailers the session requires.
+- Commit after every task with a message in the repo's style (imperative, one line, no prefix), ending with the `Co-Authored-By` trailer naming the model.
 
 ## Key decisions
 
@@ -185,8 +185,7 @@ git add Tabletop.sln libs tests
 git commit -m "$(printf '%s\n' \
   'Add the three contract libraries and their test projects' \
   '' \
-  'Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>' \
-  'Claude-Session: <the session URL the environment gives this run>')"
+  'Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>')"
 ```
 
 **Every later task's commit takes the same two trailers** (Global Constraints); the tasks below print only the subject line.

@@ -258,7 +258,9 @@ small enough to return whole.
 ## Deliberately not decided
 
 - ~~Error shapes and status code conventions.~~ Settled 2026-09-05 by the management API plan:
-  RFC 7807 `application/problem+json`, and another owner's row is `404`.
+  RFC 7807 `application/problem+json`, and another owner's row is `404`. An unhandled exception is
+  also a problem document: `ArgumentOutOfRangeException` is `400`, `UnauthorizedAccessException`
+  is `401`, anything else is `500`. The web app and the client code against that.
 - Rate limiting.
 - ~~Whether `PATCH` on an army takes a whole document or a patch.~~ Settled 2026-09-05 by the
   management API plan: a patch, carrying a name, unit-default bindings (`UnitPatch`), and
