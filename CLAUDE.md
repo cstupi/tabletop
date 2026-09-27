@@ -30,7 +30,7 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   running. Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
   the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
   management 5100, game server 5200.
-- The management API needs the Stytch test project (`TabletopWar`, id in `.env.example`) configured in two ways
+- The management API needs the Stytch test project (id in `.env.example`) configured in two ways
   that live in the Stytch dashboard, not in this repo, and fail silently when missing: the `SESSION` custom
   claim template must be exactly `{"account_id": "{{ user.external_id }}"}` — without it every JWT lacks
   `account_id`, every authenticated management request answers 401 and the game server rejects every
