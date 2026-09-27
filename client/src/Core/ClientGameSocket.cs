@@ -31,10 +31,18 @@ public sealed class ClientGameSocket : IGameSocket
 
     public async Task CloseAsync()
     {
-        try { if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }
-        catch (WebSocketException) { }
-        _stop.Cancel();
-        RaiseClosed(new SocketClosed(1000, "bye", null));
+        try
+        {
+            await _sendGate.WaitAsync();
+            try { if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }
+            catch (Exception ex) when (ex is WebSocketException or InvalidOperationException or ObjectDisposedException) { }
+            finally { _sendGate.Release(); }
+        }
+        finally
+        {
+            _stop.Cancel();
+            RaiseClosed(new SocketClosed(1000, "bye", null));
+        }
     }
 
     async Task ReadLoopAsync()
@@ -58,7 +66,7 @@ public sealed class ClientGameSocket : IGameSocket
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is WebSocketException or System.Text.Json.JsonException or IOException) { RaiseClosed(new SocketClosed(null, ex.Message, ex)); }
+        catch (Exception ex) when (ex is WebSocketException or System.Text.Json.JsonException or IOException or ObjectDisposedException or InvalidOperationException) { RaiseClosed(new SocketClosed(null, ex.Message, ex)); }
     }
 
     void RaiseClosed(SocketClosed closed) { if (Interlocked.Exchange(ref _closedRaised, 1) == 0) Closed?.Invoke(closed); }
