@@ -170,7 +170,7 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 
 public class GameServerFactory : WebApplicationFactory<Program>
 {
-    public const string ProjectId = "project-test-437432c7-798d-49d2-9dc4-eff103937e0f";
+    public const string ProjectId = "project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43";
     public Action<IServiceCollection>? ConfigureTestServices { get; init; }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

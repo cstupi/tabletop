@@ -77,16 +77,13 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    web-app's and the client's.
 
 **Owner actions outstanding.** In the Stytch test project
-`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`: register `http://localhost:5173/reset-password`
-as a `RESET_PASSWORD` redirect URL (the registered ones are `http://localhost:3000/authenticate`,
-default for every type, and `https://tt.cstupi.com/authenticate`; the Stytch MCP call to add it was
-denied by the permission classifier), and confirm the `SESSION` custom claim template is
-`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. Then set the real secret with
-`cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>` (this machine holds a
-placeholder, set during the tree to run the migrator) and do the management plan's Task 5 Step 8 once:
-a manual login through `./scripts/management` against the real project with an emailed code, reading
-the JWT's claims at jwt.io. It is the only check that proves the claim template exists; the tree's tests
-use a fake Stytch.
+`project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
+as a `RESET_PASSWORD` redirect URL, and confirm the `SESSION` custom claim template is
+`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. The secret is set in this
+machine's user-secrets (`dotnet user-secrets set STYTCH_SECRET` from `server/management`) and `.env`
+carries the project id. Then do the management plan's Task 5 Step 8 once: a manual login through
+`./scripts/management` against the real project with an emailed code, reading the JWT's claims at
+jwt.io. It is the only check that proves the claim template exists; the tree's tests use a fake Stytch.
 
 ## The mode
 
@@ -381,10 +378,15 @@ Docker Desktop is running on the Windows host, and `docker: command not found` m
 `./scripts/godot -e`. No `pdftotext`, and headless Chrome cannot launch (missing `libnspr4`), so the
 rulebook's diagrams are read by extracting images with `pypdf` and Pillow.
 
-Stytch: project `TabletopWar`, vertical CONSUMER, test project
-`project-test-437432c7-798d-49d2-9dc4-eff103937e0f`. A live project exists and is unconfigured;
-nothing uses it. Its MCP tools are project configuration only, with no user management, so the
-Consumer user schema has to come from the docs. **Two pieces of Stytch configuration are
+Stytch: test project `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`, project domain
+`https://serious-chicory-4478.customers.stytch.dev` (the JWKS answers there and at
+`https://test.stytch.com`; the code uses the latter), public token
+`public-token-test-198e0eff-b710-4c13-8258-1187add70b1d` for the web app, unused until it exists. The
+code calls the Consumer API. The Stytch MCP tools are project configuration only, with no user
+management, so the Consumer user schema has to come from the docs. The local `stytch` MCP server
+cannot log in: Stytch's login server returns an `iss` that differs from its published issuer and
+Claude Code rejects the mismatch (RFC 9207); the `claude.ai Stytch` connector works but is signed into
+a workspace that does not hold this project. **Two pieces of Stytch configuration are
 load-bearing and not in the repo:** the `SESSION` claim template mapping `{{ user.external_id }}` to
 `account_id`, whose absence takes both services down with no error from Stytch; and a registered
 redirect URL for password resets.

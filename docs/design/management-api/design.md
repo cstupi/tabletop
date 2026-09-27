@@ -1608,7 +1608,7 @@ constraint (`docs/schema.md` → *`participant` links to its game, and holds the
 which this module's SQL depends on.
 
 **External, verified.** Stytch Consumer API reference, checked page by page against the test
-project `project-test-437432c7-798d-49d2-9dc4-eff103937e0f` at base `https://test.stytch.com`; the
+project `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43` at base `https://test.stytch.com`; the
 JWKS endpoint takes no credentials, which an unauthenticated `curl` shows. Army Forge
 `GET https://army-forge.onepagerules.com/api/tts?id=c2-6YsWRH3py` fetched live (`200`, 26 KB,
 `access-control-allow-origin: *`) and saved as the fixture.
