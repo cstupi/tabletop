@@ -74,4 +74,61 @@ public class PropertySetDocumentTests
         Assert.Contains(PropertiesJson.Validate(doc with { Entries = [.. doc.Entries, Spell(EffectKind.GrantProperty, EffectDuration.Interaction)] }),
             p => p.Contains("Bolt") && p.Contains("duration"));
     }
+
+    [Fact]
+    public void Roll_result_condition_must_have_exactly_two_values_with_second_raw_or_modified()
+    {
+        var doc = PropertiesJson.Parse(ApJson);
+        // Well-formed: ["defense", "raw"] validates clean
+        var wellFormed = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit", "raw"])], [])
+            ])
+        ]};
+        Assert.Empty(PropertiesJson.Validate(wellFormed));
+
+        // One value only: ["hit"]
+        var oneValue = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit"])], [])
+            ])
+        ]};
+        var problems = PropertiesJson.Validate(oneValue);
+        Assert.Contains(problems, p => p.Contains("Test") && p.Contains("roll_result") && p.Contains("values"));
+
+        // Invalid second value: ["hit", "modified_invalid"]
+        var badModifier = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit", "modified_invalid"])], [])
+            ])
+        ]};
+        var badProblems = PropertiesJson.Validate(badModifier);
+        Assert.Contains(badProblems, p => p.Contains("Test") && p.Contains("modifier"));
+
+        // Undeclared roll: ["unknown", "raw"]
+        var undeclaredRoll = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["unknown", "raw"])], [])
+            ])
+        ]};
+        var undeclaredProblems = PropertiesJson.Validate(undeclaredRoll);
+        Assert.Contains(undeclaredProblems, p => p.Contains("Test") && p.Contains("unknown"));
+    }
+
+    [Fact]
+    public void Rolls_named_raw_or_modified_are_reserved()
+    {
+        var doc = PropertiesJson.Parse(ApJson);
+        var withRawRoll = doc with { Rolls = [.. doc.Rolls, "raw"] };
+        var problems = PropertiesJson.Validate(withRawRoll);
+        Assert.Contains(problems, p => p.Contains("raw") && p.Contains("reserved"));
+
+        var withModifiedRoll = doc with { Rolls = [.. doc.Rolls, "modified"] };
+        var modifiedProblems = PropertiesJson.Validate(withModifiedRoll);
+        Assert.Contains(modifiedProblems, p => p.Contains("modified") && p.Contains("reserved"));
+    }
 }

@@ -48,6 +48,7 @@ public static class PropertiesJson
         var problems = new List<string>();
         var names = d.Entries.Select(e => e.Name).ToHashSet();
         if (names.Count != d.Entries.Count) problems.Add("entry names must be unique");
+        foreach (var r in d.Rolls.Where(r => r is "raw" or "modified")) problems.Add($"roll '{r}' is reserved");
         foreach (var e in d.Entries)
         {
             if ((e.Kind == CatalogKind.Model) != (e.Aggregation is not null)) problems.Add($"{e.Name}: aggregation is set exactly when kind is model");
@@ -76,6 +77,18 @@ public static class PropertiesJson
         if (f.Kind == EffectKind.Roll && f.Children.Count == 0) problems.Add(At("a roll needs a per-success child"));
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
+        foreach (var c in f.Conditions)
+        {
+            if (c.Kind == ConditionKind.RollResult)
+            {
+                if (c.Values.Count != 2) problems.Add(At($"roll_result condition has {c.Values.Count} values, need exactly 2"));
+                else
+                {
+                    if (!d.Rolls.Contains(c.Values[0])) problems.Add(At($"roll_result roll '{c.Values[0]}' is not declared"));
+                    if (c.Values[1] is not "raw" and not "modified") problems.Add(At($"roll_result modifier is '{c.Values[1]}', need 'raw' or 'modified'"));
+                }
+            }
+        }
         foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems);
     }
 
