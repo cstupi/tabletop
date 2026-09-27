@@ -1,0 +1,47 @@
+using Tabletop.Management.Http;
+
+namespace Tabletop.Management.Identity;
+
+public sealed record SessionResponse(string SessionJwt, AccountRow Account);
+public sealed record OtpSentResponse(string MethodId);
+
+/// <summary>After any Stytch authenticate: make sure the account exists and is linked to the Stytch user. The JWT's account_id comes from the project's claim template.</summary>
+public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
+{
+    public async Task<SessionResponse> Complete(StytchSession session)
+    {
+        var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
+        var jwt = session.SessionJwt;
+        Guid accountId;
+        if (Guid.TryParse(session.User.ExternalId, out var linked))
+        {
+            accountId = linked;
+            await accounts.Insert(accountId, name);                      // no-op when the row exists
+        }
+        else
+        {
+            accountId = Guid.CreateVersion7();
+            // Link first: if this throws, no row is ever inserted for this attempt, so a retry
+            // (a fresh v7 id) leaves nothing orphaned. If the row-insert or the re-mint below
+            // throws instead, the user is already linked, and the next login takes the branch
+            // above, which inserts the row that is missing — that is the self-heal.
+            await stytch.SetExternalId(session.User.UserId, accountId.ToString());
+            await accounts.Insert(accountId, name);
+            // The session above was minted before the user was linked, so its JWT has no account_id.
+            // Re-minting is the documented way to pick the template up ("You must authenticate again to update claims").
+            // First login only; every later login and every refresh skips this branch.
+            jwt = (await stytch.RefreshSession(jwt)).SessionJwt;
+        }
+        var account = await accounts.Get(accountId) ?? throw new InvalidOperationException("account vanished");
+        return new SessionResponse(jwt, account);
+    }
+
+    public static IResult Problem(StytchException e) => e.Status switch
+    {
+        401 or 404 => Results.Problem(title: "Unauthorized", detail: e.ErrorType, statusCode: 401),
+        _ when e.ErrorType == "duplicate_email" => Problems.Conflict("An account with that email already exists."),
+        429 => Problems.TooManyRequests(e.ErrorType),
+        >= 500 => Problems.BadGateway($"Stytch: {e.ErrorType}"),
+        _ => Problems.Unprocessable(e.ErrorType),
+    };
+}
