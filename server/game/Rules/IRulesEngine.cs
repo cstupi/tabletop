@@ -10,6 +10,9 @@ public sealed record Actor(Guid ParticipantId, Guid? TeamId);
 public sealed class GameState(GameInfo info, Board board, EventApplier applier, IGameRules rules)
 {
     public GameInfo Info { get; set; } = info;
+    /// <summary>The game's stored dice seed, generated once when the game row was created and never written again. The cursor is Dice.DiceCursor.
+    /// The column is bigint and the generator wants a ulong, so the sign bit is reinterpreted rather than clamped: every one of the 2^64 stored values is a distinct seed.</summary>
+    public ulong RngSeed { get; } = unchecked((ulong)info.RngSeed);
     public Board Board { get; } = board;
     public EventApplier Applier { get; } = applier;
     public Projection Projection => Applier.Projection;
