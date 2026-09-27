@@ -1,0 +1,43 @@
+using Tabletop.Client.Core;
+using Tabletop.Geometry;
+
+namespace Tabletop.Client.Tests;
+
+public class TerrainGeneratorTests
+{
+    static readonly TableSize Opr = new(72, 48);
+
+    [Theory] [InlineData(Planet.Generic)] [InlineData(Planet.Hospitable)] [InlineData(Planet.Wasteland)] [InlineData(Planet.Death)]
+    public void Nine_fixed_plus_4d3_rolled_land_beside_the_slab(Planet planet)
+    {
+        for (var seed = 0; seed < 20; seed++)
+        {
+            var batch = TerrainGenerators.Generate(planet, Opr, new Random(seed));
+            Assert.InRange(batch.Count, 9 + 4, 9 + 12);
+            Assert.All(batch, add => Assert.False(Table.ContainsPoint(Opr, add.Placement.Position.Horizontal)));
+            Assert.All(batch, add => Assert.True(add.Placement.Position.X >= Opr.Width + 4));
+            Assert.Equal(batch.Count, batch.Select(a => a.Placement.Id).Distinct().Count());
+            Assert.All(batch, add => Assert.NotEmpty(add.Placement.Volumes));
+        }
+    }
+
+    [Fact]
+    public void Generic_fixed_pieces_are_the_rulebooks_nine()
+    {
+        var fixedNames = TerrainGenerators.Fixed(Planet.Generic);
+        Assert.Equal(9, fixedNames.Count);
+        Assert.Equal(2, fixedNames.Count(n => n == "barricade"));
+        Assert.Equal(5, fixedNames.Count(n => n == "large-sight-blocker"));
+        Assert.Equal(["large-hill"], TerrainGenerators.Rolled(Planet.Generic, 2));
+        Assert.Equal(["large-hill"], TerrainGenerators.Rolled(Planet.Generic, 3));
+        Assert.Equal(["barricade"], TerrainGenerators.Rolled(Planet.Generic, 7));
+        Assert.Equal(["large-lake"], TerrainGenerators.Rolled(Planet.Generic, 12));
+        Assert.Equal(["hill", "forest", "tall-crops-field"], TerrainGenerators.Rolled(Planet.Hospitable, 7));   // "Hill, Forest, or Field"
+        Assert.Equal(["quicksand"], TerrainGenerators.Rolled(Planet.Death, 12));
+    }
+
+    [Fact]
+    public void The_same_seed_gives_the_same_batch() =>
+        Assert.Equal(TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin),
+                     TerrainGenerators.Generate(Planet.Wasteland, Opr, new Random(7)).Select(a => a.Placement.Mesh.Builtin));
+}
