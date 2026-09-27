@@ -16,4 +16,7 @@
     <ProjectReference Include="../../libs/Tabletop.Content/Tabletop.Content.csproj" />
     <ProjectReference Include="../../libs/Tabletop.Protocol/Tabletop.Protocol.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Content/*.properties.json" LogicalName="Tabletop.GameServer.Content.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>
