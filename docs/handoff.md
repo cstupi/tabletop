@@ -1,7 +1,8 @@
-# Handoff — 2026-09-27, step 2 merged
+# Handoff — 2026-09-27, paused mid step 3
 
-Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3, the web
-app, the client and the interpreter, is next.**
+Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3's three
+trees are dispatched and part-way through their plans, every commit reviewed, every worktree clean; their
+controllers died to the spend limit and are resumed by dispatching fresh ones from the briefs and ledgers.**
 
 ## State
 
@@ -10,6 +11,20 @@ Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan 
 management API (`f0d0223`, branch `management` kept, its worktree removed). On `main`, `dotnet build` is
 clean with no warnings and `dotnet test` passes 413 tests: Geometry 131, Content 17, Protocol 36,
 GameServer 149, Management 80. The two server suites need the compose stack up.
+
+**Step 3, in flight.** Three worktrees off `main` at `8b5d8b1`, one branch each, all clean, nothing
+uncommitted, no report written yet:
+
+| Tree | Worktree, branch | Head | Tasks complete | Was doing |
+| --- | --- | --- | --- | --- |
+| web app | `.worktrees/web-app`, `web-app` | `d05bc1b`, 10 commits | 1-9 of 17 | task 10 committed, its review not run |
+| client | `.worktrees/client-shell`, `client-shell` | `32ae44e`, 12 commits | 1-8 of 16 | task 9 fix round 1 committed, its scoped re-review not run |
+| interpreter | `.worktrees/interpreter`, `interpreter` | `49b6108`, 9 commits | 1-7 of 19 | task 8 committed, its review not run |
+
+Each tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete` lines say
+what not to redo, its rulings are binding on the rest of the tree, and its last lines say which review
+was in flight. The briefs are `.superpowers/briefs/common.md` plus `<tree>.md`. Test counts at the heads:
+web app `npm test` 40 passed 1 skipped; client 46; interpreter 448 across the game-server suite.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -41,17 +56,22 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 `2026-09-06-ruleset-3-5-1-design.md` (on the ruleset only) and `2026-09-09-open-questions-design.md`
 (on the twenty-five questions it names only).
 
-## Next: step 3
+## Next: resume step 3
 
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows. `.env` exists and carries the Stytch project id. Never `down -v` while a
    tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Step 3** is the web app, the client and the interpreter, together, each when its plan's
-   `Requires landed:` line is satisfied. Carry the geometry guard obligation below into the interpreter's
-   brief, the activate Ask ruling into the client's, and the management obligations below into the
-   web-app's and the client's.
+2. **Resume the three controllers.** For each tree, dispatch a fresh controller on `opus` with the prompt
+   "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from `.superpowers/ledgers/<tree>.md`;
+   the worktree is clean at the head named in the ledger; the review in flight was lost, redispatch it,
+   then continue". The briefs already carry every obligation the trees owe; nothing needs re-deriving.
+3. **Merge each tree when its report lands**, in any order: run the whole-tree check yourself from the
+   worktree, `git merge --no-ff <tree>` from the repo root, resolve `CLAUDE.md`, `Tabletop.sln` and
+   `.env.example` keep-both-sides (`dotnet sln add` for the projects), build and test on `main`, apply the
+   report's section 6 to the docs and section 7 to this file, remove the worktree, keep the branch.
+4. **Step 4** is the scheduler, once the interpreter has landed.
 
 **Owner actions outstanding.** In the Stytch test project
 `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
@@ -71,29 +91,32 @@ tree its own worktree, merge when a tree's whole-tree check is green under the m
 resolve the textual conflicts that are expected rather than wrong. Nothing else two concurrent trees
 write overlaps.
 
-How a tree runs. The manager forks one controller per plan and hands it a brief file
+How a tree runs. The manager dispatches one controller per plan, a fresh `opus` agent, never a fork of
+the session's own model, and hands it a brief file
 (`.superpowers/briefs/<tree>.md`): worktree path, model tiers (Haiku for implementers transcribing
 code the plan already contains, Sonnet for implementers working from prose and for task reviewers,
 Opus for the final review and fix-loop rounds 4-5), the commit-trailer rule, the hard limits (no
 merge, no push, no `docs/` edits, no worktree removal, no `docker compose down`) and the seven-section
 report contract (status; branch; whole-tree check; rulings; parked and deferred findings; docs
 corrections; obligations on later trees). The controller runs the SDD loop inside
-`.worktrees/<plan>` on branch `<plan>`; its ledger lives inside the worktree and dies with it, so the
-report is the record and the manager copies its sections 6 and 7 into `docs/` itself. The manager's
+`.worktrees/<plan>` on branch `<plan>`; its ledger is `.superpowers/ledgers/<plan>.md`, git-ignored and
+kept until the merge, and the report is the record: the manager copies its sections 6 and 7 into `docs/`
+itself. The manager's
 own ledger is `.superpowers/manager.md`. Each commit's `Co-Authored-By` names the model that produced
 it. `dotnet sln add` rewrites `Tabletop.sln` from CRLF to LF and adds x64/x86 rows.
 
 Spend limits are the failure mode. A `429` kills a controller and its live implementer mid-task;
 uncommitted files in the worktree are the dead implementer's partial work. Within the same session
-the fork resumes when messaged and picks up from its ledger. A new session cannot reach the old
-forks: dispatch a fresh controller with the brief and the ledger path, and the ledger's `complete`
-lines say what not to redo.
+the controller resumes when messaged and picks up from its ledger. A new session cannot reach the old
+controllers: dispatch a fresh one with the brief and the ledger path, and the ledger's `complete`
+lines say what not to redo. Every subagent names its model on dispatch; the session model never runs a
+tree.
 
 The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Landed.**
-3. web app, client, interpreter, together;
+3. web app, client, interpreter, together. **In flight**, see *State*.
 4. scheduler;
 5. simulator;
 6. viewer.
