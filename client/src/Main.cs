@@ -14,6 +14,7 @@ public partial class Main : Node
     public HttpClient Http { get; } = new();
     Node? _screen;
     string _settingsPath = "";
+    readonly GodotDispatcher _dispatcher = new();
 
     public override void _Ready()
     {
@@ -22,9 +23,9 @@ public partial class Main : Node
         _settingsPath = Path.Combine(userDir, "settings.json");
         var settings = ClientSettings.Load(_settingsPath);
         var store = new SessionStore(Path.Combine(userDir, "session.bin"));
-        Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), new GodotDispatcher());
+        Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         Cache = new AssetCache(Path.Combine(userDir, "cache"), Http);
-        Session.PhaseChanged += Route;
+        Session.PhaseChanged += () => _dispatcher.Post(Route);
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
         AddChild(refresh);
@@ -33,8 +34,8 @@ public partial class Main : Node
 
     async Task Boot()
     {
-        try { await Session.TryResumeAsync(); } catch (ManagementException e) { GD.PushWarning($"resume failed: {e.Message}"); }
-        Route();
+        try { await Session.TryResumeAsync(); } catch (Exception e) { GD.PushWarning($"resume failed: {e.Message}"); }
+        _dispatcher.Post(Route);
     }
 
     void Route()

@@ -39,5 +39,6 @@ public partial class LoginScreen : Control
         catch (UpdateRequiredException) { }                             // routed to the update screen
         catch (ManagementException e) { _error.Text = e.Status == 401 ? "Wrong email, password or code." : e.Message; }
         catch (HttpRequestException e) { _error.Text = $"Cannot reach {session.Settings.ManagementUrl}: {e.Message}"; }
+        catch (Exception e) { _error.Text = e.Message; }
     }
 }
