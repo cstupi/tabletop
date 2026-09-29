@@ -15,8 +15,8 @@ public partial class HomeScreen : Control
         var root = new VBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
         var top = new HBoxContainer(); root.AddChild(top);
         top.AddChild(new Label { Text = $"Signed in as {Main.Instance.Session.Account?.Name}" });
-        top.AddChild(Btn("Create game", () => _ = CreateDialog()));
-        top.AddChild(Btn("Sign out", () => _ = Main.Instance.Session.LogoutAsync()));
+        top.AddChild(Btn("Create game", () => Run(CreateDialog)));
+        top.AddChild(Btn("Sign out", () => Run(Main.Instance.Session.LogoutAsync)));
         var filters = new HBoxContainer(); root.AddChild(filters);
         filters.AddChild(_status = new OptionButton());
         _status.AddItem("Any status"); foreach (var s in Enum.GetNames<GameStatus>()) _status.AddItem(s);
@@ -24,11 +24,11 @@ public partial class HomeScreen : Control
         filters.AddChild(_search = new LineEdit { PlaceholderText = "name", CustomMinimumSize = new Vector2(200, 0) }); _search.TextChanged += _ => Render();
         filters.AddChild(_mine = new CheckBox { Text = "Created by me" }); _mine.Toggled += _ => Render();
         root.AddChild(_list = new ItemList { SizeFlagsVertical = SizeFlags.ExpandFill });
-        _list.ItemActivated += i => _ = Join(Visible()[(int)i].Id);
+        _list.ItemActivated += i => Run(() => Join(Filtered()[(int)i].Id));
         var bottom = new HBoxContainer(); root.AddChild(bottom);
-        bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) _ = Join(Visible()[sel[0]].Id); }));
-        bottom.AddChild(Btn("More", () => _ = LoadPage()));
-        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _ = LoadPage(); }));
+        bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) Run(() => Join(Filtered()[sel[0]].Id)); }));
+        bottom.AddChild(Btn("More", () => Run(LoadPage)));
+        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); _ = LoadPage(); }));
         root.AddChild(_error = new Label { Modulate = Colors.Orange });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
@@ -38,7 +38,15 @@ public partial class HomeScreen : Control
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 
-    new List<GameSummary> Visible()
+    async void Run(Func<Task> action)
+    {
+        try { await action(); }
+        catch (ManagementException e) { _error.Text = e.Message; }
+        catch (HttpRequestException e) { _error.Text = $"Cannot reach {Main.Instance.Session.Settings.ManagementUrl}: {e.Message}"; }
+        catch (Exception e) { _error.Text = e.Message; }
+    }
+
+    List<GameSummary> Filtered()
     {
         var me = Main.Instance.Session.Account?.Id;
         return _games.Where(g => (_status.Selected == 0 || g.Status.ToString() == _status.GetItemText(_status.Selected))
@@ -49,24 +57,20 @@ public partial class HomeScreen : Control
     void Render()
     {
         _list.Clear();
-        foreach (var g in Visible()) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
+        foreach (var g in Filtered()) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
     }
 
     async Task LoadPage()
     {
-        try
-        {
-            var page = await Main.Instance.Session.Management.ListGames(_next, 50);
-            _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next;
-            Render();
-        }
-        catch (ManagementException e) { _error.Text = e.Message; }
+        var page = await Main.Instance.Session.Management.ListGames(_next, 50);
+        _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next;
+        Render();
     }
 
     async Task Join(Guid gameId)
     {
-        try { await Main.Instance.Session.Management.JoinGame(gameId); await Main.Instance.Session.ConnectAsync(gameId); }
-        catch (ManagementException e) { _error.Text = e.Message; }
+        await Main.Instance.Session.Management.JoinGame(gameId);
+        await Main.Instance.Session.ConnectAsync(gameId);
     }
 
     async Task CreateDialog()
@@ -85,20 +89,27 @@ public partial class HomeScreen : Control
         dialog.Confirmed += async () =>
         {
             if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
-            try
+            var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
+            Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
+            if (armyId is { } id)
             {
-                var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
-                    shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
-                Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
-                if (armyId is { } id)
+                var gameId = game.Id;
+                void PickWhenConnected()
                 {
-                    void PickWhenConnected() { if (session.Phase == SessionPhase.Connected) { session.PhaseChanged -= PickWhenConnected; _ = session.SendEditAsync(new PickArmy(id)); } }
-                    session.PhaseChanged += PickWhenConnected;
+                    if (session.GameId != gameId) { session.PhaseChanged -= PickWhenConnected; return; }
+                    if (session.Phase == SessionPhase.Connected)
+                    {
+                        session.PhaseChanged -= PickWhenConnected;
+                        Run(() => session.SendEditAsync(new PickArmy(id)));
+                    }
                 }
-                await session.ConnectAsync(game.Id);
+                session.PhaseChanged += PickWhenConnected;
             }
-            catch (ManagementException e) { _error.Text = e.Message; }
+            await session.ConnectAsync(game.Id);
+            dialog.QueueFree();
         };
+        dialog.Canceled += () => dialog.QueueFree();
         AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320));
     }
 }
