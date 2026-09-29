@@ -14,7 +14,8 @@ public sealed partial class GrimdarkFutureRules
     private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences = new(() => new Sequence[]
     {
         GfRolls.RollOffSequence(),
-        // Tasks 12–17 add: GfAttack.DealWounds(), GfAttack.ResolveHits(), GfAttack.AttackSequence(), GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
+        GfAttack.DealWounds(),
+        // Tasks 13–17 add: GfAttack.ResolveHits(), GfAttack.AttackSequence(), GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
         // GfMoves.Rush(), GfMoves.DangerousTerrain(), GfMelee.Charge(), GfMelee.Melee(), GfMorale.MoraleTest(), GfCasting.Casting()
     }.ToDictionary(s => s.Name));
 
