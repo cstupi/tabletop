@@ -11,7 +11,7 @@ namespace Tabletop.Client.Panels;
 public partial class AskPanel : PanelContainer
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
-    readonly VBoxContainer _box = new(); readonly Label _title = new(), _note = new(); MoveRegionNode? _region;
+    readonly VBoxContainer _box = new(); readonly Label _title = new(), _note = new(), _refusalLabel = new() { Modulate = Colors.Orange }; MoveRegionNode? _region;
     Guid? _renderedAsk, _lastCommand; readonly List<Guid> _picked = new(); Dictionary<Guid, Point3>? _proposed;
     readonly HashSet<Guid> _sealed = new(); string? _revealed, _refusal; Guid? _refusalAsk;
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
@@ -22,7 +22,7 @@ public partial class AskPanel : PanelContainer
     public void Bind(Session s, TableView view, TableInput input)
     {
         _s = s; _view = view; _input = input;
-        AddChild(_box); _box.AddChild(_title); _box.AddChild(_note);
+        AddChild(_box); _box.AddChild(_title); _box.AddChild(_note); _box.AddChild(_refusalLabel);
         view.AddChild(_region = new MoveRegionNode());
         _onEvents = events => { Reveal(events); Render(); }; _onChanged = Render;
         _onRefused = r => { if (r.MessageId == _lastCommand) { _refusal = $"The server refused: {r.Detail}"; _refusalAsk = _renderedAsk; _renderedAsk = null; Render(); } };
@@ -48,7 +48,8 @@ public partial class AskPanel : PanelContainer
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
     }
 
-    void Render() { RenderAsk(); if (_refusal is not null) _note.Text = _note.Text.Length == 0 ? _refusal : $"{_refusal}\n{_note.Text}"; }
+    /// <summary>The refusal or send error has its own label, set (not appended) on every render, so N renders show it once.</summary>
+    void Render() { RenderAsk(); _refusalLabel.Text = _refusal ?? ""; }
 
     void RenderAsk()
     {
@@ -67,7 +68,8 @@ public partial class AskPanel : PanelContainer
         ClearControls(); Unhook(); _renderedAsk = mine.Ask.Id; _picked.Clear(); _proposed = null; _note.Text = ""; _revealed = null;
         _title.Text = mine.Ask.Prompt;
         foreach (var id in mine.Highlights) _view.PieceAt(id)?.SetHighlight(Palette.Selected);
-        if (mine.AutoPass) { Send(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})"; _box.AddChild(Btn("Unmute", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!)))); return; }
+        if (mine.AutoPass && _refusal is null) {   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
+            Send(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})"; _box.AddChild(Btn("Unmute", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!)))); return; }
         var names = new Names(game, p);
         switch (mine.Mode)
         {
@@ -233,14 +235,14 @@ public partial class AskPanel : PanelContainer
         }
     }
 
-    void Send(Ask ask, AskAnswer answer) => Guarded.Run(() => Answer(ask, answer), Report);
+    void Send(Ask ask, AskAnswer answer) => Guarded.Run(() => Answer(ask, answer), message => Report(ask.Id, message));
 
-    /// <summary>A failed send is logged and shown in the panel; nothing escapes into the engine.</summary>
-    void Report(string message)
+    /// <summary>A failed send is logged. If the Ask is still the one on screen, rebuild it from scratch (its hooks were dropped by the answer) and show the error; a later Ask is left alone.</summary>
+    void Report(Guid askId, string message)
     {
         GD.PushWarning($"Answer failed: {message}");
-        if (!IsInstanceValid(this)) return;
-        _note.Text = message; SetButtons(false);                                // the send never left: let the player try again
+        if (!IsInstanceValid(this) || _renderedAsk != askId) return;
+        _refusal = $"Could not send the answer: {message}"; _refusalAsk = askId; _renderedAsk = null; Render();
     }
 
     void SetButtons(bool disabled) { foreach (var b in _box.GetChildren().OfType<BaseButton>()) if (IsInstanceValid(b)) b.Disabled = disabled; }
@@ -252,6 +254,6 @@ public partial class AskPanel : PanelContainer
         _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
         await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer), _lastCommand.Value);
     }
-    void ClearControls() { ResetMove(); foreach (var c in _box.GetChildren()) if (c != _title && c != _note) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
+    void ClearControls() { ResetMove(); foreach (var c in _box.GetChildren()) if (c != _title && c != _note && c != _refusalLabel) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 }

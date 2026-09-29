@@ -109,6 +109,19 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
+    public async Task SendCommandAsync_uses_the_caller_s_id_and_the_plain_overload_mints_one()
+    {
+        var sock = await ConnectedAtPlaying();
+        var id = Guid.CreateVersion7();
+        Assert.Equal(id, await _s.SendCommandAsync(new Undo(1), id));
+        Assert.Equal(id, Assert.IsType<CommandMessage>(sock.Sent[^1]).CommandId);
+        var minted = await _s.SendCommandAsync(new Undo(1));
+        Assert.NotEqual(Guid.Empty, minted);
+        Assert.NotEqual(id, minted);
+        Assert.Equal(minted, Assert.IsType<CommandMessage>(sock.Sent[^1]).CommandId);
+    }
+
+    [Fact]
     public async Task Presence_pings_and_refusals_bypass_the_projection()
     {
         var sock = await ConnectedAtPlaying();
