@@ -1,4 +1,3 @@
-using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Scheduler;
@@ -6,18 +5,30 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-/// <summary>The interpreter plan's partial: sequences, rolls' conventions and thresholds, windows, and the scheduler's hooks.
-/// Every member throws until its own task fills it in (Tasks 11–17), except OrderReactions, ruled null until the scheduler
-/// plan implements it (R-F1).</summary>
+/// <summary>The interpreter plan's partial of GrimdarkFutureRules (identity is in the skeleton's GfRules.cs; the scheduler's hooks in GfRules.Scheduling.cs and GfRules.Deployment.cs). The sequence catalog fills in over Tasks 12–17.</summary>
 public sealed partial class GrimdarkFutureRules
 {
-    public Sequence Sequence(string name) => throw new NotImplementedException();
-    public string? ActionSequence(string actionName) => throw new NotImplementedException();
-    public RollSpec RollSpec(string roll) => throw new NotImplementedException();
-    public string HitRoll => throw new NotImplementedException();
-    public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => throw new NotImplementedException();
-    public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => throw new NotImplementedException();
-    public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => throw new NotImplementedException();
-    public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn) => throw new NotImplementedException();
+    /// <summary>A flagged interpretation, not a silent guess (action sequences → Rulings): the scope is the activation, so a caster that failed a spell may try it again in a later activation.</summary>
+    public const string OneTryPerSpellScope = "activation";
+
+    private readonly Lazy<IReadOnlyDictionary<string, Sequence>> _sequences = new(() => new Sequence[]
+    {
+        GfRolls.RollOffSequence(),
+        // Tasks 12–17 add: GfAttack.DealWounds(), GfAttack.ResolveHits(), GfAttack.AttackSequence(), GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
+        // GfMoves.Rush(), GfMoves.DangerousTerrain(), GfMelee.Charge(), GfMelee.Melee(), GfMorale.MoraleTest(), GfCasting.Casting()
+    }.ToDictionary(s => s.Name));
+
+    public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);
+    public string? ActionSequence(string actionName) => actionName switch
+    {
+        GfNames.Hold => GfNames.HoldSeq, GfNames.Advance => GfNames.AdvanceSeq, GfNames.Rush => GfNames.RushSeq, GfNames.Charge => GfNames.ChargeSeq,
+        _ => null,   // an out-of-set action accepted under warn/silent: recorded, no sequence
+    };
+    public RollSpec RollSpec(string roll) => GfRolls.Spec(roll);
+    public string HitRoll => GfNames.Hit;
+    public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => GfHooks.ReactionsAt(state, properties, point, frame);
+    public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfHooks.EndOfTurnSequences(state, properties, turn.Activation?.UnitId);
+    public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => round == 0 ? [] : GfHooks.OnRoundStarted(state, properties);
+    public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn) => GfHooks.OnTurnEnded(state, properties, turn);
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams) => null;
 }
