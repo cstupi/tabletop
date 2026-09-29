@@ -27,6 +27,16 @@ describe('convert', () => {
     const supported = await convert({ kind: 'miniature', files: [file('tests/fixtures/supported-binary.stl')] });
     expect(supported.supports.suspected).toBe(true);
   });
+  it('takes a forced up-axis for the recentre, so the other axis is the one floored', async () => {
+    const z = await convert({ kind: 'terrain', upAxis: 'z', files: [file('tests/fixtures/dense-binary.stl')] });
+    expect(z.bounds.min[2]).toBeCloseTo(0, 3);
+    expect(z.bounds.min[1]).toBeCloseTo(-20, 1);     // 40 long along Y, centred
+    expect(z.proposal.upAxis).toBe('z');
+    const y = await convert({ kind: 'terrain', upAxis: 'y', files: [file('tests/fixtures/dense-binary.stl')] });
+    expect(y.bounds.min[1]).toBeCloseTo(0, 3);
+    expect(y.bounds.min[2]).toBeLessThan(-1);
+    expect(y.proposal.upAxis).toBe('y');
+  });
   const real = 'tests/fixtures/real';
   it.skipIf(!existsSync(real))('converts every real STL dropped in tests/fixtures/real within budget', async () => {
     for (const name of readdirSync(real).filter((n) => n.toLowerCase().endsWith('.stl'))) {

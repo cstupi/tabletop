@@ -7,5 +7,6 @@ import type { Bounds } from './types';
 
 export function terrainVolume(b: Bounds, p: Pick<Proposal, 'scale' | 'orientation'>): Volume {
   const e = worldExtent(b, p);
-  return defaultVolume(e.width, e.length, e.height);
+  // `+ 0` turns a -0 from a symmetric extent into 0.
+  return defaultVolume(e.width, e.length, e.max[2], { x: (e.min[0] + e.max[0]) / 2 + 0, y: (e.min[1] + e.max[1]) / 2 + 0 }, e.min[2] + 0);
 }

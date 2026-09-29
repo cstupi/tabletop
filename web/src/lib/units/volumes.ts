@@ -16,5 +16,5 @@ export function formatDeclarations(set: Set<Declaration>): string {
 }
 
 /** Every terrain asset gets this at upload: the mesh's bounding box as one solid prism (geometry values → Where volumes come from). */
-export const defaultVolume = (width: number, length: number, top: number): Volume =>
-  ({ kind: 'solid', footprint: { kind: 'rect', a: width, b: length }, offset: { x: 0, y: 0 }, yaw: { degrees: 0 }, bottom: 0, top, declarations: 'none' });
+export const defaultVolume = (width: number, length: number, top: number, offset: { x: number; y: number } = { x: 0, y: 0 }, bottom = 0): Volume =>
+  ({ kind: 'solid', footprint: { kind: 'rect', a: width, b: length }, offset, yaw: { degrees: 0 }, bottom, top, declarations: 'none' });

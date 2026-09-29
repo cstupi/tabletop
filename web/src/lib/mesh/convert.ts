@@ -3,14 +3,14 @@ import type { Volume } from '$lib/api/types';
 import { terrainVolume } from './bounds';
 import { BUDGETS, decimate } from './decimate';
 import { exportGlb, readGlb } from './glb';
-import { type Proposal, guessUpAxis, propose, recentre } from './guess';
+import { type Proposal, type UpAxis, guessUpAxis, propose, recentre } from './guess';
 import { creasedNormals } from './normals';
 import { mergeSoups, parseStl } from './stl';
 import { type SupportReport, detectSupports } from './supports';
 import { type Bounds, bounds, triangleCount } from './types';
 import { weld } from './weld';
 
-export interface ConversionInput { kind: 'miniature' | 'terrain'; budget?: number; creaseAngle?: number; files: { name: string; bytes: ArrayBuffer }[] }
+export interface ConversionInput { kind: 'miniature' | 'terrain'; upAxis?: UpAxis; budget?: number; creaseAngle?: number; files: { name: string; bytes: ArrayBuffer }[] }
 export interface ConversionResult { glb: Uint8Array; trianglesBefore: number; trianglesAfter: number; bounds: Bounds; proposal: Proposal; supports: SupportReport; volume: Volume }
 export type Progress = { step: 'parse' | 'weld' | 'decimate' | 'normals' | 'export' | 'analyse' };
 
@@ -19,9 +19,9 @@ export async function convert(input: ConversionInput, onProgress: (p: Progress) 
   const soup = mergeSoups(input.files.map((f) => parseStl(f.bytes)));
   onProgress({ step: 'weld' });                                    // weld, then centre on the footprint (mesh conversion → What conversion does: Centre)
   const raw = weld(soup);
-  // One decision, taken before decimation and reused: the error ladder can move a near-cubic mesh's extremes far
+  // One decision, taken before decimation and reused (the caller may force it): the error ladder can move a near-cubic mesh's extremes far
   // enough to flip the tallest axis, which would centre and floor the mesh on one axis and record an orientation for another.
-  const upAxis = guessUpAxis(bounds(raw.positions));
+  const upAxis = input.upAxis ?? guessUpAxis(bounds(raw.positions));
   const welded = recentre(raw, upAxis);
   const trianglesBefore = triangleCount(welded);
   const supports = detectSupports(welded);                       // on the full mesh: decimation can merge thin pillars

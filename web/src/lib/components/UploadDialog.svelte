@@ -5,6 +5,7 @@
   import { BUDGETS } from '$lib/mesh/decimate';
   import { convertInWorker, describeGlb, type ConversionResult, type Progress } from '$lib/mesh/convert';
   import type { Bounds } from '$lib/mesh/types';
+  import type { UpAxis } from '$lib/mesh/guess';
   import { terrainVolume } from '$lib/mesh/bounds';
   import { classifyFiles, type Intake } from '$lib/upload/intake';
   import { upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
@@ -24,10 +25,11 @@
   let base = $state<Base | null>(circle(32));
   let meshBounds = $state<Bounds | null>(null);   // mesh-space bounds; the volume is derived from these at confirm, with the confirmed scale and orientation
   let previewed = $state(false); let outcome = $state<UploadOutcome | null>(null);
-  let convToken = $state(0); let seeded = $state(false);
+  let convToken = 0; let seeded = $state(false);
+  let forcedAxis = $state<UpAxis | null>(null);   // set by Stand up / lay flat on an STL, so the re-conversion re-centres on the axis the user chose
 
   async function onfiles(list: FileList | null) {
-    error = null; result = null; glbInfo = null; meshBounds = null;
+    error = null; result = null; glbInfo = null; meshBounds = null; forcedAxis = null;
     intake = classifyFiles(Array.from(list ?? []));
     if (intake.kind === 'rejected') { error = intake.reason; return; }
     name = intake.kind === 'stl' ? intake.files[0]!.name.replace(/\.stl$/i, '') : intake.file.name.replace(/\.[^.]+$/, '');
@@ -48,12 +50,17 @@
     const t = ++convToken;
     try {
       const files = await Promise.all(intake.files.map(async (f) => ({ name: f.name, bytes: await f.arrayBuffer() })));
-      const res = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files }, (p: Progress) => (progress = p.step));
+      const res = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files, ...(forcedAxis ? { upAxis: forcedAxis } : {}) }, (p: Progress) => (progress = p.step));
       if (t !== convToken) return;
       result = res; glb = res.glb; meshBounds = res.bounds;
       if (!seeded) { scale = res.proposal.scale; orientation = res.proposal.orientation; seeded = true; }
       stage = 'preview';
     } catch (e) { if (t === convToken) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; } }
+  }
+  function standUp() {
+    const pitch = orientation.pitch === 90 ? 0 : 90;
+    orientation = { ...orientation, pitch };
+    if (intake?.kind === 'stl') { forcedAxis = pitch === 90 ? 'y' : 'z'; void runConversion(); }   // a GLB has no conversion: only the pitch changes
   }
   function setKind(k: 'miniature' | 'terrain') {
     kind = k;
@@ -108,7 +115,7 @@
             <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label>
             <label>Roll <input type="number" step="15" bind:value={orientation.roll} /></label>
             <label>Yaw (facing) <input type="number" step="15" bind:value={orientation.yaw} /></label>
-            <button onclick={() => (orientation = { ...orientation, pitch: orientation.pitch === 90 ? 0 : 90 })}>Stand up / lay flat</button>
+            <button onclick={standUp} disabled={stage === 'uploading'}>Stand up / lay flat</button>
           </fieldset>
         {/if}
         {#if result}
