@@ -13,13 +13,13 @@
   const volumes = $derived(drafts.map(fromDraft));
   const errors = $derived(drafts.flatMap((d, i) => validate(d).map((e) => `Volume ${i + 1}: ${e}`)));
 
-  $effect(() => { api.assets.getVolumes(assetId).then((rows) => (drafts = rows.map((r) => toDraft(r.volume)))).catch((e) => (error = String(e))); });
+  $effect(() => { api.assets.getVolumes(assetId).then((rows) => (drafts = rows.map((r) => toDraft(r.volume)))).catch((e) => (error = e instanceof Error ? e.message : String(e))); });
 
   const add = () => { drafts = [...drafts, toDraft(defaultVolume(extent.width, extent.length, extent.height))]; selected = drafts.length - 1; };
   const duplicate = () => { if (drafts[selected]) { drafts = [...drafts, structuredClone($state.snapshot(drafts[selected]!))]; selected = drafts.length - 1; } };
   const remove = () => { drafts = drafts.filter((_, i) => i !== selected); selected = Math.max(0, selected - 1); };
-  const reset = async () => { const d = await describeGlb(glb); drafts = [toDraft(terrainVolume(d.bounds, { scale, orientation }))]; selected = 0; };
-  const save = () => api.assets.putVolumes(assetId, volumes).then(() => (saved = true)).catch((e) => (error = String(e)));
+  const reset = async () => { try { const d = await describeGlb(glb); drafts = [toDraft(terrainVolume(d.bounds, { scale, orientation }))]; selected = 0; } catch (e) { error = e instanceof Error ? e.message : String(e); } };
+  const save = () => api.assets.putVolumes(assetId, volumes).then(() => (saved = true)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const toggle = (d: VolumeDraft, name: (typeof DECLARATIONS)[number], on: boolean) => { const s = new Set(d.declarations); on ? s.add(name) : s.delete(name); d.declarations = s; };
 
   // drag the selected footprint: MeshPreview reports the table rectangle its top-down camera frames
@@ -40,7 +40,7 @@
   <div class="bar"><button onclick={add}>Add volume</button><button onclick={duplicate} disabled={!drafts[selected]}>Duplicate</button><button onclick={remove} disabled={!drafts[selected]}>Remove</button><button onclick={reset}>Reset to bounding box</button></div>
   <div class="volumes">
     {#each drafts as d, i}
-      <div class:selected={i === selected} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selected = i; } }} onclick={() => (selected = i)}>
+      <div class:selected={i === selected} role="button" tabindex="0" onkeydown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selected = i; } }} onclick={() => (selected = i)}>
         <select bind:value={d.kind}><option value="solid">solid</option><option value="area">area</option></select>
         <select bind:value={d.footprintKind}><option value="rect">rectangle</option><option value="circle">circle</option></select>
         {#if d.footprintKind === 'circle'}<label>radius <input type="number" step="0.25" bind:value={d.a} /></label>

@@ -17,6 +17,8 @@ describe('volume drafts', () => {
     expect(validate({ ...toDraft(v), top: 1 })).toContain('top must be above bottom');
     expect(validate({ ...toDraft(v), a: 0 })).toContain('dimensions must be positive');
     expect(validate({ ...toDraft(v), declarations: new Set(['see_in_and_out']) })).toContain('see in and out needs blocks line of sight');
+    expect(validate({ ...toDraft(v), bottom: null as unknown as number })).toContain('values must be numbers');
+    expect(validate({ ...toDraft(v), a: NaN })).toContain('values must be numbers');
   });
   it('maps a click in the top-down view to table coordinates', () => {
     // a 400×200 viewport showing x ∈ [-4, 4], y ∈ [-2, 2]: the centre is the origin, +y is up on screen

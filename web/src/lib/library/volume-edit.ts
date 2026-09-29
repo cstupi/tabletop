@@ -12,6 +12,7 @@ export function fromDraft(d: VolumeDraft): Volume {
 
 export function validate(d: VolumeDraft): string[] {
   const errors: string[] = [];
+  if (![d.a, d.b, d.offsetX, d.offsetY, d.yawDegrees, d.bottom, d.top].every(Number.isFinite)) errors.push('values must be numbers');
   if (!(d.top > d.bottom)) errors.push('top must be above bottom');
   if (!(d.a > 0) || (d.footprintKind === 'rect' && !(d.b > 0))) errors.push('dimensions must be positive');
   if (d.declarations.has('see_in_and_out') && !d.declarations.has('blocks_line_of_sight')) errors.push('see in and out needs blocks line of sight');
