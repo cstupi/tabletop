@@ -21,4 +21,11 @@ public static class Guarded
         try { await s.SendEditAsync(edit); }
         catch (Exception e) { GD.PushWarning($"Edit send failed: {e.Message}"); }
     }
+
+    /// <summary>A command send that fails is logged and reported, never thrown into the engine.</summary>
+    public static async void Command(Session s, Command command, Action<string> report)
+    {
+        try { await s.SendCommandAsync(command); }
+        catch (Exception e) { GD.PushWarning($"Command send failed: {e.Message}"); report(e.Message); }
+    }
 }

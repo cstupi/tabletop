@@ -46,6 +46,7 @@ public partial class GameScreen : Control
         if (_session is null) return;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.BoardChanged -= RefreshTeams; _session.EventsApplied -= _onEvents;
         _session.RefusedReceived -= _onRefused; _session.ConnectionLost -= _onLost;
+        FreePlayPanels();
     }
 
     public void Toast(string text)
