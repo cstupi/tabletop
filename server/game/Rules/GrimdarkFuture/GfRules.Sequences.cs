@@ -15,7 +15,9 @@ public sealed partial class GrimdarkFutureRules
     {
         GfRolls.RollOffSequence(),
         GfAttack.DealWounds(),
-        // Tasks 13–17 add: GfAttack.ResolveHits(), GfAttack.AttackSequence(), GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
+        GfAttack.AttackSequence(),
+        GfAttack.ResolveHits(),
+        // Tasks 14–17 add: GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
         // GfMoves.Rush(), GfMoves.DangerousTerrain(), GfMelee.Charge(), GfMelee.Melee(), GfMorale.MoraleTest(), GfCasting.Casting()
     }.ToDictionary(s => s.Name));
 
