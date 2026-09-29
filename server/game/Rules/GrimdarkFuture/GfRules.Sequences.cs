@@ -17,8 +17,12 @@ public sealed partial class GrimdarkFutureRules
         GfAttack.DealWounds(),
         GfAttack.AttackSequence(),
         GfAttack.ResolveHits(),
-        // Tasks 14–17 add: GfShooting.Shooting(), GfMoves.Hold(), GfMoves.Advance(),
-        // GfMoves.Rush(), GfMoves.DangerousTerrain(), GfMelee.Charge(), GfMelee.Melee(), GfMorale.MoraleTest(), GfCasting.Casting()
+        GfShooting.Shooting(),
+        GfMoves.Hold(),
+        GfMoves.Advance(),
+        GfMoves.Rush(),
+        GfMoves.DangerousTerrain(),
+        // Tasks 15–17 add: GfMelee.Charge(), GfMelee.Melee(), GfMorale.MoraleTest(), GfCasting.Casting()
     }.ToDictionary(s => s.Name));
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);

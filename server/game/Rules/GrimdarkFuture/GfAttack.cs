@@ -217,10 +217,10 @@ public static partial class GfAttack
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>
-    public sealed class PushStep(string name, string sequence) : IStep
+    public sealed class PushStep(string name, string sequence, Func<StepContext, SequenceContext>? context = null) : IStep
     {
         public string Name => name;
-        public StepOutcome Run(StepContext ctx) => ctx.History.Children.Any(ch => ch.Finished || ch.Abandoned) ? new Complete([]) : new Push(sequence, ctx.Frame.Context);
+        public StepOutcome Run(StepContext ctx) => ctx.History.Children.Any(ch => ch.Finished || ch.Abandoned) ? new Complete([]) : new Push(sequence, context?.Invoke(ctx) ?? ctx.Frame.Context);
     }
 
     /// <summary>
