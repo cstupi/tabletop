@@ -50,7 +50,7 @@
     if (box.isEmpty()) box.set(new THREE.Vector3(-1, -1, 0), new THREE.Vector3(1, 1, 1));
     const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, base?.a ?? 0, 0.5), aspect = canvas.clientWidth / canvas.clientHeight;
-    onmeasure?.({ width: size.x, length: size.y, height: size.z, frame: { minX: centre.x - radius * aspect, maxX: centre.x + radius * aspect, minY: centre.y - radius, maxY: centre.y + radius } });
+    if ((model.children.length > 0 || !glb) && onmeasure) onmeasure({ width: size.x, length: size.y, height: size.z, frame: { minX: centre.x - radius * aspect, maxX: centre.x + radius * aspect, minY: centre.y - radius, maxY: centre.y + radius } });
     if (mode === 'top') {
       const cam = new THREE.OrthographicCamera(-radius * aspect, radius * aspect, radius, -radius, 0.01, radius * 10);
       cam.position.set(centre.x, centre.y, box.max.z + radius); cam.up.set(0, 1, 0); cam.lookAt(centre.x, centre.y, 0); camera = cam;

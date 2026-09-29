@@ -24,9 +24,11 @@
   let base = $state<Base | null>(circle(32));
   let meshBounds = $state<Bounds | null>(null);   // mesh-space bounds; the volume is derived from these at confirm, with the confirmed scale and orientation
   let previewed = $state(false); let outcome = $state<UploadOutcome | null>(null);
+  let convToken = $state(0); let seeded = $state(false);
 
   async function onfiles(list: FileList | null) {
-    error = null; intake = classifyFiles(Array.from(list ?? []));
+    error = null; result = null; glbInfo = null; meshBounds = null;
+    intake = classifyFiles(Array.from(list ?? []));
     if (intake.kind === 'rejected') { error = intake.reason; return; }
     name = intake.kind === 'stl' ? intake.files[0]!.name.replace(/\.stl$/i, '') : intake.file.name.replace(/\.[^.]+$/, '');
     if (intake.kind === 'image') { kind = 'texture'; base = null; stage = 'preview'; previewed = true; return; }
@@ -35,20 +37,23 @@
         glb = new Uint8Array(await intake.file.arrayBuffer());
         const d = await describeGlb(glb); glbInfo = { triangles: d.triangles }; meshBounds = d.bounds;
         scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 };   // a dropped GLB gets no proposal; the user sets both
-        stage = 'preview'; return;
+        seeded = true; stage = 'preview'; return;
       } catch (e) { error = e instanceof Error ? e.message : String(e); return; }
     }
-    await runConversion();
+    seeded = false; await runConversion();
   }
   async function runConversion() {
     if (intake?.kind !== 'stl') return;
     stage = 'converting'; previewed = false;
+    const t = ++convToken;
     try {
       const files = await Promise.all(intake.files.map(async (f) => ({ name: f.name, bytes: await f.arrayBuffer() })));
-      result = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files }, (p: Progress) => (progress = p.step));
-      glb = result.glb; scale = result.proposal.scale; orientation = result.proposal.orientation; meshBounds = result.bounds;
+      const res = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files }, (p: Progress) => (progress = p.step));
+      if (t !== convToken) return;
+      result = res; glb = res.glb; meshBounds = res.bounds;
+      if (!seeded) { scale = res.proposal.scale; orientation = res.proposal.orientation; seeded = true; }
       stage = 'preview';
-    } catch (e) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; }
+    } catch (e) { if (t === convToken) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; } }
   }
   function setKind(k: 'miniature' | 'terrain') {
     kind = k;
@@ -84,12 +89,12 @@
   {:else if stage === 'preview' || stage === 'uploading'}
     <div class="preview">
       {#if kind !== 'texture'}
-        <MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} onerror={(m) => (error = m)} />
+        <MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} onerror={(m) => { error = m; previewed = false; }} />
       {:else}<p>Texture: {name}</p>{/if}
       <aside>
         <label>Name <input bind:value={name} /></label>
         <!-- the kinds this file can be: a mesh is a miniature or terrain, an image is a board texture. Management answers 415 for any other pairing. -->
-        <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={intake?.kind === 'image'}>
+        <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={intake?.kind === 'image' || stage === 'uploading'}>
           {#if intake?.kind === 'image'}<option value="texture">Board texture</option>
           {:else}<option value="miniature">Miniature</option><option value="terrain">Terrain</option>{/if}
         </select></label>
@@ -108,7 +113,7 @@
         {/if}
         {#if result}
           <p>{result.trianglesBefore.toLocaleString()} → {result.trianglesAfter.toLocaleString()} triangles</p>
-          <label>Budget <input type="number" step="1000" min="1000" bind:value={budget} onchange={() => void runConversion()} /></label>
+          <label>Budget <input type="number" step="1000" min="1000" bind:value={budget} onchange={() => void runConversion()} disabled={stage === 'uploading'} /></label>
           <p>Guessed millimetres, {result.proposal.upAxis.toUpperCase()} up. Check the model stands on the ring and faces the arrow.</p>
           {#if result.supports.suspected}
             <p role="alert">This file looks pre-supported: {result.supports.supportLike} thin, tall pieces stand under it. Supports are never removed here — please drop the unsupported file instead.</p>
