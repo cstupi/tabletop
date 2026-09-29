@@ -136,9 +136,11 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         await DisconnectAsync();
     }
 
-    public async Task<Guid> SendCommandAsync(Command command)
+    public Task<Guid> SendCommandAsync(Command command) => SendCommandAsync(command, Guid.CreateVersion7());
+
+    /// <summary>The caller names the message id, so it can match a Refused that arrives before the send's continuation runs.</summary>
+    public async Task<Guid> SendCommandAsync(Command command, Guid id)
     {
-        var id = Guid.CreateVersion7();
         if (_socket is not null) await _socket.SendAsync(new CommandMessage(id, command));
         return id;
     }

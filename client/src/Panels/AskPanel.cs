@@ -13,7 +13,7 @@ public partial class AskPanel : PanelContainer
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _box = new(); readonly Label _title = new(), _note = new(); MoveRegionNode? _region;
     Guid? _renderedAsk, _lastCommand; readonly List<Guid> _picked = new(); Dictionary<Guid, Point3>? _proposed;
-    readonly HashSet<Guid> _sealed = new(); string? _revealed;
+    readonly HashSet<Guid> _sealed = new(); string? _revealed, _refusal; Guid? _refusalAsk;
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
     // Session outlives this panel: every subscription is a field and comes off in _ExitTree. _unhook holds the per-Ask ones.
@@ -25,7 +25,7 @@ public partial class AskPanel : PanelContainer
         AddChild(_box); _box.AddChild(_title); _box.AddChild(_note);
         view.AddChild(_region = new MoveRegionNode());
         _onEvents = events => { Reveal(events); Render(); }; _onChanged = Render;
-        _onRefused = r => { if (r.MessageId == _lastCommand) { _note.Text = $"The server refused: {r.Detail}"; _renderedAsk = null; Render(); } };
+        _onRefused = r => { if (r.MessageId == _lastCommand) { _refusal = $"The server refused: {r.Detail}"; _refusalAsk = _renderedAsk; _renderedAsk = null; Render(); } };
         s.EventsApplied += _onEvents; s.GameChanged += _onChanged; s.BoardChanged += _onChanged; s.RefusedReceived += _onRefused;
         Render();
     }
@@ -35,16 +35,27 @@ public partial class AskPanel : PanelContainer
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.RefusedReceived -= _onRefused;
         Unhook();
-        if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
+        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; }
+        if (_region is not null && IsInstanceValid(_region)) { _region.Hide(); _region.QueueFree(); }
     }
 
-    void Unhook() { _unhook?.Invoke(); _unhook = null; }
+    void Unhook() { _unhook?.Invoke(); _unhook = null; ResetMove(); }
 
-    void Render()
+    /// <summary>A move Ask's table state, dropped whenever the Ask ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
+    void ResetMove()
+    {
+        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; }
+        if (_region is not null && IsInstanceValid(_region)) _region.Hide();
+    }
+
+    void Render() { RenderAsk(); if (_refusal is not null) _note.Text = _note.Text.Length == 0 ? _refusal : $"{_refusal}\n{_note.Text}"; }
+
+    void RenderAsk()
     {
         var p = _s.Projection; var game = _s.Game;
         if (p is null || game is null) return;
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
+        if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         if (mine is null)
         {
             ClearControls(); Unhook(); _renderedAsk = null; _region?.Hide();
@@ -60,7 +71,16 @@ public partial class AskPanel : PanelContainer
         var names = new Names(game, p);
         switch (mine.Mode)
         {
-            case AskMode.Choose: foreach (var c in ((Options)mine.Ask.Legal).Choices) _box.AddChild(Btn(c.Label, () => Send(mine.Ask, new Chosen(c.Id)))); break;
+            case AskMode.Choose:
+                foreach (var c in ((Options)mine.Ask.Legal).Choices)
+                {
+                    var b = Btn(c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
+                    var pieces = c.Pieces; var lit = mine.Highlights;
+                    b.MouseEntered += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(Palette.Selected); };
+                    b.MouseExited += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(lit.Contains(id) ? Palette.Selected : null); };
+                    _box.AddChild(b);
+                }
+                break;
             case AskMode.PickPieces:
                 var sel = (PieceSelection)mine.Ask.Legal; var count = new Label { Text = $"0 of {sel.Min}–{sel.Max}" }; _box.AddChild(count);
                 _input.PieceLeftClicked += OnPick; _unhook += () => _input.PieceLeftClicked -= OnPick;
@@ -131,6 +151,7 @@ public partial class AskPanel : PanelContainer
             if (p.Models.GetValueOrDefault(containerId)?.Location is not OnTable at)
             {
                 _note.Text = "The container is no longer on the table.";               // it was wrecked and shelved; the server will close this Ask
+                Unhook();
                 return;
             }
             var container = new PlacedModel(BodyOf(p, containerId), at.Placement);
@@ -144,7 +165,7 @@ public partial class AskPanel : PanelContainer
         }
         else
         {
-            if (lead.Location is not OnTable on) return;
+            if (lead.Location is not OnTable on) { Unhook(); return; }
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             var remaining = Math.Max(0, legal.Allowance - used);
@@ -154,8 +175,8 @@ public partial class AskPanel : PanelContainer
             _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position);
             OfferEmbark(ask, legal, p, names);
         }
-        _box.AddChild(Btn("Commit move", () => Send(ask, new Destinations(legal.ModelIds.Select(id =>
-            new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(_proposed![id], YawOf(p, id))))).ToList()))));
+        _box.AddChild(Btn("Commit move", () => { if (_proposed is null) return; Send(ask, new Destinations(legal.ModelIds.Select(id =>
+            new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(_proposed![id], YawOf(p, id))))).ToList())); }));
     }
 
     /// <summary>
@@ -181,7 +202,6 @@ public partial class AskPanel : PanelContainer
         }
     }
 
-    /// <summary>The yaw a destination keeps: the model's own if it has a placement, else the container's — an occupant has none (game flow → Inside a container).</summary>
     /// <summary>The facing the answer carries. A model on the table keeps its own. A disembarking model takes whatever fits at
     /// the point the player dropped it (p.7) — MoveRuler.ExitYawAt runs the same search that drew the region,
     /// so the answer is a placement the server accepts; the container's own facing is the fallback when nothing fits, which
@@ -219,18 +239,19 @@ public partial class AskPanel : PanelContainer
     void Report(string message)
     {
         GD.PushWarning($"Answer failed: {message}");
-        if (IsInstanceValid(this)) _note.Text = message;
+        if (!IsInstanceValid(this)) return;
+        _note.Text = message; SetButtons(false);                                // the send never left: let the player try again
     }
+
+    void SetButtons(bool disabled) { foreach (var b in _box.GetChildren().OfType<BaseButton>()) if (IsInstanceValid(b)) b.Disabled = disabled; }
 
     async Task Answer(Ask ask, AskAnswer answer)
     {
-        Unhook(); _input.Proposing.Clear(); _input.Allowance = null; _proposed = null;
+        SetButtons(true); Unhook(); _proposed = null;                           // one answer per Ask: no second click can double-send
         _view.ClearExitGhosts();                                              // the occupants go back to having no node until the event lands
-        var id = await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer));
-        if (!IsInstanceValid(this)) return;
-        _lastCommand = id;
-        if (_region is not null && IsInstanceValid(_region)) _region.Hide();
+        _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
+        await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer), _lastCommand.Value);
     }
-    void ClearControls() { foreach (var c in _box.GetChildren()) if (c != _title && c != _note) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
+    void ClearControls() { ResetMove(); foreach (var c in _box.GetChildren()) if (c != _title && c != _note) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 }
