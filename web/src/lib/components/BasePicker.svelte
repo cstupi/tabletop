@@ -12,12 +12,19 @@
   function pick(label: string) {
     choice = label;
     if (label === 'none') value = null;
-    else if (label === 'custom') applyCustom();
-    else value = BASE_PRESETS.find((p) => p.label === label)!.base;
+    else if (label === 'custom') {
+      if (value !== null) {
+        shape = value.shape;
+        aMm = round(inchesToMm(value.a), 1);
+        bMm = round(inchesToMm(value.b), 1);
+      }
+      applyCustom();
+    } else value = BASE_PRESETS.find((p) => p.label === label)!.base;
     if (label !== 'custom') onchangevalue?.(value);
   }
   function applyCustom() {
     const a = mmToInches(aMm), b = shape === 'circle' ? a : mmToInches(bMm);
+    if (!Number.isFinite(a) || a <= 0 || !Number.isFinite(b) || b <= 0) return;
     value = { shape, a, b };
     onchangevalue?.(value);
   }

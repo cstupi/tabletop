@@ -12,9 +12,9 @@
   import type { Base, Orientation, Volume } from '$lib/api/types';
   import { eulerFor } from '$lib/mesh/three-frame';
 
-  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], onmeasure }: {
+  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], onmeasure, onerror }: {
     glb: Uint8Array | null; scale: number; orientation: Orientation; base: Base | null;
-    mode?: 'orbit' | 'top'; volumes?: Volume[]; onmeasure?: (m: Measure) => void;
+    mode?: 'orbit' | 'top'; volumes?: Volume[]; onmeasure?: (m: Measure) => void; onerror?: (message: string) => void;
   } = $props();
 
   let canvas: HTMLCanvasElement;
@@ -24,6 +24,7 @@
   scene.add(model, overlay, new THREE.HemisphereLight(0xffffff, 0x444466, 1.2));
   const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(3, -4, 6); scene.add(sun);
   let renderer: THREE.WebGLRenderer, camera: THREE.Camera, controls: OrbitControls | null = null;
+  let loadToken = 0;
 
   function outline(points: THREE.Vector3[], color: number) { return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color })); }
   function ellipse(rx: number, ry: number, z = 0) { return Array.from({ length: 96 }, (_, i) => { const t = (i / 96) * 2 * Math.PI; return new THREE.Vector3(rx * Math.cos(t), ry * Math.sin(t), z); }); }
@@ -63,11 +64,20 @@
 
   async function load(bytes: Uint8Array | null) {
     model.clear();
+    const t = ++loadToken;
     if (bytes) {
-      const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, '');
-      model.add(gltf.scene);
+      try {
+        const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, '');
+        if (t === loadToken) model.add(gltf.scene);
+      } catch (e) {
+        if (t === loadToken) {
+          const message = e instanceof Error ? e.message : String(e);
+          if (onerror) onerror(message);
+          else console.error(message);
+        }
+      }
     }
-    applyTransform(); fit();
+    if (t === loadToken) { applyTransform(); fit(); }
   }
   function applyTransform() { const e = eulerFor(orientation); model.rotation.set(e.x, e.y, e.z, e.order); model.scale.setScalar(scale); drawOverlay(); }
 
