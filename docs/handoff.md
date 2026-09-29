@@ -1,8 +1,9 @@
-# Handoff — 2026-09-27, paused mid step 3
+# Handoff — 2026-09-28, paused mid step 3
 
-Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3's three
-trees are dispatched and part-way through their plans, every commit reviewed, every worktree clean; their
-controllers died to the spend limit and are resumed by dispatching fresh ones from the briefs and ledgers.**
+Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3: the web
+app tree is finished and checked, ready to merge; the client and interpreter trees are part-way through
+their plans, every commit reviewed, every worktree clean at a committed head. Fresh controllers resume
+each unfinished tree from its brief and ledger.**
 
 ## State
 
@@ -13,18 +14,25 @@ clean with no warnings and `dotnet test` passes 413 tests: Geometry 131, Content
 GameServer 149, Management 80. The two server suites need the compose stack up.
 
 **Step 3, in flight.** Three worktrees off `main` at `8b5d8b1`, one branch each, all clean, nothing
-uncommitted, no report written yet:
+uncommitted:
 
-| Tree | Worktree, branch | Head | Tasks complete | Was doing |
+| Tree | Worktree, branch | Head | Tasks complete | Next |
 | --- | --- | --- | --- | --- |
-| web app | `.worktrees/web-app`, `web-app` | `d05bc1b`, 10 commits | 1-9 of 17 | task 10 committed, its review not run |
-| client | `.worktrees/client-shell`, `client-shell` | `32ae44e`, 12 commits | 1-8 of 16 | task 9 fix round 1 committed, its scoped re-review not run |
-| interpreter | `.worktrees/interpreter`, `interpreter` | `49b6108`, 9 commits | 1-7 of 19 | task 8 committed, its review not run |
+| web app | `.worktrees/web-app`, `web-app` | `0d85d4e`, 28 commits | 17 of 17, whole-branch review closed | **merge**; report at `.superpowers/reports/web-app.md` |
+| client | `.worktrees/client-shell`, `client-shell` | `1451287`, 25 commits | 1-14 of 16 | task 15 implemented, its task review not run |
+| interpreter | `.worktrees/interpreter`, `interpreter` | `7748c26`, 19 commits | 1-13 of 19 | task 14 reviewed, its fix round 1 not run |
 
-Each tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete` lines say
-what not to redo, its rulings are binding on the rest of the tree, and its last lines say which review
-was in flight. The briefs are `.superpowers/briefs/common.md` plus `<tree>.md`. Test counts at the heads:
-web app `npm test` 40 passed 1 skipped; client 46; interpreter 448 across the game-server suite.
+The web app's whole-tree check is green under the manager's own run from its worktree root: `dotnet
+build` 0 warnings, `dotnet test` 413, `npm test` 62 passed 1 skipped, `svelte-check` 0 errors, `npm run
+build` wrote `build/index.html`. Its report's sections 6 and 7 are not yet applied to `docs/` or this file.
+
+Each unfinished tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete`
+lines say what not to redo, its rulings are binding on the rest of the tree, and its last line is a `RESUME`
+or `Resume:` line naming the exact next step, the head and the last test count. The briefs are
+`.superpowers/briefs/common.md` plus `<tree>.md`. The interpreter's rebuilt rulings for tasks 9 to 19, its
+implementer and reviewer contracts and the extracted rulebook are in `.superpowers/sdd/interpreter/`; the
+client's review packages are in `.superpowers/sdd/client-shell/`. Test counts at the heads: client 47
+(`tests/Tabletop.Client.Tests`); interpreter 244 in the game-server suite.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -60,18 +68,24 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
-   `docker compose up -d` follows. `.env` exists and carries the Stytch project id. Never `down -v` while a
-   tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
+   `docker compose up -d` follows from the repo root, never from a worktree (a worktree's compose file starts
+   a second stack on the same ports). `.env` exists and carries the Stytch project id. Never `down -v` while
+   a tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Resume the three controllers.** For each tree, dispatch a fresh controller on `opus` with the prompt
-   "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from `.superpowers/ledgers/<tree>.md`;
-   the worktree is clean at the head named in the ledger; the review in flight was lost, redispatch it,
-   then continue". The briefs already carry every obligation the trees owe; nothing needs re-deriving.
-3. **Merge each tree when its report lands**, in any order: run the whole-tree check yourself from the
-   worktree, `git merge --no-ff <tree>` from the repo root, resolve `CLAUDE.md`, `Tabletop.sln` and
-   `.env.example` keep-both-sides (`dotnet sln add` for the projects), build and test on `main`, apply the
-   report's section 6 to the docs and section 7 to this file, remove the worktree, keep the branch.
-4. **Step 4** is the scheduler, once the interpreter has landed.
+2. **Merge the web app.** From the repo root, `git merge --no-ff web-app`, resolve `CLAUDE.md`,
+   `Tabletop.sln` and `.env.example` keep-both-sides, build and test on `main`, apply the report's section 6
+   to the web-app plan README and task files, the mesh-conversion spec and this file's management
+   paragraph, and its section 7 to this file; remove the worktree, keep the branch. Its section 7 obligations
+   bind the client (refresh and sign-out rules, `MeshLoader.Orient` conventions, Base versus Footprint) and
+   the interpreter tree reads none of them.
+3. **Resume the two controllers.** For each of `client-shell` and `interpreter`, dispatch a fresh controller
+   on `opus` with the prompt "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from
+   `.superpowers/ledgers/<tree>.md`; the worktree is clean at the head named in its last line; do exactly what
+   that line says next, then continue". The briefs already carry every obligation the trees owe; nothing
+   needs re-deriving. A controller that is forced to hand back leaves the worktree clean at a committed head
+   and writes the resume point as the ledger's last line.
+4. **Merge each tree when its report lands**, as in step 2.
+5. **Step 4** is the scheduler, once the interpreter has landed.
 
 **Owner actions outstanding.** In the Stytch test project
 `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
