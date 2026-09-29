@@ -1,7 +1,60 @@
 <script lang="ts">
-  import type { Orientation } from '$lib/api/types';
+  import { api } from '$lib/api/client';
+  import type { Orientation, Volume } from '$lib/api/types';
+  import MeshPreview, { type Measure } from './MeshPreview.svelte';
+  import { fromDraft, screenToTable, toDraft, validate, type VolumeDraft } from '$lib/library/volume-edit';
+  import { DECLARATIONS, DECLARATION_LABELS, defaultVolume } from '$lib/units/volumes';
+  import { describeGlb } from '$lib/mesh/convert';
+  import { terrainVolume } from '$lib/mesh/bounds';
 
-  let { assetId, glb, scale, orientation }: {
-    assetId: string; glb: Uint8Array; scale: number; orientation: Orientation;
-  } = $props();
+  let { assetId, glb, scale, orientation }: { assetId: string; glb: Uint8Array; scale: number; orientation: Orientation } = $props();
+  let drafts = $state<VolumeDraft[]>([]); let selected = $state(0); let error = $state<string | null>(null); let saved = $state(false);
+  let extent = $state<Measure>({ width: 1, length: 1, height: 1, frame: { minX: -1, maxX: 1, minY: -1, maxY: 1 } });
+  const volumes = $derived(drafts.map(fromDraft));
+  const errors = $derived(drafts.flatMap((d, i) => validate(d).map((e) => `Volume ${i + 1}: ${e}`)));
+
+  $effect(() => { api.assets.getVolumes(assetId).then((rows) => (drafts = rows.map((r) => toDraft(r.volume)))).catch((e) => (error = String(e))); });
+
+  const add = () => { drafts = [...drafts, toDraft(defaultVolume(extent.width, extent.length, extent.height))]; selected = drafts.length - 1; };
+  const duplicate = () => { if (drafts[selected]) { drafts = [...drafts, structuredClone($state.snapshot(drafts[selected]!))]; selected = drafts.length - 1; } };
+  const remove = () => { drafts = drafts.filter((_, i) => i !== selected); selected = Math.max(0, selected - 1); };
+  const reset = async () => { const d = await describeGlb(glb); drafts = [toDraft(terrainVolume(d.bounds, { scale, orientation }))]; selected = 0; };
+  const save = () => api.assets.putVolumes(assetId, volumes).then(() => (saved = true)).catch((e) => (error = String(e)));
+  const toggle = (d: VolumeDraft, name: (typeof DECLARATIONS)[number], on: boolean) => { const s = new Set(d.declarations); on ? s.add(name) : s.delete(name); d.declarations = s; };
+
+  // drag the selected footprint: MeshPreview reports the table rectangle its top-down camera frames
+  let dragging = false;
+  function tableAt(e: PointerEvent) {
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return screenToTable(e.clientX - box.left, e.clientY - box.top, { width: box.width, height: box.height }, extent.frame);
+  }
+  function move(e: PointerEvent) { if (!dragging || !drafts[selected]) return; const p = tableAt(e); drafts[selected]!.offsetX = +p.x.toFixed(2); drafts[selected]!.offsetY = +p.y.toFixed(2); }
 </script>
+
+<section class="editor">
+  <h2>Collision volumes</h2>
+  <p>Gameplay runs on these prisms, not on the mesh. Orange is solid (stood on), green is area (stood inside). Drag the selected outline to move it.</p>
+  <div class="top" role="application" onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointerleave={() => (dragging = false)} onpointermove={move}>
+    <MeshPreview {glb} {scale} {orientation} base={null} mode="top" {volumes} highlight={selected} onmeasure={(e) => (extent = e)} />
+  </div>
+  <div class="bar"><button onclick={add}>Add volume</button><button onclick={duplicate} disabled={!drafts[selected]}>Duplicate</button><button onclick={remove} disabled={!drafts[selected]}>Remove</button><button onclick={reset}>Reset to bounding box</button></div>
+  <div class="volumes">
+    {#each drafts as d, i}
+      <div class:selected={i === selected} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selected = i; } }} onclick={() => (selected = i)}>
+        <select bind:value={d.kind}><option value="solid">solid</option><option value="area">area</option></select>
+        <select bind:value={d.footprintKind}><option value="rect">rectangle</option><option value="circle">circle</option></select>
+        {#if d.footprintKind === 'circle'}<label>radius <input type="number" step="0.25" bind:value={d.a} /></label>
+        {:else}<label>width <input type="number" step="0.25" bind:value={d.a} /></label><label>length <input type="number" step="0.25" bind:value={d.b} /></label>{/if}
+        <label>offset x <input type="number" step="0.25" bind:value={d.offsetX} /></label><label>y <input type="number" step="0.25" bind:value={d.offsetY} /></label>
+        <label>yaw <input type="number" step="15" bind:value={d.yawDegrees} /></label>
+        <label>bottom <input type="number" step="0.25" bind:value={d.bottom} /></label><label>top <input type="number" step="0.25" bind:value={d.top} /></label>
+        <fieldset><legend>Declares</legend>{#each DECLARATIONS as name}<label><input type="checkbox" checked={d.declarations.has(name)} onchange={(e) => toggle(d, name, e.currentTarget.checked)} /> {DECLARATION_LABELS[name]}</label>{/each}</fieldset>
+        <label>Notes <input bind:value={d.notes} placeholder="difficult when moving up, …" /></label>
+      </div>
+    {/each}
+  </div>
+  {#each errors as e}<p role="alert">{e}</p>{/each}
+  <button onclick={save} disabled={errors.length > 0 || drafts.length === 0}>Save volumes</button>{#if saved}<span>Saved.</span>{/if}
+  {#if error}<p role="alert">{error}</p>{/if}
+</section>
+<style>.top { height: 24rem; touch-action: none } .selected { outline: 2px solid #3399ff } .bar { display: flex; gap: .5rem } .volumes > div { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem; border-bottom: 1px solid #8884 }</style>

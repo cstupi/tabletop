@@ -12,9 +12,9 @@
   import type { Base, Orientation, Volume } from '$lib/api/types';
   import { eulerFor } from '$lib/mesh/three-frame';
 
-  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], onmeasure, onerror }: {
+  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], highlight, onmeasure, onerror }: {
     glb: Uint8Array | null; scale: number; orientation: Orientation; base: Base | null;
-    mode?: 'orbit' | 'top'; volumes?: Volume[]; onmeasure?: (m: Measure) => void; onerror?: (message: string) => void;
+    mode?: 'orbit' | 'top'; volumes?: Volume[]; highlight?: number; onmeasure?: (m: Measure) => void; onerror?: (message: string) => void;
   } = $props();
 
   let canvas: HTMLCanvasElement;
@@ -37,10 +37,12 @@
       overlay.add(outline(pts, 0x3399ff));
       overlay.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0.01), base.a * 0.75, 0x3399ff));
     }
-    for (const v of volumes) {
+    for (let i = 0; i < volumes.length; i++) {
+      const v = volumes[i]!;
       const g = new THREE.Group();
       const yaw = (v.yaw.degrees * Math.PI) / 180;
-      for (const z of [v.bottom, v.top]) g.add(outline(v.footprint.kind === 'circle' ? ellipse(v.footprint.a, v.footprint.a, z) : rect(v.footprint.a, v.footprint.b, z), v.kind === 'solid' ? 0xff8800 : 0x33cc66));
+      const color = i === highlight ? 0x3399ff : v.kind === 'solid' ? 0xff8800 : 0x33cc66;
+      for (const z of [v.bottom, v.top]) g.add(outline(v.footprint.kind === 'circle' ? ellipse(v.footprint.a, v.footprint.a, z) : rect(v.footprint.a, v.footprint.b, z), color));
       g.position.set(v.offset.x, v.offset.y, 0); g.rotation.z = yaw; overlay.add(g);
     }
   }
@@ -90,7 +92,7 @@
     return () => { cancelAnimationFrame(frame); observer.disconnect(); controls?.dispose(); renderer.dispose(); };
   });
   $effect(() => { void load(glb); });
-  $effect(() => { scale; orientation; base; volumes; if (renderer) { applyTransform(); fit(); } });
+  $effect(() => { scale; orientation; base; volumes; highlight; if (renderer) { applyTransform(); fit(); } });
 </script>
 
 <canvas bind:this={canvas} style="width: 100%; height: 100%; display: block; min-height: 20rem"></canvas>
