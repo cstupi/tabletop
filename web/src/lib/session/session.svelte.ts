@@ -45,7 +45,7 @@ class Session {
   }
 
   /** A fresh five-minute JWT from the long-lived Stytch session. False and signed out when management refuses;
-   *  false but still signed in when the request never reached it, so a dropped network is not a logout.
+   *  false but still signed in on any other failure (network, 429, 5xx), so those are not a logout.
    *  Overlapping callers share one request: restore() and the loop's first tick both fire on an expired token. */
   async refresh(): Promise<boolean> {
     const token = this.token;
@@ -58,7 +58,7 @@ class Session {
 
   private async run(token: string): Promise<boolean> {
     try { this.accept(await api.auth.refresh(token)); return true; }
-    catch (e) { if (e instanceof ApiError) this.clear(); return false; }
+    catch (e) { if (e instanceof ApiError && e.status === 401) this.clear(); return false; }
   }
 
   async logout() {

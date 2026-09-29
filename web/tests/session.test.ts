@@ -44,6 +44,15 @@ describe('session', () => {
     expect(session.account?.name).toBe('Clay');
   });
 
+  it('a non-401 API failure during refresh keeps the session', async () => {
+    store.set(STORAGE_KEY, JSON.stringify({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } }));
+    vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } });
+    await session.restore();
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(502, 'Upstream failure'));
+    expect(await session.refresh()).toBe(false);
+    expect(session.token).toBe('live');
+  });
+
   it('overlapping refreshes make one request', async () => {
     session.accept({ sessionJwt: 'old', account: { id: 'acc', name: 'Clay' } });
     const refresh = vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'new', account: { id: 'acc', name: 'Clay' } });
