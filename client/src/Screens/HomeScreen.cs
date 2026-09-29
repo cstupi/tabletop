@@ -28,12 +28,12 @@ public partial class HomeScreen : Control
         var bottom = new HBoxContainer(); root.AddChild(bottom);
         bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) Run(() => Join(Filtered()[sel[0]].Id)); }));
         bottom.AddChild(Btn("More", () => Run(LoadPage)));
-        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); _ = LoadPage(); }));
+        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); Run(LoadPage); }));
         root.AddChild(_error = new Label { Modulate = Colors.Orange });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
         if (Main.Instance.Session.LastCloseReason is { } why) _error.Text = $"Dropped from the last game: {why}";
-        _ = LoadPage();
+        Run(LoadPage);
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
@@ -86,7 +86,7 @@ public partial class HomeScreen : Control
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
         var waits = new CheckBox { Text = "Wait between steps" }; form.AddChild(waits);
         var army = new OptionButton(); army.AddItem("No army (watch)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
-        dialog.Confirmed += async () =>
+        dialog.Confirmed += () => Run(async () =>
         {
             if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
@@ -108,7 +108,7 @@ public partial class HomeScreen : Control
             }
             await session.ConnectAsync(game.Id);
             dialog.QueueFree();
-        };
+        });
         dialog.Canceled += () => dialog.QueueFree();
         AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320));
     }
