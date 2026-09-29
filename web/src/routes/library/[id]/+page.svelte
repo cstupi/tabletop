@@ -27,7 +27,7 @@
     } catch (e) { error = e instanceof Error ? e.message : String(e); }
   }
   $effect(() => { void load(); });
-  const numbersOk = $derived(asset?.kind === 'texture' || [scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite));
+  const numbersOk = $derived(asset?.kind === 'texture' || ([scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite) && scale > 0));
   const save = () => api.assets.patch(id, { name, scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }).then((a) => (asset = a)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const toggleFolder = (f: FolderDto, on: boolean) => (on ? api.folders.addAsset(f.id, id) : api.folders.removeAsset(f.id, id)).then(async () => { folders = await api.folders.list(); }).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const remove = async () => { if (confirm('Delete this asset? Armies pointing at it keep playing and draw the slot\'s hitbox instead.')) { try { await api.assets.delete(id); await goto('/library'); } catch (e) { error = e instanceof Error ? e.message : String(e); } } };
@@ -36,7 +36,7 @@
 {#if asset}
   <h1>{asset.name}</h1>
   <div class="layout">
-    <div class="view">{#if glb}<MeshPreview {glb} {scale} {orientation} {base} onerror={(m) => (error = m)} />{:else}<p>{asset.kind === 'texture' ? 'A board texture.' : 'No preview: the upload never completed.'}</p>{/if}</div>
+    <div class="view">{#if glb}<MeshPreview {glb} {scale} {orientation} {base} onerror={(m) => (error = m)} />{:else}<p>{asset.kind === 'texture' ? 'A board texture.' : error ? '' : 'No preview: the upload never completed.'}</p>{/if}</div>
     <aside>
       <label>Name <input bind:value={name} /></label>
       {#if asset.kind !== 'texture'}

@@ -23,8 +23,9 @@ export function compact(mesh: IndexedMesh): IndexedMesh {
   const [remap, unique] = MeshoptSimplifier.compactMesh(mesh.indices);
   const positions = new Float32Array(unique * 3);
   for (let v = 0; v < mesh.positions.length / 3; v++) {
-    const to = remap[v]!;
-    if (to === 0xffffffff) continue;
+    const to = remap[v];
+    // remap only covers 0..maxindex, so a vertex above the highest surviving index reads undefined, which is as unreferenced as 0xffffffff.
+    if (to === undefined || to === 0xffffffff) continue;
     positions.set(mesh.positions.subarray(v * 3, v * 3 + 3), to * 3);
   }
   // compactMesh has already rewritten mesh.indices in place through the remap; remapping them again would index the remap with

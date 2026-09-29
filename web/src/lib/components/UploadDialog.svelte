@@ -57,7 +57,7 @@
       stage = 'preview';
     } catch (e) { if (t === convToken) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; } }
   }
-  const numbersOk = $derived(kind === 'texture' || [scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite));
+  const numbersOk = $derived(kind === 'texture' || ([scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite) && scale > 0));
   function standUp() {
     const pitch = orientation.pitch === 90 ? 0 : 90;
     orientation = { ...orientation, pitch };

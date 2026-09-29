@@ -33,12 +33,18 @@ describe('guesses', () => {
   it('writes the bounding-box volume in inches, bottom 0, solid', () => {
     const b = bounds(recentre(load('cube-ascii.stl'), 'z').positions);   // convert recentres before it measures
     const s = 20 * (1 / 25.4);   // the asset row carries one scale; every consumer multiplies by it
-    expect(terrainVolume(b, propose(b))).toEqual({ kind: 'solid', footprint: { kind: 'rect', a: s, b: s }, offset: { x: 0, y: 0 }, yaw: { degrees: 0 }, bottom: 0, top: s, declarations: 'none' });
+    const v = terrainVolume(b, propose(b));
+    expect(v).toEqual({ kind: 'solid', footprint: { kind: 'rect', a: s, b: s }, offset: { x: 0, y: 0 }, yaw: { degrees: 0 }, bottom: 0, top: expect.closeTo(s, 8), declarations: 'none' });   // top is rounded to 1e-9
   });
   it('places the volume where the mesh is when the bounds are off-centre and above the floor', () => {
     const b = { min: [2, 4, 1], max: [6, 10, 5] } as Bounds;
     const v = terrainVolume(b, { scale: 1, orientation: { pitch: 0, yaw: 0, roll: 0 } });
     expect(v).toMatchObject({ footprint: { kind: 'rect', a: 4, b: 6 }, offset: { x: 4, y: 7 }, bottom: 1, top: 5 });
+  });
+  it('stores exact placement for a pitch-90 mesh: mesh y becomes table z, mesh z becomes table -y', () => {
+    const b = { min: [2, 4, 1], max: [6, 10, 5] } as Bounds;
+    const v = terrainVolume(b, { scale: 1, orientation: { pitch: 90, yaw: 0, roll: 0 } });
+    expect(v).toMatchObject({ offset: { x: 4, y: -3 }, bottom: 4, top: 10 });
   });
 });
 

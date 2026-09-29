@@ -27,6 +27,29 @@ describe('decimate', () => {
     expect(triangleCount(shaded)).toBeLessThanOrEqual(BUDGETS.miniature);
     for (const i of shaded.indices) expect(i).toBeLessThan(shaded.positions.length / 3);
   });
+  it('keeps every surviving vertex at its own position when the highest-indexed vertices are collapsed away', async () => {
+    const n = 21, pos: number[] = [];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) pos.push(x, y, 0);
+    const swap = (a: number, b: number) => { for (let k = 0; k < 3; k++) { const t = pos[a * 3 + k]!; pos[a * 3 + k] = pos[b * 3 + k]!; pos[b * 3 + k] = t; } };
+    const last = n * n - 1, centre = 10 * n + 10;
+    swap(last, centre);                                                    // the interior centre now has the highest index; the corner has the centre's old one
+    const at = new Map(pos.map((_, i) => i).filter((i) => i % 3 === 0).map((i) => [`${pos[i]},${pos[i + 1]}`, i / 3]));
+    const idx: number[] = [];
+    for (let y = 0; y < n - 1; y++) for (let x = 0; x < n - 1; x++) {
+      const a = at.get(`${x},${y}`)!, b = at.get(`${x + 1},${y}`)!, c = at.get(`${x + 1},${y + 1}`)!, d = at.get(`${x},${y + 1}`)!;
+      idx.push(a, b, c, a, c, d);
+    }
+    const input = { positions: Float32Array.from(pos), indices: Uint32Array.from(idx) };
+    const out = await decimate(input, 50);
+    expect(triangleCount(out)).toBeLessThanOrEqual(50);
+    const original = new Set<string>(); for (let v = 0; v < n * n; v++) original.add(`${pos[v * 3]},${pos[v * 3 + 1]},${pos[v * 3 + 2]}`);
+    const kept = new Set<string>();
+    for (const i of out.indices) kept.add(`${out.positions[i * 3]},${out.positions[i * 3 + 1]},${out.positions[i * 3 + 2]}`);
+    for (const k of kept) expect(original.has(k)).toBe(true);
+    const b = bounds(out.positions);
+    expect([b.min[0], b.min[1], b.max[0], b.max[1]]).toEqual([0, 0, n - 1, n - 1]);   // all four corners survive at their own positions
+    for (const corner of ['0,0,0', `${n - 1},0,0`, `0,${n - 1},0`, `${n - 1},${n - 1},0`]) expect(kept.has(corner)).toBe(true);
+  });
   it('leaves a mesh under budget alone', async () => {
     const cube = load('cube-ascii.stl');
     expect(await decimate(cube, BUDGETS.terrain)).toBe(cube);
