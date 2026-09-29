@@ -54,16 +54,20 @@ public static class Battlefield
     }
 
     /// <summary>
-    /// p.11's terrain half, counted and not judged: living models whose base centre is inside a volume declared `Cover`. The test
-    /// is the base centre inside the volume, so this is `Containment.VolumesContaining` rather than a whole-base test, and it reads
-    /// the same way for a single-model unit as for a squad. What fraction of the unit has to be in cover is the ruleset's number and
-    /// lives in `GfRolls.InCover`.
+    /// p.11's terrain half, counted and not judged: living models inside a volume declared `Cover`. Which test a model has to pass is
+    /// the ruleset's call, because the book words it differently by unit size: `wholeBase` counts models whose whole base is inside
+    /// (`Cover.InsideCoverVolumes`, the multi-model wording "fully inside"), otherwise a model counts when its base centre is inside
+    /// (`Containment.VolumesContaining`, standing for the single-model wording "mostly inside"). What fraction of the unit has to be
+    /// in cover is likewise the ruleset's and lives in `GfRolls.InCover`. "Behind a sight blocker" is not counted here; the sight
+    /// half is `ModelsVisibleFrom`.
     /// </summary>
-    public static int ModelsInCoverTerrain(GameState state, Guid unitId)
+    public static int ModelsInCoverTerrain(GameState state, Guid unitId, bool wholeBase)
     {
         var terrain = Terrain(state);
         return Effects.Lookup.LivingModels(state, unitId).Count(id =>
-            Containment.VolumesContaining(Placed(state, id)!.Value, terrain).Any(v => terrain.First(t => t.Id == v).Volume.Declarations.HasFlag(TerrainDeclarations.Cover)));
+            wholeBase
+                ? Cover.InsideCoverVolumes(Placed(state, id)!.Value, terrain).Count > 0
+                : Containment.VolumesContaining(Placed(state, id)!.Value, terrain).Any(v => terrain.First(t => t.Id == v).Volume.Declarations.HasFlag(TerrainDeclarations.Cover)));
     }
 
     /// <summary>

@@ -22,11 +22,11 @@ public static class Armies
                 weapons.Select(w => w with { Id = Guid.CreateVersion7() }).ToList())).ToList());
 
     /// <summary>A playing game: two armies, every model deployed in a row at the given x, one inch apart along y.</summary>
-    public static GameState State(IReadOnlyList<Unit> team1, IReadOnlyList<Unit> team2, double x1 = -12, double x2 = 12, Enforcement enforcement = Enforcement.Warn, bool waits = false)
+    public static GameState State(IReadOnlyList<Unit> team1, IReadOnlyList<Unit> team2, double x1 = -12, double x2 = 12, Enforcement enforcement = Enforcement.Warn, bool waits = false, IReadOnlyList<TerrainPlacement>? terrain = null)
     {
         var info = Tabletop.Protocol.Tests.Samples.Game with { Enforcement = enforcement, WaitsBetweenSteps = waits,
             Participants = [new Participant(Tabletop.Protocol.Tests.Samples.P1, Guid.CreateVersion7(), "Clay", Tabletop.Protocol.Tests.Samples.Team1, null), new Participant(P2, Guid.CreateVersion7(), "Opponent", Tabletop.Protocol.Tests.Samples.Team2, null)] };
-        var board = new Board(Tabletop.Content.Tests.TableStateTests.Sample() with { Terrain = [] },
+        var board = new Board(Tabletop.Content.Tests.TableStateTests.Sample() with { Terrain = terrain ?? [] },
             [new ArmyInPlay(Tabletop.Protocol.Tests.Samples.P1, new ArmySnapshot(Guid.CreateVersion7(), "One", "grimdark-future", team1)), new ArmyInPlay(P2, new ArmySnapshot(Guid.CreateVersion7(), "Two", "grimdark-future", team2))]);
         var applier = new EventApplier(board, info);
         var moves = new List<ModelRelocation>();

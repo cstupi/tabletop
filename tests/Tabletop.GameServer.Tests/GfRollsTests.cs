@@ -206,8 +206,36 @@ public class GfRollsTests
         var state = State([a], [b], x1: -6, x2: 6);
         Assert.True(Battlefield.CanSee(state, a.Models[0].Id, b.Models[0].Id));
         Assert.InRange(Battlefield.Distance(state, a.Models[0].Id, b.Models[0].Id), 10.0, 12.0);   // 12" centre to centre, less the two bases
-        Assert.Equal((0, 2), (Battlefield.ModelsInCoverTerrain(state, b.Id), Battlefield.ModelsVisibleFrom(state, b.Id, [a.Models[0].Id])));
+        Assert.Equal((0, 2), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsVisibleFrom(state, b.Id, [a.Models[0].Id])));
         Assert.False(GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                                 // nobody in terrain, both models seen: neither clause of p.11's majority
         Assert.Empty(Battlefield.TerrainUnder(state, b.Id));
+    }
+
+    /// <summary>A Cover area spanning x -5..5 and y -30..edgeY, so a model in the x = 0 column is fully inside when its base clears edgeY.</summary>
+    static Tabletop.Content.TerrainPlacement CoverUpTo(double edgeY) =>
+        new(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("forest"), new Tabletop.Geometry.Point3(0, (edgeY - 30) / 2, 0), new Tabletop.Geometry.Yaw(0), 1.0,
+            [new Tabletop.Content.TerrainVolume(Guid.CreateVersion7(), new Tabletop.Geometry.Volume(Tabletop.Geometry.VolumeKind.Area, Tabletop.Geometry.Footprint.Rect(10, edgeY + 30), new Tabletop.Geometry.Point2(0, 0), new Tabletop.Geometry.Yaw(0), 0, 3, Tabletop.Geometry.TerrainDeclarations.Cover, null))]);
+
+    // Models of a unit sit at y = -18.5, -17, -15.5, -14 with a 0.63 radius, so an edge at -15.2 has three centres inside and two whole bases.
+    [Theory]
+    [InlineData(-15.2, 3, 2, false)]   // third model straddles: centre in, base not fully in
+    [InlineData(-13.8, 4, 3, true)]
+    [InlineData(-13.0, 4, 4, true)]
+    [InlineData(-17.5, 1, 1, false)]
+    public void Cover_terrain_is_counted_by_centre_or_by_whole_base_and_in_cover_needs_a_strict_majority(double edgeY, int byCentre, int byBase, bool inCover)
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 4, []);
+        var state = State([a], [b], x1: -12, x2: 0, terrain: [CoverUpTo(edgeY)]);
+        Assert.Equal((byCentre, byBase), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true)));
+        Assert.Equal(inCover, GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                     // a multi-model unit is judged by whole bases: 2 of 4 is not a majority, 3 of 4 is
+    }
+
+    [Fact]
+    public void A_single_model_straddling_cover_terrain_is_in_cover_by_its_centre()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, []);
+        var state = State([a], [b], x1: -12, x2: 4.9, terrain: [CoverUpTo(-13)]);                 // x = 4.9: centre inside x -5..5, base past it
+        Assert.Equal((1, 0), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true)));
+        Assert.True(GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                               // p.11: single-model units need only be "mostly inside"
     }
 }

@@ -61,8 +61,9 @@ public static class GfRolls
     /// p.11's *"If the majority of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*, one
     /// majority over the target unit's models applied to two facts. A majority is strictly more than half, so five of ten is not
     /// one: the book's word governs, and half or more is not a majority.
-    /// Terrain cover is a majority of the unit's models with a base centre inside a `Cover` volume, which for a single-model unit
-    /// is that model's own centre. Sight cover is the attacker seeing fewer than half of them, which is the same majority read
+    /// Terrain cover is a majority of the unit's models inside a `Cover` volume, tested the way the book words it for the unit's
+    /// size: whole base inside ("fully inside") for a multi-model unit, base centre inside (standing for "mostly inside") for a
+    /// single-model unit, sized by starting size so a squad reduced to one model is still judged as a squad. Sight cover is the attacker seeing fewer than half of them, which is the same majority read
     /// from the other side: fewer than half seen is more than half hidden. Either clause is enough. The fraction is a ruleset
     /// number, so it is here and `Battlefield` only counts.
     /// </summary>
@@ -70,7 +71,7 @@ public static class GfRolls
     {
         var models = Lookup.LivingModels(state, targetUnit).Count;
         if (models == 0) return false;
-        return Battlefield.ModelsInCoverTerrain(state, targetUnit) * 2 > models
+        return Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase: GfHooks.StartingSize(state, targetUnit) > 1) * 2 > models
             || Battlefield.ModelsVisibleFrom(state, targetUnit, attackerModels) * 2 < models;
     }
 

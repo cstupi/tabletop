@@ -14,6 +14,7 @@ public static class GfHooks
         var changes = new List<StateChange>();
         foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Fatigued)))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Fatigued, false));
+        // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
         foreach (var m in state.Projection.Models.Values)
             if (Lookup.ModelParameter(state, m.Id, GfNames.Caster) is { } x && x > 0) changes.Add(new SpellTokensSet(m.Id, Math.Min(GfNames.TokenCap, m.SpellTokens + x)));
         return changes;
@@ -49,7 +50,7 @@ public static class GfHooks
         if (start == 1)
         {
             var model = state.Projection.Units[unitId].Definition.Models[0];
-            var tough = Lookup.ModelParameter(state, model.Id, "Tough") ?? 1;
+            var tough = Lookup.ModelParameter(state, model.Id, GfNames.Tough) ?? 1;
             var remaining = state.Projection.Models[model.Id].Location is not OnShelf ? tough - state.Projection.Models[model.Id].Wounds : 0;
             return remaining * 2 <= tough;
         }
@@ -76,7 +77,7 @@ public static class GfHooks
     {
         if (point != GfNames.BeforeAttacking || frame.Context.ActorUnitId is not { } unit) return [];
         if (state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return [];   // p.10: no active special rules while Shaken
-        var casters = Lookup.AliveModels(state, unit).Where(m => state.Projection.Models[m].SpellTokens > 0 && Lookup.ModelParameter(state, m, "Caster") is not null).ToList();   // p.15: a caster inside a container may still cast at what is inside with it
+        var casters = Lookup.AliveModels(state, unit).Where(m => state.Projection.Models[m].SpellTokens > 0 && Lookup.ModelParameter(state, m, GfNames.Caster) is not null).ToList();   // p.15: a caster inside a container may still cast at what is inside with it
         if (casters.Count == 0 || Teams.Of(state, unit) is not { } team) return [];
         return [new Reaction(team, "cast", "Cast a spell", GfNames.CastingSeq, new SequenceContext(unit, [], [], null))];
     }
