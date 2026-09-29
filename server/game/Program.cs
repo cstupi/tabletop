@@ -1,6 +1,8 @@
 using Npgsql;
 using Tabletop.GameServer.Auth;
 using Tabletop.GameServer.Configuration;
+using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Engine;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
@@ -19,7 +21,9 @@ builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection));
 builder.Services.AddSingleton<IGameRows, PostgresGameRows>();
 builder.Services.AddSingleton<IEventLog, PostgresEventLog>();
-builder.Services.AddSingleton<IRulesEngineFactory, InertEngineFactory>();
+builder.Services.AddSingleton<IDiceSource, DiceSource>();
+builder.Services.AddSingleton<ISchedulerFactory, NoSchedulerFactory>();   // the scheduler plan replaces this registration
+builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
 builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>();
 builder.Services.AddSingleton<PropertiesSeeder>();
 builder.Services.AddSingleton<SessionServices>();

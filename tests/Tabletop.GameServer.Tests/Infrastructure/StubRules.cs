@@ -37,3 +37,20 @@ public sealed class LambdaStep(string name, Func<StepContext, StepOutcome> run) 
     public string Name => name;
     public StepOutcome Run(StepContext ctx) => run(ctx);
 }
+
+/// <summary>Another ruleset plus a few sequences resolved first: how a test parks a parent frame the child reads from.</summary>
+public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : IGameRules
+{
+    public static Sequence Parent(string name, params string[] steps) =>
+        new(name, steps.Select(s => (IStep)new LambdaStep(s, _ => throw new InvalidOperationException($"{name}: a parked parent never runs"))).ToList());
+    public string Id => inner.Id;
+    public string HitRoll => inner.HitRoll;
+    public Sequence Sequence(string name) => extra.FirstOrDefault(s => s.Name == name) ?? inner.Sequence(name);
+    public string? ActionSequence(string actionName) => inner.ActionSequence(actionName);
+    public RollSpec RollSpec(string roll) => inner.RollSpec(roll);
+    public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => inner.ReactionsAt(state, properties, point, frame);
+    public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, Scheduler.TurnContext turn) => inner.EndOfTurnSequences(state, properties, turn);
+    public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => inner.OnRoundStarted(state, properties, round);
+    public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, Scheduler.TurnContext turn) => inner.OnTurnEnded(state, properties, turn);
+    public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams) => inner.OrderReactions(state, actorTeam, reactingTeams);
+}
