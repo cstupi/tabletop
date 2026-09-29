@@ -27,6 +27,11 @@ describe('convert', () => {
     const supported = await convert({ kind: 'miniature', files: [file('tests/fixtures/supported-binary.stl')] });
     expect(supported.supports.suspected).toBe(true);
   });
+  it('converts an over-budget miniature: decimated indices stay inside the vertex buffer', async () => {
+    const r = await convert({ kind: 'miniature', files: [file('tests/fixtures/dense-binary.stl')] });
+    expect(r.trianglesAfter).toBeLessThanOrEqual(15_000);
+    expect((await describeGlb(r.glb)).triangles).toBe(r.trianglesAfter);
+  });
   it('takes a forced up-axis for the recentre, so the other axis is the one floored', async () => {
     const z = await convert({ kind: 'terrain', upAxis: 'z', files: [file('tests/fixtures/dense-binary.stl')] });
     expect(z.bounds.min[2]).toBeCloseTo(0, 3);

@@ -18,7 +18,7 @@ export async function decimate(mesh: IndexedMesh, budgetTriangles: number): Prom
   return compact({ positions: mesh.positions, indices: best });
 }
 
-/** Drops vertices no triangle references any more. */
+/** Drops vertices no triangle references any more. Rewrites `mesh.indices` in place (meshoptimizer's compactMesh does). */
 export function compact(mesh: IndexedMesh): IndexedMesh {
   const [remap, unique] = MeshoptSimplifier.compactMesh(mesh.indices);
   const positions = new Float32Array(unique * 3);
@@ -27,7 +27,7 @@ export function compact(mesh: IndexedMesh): IndexedMesh {
     if (to === 0xffffffff) continue;
     positions.set(mesh.positions.subarray(v * 3, v * 3 + 3), to * 3);
   }
-  const indices = new Uint32Array(mesh.indices.length);
-  for (let i = 0; i < indices.length; i++) indices[i] = remap[mesh.indices[i]!]!;
-  return { positions, indices };
+  // compactMesh has already rewritten mesh.indices in place through the remap; remapping them again would index the remap with
+  // new ids (unreferenced vertices map to 0xffffffff), so the caller's array is the result.
+  return { positions, indices: mesh.indices };
 }

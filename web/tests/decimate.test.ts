@@ -19,6 +19,14 @@ describe('decimate', () => {
     expect(b.max[1]! - b.min[1]!).toBeCloseTo(40, 0);
     expect(out.positions.length / 3).toBeLessThan(dense.positions.length / 3);          // compacted
   });
+  it('keeps every decimated index inside the vertex buffer, through creasedNormals', async () => {
+    const out = await decimate(load('dense-binary.stl'), BUDGETS.miniature);
+    const vertices = out.positions.length / 3;
+    for (const i of out.indices) expect(i).toBeLessThan(vertices);
+    const shaded = creasedNormals(out, 60);
+    expect(triangleCount(shaded)).toBeLessThanOrEqual(BUDGETS.miniature);
+    for (const i of shaded.indices) expect(i).toBeLessThan(shaded.positions.length / 3);
+  });
   it('leaves a mesh under budget alone', async () => {
     const cube = load('cube-ascii.stl');
     expect(await decimate(cube, BUDGETS.terrain)).toBe(cube);
