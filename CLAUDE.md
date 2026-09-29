@@ -39,7 +39,7 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   machine with `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`; a real login through
   `./scripts/management` and a look at the JWT's claims is the only check that the template is in place.
 
-`.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection("Postgres")]` need the Docker Postgres up.
+`.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection("Postgres")]` need the Docker Postgres up. Node 24 for `web/` comes from mise (`~/.local/share/mise`) in WSL; `npm`, exact versions (`web/.npmrc`).
 
 ## Commands
 
@@ -52,6 +52,8 @@ cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO
 dotnet run --project server/game   # the game server on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
 ./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret)
 cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine; never in a file
+./scripts/web                # the web app on http://localhost:5173 (Vite; /v1 proxied to management on :5100)
+cd web && npm test           # Vitest: the API client, session, units, the mesh pipeline against tests/fixtures
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -80,8 +82,7 @@ Three kinds of top-level directory:
   `tests/Tabletop.GameServer.Tests`. What sits behind the rules seam is listed by the children below; with none, the
   engine is `InertEngine`.
 - `server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack.
-- `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
-  browser, the account, and login. Does not exist yet.
+- `web/` — the Svelte SPA (SvelteKit 2 + Svelte 5, `adapter-static`, `ssr = false`). `src/lib/api/` is the typed client over management's `/v1`; `src/lib/mesh/` is the STL → GLB pipeline (`meshoptimizer`, `@gltf-transform/core`), headless under Vitest and in a Web Worker in the page; `src/lib/components/` holds the three.js preview, the upload dialog and the volume editor; `src/routes/` are the pages. Node 24 via mise; `npm`, exact versions (`.npmrc`).
 - `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
   in-process driver or a real socket, and records a projection per event. Does not exist yet.
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
@@ -116,3 +117,4 @@ Each module is designed before it is built.
 - Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free
   `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it.
 - Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`; management writes them at creation and at end/leave/delete (management plan → Rows by writer).
+- The web app speaks inches to the API; millimetres exist only in its UI (`src/lib/units/`). It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
