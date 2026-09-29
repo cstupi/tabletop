@@ -14,8 +14,9 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
-        RerollDice r => Find(state, r.FrameId, r.RollId) is not null ? Legality.Legal : Legality.Illegal,
-        SetDice s => Find(state, s.FrameId, s.RollId) is not null ? Legality.Legal : Legality.Illegal,
+        RerollDice r => Find(state, r.FrameId, r.RollId) is { } rec && DistinctInRange(r.DiceIndices, rec.Dice.Count) ? Legality.Legal : Legality.Illegal,
+        SetDice s => Find(state, s.FrameId, s.RollId) is { } rec && DistinctInRange(s.Dice.Select(d => d.Index).ToList(), rec.Dice.Count)
+            && s.Dice.All(d => d.Raw >= 1 && d.Raw <= PlanOf(rec).Convention.Sides) ? Legality.Legal : Legality.Illegal,
         AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll) ? Legality.Legal : Legality.Illegal,
         _ => Legality.Illegal,
     };
@@ -48,6 +49,8 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
         if (state.Projection.Stack.Count > 0) return Interpreter.Advance(state);
         return scheduler.Advance(state, Interpreter);
     }
+
+    static bool DistinctInRange(IReadOnlyList<int> indices, int count) => indices.All(i => i >= 0 && i < count) && indices.Distinct().Count() == indices.Count;
 
     static RollRecord? Find(GameState state, Guid frameId, Guid rollId) =>
         state.Projection.Stack.FirstOrDefault(f => f.Id == frameId)?.Steps.SelectMany(s => s.Rolls).FirstOrDefault(r => r.Id == rollId);

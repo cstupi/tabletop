@@ -41,6 +41,27 @@ public class RulesEngineTests
     }
 
     [Fact]
+    public void Dice_commands_naming_a_missing_or_repeated_die_or_an_impossible_face_are_illegal()
+    {
+        var sim = Make();
+        sim.Start("roller", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        var roll = sim.Steps("roll").Single().Rolls.Single();
+        var clay = new Actor(Samples.P1, Samples.Team1);
+        Legality Judge(Command c) => sim.Engine.Judge(sim.State, c, clay);
+
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [roll.Dice.Count])));
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [-1])));
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [0, 0])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(roll.Dice.Count, 3)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(-1, 3)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 3), new DieValue(0, 4)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 0)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 7)])));
+        Assert.Equal(Legality.Legal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 6), new DieValue(1, 1)])));
+    }
+
+    [Fact]
     public void Reroll_set_dice_and_add_modifier_are_judged_and_executed_against_the_frame()
     {
         var sim = Make();
