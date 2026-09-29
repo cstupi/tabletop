@@ -10,18 +10,22 @@
   const id = $derived(page.params.id!);
   let asset = $state<AssetDto | null>(null); let folders = $state<FolderDto[]>([]); let glb = $state<Uint8Array | null>(null); let error = $state<string | null>(null);
   let name = $state(''); let scale = $state(1); let orientation = $state({ pitch: 0, yaw: 0, roll: 0 }); let base = $state<Base | null>(null);   // never undefined: MeshPreview and BasePicker take Base | null
+  let loadToken = $state(0);
 
   async function load() {
+    glb = null; error = null;
+    const t = ++loadToken;
     try {
-      asset = await api.assets.get(id); folders = await api.folders.list();
+      asset = await api.assets.get(id); if (t !== loadToken) return;
+      folders = await api.folders.list(); if (t !== loadToken) return;
       ({ name, scale, orientation } = asset); base = asset.modelledBase ?? null;
-      if (asset.uploaded && asset.contentType === 'model/gltf-binary') glb = new Uint8Array(await (await fetch((await api.assets.download(id)).url)).arrayBuffer());
+      if (asset.uploaded && asset.contentType === 'model/gltf-binary') { glb = new Uint8Array(await (await fetch((await api.assets.download(id)).url)).arrayBuffer()); if (t !== loadToken) return; }
     } catch (e) { error = e instanceof Error ? e.message : String(e); }
   }
   $effect(() => { void load(); });
-  const save = () => api.assets.patch(id, { name, scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }).then((a) => (asset = a)).catch((e) => (error = String(e)));
-  const toggleFolder = (f: FolderDto, on: boolean) => (on ? api.folders.addAsset(f.id, id) : api.folders.removeAsset(f.id, id)).then(async () => { folders = await api.folders.list(); }).catch((e) => (error = String(e)));
-  const remove = async () => { if (confirm('Delete this asset? Armies pointing at it keep playing and draw the slot\'s hitbox instead.')) { await api.assets.delete(id); await goto('/library'); } };
+  const save = () => api.assets.patch(id, { name, scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }).then((a) => (asset = a)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
+  const toggleFolder = (f: FolderDto, on: boolean) => (on ? api.folders.addAsset(f.id, id) : api.folders.removeAsset(f.id, id)).then(async () => { folders = await api.folders.list(); }).catch((e) => (error = e instanceof Error ? e.message : String(e)));
+  const remove = async () => { if (confirm('Delete this asset? Armies pointing at it keep playing and draw the slot\'s hitbox instead.')) { try { await api.assets.delete(id); await goto('/library'); } catch (e) { error = e instanceof Error ? e.message : String(e); } } };
 </script>
 
 {#if asset}

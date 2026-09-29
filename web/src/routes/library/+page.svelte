@@ -24,13 +24,14 @@
   }
   $effect(() => { void loadAll(); });
   const act = (fn: () => Promise<unknown>) => fn().then(loadAll).catch((e) => (error = e instanceof Error ? e.message : String(e)));
+  const actFolder = (fn: () => Promise<unknown>) => fn().then(async () => { folders = await api.folders.list(); error = null; }).catch((e) => (error = e instanceof Error ? e.message : String(e)));
 </script>
 
 <h1>Library</h1>
 <div class="layout">
   <FolderTree {folders} selected={selected} onselect={(id) => goto(id ? `/library?folder=${id}` : '/library')}
-    oncreate={(p, name) => act(() => api.folders.create({ name, parentId: p }))} onrename={(id, name) => act(() => api.folders.patch(id, { name, parentId: folders.find((f) => f.id === id)?.parentId ?? null }))}
-    onmove={(id, parentId) => act(() => api.folders.patch(id, { name: folders.find((f) => f.id === id)!.name, parentId }))} ondelete={(id) => act(() => api.folders.delete(id))} />
+    oncreate={(p, name) => actFolder(() => api.folders.create({ name, parentId: p }))} onrename={(id, name) => actFolder(() => api.folders.patch(id, { name, parentId: folders.find((f) => f.id === id)?.parentId ?? null }))}
+    onmove={(id, parentId) => actFolder(() => api.folders.patch(id, { name: folders.find((f) => f.id === id)!.name, parentId }))} ondelete={(id) => actFolder(() => api.folders.delete(id))} />
   <section>
     <div class="bar">
       <button onclick={() => (uploading = true)}>Add STL / GLB / texture</button>

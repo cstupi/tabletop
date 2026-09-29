@@ -12,7 +12,7 @@
 </script>
 
 {#snippet node(n: FolderNode)}
-  <li draggable="true" ondragstart={() => (dragging = n.folder.id)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.stopPropagation(); if (dragging && dragging !== n.folder.id) onmove(dragging, n.folder.id); dragging = null; }}>
+  <li draggable="true" ondragstart={(e) => { e.stopPropagation(); dragging = n.folder.id; }} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.stopPropagation(); if (dragging && dragging !== n.folder.id) onmove(dragging, n.folder.id); dragging = null; }}>
     <button class:selected={selected === n.folder.id} onclick={() => onselect(n.folder.id)}>{n.folder.name} <small>({n.folder.assetIds.length})</small></button>
     <button title="New sub-folder" onclick={() => create(n.folder.id)}>+</button>
     <button title="Rename" onclick={() => rename(n.folder)}>✎</button>
