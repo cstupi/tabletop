@@ -7,11 +7,23 @@ namespace Tabletop.Client.Panels;
 /// <summary>Lobby edits: written to the game's rows, broadcast, never logged. Shown at lobby and setup.</summary>
 public partial class LobbyPanel : VBoxContainer
 {
-    Label _error = null!;
+    Label _error = null!; Button? _endSetup; Session _session = null!; Action? _onBoard;
+
+    public override void _ExitTree()
+    {
+        if (_session is null || _onBoard is null) return;
+        _session.BoardChanged -= _onBoard;
+    }
+
+    static string EndText(Session s)
+    {
+        var off = s.Draft is { } d ? d.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(d.Size, t.Position.Horizontal)) : 0;   // the game server's DropOffSlab rule
+        return off == 0 ? "End setup" : $"End setup ({off} off-slab pieces will be dropped)";
+    }
 
     public override void _Ready()
     {
-        var s = Main.Instance.Session; var game = s.Game!;
+        var s = _session = Main.Instance.Session; var game = s.Game!;
         AddChild(new Label { Text = "Lobby" });
         var teams = new HBoxContainer(); AddChild(teams);
         foreach (var t in game.Teams) teams.AddChild(Btn($"Join team {t.Ordinal}", () => Guarded.Send(s, new PickTeam(t.Id))));
@@ -38,8 +50,9 @@ public partial class LobbyPanel : VBoxContainer
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
-            var off = s.Draft?.Terrain.Count(t => !Tabletop.Geometry.Table.ContainsPoint(s.Draft.Size, t.Position.Horizontal)) ?? 0;   // the game server's DropOffSlab rule
-            AddChild(Btn(off == 0 ? "End setup" : $"End setup ({off} off-slab pieces will be dropped)", () => Guarded.Send(s, new EndSetup())));
+            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, new EndSetup())));
+            _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
+            s.BoardChanged += _onBoard;
         }
     }
 

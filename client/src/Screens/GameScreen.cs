@@ -50,7 +50,7 @@ public partial class GameScreen : Control
 
     public void Toast(string text)
     {
-        if (!IsInstanceValid(_toast)) return;
+        if (!IsInstanceValid(_toast) || !IsInsideTree()) return;
         _toast.Text = text;
         GetTree().CreateTimer(4).Timeout += () => { if (IsInstanceValid(_toast) && _toast.Text == text) _toast.Text = ""; };
     }

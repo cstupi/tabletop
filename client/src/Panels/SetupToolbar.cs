@@ -11,14 +11,14 @@ namespace Tabletop.Client.Panels;
 public partial class SetupToolbar : VBoxContainer
 {
     readonly GameScreen _screen;
-    Session _session = null!; VBoxContainer _selected = null!;
-    Action? _onSelection;
+    Session _session = null!; VBoxContainer _selected = null!; SpinBox _width = null!, _length = null!;
+    Action? _onSelection, _onBoard;
     public SetupToolbar(GameScreen screen) => _screen = screen;
 
     public override void _ExitTree()
     {
         if (_session is null) return;
-        _screen.Input.SelectionChanged -= _onSelection; _session.BoardChanged -= _onSelection;
+        _screen.Input.SelectionChanged -= _onSelection; _session.BoardChanged -= _onBoard;
     }
 
     public override void _Ready()
@@ -27,7 +27,7 @@ public partial class SetupToolbar : VBoxContainer
         AddChild(new Label { Text = "Setup" });
 
         var size = new HBoxContainer(); AddChild(size);
-        var width = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Width, Suffix = "\"" }; var length = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Length, Suffix = "\"" };
+        var width = _width = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Length, Suffix = "\"" };
         size.AddChild(width); size.AddChild(length);
         size.AddChild(Btn("Set size", () => Guarded.Send(s, new SetTableSize(new TableSize(width.Value, length.Value)))));
 
@@ -61,7 +61,12 @@ public partial class SetupToolbar : VBoxContainer
         AddChild(new Label { Text = "Selected placement" });
         _selected = new VBoxContainer(); AddChild(_selected);
         _onSelection = () => RenderSelected(s, _selected);
-        _screen.Input.SelectionChanged += _onSelection; s.BoardChanged += _onSelection;   // a draft edit changes what the selected piece shows
+        _onBoard = () =>
+        {
+            if (s.Draft is { } d && !_width.HasFocus() && !_length.HasFocus()) { _width.SetValueNoSignal(d.Size.Width); _length.SetValueNoSignal(d.Size.Length); }
+            RenderSelected(s, _selected);
+        };
+        _screen.Input.SelectionChanged += _onSelection; s.BoardChanged += _onBoard;   // a draft edit changes what the selected piece shows
         RenderSelected(s, _selected);
     }
 
