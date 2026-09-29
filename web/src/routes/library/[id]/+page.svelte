@@ -10,7 +10,7 @@
   const id = $derived(page.params.id!);
   let asset = $state<AssetDto | null>(null); let folders = $state<FolderDto[]>([]); let glb = $state<Uint8Array | null>(null); let error = $state<string | null>(null);
   let name = $state(''); let scale = $state(1); let orientation = $state({ pitch: 0, yaw: 0, roll: 0 }); let base = $state<Base | null>(null);   // never undefined: MeshPreview and BasePicker take Base | null
-  let loadToken = $state(0);
+  let loadToken = 0;
 
   async function load() {
     glb = null; error = null;

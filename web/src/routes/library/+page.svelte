@@ -23,7 +23,6 @@
     } catch (e) { error = e instanceof Error ? e.message : String(e); } finally { loading = false; }
   }
   $effect(() => { void loadAll(); });
-  const act = (fn: () => Promise<unknown>) => fn().then(loadAll).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const actFolder = (fn: () => Promise<unknown>) => fn().then(async () => { folders = await api.folders.list(); error = null; }).catch((e) => (error = e instanceof Error ? e.message : String(e)));
 </script>
 
