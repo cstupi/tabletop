@@ -139,4 +139,48 @@ public class InterpreterTests
         Assert.Equal(["step_completed", "step_completed", "step_completed", "sequence_finished"], all.Select(EventKinds.Of));
         Assert.Equal(["first", "first", "second"], all.OfType<StepCompleted>().Select(s => s.Step));
     }
+
+    static Sequence Repeating() => new("repeating", [
+        new LambdaStep("a", ctx => new Complete([], Repeat: ctx.Frame.Frame.Steps.Count(s => s.Step == "a") < 3)),
+        new LambdaStep("b", ctx => new Complete([], Repeat: ctx.Frame.Frame.Steps.Count(s => s.Step == "b") < 2)),
+        new LambdaStep("c", ctx => new Complete([]))]);
+
+    [Fact]
+    public void Successive_repeating_steps_hold_and_advance_position_from_their_own_history()
+    {
+        var state = State([A], [B]);
+        var interpreter = new SequenceInterpreter(new StubRules(Repeating()), TestProperties.Core, new ScriptedDice(1));
+        Append(state, interpreter.Start(state, "repeating", new SequenceContext(A.Id, [], [], null)));
+
+        var positions = new List<int>();
+        for (var i = 0; i < 7; i++)
+        {
+            Append(state, interpreter.Advance(state));
+            var frame = FrameReader.Read(state)[0];
+            positions.Add(frame.Position);
+            Assert.DoesNotContain(StepRepeat.Key, frame.Values.Keys);
+        }
+        Assert.Equal([0, 0, 0, 1, 1, 1, 2], positions);
+
+        var last = interpreter.Advance(state);
+        Assert.Equal(["step_completed", "sequence_finished"], last.Select(EventKinds.Of));
+        Assert.Equal("c", ((StepCompleted)last[0]).Step);
+    }
+
+    [Fact]
+    public void Undoing_the_last_repeat_completion_gives_back_the_earlier_position()
+    {
+        var state = State([A], [B]);
+        var interpreter = new SequenceInterpreter(new StubRules(Repeating()), TestProperties.Core, new ScriptedDice(1));
+        Append(state, interpreter.Start(state, "repeating", new SequenceContext(A.Id, [], [], null)));
+        for (var i = 0; i < 3; i++) Append(state, interpreter.Advance(state));                    // a, a, a: all repeats, position 0
+        var beforeLast = state.Projection.LastSeq;
+        Append(state, interpreter.Advance(state));                                                // a completes for real
+        Assert.Equal(1, FrameReader.Read(state)[0].Position);
+
+        Append(state, [new Undone(beforeLast)]);
+        Assert.Equal(0, FrameReader.Read(state)[0].Position);
+        Append(state, interpreter.Advance(state));                                                // the undone completion is redone from the log alone
+        Assert.Equal(1, FrameReader.Read(state)[0].Position);
+    }
 }

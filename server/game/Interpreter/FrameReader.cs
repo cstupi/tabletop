@@ -16,7 +16,7 @@ public static class FrameReader
             var lastStep = log.FindLastIndex(e => e.Payload is StepCompleted s && s.FrameId == frame.Id);
             var values = new Dictionary<string, int>();
             foreach (var s in log.Where(e => e.Payload is StepCompleted sc && sc.FrameId == frame.Id).Select(e => (StepCompleted)e.Payload))
-                foreach (var (k, v) in s.Values ?? new Dictionary<string, int>()) values[k] = v;
+                foreach (var (k, v) in s.Values ?? new Dictionary<string, int>()) if (k != StepRepeat.Key) values[k] = v;   // the marker is position bookkeeping, read from the raw last step_completed below
             // A repeat completes the same step again: distinct consecutive-name runs give the index of the step after the run's
             // first completion, so a step_completed still marked $repeat (R-F2) holds position at the run's own step one more time.
             var runs = frame.Steps.Count - frame.Steps.Zip(frame.Steps.Skip(1)).Count(p => p.First.Step == p.Second.Step);
