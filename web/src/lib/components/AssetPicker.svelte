@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { AssetDto, Base, Guid } from '$lib/api/types';
-  import { baseLabel } from '$lib/units/bases';
+  import { baseLabel, sameBase } from '$lib/units/bases';
   let { value, base, assets, onchange }: { value: Guid | null; base: Base | null; assets: AssetDto[]; onchange: (id: Guid | null) => void } = $props();
 
-  const fits = (a: AssetDto) => !!base && !!a.modelledBase && a.modelledBase.shape === base.shape && Math.abs(a.modelledBase.a - base.a) < 0.005 && Math.abs(a.modelledBase.b - base.b) < 0.005;
+  const fits = (a: AssetDto) => !!base && !!a.modelledBase && sameBase(a.modelledBase, base);
   const fitting = $derived(assets.filter(fits).sort((a, b) => a.name.localeCompare(b.name)));
   const others = $derived(assets.filter((a) => !fits(a)).sort((a, b) => a.name.localeCompare(b.name)));
 </script>

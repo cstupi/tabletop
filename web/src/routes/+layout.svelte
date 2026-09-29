@@ -30,5 +30,5 @@
   </header>
 {/if}
 <main>
-  {#if session.ready || isPublic}{@render children()}{:else}<p>Loading…</p>{/if}
+  {#if isPublic || (session.ready && session.token)}{@render children()}{:else}<p>Loading…</p>{/if}
 </main>

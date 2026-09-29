@@ -57,6 +57,7 @@
       stage = 'preview';
     } catch (e) { if (t === convToken) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; } }
   }
+  const numbersOk = $derived(kind === 'texture' || [scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite));
   function standUp() {
     const pitch = orientation.pitch === 90 ? 0 : 90;
     orientation = { ...orientation, pitch };
@@ -79,7 +80,7 @@
       stage = 'done'; onuploaded(outcome);
     } catch (e) { error = e instanceof Error ? e.message : String(e); stage = 'preview'; }
   }
-  function reset() { stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; }
+  function reset() { ++convToken; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; }
 </script>
 
 {#if open}
@@ -127,7 +128,8 @@
           {/if}
         {:else if glbInfo}<p>{glbInfo.triangles.toLocaleString()} triangles. No conversion ran, so set the scale and orientation yourself.</p>{/if}
         {#if stage === 'uploading'}<p>Uploading… {progress}</p>{/if}
-        <button onclick={confirm} disabled={stage === 'uploading' || (kind !== 'texture' && !previewed)}>Confirm and upload</button>
+        {#if !numbersOk}<p role="alert">Scale and orientation must be numbers.</p>{/if}
+        <button onclick={confirm} disabled={stage === 'uploading' || !numbersOk || (kind !== 'texture' && !previewed)}>Confirm and upload</button>
       </aside>
     </div>
   {:else if stage === 'done' && outcome}

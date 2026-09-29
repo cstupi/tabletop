@@ -14,8 +14,9 @@ export const BASE_PRESETS: BasePreset[] = [
   ...([[221, 119]] as const).map(([l, w]) => ({ label: `${l} × ${w} mm vehicle`, base: rect(l, w) })),
 ];
 
-const close = (x: number, y: number) => Math.abs(x - y) < 0.005;
-export const presetFor = (b: Base) => BASE_PRESETS.find((p) => p.base.shape === b.shape && close(p.base.a, b.a) && close(p.base.b, b.b));
+/** Two bases are the same when the shape matches and both dimensions agree within 0.005 in. */
+export const sameBase = (x: Base, y: Base): boolean => x.shape === y.shape && Math.abs(x.a - y.a) < 0.005 && Math.abs(x.b - y.b) < 0.005;
+export const presetFor = (b: Base) => BASE_PRESETS.find((p) => sameBase(p.base, b));
 
 export function baseLabel(b: Base): string {
   const preset = presetFor(b);

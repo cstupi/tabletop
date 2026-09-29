@@ -50,6 +50,9 @@ export function convertInWorker(input: ConversionInput, onProgress: (p: Progress
       if (e.data.result) { resolve(e.data.result); worker.terminate(); }
       if (e.data.error) { reject(new Error(e.data.error)); worker.terminate(); }
     };
+    const fail = (message: string) => { reject(new Error(message)); worker.terminate(); };
+    worker.onerror = (e) => fail(e.message || 'The conversion worker failed to load');
+    worker.onmessageerror = () => fail('The conversion worker sent a message that could not be read');
     worker.postMessage(input, input.files.map((f) => f.bytes));
   });
 }

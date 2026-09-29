@@ -19,10 +19,15 @@
       asset = await api.assets.get(id); if (t !== loadToken) return;
       folders = await api.folders.list(); if (t !== loadToken) return;
       ({ name, scale, orientation } = asset); base = asset.modelledBase ?? null;
-      if (asset.uploaded && asset.contentType === 'model/gltf-binary') { glb = new Uint8Array(await (await fetch((await api.assets.download(id)).url)).arrayBuffer()); if (t !== loadToken) return; }
+      if (asset.uploaded && asset.contentType === 'model/gltf-binary') {
+        const response = await fetch((await api.assets.download(id)).url); if (t !== loadToken) return;
+        if (!response.ok) { error = `${response.status}: could not download the mesh`; return; }
+        glb = new Uint8Array(await response.arrayBuffer()); if (t !== loadToken) return;
+      }
     } catch (e) { error = e instanceof Error ? e.message : String(e); }
   }
   $effect(() => { void load(); });
+  const numbersOk = $derived(asset?.kind === 'texture' || [scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite));
   const save = () => api.assets.patch(id, { name, scale, orientation, modelledBase: asset?.kind === 'miniature' && base ? base : undefined }).then((a) => (asset = a)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const toggleFolder = (f: FolderDto, on: boolean) => (on ? api.folders.addAsset(f.id, id) : api.folders.removeAsset(f.id, id)).then(async () => { folders = await api.folders.list(); }).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const remove = async () => { if (confirm('Delete this asset? Armies pointing at it keep playing and draw the slot\'s hitbox instead.')) { try { await api.assets.delete(id); await goto('/library'); } catch (e) { error = e instanceof Error ? e.message : String(e); } } };
@@ -31,7 +36,7 @@
 {#if asset}
   <h1>{asset.name}</h1>
   <div class="layout">
-    <div class="view">{#if glb}<MeshPreview {glb} {scale} {orientation} {base} />{:else}<p>{asset.kind === 'texture' ? 'A board texture.' : 'No preview: the upload never completed.'}</p>{/if}</div>
+    <div class="view">{#if glb}<MeshPreview {glb} {scale} {orientation} {base} onerror={(m) => (error = m)} />{:else}<p>{asset.kind === 'texture' ? 'A board texture.' : 'No preview: the upload never completed.'}</p>{/if}</div>
     <aside>
       <label>Name <input bind:value={name} /></label>
       {#if asset.kind !== 'texture'}
@@ -39,7 +44,8 @@
         <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label><label>Roll <input type="number" step="15" bind:value={orientation.roll} /></label><label>Yaw <input type="number" step="15" bind:value={orientation.yaw} /></label>
       {/if}
       {#if asset.kind === 'miniature'}<label>Modelled base <BasePicker bind:value={base} /></label>{/if}
-      <button onclick={save}>Save</button>
+      {#if !numbersOk}<p role="alert">Scale and orientation must be numbers.</p>{/if}
+      <button onclick={save} disabled={!numbersOk}>Save</button>
       <h2>Folders</h2>
       {#each folders as f (f.id)}<label><input type="checkbox" checked={f.assetIds.includes(id)} onchange={(e) => void toggleFolder(f, e.currentTarget.checked)} /> {f.name}</label>{/each}
       <p><small>{asset.hash.slice(0, 12)}… · {(asset.byteSize / 1024).toFixed(0)} KB</small></p>

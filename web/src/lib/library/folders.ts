@@ -1,5 +1,6 @@
 // web/src/lib/library/folders.ts — folders are a client-side grouping over the whole library; nothing else reads them.
 import type { AssetDto, AssetKind, Base, FolderDto, Guid } from '$lib/api/types';
+import { sameBase } from '$lib/units/bases';
 export interface FolderNode { folder: FolderDto; children: FolderNode[] }
 
 export function buildTree(folders: FolderDto[]): FolderNode[] {
@@ -15,7 +16,6 @@ export function descendantIds(folders: FolderDto[], id: Guid): Set<Guid> {
   while (grew) { grew = false; for (const f of folders) if (f.parentId && out.has(f.parentId) && !out.has(f.id)) { out.add(f.id); grew = true; } }
   return out;
 }
-const sameBase = (x: Base, y: Base) => x.shape === y.shape && Math.abs(x.a - y.a) < 0.005 && Math.abs(x.b - y.b) < 0.005;
 /** A folder shows its own assets and its sub-folders'; an asset in no folder shows only under *All*. */
 export function filterAssets(assets: AssetDto[], folders: FolderDto[], f: { folderId: Guid | null; kind?: AssetKind; base?: Base }): AssetDto[] {
   const subtree = f.folderId ? descendantIds(folders, f.folderId) : null;

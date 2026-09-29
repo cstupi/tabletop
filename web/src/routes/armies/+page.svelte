@@ -4,16 +4,17 @@
   import type { ArmySummary } from '$lib/api/types';
   import { importErrorMessage, normaliseSource, reimport } from '$lib/armies/import';
 
-  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let busy = $state(false); let error = $state<string | null>(null);
+  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let busy = $state(false); let loadingMore = $state(false); let error = $state<string | null>(null);
   const normalised = $derived(normaliseSource(source));
 
   async function load(more = false) {
+    if (more) { if (loadingMore) return; loadingMore = true; }
     try {
       const p = await api.armies.list({ limit: 50, after: more ? next : undefined });
       armies = more ? [...armies, ...p.items] : p.items; next = p.next;
     } catch (e) {
       error = importErrorMessage(e);
-    }
+    } finally { if (more) loadingMore = false; }
   }
   $effect(() => { void load(); });
 
@@ -30,11 +31,12 @@
   }
   async function remove(a: ArmySummary) {
     if (!confirm(`Delete "${a.name}"? Games already loaded with it keep their own copy.`)) return;
+    busy = true;
     try {
       await api.armies.delete(a.id); await load();
     } catch (e) {
       error = importErrorMessage(e);
-    }
+    } finally { busy = false; }
   }
 </script>
 
@@ -51,8 +53,8 @@
   <tbody>
     {#each armies as a (a.id)}
       <tr><td><a href="/armies/{a.id}">{a.name}</a></td><td>{a.gameSystem}</td><td>{a.units}</td><td>{a.models}</td>
-        <td><button onclick={() => doReimport(a)} disabled={busy}>Re-import</button> <button onclick={() => remove(a)}>Delete</button></td></tr>
+        <td><button onclick={() => doReimport(a)} disabled={busy}>Re-import</button> <button onclick={() => remove(a)} disabled={busy}>Delete</button></td></tr>
     {/each}
   </tbody>
 </table>
-{#if next}<button onclick={() => load(true)}>Load more</button>{/if}
+{#if next}<button onclick={() => load(true)} disabled={loadingMore}>Load more</button>{/if}
