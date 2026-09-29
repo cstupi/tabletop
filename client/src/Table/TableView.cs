@@ -22,12 +22,22 @@ public partial class TableView : Node3D
         Camera.Current = true;
     }
 
+    Action? _onBoard; Action<IReadOnlyList<GameEvent>>? _onEvents;
+
+    public override void _ExitTree()
+    {
+        if (_session is null) return;
+        _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard;
+    }
+
     public void Bind(Session session)
     {
+        if (_session is not null) throw new InvalidOperationException("TableView is already bound.");
         _session = session;
         _meshes = new MeshLoader(Main.Instance.Cache, session.Management, session.GameId!.Value);
         _meshes.RefreshManifest();
-        session.BoardChanged += Redraw; session.EventsApplied += _ => Redraw(); session.GameChanged += Redraw;
+        _onBoard = Redraw; _onEvents = _ => Redraw();
+        session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard;
         Redraw(); Camera.FocusOn(Size);
     }
 
@@ -58,15 +68,26 @@ public partial class TableView : Node3D
 
     void Sync<TNode, TItem>(Node parent, IReadOnlyList<TItem> items, Func<TItem, Guid> id, Func<TItem, TNode> create, Action<TNode, TItem> update) where TNode : Node3D, IHasId
     {
-        var existing = parent.GetChildren().OfType<TNode>().ToDictionary(n => n.Id);
+        var existing = parent.GetChildren().OfType<TNode>().Where(n => !n.IsQueuedForDeletion()).ToDictionary(n => n.Id);
         var wanted = items.ToDictionary(id);
         foreach (var (key, node) in existing) if (!wanted.ContainsKey(key)) node.QueueFree();
         foreach (var (key, item) in wanted) { if (existing.TryGetValue(key, out var node)) update(node, item); else parent.AddChild(create(item)); }
     }
 
-    async void LoadPieceMesh(PieceNode n, ModelInPlay m) { if (m.Slot.AssetId is { } asset) n.SetMesh(await _meshes.LoadAssetAsync(asset, Camera.GlobalPosition, n.GlobalPosition)); }
+    async void LoadPieceMesh(PieceNode n, ModelInPlay m)
+    {
+        if (m.Slot.AssetId is not { } asset) return;
+        var scene = await _meshes.LoadAssetAsync(asset, Camera.GlobalPosition, WorldFrame.ToGodot(((OnTable)m.Location).Placement.Position));
+        if (!IsInstanceValid(n)) { scene?.QueueFree(); return; }
+        n.SetMesh(scene);
+    }
     // A built-in's group mesh is fitted to the placement's first volume; an asset's mesh carries its own scale.
-    async void LoadTerrainMesh(TerrainNode n, TerrainPlacement t) { n.SetMesh(t.Mesh.IsBuiltin ? _meshes.LoadBuiltin(t.Mesh.Builtin!, t.Volumes.Count > 0 ? t.Volumes[0].Volume : null) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, n.GlobalPosition)); }
+    async void LoadTerrainMesh(TerrainNode n, TerrainPlacement t)
+    {
+        var scene = t.Mesh.IsBuiltin ? _meshes.LoadBuiltin(t.Mesh.Builtin!, t.Volumes.Count > 0 ? t.Volumes[0].Volume : null) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, WorldFrame.ToGodot(t.Position));
+        if (!IsInstanceValid(n)) { scene?.QueueFree(); return; }
+        n.SetMesh(scene);
+    }
 
     /// <summary>
     /// A disembark's draggable stand-ins. An occupant has no placement and therefore no piece node (game flow → Inside a

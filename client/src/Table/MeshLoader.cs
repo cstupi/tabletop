@@ -9,14 +9,14 @@ namespace Tabletop.Client.Table;
 public sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId)
 {
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
-    readonly PriorityQueue<(Guid AssetId, TaskCompletionSource<string?> Done), float> _queue = new();
+    readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
     Task? _manifestLoad;
 
     public void RefreshManifest() => _manifestLoad = Task.Run(async () =>
     {
         try { var m = await management.GetManifest(gameId); lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; } }
-        catch (ManagementException e) { GD.PushWarning($"manifest: {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
     });
 
     /// <summary>Fetches the bytes (queued by distance), then builds the scene on the main thread. Null when the asset cannot be had.</summary>
@@ -32,20 +32,20 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
             catch (ManagementException) { return null; }   // not in the manifest and not mine: the proxy stays
         }
         var done = new TaskCompletionSource<string?>();
-        _queue.Enqueue((assetId, done), cameraPosition.DistanceTo(piecePosition));
-        _ = Pump(hash, url);
+        _queue.Enqueue((assetId, hash, url, done), cameraPosition.DistanceTo(piecePosition));
+        _ = Pump();
         var path = await done.Task;
         return path is null ? null : Build(path, scale, orientation);
     }
 
-    async Task Pump(string hash, Uri url)
+    async Task Pump()
     {
         await _inFlight.WaitAsync();
         try
         {
             if (!_queue.TryDequeue(out var item, out _)) return;
-            try { item.Done.SetResult(await cache.FetchAsync(hash, url, CancellationToken.None)); }
-            catch (Exception e) when (e is HttpRequestException or HashMismatchException or IOException) { GD.PushWarning($"asset {item.AssetId}: {e.Message}"); item.Done.SetResult(null); }
+            try { item.Done.SetResult(await cache.FetchAsync(item.Hash, item.Url, CancellationToken.None)); }
+            catch (Exception e) { GD.PushWarning($"asset {item.AssetId}: {e.Message}"); item.Done.SetResult(null); }
         }
         finally { _inFlight.Release(); }
     }
@@ -79,7 +79,8 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         var doc = new GltfDocument(); var state = new GltfState();
         var err = doc.AppendFromFile(path, state);
         if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return null; }
-        if (doc.GenerateScene(state) is not Node3D scene) return null;
+        var generated = doc.GenerateScene(state);
+        if (generated is not Node3D scene) { generated?.Free(); return null; }
         Orient(scene, scale, orientation);
         return scene;
     }
