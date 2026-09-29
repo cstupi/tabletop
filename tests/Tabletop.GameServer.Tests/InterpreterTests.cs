@@ -183,4 +183,14 @@ public class InterpreterTests
         Append(state, interpreter.Advance(state));                                                // the undone completion is redone from the log alone
         Assert.Equal(1, FrameReader.Read(state)[0].Position);
     }
+
+    [Fact]
+    public void A_step_that_suspends_with_no_ask_open_throws_naming_the_step()
+    {
+        var state = State([A], [B]);
+        var interpreter = new SequenceInterpreter(new StubRules(new Sequence("stuck", [new LambdaStep("nothing", _ => new OpenAsks([]))])), TestProperties.Core, new ScriptedDice(1));
+        Append(state, interpreter.Start(state, "stuck", new SequenceContext(A.Id, [], [], null)));
+        var thrown = Assert.Throws<InvalidOperationException>(() => interpreter.Advance(state));
+        Assert.Contains("stuck/nothing", thrown.Message);
+    }
 }

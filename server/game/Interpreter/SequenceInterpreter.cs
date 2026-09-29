@@ -33,6 +33,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
         {
             case Complete c: Completed(events, ctx, step, c.Changes, RepeatValues(c), finished: !c.Repeat && top.Position + 1 == sequence.Steps.Count); break;
             case Finish f: Completed(events, ctx, step, f.Changes, f.Values, finished: true); break;
+            case OpenAsks { Asks.Count: 0 }: throw new InvalidOperationException($"{top.Frame.Sequence}/{step.Name} suspended with no Ask open");
             case OpenAsks a: events.AddRange(a.Asks.Select(ask => new AskOpened(ask))); break;
             case Push p: rules.Sequence(p.Sequence); events.Add(new SequenceStarted(Guid.CreateVersion7(), p.Sequence, p.Context)); break;
         }
