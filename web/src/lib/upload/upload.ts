@@ -1,5 +1,6 @@
 // web/src/lib/upload/upload.ts — the presigned path, in the management API's order. Nothing here converts; the plan carries finished bytes.
 import { api } from '$lib/api/client';
+import { ApiError } from '$lib/api/http';
 import type { AssetDto, AssetKind, Base, ContentType, Orientation, TerrainVolume, Volume } from '$lib/api/types';
 import { sha256Hex } from './sha256';
 
@@ -8,7 +9,14 @@ export interface UploadPlan { name: string; kind: AssetKind; contentType: Conten
 export interface UploadOutcome { asset: AssetDto; triangles?: number; warning?: string; deduplicated: boolean; volumes?: TerrainVolume[] }
 
 export class UploadError extends Error {
-  constructor(public stage: UploadStage, public cause: unknown) { super(`Upload failed while ${stage === 'put' ? 'sending the bytes' : stage}: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  readonly reexport: boolean;
+  constructor(public stage: UploadStage, public cause: unknown) {
+    const reexport = stage === 'confirm' && cause instanceof ApiError && cause.status === 422;
+    super(reexport
+      ? `The server could not read the file: ${(cause as ApiError).detail ?? (cause as ApiError).title}. Re-export it and upload again.`
+      : `Upload failed while ${stage === 'put' ? 'sending the bytes' : stage}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.reexport = reexport;
+  }
 }
 
 export async function upload(plan: UploadPlan, onStage: (s: UploadStage) => void = () => {}): Promise<UploadOutcome> {

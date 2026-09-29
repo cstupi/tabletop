@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../src/lib/api/client';
+import { ApiError } from '../src/lib/api/http';
 import { sha256Hex } from '../src/lib/upload/sha256';
 import { upload, UploadError } from '../src/lib/upload/upload';
 import type { AssetDto } from '../src/lib/api/types';
@@ -46,5 +47,33 @@ describe('upload', () => {
     vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
     vi.stubGlobal('fetch', vi.fn(async () => new Response('denied', { status: 403 })));
     await expect(upload(plan)).rejects.toMatchObject({ stage: 'put' } satisfies Partial<UploadError>);
+  });
+
+  it('flags a 422 at confirm as re-export', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+    vi.spyOn(api.assets, 'confirm').mockRejectedValue(new ApiError(422, 'Unreadable model', 'not a valid glTF'));
+    const err = await upload(plan).catch((e) => e);
+    expect(err).toBeInstanceOf(UploadError);
+    expect(err).toMatchObject({ stage: 'confirm', reexport: true });
+    expect(err.cause).toBeInstanceOf(ApiError); expect(err.cause.status).toBe(422);
+    expect(err.message).toMatch(/re-export/i); expect(err.message).toContain('not a valid glTF');
+  });
+
+  it('keeps a network failure at the PUT as the cause and does not ask for a re-export', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const err = await upload(plan).catch((e) => e);
+    expect(err).toBeInstanceOf(UploadError);
+    expect(err).toMatchObject({ stage: 'put', reexport: false });
+    expect(err.cause).toBeInstanceOf(TypeError);
+  });
+
+  it('returns the server warning from confirm', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset({ uploaded: true }) });
+    vi.spyOn(api.assets, 'confirm').mockResolvedValue({ asset: asset({ uploaded: true }), triangles: 120000, warning: 'over 100000 triangles' });
+    vi.spyOn(api.assets, 'putVolumes').mockResolvedValue([]);
+    const out = await upload(plan);
+    expect(out.warning).toBe('over 100000 triangles');
   });
 });
