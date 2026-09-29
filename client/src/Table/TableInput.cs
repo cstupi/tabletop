@@ -56,12 +56,15 @@ public partial class TableInput : Node
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
         var from = _view.Camera.ProjectRayOrigin(screen); var dir = _view.Camera.ProjectRayNormal(screen);
-        Node3D? best = null; var bestDistance = float.MaxValue; Vector3? hit = null;
+        Node3D? best = null; var bestIsPiece = false; var bestDistance = float.MaxValue; Vector3? hit = null;
         foreach (var piece in _view.Pieces)
         {
             if (piece.IsQueuedForDeletion()) continue;
             var bounds = piece switch { PieceNode p => p.Bounds, TerrainNode t => t.Bounds, MarkerNode m => m.Bounds, _ => new Aabb() };
-            if (RayHit(bounds, from, dir) is { } h && from.DistanceTo(h) < bestDistance) { best = piece; bestDistance = from.DistanceTo(h); hit = h; }
+            if (RayHit(bounds, from, dir) is not { } h) continue;
+            // A piece beats terrain and markers: a terrain box encloses its whole area volume, so a model standing inside it is hit after the box's top face.
+            var isPiece = piece is PieceNode; var d = from.DistanceTo(h);
+            if (best is null || (isPiece && !bestIsPiece) || (isPiece == bestIsPiece && d < bestDistance)) { best = piece; bestIsPiece = isPiece; bestDistance = d; hit = h; }
         }
         var ground = new Plane(Vector3.Up, 0).IntersectsRay(from, dir);
         return (WorldFrame.FromGodot(hit ?? ground ?? Vector3.Zero), best);
@@ -96,8 +99,8 @@ public partial class TableInput : Node
                 var (point, piece) = Pick(b.Position);
                 if (piece is not null && !b.AltPressed) PieceRightClicked?.Invoke(IdOf(piece), b.Position); else if (b.AltPressed) TableRightClicked?.Invoke(WorldFrame.ToGodot(point));
                 break;
-            case InputEventKey { Pressed: true, Keycode: Key.M }: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; break;
-            case InputEventKey { Pressed: true, Keycode: Key.P }: var (at, target) = Pick(GetViewport().GetMousePosition()); Observe(_session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target)))); break;
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.M }: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; break;
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.P }: var (at, target) = Pick(GetViewport().GetMousePosition()); Observe(_session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target)))); break;
             case InputEventKey { Pressed: true, Keycode: Key.Escape }: Selected = null; _measurement = null; _presenceDirty = true; SelectionChanged?.Invoke(); break;
         }
     }
