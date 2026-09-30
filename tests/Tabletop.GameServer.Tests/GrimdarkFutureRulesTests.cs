@@ -178,6 +178,9 @@ public class GrimdarkFutureRulesTests
         TestGames.Apply(g, new AskClosed(ask.Id, [new TeamAnswer(g.Teams[1], new SelectedPieces([b[0]]))]));
         Assert.IsType<HookWaiting>(Rules.RoundBoundaryStep(g.State, Core, 2, order));                    // models still on the shelf
         TestGames.Apply(g, TestGames.Place(g.State, b[0]));
+        var cleared = Assert.IsType<HookEmit>(Rules.RoundBoundaryStep(g.State, Core, 2, order));           // arrived: set-aside is cleared before the next Ask
+        Assert.Equal(new ConditionSet(UnitSubject(b[0]), SetAside, false), Assert.Single(cleared.Events));
+        TestGames.Apply(g, cleared.Events.ToArray());
         var second = Assert.IsType<AskOpened>(Assert.IsType<HookEmit>(Rules.RoundBoundaryStep(g.State, Core, 2, order)).Events.Single()).Ask;
         Assert.Equal([g.Teams[0]], second.Teams);
         TestGames.Apply(g, new AskOpened(second), new AskClosed(second.Id, [new TeamAnswer(g.Teams[0], new Passed())]));
