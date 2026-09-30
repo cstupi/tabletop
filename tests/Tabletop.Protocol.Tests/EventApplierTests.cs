@@ -36,6 +36,15 @@ public class EventApplierTests
     }
 
     [Fact]
+    public void A_round_started_whose_order_is_the_projections_own_list_keeps_that_order()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new RoundStarted(1, [Samples.Team1, Samples.Team2], [])));
+        a.Apply(Ev(2, new RoundStarted(2, a.Projection.Scheduler.Order, [])));
+        Assert.Equal([Samples.Team1, Samples.Team2], a.Projection.Scheduler.Order);
+    }
+
+    [Fact]
     public void Scheduler_position_follows_the_four_events_and_the_pass_stands()
     {
         var a = Fresh();
