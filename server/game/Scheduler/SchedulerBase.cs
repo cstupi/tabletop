@@ -31,6 +31,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
         var stale = StaleAsks(state, log);
         if (stale.Count > 0) return stale;
         if (state.Projection.OpenAsks.Count > 0) return [];                                       // an unframed Ask of ours (or a boundary hook's) is live: wait for its answer
+        if (s.Round >= 1 && s.Phase is { } phase && state.Rules.PhasesBeforeRounds.Contains(phase)) return [new PhaseStarted(RoundsPhase)];   // set_round from the menu mid-deployment: the pre-round phases are over
         if (s.ActiveTeamId is { } active) return InTurn(state, log, active, starter);
         if (log.RoundStartedAt == 0) return BeginRound(state, log, teams, state.Rules.PhasesBeforeRounds.Count > 0 ? 0 : 1, starter);
 
