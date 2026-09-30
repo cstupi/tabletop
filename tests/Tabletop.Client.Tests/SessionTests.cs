@@ -254,4 +254,43 @@ public class SessionTests : IDisposable
         Assert.Equal((0, 2, SessionPhase.Connected), (applied, _s.Log.Count, _s.Phase));
         Assert.Equal(2, _s.Projection!.Scores[Samples.Team1]);
     }
+
+    [Fact]
+    public async Task Nothing_but_Connect_goes_out_before_Welcome_and_a_command_then_throws()
+    {
+        await LoggedIn();
+        await _s.ConnectAsync(Game.Id);
+        var sock = _sockets.Last;
+        await _s.SendPresenceAsync(new Presence(Guid.Empty, null, null, [], null));
+        await _s.SendPingAsync(new Ping(Guid.Empty, new Point3(1, 1, 0), null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _s.SendCommandAsync(new Undo(1)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _s.SendEditAsync(new PickTeam(Samples.Team1)));
+        Assert.IsType<Connect>(Assert.Single(sock.Sent));
+        sock.Deliver(new Welcome(Samples.P1, Game));
+        await _s.SendPresenceAsync(new Presence(Guid.Empty, null, null, [], null));
+        await _s.SendCommandAsync(new Undo(1));
+        Assert.Equal(3, sock.Sent.Count);
+        Assert.IsType<PresenceMessage>(sock.Sent[1]);
+        Assert.IsType<CommandMessage>(sock.Sent[2]);
+    }
+
+    [Fact]
+    public async Task An_undo_whose_send_fails_leaves_no_prediction()
+    {
+        var sock = await ConnectedAtPlaying();
+        sock.SendFails = new IOException("gone");
+        await Assert.ThrowsAsync<IOException>(() => _s.UndoToAsync(1));
+        Assert.Null(_s.PendingUndoTo);
+        Assert.Same(_s.Applier!.Projection, _s.Projection);
+    }
+
+    [Fact]
+    public async Task Logout_finishes_locally_when_the_remote_call_fails()
+    {
+        await LoggedIn();
+        _http.Fail(new HttpRequestException("down"));
+        await _s.LogoutAsync();
+        Assert.Equal(SessionPhase.LoggedOut, _s.Phase);
+        Assert.Null(new SessionStore(Path.Combine(_dir, "session.bin")).Read());
+    }
 }

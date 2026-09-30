@@ -12,24 +12,45 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
     readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
     Task? _manifestLoad;
+    DateTimeOffset _expires = DateTimeOffset.MaxValue;
 
-    public void RefreshManifest() => _manifestLoad = Task.Run(async () =>
+    /// <summary>Starts a manifest fetch, or joins the one in flight. Returns the task so a caller can wait for it.</summary>
+    public Task RefreshManifest()
     {
-        try { var m = await management.GetManifest(gameId); lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; } }
-        catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
-    });
+        lock (_manifest)
+        {
+            if (_manifestLoad is { IsCompleted: false } running) return running;
+            return _manifestLoad = Task.Run(async () =>
+            {
+                try
+                {
+                    var m = await management.GetManifest(gameId);
+                    lock (_manifest) { _manifest.Clear(); foreach (var e in m.Assets) _manifest[e.AssetId] = e; _expires = m.ExpiresAt; }
+                }
+                catch (Exception e) { GD.PushWarning($"manifest: {e.Message}"); }
+            });
+        }
+    }
 
     /// <summary>Fetches the bytes (queued by distance), then builds the scene on the main thread. Null when the asset cannot be had.</summary>
     public async Task<Node3D?> LoadAssetAsync(Guid assetId, Vector3 cameraPosition, Vector3 piecePosition)
     {
-        if (_manifestLoad is not null) await _manifestLoad;
+        Task? load; lock (_manifest) load = _manifestLoad;
+        if (load is not null) await load;
+        if (DateTimeOffset.UtcNow >= _expires) await RefreshManifest();      // the entries' download URLs have lapsed
         ManifestEntry? entry; lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
+        if (entry is null)
+        {
+            // Another player's army or terrain that arrived after the last fetch: one shared refresh before the owner-only fallback.
+            await RefreshManifest();
+            lock (_manifest) entry = _manifest.GetValueOrDefault(assetId);
+        }
         Uri url; string hash; double scale; Orientation orientation;
         if (entry is not null) (url, hash, scale, orientation) = (entry.Url, entry.Hash, entry.Scale, entry.Orientation);
         else
         {
             try { var mine = await management.GetDownload(assetId); var asset = (await management.ListAssets(AssetKind.Miniature, null)).Items.Concat((await management.ListAssets(AssetKind.Terrain, null)).Items).FirstOrDefault(a => a.Id == assetId); if (asset is null) return null; (url, hash, scale, orientation) = (mine.Url, asset.Hash, asset.Scale, asset.Orientation); }
-            catch (ManagementException) { return null; }   // not in the manifest and not mine: the proxy stays
+            catch (Exception) { return null; }   // not in the manifest and not mine: the proxy stays
         }
         var done = new TaskCompletionSource<string?>();
         _queue.Enqueue((assetId, hash, url, done), cameraPosition.DistanceTo(piecePosition));

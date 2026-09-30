@@ -41,9 +41,15 @@ public partial class HomeScreen : Control
     async void Run(Func<Task> action)
     {
         try { await action(); }
-        catch (ManagementException e) { _error.Text = e.Message; }
-        catch (HttpRequestException e) { _error.Text = $"Cannot reach {Main.Instance.Session.Settings.ManagementUrl}: {e.Message}"; }
-        catch (Exception e) { _error.Text = e.Message; }
+        catch (ManagementException e) { Show(e.Message); }
+        catch (HttpRequestException e) { Show($"Cannot reach {Main.Instance.Session.Settings.ManagementUrl}: {e.Message}"); }
+        catch (Exception e) { Show(e.Message); }
+    }
+
+    /// <summary>The screen may have been freed by the navigation the action caused.</summary>
+    void Show(string message)
+    {
+        if (IsInstanceValid(this) && IsInstanceValid(_error)) _error.Text = message;
     }
 
     List<GameSummary> Filtered()
@@ -106,8 +112,8 @@ public partial class HomeScreen : Control
                 }
                 session.PhaseChanged += PickWhenConnected;
             }
+            dialog.QueueFree();             // before the connect: it leaves this screen, and the dialog goes with it
             await session.ConnectAsync(game.Id);
-            dialog.QueueFree();
         });
         dialog.Canceled += () => dialog.QueueFree();
         AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320));

@@ -22,12 +22,13 @@ public partial class TableView : Node3D
         Camera.Current = true;
     }
 
-    Action? _onBoard; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action? _onBoard, _onGame; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    GameStatus? _status;
 
     public override void _ExitTree()
     {
         if (_session is null) return;
-        _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard;
+        _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard; _session.GameChanged -= _onGame;
     }
 
     public void Bind(Session session)
@@ -36,8 +37,11 @@ public partial class TableView : Node3D
         _session = session;
         _meshes = new MeshLoader(Main.Instance.Cache, session.Management, session.GameId!.Value);
         _meshes.RefreshManifest();
+        _status = session.Game?.Status;
         _onBoard = Redraw; _onEvents = _ => Redraw();
-        session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard;
+        // The manifest lists the game's assets by who has picked what; it is fetched again when play starts, when every army is in.
+        _onGame = () => { var status = _session.Game?.Status; if (status == GameStatus.Playing && _status != GameStatus.Playing) _meshes.RefreshManifest(); _status = status; };
+        session.BoardChanged += _onBoard; session.EventsApplied += _onEvents; session.GameChanged += _onBoard; session.GameChanged += _onGame;
         Redraw(); Camera.FocusOn(Size);
     }
 

@@ -141,6 +141,28 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void The_team_menu_lists_off_table_models_of_that_team_only()
+    {
+        var shelf = Applier().Projection;
+        var name = new Names(Game, shelf).Model(Samples.Model);
+        var place = MenuModel.OffTable(shelf, Samples.Team1, new Names(Game, shelf)).Single();
+        Assert.Equal(($"Place {name} on the table, here", MenuInput.TablePoint), (place.Label, place.Input));
+        var move = ((MoveModels)place.Build("5,6,0")!).Moves.Single();
+        Assert.Equal((Samples.Model, typeof(OnShelf)), (move.ModelId, move.From.GetType()));
+        Assert.Equal(new Point3(5, 6, 0), ((OnTable)move.To).Placement.Position);
+        Assert.Null(place.Build("nope"));
+        Assert.Empty(MenuModel.OffTable(shelf, Samples.Team2, new Names(Game, shelf)));
+
+        var inside = Applier(new ModelsMoved([Samples.Embark])).Projection;
+        var take = MenuModel.OffTable(inside, Samples.Team1, new Names(Game, inside)).Single();
+        Assert.Equal($"Take {new Names(Game, inside).Model(Samples.Model)} out of the container, here", take.Label);
+        Assert.IsType<Inside>(((MoveModels)take.Build("1,2,0")!).Moves.Single().From);
+
+        var onTable = Applier(new ModelsMoved([Samples.Deploy])).Projection;
+        Assert.Empty(MenuModel.OffTable(onTable, Samples.Team1, new Names(Game, onTable)));
+    }
+
+    [Fact]
     public void The_ruler_reads_displacement_and_remaining_allowance()
     {
         Assert.Equal(new RulerReadout(5, 1, false), MoveRuler.Read(new Point2(0, 0), new Point2(3, 4), 6));

@@ -124,9 +124,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public async Task LogoutAsync()
     {
         _authEpoch++; _noRefreshBefore = default;
-        await DisconnectAsync();
-        try { await management.Logout(); } catch (ManagementException) { }
-        management.Jwt = null; Account = null; store.Clear();
+        try { await DisconnectAsync(); } catch (Exception) { }
+        try { await management.Logout(); } catch (Exception) { }
+        management.Jwt = null; Account = null;
+        try { store.Clear(); } catch (Exception) { }
         SetPhase(SessionPhase.LoggedOut);
     }
 
@@ -206,14 +207,14 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>The caller names the message id, so it can match a Refused that arrives before the send's continuation runs.</summary>
     public async Task<Guid> SendCommandAsync(Command command, Guid id)
     {
-        if (_socket is not null) await _socket.SendAsync(new CommandMessage(id, command));
+        await (Welcomed() ?? throw NotConnected()).SendAsync(new CommandMessage(id, command));
         return id;
     }
 
     public async Task<Guid> SendEditAsync(Edit edit)
     {
         var id = Guid.CreateVersion7();
-        if (_socket is not null) await _socket.SendAsync(new EditMessage(id, edit));
+        await (Welcomed() ?? throw NotConnected()).SendAsync(new EditMessage(id, edit));
         return id;
     }
 
@@ -226,12 +227,22 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         try { _predicted = Applier.ProjectTo(seq); }
         catch (ProjectionDesyncException desync) { OnDesync(desync); return; }
         PendingUndoTo = seq;
-        _pendingUndoCommand = await SendCommandAsync(new Undo(seq));
+        try { _pendingUndoCommand = await SendCommandAsync(new Undo(seq)); }
+        catch (Exception)
+        {
+            _predicted = null; PendingUndoTo = null;
+            EventsApplied?.Invoke([]);
+            throw;
+        }
         EventsApplied?.Invoke([]);
     }
 
-    public Task SendPresenceAsync(Presence value) => _socket?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
-    public Task SendPingAsync(Ping ping) => _socket?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
+    public Task SendPresenceAsync(Presence value) => Welcomed()?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
+    public Task SendPingAsync(Ping ping) => Welcomed()?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
+
+    /// <summary>The socket once the server has welcomed it; nothing but Connect goes out before that.</summary>
+    IGameSocket? Welcomed() => _welcomed ? _socket : null;
+    static InvalidOperationException NotConnected() => new("Not connected to the game yet.");
 
     // ---- frames (on the dispatcher) ----------------------------------------------------------------------------------
     void Handle(SocketMessage frame)

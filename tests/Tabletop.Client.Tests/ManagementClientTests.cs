@@ -63,7 +63,7 @@ public class ManagementClientTests
         var layout = Tabletop.Content.Tests.TableStateTests.Sample();
         f.Answer(HttpStatusCode.OK, new Page<GameSummary>([new GameSummary(game.Id, "Friday", GameStatus.Lobby, game.CreatedBy, DateTimeOffset.UnixEpoch, 1)], game.Id))
          .Answer(HttpStatusCode.Created, game).Answer(HttpStatusCode.OK, game).Answer(HttpStatusCode.NoContent)
-         .Answer(HttpStatusCode.Created, layout).Answer(HttpStatusCode.OK, new Manifest([new ManifestEntry(Guid.CreateVersion7(), AssetKind.Miniature, new string('a', 64), new Uri("http://localhost:9000/b/k"), 2.5, new Tabletop.Geometry.Orientation(90, 0, 0))], DateTimeOffset.UnixEpoch));
+         .Answer(HttpStatusCode.Created, layout).Answer(HttpStatusCode.OK, new Manifest([new ManifestEntry(Guid.CreateVersion7(), AssetKind.Miniature, new string('a', 64), new Uri("http://localhost:9000/b/k"), 2.5, new Tabletop.Geometry.Orientation { Pitch = 90, Yaw = 0, Roll = 0 })], DateTimeOffset.UnixEpoch));
         var page = await c.ListGames(null, 25);
         Assert.Equal("http://localhost:5100/v1/games?limit=25", f.Requests[0].RequestUri!.ToString());
         Assert.Equal(game.Id, page.Next);
@@ -73,7 +73,7 @@ public class ManagementClientTests
         Assert.Equal($"/v1/games/{game.Id}/leave", f.Requests[3].RequestUri!.AbsolutePath);
         Assert.Equal(ContentJson.Serialize(layout), ContentJson.Serialize(await c.SaveLayout(layout)));
         var entry = (await c.GetManifest(game.Id)).Assets.Single();
-        Assert.Equal((AssetKind.Miniature, 2.5, new Tabletop.Geometry.Orientation(90, 0, 0)), (entry.Kind, entry.Scale, entry.Orientation));
+        Assert.Equal((AssetKind.Miniature, 2.5, new Tabletop.Geometry.Orientation { Pitch = 90, Yaw = 0, Roll = 0 }), (entry.Kind, entry.Scale, entry.Orientation));
         Assert.Equal($"/v1/games/{game.Id}/assets", f.Requests[5].RequestUri!.AbsolutePath);
     }
 }

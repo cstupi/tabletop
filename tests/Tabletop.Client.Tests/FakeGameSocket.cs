@@ -11,7 +11,12 @@ public sealed class FakeGameSocket : IGameSocket
     public event Action<SocketMessage>? FrameReceived;
     public event Action<SocketClosed>? Closed;
     public Task ConnectAsync(Uri url, CancellationToken ct) { Url = url; Connected = true; return Task.CompletedTask; }
-    public Task SendAsync(SocketMessage frame) { Sent.Add(frame); return Task.CompletedTask; }
+    public Exception? SendFails { get; set; }
+    public Task SendAsync(SocketMessage frame)
+    {
+        if (SendFails is { } error && frame is not Connect) return Task.FromException(error);
+        Sent.Add(frame); return Task.CompletedTask;
+    }
     public Task CloseAsync() { Connected = false; Closed?.Invoke(new SocketClosed(1000, "bye", null)); return Task.CompletedTask; }
     public void Deliver(SocketMessage frame) => FrameReceived?.Invoke(frame);
     public void Drop(int? code, string? reason) { Connected = false; Closed?.Invoke(new SocketClosed(code, reason, null)); }

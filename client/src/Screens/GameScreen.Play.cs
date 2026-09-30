@@ -40,7 +40,7 @@ public partial class GameScreen
             var id = team.Team.Id;
             team.RightClicked += at =>
             {
-                if (_session.Game is { } game && _session.Projection is { } p) _menu?.Open(MenuModel.ForTeam(game, p, id), at);
+                if (_session.Game is { } game && _session.Projection is { } p) _menu?.Open(MenuModel.ForTeam(game, p, id).Concat(MenuModel.OffTable(p, id, new Names(game, p))).ToList(), at);
             };
         }
     }

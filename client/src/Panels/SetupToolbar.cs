@@ -91,8 +91,9 @@ public partial class SetupToolbar : VBoxContainer
         var dialog = Dialog("Add terrain from my library", pick);
         dialog.Confirmed += () => Guarded.Run(async () =>
         {
+            // Scale 1: MeshLoader.Orient already applies the asset's scale to the mesh, and its volumes are table-frame after scale.
             var asset = assets[pick.Selected]; var volumes = await s.Management.GetAssetVolumes(asset.Id);
-            await s.SendEditAsync(new AddTerrain(new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(asset.Id), Beside(SizeNow(s)), new Yaw(0), asset.Scale, volumes.Select(v => new TerrainVolume(Guid.CreateVersion7(), v.Volume)).ToList())));
+            await s.SendEditAsync(new AddTerrain(new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(asset.Id), Beside(SizeNow(s)), new Yaw(0), 1, volumes.Select(v => new TerrainVolume(Guid.CreateVersion7(), v.Volume)).ToList())));
         }, _screen.Toast);
         dialog.PopupCentered();
     }

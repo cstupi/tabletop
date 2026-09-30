@@ -51,11 +51,19 @@ public static class MenuModel
         // "move to the shelf or back", "put inside a container or take out": coming back is one relocation to OnTable,
         // and the position comes from the next click on the table (client shell -> the menu).
         if (model.Location is not OnTable)
-            items.Add(new(model.Location is Inside ? "Take out of the container, here" : "Place on the table, here", MenuInput.TablePoint,
-                s => Point(s) is { } at ? new MoveModels([new ModelRelocation(modelId, model.Location, new OnTable(new Placement(at, new Yaw(0))))]) : null));
+            items.Add(BackOnTable(model, model.Location is Inside ? "Take out of the container, here" : "Place on the table, here"));
         items.AddRange(ForUnit(p, model.UnitId, actionNames).Where(i => i.Label.StartsWith("Mark") || i.Label == "Clear the action record"));
         return items;
     }
+
+    static MenuItem BackOnTable(ModelInPlay model, string label) => new(label, MenuInput.TablePoint,
+        s => Point(s) is { } at ? new MoveModels([new ModelRelocation(model.Id, model.Location, new OnTable(new Placement(at, new Yaw(0))))]) : null);
+
+    /// <summary>A shelf or container model has no node to right-click, so the team panel lists each one: the click's table point places it.</summary>
+    public static IReadOnlyList<MenuItem> OffTable(Projection p, Guid teamId, Names names) =>
+        p.Models.Values.Where(m => m.Location is not OnTable && names.TeamOfModel(m.Id) == teamId)
+            .Select(m => BackOnTable(m, m.Location is Inside ? $"Take {names.Model(m.Id)} out of the container, here" : $"Place {names.Model(m.Id)} on the table, here"))
+            .ToList();
 
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
     [
