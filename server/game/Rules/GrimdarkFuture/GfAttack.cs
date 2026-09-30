@@ -167,7 +167,7 @@ public static partial class GfAttack
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
-    /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfShooting.Groups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
+    /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
     public static bool IsTakedownGroup(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Takedown));
 
@@ -320,7 +320,7 @@ public static partial class GfAttack
     /// <summary>
     /// p.14 Takedown: the model names one model in the target unit as the target of its wounds. A target declaration, so it is made
     /// before this group's hit roll (p.8), and after determine-attacks, so a group with nothing in range never asks. One pick per
-    /// group and not per shot: GfShooting.Groups gives a takedown weapon type one group per model, so the group is one model's dice
+    /// group and not per shot: GfGroups gives a takedown weapon type one group per model, so the group is one model's dice
     /// at one Quality value and roll-to-hit pools them into one roll. deal-wounds reads the answer
     /// back through TakedownModel and assigns to that model without opening an allocation.
     /// </summary>
@@ -331,7 +331,7 @@ public static partial class GfAttack
         {
             if (ctx.History.LastClosed() is not null) return new Complete([]);
             var (weapons, target) = (ctx.Frame.Context.WeaponIds, ctx.Frame.Context.TargetUnitIds[0]);
-            if (KindOf(ctx.State, weapons) != AttackKind.Shooting || !IsTakedownGroup(ctx.State, weapons)) return new Complete([]);
+            if (!IsTakedownGroup(ctx.State, weapons)) return new Complete([]);
             var models = Lookup.AliveModels(ctx.State, target);
             if (models.Count < 2) return new Complete([]);   // one model to choose from: the ordinary allocation reaches it anyway
             return new OpenAsks([ctx.Ask("takedown_target", "Pick the model this takedown weapon targets", ctx.ActorTeam!.Value, new PieceSelection(models, 1, 1))]);
@@ -373,6 +373,13 @@ public static partial class GfAttack
         }
     }
 
+    /// <summary>`granted_&lt;entry&gt;_&lt;amount&gt;`: the entry may hold underscores, the amount never does, so the split is at the last one.</summary>
+    public static (string Entry, int Amount) ParseGrantKey(string key)
+    {
+        var cut = key.LastIndexOf('_');
+        return (key["granted_".Length..cut], int.Parse(key[(cut + 1)..]));
+    }
+
     sealed class RollToBlockStep : IStep
     {
         public string Name => "roll-to-block";
@@ -394,8 +401,8 @@ public static partial class GfAttack
             var wounds = 0; var plain = hits; var plans = new List<Dice.RollPlan>();
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {
-                var parts = key.Split('_');   // granted_<entry>_<amount>
-                var granted = live.WithGranted(Side.Attacker, parts[1], int.Parse(parts[2]));
+                var (entry, amount) = ParseGrantKey(key);
+                var granted = live.WithGranted(Side.Attacker, entry, amount);
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
                 plans.Add(plan);

@@ -5,30 +5,22 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-public sealed record WeaponGroup(string Name, IReadOnlyList<Guid> WeaponIds, bool Takedown);
-
 public static class GfShooting
 {
     public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new FireGroupsStep()]);
 
     /// <summary>
-    /// One group per ranged weapon type over the living models (p.8). A Limited weapon already fired this game is left out (p.14).
-    /// A Takedown weapon type splits into one group per model, because p.14 gives the pick to "This model": each takedown model
-    /// names its own target and rolls its own dice. The split group's name carries the model's ordinal, since the name is the key
-    /// the target declaration and fire-groups use, and two groups sharing one name would collapse into a single target.
+    /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon fired before this shooting began
+    /// is left out (p.14): only `sequence_started` events ahead of this frame's own count, so the groups this frame fired do not shrink
+    /// the list `fire-groups` indexes.
     /// </summary>
     public static IReadOnlyList<WeaponGroup> Groups(GameState state, PropertySet props, Guid unit)
     {
-        var used = EventApplier.EffectiveLog(state.Applier.Log).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
-        var groups = new List<WeaponGroup>();
-        foreach (var g in Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
-                     .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id))).GroupBy(w => w.Name))
-        {
-            var ids = g.Select(w => w.Id).ToList();
-            if (!GfAttack.IsTakedownGroup(state, ids)) { groups.Add(new WeaponGroup(g.Key, ids, false)); continue; }
-            groups.AddRange(ids.Select((id, i) => new WeaponGroup(ids.Count == 1 ? g.Key : $"{g.Key} ({i + 1})", [id], true)));
-        }
-        return groups;
+        var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
+        var start = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.Shooting } s && s.Context.ActorUnitId == unit);
+        var used = log.Take(start < 0 ? log.Count : start).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
+        return GfGroups.Of(state, Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
+            .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id))));
     }
 
     public static IReadOnlyList<Guid> ValidTargets(StepContext ctx, Guid unit, WeaponGroup group)
@@ -60,7 +52,7 @@ public static class GfShooting
     /// p.8: a unit's weapons are fired simultaneously, so every group's attack counts and the defending unit's model count are settled
     /// on this frame before the first group is pushed, and a later group is neither shortened, nor capped lower, nor left blocking a
     /// joined hero on its own Defense by an earlier group's casualties. Two phases over
-    /// `attacks_0`: record, then push one `attack-sequence` at a time, Takedown groups first (p.14).
+    /// `attacks_0`: record, then push one `attack-sequence` at a time, groups in GfGroups' order (Takedown, Deadly, the rest).
     ///
     /// A group's attacks are recorded per Quality value as `attacks_&lt;i&gt;_q&lt;n&gt;`, since p.4 tests each against *"the model's Quality
     /// value"* and a joined hero brings its own, with `attacks_&lt;i&gt;` kept as the group's total for a reader that wants one number.
@@ -76,7 +68,7 @@ public static class GfShooting
             // Only a group the Ask listed, aimed at a unit the Ask offered: what else was assigned is dropped.
             if (ctx.Frame.Frame.Steps[0].Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return new Complete([]);
             var assigned = answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
-            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit).Where(g => assigned.Targets.ContainsKey(g.Name)).OrderByDescending(g => g.Takedown).ThenBy(g => g.Name).ToList();
+            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
             if (groups.Count == 0) return new Complete([]);                                   // nothing was assigned a target: also the guard that bounds the recording phase
             if (!ctx.Frame.Values.ContainsKey("attacks_0"))
             {

@@ -80,6 +80,29 @@ public class GfCastingTests
     }
 
     [Fact]
+    public void One_try_per_spell_is_per_caster_so_another_units_caster_may_still_try_it()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var other = Unit("Other", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = Casting(wizard, [other], [Unit("G", "4+", "4+", [], 2, [])], 2);
+        sim.Append([new SpellTokensSet(other.Models[0].Id, 3)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());                                                      // the roll fails
+        sim.Start(GfNames.CastingSeq, new SequenceContext(other.Id, [], [], null));
+        Assert.Equal([$"Fireball|{other.Models[0].Id}", $"Ward|{other.Models[0].Id}"], Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal).Choices.Select(c => c.Id).OrderBy(x => x));
+        Assert.Empty(GfCasting.TriedThisActivation(sim.State, other.Id));
+        Assert.Equal(["Fireball"], GfCasting.TriedThisActivation(sim.State, wizard.Id));
+    }
+
+    [Fact]
+    public void A_grant_key_splits_at_its_last_underscore_so_an_entry_name_may_hold_one()
+    {
+        Assert.Equal(("AP", 2), GfAttack.ParseGrantKey("granted_AP_2"));
+        Assert.Equal(("Life_Drain", 1), GfAttack.ParseGrantKey("granted_Life_Drain_1"));
+    }
+
+    [Fact]
     public void A_tried_spell_is_dropped_from_the_next_pick_while_a_spell_still_affordable_stays()
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);

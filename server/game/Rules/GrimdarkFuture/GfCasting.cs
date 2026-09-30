@@ -22,12 +22,20 @@ public static class GfCasting
     /// Spells picked by a closed pick-spell since this unit's activation began (OneTryPerSpellScope = activation). The activation is
     /// the unit's last root action sequence, which only the scheduler starts (R-N3): nested frames inherit the action name.
     /// </summary>
-    public static IReadOnlyList<string> TriedThisActivation(GameState state, Guid unit)
+    public static IReadOnlyList<string> TriedThisActivation(GameState state, Guid unit) =>
+        TriedPicks(state, unit).Where(t => state.Projection.Models.TryGetValue(t.Caster, out var m) && m.UnitId == unit).Select(t => t.Spell).ToList();
+
+    /// <summary>
+    /// The (spell, caster model) of every closed pick-spell since this unit's activation began. p.13's "only one try per spell" is a
+    /// caster's own, so pick-spell hides a spell from a model only when that model picked it; the log after the activation's start
+    /// also holds other units' picks, which this leaves to their casters.
+    /// </summary>
+    static IReadOnlyList<(string Spell, Guid Caster)> TriedPicks(GameState state, Guid unit)
     {
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
         var since = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s && s.Context.ActorUnitId == unit);
         return log.Skip(Math.Max(0, since)).Select(e => e.Payload).OfType<StepCompleted>().Where(s => s.Step == "pick-spell" && s.Answer is Chosen)
-            .Select(s => ((Chosen)s.Answer!).OptionId.Split('|')[0]).ToList();
+            .Select(s => ((Chosen)s.Answer!).OptionId.Split('|')).Where(p => p.Length == 2 && Guid.TryParse(p[1], out _)).Select(p => (p[0], Guid.Parse(p[1]))).ToList();
     }
 
     /// <summary>
@@ -101,8 +109,8 @@ public static class GfCasting
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
-            var tried = TriedThisActivation(ctx.State, unit);
-            var options = Casters(ctx.State, unit).SelectMany(m => ctx.Properties.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains(e.Name) && e.Cost <= ctx.Projection.Models[m].SpellTokens)
+            var tried = TriedPicks(ctx.State, unit);
+            var options = Casters(ctx.State, unit).SelectMany(m => ctx.Properties.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains((e.Name, m)) && e.Cost <= ctx.Projection.Models[m].SpellTokens)
                 .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
             return options.Count == 0 ? new Finish([]) : new OpenAsks([ctx.Ask("cast", "Cast which spell?", ctx.ActorTeam!.Value, new Options(options))]);
         }

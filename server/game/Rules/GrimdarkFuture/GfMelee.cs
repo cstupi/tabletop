@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Tabletop.Content;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
@@ -26,6 +25,23 @@ public static class GfMelee
     static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical));
     static StepOutcome AfterChild(StepContext ctx, Func<StepOutcome> push, IReadOnlyList<StateChange>? onDone = null) =>
         ctx.History.Children.Count == 0 ? push() : ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(onDone ?? []) : new OpenAsks([]);
+
+    /// <summary>The melee weapon groups of the given weapon ids (p.9's pool is one attack per weapon type, as p.8's shooting is), in GfGroups' order. Read from every model's slot, so the list is the same on each run of a step.</summary>
+    static IReadOnlyList<WeaponGroup> GroupsOf(GameState state, IReadOnlyList<Guid> ids) =>
+        GfGroups.Of(state, state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => ids.Contains(w.Id)));
+
+    /// <summary>
+    /// Pushes one attack-sequence per group in turn (the pushed count is the number of children, so the step is stateless and replayable),
+    /// then completes with `onDone`. A target that no model survives ends the run: later groups have nothing to strike.
+    /// </summary>
+    static StepOutcome EachGroup(StepContext ctx, IReadOnlyList<WeaponGroup> groups, Guid attacker, Guid target, string? action, IReadOnlyList<StateChange>? onDone = null, IReadOnlyDictionary<string, int>? values = null)
+    {
+        var pushed = ctx.History.Children.Count;
+        if (pushed > 0 && !(ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned)) return new OpenAsks([]);
+        if (pushed < groups.Count && (pushed == 0 || Lookup.LivingModels(ctx.State, target).Count > 0))
+            return new Push(GfNames.AttackSequence, new SequenceContext(attacker, [target], groups[pushed].WeaponIds, action));
+        return new Complete(onDone ?? [], values);
+    }
     static IReadOnlyList<StateChange> Fatigue(Guid unit) => [new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Fatigued, true)];
 
     /// <summary>The settled move answer: every model that went on the table lands on the surface. Shared by the defender's close-in and consolidation.</summary>
@@ -115,8 +131,7 @@ public static class GfMelee
             var counters = MeleeWeapons(ctx.State, Defender(ctx), IsCounter);
             if (counters.Count == 0) return new Complete([]);
             // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back.
-            if (ctx.History.Children.Count == 0) return new Push(GfNames.AttackSequence, new SequenceContext(Defender(ctx), [Charger(ctx)], counters, null));
-            return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([], new Dictionary<string, int> { [StruckKey] = 1 }) : new OpenAsks([]);
+            return EachGroup(ctx, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, values: new Dictionary<string, int> { [StruckKey] = 1 });
         }
     }
 
@@ -143,7 +158,7 @@ public static class GfMelee
     {
         public string Name => "charger-attacks";
         public StepOutcome Run(StepContext ctx) =>
-            AfterChild(ctx, () => new Push(GfNames.AttackSequence, new SequenceContext(Charger(ctx), [Defender(ctx)], ctx.Frame.Context.WeaponIds, GfNames.Charge)), Fatigue(Charger(ctx)));
+            EachGroup(ctx, GroupsOf(ctx.State, ctx.Frame.Context.WeaponIds), Charger(ctx), Defender(ctx), GfNames.Charge, Fatigue(Charger(ctx)));
     }
 
     /// <summary>
@@ -161,9 +176,9 @@ public static class GfMelee
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
             if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             var weapons = MeleeWeapons(ctx.State, defender, w => !IsCounter(w));   // p.13: the Counter weapon's strike already happened in `counter`
-            if (ctx.History.Children.Count > 0) return AfterChild(ctx, () => throw new UnreachableException(), Fatigue(defender));
+            if (ctx.History.Children.Count > 0) return EachGroup(ctx, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
             if (ctx.History.LastClosed() is { } closed)
-                return closed.Single is Chosen { OptionId: "strike" } ? new Push(GfNames.AttackSequence, new SequenceContext(defender, [charger], weapons, null)) : new Complete(counterStruck ? Fatigue(defender) : []);
+                return closed.Single is Chosen { OptionId: "strike" } ? EachGroup(ctx, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
         }
