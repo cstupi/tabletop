@@ -39,9 +39,13 @@ public sealed partial class GrimdarkFutureRules
         foreach (var a in asks)
         {
             if (state.Projection.OpenAsks.ContainsKey(a.Ask.Id)) return new HookWaiting();
-            var answer = since.OfType<AskClosed>().First(c => c.AskId == a.Ask.Id).Answers.FirstOrDefault()?.Answer;
-            if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u) && TeamUnits.AllShelved(state, u))
-                return new HookWaiting();                                            // models still coming off the shelf
+            var answer = since.OfType<AskClosed>().FirstOrDefault(c => c.AskId == a.Ask.Id)?.Answers.FirstOrDefault()?.Answer;   // no close in the log: nothing was answered, as a pass
+            if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u))
+            {
+                if (TeamUnits.ModelsOf(state, u).Any(m => m.Location is OnShelf)) return new HookWaiting();      // models still coming off the shelf
+                if (u.Conditions.Contains(SetAside))                                                             // arrived: no longer set aside, so casualties on the shelf are never offered again
+                    return new HookEmit([new ConditionSet(new Subject(SubjectKind.Unit, u.Id), SetAside, false)]);
+            }
             if (answer is not SelectedPieces) passed.Add(a.Ask.Teams[0]);
         }
         var eligible = order.Where(t => !passed.Contains(t) && Ambushers(state, props, t).Count > 0).ToList();

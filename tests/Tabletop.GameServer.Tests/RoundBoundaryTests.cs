@@ -27,7 +27,8 @@ public class RoundBoundaryTests
         h.Answer(0, new SelectedPieces([a[1]]));
         Assert.Empty(h.P.OpenAsks); Assert.Null(h.P.Scheduler.ActiveTeamId);                                // waiting for the models
         seq = h.P.LastSeq; h.Deploy(a[1]);
-        Assert.Equal(["models_moved", "turn_started", "ask_opened"], h.Kinds(seq));                       // A has no more Ambushers, B never had one: the hook is done
+        Assert.Equal(["models_moved", "condition_set", "turn_started", "ask_opened"], h.Kinds(seq));      // the arrival clears set-aside; A has no more Ambushers, B never had one: the hook is done
+        Assert.DoesNotContain(SetAside, h.P.Units[a[1]].Conditions);
         Assert.Contains(Assert.IsType<Options>(h.Open.Legal).Choices, c => c.Pieces[0] == a[1]);           // deploying wrote nothing to the record
         Assert.Empty(h.P.Units[a[1]].Actions);
         h.Rehydrate(); Assert.Empty(h.Run());
@@ -86,5 +87,49 @@ public class RoundBoundaryTests
         h.Dispatch(new SetRound(1));
         Assert.Equal((1, SchedulerBase.RoundsPhase), (h.P.Scheduler.Round, h.P.Scheduler.Phase));
         Assert.Equal((AskQuestions.Activate, h.Teams[1]), (h.Open.Question, h.Open.Teams.Single()));      // b[0] is on the table: a turn opens
+    }
+
+    [Fact]
+    public void An_ambusher_waits_until_every_model_is_placed_and_a_destroyed_one_is_not_offered_again()
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 2, 2, unitRules: [(2, Ambush, null)]), TestArmies.Build("B", 1, 1)]);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
+        var a = h.Units(0); var b = h.Units(1);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
+        h.SkipDeployment();
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.EndRound();
+        h.Answer(0, new SelectedPieces([a[1]]));
+        var all = TestGames.Relocations(h.State, a[1]);
+        h.Dispatch(new MoveModels([all[0]]), team: 0);
+        Assert.Empty(h.P.OpenAsks);                                                                        // one of two models placed: still arriving
+        Assert.Contains(SetAside, h.P.Units[a[1]].Conditions);
+        h.Dispatch(new MoveModels([all[1]]), team: 0);
+        Assert.DoesNotContain(SetAside, h.P.Units[a[1]].Conditions);
+        h.Dispatch(new MoveModels(all.Select(r => new ModelRelocation(r.ModelId, r.To, new OnShelf())).ToList()), team: 0);   // destroyed: every casualty back on the shelf
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0])));
+        Assert.Equal(AskQuestions.EndRound, h.Open.Question);
+        h.EndRound();
+        Assert.Equal(3, h.P.Scheduler.Round);
+        Assert.DoesNotContain(h.Log, e => e.Payload is AskOpened o && o.Ask.Question == AskQuestions.DeployAmbusher && e.Seq > h.Log.Last(x => x.Payload is RoundStarted).Seq);
+    }
+
+    [Fact]
+    public void Ambushers_alternate_between_teams_starting_with_the_team_that_activates_next()
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 3, 1, unitRules: [(2, Ambush, null), (3, Ambush, null)]), TestArmies.Build("B", 2, 1, unitRules: [(2, Ambush, null)])]);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.Run();
+        var a = h.Units(0); var b = h.Units(1);
+        foreach (var u in new[] { a[1], a[2], b[1] }) h.Dispatch(new SetCondition(TestGames.UnitSubject(u), SetAside, true));
+        h.SkipDeployment();
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.EndRound();
+        var asked = new List<Guid>();
+        while (h.P.OpenAsks.Count > 0 && h.Open.Question == AskQuestions.DeployAmbusher)
+        {
+            var team = h.Teams.ToList().IndexOf(h.Open.Teams.Single());
+            var unit = ((PieceSelection)h.Open.Legal).Eligible[0];
+            asked.Add(h.Open.Teams.Single());
+            h.Answer(team, new SelectedPieces([unit])); h.Deploy(unit);
+        }
+        Assert.Equal([h.Teams[0], h.Teams[1], h.Teams[0]], asked);                                          // p.13: A, then B, then A again; a first-eligible pick would ask A twice running
     }
 }
