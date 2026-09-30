@@ -96,6 +96,16 @@ public class GrimdarkFutureRulesTests
     }
 
     [Fact]
+    public void Artillery_and_Immobile_declared_on_every_model_are_read_through_aggregation_and_mean_hold_only()
+    {
+        var g = TestGames.Build([TestArmies.Build("A", 2, 2, modelRules: [(1, Artillery, null), (2, Immobile, null)])]);
+        var units = Units(g, 0);
+        TestGames.Apply(g, TestGames.Place(g.State, units[0]), TestGames.Place(g.State, units[1]));
+        foreach (var id in units)
+            Assert.Equal(["Hold"], GrimdarkFutureRules.ActionsFor(g.State, Core, g.State.Projection.Units[id], Rows));
+    }
+
+    [Fact]
     public void First_team_is_a_roll_off_before_round_one_then_the_winner_then_whoever_finished_first()
     {
         var g = Game(); var teams = g.Teams;
