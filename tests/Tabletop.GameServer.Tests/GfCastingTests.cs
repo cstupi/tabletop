@@ -256,4 +256,20 @@ public class GfCastingTests
         Assert.Equal([grantId], block.Changes.OfType<GrantRemoved>().Select(c => c.GrantId));              // one removal for the one instance (R-N7)
         Assert.Empty(sim.Unit(shooter.Id).Grants);
     }
+    [Fact]
+    public void A_spell_whose_name_holds_the_option_separator_is_picked_spent_and_tried()
+    {
+        // The option id is "<spell>|<caster>", and a caster id never holds '|', so the split is at the last one.
+        var odd = Ward with { Name = "Ward|Bolt" };
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var state = State([wizard], [Unit("G", "4+", "4+", [], 2, [])], x1: -4, x2: 4);
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(odd), new ScriptedDice(2));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Ward|Bolt|{wizard.Models[0].Id}"));
+        Assert.Equal(2, sim.Model(wizard.Models[0].Id).SpellTokens);
+        sim.Answer(Samples.Team1, new Passed());                                                      // spend nothing; the 2 fails
+        Assert.Empty(sim.State.Projection.Stack);
+        Assert.Equal(["Ward|Bolt"], GfCasting.TriedThisActivation(sim.State, wizard.Id));
+    }
 }

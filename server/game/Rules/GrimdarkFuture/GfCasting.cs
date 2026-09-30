@@ -35,7 +35,14 @@ public static class GfCasting
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
         var since = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s && s.Context.ActorUnitId == unit);
         return log.Skip(Math.Max(0, since)).Select(e => e.Payload).OfType<StepCompleted>().Where(s => s.Step == "pick-spell" && s.Answer is Chosen)
-            .Select(s => ((Chosen)s.Answer!).OptionId.Split('|')).Where(p => p.Length == 2 && Guid.TryParse(p[1], out _)).Select(p => (p[0], Guid.Parse(p[1]))).ToList();
+            .Select(s => Pick(((Chosen)s.Answer!).OptionId)).OfType<(string, Guid)>().ToList();
+    }
+
+    /// <summary>A pick-spell option id, "&lt;spell&gt;|&lt;caster model&gt;": a caster id never holds '|' and a spell name may, so the split is at the last one. Null when the id is not of that form.</summary>
+    static (string Spell, Guid Caster)? Pick(string optionId)
+    {
+        var cut = optionId.LastIndexOf('|');
+        return cut > 0 && Guid.TryParse(optionId.AsSpan(cut + 1), out var caster) ? (optionId[..cut], caster) : null;
     }
 
     /// <summary>
@@ -95,7 +102,8 @@ public static class GfCasting
         return result;
     }
 
-    static (string Spell, Guid Caster) Picked(FrameView casting) { var parts = ((Chosen)casting.Frame.Steps[0].Answer!).OptionId.Split('|'); return (parts[0], Guid.Parse(parts[1])); }
+    /// <summary>pick-spell completes only on an offered option, which Pick always parses.</summary>
+    static (string Spell, Guid Caster) Picked(FrameView casting) => Pick(((Chosen)casting.Frame.Steps[0].Answer!).OptionId) ?? throw new InvalidOperationException("pick-spell recorded an option it did not offer");
 
     sealed class PickSpellStep : IStep
     {
@@ -106,8 +114,7 @@ public static class GfCasting
             if (ctx.History.LastClosed() is { } closed)
             {
                 // A pass, another type of answer or an id the Ask did not offer casts nothing and spends nothing.
-                if (GfAnswers.Option(closed) is not { } picked) return new Finish([]);
-                var (spellName, caster) = (picked.Id.Split('|')[0], Guid.Parse(picked.Id.Split('|')[1]));
+                if (GfAnswers.Option(closed) is not { } picked || Pick(picked.Id) is not var (spellName, caster)) return new Finish([]);
                 var cost = ctx.Properties.Entry(spellName)?.Cost ?? 0;
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);

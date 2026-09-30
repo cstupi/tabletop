@@ -31,10 +31,37 @@ public static class GfMelee
         GfGroups.Of(state, state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => ids.Contains(w.Id)));
 
     /// <summary>
+    /// p.9: "Sum the Attack value from the weapons of all models that can strike ... how many attacks the unit has in total for this
+    /// melee." Two phases, as `fire-groups`: the first run records every group's attacks per Quality value (`attacks_&lt;i&gt;_q&lt;n&gt;`, with
+    /// `attacks_&lt;i&gt;` the total) and the defending unit's living models (`defender_models_&lt;i&gt;`, p.14's Hero clause) and repeats; the
+    /// repeat pushes the groups, and determine-attacks reads the recorded counts, so an earlier group's casualties do not shorten a
+    /// later one. `values` rides both completions.
+    /// </summary>
+    static StepOutcome Strike(StepContext ctx, string step, IReadOnlyList<WeaponGroup> groups, Guid attacker, Guid target, string? action, IReadOnlyList<StateChange>? onDone = null, IReadOnlyDictionary<string, int>? values = null)
+    {
+        if (Recorded(ctx, step)) return EachGroup(ctx, groups, attacker, target, action, onDone, values);
+        if (groups.Count == 0) return new Complete(onDone ?? [], values);
+        var settled = values is null ? new Dictionary<string, int>() : new Dictionary<string, int>(values);
+        var defenderModels = Lookup.LivingModels(ctx.State, target).Count;
+        foreach (var (g, i) in groups.Select((g, i) => (g, i)))
+        {
+            var byQuality = GfAttack.AttacksAgainst(ctx, attacker, target, g.WeaponIds, AttackKind.Melee, action);
+            settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);
+            foreach (var (quality, attacks) in byQuality) settled[$"attacks_{i}_q{quality}"] = attacks;
+            settled[$"defender_models_{i}"] = defenderModels;
+        }
+        return new Complete([], settled, Repeat: true);
+    }
+
+    /// <summary>The step's last completion on this frame was its own recording run: the groups are being pushed.</summary>
+    static bool Recorded(StepContext ctx, string step) =>
+        ctx.Frame.Frame.Steps is [.., var last] && last.Step == step && (last.Values?.ContainsKey(StepRepeat.Key) ?? false);
+
+    /// <summary>
     /// Pushes one attack-sequence per group in turn (the pushed count is the number of children, so the step is stateless and replayable),
     /// then completes with `onDone`. A target that no model survives ends the run: later groups have nothing to strike.
     /// </summary>
-    static StepOutcome EachGroup(StepContext ctx, IReadOnlyList<WeaponGroup> groups, Guid attacker, Guid target, string? action, IReadOnlyList<StateChange>? onDone = null, IReadOnlyDictionary<string, int>? values = null)
+    static StepOutcome EachGroup(StepContext ctx, IReadOnlyList<WeaponGroup> groups, Guid attacker, Guid target, string? action, IReadOnlyList<StateChange>? onDone, IReadOnlyDictionary<string, int>? values)
     {
         var pushed = ctx.History.Children.Count;
         if (pushed > 0 && !(ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned)) return new OpenAsks([]);
@@ -131,7 +158,7 @@ public static class GfMelee
             var counters = MeleeWeapons(ctx.State, Defender(ctx), IsCounter);
             if (counters.Count == 0) return new Complete([]);
             // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back.
-            return EachGroup(ctx, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, values: new Dictionary<string, int> { [StruckKey] = 1 });
+            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, values: new Dictionary<string, int> { [StruckKey] = 1 });
         }
     }
 
@@ -158,7 +185,7 @@ public static class GfMelee
     {
         public string Name => "charger-attacks";
         public StepOutcome Run(StepContext ctx) =>
-            EachGroup(ctx, GroupsOf(ctx.State, ctx.Frame.Context.WeaponIds), Charger(ctx), Defender(ctx), GfNames.Charge, Fatigue(Charger(ctx)));
+            Strike(ctx, Name, GroupsOf(ctx.State, ctx.Frame.Context.WeaponIds), Charger(ctx), Defender(ctx), GfNames.Charge, Fatigue(Charger(ctx)));
     }
 
     /// <summary>
@@ -173,12 +200,13 @@ public static class GfMelee
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             var counterStruck = CounterStruck(ctx);
+            var weapons = MeleeWeapons(ctx.State, defender, w => !IsCounter(w));   // p.13: the Counter weapon's strike already happened in `counter`
+            // Striking under way comes before the living-model checks: a strike back that destroys the charger still fatigues (p.9).
+            if (Recorded(ctx, Name)) return Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
             if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
             if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
-            var weapons = MeleeWeapons(ctx.State, defender, w => !IsCounter(w));   // p.13: the Counter weapon's strike already happened in `counter`
-            if (ctx.History.Children.Count > 0) return EachGroup(ctx, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender));
-            if (ctx.History.LastClosed() is { } closed)
-                return closed.Single is Chosen { OptionId: "strike" } ? EachGroup(ctx, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
+            if (ctx.History.LastClosed("strike_back") is { } closed)
+                return closed.Single is Chosen { OptionId: "strike" } ? Strike(ctx, Name, GroupsOf(ctx.State, weapons), defender, charger, null, Fatigue(defender)) : new Complete(counterStruck ? Fatigue(defender) : []);
             if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
         }

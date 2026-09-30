@@ -14,4 +14,15 @@ public static class Table
     public static bool ContainsBase(TableSize size, PlacedModel model) => Outline(size).ContainsOutline(model.BaseOutline());
 
     internal static PolygonOutline Outline(TableSize size) => new(Bounds(size).Vertices);
+
+    /// <summary>
+    /// Every outline built from the table size can be built: both edges finite and above zero, and the polygon constructor's own area
+    /// test passes on the slab and on every built-in deployment zone's polygons, which are resolved against the size.
+    /// </summary>
+    public static bool IsValid(TableSize size)
+    {
+        static bool Positive(double v) => double.IsFinite(v) && v > 0;
+        return Positive(size.Width) && Positive(size.Length) && PolygonOutline.Builds(Bounds(size).Vertices)
+            && ZoneStyles.All.SelectMany(ZoneStyles.ShapesOf).SelectMany(id => ZoneStyles.Resolve(id, size)).All(z => PolygonOutline.Builds(z.Vertices));
+    }
 }

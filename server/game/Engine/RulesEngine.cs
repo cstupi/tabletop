@@ -14,17 +14,17 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
-        RerollDice or SetDice => DiceLegal(state, command) ? Legality.Legal : Legality.Illegal,
-        AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll) ? Legality.Legal : Legality.Illegal,
+        RerollDice or SetDice or AddModifier => DiceLegal(state, command) ? Legality.Legal : Legality.Illegal,
         _ => Legality.Illegal,
     };
 
-    /// <summary>The one predicate for a dice command: the roll exists on the frame, every index is a die of it and none repeats, and every set face is on the roll's convention. Judge asks it, and Execute asks it again because warn and silent run a command Judge called illegal.</summary>
+    /// <summary>The one predicate for a dice command: the roll exists on the frame, every index is a die of it and none repeats, and every set face is on the roll's convention; a modifier names a frame on the stack and a roll the pinned set defines. Judge asks it, and Execute asks it again because warn and silent run a command Judge called illegal.</summary>
     bool DiceLegal(GameState state, Command command) => command switch
     {
         RerollDice r => Find(state, r.FrameId, r.RollId) is { } rec && DistinctInRange(r.DiceIndices, rec.Dice.Count),
         SetDice s => Find(state, s.FrameId, s.RollId) is { } rec && DistinctInRange(s.Dice.Select(d => d.Index).ToList(), rec.Dice.Count)
             && s.Dice.All(d => d.Raw >= 1 && d.Raw <= PlanOf(rec).Convention.Sides),
+        AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll),
         _ => false,
     };
 
@@ -42,7 +42,7 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
                 var plan = PlanOf(record); var roller = new Roller(dice, state.RngSeed, 0);
                 return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], roller.Judge(plan, d.Raw))).ToList())]);
             }
-            case AddModifier m when state.Projection.Stack.Any(f => f.Id == m.FrameId):
+            case AddModifier m when DiceLegal(state, m):
                 return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount))]);
             default:
                 return new RefuseCommand(RefusalReason.Unknown, $"{command.GetType().Name}: no such frame, roll or die");

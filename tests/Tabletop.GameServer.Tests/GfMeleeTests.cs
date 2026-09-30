@@ -263,4 +263,36 @@ public class GfMeleeTests
         // Defender should still be fatigued because it struck via Counter
         Assert.Contains(GfNames.Fatigued, sim.Unit(defender.Id).Conditions);
     }
+    [Fact]
+    public void Melee_groups_strike_with_the_attacks_and_defender_count_the_melee_started_with()
+    {
+        // p.9: "Sum the Attack value from the weapons of all models that can strike ... how many attacks the unit has in total for this
+        // melee." Two chargers, each with an Axe and a Zed, each opposite its own defender. The Axe group kills the defender facing
+        // charger 2, which leaves charger 2 with nobody within 2"; the Zed group still rolls both chargers' attacks against both models.
+        var chargers = Unit("Chargers", "4+", "4+", [], 2, [], Melee("Axe", 1), Melee("Zed", 1));
+        var defenders = Unit("Defenders", "4+", "6+", [], 2, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([chargers], [defenders], x1: -3, x2: 0), 6, 1, 1, 1, 1);          // Axe hits 6, misses 1; block 1; Zed 1,1
+        static ModelRelocation To(Sim sim, Guid model, double x, double y) => new(model, sim.Model(model).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))));
+        sim.Append([new ModelsMoved([To(sim, chargers.Models[0].Id, -1.3, -18.5), To(sim, defenders.Models[0].Id, 0, -18.5),
+            To(sim, chargers.Models[1].Id, -1.3, -8), To(sim, defenders.Models[1].Id, 0, -8)])]);
+        sim.Start(GfNames.Melee, MeleeOf(chargers, defenders));
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [defenders.Models[1].Id] = 1 }));   // the defender facing charger 2 falls
+        Assert.Equal(1, sim.Alive(defenders.Id));
+        var zed = sim.Steps("determine-attacks").Last();
+        Assert.Equal((2, 1, 2), (zed.Values!["attacks"], zed.Values["eligible_models"], zed.Values["defender_models"]));
+        Assert.Equal(2, sim.Steps("roll-to-hit").Last().Rolls.Single().Dice.Count);
+    }
+
+    [Fact]
+    public void A_strike_back_that_destroys_the_charger_fatigues_the_defender()
+    {
+        // p.9: fatigue follows "attacking in melee for the first time during a round, either by charging or by striking back".
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var defender = Unit("Defender", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [defender], x1: -3, x2: 0), 1, 6, 1);                    // the charger misses; the strike back hits 6; the block 1 fails
+        sim.Start(GfNames.Melee, MeleeOf(charger, defender));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        Assert.Equal(0, sim.Alive(charger.Id));
+        Assert.Contains(GfNames.Fatigued, sim.Unit(defender.Id).Conditions);
+    }
 }

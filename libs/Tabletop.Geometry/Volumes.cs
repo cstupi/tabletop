@@ -7,6 +7,24 @@ public readonly record struct Footprint(FootprintKind Kind, double A, double B)
 {
     public static Footprint Circle(double radius) => new(FootprintKind.Circle, radius, radius);
     public static Footprint Rect(double width, double length) => new(FootprintKind.Rect, width, length);
+
+    /// <summary>
+    /// The outline WorldVolumes builds from this footprint at the given scale can be built and measured: a defined kind, a finite
+    /// scale and scaled size above zero, and for a rect the polygon constructor's own area test on the scaled corners.
+    /// </summary>
+    public bool IsValid(double scale)
+    {
+        static bool Positive(double v) => double.IsFinite(v) && v > 0;
+        if (!Enum.IsDefined(Kind) || !Positive(scale) || !Positive(A * scale)) return false;
+        return Kind == FootprintKind.Circle || (Positive(B * scale) && PolygonOutline.Builds(Corners(scale)));
+    }
+
+    /// <summary>A rect's corners at the given scale, centred on the origin and unrotated.</summary>
+    internal IReadOnlyList<Point2> Corners(double scale)
+    {
+        var (hw, hl) = (A * scale / 2, B * scale / 2);
+        return [new(-hw, -hl), new(hw, -hl), new(hw, hl), new(-hw, hl)];
+    }
 }
 
 /// <summary>Solid: occupied, its top is what a model settles onto. Area: passed through, stood inside.</summary>

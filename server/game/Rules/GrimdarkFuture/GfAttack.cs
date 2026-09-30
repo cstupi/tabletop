@@ -203,11 +203,12 @@ public static partial class GfAttack
     /// <summary>
     /// p.8's Determine Attacks, asked from outside the group's own frame: what this group would roll against this target now,
     /// split by the Quality value each attack is tested against. `fire-groups` calls it once per group before the first shot,
-    /// because p.8 fires a unit's weapons simultaneously.
+    /// because p.8 fires a unit's weapons simultaneously, and melee's striking steps before the first strike (p.9). The action is
+    /// the pushed child's, since a defender strikes back under none.
     /// </summary>
-    public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind)
+    public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind, string? action)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, ctx.Frame.Context.Action));
+        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
         return Attacks(ctx, live, EligibleModels(ctx.State, live, attacker, target, weapons, kind), weapons, kind);
     }
 
@@ -270,17 +271,17 @@ public static partial class GfAttack
 
     /// <summary>
     /// p.8's first step. The counts are not this frame's to compute when a pushing step already settled them: `fire-groups` fixes
-    /// every group's attacks before the first shot, because p.8 fires a unit's weapons simultaneously, and this reads
-    /// `attacks_&lt;i&gt;_q&lt;n&gt;` back off the pushing frame. Only a push that recorded nothing is counted
-    /// here and now, which is every melee push, since p.9 orders those attacks by hand. `eligible_models` is the live figure either
-    /// way, so a recorded count standing over an empty eligible set is visible in the log.
+    /// every group's attacks before the first shot, because p.8 fires a unit's weapons simultaneously, and melee's striking steps
+    /// fix them before the first strike, because p.9 sums "how many attacks the unit has in total for this melee"; this reads
+    /// `attacks_&lt;i&gt;_q&lt;n&gt;` back off the pushing frame. Only a push that recorded nothing is counted here and now.
+    /// `eligible_models` is the live figure either way, so a recorded count standing over an empty eligible set is visible in the log.
     ///
     /// The counts are per Quality value, one key each, because p.4 tests every attack against *"the model's Quality value"* and a
     /// joined hero brings its own. `attacks` stays the total, which is what the log line and the readers that do
     /// not care about the split read. `defender_models` is the defending unit's living models, settled at the same moment and for
     /// the same reason, and carried here so `roll-to-hit` can cap `Blast` with it (p.13) and `roll-to-block` can decide whether
     /// p.14's joined hero is alone. `in_cover` is p.11's majority, settled at that same moment and carried here for
-    /// `roll-to-block`. A melee push settles none of the three and each falls back to the live reading.
+    /// `roll-to-block`. A melee push settles no `in_cover`, which melee does not read; a push that settled nothing falls back to the live reading.
     /// </summary>
     sealed class DetermineAttacksStep : IStep
     {
@@ -308,15 +309,19 @@ public static partial class GfAttack
 
     /// <summary>
     /// A number the pushing step settled for this child before it pushed anything, keyed by the child's ordinal among that step's
-    /// children: `defender_models_&lt;i&gt;`, and `attacks_&lt;i&gt;_q&lt;n&gt;` through `ByQuality`. Null when the pusher wrote none, which is
-    /// every melee push.
+    /// children: `defender_models_&lt;i&gt;`, and `attacks_&lt;i&gt;_q&lt;n&gt;` through `ByQuality`. Read off the pusher's recording run, the
+    /// parent's last completion, which is still marked as a repeat while its children run; a frame's merged values would mix in the
+    /// keys an earlier striking step of the same melee wrote. Null when the pusher recorded none.
     /// </summary>
     static int? Pushed(FrameView frame, string prefix) =>
-        frame.Parent is { History.Children.Count: > 0 } parent && parent.Values.TryGetValue($"{prefix}_{parent.History.Children.Count - 1}", out var n) ? n : null;
+        Recording(frame) is { } values && values.TryGetValue($"{prefix}_{frame.Parent!.History.Children.Count - 1}", out var n) ? n : null;
 
-    /// <summary>The same read for the per-Quality keys, which are a set rather than one number. Empty when the pusher wrote none.</summary>
+    /// <summary>The same read for the per-Quality keys, which are a set rather than one number. Empty when the pusher recorded none.</summary>
     static IReadOnlyList<(int Quality, int Attacks)> PushedByQuality(FrameView frame) =>
-        frame.Parent is { History.Children.Count: > 0 } parent ? ByQuality(parent.Values, $"attacks_{parent.History.Children.Count - 1}_q") : [];
+        Recording(frame) is { } values ? ByQuality(values, $"attacks_{frame.Parent!.History.Children.Count - 1}_q") : [];
+
+    static IReadOnlyDictionary<string, int>? Recording(FrameView frame) =>
+        frame.Parent is { History.Children.Count: > 0 } parent && parent.Frame.Steps is [.., var last] && last.Values is { } values && values.ContainsKey(StepRepeat.Key) ? values : null;
 
     /// <summary>
     /// p.14 Takedown: the model names one model in the target unit as the target of its wounds. A target declaration, so it is made
@@ -390,15 +395,16 @@ public static partial class GfAttack
             var parent = ctx.Frame.Parent!;
             var hits = HitsFrom(parent);
             if (hits <= 0) return new Finish([], new Dictionary<string, int> { ["wounds"] = 0 });
-            var shooters = EligibleModels(ctx.State, live, ix.Attacker.UnitId, ix.Defender!.UnitId, ctx.Frame.Context.WeaponIds, kind);
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
             // fact determine-attacks carried down. A parent that recorded none is a spell's hits or Impact's, where live is the answer.
+            var defender = ix.Defender!.UnitId;
             var inCover = kind == AttackKind.Shooting
-                && parent.Value("in_cover", GfRolls.InCover(ctx.State, ix.Defender.UnitId, shooters, live.Has(Side.Attacker, GfNames.Indirect)) ? 1 : 0) == 1;
+                && (parent.Values.TryGetValue("in_cover", out var settled) ? settled == 1
+                    : GfRolls.InCover(ctx.State, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind), live.Has(Side.Attacker, GfNames.Indirect)));
             var multiplier = Math.Max(1, parent.Value("hit_multiplier", 1));
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
-            var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count);
+            var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
             var wounds = 0; var plain = hits; var plans = new List<Dice.RollPlan>();
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {

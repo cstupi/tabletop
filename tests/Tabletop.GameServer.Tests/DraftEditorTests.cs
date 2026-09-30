@@ -123,7 +123,29 @@ public class DraftEditorTests
         { "table negative", h => new SetTableSize(new TableSize(-72, 48)) },
         { "table infinite", h => new SetTableSize(new TableSize(72, double.PositiveInfinity)) },
         { "replace draft with zero table edge", h => new ReplaceDraft(Empty with { Size = new TableSize(0, 48) }) },
+        { "scale 1e-4 on the 6x6 hill", h => new ScaleTerrain(h.Id, 1e-4) },
+        { "add with a 1e-4 scale", h => new AddTerrain(h with { Id = Guid.CreateVersion7(), Scale = 1e-4 }) },
+        { "tiny rect dimension", h => new OverrideTerrainVolumes(h.Id, [Vol(Footprint.Rect(1e-7, 2))]) },
+        { "undefined footprint kind", h => new OverrideTerrainVolumes(h.Id, [Vol(new Footprint((FootprintKind)7, 2, 2))]) },
+        { "tiny table edge", h => new SetTableSize(new TableSize(1e-9, 48)) },
+        { "tiny table whose zones cannot be built", h => new SetTableSize(new TableSize(1e-3, 1e-3)) },
+        { "replace draft with a tiny table edge", h => new ReplaceDraft(Empty with { Size = new TableSize(1e-9, 48) }) },
     };
+
+    public static TheoryData<string, Func<TerrainPlacement, SetupEdit>> SmallButValid => new()
+    {
+        { "scale 2e-4 on the 6x6 hill", h => new ScaleTerrain(h.Id, 2e-4) },
+        { "1e-3 rect dimension", h => new OverrideTerrainVolumes(h.Id, [Vol(Footprint.Rect(1e-3, 2))]) },
+        { "circle radius 1e-4", h => new OverrideTerrainVolumes(h.Id, [Vol(Footprint.Circle(1e-4))]) },
+        { "0.05 table", h => new SetTableSize(new TableSize(0.05, 0.05)) },
+    };
+
+    [Theory, MemberData(nameof(SmallButValid))]
+    public void A_small_outline_that_geometry_can_build_is_accepted(string _, Func<TerrainPlacement, SetupEdit> edit)
+    {
+        var hill = Hill(10, 10);
+        Apply(Apply(Empty, new AddTerrain(hill)), edit(hill));
+    }
 
     [Theory, MemberData(nameof(Degenerate))]
     public void A_degenerate_outline_is_refused(string _, Func<TerrainPlacement, SetupEdit> edit)

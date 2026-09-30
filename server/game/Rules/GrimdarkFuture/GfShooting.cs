@@ -10,14 +10,14 @@ public static class GfShooting
     public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new FireGroupsStep()]);
 
     /// <summary>
-    /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon fired before this shooting began
-    /// is left out (p.14): only `sequence_started` events ahead of this frame's own count, so the groups this frame fired do not shrink
-    /// the list `fire-groups` indexes.
+    /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon already fired is left out
+    /// (p.14 "may only be used once per game"). Asked from inside a shooting frame, only `sequence_started` events ahead of that frame's
+    /// own count, so the groups this frame fired do not shrink the list `fire-groups` indexes; asked from outside one, every start counts.
     /// </summary>
-    public static IReadOnlyList<WeaponGroup> Groups(GameState state, PropertySet props, Guid unit)
+    public static IReadOnlyList<WeaponGroup> Groups(GameState state, PropertySet props, Guid unit, Guid? shootingFrame)
     {
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
-        var start = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.Shooting } s && s.Context.ActorUnitId == unit);
+        var start = shootingFrame is { } frame ? log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == frame) : -1;
         var used = log.Take(start < 0 ? log.Count : start).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
         return GfGroups.Of(state, Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
             .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id))));
@@ -41,7 +41,7 @@ public static class GfShooting
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             if (ctx.History.LastClosed() is not null) return new Complete([]);
-            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit).Select(g => (Group: g, Targets: ValidTargets(ctx, unit, g))).Where(x => x.Targets.Count > 0).ToList();
+            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Select(g => (Group: g, Targets: ValidTargets(ctx, unit, g))).Where(x => x.Targets.Count > 0).ToList();
             if (groups.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("declare_targets", "Declare weapon groups and up to two targets", ctx.ActorTeam!.Value,
                 new Assignment(groups.Select(x => new AskOption(x.Group.Name, x.Group.Name, x.Group.WeaponIds)).ToList(), groups.SelectMany(x => x.Targets).Distinct().ToList(), 2))]);
@@ -68,14 +68,14 @@ public static class GfShooting
             // Only a group the Ask listed, aimed at a unit the Ask offered: what else was assigned is dropped.
             if (ctx.Frame.Frame.Steps[0].Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return new Complete([]);
             var assigned = answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
-            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
+            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
             if (groups.Count == 0) return new Complete([]);                                   // nothing was assigned a target: also the guard that bounds the recording phase
             if (!ctx.Frame.Values.ContainsKey("attacks_0"))
             {
                 var settled = new Dictionary<string, int>();
                 foreach (var (g, i) in groups.Select((g, i) => (g, i)))
                 {
-                    var byQuality = GfAttack.AttacksAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds, AttackKind.Shooting);
+                    var byQuality = GfAttack.AttacksAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action);
                     settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);
                     foreach (var (quality, attacks) in byQuality) settled[$"attacks_{i}_q{quality}"] = attacks;
                     settled[$"defender_models_{i}"] = Lookup.LivingModels(ctx.State, assigned.Targets[g.Name]).Count;   // p.13's Blast cap and p.14's Hero sunset, frozen with the counts

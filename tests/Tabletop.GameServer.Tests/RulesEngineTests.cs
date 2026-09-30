@@ -93,6 +93,18 @@ public class RulesEngineTests
     }
 
     [Fact]
+    public void Execute_refuses_a_modifier_on_a_roll_the_pinned_set_does_not_define()
+    {
+        // Warn and silent execute what Judge called illegal, so Execute asks the same question again.
+        var sim = Make();
+        sim.Start("roller", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        var clay = new Actor(Samples.P1, Samples.Team1);
+        Assert.IsType<RefuseCommand>(sim.Engine.Execute(sim.State, new AddModifier(frame, "save", 1), clay));
+        Assert.IsType<Emit>(sim.Engine.Execute(sim.State, new AddModifier(frame, "defense", -1), clay));
+    }
+
+    [Fact]
     public void The_factory_loads_the_pinned_set_and_refuses_an_unknown_hash()
     {
         var store = new InMemoryPropertiesStore().Add(TestProperties.Core);

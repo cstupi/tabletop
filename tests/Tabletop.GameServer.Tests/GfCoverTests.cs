@@ -120,4 +120,15 @@ public class GfCoverTests
         Assert.Contains(block.Rolls.Single().Modifiers, m => m.Source == "cover" && m.Amount == 1);
         Assert.Equal(0, block.Values!["wounds"]);
     }
+    [Fact]
+    public void A_model_screened_only_by_its_own_squad_mates_base_is_not_behind_a_sight_blocker()
+    {
+        // R-N18: p.11 "they are sight blockers that can provide other units with cover", so a unit's own models do not screen it.
+        var (shooter, pair) = (Rifle(), Unit("Pair", "4+", "4+", [], 2, []));
+        var sim = Sim.Gf(State([shooter], [pair]));
+        sim.Append([new ModelsMoved([Move(sim, shooter.Models[0].Id, Shooter), Move(sim, pair.Models[0].Id, Screened), Move(sim, pair.Models[1].Id, Screen)])]);
+        AssertScreened(sim, shooter.Models[0].Id, pair.Models[0].Id, pair.Models[1].Id);                 // the squad-mate's base is on the line
+        Assert.Empty(Battlefield.ModelsBehindSightBlockers(sim.State, pair.Id, [shooter.Models[0].Id]));
+        Assert.False(GfRolls.InCover(sim.State, pair.Id, [shooter.Models[0].Id], ignoresSightObstructions: false));
+    }
 }

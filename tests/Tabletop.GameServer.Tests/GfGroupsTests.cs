@@ -67,6 +67,20 @@ public class GfGroupsTests
         Assert.Equal(2, sim.Emitted.OfType<SequenceStarted>().Count(e => e.Sequence == GfNames.AttackSequence));
         // A second shooting excludes the Missile, which the first one used.
         sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
-        Assert.Equal(["B Rifle"], GfShooting.Groups(sim.State, TestProperties.Core, shooter.Id).Select(g => g.Name));
+        Assert.Equal(["B Rifle"], GfShooting.Groups(sim.State, TestProperties.Core, shooter.Id, null).Select(g => g.Name));
+    }
+    [Fact]
+    public void A_unit_whose_only_ranged_weapon_is_a_spent_limited_one_is_not_asked_to_shoot()
+    {
+        // p.14 Limited: "may only be used once per game". The previous shooting fired it, so a later Hold has nothing to fire and asks nothing.
+        var shooter = Unit("S", "4+", "4+", [], 1, [], Gun("Missile", "24\"", 1, P("Limited")));
+        var t = Unit("T", "4+", "6+", [], 3, []);
+        var sim = Sim.Gf(State([shooter], [t], x1: -5, x2: 5), 1);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Missile"] = t.Id }));
+        Assert.Empty(sim.State.Projection.Stack);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        Assert.Null(sim.AskForOrNull(Samples.Team1));
+        Assert.Empty(sim.State.Projection.Stack);
     }
 }

@@ -145,7 +145,8 @@ public class OutOfSetAnswerTests
     {
         var (sim, warriors, dwarves) = Charging();
         sim.Answer(Samples.Team1, new SelectedPieces([dwarves.Id]));
-        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(warriors.Models[0].Id, sim.Model(warriors.Models[0].Id).Location, new OnTable(At(-1.3)))]));
+        var facing = ((OnTable)sim.Model(dwarves.Models[0].Id).Location).Placement.Position;                   // into contact, so the melee is fought
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(warriors.Models[0].Id, sim.Model(warriors.Models[0].Id).Location, new OnTable(new Placement(facing with { X = facing.X - 1.3 }, new Yaw(0))))]));
         sim.Answer(Samples.Team2, new Passed());
         var guard = 0;
         while (sim.State.Projection.Stack.Count > 0 && guard++ < 10)
@@ -155,6 +156,9 @@ public class OutOfSetAnswerTests
             sim.Answer(team, open.Legal switch { Options => new Chosen("bogus"), Allocation => new Passed(), _ => new Passed() });
         }
         Assert.Empty(sim.State.Projection.Stack);
+        Assert.Contains(sim.Emitted.OfType<AskOpened>(), o => o.Ask.Question == "strike_back");                  // the Ask was answered with the bogus id
+        Assert.DoesNotContain(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == dwarves.Id);
+        Assert.DoesNotContain(GfNames.Fatigued, sim.Unit(dwarves.Id).Conditions);
     }
 
     [Fact]

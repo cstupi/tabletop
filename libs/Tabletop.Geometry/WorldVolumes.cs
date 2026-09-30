@@ -14,9 +14,7 @@ public static class WorldVolumes
         var centre = v.WorldCentre();
         var f = v.Volume.Footprint;
         if (f.Kind == FootprintKind.Circle) return new CircleOutline(centre, f.A * s);
-        var hw = f.A * s / 2;
-        var hl = f.B * s / 2;
-        return new PolygonOutline(Bodies.Place([new(-hw, -hl), new(hw, -hl), new(hw, hl), new(-hw, hl)], centre, v.WorldYaw()));
+        return new PolygonOutline(Bodies.Place(f.Corners(s), centre, v.WorldYaw()));
     }
 
     internal static bool VerticalRangeContains(this WorldVolume v, double z) =>
