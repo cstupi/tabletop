@@ -155,8 +155,9 @@ public static class GfMelee
         public StepOutcome Run(StepContext ctx)
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
-            if (Lookup.LivingModels(ctx.State, defender).Count == 0 || Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete([]);
             var counterStruck = CounterStruck(ctx);
+            if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
+            if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             var weapons = MeleeWeapons(ctx.State, defender, w => !IsCounter(w));   // p.13: the Counter weapon's strike already happened in `counter`
             if (ctx.History.Children.Count > 0) return AfterChild(ctx, () => throw new UnreachableException(), Fatigue(defender));
             if (ctx.History.LastClosed() is { } closed)

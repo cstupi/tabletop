@@ -249,4 +249,18 @@ public class GfMeleeTests
         var compare = sim.Steps("compare").First();
         Assert.Equal((0, 1, 1), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));   // Fear(1): it struck, though nothing changed
     }
+
+    [Fact]
+    public void A_counter_strike_that_destroys_the_charger_still_fatigues_the_defender()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [P("Tough", 1)], Melee("Sword", 1));
+        var defender = Unit("Defender", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        // Counter hits 6, charger blocks 1 (fails), charger dies (Tough-1 with 1 wound)
+        var sim = Sim.Gf(State([charger], [defender], x1: -3, x2: 0), 6, 1);
+        sim.Start(GfNames.Melee, MeleeOf(charger, defender));
+        // After Counter step, charger should be dead
+        Assert.Equal(0, sim.Alive(charger.Id));
+        // Defender should still be fatigued because it struck via Counter
+        Assert.Contains(GfNames.Fatigued, sim.Unit(defender.Id).Conditions);
+    }
 }
