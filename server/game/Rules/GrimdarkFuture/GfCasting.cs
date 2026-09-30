@@ -163,13 +163,17 @@ public static class GfCasting
             if (index >= chosen.Count) return new Complete([]);
             var target = chosen[index];
             var targetUnit = ctx.Projection.Units.ContainsKey(target) ? target : ctx.Projection.Models[target].UnitId;
-            var holding = spell.Effects.Where(e => Holds(ctx, casterUnit, targetUnit, spell, e)).OrderBy(e => e.Ordinal).ToList();
+            var holding = Holding(ctx, casterUnit, targetUnit, spell);
             var hits = holding.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
             if (hits.Count > 0 && ctx.History.Children.Count == 0) return new Push(GfNames.SpellHitsSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
             var changes = holding.Where(e => e.Duration == EffectDuration.Once)
                 .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, e.TargetEntry ?? spell.Name, casterUnit, 1))).ToList();
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
         }
+
+        /// <summary>The spell's effects whose own conditions hold for this target, in order; both the effects step and the hit step read it.</summary>
+        internal static List<Effect> Holding(StepContext ctx, Guid casterUnit, Guid targetUnit, CatalogEntry spell) =>
+            spell.Effects.Where(e => Holds(ctx, casterUnit, targetUnit, spell, e)).OrderBy(e => e.Ordinal).ToList();
 
         /// <summary>The spell's own conditions, judged with the caster as the holder and the target unit opposite (no roll, so a per-die condition waits for its die).</summary>
         static bool Holds(StepContext ctx, Guid casterUnit, Guid targetUnit, CatalogEntry spell, Effect effect)
@@ -189,7 +193,8 @@ public static class GfCasting
             var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1 };
             var total = 0;
-            foreach (var hit in spell.Effects.Where(e => e.Kind == EffectKind.AddHit).OrderBy(e => e.Ordinal))
+            var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
+            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, ctx.Frame.Context.TargetUnitIds[0], spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
                 var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);

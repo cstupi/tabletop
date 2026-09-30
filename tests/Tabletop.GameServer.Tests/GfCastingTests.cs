@@ -73,9 +73,83 @@ public class GfCastingTests
         Assert.Equal([Samples.Team1], sim.AskFor(Samples.Team1).Teams);                              // no enemy caster in range: only the caster itself may spend
         sim.Answer(Samples.Team1, new Passed());
         Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
+        Assert.Equal(1, sim.Model(wizard.Models[0].Id).SpellTokens);                                  // a failed cast keeps its cost spent
         Assert.Empty(sim.State.Projection.Stack);                                                     // casting finished; no activation frame in this test, so the scan covers the whole log
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         Assert.Equal([$"Ward|{wizard.Models[0].Id}"], Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal).Choices.Select(c => c.Id));
+    }
+
+    [Fact]
+    public void A_tried_spell_is_dropped_from_the_next_pick_while_a_spell_still_affordable_stays()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = Casting(wizard, [], [Unit("G", "4+", "4+", [], 2, [])], 2);
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
+        Assert.Equal(4, sim.Model(wizard.Models[0].Id).SpellTokens);                                  // Fireball (2) is still affordable: only the tried list can hide it
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        Assert.Equal([$"Ward|{wizard.Models[0].Id}"], Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal).Choices.Select(c => c.Id));
+    }
+
+    static void Put(Sim sim, Tabletop.Content.Unit unit, double x, double y) =>
+        sim.Append([new ModelsMoved([new ModelRelocation(unit.Models[0].Id, sim.Model(unit.Models[0].Id).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))))])]);
+
+    [Fact]
+    public void Only_token_holders_within_18_inches_and_in_sight_of_the_caster_reach_the_spend_window()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var near = Unit("Near", "4+", "4+", [], 1, [P("Caster", 1)]); var far = Unit("Far", "4+", "4+", [], 1, [P("Caster", 1)]);
+        var hidden = Unit("Hidden", "4+", "4+", [], 1, [P("Caster", 1)]); var wall = Unit("Wall", "4+", "4+", [], 1, []);
+        var sim = Casting(wizard, [near, far, hidden, wall], [Unit("G", "4+", "4+", [], 1, [])], 2);
+        foreach (var m in new[] { near, far, hidden }) sim.Append([new SpellTokensSet(m.Models[0].Id, 1)]);
+        Put(sim, near, -16, -20);                 // 12" west, clear
+        Put(sim, far, -24, -20);                  // 20" west, clear: out of range only
+        Put(sim, wall, -4, -14); Put(sim, hidden, -4, -8);      // 12" north, in range but behind the wall
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Ward|{wizard.Models[0].Id}"));
+        var caps = Assert.IsType<TokenSpend>(sim.AskFor(Samples.Team1).Legal).MaxByModel;
+        Assert.DoesNotContain(far.Models[0].Id, caps.Keys);
+        Assert.DoesNotContain(hidden.Models[0].Id, caps.Keys);
+        Assert.Equal(new HashSet<Guid> { wizard.Models[0].Id, near.Models[0].Id }, caps.Keys.ToHashSet());
+    }
+
+    [Fact]
+    public void A_target_beyond_the_spells_range_or_hidden_behind_another_unit_is_not_offered()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var near = Unit("Near", "4+", "4+", [], 1, []); var far = Unit("Far", "4+", "4+", [], 1, []);
+        var wall = Unit("Wall", "4+", "4+", [], 1, []); var hidden = Unit("Hidden", "4+", "4+", [], 1, []);
+        var sim = Casting(wizard, [], [near, far, wall, hidden], 5);
+        Put(sim, near, 4, -20);                   // 8" east, clear
+        Put(sim, far, -24, -20);                  // 20" west, clear: out of Fireball's 12"
+        Put(sim, wall, -4, -15); Put(sim, hidden, -4, -9);      // 11" north, in range but behind the wall
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        var targets = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
+        Assert.DoesNotContain(far.Id, targets.Eligible);
+        Assert.DoesNotContain(hidden.Id, targets.Eligible);
+        Assert.Equal(new HashSet<Guid> { near.Id, wall.Id }, targets.Eligible.ToHashSet());
+    }
+
+    [Fact]
+    public void A_hit_effect_whose_own_condition_fails_rolls_no_hits()
+    {
+        var spark = new EntryDocument("Spark", CatalogKind.Spell, false, null, 1, "Test Book", "Target enemy unit within 12\" takes 1 hit, and 2 more in round 99.",
+            new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [Fx(EffectKind.AddHit, amount: 1), Fx(EffectKind.AddHit, amount: 2) with { Conditions = [new ConditionDocument(ConditionKind.RoundNumber, null, Comparison.Eq, 99, [])] }]);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]); var target = Unit("T", "4+", "4+", [], 2, []);
+        var state = State([wizard], [target], x1: -4, x2: 4);
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4, 4, 4));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Spark|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        Assert.Single(sim.Steps("hit").Single().Rolls.Single().Dice);
     }
 
     [Fact]
