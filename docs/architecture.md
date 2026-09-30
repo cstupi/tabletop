@@ -713,8 +713,8 @@ Starting, reconnecting, and crash recovery are one path.
 ## Build order
 
 One plan per module, six stages. `docs/design/README.md` → *Build order and why* is the
-dependency graph with its reasons, and every plan's *Requires landed* line states its own
-prerequisites.
+dependency graph with its reasons and the owner's checkpoints, and every plan's *Requires landed*
+line states its own prerequisites.
 
 1. **Contracts and local dev** — the three libraries as types, the event applier, Postgres and
    the blob store in Docker.
@@ -722,7 +722,7 @@ prerequisites.
 3. **Web app, client, interpreter** — in parallel. The interpreter precedes the scheduler: it
    declares the scheduler's seam records, and the scheduler consumes its Ask machinery, roll
    primitive and sequence starter.
-4. **Scheduler.**
+4. **Scheduler** — branched from the interpreter's tree once its Tasks 1–11 are in, and merged after it.
 5. **Simulator** — needs both rules modules; their full-game tests then run through it.
 6. **Viewer** — needs the simulator's recording schema.
 

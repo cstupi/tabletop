@@ -446,6 +446,23 @@ before it can play a game, and the viewer needs the simulator's recording schema
 draw one. Once the simulator exists the interpreter's and scheduler's own full-game tests run
 through it.
 
+**The scheduler starts before the interpreter lands.** Its dependency is interpreter Tasks 1–11, so its
+tree branches from `interpreter` while that tree finishes, and merges into `main` after it.
+
+### Checkpoints
+
+A merge is gated on the whole-tree check. A checkpoint is gated on the owner playing the build, and the
+next step is not dispatched until the owner has.
+
+1. **The table, by hand.** After the client merges. Two clients: login, lobby, setup, terrain, drag,
+   presence, menu edits, the log, undo. Under `InertEngine` no model leaves the shelf: the table draws only
+   `OnTable` models, the menu opens only on a drawn piece, and only the scheduler's deploy Ask places one.
+   This checkpoint judges the table and setup, not play.
+2. **First turns.** After the scheduler merges. Two clients roll off, deploy, activate, shoot, charge and
+   fight in melee, through the real engine.
+3. **Whole games.** After simulation Task 6, the run loop: in-process games run to `decided` or the round
+   cap, before simulation Tasks 7–11 and the viewer.
+
 Headless before rendered. The libraries, both servers and the rules engine are Godot-free and
 have xUnit tests. The client is last and is tested by running it, with everything Godot-free
 extracted into core code that the test project compiles from source.
