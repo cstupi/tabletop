@@ -24,6 +24,7 @@ public static class GfNames
     public const string Rounds = "rounds";                                                                              // = SchedulerBase.RoundsPhase (scheduler plan Task 5); switch to the reference when it lands
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
+    public const string Artillery = "Artillery";                                                                        // p.13: "May only use Hold actions"; not in the core catalog, so read off a unit's own properties
     public const string Transport = "Transport";                                                                        // p.15; its (X) is carried and never read — game flow: capacity is not enforced
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit

@@ -53,4 +53,11 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => inner.OnRoundStarted(state, properties, round);
     public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, Scheduler.TurnContext turn) => inner.OnTurnEnded(state, properties, turn);
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams) => inner.OrderReactions(state, actorTeam, reactingTeams);
+    public IReadOnlyList<string> PhasesBeforeRounds => inner.PhasesBeforeRounds;
+    public IReadOnlyList<string> PhasesInTurn => inner.PhasesInTurn;
+    public Scheduler.FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => inner.FirstTeam(state, round, teams);
+    public Scheduler.TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => inner.LegalTurn(state, properties, teamId);
+    public Scheduler.Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => inner.ReadAnswer(state, teamId, answer);
+    public bool ActivationComplete(GameState state, Scheduler.Activation activation) => inner.ActivationComplete(state, activation);
+    public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
 }

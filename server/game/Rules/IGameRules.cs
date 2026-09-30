@@ -41,6 +41,23 @@ public interface IGameRules
     IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn);
     /// <summary>The scheduler's reaction ordering, when it has one; null leaves Windows.ReactionOrder's own policy in force.</summary>
     IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams);
+
+    // Added by the scheduler plan. Every hook reads state.Projection and the log and returns; none holds state.
+
+    /// <summary>Phases before round one, in order; each alternates one unit a turn. OPR: deployment, scouts. Empty: rounds start at once.</summary>
+    IReadOnlyList<string> PhasesBeforeRounds { get; }
+    /// <summary>Phases inside one team's turn under the player-turn shape, in order. Empty means one unnamed phase (OPR).</summary>
+    IReadOnlyList<string> PhasesInTurn { get; }
+    /// <summary>Who goes first in <paramref name="round"/> (0 is the phase before round one). Teams are in ordinal order. RollOffNeeded names the ruleset sequence that decides.</summary>
+    FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams);
+    /// <summary>The team's turn Ask now, read from the phase in state.Projection.Scheduler.Phase; the action rows are properties.Actions; null when its legal set is empty.</summary>
+    TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId);
+    /// <summary>What a turn answer means; null when it names nothing (treated as a pass).</summary>
+    Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer);
+    /// <summary>For an activation with no sequence: is its work done (deploy: every model placed).</summary>
+    bool ActivationComplete(GameState state, Activation activation);
+    /// <summary>The interactive round-boundary step, called each Advance after round_started until HookDone (OPR: Ambushers).</summary>
+    HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order);
 }
 
 public sealed class UnknownGameRulesException(string id) : Exception($"No GameRules named '{id}' ships with this build.");
