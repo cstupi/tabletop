@@ -183,4 +183,84 @@ public class GfMeleeTests
         Assert.Equal(1, shaken.Alive(brute.Id));
         Assert.Contains(GfNames.Shaken, shaken.Unit(brute.Id).Conditions);
     }
+
+    [Fact]
+    public void A_tie_tests_nobody_and_the_charger_falls_back()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], x1: -3, x2: 0), 1, 1);                          // both miss: 0-0
+        sim.Start(GfNames.Melee, MeleeOf(charger, target));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var compare = sim.Steps("compare").Single();                                                // no morale test pushed, so compare completes once
+        Assert.Equal((0, 0, 0), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));
+        Assert.DoesNotContain(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.MoraleTest);
+        Assert.Equal(1.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);      // p.10: the charger moves back 1"
+    }
+
+    [Fact]
+    public void Fear_counts_for_the_defender_when_it_strikes_back()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [P("Fear", 1)], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], x1: -3, x2: 0), 1, 1, 6);                       // both miss; the charger passes its morale test
+        sim.Start(GfNames.Melee, MeleeOf(charger, target));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var compare = sim.Steps("compare").First();
+        Assert.Equal((0, 1, 1), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));   // Fear(1) on the striking-back side
+    }
+
+    [Fact]
+    public void A_counter_defender_strikes_back_only_with_its_other_weapons_and_is_not_fatigued_by_its_counter_strike()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")), Melee("Dagger", 1));
+        var dagger = pikes.Models[0].Weapons.Single(w => w.Name == "Dagger");
+        var sim = Sim.Gf(State([charger], [pikes], x1: -3, x2: 0), 1, 1, 4, 6);                     // Counter strike misses; charger misses; dagger hits 4; the block 6 stops it
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        Assert.Equal(["strike", "pass"], Assert.IsType<Options>(sim.AskFor(Samples.Team2).Legal).Choices.Select(c => c.Id));
+        Assert.DoesNotContain(GfNames.Fatigued, sim.Unit(pikes.Id).Conditions);                     // p.13: Counter moves the strike earlier, it does not add one
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence && s.Context.ActorUnitId == pikes.Id).ToList();
+        Assert.Equal(2, attacks.Count);                                                             // the Counter strike, then the strike back
+        Assert.Equal([dagger.Id], attacks[1].Context.WeaponIds);
+        Assert.Equal(4, sim.Steps("roll-to-hit").Last().Rolls.Single().Threshold);                  // not fatigued when it strikes back
+        Assert.Contains(GfNames.Fatigued, sim.Unit(pikes.Id).Conditions);
+    }
+
+    [Fact]
+    public void A_counter_defender_with_no_other_weapon_has_nothing_to_strike_back_with_and_ends_fatigued()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(State([charger], [pikes], x1: -3, x2: 0), 1, 1);
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        Assert.Equal(1.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);      // no strike-back Ask: straight to compare and consolidation
+        Assert.Contains(GfNames.Fatigued, sim.Unit(pikes.Id).Conditions);                           // its Counter strike fatigued it, once
+    }
+
+    [Fact]
+    public void A_counter_strike_that_changes_nothing_still_counts_as_the_defender_striking()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [P("Fear", 1)], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(State([charger], [pikes], x1: -3, x2: 0), 1, 1, 6);                        // Counter strike misses; charger misses; charger passes its morale test
+        sim.Start(GfNames.Melee, MeleeOf(charger, pikes));
+        var compare = sim.Steps("compare").First();
+        Assert.Equal((0, 1, 1), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));   // Fear(1): it struck, though nothing changed
+    }
+
+    [Fact]
+    public void A_counter_strike_that_destroys_the_charger_still_fatigues_the_defender()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [P("Tough", 1)], Melee("Sword", 1));
+        var defender = Unit("Defender", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        // Counter hits 6, charger blocks 1 (fails), charger dies (Tough-1 with 1 wound)
+        var sim = Sim.Gf(State([charger], [defender], x1: -3, x2: 0), 6, 1);
+        sim.Start(GfNames.Melee, MeleeOf(charger, defender));
+        // After Counter step, charger should be dead
+        Assert.Equal(0, sim.Alive(charger.Id));
+        // Defender should still be fatigued because it struck via Counter
+        Assert.Contains(GfNames.Fatigued, sim.Unit(defender.Id).Conditions);
+    }
 }

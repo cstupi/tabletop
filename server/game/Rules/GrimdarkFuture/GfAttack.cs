@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action)
     {
@@ -37,6 +37,10 @@ public static partial class GfAttack
         return null;
     }
 
+    /// <summary>Wounds have reached the model's Tough (1 without it). A dead model is removed at once, so on the table this is only a destroyed container held for disgorge (Task 19).</summary>
+    public static bool AtCapacity(GameState state, Guid modelId) =>
+        state.Projection.Models[modelId].Wounds >= (Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1);
+
     /// <summary>
     /// p.15, in the order the rule writes them: heroes are assigned wounds last even if already wounded; a Tough model that joined a unit
     /// without it "is removed last", so while models without Tough remain they are the pool; among Tough models alone the most-wounded one
@@ -44,7 +48,9 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
     {
-        var living = Lookup.AliveModels(state, unit);
+        // A destroyed container still on the table (Task 19) has taken all it can. Among Tough models the most-wounded is offered first,
+        // so without this a carried wound would be handed to the wreck, which cannot take it.
+        var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
         // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
         // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
         // wounded Tough hero waits for every other model rather than soaking the next wound.
@@ -92,7 +98,7 @@ public static partial class GfAttack
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .FirstOrDefault();
 
-            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>();
+            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var rolled = false; var dead = new HashSet<Guid>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
                 var model = ctx.Projection.Models[modelId];
@@ -102,23 +108,61 @@ public static partial class GfAttack
                 {
                     var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
                     incoming = Dice.RollOutcome.Failures(record);   // each success overrides one wound
+                    rolled = true;
                 }
                 var applied = Math.Min(capacity - model.Wounds, incoming);
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
                 landed += applied;
                 changes.Add(new WoundsSet(modelId, model.Wounds + applied));
-                if (model.Wounds + applied >= capacity) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
+                // p.15: a container holding anybody stays on the table until disgorge has placed them, "before it's removed".
+                if (model.Wounds + applied < capacity) continue;
+                dead.Add(modelId);
+                if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
+            if (rolled && regen.Source?.GrantId is { } grantId) changes.Add(new GrantRemoved(target, grantId));   // a granted instance is spent when it rolls
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
-            var killed = moves.Select(m => m.ModelId).ToHashSet();
-            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !killed.Contains(m));
+            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
             var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }
+
+    /// <summary>
+    /// p.15: a destroyed container is not removed until the units inside are out. `assign` left it on the table; this runs
+    /// transport-destroyed once per occupant unit (each takes its dangerous terrain test, is Shaken and is placed), then shelves every
+    /// wreck. Nothing to do is the common case and costs one predicate.
+    /// </summary>
+    sealed class DisgorgeStep : IStep
+    {
+        public string Name => "disgorge";
+        public StepOutcome Run(StepContext ctx)
+        {
+            // The occupants' own dangerous terrain test pushes a deal-wounds of its own; that one must not disgorge the wreck the frame
+            // above it is already emptying. The guard walks this frame's ancestors, not the stack, so the outer disgorge is unaffected
+            // while its child runs. A container wrecked by that nested test is still caught: the outer disgorge re-reads Wrecks after every
+            // child and only shelves when no wreck holds anybody.
+            for (var f = ctx.Frame.Parent; f is not null; f = f.Parent)
+                if (f.Frame.Sequence == GfNames.TransportDestroyedSeq) return new Complete([]);
+            var wrecks = GfContainers.Wrecks(ctx.State);
+            if (wrecks.Count == 0) return new Complete([]);
+            foreach (var wreck in wrecks)
+                if (Lookup.OccupantUnits(ctx.State, wreck) is [var occupant, ..])
+                    return new Push(GfNames.TransportDestroyedSeq, new SequenceContext(occupant, [], [], null));
+            return new Complete([new ModelsMoved(wrecks.Select(w => new ModelRelocation(w, ctx.Projection.Models[w].Location, new OnShelf())).ToList())]);
+        }
+    }
+
+    /// <summary>
+    /// A once-grant is spent by the first roll it modifies (R-N7): every plan the step rolled is checked, on both sides, since a
+    /// granted rule may sit on either unit and modify the other's roll, and the same instance contributes to every pool, so its
+    /// removal is written once.
+    /// </summary>
+    static IReadOnlyList<StateChange> Consumed(LiveSet live, IEnumerable<Dice.RollPlan> plans) =>
+        plans.SelectMany(plan => new[] { Side.Attacker, Side.Defender }.SelectMany(side => RollEffects.ConsumeGrants(live, side, plan)))
+            .Cast<GrantRemoved>().DistinctBy(c => c.GrantId).Cast<StateChange>().ToList();
 
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
@@ -313,14 +357,19 @@ public static partial class GfAttack
             // count that determine-attacks carried down from the pushing frame.
             var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
+            var plans = new List<Dice.RollPlan>();
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
-                foreach (var die in ctx.Roll(GfRolls.HitPlan(ctx, live, kind, quality), attacks).Dice.Where(d => d.Success))
+            {
+                var plan = GfRolls.HitPlan(ctx, live, kind, quality);
+                plans.Add(plan);
+                foreach (var die in ctx.Roll(plan, attacks).Dice.Where(d => d.Success))
                 {
                     var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
                     values["extra_hits"] += effects.ExtraHits;
                     foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount}"] = values.GetValueOrDefault($"granted_{entry}_{amount}") + 1;
                 }
-            return new Complete([], values);
+            }
+            return new Complete(Consumed(live, plans), values);
         }
     }
 
@@ -342,16 +391,23 @@ public static partial class GfAttack
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
             var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count);
-            var wounds = 0; var plain = hits;
+            var wounds = 0; var plain = hits; var plans = new List<Dice.RollPlan>();
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {
                 var parts = key.Split('_');   // granted_<entry>_<amount>
                 var granted = live.WithGranted(Side.Attacker, parts[1], int.Parse(parts[2]));
                 var group = count * multiplier; plain -= group;
-                wounds += Dice.RollOutcome.Failures(ctx.Roll(GfRolls.DefensePlan(ctx, granted, inCover, defenderModels), group));
+                var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
+                plans.Add(plan);
+                wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, group));
             }
-            if (plain > 0) wounds += Dice.RollOutcome.Failures(ctx.Roll(GfRolls.DefensePlan(ctx, live, inCover, defenderModels), plain));
-            return new Complete([], new Dictionary<string, int> { ["wounds"] = wounds });
+            if (plain > 0)
+            {
+                var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels);
+                plans.Add(plan);
+                wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, plain));
+            }
+            return new Complete(Consumed(live, plans), new Dictionary<string, int> { ["wounds"] = wounds });
         }
     }
 }

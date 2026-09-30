@@ -16,6 +16,9 @@ public static class GfMelee
     public static IReadOnlyList<Guid> MeleeWeapons(GameState state, Guid unit, Func<Weapon, bool>? filter = null) =>
         Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => !w.Stats.ContainsKey(GfNames.Range) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
 
+    const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
+    static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
+    static bool CounterStruck(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(StruckKey) == 1);
     static Guid Charger(StepContext ctx) => ctx.Frame.Context.ActorUnitId!.Value;
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
     /// <summary>By step name, not by index: charge's first step is the activation's dangerous terrain test (p.11).</summary>
@@ -76,7 +79,7 @@ public static class GfMelee
         {
             var (charger, target) = (Charger(ctx), Target(ctx));
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
-            var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > 0)).ToList();
+            var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > Touching)).ToList();
             if (free.Count == 0 || ctx.TeamOf(target) is not { } team) return new Complete([]);
             return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, [], [], null), allowPass: true)]);   // a close-in: no terrain parameters, no cap
         }
@@ -100,14 +103,18 @@ public static class GfMelee
             { ["charger_before"] = ctx.Projection.Units[Charger(ctx)].WoundsThisActivation, ["defender_before"] = ctx.Projection.Units[Defender(ctx)].WoundsThisActivation });
     }
 
+    const string StruckKey = "struck";
+
     sealed class CounterStep : IStep
     {
         public string Name => "counter";
         public StepOutcome Run(StepContext ctx)
         {
-            var counters = MeleeWeapons(ctx.State, Defender(ctx), w => w.Properties.Any(p => p.Name == "Counter"));
+            var counters = MeleeWeapons(ctx.State, Defender(ctx), IsCounter);
             if (counters.Count == 0) return new Complete([]);
-            return AfterChild(ctx, () => new Push(GfNames.AttackSequence, new SequenceContext(Defender(ctx), [Charger(ctx)], counters, null)), Fatigue(Defender(ctx)));
+            // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back.
+            if (ctx.History.Children.Count == 0) return new Push(GfNames.AttackSequence, new SequenceContext(Defender(ctx), [Charger(ctx)], counters, null));
+            return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([], new Dictionary<string, int> { [StruckKey] = 1 }) : new OpenAsks([]);
         }
     }
 
@@ -148,10 +155,14 @@ public static class GfMelee
         public StepOutcome Run(StepContext ctx)
         {
             var (charger, defender) = (Charger(ctx), Defender(ctx));
-            if (Lookup.LivingModels(ctx.State, defender).Count == 0 || Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete([]);
+            var counterStruck = CounterStruck(ctx);
+            if (Lookup.LivingModels(ctx.State, defender).Count == 0) return new Complete([]);
+            if (Lookup.LivingModels(ctx.State, charger).Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
+            var weapons = MeleeWeapons(ctx.State, defender, w => !IsCounter(w));   // p.13: the Counter weapon's strike already happened in `counter`
             if (ctx.History.Children.Count > 0) return AfterChild(ctx, () => throw new UnreachableException(), Fatigue(defender));
             if (ctx.History.LastClosed() is { } closed)
-                return closed.Single is Chosen { OptionId: "strike" } ? new Push(GfNames.AttackSequence, new SequenceContext(defender, [charger], MeleeWeapons(ctx.State, defender), null)) : new Complete([]);
+                return closed.Single is Chosen { OptionId: "strike" } ? new Push(GfNames.AttackSequence, new SequenceContext(defender, [charger], weapons, null)) : new Complete(counterStruck ? Fatigue(defender) : []);
+            if (weapons.Count == 0) return new Complete(counterStruck ? Fatigue(defender) : []);
             return new OpenAsks([ctx.Ask("strike_back", "Strike back?", ctx.TeamOf(defender)!.Value, new Options([new AskOption("strike", "Strike back", [defender]), new AskOption("pass", "Don't", [])]))]);
         }
     }
@@ -168,7 +179,7 @@ public static class GfMelee
                 var loserUnit = ctx.Frame.Value("loser") == 1 ? charger : defender;
                 return AfterChild(ctx, () => new Push(GfNames.MoraleTest, new SequenceContext(loserUnit, [], [], "melee")));
             }
-            var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Changes.Count > 0);
+            var struck = ctx.Frame.Frame.Steps.Any(s => s.Step == "strike-back" && s.Answer is Chosen { OptionId: "strike" }) || CounterStruck(ctx);
             var chargerWounds = WoundsCaused(ctx, charger, defender, "defender_before", attacked: true);
             var defenderWounds = WoundsCaused(ctx, defender, charger, "charger_before", attacked: struck);
             var chargerDead = Lookup.LivingModels(ctx.State, charger).Count == 0; var defenderDead = Lookup.LivingModels(ctx.State, defender).Count == 0;

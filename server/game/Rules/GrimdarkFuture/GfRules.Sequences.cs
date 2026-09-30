@@ -25,7 +25,9 @@ public sealed partial class GrimdarkFutureRules
         GfMorale.MoraleTest(),
         GfMelee.Charge(),
         GfMelee.Melee(),
-        // Task 17 adds: GfCasting.Casting()
+        GfCasting.Casting(),
+        GfCasting.SpellHits(),
+        GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);
