@@ -52,6 +52,9 @@ cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO
 dotnet run --project server/game   # the game server on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
 ./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret)
 cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine; never in a file
+./scripts/client             # build, run scripts/check-client, launch the Godot client on Windows
+./scripts/check-client       # no physics body in a scene, no rules type or Godot in client/src/Core
+dotnet test tests/Tabletop.Client.Tests   # the client's Godot-free core
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -71,9 +74,13 @@ Three kinds of top-level directory:
   content that the editor scans and lists.
 
 - `client/` — the Godot game client, and the only project with a Godot dependency.
-  - `Tabletop.csproj` / root namespace `Tabletop`, `net10.0`
-  - `src/` — all client C#; the SDK globs `**/*.cs`, so no `.csproj` edits when adding files
-  - `scenes/` — `.tscn` files; `scenes/Main.tscn` is the entry scene, script `src/Main.cs`
+  - `src/Core/` — Godot-free: `Session`, `ManagementClient`, `ClientGameSocket`, `AssetCache`, `BuiltinContent`,
+    `TerrainGenerators`, the view models. Compiled into `tests/Tabletop.Client.Tests` from source, so a `using Godot`
+    here breaks the tests. May reference only the three libs and the BCL.
+  - `src/Screens/`, `src/Table/`, `src/Panels/` — the Godot layer; thin over `Core` and `Tabletop.Geometry`.
+  - `scenes/` — `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
+    Scenes are written minimal by hand and owned by the editor afterwards.
+  - `content/builtin/` — the five table textures and the ten grouped terrain meshes; a missing file draws the piece's volumes.
 - `server/game/` — the WebSocket game server (`Tabletop.GameServer`, `net10.0`): the connect handshake and Stytch JWT
   verification, a `GameSession` per game hydrated from management's rows plus `game.game_event`, the append-only log and
   replay, `CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes. Tested in
@@ -116,3 +123,4 @@ Each module is designed before it is built.
 - Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free
   `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it.
 - Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`; management writes them at creation and at end/leave/delete (management plan → Rows by writer).
+- The table frame's origin is the table's corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up) on the wire and in `Tabletop.Geometry` alike; nothing converts. Godot: x = X, y = Z, z = −Y, `rotation.y` = yaw (`WorldFrame`). No Godot physics; picking is ray-versus-AABB.
