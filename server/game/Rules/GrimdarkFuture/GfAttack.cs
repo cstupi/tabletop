@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action)
     {
@@ -44,7 +44,8 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
     {
-        var living = Lookup.AliveModels(state, unit);
+        // A destroyed container still on the table (Task 19) has taken all it can: it is not a candidate for the next wound.
+        var living = Lookup.AliveModels(state, unit).Where(m => state.Projection.Models[m].Wounds < (Lookup.ModelParameter(state, m, "Tough") ?? 1)).ToList();
         // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
         // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
         // wounded Tough hero waits for every other model rather than soaking the next wound.
@@ -92,7 +93,7 @@ public static partial class GfAttack
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .FirstOrDefault();
 
-            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var rolled = false;
+            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var rolled = false; var dead = new HashSet<Guid>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
                 var model = ctx.Projection.Models[modelId];
@@ -108,17 +109,44 @@ public static partial class GfAttack
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
                 landed += applied;
                 changes.Add(new WoundsSet(modelId, model.Wounds + applied));
-                if (model.Wounds + applied >= capacity) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
+                // p.15: a container holding anybody stays on the table until disgorge has placed them, "before it's removed".
+                if (model.Wounds + applied < capacity) continue;
+                dead.Add(modelId);
+                if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
             if (rolled && regen.Source?.GrantId is { } grantId) changes.Add(new GrantRemoved(target, grantId));   // a granted instance is spent when it rolls
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
-            var killed = moves.Select(m => m.ModelId).ToHashSet();
-            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !killed.Contains(m));
+            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && ctx.Projection.Models[m].Wounds < (Lookup.ModelParameter(ctx.State, m, "Tough") ?? 1));
             var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
+        }
+    }
+
+    /// <summary>
+    /// p.15: a destroyed container is not removed until the units inside are out. `assign` left it on the table; this runs
+    /// transport-destroyed once per occupant unit (each takes its dangerous terrain test, is Shaken and is placed), then shelves every
+    /// wreck. Nothing to do is the common case and costs one predicate.
+    /// </summary>
+    sealed class DisgorgeStep : IStep
+    {
+        public string Name => "disgorge";
+        public StepOutcome Run(StepContext ctx)
+        {
+            // The occupants' own dangerous terrain test pushes a deal-wounds of its own; that one must not disgorge the wreck the frame
+            // above it is already emptying. The guard walks this frame's ancestors, not the stack, so the outer disgorge is unaffected
+            // while its child runs. A container wrecked by that nested test is still caught: the outer disgorge re-reads Wrecks after every
+            // child and only shelves when no wreck holds anybody.
+            for (var f = ctx.Frame.Parent; f is not null; f = f.Parent)
+                if (f.Frame.Sequence == GfNames.TransportDestroyedSeq) return new Complete([]);
+            var wrecks = GfContainers.Wrecks(ctx.State);
+            if (wrecks.Count == 0) return new Complete([]);
+            foreach (var wreck in wrecks)
+                if (Lookup.OccupantUnits(ctx.State, wreck) is [var occupant, ..])
+                    return new Push(GfNames.TransportDestroyedSeq, new SequenceContext(occupant, [], [], null));
+            return new Complete([new ModelsMoved(wrecks.Select(w => new ModelRelocation(w, ctx.Projection.Models[w].Location, new OnShelf())).ToList())]);
         }
     }
 
