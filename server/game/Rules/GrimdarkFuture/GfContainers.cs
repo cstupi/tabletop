@@ -20,7 +20,7 @@ public static class GfContainers
     /// </summary>
     public static IReadOnlyList<Guid> Wrecks(GameState state) =>
         state.Projection.Models.Values.Where(m => m.Location is OnTable && GfMoves.IsContainer(state, m.Id)
-            && m.Wounds >= (Lookup.ModelParameter(state, m.Id, GfNames.Tough) ?? 1)).Select(m => m.Id).ToList();
+            && GfAttack.AtCapacity(state, m.Id)).Select(m => m.Id).ToList();
 
     /// <summary>p.11's dangerous terrain test, invoked by a destroyed transport. Same shape as GfMoves.ActivationTerrainStep: settle the dice on this frame, then push, so the child reads a settled count.</summary>
     sealed class WreckTestStep : IStep

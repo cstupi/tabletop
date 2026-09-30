@@ -37,6 +37,10 @@ public static partial class GfAttack
         return null;
     }
 
+    /// <summary>Wounds have reached the model's Tough (1 without it). A dead model is removed at once, so on the table this is only a destroyed container held for disgorge (Task 19).</summary>
+    public static bool AtCapacity(GameState state, Guid modelId) =>
+        state.Projection.Models[modelId].Wounds >= (Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1);
+
     /// <summary>
     /// p.15, in the order the rule writes them: heroes are assigned wounds last even if already wounded; a Tough model that joined a unit
     /// without it "is removed last", so while models without Tough remain they are the pool; among Tough models alone the most-wounded one
@@ -44,8 +48,9 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<Guid> EligibleForNextWound(GameState state, PropertySet props, Guid unit)
     {
-        // A destroyed container still on the table (Task 19) has taken all it can: it is not a candidate for the next wound.
-        var living = Lookup.AliveModels(state, unit).Where(m => state.Projection.Models[m].Wounds < (Lookup.ModelParameter(state, m, "Tough") ?? 1)).ToList();
+        // A destroyed container still on the table (Task 19) has taken all it can. Among Tough models the most-wounded is offered first,
+        // so without this a carried wound would be handed to the wreck, which cannot take it.
+        var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
         // Heroes are deferred before the Tough ordering is read, not after it. p.15 writes "heroes must be assigned wounds last,
         // even if already wounded" as a parenthetical inside the continuation clause, so it is an exception to that clause: a
         // wounded Tough hero waits for every other model rather than soaking the next wound.
@@ -119,7 +124,7 @@ public static partial class GfAttack
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
-            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && ctx.Projection.Models[m].Wounds < (Lookup.ModelParameter(ctx.State, m, "Tough") ?? 1));
+            var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
             var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }

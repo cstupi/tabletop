@@ -65,4 +65,22 @@ public class GfContainersTests
         Assert.Empty(GfContainers.Wrecks(sim.State));
         Assert.Empty(sim.State.Projection.Stack);
     }
+
+    [Fact]
+    public void A_wreck_held_for_its_occupants_is_not_offered_a_carried_wound()
+    {
+        var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
+        var buses = Unit("Buses", "4+", "4+", [], 2, [P("Transport", 11), P("Tough", 2)]);
+        var riders = Unit("Riders", "4+", "4+", [], 1, []);
+        var (wreck, other) = (buses.Models[0].Id, buses.Models[1].Id);
+        var sim = Wound(gunners, [buses, riders], buses, 3, riders, wreck, 4);
+        Assert.Equal(new[] { wreck, other }.Order(), Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Targets.Order());   // two Tough models: the owner chooses
+        // Three wounds on the first bus: two kill it, the third carries to the next segment. The wreck stays on the table holding the riders (p.15),
+        // at capacity, and is the most-wounded Tough model, which is who the ordering would name if it were still a candidate.
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [wreck] = 3 }));
+        Assert.Equal(1, sim.Model(other).Wounds);                                                     // the carried wound went to the other bus, unasked
+        Assert.Equal(2, sim.Model(wreck).Wounds);
+        Assert.IsType<OnTable>(sim.Model(wreck).Location);
+        Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team2).Legal);                                   // the next question is the riders' placement, not another allocation
+    }
 }
