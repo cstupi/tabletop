@@ -1233,7 +1233,7 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
 
 ### The plan
 
-- [`docs/superpowers/plans/2026-09-05-scheduler.md`](../../superpowers/plans/2026-09-05-scheduler.md):
+- [`docs/superpowers/plans/2026-09-05-scheduler/README.md`](../../superpowers/plans/2026-09-05-scheduler/README.md):
   ten tasks, the file structure, the `Interfaces → Produces` tables, eleven interfaces needed
   from other modules, seven rulings.
 

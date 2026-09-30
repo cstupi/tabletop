@@ -32,7 +32,7 @@ client's review packages are in `.superpowers/sdd/client-shell/`. Test counts at
 | Layer | Where | Role |
 | --- | --- | --- |
 | Design sessions | `docs/superpowers/specs/`, 24 files | the requirements; settle behaviour |
-| Implementation plans | `docs/superpowers/plans/`, nine files and one directory | what gets written, task by task |
+| Implementation plans | `docs/superpowers/plans/`, the unsplit files and five directories | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
 **The management tree's record** is `.superpowers/reports/management.md`, seven sections: 4 holds every
@@ -43,11 +43,11 @@ file. The web-app tree's record is `.superpowers/reports/web-app.md`, in the sam
 `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
 
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
-`2026-09-05-client-shell/` and `2026-09-05-interpreter-and-effects/` are each a `README.md` (goal,
-constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces needed*, rulings) and
-one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves against the README.
-Six task files still run 510 to 700 lines (client shell 5 and 8; interpreter 8, 11 and 14; management 5):
-split one by step before editing it at length. The other six plans run 2 000 to 4 700 lines and the design
+`2026-09-05-client-shell/`, `2026-09-05-interpreter-and-effects/` and `2026-09-05-scheduler/` are each
+a `README.md` (goal, constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces
+needed*, rulings) and one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves
+against the README. Seven task files still run 510 to 700 lines (client shell 5 and 8; interpreter 8, 11
+and 14; management 5; scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines and the design
 docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
@@ -341,7 +341,7 @@ activation, and free text covers the rest. `GameInfo` gains no `Actions` list. T
 | Web app | `web/` | `2026-09-05-web-app/README.md` | `design/web-app/` |
 | Client | `client/` | `2026-09-05-client-shell/README.md` | `design/client/` |
 | Interpreter and effects | `server/game/`, the rules | `2026-09-05-interpreter-and-effects/README.md` | `design/interpreter/` |
-| Scheduler | `server/game/`, turn order | `2026-09-05-scheduler.md` | `design/scheduler/` |
+| Scheduler | `server/game/`, turn order | `2026-09-05-scheduler/README.md` | `design/scheduler/` |
 | Simulator | `sim/`, a developer tool | `2026-09-06-simulation.md` | `design/simulation/` |
 | Viewer | `viewer/`, a developer tool | `2026-09-06-viewer.md` | `design/viewer/` |
 
