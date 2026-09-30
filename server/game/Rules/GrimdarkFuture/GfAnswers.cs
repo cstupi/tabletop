@@ -37,8 +37,17 @@ public static class GfAnswers
         return result;
     }
 
-    /// <summary>The relocations of models the move Ask named and the projection holds, one per model.</summary>
-    public static IReadOnlyList<ModelRelocation> Moves(GameState state, AskRecord closed) =>
-        closed.Single is Destinations answer && closed.Ask.Legal is MoveRegion region
-            ? answer.Moves.Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId)).DistinctBy(m => m.ModelId).ToList() : [];
+    /// <summary>
+    /// The relocations of models the move Ask named and the projection holds, one per model. From is the projection's location, never the
+    /// answer's, so a forged From cannot skip the distance check; a move Inside a piece the Ask did not list as enterable is dropped.
+    /// </summary>
+    public static IReadOnlyList<ModelRelocation> Moves(GameState state, AskRecord closed)
+    {
+        if (closed.Single is not Destinations answer || closed.Ask.Legal is not MoveRegion region) return [];
+        var enterable = region.Containment?.Enterable ?? [];
+        return answer.Moves
+            .Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId) && (m.To is not Inside into || enterable.Contains(into.ContainerId)))
+            .DistinctBy(m => m.ModelId)
+            .Select(m => m with { From = state.Projection.Models[m.ModelId].Location }).ToList();
+    }
 }

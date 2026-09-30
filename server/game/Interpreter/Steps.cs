@@ -19,7 +19,7 @@ public sealed record Sequence(string Name, IReadOnlyList<IStep> Steps)
 public abstract record StepOutcome;
 /// <summary>step_completed; the frame advances. Values are the settled parameters later steps and child frames read. Repeat keeps the position: the same step runs again with a fresh history (a move step's next segment).</summary>
 public sealed record Complete(IReadOnlyList<StateChange> Changes, IReadOnlyDictionary<string, int>? Values = null, bool Repeat = false) : StepOutcome;
-/// <summary>step_completed, then sequence_finished: the remaining steps never happen (a charge that cannot reach ends the activation).</summary>
+/// <summary>step_completed, then sequence_finished: the remaining steps never happen (a move that cannot reach ends the activation).</summary>
 public sealed record Finish(IReadOnlyList<StateChange> Changes, IReadOnlyDictionary<string, int>? Values = null) : StepOutcome;
 /// <summary>The frame suspends until every Ask is closed. Several Asks: a window offered to several teams, one each.</summary>
 public sealed record OpenAsks(IReadOnlyList<Ask> Asks) : StepOutcome;

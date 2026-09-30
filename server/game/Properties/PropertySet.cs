@@ -6,7 +6,7 @@ public enum StatLevel { Unit, Model, Weapon }
 public sealed record StatDefinition(StatLevel Level, string Name, StatKind Kind);
 /// <summary>stat_definition's key is (level, name), so a reference to a stat carries both.</summary>
 public sealed record StatRef(StatLevel Level, string Name);
-/// <summary>An action row: a name and a distance, because Fast and Slow need something to point at (schema.md).</summary>
+/// <summary>An action row: a name and a distance, because an effect needs something to point at (schema.md).</summary>
 public sealed record ActionDefinition(string Name, double Distance);
 /// <summary>A roll row: a name and nothing else. Convention, threshold and cap are GameRules'.</summary>
 public sealed record RollDefinition(string Name);
@@ -29,7 +29,7 @@ public enum TargetModifier { Cover, ToHitPenalties, RangePenalties }
 public enum CapKind { ModelsInTargetUnit }
 public enum EffectDuration { Interaction, Once }
 
-/// <summary>One effect row with its conditions and nested children (Roll's per-success effect, a hit's granted rule).</summary>
+/// <summary>One effect row with its conditions and nested children (a roll's per-success effect, a hit's granted rule).</summary>
 public sealed record Effect(
     Guid Id, EffectSubject Subject, int Ordinal, EffectKind Kind,
     string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
@@ -44,7 +44,7 @@ public sealed record Effect(
 public enum ConditionKind { ActionTaken, AttackKind, Range, RollResult, ActorState, PositionTerrain, RoundNumber, UsageCount }
 public enum Comparison { Eq, Neq, Gte, Lte, Gt, Lt }
 
-/// <summary>A predicate. Relational kinds take no subject; Values is a set (Rush/Charge is membership, not or).</summary>
+/// <summary>A predicate. Relational kinds take no subject; Values is a set (membership, not or).</summary>
 public sealed record EffectCondition(Guid Id, ConditionKind Kind, EffectSubject? Subject, Comparison Comparison, int? Number, IReadOnlyList<string> Values)
 {
     public bool Compare(int actual) => Comparison switch

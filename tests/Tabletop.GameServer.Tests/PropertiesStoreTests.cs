@@ -63,4 +63,25 @@ public class PropertiesStoreTests(PostgresFixture pg)
         Assert.Equal([PropertiesJson.Hash(docs[0])], hashes);
         Assert.NotNull(await _store.LoadAsync(hashes[0], CancellationToken.None));
     }
+
+    static PropertySetDocument Tiny(string rules, string name, CatalogKind kind, string entry = "Alpha") =>
+        new(name, rules, [], [], [], [new EntryDocument(entry, kind, false, kind == CatalogKind.Model ? Aggregation.All : null, null, null, "text", null, [])]);
+
+    [Fact]
+    public async Task A_second_set_that_changes_a_catalog_entrys_kind_for_the_same_rules_is_refused_and_a_consistent_one_seeds()
+    {
+        var rules = "kinds-" + Guid.CreateVersion7().ToString("N")[24..32];
+        var first = Tiny(rules, "one", CatalogKind.Unit);
+        var consistent = Tiny(rules, "two", CatalogKind.Unit, "Beta");
+        var conflicting = Tiny(rules, "three", CatalogKind.Model);
+        try
+        {
+            Assert.True(await _store.SeedAsync(first, CancellationToken.None));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _store.SeedAsync(conflicting, CancellationToken.None));
+            Assert.Contains("Alpha", ex.Message); Assert.Contains("Unit", ex.Message); Assert.Contains("Model", ex.Message);
+            Assert.Null(await _store.LoadAsync(PropertiesJson.Hash(conflicting), CancellationToken.None));
+            Assert.True(await _store.SeedAsync(consistent, CancellationToken.None));
+        }
+        finally { foreach (var d in new[] { first, consistent, conflicting }) await pg.DeletePropertiesAsync(PropertiesJson.Hash(d)); }
+    }
 }

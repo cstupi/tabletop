@@ -88,9 +88,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     /// <summary>Inserts ArmyTests.Sample() under owner and returns exactly what it inserted (the sample makes fresh ids per call).</summary>
-    public async Task<Tabletop.Content.Army> SeedArmyAsync(Guid ownerId)
+    public async Task<Tabletop.Content.Army> SeedArmyAsync(Guid ownerId, Tabletop.Content.Army? given = null)
     {
-        var army = Tabletop.Content.Tests.ArmyTests.Sample();
+        var army = given ?? Tabletop.Content.Tests.ArmyTests.Sample();
         await using var conn = await Db.OpenConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         async Task Run(string sql, params object?[] args)

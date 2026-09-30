@@ -87,6 +87,13 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
             return await cmd.ExecuteNonQueryAsync(ct);
         }
         if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0) return false;
+        // management's CatalogKinds reads one kind per name across a game_rules' sets; two kinds for a name would fail every import.
+        var existing = new List<(string Name, string Kind)>();
+        await using (var cmd = new NpgsqlCommand("select distinct ce.name, ce.kind from management.catalog_entry ce join management.properties p on p.content_hash = ce.properties_hash where p.game_rules = $1 and p.content_hash <> $2", conn, tx) { Parameters = { new() { Value = set.GameRules }, new() { Value = set.ContentHash } } })
+        await using (var r = await cmd.ExecuteReaderAsync(ct)) while (await r.ReadAsync(ct)) existing.Add((r.GetString(0), r.GetString(1)));
+        foreach (var e in set.Entries)
+            if (existing.FirstOrDefault(x => x.Name == e.Name && x.Kind != EnumText(e.Kind)) is { Name: not null } clash)
+                throw new InvalidOperationException($"Properties '{set.Name}' gives catalog entry '{e.Name}' kind {e.Kind}, but game rules '{set.GameRules}' already has it as {EnumFrom<CatalogKind>(clash.Kind)}.");
         foreach (var s in set.Stats) await Run("insert into management.stat_definition (properties_hash, level, name, kind) values ($1, $2, $3, $4)", set.ContentHash, EnumText(s.Level), s.Name, EnumText(s.Kind));
         foreach (var a in set.Actions) await Run("insert into management.action (properties_hash, name, distance) values ($1, $2, $3)", set.ContentHash, a.Name, a.Distance);
         foreach (var r in set.Rolls) await Run("insert into management.roll (properties_hash, name) values ($1, $2)", set.ContentHash, r.Name);

@@ -32,7 +32,7 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
 
     /// <summary>
     /// The roll spec supplies the threshold, unless the ruleset names one. A ruleset overrides it where the target number is a
-    /// model's rather than the unit's: p.4's Quality test is "the model's Quality value", so `GfRolls` passes the value it read
+    /// model's rather than the unit's, so the ruleset passes the value it read
     /// off the attacking model's slot and one such plan is built per distinct value.
     /// </summary>
     public RollPlan Plan(LiveSet live, Side roller, string roll, IEnumerable<RollModifier> baseModifiers, int? requiredRaw = null, int? threshold = null)

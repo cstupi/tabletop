@@ -108,21 +108,21 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         }
         var stats = new Dictionary<Guid, Dictionary<string, string>>();
         var props = new Dictionary<Guid, List<PropertyInstance>>();
-        // order by s.ctid: a stat has no ordinal column, so the only way to hand each slot's Stats dictionary
+        // order by ctid: weapons, stats and properties have no ordinal column, so the only way to hand each slot's Stats dictionary
         // back in the order it was written (and so serialize identically) is physical insertion order.
         foreach (var (table, owner_col, parent) in new[] { ("unit_stat", "unit_id", "unit u on u.id = s.unit_id where u.army_id"), ("slot_stat", "slot_id", "model_slot m on m.id = s.slot_id join management.unit u on u.id = m.unit_id where u.army_id"), ("weapon_stat", "weapon_id", "weapon w on w.id = s.weapon_id join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id") })
         await using (var cmd = new NpgsqlCommand($"select s.{owner_col}, s.stat, s.value from management.{table} s join management.{parent} = $1 order by s.ctid", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) (stats.TryGetValue(r.GetGuid(0), out var d) ? d : stats[r.GetGuid(0)] = new())[r.GetString(1)] = r.GetString(2);
         foreach (var (table, owner_col, parent) in new[] { ("unit_property", "unit_id", "unit u on u.id = s.unit_id where u.army_id"), ("slot_property", "slot_id", "model_slot m on m.id = s.slot_id join management.unit u on u.id = m.unit_id where u.army_id"), ("weapon_property", "weapon_id", "weapon w on w.id = s.weapon_id join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id") })
-        await using (var cmd = new NpgsqlCommand($"select s.{owner_col}, s.name, s.parameter from management.{table} s join management.{parent} = $1 order by s.name", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        await using (var cmd = new NpgsqlCommand($"select s.{owner_col}, s.name, s.parameter from management.{table} s join management.{parent} = $1 order by s.ctid", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) (props.TryGetValue(r.GetGuid(0), out var l) ? l : props[r.GetGuid(0)] = new()).Add(new PropertyInstance(r.GetString(1), r.IsDBNull(2) ? null : r.GetInt32(2)));
         IReadOnlyDictionary<string, string> S(Guid id) => stats.TryGetValue(id, out var d) ? d : new Dictionary<string, string>();
         IReadOnlyList<PropertyInstance> P(Guid id) => props.TryGetValue(id, out var l) ? l : [];
 
         var weapons = new Dictionary<Guid, List<Weapon>>();
-        await using (var cmd = new NpgsqlCommand("select w.id, w.slot_id, w.name from management.weapon w join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id = $1 order by w.id", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        await using (var cmd = new NpgsqlCommand("select w.id, w.slot_id, w.name from management.weapon w join management.model_slot m on m.id = w.slot_id join management.unit u on u.id = m.unit_id where u.army_id = $1 order by w.ctid", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) (weapons.TryGetValue(r.GetGuid(1), out var l) ? l : weapons[r.GetGuid(1)] = new()).Add(new Weapon(r.GetGuid(0), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0))));
         var slots = new Dictionary<Guid, List<ModelSlot>>();

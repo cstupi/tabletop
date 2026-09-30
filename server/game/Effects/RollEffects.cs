@@ -27,7 +27,7 @@ public static class RollEffects
         return new RollPlan(roll, threshold, modifiers, convention, requiredRaw, reroll);
     }
 
-    /// <summary>What one die does beyond its success: extra hits (Furious, Relentless) and per-hit grants (Rending's AP(4)).</summary>
+    /// <summary>What one die does beyond its success: extra hits and per-hit grants of a rule.</summary>
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified);
