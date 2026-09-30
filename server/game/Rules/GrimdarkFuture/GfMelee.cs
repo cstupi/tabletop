@@ -22,7 +22,7 @@ public static class GfMelee
     static Guid Charger(StepContext ctx) => ctx.Frame.Context.ActorUnitId!.Value;
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
     /// <summary>By step name, not by index: charge's first step is the activation's dangerous terrain test (p.11).</summary>
-    static Guid Target(StepContext ctx) => ((SelectedPieces)ctx.Frame.Frame.Steps.Last(s => s.Step == "charge-target").Answer!).PieceIds[0];
+    static Guid? Target(StepContext ctx) => GfAnswers.Pieces(ctx.State, ctx.Frame, "charge-target", "charge_target") is [var target, ..] ? target : null;
     static bool InReach(GameState state, Guid a, Guid b) => Lookup.LivingModels(state, a).Any(m => Lookup.LivingModels(state, b).Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical));
     static StepOutcome AfterChild(StepContext ctx, Func<StepOutcome> push, IReadOnlyList<StateChange>? onDone = null) =>
         ctx.History.Children.Count == 0 ? push() : ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete(onDone ?? []) : new OpenAsks([]);
@@ -31,7 +31,7 @@ public static class GfMelee
     /// <summary>The settled move answer: every model that went on the table lands on the surface. Shared by the defender's close-in and consolidation.</summary>
     static StepOutcome Settled(StepContext ctx, AskRecord closed)
     {
-        var moves = (closed.Single as Destinations)?.Moves.Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement)))).ToList() ?? [];
+        var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement)))).ToList();
         return new Complete(moves.Count > 0 ? [new ModelsMoved(moves)] : []);
     }
 
@@ -48,7 +48,7 @@ public static class GfMelee
         public string Name => "charge-target";
         public StepOutcome Run(StepContext ctx)
         {
-            if (ctx.History.LastClosed() is not null) return new Complete([]);
+            if (ctx.History.LastClosed() is { } answered) return GfAnswers.Pieces(answered.Single, answered.Ask).Count == 0 ? new Finish([]) : new Complete([]);   // an answer that names no offered unit is no target
             var unit = Charger(ctx);
             var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
             var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
@@ -77,7 +77,8 @@ public static class GfMelee
         public string Name => "defender-closes";
         public StepOutcome Run(StepContext ctx)
         {
-            var (charger, target) = (Charger(ctx), Target(ctx));
+            if (Target(ctx) is not { } target) return new Finish([]);
+            var charger = Charger(ctx);
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
             var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > Touching)).ToList();
             if (free.Count == 0 || ctx.TeamOf(target) is not { } team) return new Complete([]);
@@ -90,7 +91,8 @@ public static class GfMelee
         public string Name => "fight";
         public StepOutcome Run(StepContext ctx)
         {
-            var (charger, target) = (Charger(ctx), Target(ctx));
+            if (Target(ctx) is not { } target) return new Finish([]);
+            var charger = Charger(ctx);
             if (ctx.History.Children.Count == 0 && !InReach(ctx.State, charger, target)) return new Finish([]);
             return AfterChild(ctx, () => new Push(GfNames.Melee, new SequenceContext(charger, [target], MeleeWeapons(ctx.State, charger), GfNames.Charge)));
         }

@@ -58,7 +58,7 @@ public static class GfContainers
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), GfNames.ExitWithin,
                         Battlefield.Terrain(ctx.State).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
                         [], null, new MoveContainment([], container, GfNames.ExitWithin)), allowPass: false)]);
-            IReadOnlyList<ModelRelocation> proposed = (closed.Single as Destinations)?.Moves ?? [];
+            var proposed = GfAnswers.Moves(ctx.State, closed);
             var changes = new List<StateChange> { new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true) };
             var moves = new List<ModelRelocation>(); var destroyed = 0; var fatal = 0;
             foreach (var m in Lookup.AliveModels(ctx.State, unit))

@@ -129,7 +129,7 @@ public static class GfMoves
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), Math.Max(0, allowance - used), impassable, difficult, strider ? null : GfNames.DifficultCap, containment), allowPass: true)]);
                 case 0:
                 {
-                    var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, ctx.History.LastClosed("move")!.Single as Destinations, terrain);
+                    var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!), terrain);
                     return new Complete(changes, new Dictionary<string, int>
                         { ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2 }, Repeat: true);
                 }
@@ -165,7 +165,7 @@ public static class GfMoves
         // so the record has one shape, and the client ignores them on a disembark (client shell -> MoveRuler).
 
         /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, and the dangerous-terrain dice the models that moved in or through a Dangerous volume owe (p.11).</summary>
-        static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) Apply(StepContext ctx, Guid unit, LiveSet live, double allowance, Destinations? d, IReadOnlyList<WorldVolume> terrain)
+        static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) Apply(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, IReadOnlyList<WorldVolume> terrain)
         {
             var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>();
             var impassable = Declared(terrain, TerrainDeclarations.Impassable);
@@ -173,19 +173,20 @@ public static class GfMoves
             var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
             var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");   // p.14: Strider ignores difficult terrain, Flying all terrain effects
             var flying = live.Has(Side.Attacker, "Flying");                                          // Strider does *not* skip a dangerous terrain test; only Flying does
-            foreach (var m in d?.Moves ?? [])
+            foreach (var m in proposed)
             {
                 // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
                 // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
                 if (m.To is Inside into)
                 {
-                    if (ctx.Projection.Models[into.ContainerId].Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
+                    if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
                     continue;
                 }
                 if (m.To is not OnTable to) continue;
                 // p.14: a disembarking model has no start position, so nothing is measured or swept; the radius is the whole constraint.
                 if (m.From is Inside from)
                 {
+                    if (!ctx.Projection.Models.ContainsKey(from.ContainerId)) continue;
                     if (ExitPlacement(ctx.State, m.ModelId, from.ContainerId, to.Placement, GfNames.ExitWithin) is { } exit)
                         moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit)));
                     continue;
