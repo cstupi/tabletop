@@ -1,36 +1,36 @@
-# Handoff — 2026-09-29, steps 3 and 4 in flight
+# Handoff — 2026-09-29, paused for the night in steps 3 and 4
 
 Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3: the web
-app and the client are merged; the interpreter tree is part-way through its plan. Step 4: the scheduler tree
-runs off the interpreter branch. Each running tree has a controller that resumes from its brief and ledger.
-Checkpoint 1, the owner playing the table by hand, is due.**
+app and the client are merged; the interpreter tree has every task built and is in its whole-branch review's
+fix loop, stopped clean for the night before its report. Step 4: the scheduler tree is finished and green, waiting to
+merge after the interpreter. Checkpoint 1, the owner playing the table by hand, is due.**
 
 ## State
 
-Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch
-`geometry` kept), the game-server skeleton (`862072a`, branch `game-server-skeleton` kept), the
-management API (`f0d0223`), the web app (`588b848`) and the client shell (`ba53db1`); each branch is kept and
-each worktree removed. On `main`, `dotnet build` is clean with no warnings, `./scripts/check-client` prints
-nothing, and `dotnet test` passes 477 tests: Geometry 131, Content 17, Protocol 36, Client 64, GameServer 149,
-Management 80. The two server
-suites need the compose stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0
-errors and `npm run build` writes `build/index.html`.
+Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`), the game-server
+skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`) and the client shell
+(`ba53db1`); each branch is kept and each worktree removed. On `main`, `dotnet build` is clean with no
+warnings, `./scripts/check-client` prints nothing, and `dotnet test` passes 477 tests: Geometry 131,
+Content 17, Protocol 36, Client 64, GameServer 149, Management 80. The two server suites need the compose
+stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0 errors and `npm run
+build` writes `build/index.html`. `main` is clean at the commit that carries this file.
 
-**Steps 3 and 4, in flight.** The interpreter's worktree is off `main` at `8b5d8b1` and the scheduler's off
-`interpreter` at `e26eb31`, one branch each:
+**Two trees are open**, each clean at a committed head, with no controller running:
 
-| Tree | Worktree, branch | Head | Tasks complete | Next |
-| --- | --- | --- | --- | --- |
-| interpreter | `.worktrees/interpreter`, `interpreter` | `7748c26`, 19 commits | 1-13 of 19 | task 14 reviewed, its fix round 1 not run |
-| scheduler | `.worktrees/scheduler`, `scheduler` | `e26eb31`, the interpreter's head | 0 of 10 | Task 1; controller dispatched 2026-09-29 |
+| Tree | Worktree, branch | Base | Head | State | Next |
+| --- | --- | --- | --- | --- | --- |
+| interpreter | `.worktrees/interpreter`, `interpreter` | `main` at `8b5d8b1` | `373f202` | tasks 1-19 complete; whole-branch review and six fix rounds done; last run 664 (GameServer 374), not yet the controller's own | round 6's scoped re-review, the whole-tree check, the report |
+| scheduler | `.worktrees/scheduler`, `scheduler` | `interpreter` at `e26eb31` | `47ee5e2` | **finished**; report `.superpowers/reports/scheduler.md`; whole-tree check green under the manager's run, 659 tests (GameServer 394) | merge after the interpreter; do not dispatch a controller |
 
-Each unfinished tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete`
-lines say what not to redo, its rulings are binding on the rest of the tree, and its last line is a `RESUME`
-or `Resume:` line naming the exact next step, the head and the last test count. The briefs are
-`.superpowers/briefs/common.md` plus `<tree>.md`. The interpreter's rebuilt rulings for tasks 9 to 19, its
-implementer and reviewer contracts and the extracted rulebook are in `.superpowers/sdd/interpreter/`; the
-scheduler's are in `.superpowers/sdd/scheduler/`. The client's review packages and implementer contract
-are in `.superpowers/sdd/client-shell/`.
+The scheduler carries `interpreter` up to `d458530` through two merges its brief allowed; the interpreter's
+later fix rounds are not in it and meet it at the merge into `main`.
+
+The interpreter's ledger `.superpowers/ledgers/interpreter.md` is its resume point: its `complete` lines say
+what not to redo, its rulings bind the rest of the tree, and its last line is a `Resume:` line naming the exact
+next step, the head and the last test count. Its brief is `.superpowers/briefs/common.md` plus
+`interpreter.md`; its rebuilt rulings for tasks 9 to 19, implementer and reviewer contracts and extracted
+rulebook are in `.superpowers/sdd/interpreter/`. The scheduler's brief, ledger and `.superpowers/sdd/scheduler/`
+are kept until its merge for the rulings its report cites.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -42,16 +42,19 @@ are in `.superpowers/sdd/client-shell/`.
 ruling, 5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees.
 Sections 6 and 7 are applied: 6 to the plan, the spec, the design doc and `docs/schema.md`, 7 to this
 file. The web-app and client trees' records are `.superpowers/reports/web-app.md` and `client-shell.md`, in
-the same seven sections, with 6 and 7 applied the same way. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
+the same seven sections, with 6 and 7 applied the same way; the scheduler's `scheduler.md` is not yet applied.
+`.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
 `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
+`.superpowers/sdd/client-shell/` keeps two files the client obligations cite: `implementer-contract.md` and
+`task-06-report.md`. `.superpowers/manager.md` is the manager's scratch and defers to this file.
 
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
 `2026-09-05-client-shell/`, `2026-09-05-interpreter-and-effects/` and `2026-09-05-scheduler/` are each
 a `README.md` (goal, constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces
 needed*, rulings) and one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves
 against the README. Five task files still run 510 to 700 lines (interpreter 8, 11 and 14; management 5;
-scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines and the design
-docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
+scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines
+and the design docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
 then the design document for whatever you are touching and its plan beside it.
@@ -71,23 +74,31 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    a second stack on the same ports). `.env` exists and carries the Stytch project id. Never `down -v` while
    a tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Resume a stopped controller.** For `interpreter` or `scheduler`, dispatch a fresh controller
-   on `opus` with the prompt "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from
-   `.superpowers/ledgers/<tree>.md`; the worktree is clean at the head named in its last line; do exactly what
-   that line says next, then continue". The briefs already carry every obligation the trees owe; nothing
-   needs re-deriving. A controller that is forced to hand back leaves the worktree clean at a committed head
-   and writes the resume point as the ledger's last line.
-3. **Merge each tree when its report lands.** From the repo root, `git merge --no-ff <tree>`, resolve
-   `CLAUDE.md`, `Tabletop.sln` and `.env.example` keep-both-sides, build and test on `main`, apply the
-   report's section 6 to `docs/` and its section 7 to this file; remove the worktree, keep the branch.
-4. **Step 4** is the scheduler. Dispatch it now, in `.worktrees/scheduler` branched from `interpreter`, not
-   after the interpreter lands; its plan's *Requires landed* line says why. Stop at each checkpoint in
-   `docs/design/README.md` → *Checkpoints* for the owner to play the build. It is dispatched; its brief
-   allows it to merge `interpreter` in, and only that.
-5. **Checkpoint 1, the table by hand, is due now.** The owner checks are section 5 of
+2. **Resume the interpreter.** Dispatch a fresh controller on `opus` with the prompt "read
+   `.superpowers/briefs/interpreter.md` then `common.md`; resume from `.superpowers/ledgers/interpreter.md`;
+   the worktree is clean at the head named in its last line; do exactly what that line says next, then
+   continue". The next step is round 6's scoped re-review over `4220fee..373f202`. Round 6 ran past the
+   brief's five-round budget because round 5's re-review found a Critical: with waits between steps on, a
+   Charge ended before asking for its target and Hold or Advance never offered shooting (ruling R-N19). If
+   the re-review reports anything Critical or Important, the controller hands it back and the owner decides. A controller forced to stop leaves the
+   worktree clean and writes the resume point as the ledger's last line.
+3. **Merge the interpreter, then the scheduler.** From the repo root, for each in that order: run its
+   whole-tree check from its worktree, `git merge --no-ff <tree>`, resolve `CLAUDE.md`, `Tabletop.sln` and
+   `.env.example` keep-both-sides, build and test on `main`, apply the report's section 6 to `docs/` and its
+   section 7 to this file, remove the worktree and keep the branch; delete the tree's brief, ledger and
+   `.superpowers/sdd/<tree>/` once its report is applied. The scheduler's section 7 names the files both trees
+   touch: `GfNames.cs`, `StubRules.cs`, `CommandDispatcherTests.cs`, `CLAUDE.md`, `GameSession.cs` and
+   `EventApplier.cs`. Where the interpreter's later fix rounds conflict there, the interpreter's side is the
+   base and the scheduler's additions go on top; rerun the whole-tree check on `main` after.
+4. **Checkpoint 1, the table by hand, is due now.** The owner checks are section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*, task by task, each with what should appear. They
    need `./scripts/management` and `dotnet run --project server/game` in WSL, `./scripts/client` on Windows,
-   and two accounts. The Ask-panel checks of client Task 14 come due when the rules servers land.
+   and two accounts.
+5. **Checkpoint 2, first turns, comes due when the scheduler merges.** What a player should see at the
+   roll-off, deployment, activation and end of round is section 7 of `.superpowers/reports/scheduler.md`,
+   *What a player should see*; casting, Takedown, Transport and disembark are in the interpreter's report.
+   Step 5, the simulator, is not dispatched until the owner has played checkpoint 2
+   (`docs/design/README.md` → *Checkpoints*).
 
 **Owner actions outstanding.** Author the fifteen built-in art files (ten `.glb` under
 `client/content/builtin/terrain/`, five 1024² tileable `.png` under `client/content/builtin/textures/`),
@@ -136,8 +147,8 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Landed.**
-3. web app, client, interpreter, together. Web app and client **landed**; interpreter **in flight**, see *State*.
-4. scheduler. **In flight**, off the interpreter branch;
+3. web app, client, interpreter, together. Web app and client **landed**; interpreter **paused** before its report, see *State*.
+4. scheduler. **Finished**, off the interpreter branch; merges after it;
 5. simulator;
 6. viewer.
 
