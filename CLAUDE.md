@@ -79,6 +79,12 @@ Three kinds of top-level directory:
   replay, `CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes. Tested in
   `tests/Tabletop.GameServer.Tests`. What sits behind the rules seam is listed by the children below; with none, the
   engine is `InertEngine`.
+  - `Properties/` (the pinned set, its authored `Content/*.properties.json` form, the store and the startup seeder),
+    `Dice/` (the seeded counter-based roll primitive), `Effects/` (the two passes over live properties), `Interpreter/`
+    (frames from the log, steps, windows, the battlefield reader), `Engine/` (`RulesEngine`, the one `IRulesEngine`, and
+    the scheduler seam `IScheduler`/`ISchedulerFactory`), `Scheduler/SchedulerTypes.cs` and `ActivationOption.cs` (the
+    seam records the scheduler plan reads).
+  - `Rules/GrimdarkFuture/` — OPR's sequences, rolls, hooks and names: the only place a rule is named.
 - `server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack.
 - `web/` — Svelte SPA. Owns *preparation*: armies, assets including STL conversion in the
   browser, the account, and login. Does not exist yet.
@@ -116,3 +122,4 @@ Each module is designed before it is built.
 - Tests: xUnit under `tests/`, one project per library, per server and for the client's Godot-free
   `src/Core/`; test-driven for everything with logic. The client's Godot layer is tested by running it.
 - Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`; management writes them at creation and at end/leave/delete (management plan → Rows by writer).
+- The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json`, seeded by hash at startup; editing one makes a new set with a new hash — old games keep theirs.
