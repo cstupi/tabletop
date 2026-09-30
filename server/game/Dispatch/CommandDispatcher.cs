@@ -1,6 +1,6 @@
 using Tabletop.GameServer.Log;
-using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Scheduler;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Dispatch;
