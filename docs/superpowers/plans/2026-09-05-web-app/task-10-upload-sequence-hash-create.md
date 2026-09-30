@@ -6,8 +6,9 @@
 
 **Interfaces:**
 - Consumes: `api.assets.create/confirm/putVolumes`, `CreateAssetRequest`, `ConfirmResponse`, `Volume`, `AssetDto`.
-- Produces: `sha256Hex(bytes: Uint8Array): Promise<string>` (64 lowercase hex, `crypto.subtle`); `UploadPlan { name: string; kind: AssetKind; contentType: ContentType; bytes: Uint8Array; scale: number; orientation: Orientation; modelledBase: Base | null; volume?: Volume }`; `UploadOutcome { asset: AssetDto; triangles?: number; warning?: string; deduplicated: boolean; volumes?: TerrainVolume[] }`; `upload(plan, onStage?): Promise<UploadOutcome>` with stages `'hash' | 'create' | 'put' | 'confirm' | 'volumes'`; `UploadError(stage, cause)`.
+- Produces: `sha256Hex(bytes: Uint8Array): Promise<string>` (64 lowercase hex, `crypto.subtle`); `UploadPlan { name: string; kind: AssetKind; contentType: ContentType; bytes: Uint8Array; scale: number; orientation: Orientation; modelledBase: Base | null; volume?: Volume }`; `UploadOutcome { asset: AssetDto; triangles?: number; warning?: string; deduplicated: boolean; volumes?: TerrainVolume[] }`; `upload(plan, onStage?): Promise<UploadOutcome>` with stages `'hash' | 'create' | 'put' | 'confirm' | 'volumes'`; `UploadError(stage, cause)` with `reexport: boolean`, true exactly for a `422` at confirm, when the message tells the user to re-export the file and upload it again; every other failure names its stage.
 - The sequence is the management plan's, in order, and nothing else: hash → `POST /v1/assets` → `PUT` to `uploadUrl` when present (absent means the bytes are already in this account's library: dedup by hash, no bytes move) → `POST /confirm` → for terrain with a `volume`, `PUT /volumes`. The `PUT` carries exactly the declared `Content-Type`, because the presigned URL was signed for it. `confirm`'s `warning` is passed through untouched — the server's words, above 100,000 triangles, never a refusal.
+- Tests beyond the sequence itself: a `422` at confirm sets `reexport`; a `TypeError` at the `PUT` fails with stage `put` and `reexport` false; `confirm`'s `warning` reaches the outcome.
 
 Spec: management API → Asset bytes never pass through the API ("The client computes the content hash first … lets a duplicate upload be short-circuited before any bytes move"), The triangle count ("The check warns; it does not block"); management plan Task 7 (`CreateAssetResponse.uploadUrl` null = already there; confirm `409` until the bytes exist; `PUT /volumes` `409` unless terrain); mesh conversion → What it does not do.
 
@@ -17,6 +18,7 @@ Spec: management API → Asset bytes never pass through the API ("The client com
 // web/tests/upload.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../src/lib/api/client';
+import { ApiError } from '../src/lib/api/http';
 import { sha256Hex } from '../src/lib/upload/sha256';
 import { upload, UploadError } from '../src/lib/upload/upload';
 import type { AssetDto } from '../src/lib/api/types';
@@ -64,6 +66,34 @@ describe('upload', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('denied', { status: 403 })));
     await expect(upload(plan)).rejects.toMatchObject({ stage: 'put' } satisfies Partial<UploadError>);
   });
+
+  it('flags a 422 at confirm as re-export', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+    vi.spyOn(api.assets, 'confirm').mockRejectedValue(new ApiError(422, 'Unreadable model', 'not a valid glTF'));
+    const err = await upload(plan).catch((e) => e);
+    expect(err).toBeInstanceOf(UploadError);
+    expect(err).toMatchObject({ stage: 'confirm', reexport: true });
+    expect(err.cause).toBeInstanceOf(ApiError); expect(err.cause.status).toBe(422);
+    expect(err.message).toMatch(/re-export/i); expect(err.message).toContain('not a valid glTF');
+  });
+
+  it('keeps a network failure at the PUT as the cause and does not ask for a re-export', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset(), uploadUrl: 'http://x/put' });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const err = await upload(plan).catch((e) => e);
+    expect(err).toBeInstanceOf(UploadError);
+    expect(err).toMatchObject({ stage: 'put', reexport: false });
+    expect(err.cause).toBeInstanceOf(TypeError);
+  });
+
+  it('returns the server warning from confirm', async () => {
+    vi.spyOn(api.assets, 'create').mockResolvedValue({ asset: asset({ uploaded: true }) });
+    vi.spyOn(api.assets, 'confirm').mockResolvedValue({ asset: asset({ uploaded: true }), triangles: 120000, warning: 'over 100000 triangles' });
+    vi.spyOn(api.assets, 'putVolumes').mockResolvedValue([]);
+    const out = await upload(plan);
+    expect(out.warning).toBe('over 100000 triangles');
+  });
 });
 ```
 
@@ -80,6 +110,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 ```ts
 // web/src/lib/upload/upload.ts — the presigned path, in the management API's order. Nothing here converts; the plan carries finished bytes.
 import { api } from '$lib/api/client';
+import { ApiError } from '$lib/api/http';
 import type { AssetDto, AssetKind, Base, ContentType, Orientation, TerrainVolume, Volume } from '$lib/api/types';
 import { sha256Hex } from './sha256';
 
@@ -88,7 +119,14 @@ export interface UploadPlan { name: string; kind: AssetKind; contentType: Conten
 export interface UploadOutcome { asset: AssetDto; triangles?: number; warning?: string; deduplicated: boolean; volumes?: TerrainVolume[] }
 
 export class UploadError extends Error {
-  constructor(public stage: UploadStage, public cause: unknown) { super(`Upload failed while ${stage === 'put' ? 'sending the bytes' : stage}: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  readonly reexport: boolean;
+  constructor(public stage: UploadStage, public cause: unknown) {
+    const reexport = stage === 'confirm' && cause instanceof ApiError && cause.status === 422;
+    super(reexport
+      ? `The server could not read the file: ${(cause as ApiError).detail ?? (cause as ApiError).title}. Re-export it and upload again.`
+      : `Upload failed while ${stage === 'put' ? 'sending the bytes' : stage}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.reexport = reexport;
+  }
 }
 
 export async function upload(plan: UploadPlan, onStage: (s: UploadStage) => void = () => {}): Promise<UploadOutcome> {
@@ -116,4 +154,4 @@ export async function upload(plan: UploadPlan, onStage: (s: UploadStage) => void
 }
 ```
 
-- [ ] **Step 3: Run `npm test`; expect 33 passed, 1 skipped. Commit: `Upload by the presigned sequence: hash, create, PUT, confirm, volumes`.**
+- [ ] **Step 3: Run `npm test`; expect 50 passed, 1 skipped. Commit: `Upload by the presigned sequence: hash, create, PUT, confirm, volumes`.**

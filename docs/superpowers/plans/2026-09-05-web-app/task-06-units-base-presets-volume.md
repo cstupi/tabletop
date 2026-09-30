@@ -6,8 +6,8 @@
 
 **Interfaces:**
 - Consumes: `Base`, `BaseShape`, `Volume`, `Declaration` from `api/types.ts`.
-- Produces: `MM_PER_INCH = 25.4`, `mmToInches(mm)`, `inchesToMm(inches)`, `round(n, places = 3)`; `BASE_PRESETS: BasePreset[]` (`{ label, base }`), `presetFor(base): BasePreset | undefined` (match within 0.005"), `baseLabel(base): string` (the preset label or `"32 × 20 mm oval"` style text), `circle(mm)`, `oval(lengthMm, widthMm)`, `square(mm)`; `DECLARATIONS: Declaration[]`, `DECLARATION_LABELS: Record<Declaration, string>`, `parseDeclarations(wire: string): Set<Declaration>`, `formatDeclarations(set: Set<Declaration>): string`, `defaultVolume(width, length, top): Volume`.
-- Presets are UI over a shape, not the stored value (geometry values → Bases: "`32mm round` is a *name*, `1.26` is the value"). The list: rounds 25, 28.5, 32, 40, 50, 60, 80, 100, 130, 160 mm; ovals 60×35, 75×42, 90×52, 105×70, 120×92, 170×105 mm; squares 20, 25, 40, 50 mm.
+- Produces: `MM_PER_INCH = 25.4`, `mmToInches(mm)`, `inchesToMm(inches)`, `round(n, places = 3)`; `BASE_PRESETS: BasePreset[]` (`{ label, base }`), `presetFor(base): BasePreset | undefined` (match within 0.005"), `baseLabel(base): string` (the preset label or `"32 × 20 mm oval"` style text), `circle(mm)`, `oval(lengthMm, widthMm)`, `rect(lengthMm, widthMm)`, `sameBase(x, y): boolean` (shape equal, both dimensions within 0.005"; `presetFor` and the library filter use it); `DECLARATIONS: Declaration[]`, `DECLARATION_LABELS: Record<Declaration, string>`, `parseDeclarations(wire: string): Set<Declaration>`, `formatDeclarations(set: Set<Declaration>): string`, `defaultVolume(width, length, top, offset = { x: 0, y: 0 }, bottom = 0): Volume`.
+- Presets are UI over a shape, not the stored value (geometry values → Bases: "`32mm round` is a *name*, `1.26` is the value"). The list: rounds 25, 28.5, 32, 40, 50, 60, 80, 100, 130, 160 mm; ovals 60×35, 75×42, 90×52, 105×70, 120×92, 170×105 mm; squares 20, 25, 40, 50 mm; one 221 × 119 mm vehicle rect.
 - The `[Flags]` wire format is what `System.Text.Json`'s `JsonStringEnumConverter(SnakeCaseLower)` writes for a flags enum: `"none"`, one name, or names joined by `", "` in ascending flag order — `impassable, blocks_line_of_sight, see_in_and_out, cover, difficult, dangerous`.
 
 Spec: geometry values → Bases (three shapes, presets are names), Collision volumes and Declarations (the six, per volume), Where volumes come from ("rect footprint, `bottom 0`, `top` the mesh height, `kind: solid`"); `architecture.md` → Web frontend ("Base sizes are a preset dropdown (25/32/40mm round, oval sizes)").
@@ -82,8 +82,9 @@ export const BASE_PRESETS: BasePreset[] = [
   ...([[221, 119]] as const).map(([l, w]) => ({ label: `${l} × ${w} mm vehicle`, base: rect(l, w) })),
 ];
 
-const close = (x: number, y: number) => Math.abs(x - y) < 0.005;
-export const presetFor = (b: Base) => BASE_PRESETS.find((p) => p.base.shape === b.shape && close(p.base.a, b.a) && close(p.base.b, b.b));
+/** Two bases are the same when the shape matches and both dimensions agree within 0.005 in. */
+export const sameBase = (x: Base, y: Base): boolean => x.shape === y.shape && Math.abs(x.a - y.a) < 0.005 && Math.abs(x.b - y.b) < 0.005;
+export const presetFor = (b: Base) => BASE_PRESETS.find((p) => sameBase(p.base, b));
 
 export function baseLabel(b: Base): string {
   const preset = presetFor(b);
@@ -113,8 +114,8 @@ export function formatDeclarations(set: Set<Declaration>): string {
 }
 
 /** Every terrain asset gets this at upload: the mesh's bounding box as one solid prism (geometry values → Where volumes come from). */
-export const defaultVolume = (width: number, length: number, top: number): Volume =>
-  ({ kind: 'solid', footprint: { kind: 'rect', a: width, b: length }, offset: { x: 0, y: 0 }, yaw: { degrees: 0 }, bottom: 0, top, declarations: 'none' });
+export const defaultVolume = (width: number, length: number, top: number, offset: { x: number; y: number } = { x: 0, y: 0 }, bottom = 0): Volume =>
+  ({ kind: 'solid', footprint: { kind: 'rect', a: width, b: length }, offset, yaw: { degrees: 0 }, bottom, top, declarations: 'none' });
 ```
 
-- [ ] **Step 3: Run `npm test`; expect 14 passed. Commit: `Add unit conversion, base presets and the declarations wire format`.**
+- [ ] **Step 3: Run `npm test`; expect 17 passed. Commit: `Add unit conversion, base presets and the declarations wire format`.**

@@ -62,8 +62,8 @@ Each behaviour is from the sketch, kept:
 - **Emit GLB**: one file, meshes and normals only. No textures, no materials beyond a default, no
   rigging.
 - **Centre.** The mesh is translated so its footprint is centred on the origin and its lowest
-  point along the guessed up-axis is at zero, so it stands on its base in the preview and in
-  play. Scale and orientation are not baked in: the GLB keeps the file's units and axes, and the
+  point along the up-axis the user confirms (the guess by default) is at zero, so it stands on
+  its base in the preview and in play. Scale and orientation are not baked in: the GLB keeps the file's units and axes, and the
   asset row carries the confirmed scale and orientation.
 
 ## What it writes

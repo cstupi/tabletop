@@ -79,7 +79,7 @@ web/
   src/lib/components/AssetPicker.svelte     choose a library miniature for a unit or slot
   src/lib/components/FolderTree.svelte
   src/lib/components/VolumeEditor.svelte    footprint and two heights over the top-down preview
-  tests/fixtures/make-fixtures.ts           writes the four synthetic STLs
+  tests/fixtures/make-fixtures.ts           writes the six synthetic STLs
   tests/fixtures/*.stl                      generated; real STLs may be dropped in tests/fixtures/real/
   tests/*.test.ts                           Vitest, Node environment
 scripts/web                                 runs the dev server from WSL on 0.0.0.0:5173
@@ -120,15 +120,15 @@ Paths under `web/src/lib/`. Nothing here is consumed by a .NET project; the clie
 | `api/http.ts` | `API_BASE`, `ApiError(status, title, detail?)`, `setTokenProvider(fn)`, `http.{get,post,put,patch,del}<T>`, `http.onUnauthorized`, `query(params)` |
 | `api/client.ts` | `api.auth.{sendOtp, verifyOtp, password, signup, startReset, completeReset, refresh, logout}`, `api.account.{get, rename, delete}`, `api.assets.{list, create, get, patch, delete, confirm, download, getVolumes, putVolumes}`, `api.folders.{list, create, patch, delete, addAsset, removeAsset}`, `api.armies.{import, list, get, patch, delete}` |
 | `session/jwt.ts`, `session/session.svelte.ts`, `session/messages.ts` | `decodeExp`, `refreshDelayMs`; `session.{token, account, ready, accept, clear, restore, refresh, logout, startRefreshLoop}`, `STORAGE_KEY`; `loginErrorMessage` |
-| `units/units.ts`, `units/bases.ts`, `units/volumes.ts` | `MM_PER_INCH`, `mmToInches`, `inchesToMm`, `round`; `BASE_PRESETS`, `BasePreset`, `circle`, `oval`, `rect`, `presetFor`, `baseLabel`; `DECLARATIONS`, `DECLARATION_LABELS`, `parseDeclarations`, `formatDeclarations`, `defaultVolume` |
+| `units/units.ts`, `units/bases.ts`, `units/volumes.ts` | `MM_PER_INCH`, `mmToInches`, `inchesToMm`, `round`; `BASE_PRESETS`, `BasePreset`, `circle`, `oval`, `rect`, `sameBase`, `presetFor`, `baseLabel`; `DECLARATIONS`, `DECLARATION_LABELS`, `parseDeclarations`, `formatDeclarations`, `defaultVolume` |
 | `mesh/types.ts`, `mesh/stl.ts`, `mesh/weld.ts` | `Vec3`, `IndexedMesh`, `Bounds`, `triangleCount`, `bounds`; `parseStl`, `mergeSoups`, `StlError`; `weld` |
 | `mesh/decimate.ts`, `mesh/normals.ts`, `mesh/glb.ts` | `BUDGETS`, `decimate`, `compact`; `creasedNormals(mesh, angleDegrees = 60)`; `exportGlb(mesh, name)`, `readGlb(bytes)` |
 | `mesh/guess.ts`, `mesh/supports.ts`, `mesh/bounds.ts`, `mesh/three-frame.ts` | `UpAxis`, `Proposal`, `guessUpAxis`, `propose`, `toWorld`, `worldExtent`, `recentre`; `SupportReport`, `detectSupports`; `terrainVolume`; `eulerFor` |
-| `mesh/convert.ts`, `mesh/convert.worker.ts` | `ConversionInput`, `ConversionResult`, `Progress`, `convert`, `describeGlb`, `convertInWorker` |
-| `upload/sha256.ts`, `upload/upload.ts`, `upload/intake.ts` | `sha256Hex`; `UploadStage`, `UploadPlan`, `UploadOutcome`, `UploadError`, `upload`; `Intake`, `classifyFiles` |
+| `mesh/convert.ts`, `mesh/convert.worker.ts` | `ConversionInput` (`upAxis?` forces the up-axis), `ConversionResult`, `Progress`, `convert`, `describeGlb`, `convertInWorker` |
+| `upload/sha256.ts`, `upload/upload.ts`, `upload/intake.ts` | `sha256Hex`; `UploadStage`, `UploadPlan`, `UploadOutcome`, `UploadError` (`stage`, `reexport`: true exactly for a 422 at confirm), `upload`; `Intake`, `classifyFiles` |
 | `library/folders.ts`, `library/volume-edit.ts` | `FolderNode`, `buildTree`, `descendantIds`, `filterAssets`; `VolumeDraft`, `toDraft`, `fromDraft`, `validate`, `screenToTable` |
 | `armies/import.ts`, `armies/patches.ts` | `normaliseSource`, `importErrorMessage`, `reimport`; `unitDefault`, `slotMesh`, `slotBase`, `slotHeight`, `rename`, `slotSummary` |
-| `components/` | `MeshPreview` (+ `Measure`), `BasePicker`, `UploadDialog`, `FolderTree`, `VolumeEditor`, `AssetPicker` |
+| `components/` | `MeshPreview` (+ `Measure`; optional `onerror` and `highlight`), `BasePicker`, `UploadDialog`, `FolderTree`, `VolumeEditor`, `AssetPicker` (`value`, `base`, `assets`, `onchange`) |
 | Routes | `/login`, `/reset-password`, `/account`, `/armies`, `/armies/[id]`, `/library?folder=`, `/library/[id]` |
 | Scripts | `./scripts/web`; `web/`: `npm run dev|build|preview|check|test|fixtures` |
 

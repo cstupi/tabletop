@@ -2,12 +2,13 @@
 
 **Files:**
 - Create: `web/src/lib/components/VolumeEditor.svelte`, `web/src/lib/library/volume-edit.ts`
+- Modify: `web/src/lib/components/MeshPreview.svelte` (the `highlight` prop)
 - Test: `web/tests/volume-edit.test.ts`
 
 **Interfaces:**
 - Consumes: `api.assets.getVolumes/putVolumes`, `Volume`, `TerrainVolume`, `MeshPreview` in `'top'` mode, `DECLARATIONS`, `DECLARATION_LABELS`, `parseDeclarations`, `formatDeclarations`, `defaultVolume`, `describeGlb`, `terrainVolume`.
-- Produces: `VolumeDraft { kind; footprintKind; a; b; offsetX; offsetY; yawDegrees; bottom; top; declarations: Set<Declaration>; notes: string }`, `toDraft(v: Volume): VolumeDraft`, `fromDraft(d: VolumeDraft): Volume`, `validate(d): string[]` (`top > bottom`, positive dimensions, `see_in_and_out` only with `blocks_line_of_sight`), `screenToTable(px, py, viewport, extent)` for drag-to-move; `VolumeEditor` with props `assetId`, `glb`, `scale`, `orientation`.
-- The editor is for when the default is wrong: a list of volumes with add / duplicate / remove / *reset to bounding box*, each row editing kind (solid | area), footprint (circle radius | rect width × length), offset, yaw, bottom, top, the six declaration checkboxes and free-text notes; the selected volume is highlighted in the top-down preview and dragged to move its offset. Save is one `PUT /v1/assets/{id}/volumes` with the whole list (the endpoint replaces).
+- Produces: `VolumeDraft { kind; footprintKind; a; b; offsetX; offsetY; yawDegrees; bottom; top; declarations: Set<Declaration>; notes: string }`, `toDraft(v: Volume): VolumeDraft`, `fromDraft(d: VolumeDraft): Volume`, `validate(d): string[]` (every number finite, `top > bottom`, positive dimensions, `see_in_and_out` only with `blocks_line_of_sight`; management validates nothing on `PUT /volumes` beyond deserialisation, so this is the only check), `screenToTable(px, py, viewport, extent)` for drag-to-move; `VolumeEditor` with props `assetId`, `glb`, `scale`, `orientation`; `MeshPreview` gains `highlight?: number`, the index of the volume drawn in blue.
+- The editor is for when the default is wrong: a list of volumes with add / duplicate / remove / *reset to bounding box*, each row editing kind (solid | area), footprint (circle radius | rect width × length), offset, yaw, bottom, top, the six declaration checkboxes and free-text notes; the selected volume is highlighted in the top-down preview and dragged to move its offset. Save is one `PUT /v1/assets/{id}/volumes` with the whole list (the endpoint replaces). Each row is a `role="button"` element that selects on click, Enter or Space; its keydown handler returns unless the event's target is the row itself, so Space still types in Notes and toggles the checkboxes. *Reset to bounding box* reports a GLB it cannot read into `error`.
 
 Spec: geometry values → Collision volumes (`kind solid | area`, `footprint circle(radius) | rect(width, length)`, `offset`, `yaw`, `bottom`, `top`, `declarations`, `notes`; "a piece carries a *list* of volumes"), Declarations ("`see in and out` is a modifier on blocking … means nothing on a volume that is not opaque"), Where volumes come from ("The editor is only for when the default is wrong … a top-down 2D task over a model preview"; the bar: "upload a terrain model and set where collision happens, easily, with the supported shapes"); `architecture.md` → Web frontend ("Collision volume authoring is the web's too").
 
@@ -34,6 +35,8 @@ describe('volume drafts', () => {
     expect(validate({ ...toDraft(v), top: 1 })).toContain('top must be above bottom');
     expect(validate({ ...toDraft(v), a: 0 })).toContain('dimensions must be positive');
     expect(validate({ ...toDraft(v), declarations: new Set(['see_in_and_out']) })).toContain('see in and out needs blocks line of sight');
+    expect(validate({ ...toDraft(v), bottom: null as unknown as number })).toContain('values must be numbers');
+    expect(validate({ ...toDraft(v), a: NaN })).toContain('values must be numbers');
   });
   it('maps a click in the top-down view to table coordinates', () => {
     // a 400×200 viewport showing x ∈ [-4, 4], y ∈ [-2, 2]: the centre is the origin, +y is up on screen
@@ -59,6 +62,7 @@ export function fromDraft(d: VolumeDraft): Volume {
 
 export function validate(d: VolumeDraft): string[] {
   const errors: string[] = [];
+  if (![d.a, d.b, d.offsetX, d.offsetY, d.yawDegrees, d.bottom, d.top].every(Number.isFinite)) errors.push('values must be numbers');
   if (!(d.top > d.bottom)) errors.push('top must be above bottom');
   if (!(d.a > 0) || (d.footprintKind === 'rect' && !(d.b > 0))) errors.push('dimensions must be positive');
   if (d.declarations.has('see_in_and_out') && !d.declarations.has('blocks_line_of_sight')) errors.push('see in and out needs blocks line of sight');
@@ -71,7 +75,9 @@ export function screenToTable(px: number, py: number, viewport: { width: number;
 }
 ```
 
-- [ ] **Step 2: Run; expect failures then pass. Write `VolumeEditor.svelte`** (replacing Task 13's stub):
+- [ ] **Step 2: Run; expect failures then pass. Add `highlight` to `MeshPreview.svelte`:** take `highlight?: number` in `$props()`, draw volume `i` with `const color = i === highlight ? 0x3399ff : v.kind === 'solid' ? 0xff8800 : 0x33cc66;` in `drawOverlay`'s loop, and read `highlight` in the transform `$effect` beside `volumes` so a change of selection redraws.
+
+- [ ] **Step 3: Write `VolumeEditor.svelte`** (replacing Task 13's stub):
 
 ```svelte
 <script lang="ts">
@@ -89,13 +95,13 @@ export function screenToTable(px: number, py: number, viewport: { width: number;
   const volumes = $derived(drafts.map(fromDraft));
   const errors = $derived(drafts.flatMap((d, i) => validate(d).map((e) => `Volume ${i + 1}: ${e}`)));
 
-  $effect(() => { api.assets.getVolumes(assetId).then((rows) => (drafts = rows.map((r) => toDraft(r.volume)))).catch((e) => (error = String(e))); });
+  $effect(() => { api.assets.getVolumes(assetId).then((rows) => (drafts = rows.map((r) => toDraft(r.volume)))).catch((e) => (error = e instanceof Error ? e.message : String(e))); });
 
   const add = () => { drafts = [...drafts, toDraft(defaultVolume(extent.width, extent.length, extent.height))]; selected = drafts.length - 1; };
-  const duplicate = () => { if (drafts[selected]) { drafts = [...drafts, structuredClone($state.snapshot(drafts[selected]))]; selected = drafts.length - 1; } };
+  const duplicate = () => { if (drafts[selected]) { drafts = [...drafts, structuredClone($state.snapshot(drafts[selected]!))]; selected = drafts.length - 1; } };
   const remove = () => { drafts = drafts.filter((_, i) => i !== selected); selected = Math.max(0, selected - 1); };
-  const reset = async () => { const d = await describeGlb(glb); drafts = [toDraft(terrainVolume(d.bounds, { scale, orientation }))]; selected = 0; };
-  const save = () => api.assets.putVolumes(assetId, volumes).then(() => (saved = true)).catch((e) => (error = String(e)));
+  const reset = async () => { try { const d = await describeGlb(glb); drafts = [toDraft(terrainVolume(d.bounds, { scale, orientation }))]; selected = 0; } catch (e) { error = e instanceof Error ? e.message : String(e); } };
+  const save = () => api.assets.putVolumes(assetId, volumes).then(() => (saved = true)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
   const toggle = (d: VolumeDraft, name: (typeof DECLARATIONS)[number], on: boolean) => { const s = new Set(d.declarations); on ? s.add(name) : s.delete(name); d.declarations = s; };
 
   // drag the selected footprint: MeshPreview reports the table rectangle its top-down camera frames
@@ -110,13 +116,13 @@ export function screenToTable(px: number, py: number, viewport: { width: number;
 <section class="editor">
   <h2>Collision volumes</h2>
   <p>Gameplay runs on these prisms, not on the mesh. Orange is solid (stood on), green is area (stood inside). Drag the selected outline to move it.</p>
-  <div class="top" onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointerleave={() => (dragging = false)} onpointermove={move}>
-    <MeshPreview {glb} {scale} {orientation} base={null} mode="top" {volumes} onmeasure={(e) => (extent = e)} />
+  <div class="top" role="application" onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointerleave={() => (dragging = false)} onpointermove={move}>
+    <MeshPreview {glb} {scale} {orientation} base={null} mode="top" {volumes} highlight={selected} onmeasure={(e) => (extent = e)} />
   </div>
   <div class="bar"><button onclick={add}>Add volume</button><button onclick={duplicate} disabled={!drafts[selected]}>Duplicate</button><button onclick={remove} disabled={!drafts[selected]}>Remove</button><button onclick={reset}>Reset to bounding box</button></div>
-  <ol>
+  <div class="volumes">
     {#each drafts as d, i}
-      <li class:selected={i === selected} onclick={() => (selected = i)}>
+      <div class:selected={i === selected} role="button" tabindex="0" onkeydown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selected = i; } }} onclick={() => (selected = i)}>
         <select bind:value={d.kind}><option value="solid">solid</option><option value="area">area</option></select>
         <select bind:value={d.footprintKind}><option value="rect">rectangle</option><option value="circle">circle</option></select>
         {#if d.footprintKind === 'circle'}<label>radius <input type="number" step="0.25" bind:value={d.a} /></label>
@@ -126,14 +132,14 @@ export function screenToTable(px: number, py: number, viewport: { width: number;
         <label>bottom <input type="number" step="0.25" bind:value={d.bottom} /></label><label>top <input type="number" step="0.25" bind:value={d.top} /></label>
         <fieldset><legend>Declares</legend>{#each DECLARATIONS as name}<label><input type="checkbox" checked={d.declarations.has(name)} onchange={(e) => toggle(d, name, e.currentTarget.checked)} /> {DECLARATION_LABELS[name]}</label>{/each}</fieldset>
         <label>Notes <input bind:value={d.notes} placeholder="difficult when moving up, …" /></label>
-      </li>
+      </div>
     {/each}
-  </ol>
+  </div>
   {#each errors as e}<p role="alert">{e}</p>{/each}
   <button onclick={save} disabled={errors.length > 0 || drafts.length === 0}>Save volumes</button>{#if saved}<span>Saved.</span>{/if}
   {#if error}<p role="alert">{error}</p>{/if}
 </section>
-<style>.top { height: 24rem; touch-action: none } .selected { outline: 2px solid #3399ff } .bar { display: flex; gap: .5rem } li { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem; border-bottom: 1px solid #8884 }</style>
+<style>.top { height: 24rem; touch-action: none } .selected { outline: 2px solid #3399ff } .bar { display: flex; gap: .5rem } .volumes > div { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem; border-bottom: 1px solid #8884 }</style>
 ```
 
-- [ ] **Step 3: `npm test && npm run check`; 40 passed. Run the app on a terrain asset: the default box is there from upload; add an `area` volume declaring cover + difficult, drag it, set `see in and out` without `blocks line of sight` and read the error, save, reload, and `GET /v1/assets/{id}/volumes` shows two rows. Commit: `Add the terrain volume editor over the top-down preview`.**
+- [ ] **Step 4: `npm test && npm run check`; 57 passed. Run the app on a terrain asset: the default box is there from upload; add an `area` volume declaring cover + difficult, see it outlined in blue while selected, drag it, set `see in and out` without `blocks line of sight` and read the error, save, reload, and `GET /v1/assets/{id}/volumes` shows two rows. Commit: `Add the terrain volume editor over the top-down preview`.**

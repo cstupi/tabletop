@@ -159,7 +159,7 @@ graph TD
     Layout --> Asset
     Armies -->|"after import"| Army
     Lib -->|"asset card"| Asset
-    Army -.->|"AssetPicker reads the library"| Lib
+    Army -.->|"the page reads the library once for every AssetPicker"| Lib
     Asset --> VE["VolumeEditor — terrain only"]
 
     Login -.->|"public: no token needed"| Layout
@@ -387,8 +387,10 @@ shared-vertex topology, and a triangle soup has none.
 #### 6.3 Centring
 
 `recentre(mesh, upAxis)` translates the mesh in place so its footprint is centred on the origin
-and its lowest point along the guessed up-axis sits at zero (mesh conversion → *What conversion
-does*, *Centre*). The preview has the mesh standing on a ring of its modelled base, and a mesh
+and its lowest point along the up-axis sits at zero (mesh conversion → *What conversion does*,
+*Centre*). The axis is the guess unless `ConversionInput.upAxis` forces one. The upload dialog's
+stand-up / lay-flat toggle re-runs an STL's conversion on the axis it implies, so the floor and
+centre follow the correction. A pitch typed into the field by hand does not re-centre. The preview has the mesh standing on a ring of its modelled base, and a mesh
 exported off-origin, which is normal for a kit part, cannot stand on its base in the preview or
 in play.
 
@@ -525,14 +527,12 @@ user just rescaled, and the mismatch would be invisible until a model walked thr
 `ConversionResult.volume` remains on the type as a dead field whose only role is to be ignored,
 which invites the bug back. Either it should go, or it should be named `proposedVolume`.
 
-Two further limitations of `terrainVolume` follow from `defaultVolume`'s signature:
-
-- It discards `worldExtent`'s `min`, so `bottom` is hard-coded 0. A user-corrected orientation
-  that leaves the mesh floating or sunk yields a volume that does not match the mesh.
-- `offset` is always `(0, 0)` and the footprint yaw always 0. A rotated non-square piece gets an
-  axis-aligned box larger than its footprint. That is correct as a default, and the spec says
-  the editor exists for when the default is wrong. A yaw correction in the preview inflates the
-  volume without saying so.
+`terrainVolume` places the box from `worldExtent`'s min and max in the table frame, after scale
+and orientation: `offset` is the xy centre, `bottom` the minimum z and `top` the maximum z, each
+rounded to 1e-9. The footprint yaw is always 0, so a rotated non-square piece gets an
+axis-aligned box larger than its footprint. That is correct as a default, and the spec says the
+editor exists for when the default is wrong. A yaw correction in the preview inflates the volume
+without saying so.
 
 #### 6.10 GLB export and the Worker
 
@@ -1208,7 +1208,6 @@ across page visits: every write is followed by a refetch, so a stale list cannot
 | `recentre` mutates in place | The caller's array is modified; a re-run re-parses from the original bytes | Nothing; the pipeline is single-pass per run |
 | Volume computed from the proposal instead of the confirmation | A collision box that does not match the piece | The dialog's explicit re-derivation at confirm; **no test asserts it** |
 | Folder rename resending a stale `parentId` | A concurrent move is silently undone, because `FolderRequest` carries both fields | Nothing |
-| `AssetPicker` mounted per slot row | Each instance pages the whole miniature library; a ten-model unit issues ten full library loads | Nothing (see Rulings and deferred work) |
 | `worldExtent` / `eulerFor` divergence | The ring, the reported size and the volume disagree | `three-frame.test.ts` and `guess.test.ts` pin both against the same convention, but never against each other |
 
 ## Testing
@@ -1306,22 +1305,19 @@ identifier in `session.svelte.ts` and nothing else.
 
 ### Loose ends
 
-Not questions the plan asks. They need deciding before implementation.
+Not questions the plan asks. Each stands in the built code.
 
 1. `ConversionResult.volume` is computed and then left unused. Rename it `proposedVolume` or
    delete it. As it stands it is the exact shape of the proposal-instead-of-confirmation bug.
-2. `AssetPicker` loads the whole miniature library **per instance**, and the army editor mounts
-   one per model slot. It needs a shared store or a page-level fetch passed in.
-3. `slotSummary` reads the hard-coded stat keys `Range` and `Attacks`, which are OPR's. Content
+2. `slotSummary` reads the hard-coded stat keys `Range` and `Attacks`, which are OPR's. Content
    values makes stats declared per `Properties`, so this line renders wrong for any second game
    system. It is presentation only, but it embeds a ruleset in the web app.
-4. `terrainVolume` discards `worldExtent`'s `min` and always writes `offset (0, 0)` and footprint
-   yaw 0. That is correct as a default. It wants a comment saying so, and a check against a
-   yaw-corrected piece.
-5. The emitted GLB carries Z-up data in a format that defines +Y as up. It is consistent inside
+3. `terrainVolume` always writes footprint yaw 0. That is correct as a default. It wants a check
+   against a yaw-corrected piece.
+4. The emitted GLB carries Z-up data in a format that defines +Y as up. It is consistent inside
    this system. Every converted miniature will lie on its back in any third-party viewer.
-6. The up-axis guess implements "taller than wide" and drops the spec's "gives a footprint that
-   fits a base" half.
+5. The up-axis guess implements "taller than wide" and drops the spec's "gives a footprint that
+   fits a base" half. The stand-up / lay-flat toggle is the correction path, and it re-centres.
 
 ## References
 

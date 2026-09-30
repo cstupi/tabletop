@@ -5,12 +5,15 @@
 - Test: `web/tests/intake.test.ts`
 
 **Interfaces:**
-- Consumes: `convertInWorker`, `describeGlb`, `BUDGETS`, `propose`, `terrainVolume`, `upload`, `MeshPreview`, `BasePicker`, `circle`.
+- Consumes: `convertInWorker`, `describeGlb`, `ConversionInput.upAxis`, `UpAxis`, `BUDGETS`, `terrainVolume`, `upload`, `MeshPreview` (with `onerror`), `BasePicker`, `circle`.
 - Produces: `classifyFiles(files: { name: string; type: string }[]): Intake` where `Intake = { kind: 'stl'; files } | { kind: 'glb'; file } | { kind: 'image'; file; contentType: 'image/png' | 'image/jpeg' | 'image/webp' } | { kind: 'rejected'; reason: string }` (several `.stl` merge; exactly one `.glb`; one `.png`/`.jpg`; `.gltf` is rejected with the reason management gives); `UploadDialog` with props `open: boolean`, `onclose()`, `onuploaded(outcome: UploadOutcome)`.
-- The dialog's states, in the spec's order: **drop** → **converting** (progress from the worker) → **preview** (kind, name, modelled base, scale, orientation, budget, before/after counts, the support warning) → **uploading** (stage) → **done** (management's `warning`, if any). Changing the budget re-runs conversion; changing kind switches the default budget. Confirm is disabled until the preview has rendered, so nothing uploads before the user has seen it.
+- The dialog's states, in the spec's order: **drop** → **converting** (progress from the worker) → **preview** (kind, name, modelled base, scale, orientation, budget, before/after counts, the support warning) → **uploading** (stage) → **done** (management's `warning`, if any). Changing the budget re-runs conversion; changing kind switches the default budget. Kind, budget and *Stand up / lay flat* are disabled while uploading. Confirm is disabled until the preview has rendered, so nothing uploads before the user has seen it: `previewed` is set by `MeshPreview`'s `onmeasure`, which fires only once a scene has been parsed, and cleared by its `onerror`. Confirm is also disabled while scale or any orientation angle is not finite, or scale is not positive.
 - The kind offered follows the file: a mesh is *Miniature* or *Terrain*, an image is *Board texture* and the select is fixed, because management answers `415` for any other pairing of kind and content type (management plan Task 7 → `AssetRules.ContentTypes`).
 - **The terrain volume is computed at confirm**, from the mesh bounds the dialog holds and the scale and orientation the user confirmed — not from the converter's proposal, which the user may have corrected in the preview (mesh conversion → What it writes; What it does not do). `ConversionResult.volume` is the proposal-time default and the dialog does not use it.
-- A GLB dropped straight in gets no proposal: scale defaults to 1, orientation to identity, and the user sets both (mesh conversion → What it writes). A texture skips the mesh preview and is uploaded as `kind: 'texture'` with no base and no volume.
+- The proposal seeds scale and orientation only on a file's first conversion; a re-run for budget, kind or axis keeps the user's corrections. Each conversion carries a token, and a result that arrives after a newer run, or after `reset()`, is dropped. `onfiles` clears the previous file's result, GLB description, bounds and forced axis.
+- *Stand up / lay flat* toggles pitch between 0 and 90. On an STL it also re-runs conversion with `upAxis` forced to the implied axis (`'y'` at pitch 90, `'z'` at 0), so the floor and the footprint centre follow the correction. A pitch typed into the field does not re-centre.
+- `reset()` restores kind `miniature`, the miniature budget, a 32 mm round base, scale 1 and identity orientation, and bumps the conversion token, so an STL dropped after a texture is not created as `kind: 'texture'`.
+- A GLB dropped straight in gets no proposal: scale defaults to 1, orientation to identity, and the user sets both (mesh conversion → What it writes). A texture skips the mesh preview and is uploaded as `kind: 'texture'` with no base and no volume. A GLB that cannot be read reports into `error` and stays on the drop stage.
 
 Spec: mesh conversion → The flow (all four steps; "Nothing uploads before the user has seen it"; "The budget is adjustable here"), What conversion does (the support warning "says so in words and asks for the unsupported file"); management API → GLB only (`.gltf` with external buffers rejected); management plan Task 7 (`415` for other content types; miniature carries a `modelledBase`, terrain and textures do not).
 
@@ -60,6 +63,7 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
   import { BUDGETS } from '$lib/mesh/decimate';
   import { convertInWorker, describeGlb, type ConversionResult, type Progress } from '$lib/mesh/convert';
   import type { Bounds } from '$lib/mesh/types';
+  import type { UpAxis } from '$lib/mesh/guess';
   import { terrainVolume } from '$lib/mesh/bounds';
   import { classifyFiles, type Intake } from '$lib/upload/intake';
   import { upload, type UploadOutcome, type UploadStage } from '$lib/upload/upload';
@@ -79,29 +83,43 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
   let base = $state<Base | null>(circle(32));
   let meshBounds = $state<Bounds | null>(null);   // mesh-space bounds; the volume is derived from these at confirm, with the confirmed scale and orientation
   let previewed = $state(false); let outcome = $state<UploadOutcome | null>(null);
+  let convToken = 0; let seeded = $state(false);
+  let forcedAxis = $state<UpAxis | null>(null);   // set by Stand up / lay flat on an STL, so the re-conversion re-centres on the axis the user chose
 
   async function onfiles(list: FileList | null) {
-    error = null; intake = classifyFiles(Array.from(list ?? []));
+    error = null; result = null; glbInfo = null; meshBounds = null; forcedAxis = null;
+    intake = classifyFiles(Array.from(list ?? []));
     if (intake.kind === 'rejected') { error = intake.reason; return; }
     name = intake.kind === 'stl' ? intake.files[0]!.name.replace(/\.stl$/i, '') : intake.file.name.replace(/\.[^.]+$/, '');
     if (intake.kind === 'image') { kind = 'texture'; base = null; stage = 'preview'; previewed = true; return; }
     if (intake.kind === 'glb') {
-      glb = new Uint8Array(await intake.file.arrayBuffer());
-      const d = await describeGlb(glb); glbInfo = { triangles: d.triangles }; meshBounds = d.bounds;
-      scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 };   // a dropped GLB gets no proposal; the user sets both
-      stage = 'preview'; return;
+      try {
+        glb = new Uint8Array(await intake.file.arrayBuffer());
+        const d = await describeGlb(glb); glbInfo = { triangles: d.triangles }; meshBounds = d.bounds;
+        scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 };   // a dropped GLB gets no proposal; the user sets both
+        seeded = true; stage = 'preview'; return;
+      } catch (e) { error = e instanceof Error ? e.message : String(e); return; }
     }
-    await runConversion();
+    seeded = false; await runConversion();
   }
   async function runConversion() {
     if (intake?.kind !== 'stl') return;
     stage = 'converting'; previewed = false;
+    const t = ++convToken;
     try {
       const files = await Promise.all(intake.files.map(async (f) => ({ name: f.name, bytes: await f.arrayBuffer() })));
-      result = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files }, (p: Progress) => (progress = p.step));
-      glb = result.glb; scale = result.proposal.scale; orientation = result.proposal.orientation; meshBounds = result.bounds;
+      const res = await convertInWorker({ kind: kind === 'terrain' ? 'terrain' : 'miniature', budget, files, ...(forcedAxis ? { upAxis: forcedAxis } : {}) }, (p: Progress) => (progress = p.step));
+      if (t !== convToken) return;
+      result = res; glb = res.glb; meshBounds = res.bounds;
+      if (!seeded) { scale = res.proposal.scale; orientation = res.proposal.orientation; seeded = true; }
       stage = 'preview';
-    } catch (e) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; }
+    } catch (e) { if (t === convToken) { error = e instanceof Error ? e.message : String(e); stage = 'drop'; } }
+  }
+  const numbersOk = $derived(kind === 'texture' || ([scale, orientation.pitch, orientation.roll, orientation.yaw].every(Number.isFinite) && scale > 0));
+  function standUp() {
+    const pitch = orientation.pitch === 90 ? 0 : 90;
+    orientation = { ...orientation, pitch };
+    if (intake?.kind === 'stl') { forcedAxis = pitch === 90 ? 'y' : 'z'; void runConversion(); }   // a GLB has no conversion: only the pitch changes
   }
   function setKind(k: 'miniature' | 'terrain') {
     kind = k;
@@ -120,7 +138,7 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
       stage = 'done'; onuploaded(outcome);
     } catch (e) { error = e instanceof Error ? e.message : String(e); stage = 'preview'; }
   }
-  function reset() { stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; error = null; previewed = false; }
+  function reset() { ++convToken; stage = 'drop'; intake = null; result = null; glb = null; glbInfo = null; meshBounds = null; outcome = null; error = null; previewed = false; kind = 'miniature'; budget = BUDGETS.miniature; base = circle(32); scale = 1; orientation = { pitch: 0, yaw: 0, roll: 0 }; }
 </script>
 
 {#if open}
@@ -137,12 +155,12 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
   {:else if stage === 'preview' || stage === 'uploading'}
     <div class="preview">
       {#if kind !== 'texture'}
-        <MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} />
+        <MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} onerror={(m) => { error = m; previewed = false; }} />
       {:else}<p>Texture: {name}</p>{/if}
       <aside>
         <label>Name <input bind:value={name} /></label>
         <!-- the kinds this file can be: a mesh is a miniature or terrain, an image is a board texture. Management answers 415 for any other pairing. -->
-        <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={intake?.kind === 'image'}>
+        <label>Kind <select value={kind} onchange={(e) => setKind(e.currentTarget.value as 'miniature' | 'terrain')} disabled={intake?.kind === 'image' || stage === 'uploading'}>
           {#if intake?.kind === 'image'}<option value="texture">Board texture</option>
           {:else}<option value="miniature">Miniature</option><option value="terrain">Terrain</option>{/if}
         </select></label>
@@ -156,19 +174,20 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
             <label>Pitch <input type="number" step="15" bind:value={orientation.pitch} /></label>
             <label>Roll <input type="number" step="15" bind:value={orientation.roll} /></label>
             <label>Yaw (facing) <input type="number" step="15" bind:value={orientation.yaw} /></label>
-            <button onclick={() => (orientation = { ...orientation, pitch: orientation.pitch === 90 ? 0 : 90 })}>Stand up / lay flat</button>
+            <button onclick={standUp} disabled={stage === 'uploading'}>Stand up / lay flat</button>
           </fieldset>
         {/if}
         {#if result}
           <p>{result.trianglesBefore.toLocaleString()} → {result.trianglesAfter.toLocaleString()} triangles</p>
-          <label>Budget <input type="number" step="1000" min="1000" bind:value={budget} onchange={() => void runConversion()} /></label>
+          <label>Budget <input type="number" step="1000" min="1000" bind:value={budget} onchange={() => void runConversion()} disabled={stage === 'uploading'} /></label>
           <p>Guessed millimetres, {result.proposal.upAxis.toUpperCase()} up. Check the model stands on the ring and faces the arrow.</p>
           {#if result.supports.suspected}
             <p role="alert">This file looks pre-supported: {result.supports.supportLike} thin, tall pieces stand under it. Supports are never removed here — please drop the unsupported file instead.</p>
           {/if}
         {:else if glbInfo}<p>{glbInfo.triangles.toLocaleString()} triangles. No conversion ran, so set the scale and orientation yourself.</p>{/if}
         {#if stage === 'uploading'}<p>Uploading… {progress}</p>{/if}
-        <button onclick={confirm} disabled={stage === 'uploading' || (kind !== 'texture' && !previewed)}>Confirm and upload</button>
+        {#if !numbersOk}<p role="alert">Scale and orientation must be numbers.</p>{/if}
+        <button onclick={confirm} disabled={stage === 'uploading' || !numbersOk || (kind !== 'texture' && !previewed)}>Confirm and upload</button>
       </aside>
     </div>
   {:else if stage === 'done' && outcome}
@@ -186,4 +205,4 @@ export function classifyFiles<F extends { name: string }>(files: F[]): Intake<F>
 </style>
 ```
 
-- [ ] **Step 3: `npm test && npm run check`; expect 35 passed, 0 errors. Wire a temporary `<UploadDialog open onclose={…} onuploaded={console.log} />` into `/library` (Task 13 replaces it), run the app, drop `web/tests/fixtures/dense-binary.stl`: the worker converts, the preview stands the ellipsoid up (pitch 90) on a 32 mm ring, the counts read 48,000 → ≤ 15,000; confirm; the asset appears in MinIO under `{account}/{sha}`. Drop `supported-binary.stl` and read the warning. Commit: `Add the upload dialog: drop, convert in a worker, preview on the base ring, confirm`.**
+- [ ] **Step 3: `npm test && npm run check`; expect 52 passed, 0 errors. The dialog has no route until Task 13 creates `/library`, so its first browser run is Task 13's. Commit: `Add the upload dialog: drop, convert in a worker, preview on the base ring, confirm`.**

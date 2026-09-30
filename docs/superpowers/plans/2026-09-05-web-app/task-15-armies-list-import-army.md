@@ -9,6 +9,7 @@
 - Produces: `normaliseSource(text: string): string | null` (a share link `https://army-forge.onepagerules.com/share?id=…`, an Army Forge list URL carrying `?id=`, or a bare id → the text management accepts; anything else → `null`); `importErrorMessage(e: unknown): string` (`422` → management's detail, e.g. a skirmish or regiment list refused; `502` → "Army Forge did not answer"); `reimport(army: { id; source }): Promise<Army>` — imports the same source as a new army, then deletes the old one; `/armies`.
 - Import is `POST /v1/armies/import { source }` and management fetches the list — the browser never calls Army Forge (management API → Army import: "the parser lives in one place, there is no CORS problem"). This plan therefore consumes the export's shape only through the `Army` the API returns; the field mapping is the management plan's Task 9.
 - Re-import replaces: the button on a list row says what is lost — every per-slot mesh, base and height override — and asks before it runs; the new army keeps the source and gets the imported name.
+- Load more and Delete share one guard: Load more does nothing while a delete or another page load is running, and Delete does nothing while an import, a re-import or a page load is running. Both buttons are disabled for the same states. A failure in either is reported through `importErrorMessage`.
 
 Spec: the army → Where the values come from ("The list determines composition and loadout … imported, and needing no input from the user"), A changed list means a re-import ("import it again. There is no copy operation, no reconciliation … a re-import loses per-slot bindings and base overrides"); management plan Task 10 (`ImportRequest(Source)` → `201 Army`; `ListId` accepts a share link's `id=` or a bare id; `422` for no id or another game system; `502` when Army Forge fails), keyset `Page<ArmySummary>`.
 
@@ -95,12 +96,17 @@ export async function reimport(army: { id: string; source: string }): Promise<Ar
   import type { ArmySummary } from '$lib/api/types';
   import { importErrorMessage, normaliseSource, reimport } from '$lib/armies/import';
 
-  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let busy = $state(false); let error = $state<string | null>(null);
+  let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let busy = $state(false); let loadingMore = $state(false); let error = $state<string | null>(null);
   const normalised = $derived(normaliseSource(source));
 
   async function load(more = false) {
-    const p = await api.armies.list({ limit: 50, after: more ? next : undefined });
-    armies = more ? [...armies, ...p.items] : p.items; next = p.next;
+    if (more) { if (loadingMore || busy) return; loadingMore = true; }
+    try {
+      const p = await api.armies.list({ limit: 50, after: more ? next : undefined });
+      armies = more ? [...armies, ...p.items] : p.items; next = p.next;
+    } catch (e) {
+      error = importErrorMessage(e);
+    } finally { if (more) loadingMore = false; }
   }
   $effect(() => { void load(); });
 
@@ -117,7 +123,13 @@ export async function reimport(army: { id: string; source: string }): Promise<Ar
   }
   async function remove(a: ArmySummary) {
     if (!confirm(`Delete "${a.name}"? Games already loaded with it keep their own copy.`)) return;
-    await api.armies.delete(a.id); await load();
+    if (busy || loadingMore) return;
+    busy = true;
+    try {
+      await api.armies.delete(a.id); await load();
+    } catch (e) {
+      error = importErrorMessage(e);
+    } finally { busy = false; }
   }
 </script>
 
@@ -134,11 +146,11 @@ export async function reimport(army: { id: string; source: string }): Promise<Ar
   <tbody>
     {#each armies as a (a.id)}
       <tr><td><a href="/armies/{a.id}">{a.name}</a></td><td>{a.gameSystem}</td><td>{a.units}</td><td>{a.models}</td>
-        <td><button onclick={() => doReimport(a)} disabled={busy}>Re-import</button> <button onclick={() => remove(a)}>Delete</button></td></tr>
+        <td><button onclick={() => doReimport(a)} disabled={busy}>Re-import</button> <button onclick={() => remove(a)} disabled={busy || loadingMore}>Delete</button></td></tr>
     {/each}
   </tbody>
 </table>
-{#if next}<button onclick={() => load(true)}>Load more</button>{/if}
+{#if next}<button onclick={() => load(true)} disabled={loadingMore || busy}>Load more</button>{/if}
 ```
 
-- [ ] **Step 4: `npm test && npm run check`; 43 passed. Run the app: paste `https://army-forge.onepagerules.com/share?id=c2-6YsWRH3py` (the management plan's fixture list), import, see five units and 33 models in the list; paste an Age of Fantasy link and see it import too (Grimdark Future and Age of Fantasy are the same mechanics on different content, so both import and both land as `grimdark-future`; management plan Task 9); paste an Age of Fantasy Skirmish link and read the `422` message; re-import and confirm the old id is gone. Commit: `Add the armies list with import, re-import and delete`.**
+- [ ] **Step 4: `npm test && npm run check`; 60 passed. Run the app: paste `https://army-forge.onepagerules.com/share?id=c2-6YsWRH3py` (the management plan's fixture list), import, see five units and 33 models in the list; paste an Age of Fantasy link and see it import too (Grimdark Future and Age of Fantasy are the same mechanics on different content, so both import and both land as `grimdark-future`; management plan Task 9); paste an Age of Fantasy Skirmish link and read the `422` message; re-import and confirm the old id is gone. Commit: `Add the armies list with import, re-import and delete`.**

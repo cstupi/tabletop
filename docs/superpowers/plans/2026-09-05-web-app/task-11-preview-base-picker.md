@@ -6,8 +6,8 @@
 
 **Interfaces:**
 - Consumes: `Base`, `Orientation`, `Volume`; `BASE_PRESETS`, `presetFor`, `baseLabel`, `mmToInches`, `inchesToMm`; `three` (`GLTFLoader`, `OrbitControls` from `three/addons`).
-- Produces: `eulerFor(orientation): { x: number; y: number; z: number; order: 'ZYX' }` (radians; pitch about X, roll about Y, yaw about Z, applied in that order — the same convention as `toWorld`); `MeshPreview` with props `glb: Uint8Array | null`, `scale: number`, `orientation: Orientation`, `base: Base | null`, `mode?: 'orbit' | 'top'` (default `'orbit'`), `volumes?: Volume[]` (drawn as outlines in `'top'` mode), `onmeasure?: (m: Measure) => void` where `Measure = { width: number; length: number; height: number; frame: { minX: number; maxX: number; minY: number; maxY: number } }`, exported from the component's `<script module>` so `VolumeEditor` can import the type (`frame` is what the top-down camera shows, so the volume editor can map pointer positions back to table coordinates); `BasePicker` with `bind:value: Base | null`, `allowNone?: boolean`, `onchangevalue?: (b: Base | null) => void` (fires after every change, for callers that apply an edit rather than bind) — a preset dropdown plus a *Custom* entry that reveals shape and millimetre inputs.
-- Decisions: three.js is the preview (web app → Deliberately not decided: "How a glTF preview is embedded — `<model-viewer>`, three.js, or otherwise" — three because the top-down volume editor needs the same scene with an orthographic camera and drawn footprints, which `<model-viewer>` cannot do). The world is drawn Z-up by setting `camera.up = (0, 0, 1)` and leaving the GLB's Y-up data alone; the stored orientation is what stands it up. The ring is the modelled base in inches: a circle or oval outline with the oval's `a` along +Y, a square as edges, and a short arrow along +Y for facing.
+- Produces: `eulerFor(orientation): { x: number; y: number; z: number; order: 'ZYX' }` (radians; pitch about X, roll about Y, yaw about Z, applied in that order — the same convention as `toWorld`); `MeshPreview` with props `glb: Uint8Array | null`, `scale: number`, `orientation: Orientation`, `base: Base | null`, `mode?: 'orbit' | 'top'` (default `'orbit'`), `volumes?: Volume[]` (drawn as outlines in `'top'` mode), `onerror?: (message: string) => void` (a GLB that fails to parse leaves the model empty and reports here, or to the console when absent), `onmeasure?: (m: Measure) => void` where `Measure = { width: number; length: number; height: number; frame: { minX: number; maxX: number; minY: number; maxY: number } }`, exported from the component's `<script module>` so `VolumeEditor` can import the type (`frame` is what the top-down camera shows, so the volume editor can map pointer positions back to table coordinates; `fit()` calls it only once a scene has been parsed, or when `glb` is null, so a measure never describes a model still loading); `load` takes a per-instance token and drops any parse that finishes after a newer `glb` arrived; `BasePicker` with `bind:value: Base | null`, `allowNone?: boolean`, `onchangevalue?: (b: Base | null) => void` (fires after every change, for callers that apply an edit rather than bind) — a preset dropdown plus a *Custom* entry that reveals shape and millimetre inputs: one size for `circle`, length and width for `oval` and `rect` (`b = mmToInches(bMm)`). Choosing *Custom* seeds the inputs from the current value, and `applyCustom` ignores a dimension that is not finite and positive.
+- Decisions: three.js is the preview (web app → Deliberately not decided: "How a glTF preview is embedded — `<model-viewer>`, three.js, or otherwise" — three because the top-down volume editor needs the same scene with an orthographic camera and drawn footprints, which `<model-viewer>` cannot do). The world is drawn Z-up by setting `camera.up = (0, 0, 1)` and leaving the GLB's Y-up data alone; the stored orientation is what stands it up. The ring is the modelled base in inches: a circle or oval outline with `a` (length) along +Y, a rect as edges, and a short arrow along +Y for facing. A rect base is drawn `rect(base.b, base.a)`, because Bases.cs has a rect's `a` as length along +Y and `b` as width, while a Volumes.cs footprint has `a` as width along x and `b` as length along y.
 
 Spec: mesh conversion → The flow ("The mesh stands on a ring of the chosen modelled-base size, with the proposed scale and orientation applied … corrects scale or facing if the guess is wrong"); geometry values → Bases (three shapes; "Presets are UI over a shape"); geometry plan → Coordinate frame (yaw 0 faces +Y; an oval's length along the facing axis).
 
@@ -28,7 +28,9 @@ describe('eulerFor', () => {
 ```ts
 // web/src/lib/mesh/three-frame.ts — the one place the Orientation convention meets three.js. Order 'ZYX' builds Rz·Ry·Rx, so X (pitch) is applied to the mesh first.
 import type { Orientation } from '$lib/api/types';
+
 const rad = (d: number) => (d * Math.PI) / 180;
+
 export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), z: rad(o.yaw), order: 'ZYX' as const });
 ```
 
@@ -49,9 +51,9 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
   import type { Base, Orientation, Volume } from '$lib/api/types';
   import { eulerFor } from '$lib/mesh/three-frame';
 
-  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], onmeasure }: {
+  let { glb, scale, orientation, base, mode = 'orbit', volumes = [], onmeasure, onerror }: {
     glb: Uint8Array | null; scale: number; orientation: Orientation; base: Base | null;
-    mode?: 'orbit' | 'top'; volumes?: Volume[]; onmeasure?: (m: Measure) => void;
+    mode?: 'orbit' | 'top'; volumes?: Volume[]; onmeasure?: (m: Measure) => void; onerror?: (message: string) => void;
   } = $props();
 
   let canvas: HTMLCanvasElement;
@@ -61,6 +63,7 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
   scene.add(model, overlay, new THREE.HemisphereLight(0xffffff, 0x444466, 1.2));
   const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(3, -4, 6); scene.add(sun);
   let renderer: THREE.WebGLRenderer, camera: THREE.Camera, controls: OrbitControls | null = null;
+  let loadToken = 0;
 
   function outline(points: THREE.Vector3[], color: number) { return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color })); }
   function ellipse(rx: number, ry: number, z = 0) { return Array.from({ length: 96 }, (_, i) => { const t = (i / 96) * 2 * Math.PI; return new THREE.Vector3(rx * Math.cos(t), ry * Math.sin(t), z); }); }
@@ -69,14 +72,16 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
   function drawOverlay() {
     overlay.clear();
     if (base) {
-      const pts = base.shape === 'circle' ? ellipse(base.a / 2, base.a / 2) : base.shape === 'oval' ? ellipse(base.b / 2, base.a / 2) : rect(base.a, base.a);
+      const pts = base.shape === 'circle' ? ellipse(base.a / 2, base.a / 2) : base.shape === 'oval' ? ellipse(base.b / 2, base.a / 2) : rect(base.b, base.a);
       overlay.add(outline(pts, 0x3399ff));
       overlay.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0.01), base.a * 0.75, 0x3399ff));
     }
-    for (const v of volumes) {
+    for (let i = 0; i < volumes.length; i++) {
+      const v = volumes[i]!;
       const g = new THREE.Group();
       const yaw = (v.yaw.degrees * Math.PI) / 180;
-      for (const z of [v.bottom, v.top]) g.add(outline(v.footprint.kind === 'circle' ? ellipse(v.footprint.a, v.footprint.a, z) : rect(v.footprint.a, v.footprint.b, z), v.kind === 'solid' ? 0xff8800 : 0x33cc66));
+      const color = v.kind === 'solid' ? 0xff8800 : 0x33cc66;
+      for (const z of [v.bottom, v.top]) g.add(outline(v.footprint.kind === 'circle' ? ellipse(v.footprint.a, v.footprint.a, z) : rect(v.footprint.a, v.footprint.b, z), color));
       g.position.set(v.offset.x, v.offset.y, 0); g.rotation.z = yaw; overlay.add(g);
     }
   }
@@ -86,7 +91,7 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
     if (box.isEmpty()) box.set(new THREE.Vector3(-1, -1, 0), new THREE.Vector3(1, 1, 1));
     const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, base?.a ?? 0, 0.5), aspect = canvas.clientWidth / canvas.clientHeight;
-    onmeasure?.({ width: size.x, length: size.y, height: size.z, frame: { minX: centre.x - radius * aspect, maxX: centre.x + radius * aspect, minY: centre.y - radius, maxY: centre.y + radius } });
+    if ((model.children.length > 0 || !glb) && onmeasure) onmeasure({ width: size.x, length: size.y, height: size.z, frame: { minX: centre.x - radius * aspect, maxX: centre.x + radius * aspect, minY: centre.y - radius, maxY: centre.y + radius } });
     if (mode === 'top') {
       const cam = new THREE.OrthographicCamera(-radius * aspect, radius * aspect, radius, -radius, 0.01, radius * 10);
       cam.position.set(centre.x, centre.y, box.max.z + radius); cam.up.set(0, 1, 0); cam.lookAt(centre.x, centre.y, 0); camera = cam;
@@ -100,11 +105,20 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
 
   async function load(bytes: Uint8Array | null) {
     model.clear();
+    const t = ++loadToken;
     if (bytes) {
-      const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
-      model.add(gltf.scene);
+      try {
+        const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, '');
+        if (t === loadToken) model.add(gltf.scene);
+      } catch (e) {
+        if (t === loadToken) {
+          const message = e instanceof Error ? e.message : String(e);
+          if (onerror) onerror(message);
+          else console.error(message);
+        }
+      }
     }
-    applyTransform(); fit();
+    if (t === loadToken) { applyTransform(); fit(); }
   }
   function applyTransform() { const e = eulerFor(orientation); model.rotation.set(e.x, e.y, e.z, e.order); model.scale.setScalar(scale); drawOverlay(); }
 
@@ -140,12 +154,19 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
   function pick(label: string) {
     choice = label;
     if (label === 'none') value = null;
-    else if (label === 'custom') applyCustom();
-    else value = BASE_PRESETS.find((p) => p.label === label)!.base;
+    else if (label === 'custom') {
+      if (value !== null) {
+        shape = value.shape;
+        aMm = round(inchesToMm(value.a), 1);
+        bMm = round(inchesToMm(value.b), 1);
+      }
+      applyCustom();
+    } else value = BASE_PRESETS.find((p) => p.label === label)!.base;
     if (label !== 'custom') onchangevalue?.(value);
   }
   function applyCustom() {
-    const a = mmToInches(aMm), b = shape === 'oval' ? mmToInches(bMm) : a;
+    const a = mmToInches(aMm), b = shape === 'circle' ? a : mmToInches(bMm);
+    if (!Number.isFinite(a) || a <= 0 || !Number.isFinite(b) || b <= 0) return;
     value = { shape, a, b };
     onchangevalue?.(value);
   }
@@ -158,9 +179,9 @@ export const eulerFor = (o: Orientation) => ({ x: rad(o.pitch), y: rad(o.roll), 
 </select>
 {#if choice === 'custom'}
   <select bind:value={shape} onchange={applyCustom}><option value="circle">round</option><option value="oval">oval</option><option value="rect">rectangle</option></select>
-  <input type="number" min="1" step="0.5" bind:value={aMm} onchange={applyCustom} aria-label={shape === 'oval' ? 'length (mm)' : 'size (mm)'} /> mm
-  {#if shape === 'oval'}× <input type="number" min="1" step="0.5" bind:value={bMm} onchange={applyCustom} aria-label="width (mm)" /> mm{/if}
+  <input type="number" min="1" step="0.5" bind:value={aMm} onchange={applyCustom} aria-label={shape === 'circle' ? 'size (mm)' : 'length (mm)'} /> mm
+  {#if shape !== 'circle'}× <input type="number" min="1" step="0.5" bind:value={bMm} onchange={applyCustom} aria-label="width (mm)" /> mm{/if}
 {/if}
 ```
 
-- [ ] **Step 4: Run `npm test && npm run check`; expect 34 passed, 0 errors. Commit: `Add the three.js mesh preview and the base preset picker`.**
+- [ ] **Step 4: Run `npm test && npm run check`; expect 51 passed, 0 errors. Commit: `Add the three.js mesh preview and the base preset picker`.**

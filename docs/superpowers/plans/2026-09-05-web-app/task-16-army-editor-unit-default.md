@@ -5,9 +5,9 @@
 - Test: `web/tests/patches.test.ts`
 
 **Interfaces:**
-- Consumes: `api.armies.get/patch`, `api.assets.list`, `Army`, `Unit`, `ModelSlot`, `PatchArmyRequest`, `UnitPatch`, `SlotPatch`, `AssetDto`, `BasePicker`, `baseLabel`, `presetFor`, `filterAssets`' `sameBase` rule.
-- Produces: `unitDefault(unitId, assetId | null): PatchArmyRequest`, `slotMesh(slotId, assetId | null): PatchArmyRequest` (null → `clearAsset: true`), `slotBase(slotId, base): PatchArmyRequest`, `slotHeight(slotId, height): PatchArmyRequest`, `rename(name): PatchArmyRequest`; `slotSummary(slot): string` (weapons and properties as one line, `Heavy Rifle (24", A1, AP(1))` style, read from the stat keys `Range`/`Attacks` the import writes); `AssetPicker` with props `value: Guid | null`, `base: Base | null` (offers "made for this base" first), `onchange(assetId | null)`; `/armies/[id]`.
-- Every edit is one `PATCH` and the page re-renders from the returned `Army`; there is no local draft to lose. Unit default writes every slot's `assetId` (the management repository does that); a slot override is a later `SlotPatch`. The army editor edits what the specs let a user edit: bindings, base shape and height per slot, and the army's name — stats, weapons and properties are the list's and are shown read-only. Unit and slot names are not editable: they are the list's (the army → Where the values come from), and `PATCH /v1/armies/{id}` has no field for them (see *Interfaces needed from other modules*).
+- Consumes: `api.armies.get/patch`, `api.assets.list`, `Army`, `Unit`, `ModelSlot`, `PatchArmyRequest`, `UnitPatch`, `SlotPatch`, `AssetDto`, `BasePicker`, `baseLabel`, `sameBase`.
+- Produces: `unitDefault(unitId, assetId | null): PatchArmyRequest`, `slotMesh(slotId, assetId | null): PatchArmyRequest` (null → `clearAsset: true`), `slotBase(slotId, base): PatchArmyRequest`, `slotHeight(slotId, height): PatchArmyRequest`, `rename(name): PatchArmyRequest`; `slotSummary(slot): string` (weapons and properties as one line, `Heavy Rifle (24", A1, AP(1))` style, read from the stat keys `Range`/`Attacks` the import writes); `AssetPicker` with props `value: Guid | null`, `base: Base | null` (offers "made for this base" first, matched with `sameBase`), `assets: AssetDto[]`, `onchange(assetId | null)`; `/armies/[id]`.
+- Every edit is one `PATCH` and the page re-renders from the returned `Army`; there is no local draft to lose. The page pages the uploaded miniatures once (`GET /v1/assets?kind=miniature`, 200 at a time) and hands the list to every `AssetPicker`, so an expanded army costs one library read rather than one per picker. The slot height input PATCHes only a finite value above 0 and otherwise restores the displayed height, because `Number('')` is 0; management does not validate a slot's base or height, so this guard and `BasePicker`'s are the only checks. Unit default writes every slot's `assetId` (the management repository does that); a slot override is a later `SlotPatch`. The army editor edits what the specs let a user edit: bindings, base shape and height per slot, and the army's name — stats, weapons and properties are the list's and are shown read-only. Unit and slot names are not editable: they are the list's (the army → Where the values come from), and `PATCH /v1/armies/{id}` has no field for them (see *Interfaces needed from other modules*).
 
 Spec: the army → Where the values come from ("the pack or the import supplies a default, the user overrides per slot"), Binding ("The default fills every slot in a unit with the same mesh; overriding individual slots is expected rather than exceptional"), Base shape and height ("Set by the user, per slot"), Assets are a soft reference ("The army holds the hitbox. The asset is only ever appearance"); asset library → The modelled base suggests ("given a slot on a 32mm base, the library can offer the assets built for one"); management plan Task 10 (`PatchArmyRequest(Name?, Units?, Slots?)`, `UnitPatch(UnitId, AssetId)`, `SlotPatch(SlotId, AssetId, ClearAsset, Base, Height)`).
 
@@ -61,17 +61,13 @@ export function slotSummary(s: ModelSlot): string {
 
 ```svelte
 <script lang="ts">
-  import { api } from '$lib/api/client';
   import type { AssetDto, Base, Guid } from '$lib/api/types';
-  import { baseLabel } from '$lib/units/bases';
-  let { value, base, onchange }: { value: Guid | null; base: Base | null; onchange: (id: Guid | null) => void } = $props();
+  import { baseLabel, sameBase } from '$lib/units/bases';
+  let { value, base, assets, onchange }: { value: Guid | null; base: Base | null; assets: AssetDto[]; onchange: (id: Guid | null) => void } = $props();
 
-  // one load per page: the library is small enough to hold, and filtering "made for this base" is client-side
-  let all = $state<AssetDto[]>([]);
-  $effect(() => { (async () => { const out: AssetDto[] = []; for (let after: string | undefined; ;) { const p = await api.assets.list({ limit: 200, after, kind: 'miniature' }); out.push(...p.items); if (!p.next) break; after = p.next; } all = out.filter((a) => a.uploaded); })(); });
-  const fits = (a: AssetDto) => !!base && !!a.modelledBase && a.modelledBase.shape === base.shape && Math.abs(a.modelledBase.a - base.a) < 0.005 && Math.abs(a.modelledBase.b - base.b) < 0.005;
-  const fitting = $derived(all.filter(fits).sort((a, b) => a.name.localeCompare(b.name)));
-  const others = $derived(all.filter((a) => !fits(a)).sort((a, b) => a.name.localeCompare(b.name)));
+  const fits = (a: AssetDto) => !!base && !!a.modelledBase && sameBase(a.modelledBase, base);
+  const fitting = $derived(assets.filter(fits).sort((a, b) => a.name.localeCompare(b.name)));
+  const others = $derived(assets.filter((a) => !fits(a)).sort((a, b) => a.name.localeCompare(b.name)));
 </script>
 
 <select value={value ?? ''} onchange={(e) => onchange(e.currentTarget.value || null)}>
@@ -87,7 +83,7 @@ export function slotSummary(s: ModelSlot): string {
 <script lang="ts">
   import { page } from '$app/state';
   import { api } from '$lib/api/client';
-  import type { Army, PatchArmyRequest } from '$lib/api/types';
+  import type { Army, AssetDto, PatchArmyRequest } from '$lib/api/types';
   import AssetPicker from '$lib/components/AssetPicker.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import { rename, slotBase, slotHeight, slotMesh, slotSummary, unitDefault } from '$lib/armies/patches';
@@ -95,9 +91,24 @@ export function slotSummary(s: ModelSlot): string {
 
   const id = $derived(page.params.id!);
   let army = $state<Army | null>(null); let name = $state(''); let error = $state<string | null>(null); let open = $state<Record<string, boolean>>({});
+  let assets = $state<AssetDto[]>([]);
+  const fail = (e: unknown) => { error = e instanceof Error ? e.message : String(e); };
 
-  $effect(() => { api.armies.get(id).then((a) => { army = a; name = a.name; }).catch((e) => (error = String(e))); });
-  const apply = (p: PatchArmyRequest) => api.armies.patch(id, p).then((a) => (army = a)).catch((e) => (error = e instanceof Error ? e.message : String(e)));
+  $effect(() => { api.armies.get(id).then((a) => { army = a; name = a.name; }).catch(fail); });
+  // the library is loaded once and handed to every picker
+  $effect(() => {
+    (async () => {
+      const out: AssetDto[] = [];
+      for (let after: string | undefined; ;) {
+        const p = await api.assets.list({ limit: 200, after, kind: 'miniature' });
+        out.push(...p.items);
+        if (!p.next) break;
+        after = p.next;
+      }
+      assets = out.filter((a) => a.uploaded);
+    })().catch(fail);
+  });
+  const apply = (p: PatchArmyRequest) => api.armies.patch(id, p).then((a) => (army = a)).catch(fail);
   const props = (ps: { name: string; parameter?: number }[]) => ps.map((p) => (p.parameter === undefined ? p.name : `${p.name}(${p.parameter})`)).join(', ');
 </script>
 
@@ -109,7 +120,7 @@ export function slotSummary(s: ModelSlot): string {
   {#each army.units as unit (unit.id)}
     <section class="unit">
       <h2><button onclick={() => (open[unit.id] = !open[unit.id])}>{open[unit.id] ? '▾' : '▸'}</button> {unit.name} <small>[{unit.models.length}] · {Object.entries(unit.stats).map(([k, v]) => `${k} ${v}`).join(' · ')}{#if unit.properties.length} · {props(unit.properties)}{/if}</small></h2>
-      <label>Mesh for every model <AssetPicker value={unit.models.every((m) => m.assetId === unit.models[0]?.assetId) ? (unit.models[0]?.assetId ?? null) : null} base={unit.models[0]?.base ?? null} onchange={(a) => apply(unitDefault(unit.id, a))} /></label>
+      <label>Mesh for every model <AssetPicker {assets} value={unit.models.every((m) => m.assetId === unit.models[0]?.assetId) ? (unit.models[0]?.assetId ?? null) : null} base={unit.models[0]?.base ?? null} onchange={(a) => apply(unitDefault(unit.id, a))} /></label>
       {#if open[unit.id]}
         <table>
           <thead><tr><th>Model</th><th>Loadout and rules</th><th>Mesh</th><th>Base (hitbox)</th><th>Height (in)</th></tr></thead>
@@ -118,9 +129,9 @@ export function slotSummary(s: ModelSlot): string {
               <tr>
                 <td>{m.name}</td>
                 <td><small>{slotSummary(m)}</small></td>
-                <td><AssetPicker value={m.assetId ?? null} base={m.base} onchange={(a) => apply(slotMesh(m.id, a))} /></td>
+                <td><AssetPicker {assets} value={m.assetId ?? null} base={m.base} onchange={(a) => apply(slotMesh(m.id, a))} /></td>
                 <td><BasePicker value={m.base} allowNone={false} onchangevalue={(b) => b && apply(slotBase(m.id, b))} /> <small>{baseLabel(m.base)}</small></td>
-                <td><input type="number" step="0.25" min="0.25" value={m.height} onchange={(e) => apply(slotHeight(m.id, Number(e.currentTarget.value)))} /></td>
+                <td><input type="number" step="0.25" min="0.25" value={m.height} onchange={(e) => { const h = Number(e.currentTarget.value); if (Number.isFinite(h) && h > 0) apply(slotHeight(m.id, h)); else e.currentTarget.value = String(m.height); }} /></td>
               </tr>
             {/each}
           </tbody>
@@ -134,4 +145,4 @@ export function slotSummary(s: ModelSlot): string {
 ```
 
 
-- [ ] **Step 4: `npm test && npm run check`; 45 passed. Run the app on the imported army: set a unit default mesh (every row shows it), override one slot with another mesh, set that slot to a 60 × 35 mm oval and height 2, reload — every value came back from the server; clear the slot's mesh and the picker reads "none (draws the hitbox)". Commit: `Add the army editor: unit default mesh, per-slot mesh, base and height`.**
+- [ ] **Step 4: `npm test && npm run check`; 62 passed. Run the app on the imported army: set a unit default mesh (every row shows it), override one slot with another mesh, set that slot to a 60 × 35 mm oval and height 2, reload — every value came back from the server; clear the slot's mesh and the picker reads "none (draws the hitbox)". Commit: `Add the army editor: unit default mesh, per-slot mesh, base and height`.**

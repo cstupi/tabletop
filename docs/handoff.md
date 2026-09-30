@@ -1,30 +1,25 @@
-# Handoff — 2026-09-28, paused mid step 3
+# Handoff — 2026-09-29, step 3 in flight
 
 Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3: the web
-app tree is finished and checked, ready to merge; the client and interpreter trees are part-way through
-their plans, every commit reviewed, every worktree clean at a committed head. Fresh controllers resume
-each unfinished tree from its brief and ledger.**
+app is merged; the client and interpreter trees are part-way through their plans, each run by a controller
+that resumes from its brief and ledger.**
 
 ## State
 
 Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch
-`geometry` kept), the game-server skeleton (`862072a`, branch `game-server-skeleton` kept) and the
-management API (`f0d0223`, branch `management` kept, its worktree removed). On `main`, `dotnet build` is
-clean with no warnings and `dotnet test` passes 413 tests: Geometry 131, Content 17, Protocol 36,
-GameServer 149, Management 80. The two server suites need the compose stack up.
+`geometry` kept), the game-server skeleton (`862072a`, branch `game-server-skeleton` kept), the
+management API (`f0d0223`, branch `management` kept, its worktree removed) and the web app (`588b848`, branch
+`web-app` kept, its worktree removed). On `main`, `dotnet build` is clean with no warnings and `dotnet test`
+passes 413 tests: Geometry 131, Content 17, Protocol 36, GameServer 149, Management 80. The two server
+suites need the compose stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0
+errors and `npm run build` writes `build/index.html`.
 
-**Step 3, in flight.** Three worktrees off `main` at `8b5d8b1`, one branch each, all clean, nothing
-uncommitted:
+**Step 3, in flight.** Two worktrees off `main` at `8b5d8b1`, one branch each:
 
 | Tree | Worktree, branch | Head | Tasks complete | Next |
 | --- | --- | --- | --- | --- |
-| web app | `.worktrees/web-app`, `web-app` | `0d85d4e`, 28 commits | 17 of 17, whole-branch review closed | **merge**; report at `.superpowers/reports/web-app.md` |
 | client | `.worktrees/client-shell`, `client-shell` | `1451287`, 25 commits | 1-14 of 16 | task 15 implemented, its task review not run |
 | interpreter | `.worktrees/interpreter`, `interpreter` | `7748c26`, 19 commits | 1-13 of 19 | task 14 reviewed, its fix round 1 not run |
-
-The web app's whole-tree check is green under the manager's own run from its worktree root: `dotnet
-build` 0 warnings, `dotnet test` 413, `npm test` 62 passed 1 skipped, `svelte-check` 0 errors, `npm run
-build` wrote `build/index.html`. Its report's sections 6 and 7 are not yet applied to `docs/` or this file.
 
 Each unfinished tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete`
 lines say what not to redo, its rulings are binding on the rest of the tree, and its last line is a `RESUME`
@@ -43,7 +38,8 @@ client's review packages are in `.superpowers/sdd/client-shell/`. Test counts at
 **The management tree's record** is `.superpowers/reports/management.md`, seven sections: 4 holds every
 ruling, 5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees.
 Sections 6 and 7 are applied: 6 to the plan, the spec, the design doc and `docs/schema.md`, 7 to this
-file. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
+file. The web-app tree's record is `.superpowers/reports/web-app.md`, in the same seven sections, with 6 and
+7 applied the same way. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
 `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
 
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
@@ -72,20 +68,18 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    a second stack on the same ports). `.env` exists and carries the Stytch project id. Never `down -v` while
    a tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Merge the web app.** From the repo root, `git merge --no-ff web-app`, resolve `CLAUDE.md`,
-   `Tabletop.sln` and `.env.example` keep-both-sides, build and test on `main`, apply the report's section 6
-   to the web-app plan README and task files, the mesh-conversion spec and this file's management
-   paragraph, and its section 7 to this file; remove the worktree, keep the branch. Its section 7 obligations
-   bind the client (refresh and sign-out rules, `MeshLoader.Orient` conventions, Base versus Footprint) and
-   the interpreter tree reads none of them.
-3. **Resume the two controllers.** For each of `client-shell` and `interpreter`, dispatch a fresh controller
+2. **Resume the two controllers.** For each of `client-shell` and `interpreter`, dispatch a fresh controller
    on `opus` with the prompt "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from
    `.superpowers/ledgers/<tree>.md`; the worktree is clean at the head named in its last line; do exactly what
    that line says next, then continue". The briefs already carry every obligation the trees owe; nothing
-   needs re-deriving. A controller that is forced to hand back leaves the worktree clean at a committed head
+   needs re-deriving. The client brief's last section carries the web-app tree's obligations. A controller that is forced to hand back leaves the worktree clean at a committed head
    and writes the resume point as the ledger's last line.
-4. **Merge each tree when its report lands**, as in step 2.
-5. **Step 4** is the scheduler, once the interpreter has landed.
+3. **Merge each tree when its report lands.** From the repo root, `git merge --no-ff <tree>`, resolve
+   `CLAUDE.md`, `Tabletop.sln` and `.env.example` keep-both-sides, build and test on `main`, apply the
+   report's section 6 to `docs/` and its section 7 to this file; remove the worktree, keep the branch.
+4. **Step 4** is the scheduler. Dispatch it now, in `.worktrees/scheduler` branched from `interpreter`, not
+   after the interpreter lands; its plan's *Requires landed* line says why. Stop at each checkpoint in
+   `docs/design/README.md` → *Checkpoints* for the owner to play the build.
 
 **Owner actions outstanding.** In the Stytch test project
 `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
@@ -130,7 +124,7 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Landed.**
-3. web app, client, interpreter, together. **In flight**, see *State*.
+3. web app, client, interpreter, together. Web app **landed**; the other two **in flight**, see *State*.
 4. scheduler;
 5. simulator;
 6. viewer.
@@ -259,7 +253,11 @@ compose-init test and the two JWT negative tests it names.
   `ByteSize` is checked only at confirm, where a mismatch, an unreadable GLB header, JSON chunk or mesh
   data, or a JSON chunk over 8 MiB all answer 422 and discard the object; the web app treats 422 from
   confirm as "re-export and upload again" and enforces any upload ceiling itself. A deleted account's JWT
-  stays valid up to five minutes and its writes answer 500 in that window, not 401.
+  stays valid up to five minutes and its writes answer 500 in that window, not 401; `GET`, `PATCH` and
+  `DELETE /v1/account` answer 401 once the row is gone. Management does not validate
+  `PUT /v1/assets/{id}/volumes` beyond deserialisation (no `top > bottom`, no positive extent), nor a slot's
+  base or height; the web app's checks are the only ones. A modelled base cannot be cleared through
+  `PATCH /v1/assets/{id}`, whose update coalesces every field.
 - **Web-app and client plans.** `POST /v1/layouts` and `PATCH` reject a `TableState` whose texture, any
   placement mesh or any marker visual is missing with 422; send every `VisualRef`. Management does not
   check that an `asset_id` in an army slot, a layout texture, a placement or a marker belongs to the
@@ -274,6 +272,31 @@ compose-init test and the two JWT negative tests it names.
   resolved right after `Build()`, because `WebApplicationFactory` applies its configuration overrides
   during `Build()`. The management test assembly runs with collection parallelisation disabled because
   `TestKeys` is process-wide state. `tabletop_test_*` databases are created and dropped per test class.
+
+## What the web-app tree settled that the plans did not say
+
+- **Client plan.** Refresh once a minute with `POST /v1/auth/session/refresh`. Sign out only on a 401; keep
+  the token on a transport failure and on 502, 429 or 500. Dedupe concurrent refreshes, and after a failed
+  refresh back off the full minute. The web app sends no `Tabletop-Client-Version`; the Godot client does.
+- **Anything that loads an asset** (the client's `MeshLoader.Orient`, `sim/`, `viewer/`). The GLB stays in
+  the file's own units and axes; scale and orientation live on the asset row and are never baked in. A
+  converted STL is centred on its footprint with its lowest point at the origin, along the axis the user
+  confirmed. A GLB dropped in directly is left as authored, scale 1 and identity orientation unless the user
+  changed them. Orientation is Pitch about X, then Roll about Y, then Yaw about Z, right-handed and
+  extrinsic, scale last.
+- **Base versus Footprint** use opposite conventions. A rect Base has A = length along the facing axis (+Y)
+  and B = width; a rect Footprint has A = width (x) and B = length (y). A circle Base's A is its diameter; a
+  circle Footprint's A is its radius.
+- **Terrain.** The default volume the web app writes is the bounding box in the table frame after scale and
+  orientation: offset at the xy centre, bottom and top at the z extent. It is not assumed to sit at the origin.
+- **Management plan.** A later management change inherits the missing checks above: asset ownership of an
+  `asset_id` in a slot, volumes, slot height and base, and clearing a modelled base. If a server-side check
+  is added, its messages match the web app's.
+- **Real-STL test.** `web/tests/fixtures/real/` is where the owner drops real STLs (ASCII, binary, kit,
+  pre-supported); the skipped test runs once they are present.
+- **`CLAUDE.md`.** The web-app tree owns the `web/` Layout bullet, the Node/mise sentence in Environment,
+  the `./scripts/web` and `cd web && npm test` Commands lines, and the Conventions line on inches and the
+  endpoints the web app never calls. Other trees merge around them.
 
 ## What the contracts tree settled that the plans did not say
 

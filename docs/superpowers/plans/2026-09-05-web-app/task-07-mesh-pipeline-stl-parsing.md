@@ -5,7 +5,7 @@
 - Test: `web/tests/stl.test.ts`
 
 **Interfaces:**
-- Produces: `IndexedMesh { positions: Float32Array; indices: Uint32Array; normals?: Float32Array }`, `Bounds { min: Vec3; max: Vec3 }`, `Vec3 = [number, number, number]`, `triangleCount(mesh)`, `bounds(positions)`; `parseStl(buffer: ArrayBuffer): Float32Array` (triangle soup, 9 floats per triangle, ASCII or binary), `StlError`; `mergeSoups(parts: Float32Array[]): Float32Array`; `weld(soup: Float32Array): IndexedMesh` (exact-position welding on the float bits, degenerate triangles dropped); fixtures `tests/fixtures/{cube-ascii,cylinder-binary,kit-body,kit-arm,supported-binary,dense-binary}.stl` written by `npm run fixtures` (deterministic, committed).
+- Produces: `IndexedMesh { positions: Float32Array; indices: Uint32Array; normals?: Float32Array }`, `Bounds { min: Vec3; max: Vec3 }`, `Vec3 = [number, number, number]`, `triangleCount(mesh)`, `bounds(positions)`; `parseStl(buffer: ArrayBuffer): Float32Array` (triangle soup, 9 floats per triangle, ASCII or binary), `StlError` (also thrown for an ASCII vertex value that parses to a non-finite number, such as `1.2.3`); `mergeSoups(parts: Float32Array[]): Float32Array`; `weld(soup: Float32Array): IndexedMesh` (exact-position welding on the float bits, `-0` canonicalised to `+0` before hashing so a fan apex or pole is one vertex, degenerate triangles dropped); fixtures `tests/fixtures/{cube-ascii,cylinder-binary,kit-body,kit-arm,supported-binary,dense-binary}.stl` written by `npm run fixtures` (deterministic, committed).
 - Decision — the pipeline's own STL reader rather than three's `STLLoader`: the format is 80 bytes + count + 50 bytes per facet, or `vertex x y z` lines, and reading it here keeps `three` out of the headless pipeline (mesh conversion → "plain JavaScript over typed arrays and runs headless under Node"). Binary detection is by length (`84 + 50·count === byteLength`) before looking for `solid`, because some binary exporters write `solid` in the header.
 - Fixtures are synthetic because the spec's "small set of real STLs" cannot be committed by this plan; each is shaped to exercise one behaviour (ASCII, binary, a two-part kit, a supported piece, a dense Y-up piece). Real files dropped into `tests/fixtures/real/` are picked up by Task 9's tests when present.
 
@@ -20,7 +20,7 @@ type V = [number, number, number];
 const tris: V[][] = [];
 function quad(a: V, b: V, c: V, d: V) { tris.push([a, b, c], [a, c, d]); }
 function box(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number) {
-  const [x0, x1, y0, y1, z0, z1] = [cx - sx / 2, cx + sx / 2, cy - sy / 2, cy + sy / 2, cz - sz / 2, cz + sz / 2];
+  const [x0, x1, y0, y1, z0, z1] = [cx - sx / 2, cx + sx / 2, cy - sy / 2, cy + sy / 2, cz - sz / 2, cz + sz / 2] as const;
   quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]); quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1]);
   quad([x0, y0, z0], [x0, y0, z1], [x1, y0, z1], [x1, y0, z0]); quad([x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [x0, y1, z0]);
   quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]); quad([x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]);
@@ -62,7 +62,7 @@ ellipsoid(8, 20, 8, 120, 200);                        emit('dense-binary.stl', b
 console.log('fixtures written');
 ```
 
-Run: `cd web && node tests/fixtures/make-fixtures.ts && ls -la tests/fixtures` — six `.stl` files; `dense-binary.stl` is `84 + 50 × 48000 = 2,400,084` bytes.
+Run: `cd web && node tests/fixtures/make-fixtures.ts && ls -la tests/fixtures` — six `.stl` files; `dense-binary.stl` is `84 + 50 × 48000 = 2,400,084` bytes. Welding drops the 200 degenerate triangles of its north-pole fan, so every count taken after `weld` is 47,800.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -91,6 +91,10 @@ describe('parseStl', () => {
   it('rejects garbage', () => {
     expect(() => parseStl(new TextEncoder().encode('hello').buffer)).toThrow(StlError);
   });
+  it('rejects a vertex that is not a number', () => {
+    const bad = 'solid x\nfacet normal 0 0 0\nouter loop\nvertex 1.2.3 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid x\n';
+    expect(() => parseStl(new TextEncoder().encode(bad).buffer as ArrayBuffer)).toThrow(StlError);
+  });
 });
 
 describe('mergeSoups and weld', () => {
@@ -105,6 +109,11 @@ describe('mergeSoups and weld', () => {
     expect(triangleCount(cube)).toBe(12);
     const soup = new Float32Array([0, 0, 0, 1, 0, 0, 1, 0, 0]);   // two identical corners
     expect(triangleCount(weld(soup))).toBe(0);
+  });
+  it('welds a fan apex written as negative zero', () => {
+    const fan = weld(new Float32Array([-0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0]));
+    expect(fan.positions.length / 3).toBe(4);
+    expect(triangleCount(fan)).toBe(2);
   });
 });
 ```
@@ -152,6 +161,7 @@ function parseAscii(text: string): Float32Array {
   const re = /vertex\s+([-+.\deE]+)\s+([-+.\deE]+)\s+([-+.\deE]+)/g;
   for (let m = re.exec(text); m; m = re.exec(text)) values.push(Number(m[1]), Number(m[2]), Number(m[3]));
   if (values.length === 0 || values.length % 9 !== 0) throw new StlError('ASCII STL has no complete facets.');
+  if (!values.every(Number.isFinite)) throw new StlError('ASCII STL has a vertex that is not a number.');
   return Float32Array.from(values);
 }
 
@@ -168,10 +178,13 @@ export function mergeSoups(parts: Float32Array[]): Float32Array {
 import type { IndexedMesh } from './types';
 
 export function weld(soup: Float32Array): IndexedMesh {
-  const bits = new Uint32Array(soup.buffer, soup.byteOffset, soup.length);
+  // -0 and +0 are one point but different bits, and the hash reads the bits: a fan apex written as `0 * cos(a)`
+  // would otherwise land in two buckets and weld into two vertices.
+  const clean = Float32Array.from(soup, (v) => (v === 0 ? 0 : v));
+  const bits = new Uint32Array(clean.buffer, clean.byteOffset, clean.length);
   const buckets = new Map<number, number[]>();
   const positions: number[] = [], indices: number[] = [];
-  const cornerCount = soup.length / 3;
+  const cornerCount = clean.length / 3;
   const remap = new Uint32Array(cornerCount);
   for (let c = 0; c < cornerCount; c++) {
     const x = bits[c * 3]!, y = bits[c * 3 + 1]!, z = bits[c * 3 + 2]!;
@@ -179,8 +192,8 @@ export function weld(soup: Float32Array): IndexedMesh {
     let bucket = buckets.get(h);
     if (!bucket) buckets.set(h, (bucket = []));
     let found = -1;
-    for (const v of bucket) if (positions[v * 3] === soup[c * 3] && positions[v * 3 + 1] === soup[c * 3 + 1] && positions[v * 3 + 2] === soup[c * 3 + 2]) { found = v; break; }
-    if (found < 0) { found = positions.length / 3; positions.push(soup[c * 3]!, soup[c * 3 + 1]!, soup[c * 3 + 2]!); bucket.push(found); }
+    for (const v of bucket) if (positions[v * 3] === clean[c * 3] && positions[v * 3 + 1] === clean[c * 3 + 1] && positions[v * 3 + 2] === clean[c * 3 + 2]) { found = v; break; }
+    if (found < 0) { found = positions.length / 3; positions.push(clean[c * 3]!, clean[c * 3 + 1]!, clean[c * 3 + 2]!); bucket.push(found); }
     remap[c] = found;
   }
   for (let t = 0; t < cornerCount; t += 3) {
@@ -191,4 +204,4 @@ export function weld(soup: Float32Array): IndexedMesh {
 }
 ```
 
-- [ ] **Step 4: Run `npm test`; expect 19 passed. Commit: `Parse, merge and weld STL meshes; add the synthetic fixtures`.**
+- [ ] **Step 4: Run `npm test`; expect 24 passed. Commit: `Parse, merge and weld STL meshes; add the synthetic fixtures`.**

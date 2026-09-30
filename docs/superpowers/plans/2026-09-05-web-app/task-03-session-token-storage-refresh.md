@@ -6,8 +6,9 @@
 
 **Interfaces:**
 - Consumes: `api.auth.refresh/logout`, `api.account.get`, `setTokenProvider`, `http.onUnauthorized`, `SessionResponse`.
-- Produces: `decodeExp(jwt): number | null` (seconds since epoch); `refreshDelayMs(exp, now, { intervalMs = 60_000, marginMs = 30_000 })`; `session` (a runes store in a `.svelte.ts` module) with `token: string | null`, `account: AccountRow | null`, `ready: boolean`, `accept(SessionResponse)`, `restore(): Promise<void>` (reads `localStorage['tabletop.session']`, refreshes once, loads the account), `refresh(): Promise<boolean>`, `logout(): Promise<void>`, `clear()`, `startRefreshLoop(): () => void`; `STORAGE_KEY = 'tabletop.session'`.
+- Produces: `decodeExp(jwt): number | null` (seconds since epoch); `refreshDelayMs(exp, now, { intervalMs = 60_000, marginMs = 30_000 })`; `session` (a runes store in a `.svelte.ts` module) with `token: string | null`, `account: AccountRow | null`, `ready: boolean`, `accept(SessionResponse)`, `restore(): Promise<void>` (reads `localStorage['tabletop.session']`, coalesces a wrong-shaped record to `null`, refreshes once and takes the account from the answer), `refresh(): Promise<boolean>`, `logout(): Promise<void>`, `clear()`, `startRefreshLoop(): () => void`; `STORAGE_KEY = 'tabletop.session'`.
 - Decisions: the JWT is kept in `localStorage` so a reload keeps the user signed in (ruling 1); the refresh loop runs every 60 s while a token exists and also immediately on `restore`, because a five-minute JWT is stale after any tab sleep; a `401` from any bearer call clears the session and sends the user to `/login` (via `http.onUnauthorized`); `logout` calls `DELETE /v1/auth/session` and clears storage whatever the answer.
+- Decisions, refresh failures: `refresh()` clears the session only on an `ApiError` with status 401. A `TypeError` (offline, or an answer without CORS headers), a 429 or a 5xx returns `false` and keeps the token, because management maps a Stytch outage to 502 or 429 and Vite's proxy answers 502 while management restarts. After a failed refresh the loop waits the full 60 s rather than recomputing from an expired token, which would retry at once. Overlapping `refresh()` calls share one in-flight promise, so `restore()` and the loop's first tick make one request and cannot sign out a user who has just signed in again. `accept()` and `clear()` write `localStorage` through a guarded `write()`, so a storage-blocked browser keeps the session in memory for the tab and the caller still sees its own error.
 
 Spec: management API → We issue no tokens of our own ("a JWT good for five minutes, refreshed every minute"); management plan Task 5 (`/session/refresh` accepts an expired JWT while the Stytch session lives; `SessionMinutes` 43200); accounts → Auth is a module ("Nothing outside management holds a Stytch secret").
 
@@ -42,6 +43,7 @@ describe('jwt', () => {
 // web/tests/session.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEY, session } from '../src/lib/session/session.svelte';
+import { ApiError } from '../src/lib/api/http';
 import { api } from '../src/lib/api/client';
 
 const store = new Map<string, string>();
@@ -70,9 +72,38 @@ describe('session', () => {
     expect(session.token).toBe('new');
     expect(session.account?.name).toBe('Clay');
     expect(session.ready).toBe(true);
-    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new Error('401'));
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(401, 'Unauthorized'));
     expect(await session.refresh()).toBe(false);
     expect(session.token).toBeNull();
+  });
+
+  it('a network failure during refresh keeps the session', async () => {
+    store.set(STORAGE_KEY, JSON.stringify({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } }));
+    vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } });
+    await session.restore();
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await session.refresh()).toBe(false);
+    expect(session.token).toBe('live');
+    expect(session.account?.name).toBe('Clay');
+  });
+
+  it('a non-401 API failure during refresh keeps the session', async () => {
+    store.set(STORAGE_KEY, JSON.stringify({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } }));
+    vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'live', account: { id: 'acc', name: 'Clay' } });
+    await session.restore();
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(502, 'Upstream failure'));
+    expect(await session.refresh()).toBe(false);
+    expect(session.token).toBe('live');
+  });
+
+  it('overlapping refreshes make one request', async () => {
+    session.accept({ sessionJwt: 'old', account: { id: 'acc', name: 'Clay' } });
+    const refresh = vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'new', account: { id: 'acc', name: 'Clay' } });
+    const [a, b] = await Promise.all([session.refresh(), session.refresh()]);
+    expect(a).toBe(true);
+    expect(b).toBe(true);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(session.token).toBe('new');
   });
 });
 ```
@@ -104,7 +135,7 @@ export function refreshDelayMs(exp: number | null, nowMs = Date.now(), { interva
 ```ts
 // web/src/lib/session/session.svelte.ts
 import { api } from '$lib/api/client';
-import { http, setTokenProvider } from '$lib/api/http';
+import { ApiError, http, setTokenProvider } from '$lib/api/http';
 import type { AccountRow, SessionResponse } from '$lib/api/types';
 import { decodeExp, refreshDelayMs } from './jwt';
 
@@ -114,10 +145,16 @@ function read(): SessionResponse | null {
   try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? (JSON.parse(raw) as SessionResponse) : null; } catch { return null; }
 }
 
+function write(s: SessionResponse | null) {
+  try { if (s) localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); else localStorage.removeItem(STORAGE_KEY); }
+  catch { /* storage blocked or full: the session lives in memory for this tab only */ }
+}
+
 class Session {
   token = $state<string | null>(null);
   account = $state<AccountRow | null>(null);
   ready = $state(false);
+  private inFlight: Promise<boolean> | null = null;
 
   constructor() {
     setTokenProvider(() => this.token);
@@ -127,26 +164,36 @@ class Session {
   accept(s: SessionResponse) {
     this.token = s.sessionJwt;
     this.account = s.account;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    write(s);
   }
 
   clear() {
     this.token = null;
     this.account = null;
-    localStorage.removeItem(STORAGE_KEY);
+    write(null);
   }
 
   async restore() {
     const stored = read();
-    if (stored) { this.token = stored.sessionJwt; this.account = stored.account; await this.refresh(); }
+    if (stored) { this.token = stored.sessionJwt ?? null; this.account = stored.account ?? null; await this.refresh(); }
     this.ready = true;
   }
 
-  /** A fresh five-minute JWT from the long-lived Stytch session. False (and signed out) when management refuses. */
+  /** A fresh five-minute JWT from the long-lived Stytch session. False and signed out when management refuses;
+   *  false but still signed in on any other failure (network, 429, 5xx), so those are not a logout.
+   *  Overlapping callers share one request: restore() and the loop's first tick both fire on an expired token. */
   async refresh(): Promise<boolean> {
-    if (!this.token) return false;
-    try { this.accept(await api.auth.refresh(this.token)); return true; }
-    catch { this.clear(); return false; }
+    const token = this.token;
+    if (!token) return false;
+    if (this.inFlight) return this.inFlight;
+    const pending = this.run(token).finally(() => { if (this.inFlight === pending) this.inFlight = null; });
+    this.inFlight = pending;
+    return pending;
+  }
+
+  private async run(token: string): Promise<boolean> {
+    try { this.accept(await api.auth.refresh(token)); return true; }
+    catch (e) { if (e instanceof ApiError && e.status === 401) this.clear(); return false; }
   }
 
   async logout() {
@@ -159,8 +206,8 @@ class Session {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
       if (!this.token) { timer = setTimeout(tick, 60_000); return; }
-      await this.refresh();
-      timer = setTimeout(tick, refreshDelayMs(this.token ? decodeExp(this.token) : null));
+      const ok = await this.refresh();
+      timer = setTimeout(tick, ok && this.token ? refreshDelayMs(decodeExp(this.token)) : 60_000);
     };
     timer = setTimeout(tick, refreshDelayMs(this.token ? decodeExp(this.token) : null));
     return () => clearTimeout(timer);
@@ -170,4 +217,4 @@ class Session {
 export const session = new Session();
 ```
 
-- [ ] **Step 4: Run `npm test`; expect 9 passed (runes in `.svelte.ts` compile under the SvelteKit Vite plugin). Commit: `Keep the session JWT, refresh it every minute, and sign out on 401`.**
+- [ ] **Step 4: Run `npm test`; expect 12 passed (runes in `.svelte.ts` compile under the SvelteKit Vite plugin). Commit: `Keep the session JWT, refresh it every minute, and sign out on 401`.**

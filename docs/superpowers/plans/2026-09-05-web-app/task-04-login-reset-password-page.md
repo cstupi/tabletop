@@ -7,7 +7,7 @@
 
 **Interfaces:**
 - Consumes: `api.auth.*`, `session`, `ApiError`.
-- Produces: `/login` (two methods: password sign in / sign up, and email code); `/reset-password?token=…`; the layout: restores the session on load, starts the refresh loop, redirects to `/login` when there is no token (except on `/login` and `/reset-password`), and shows the nav (Armies, Library, Account, Log out); `loginErrorMessage(e: unknown): string` in `src/lib/session/messages.ts` mapping `401 → "Wrong email, password or code."`, `409 → "An account with that email already exists — sign in instead."`, `422 → detail` (Stytch's weak-password wording), else the title.
+- Produces: `/login` (two methods: password sign in / sign up, and email code); `/reset-password?token=…`; the layout: restores the session on load, starts the refresh loop, redirects to `/login` when there is no token (except on `/login` and `/reset-password`), renders a protected page only once the session is ready and holds a token (`isPublic || (session.ready && session.token)`), so a signed-out visitor never sees a protected page before the redirect, and shows the nav (Armies, Library, Account, Log out); `loginErrorMessage(e: unknown): string` in `src/lib/session/messages.ts` mapping `401 → "Wrong email, password or code."`, `409 → "An account with that email already exists — sign in instead."`, `422 → detail` (Stytch's weak-password wording), else the title.
 
 Spec: web app → Login is the web app's (email + password, or email + one-time code, through management); management plan Task 5 (`/otp` → `methodId`; `/otp/verify`; `/password`; `/password/signup` → 201; `/password/reset` → 202 and Stytch mails a link to `{WebUrl}/reset-password`; `/password/reset/complete`); accounts → An account is two fields (the name is the email's local part at first; renamed on the account page).
 
@@ -159,10 +159,10 @@ export function loginErrorMessage(e: unknown): string {
   </header>
 {/if}
 <main>
-  {#if session.ready || isPublic}{@render children()}{:else}<p>Loading…</p>{/if}
+  {#if isPublic || (session.ready && session.token)}{@render children()}{:else}<p>Loading…</p>{/if}
 </main>
 ```
 
-- [ ] **Step 5: Run `npm test && npm run check`; expect 10 passed, 0 errors. Then run it for real: `docker compose up -d`, `./scripts/management`, `npm run dev`; open `http://localhost:5173/login` from the Windows browser, create an account by password, reload (still signed in), log out, sign in by email code, request a reset and follow the emailed link to `/reset-password?token=…`. The Stytch dashboard must list `http://localhost:5173/reset-password` as a reset redirect URL (management plan → Interfaces needed → Stytch dashboard).**
+- [ ] **Step 5: Run `npm test && npm run check`; expect 13 passed, 0 errors. Then run it for real: `docker compose up -d`, `./scripts/management`, `npm run dev`; open `http://localhost:5173/login` from the Windows browser, create an account by password, reload (still signed in), log out, sign in by email code, request a reset and follow the emailed link to `/reset-password?token=…`. The Stytch dashboard must list `http://localhost:5173/reset-password` as a reset redirect URL (management plan → Interfaces needed → Stytch dashboard).**
 
 - [ ] **Step 6: Commit: `Add login by password or email code, the reset-password page and the signed-in shell`.**

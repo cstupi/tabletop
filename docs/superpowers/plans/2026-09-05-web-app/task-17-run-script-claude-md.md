@@ -45,7 +45,7 @@ cd web && npm ci && npm test && npm run check && npm run build && cd ..
 git status --short
 ```
 
-Expected: .NET build and tests green; `npm test` 45 passed (one skipped when `tests/fixtures/real/` is absent); `svelte-check` 0 errors; `web/build/index.html` exists; the full flow works end to end from Windows — sign in, import `c2-6YsWRH3py`, upload `dense-binary.stl`, bind it to a unit, open the asset and see it on its ring; `git status` shows no `node_modules/`, `build/` or `.svelte-kit/`.
+Expected: .NET build and tests green; `npm test` 62 passed and 1 skipped (the skip is the real-STL test, when `tests/fixtures/real/` is absent); `svelte-check` 0 errors; `web/build/index.html` exists; the full flow works end to end from Windows — sign in, import `c2-6YsWRH3py`, upload `dense-binary.stl`, bind it to a unit, open the asset and see it on its ring; `git status` shows no `node_modules/`, `build/` or `.svelte-kit/`.
 
 - [ ] **Step 4: Commit**
 
