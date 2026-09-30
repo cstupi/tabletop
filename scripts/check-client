@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# The client shell spec's two scripted checks: no physics body in any scene, no rules type in any client script.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+status=0
+if grep -rnE 'type="(StaticBody3D|RigidBody3D|CharacterBody3D|Area3D|CollisionShape3D|CollisionPolygon3D)"' client/scenes; then
+    echo "check-client: a scene contains a physics body or collision shape" >&2; status=1
+fi
+if grep -rnE '\b(StaticBody3D|RigidBody3D|CharacterBody3D|Area3D|CollisionShape3D|PhysicsServer3D|PhysicsBody3D)\b' client/src; then
+    echo "check-client: a client script uses Godot physics" >&2; status=1
+fi
+# Rules-engine types only. `GameRules` alone is not one: it is a string field on GameInfo and
+# PropertiesSummary that the Home screen displays, so matching the bare word is a false positive.
+if grep -rnEs 'Tabletop\.GameServer|\bIGameRules\b|\bGameRulesRegistry\b|\bIRulesEngine\b|\bEnforcementPolicy\b|\bLegalSetMembership\b|\bCommandDispatcher\b|\bLegality\b' client/src; then
+    echo "check-client: a client script references a rules type" >&2; status=1
+fi
+if grep -rlns 'using Godot' client/src/Core; then
+    echo "check-client: client/src/Core must be Godot-free" >&2; status=1
+fi
+exit $status

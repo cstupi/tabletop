@@ -9,4 +9,10 @@
     <RootNamespace>Tabletop</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\libs\Tabletop.Geometry\Tabletop.Geometry.csproj" />
+    <ProjectReference Include="..\libs\Tabletop.Content\Tabletop.Content.csproj" />
+    <ProjectReference Include="..\libs\Tabletop.Protocol\Tabletop.Protocol.csproj" />
+  </ItemGroup>
+
 </Project>

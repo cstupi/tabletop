@@ -1,0 +1,56 @@
+using Godot;
+using Tabletop.Client.Core;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+
+namespace Tabletop.Client.Panels;
+
+/// <summary>The right-click menu: every property editable, each item one ordinary command. No admin mode, no confirmation dialog — the log is the accountability.</summary>
+public partial class PieceMenu : PopupMenu
+{
+    readonly Session _s; readonly Action<string> _report; IReadOnlyList<MenuItem> _items = [];
+    public event Action<Action<Guid>>? PickPieceRequested;    // the table resolves the next click to a piece id
+    public event Action<Action<Point3>>? PickPointRequested;  // the table resolves the next click to a wire-frame point
+    /// <summary>Fired for every chosen item before its command is built; the owner handles the items that are not commands (Leave).</summary>
+    public event Action<MenuItem>? ItemChosen;
+
+    public PieceMenu(Session s, Action<string> report) { _s = s; _report = report; IdPressed += OnPressed; }
+
+    public void Open(IReadOnlyList<MenuItem> items, Vector2 screen)
+    {
+        if (items.Count == 0) return;
+        Clear(); _items = items;
+        for (var i = 0; i < items.Count; i++) AddItem(items[i].Label, i);
+        Position = (Vector2I)screen; Popup();
+    }
+
+    void OnPressed(long id)
+    {
+        var item = _items[(int)id];
+        ItemChosen?.Invoke(item);
+        switch (item.Input)
+        {
+            case MenuInput.None: Send(item.Build(null)); break;
+            case MenuInput.Integer: AskInteger(this, item.Label, v => Send(item.Build(v.ToString()))); break;
+            case MenuInput.Text: AskText(this, item.Label, t => Send(item.Build(t))); break;
+            case MenuInput.PieceId: PickPieceRequested?.Invoke(picked => Send(item.Build(picked.ToString()))); break;
+            case MenuInput.TablePoint: PickPointRequested?.Invoke(at => Send(item.Build(FormattableString.Invariant($"{at.X},{at.Y},{at.Z}")))); break;
+        }
+    }
+
+    void Send(Command? command) { if (command is not null) Guarded.Command(_s, command, _report); }
+
+    public static void AskInteger(Node host, string title, Action<int> then)
+    {
+        var d = new ConfirmationDialog { Title = title }; var spin = new SpinBox { MinValue = -99, MaxValue = 99 }; d.AddChild(spin);
+        d.Confirmed += () => then((int)spin.Value); d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        host.AddChild(d); d.PopupCentered();
+    }
+
+    public static void AskText(Node host, string title, Action<string> then)
+    {
+        var d = new ConfirmationDialog { Title = title }; var line = new LineEdit(); d.AddChild(line);
+        d.Confirmed += () => then(line.Text); d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        host.AddChild(d); d.PopupCentered();
+    }
+}

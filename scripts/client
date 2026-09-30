@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run the client: build in WSL first so the referenced libs are current, then launch the Windows Godot binary on client/.
+# Godot's import wipes client/.godot/mono/temp/bin/, so let the editor rebuild if scripts fail to load after an import.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+dotnet build client/Tabletop.csproj
+./scripts/check-client
+exec ./scripts/godot "$@"
