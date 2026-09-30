@@ -11,6 +11,9 @@ public class GameServerFactory : WebApplicationFactory<Program>
     public const string ProjectId = "project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43";
     public Action<IServiceCollection>? ConfigureTestServices { get; init; }
 
+    /// <summary>Program.cs's registrations with no scheduler behind the engine: tests that seed a Playing game and check the log the session hydrates or the seed appended, not deployment.</summary>
+    public static GameServerFactory WithoutScheduler() => new() { ConfigureTestServices = s => s.AddSingleton<Engine.ISchedulerFactory, Engine.NoSchedulerFactory>() };
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
