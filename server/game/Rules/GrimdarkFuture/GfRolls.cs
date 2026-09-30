@@ -28,9 +28,9 @@ public static class GfRolls
         _ => new(roll, D6, (_, _) => null),   // a property's own roll (Regeneration, Impact, Fearless) carries its threshold in the effect
     };
 
-    /// <summary>p.9: after attacking in melee for the first time in a round, a unit hits only on unmodified 6s until the round ends.</summary>
+    /// <summary>p.9: after attacking in melee for the first time in a round, a unit hits only on unmodified 6s until the round ends. p.10: a Shaken unit "may strike back counting as fatigued".</summary>
     public static bool Fatigued(StepContext ctx, LiveSet live, AttackKind kind) =>
-        kind == AttackKind.Melee && ctx.Projection.Units[live.Interaction.Attacker.UnitId].Conditions.Contains(GfNames.Fatigued);
+        kind == AttackKind.Melee && ctx.Projection.Units[live.Interaction.Attacker.UnitId].Conditions is var c && (c.Contains(GfNames.Fatigued) || c.Contains(GfNames.Shaken));
 
     /// <summary>
     /// The Quality value one attacking model tests against. p.4: a Quality test succeeds on "the model's Quality value or higher",

@@ -1,0 +1,186 @@
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
+using static Tabletop.GameServer.Tests.Infrastructure.Armies;
+
+namespace Tabletop.GameServer.Tests;
+
+public class GfMeleeTests
+{
+    static Destinations Into(Sim sim, Tabletop.Content.Unit charger, Tabletop.Content.Unit target) =>
+        new(charger.Models.Select((m, i) => new ModelRelocation(m.Id, sim.Model(m.Id).Location,
+            new OnTable(new Placement(((OnTable)sim.Model(target.Models[Math.Min(i, target.Models.Count - 1)].Id).Location).Placement.Position with { X = ((OnTable)sim.Model(target.Models[0].Id).Location).Placement.Position.X - 1.3 }, new Yaw(0))))).ToList());
+
+    /// <summary>A single-model charger ends its move with the given edge-to-edge gap to a single-model target.</summary>
+    static Destinations Stop(Sim sim, Tabletop.Content.Unit charger, Tabletop.Content.Unit target, double gap)
+    {
+        var (from, to) = (sim.Model(charger.Models[0].Id).Location, (OnTable)sim.Model(target.Models[0].Id).Location);
+        return new([new ModelRelocation(charger.Models[0].Id, from, new OnTable(new Placement(to.Placement.Position with { X = to.Placement.Position.X - 1.26 - gap }, new Yaw(0))))]);
+    }
+
+    static SequenceContext MeleeOf(Tabletop.Content.Unit charger, Tabletop.Content.Unit target) =>
+        new(charger.Id, [target.Id], charger.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge);
+
+    [Fact]
+    public void Pages_9_and_10_warriors_charge_dwarves_who_lose_the_melee_and_are_shaken()
+    {
+        var warriors = Unit("Dynasty Warriors", "4+", "4+", [], 3, [], Melee("CCW", 1));
+        var dwarves = Unit("Dwarves", "4+", "4+", [], 4, [], Melee("Hammer", 1));
+        // The charger's half is page 9's worked example verbatim — 3 attacks at Quality 4+ rolling 3,4,5 for two hits, Defense 4+ rolling 3,4 for one wound.
+        // The rest is constructed. In draw order: charger hits 3,4,5; blocks 3,4; strike-back hits 6,1,1 (one hit); block 5 (blocked); morale 2 (failed).
+        var sim = Sim.Gf(State([warriors], [dwarves], x1: -8, x2: 0), 3, 4, 5, 3, 4, 6, 1, 1, 5, 2);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(warriors.Id, [], [], GfNames.Charge));
+        var target = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal([dwarves.Id], target.Eligible);
+        sim.Answer(Samples.Team1, new SelectedPieces([dwarves.Id]));
+        Assert.Equal(12.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+        sim.Answer(Samples.Team1, Into(sim, warriors, dwarves));
+        sim.Answer(Samples.Team2, new Passed());                                                    // no caster, so no checkpoint; the defender declines its 3" close
+        Assert.Contains(sim.State.Projection.Stack, f => f.Sequence == GfNames.Melee);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [dwarves.Models[0].Id] = 1 }));   // one dwarf falls
+        Assert.Contains(GfNames.Fatigued, sim.Unit(warriors.Id).Conditions);
+        Assert.Equal(["strike", "pass"], Assert.IsType<Options>(sim.AskFor(Samples.Team2).Legal).Choices.Select(c => c.Id));
+        sim.Answer(Samples.Team2, new Chosen("strike"));                                            // one hit, blocked: no wound to allocate
+        var compare = sim.Steps("compare").First();                                                 // the loser's morale test pushes, so compare completes twice
+        Assert.Equal((1, 0, 2), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));
+        Assert.Contains(GfNames.Shaken, sim.Unit(dwarves.Id).Conditions);                           // 3 of 4 alive: Shaken, not routed
+        Assert.Equal(1.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);      // nobody destroyed: the charger falls back 1"
+        sim.Answer(Samples.Team1, new Passed());
+        Assert.Empty(sim.State.Projection.Stack);
+        Assert.True(GfHooks.FoughtMeleeThisActivation(sim.State, warriors.Id, dwarves.Id));         // anchored on the charge sequence, not on the last nested frame (R-N3)
+        Assert.True(GfHooks.FoughtMeleeThisActivation(sim.State, warriors.Id, warriors.Id));
+    }
+
+    [Fact]
+    public void Counter_strikes_before_impact_and_reduces_impact_dice_and_fatigue_leaves_only_sixes()
+    {
+        var riders = Unit("Riders", "4+", "4+", [], 2, [P("Impact", 2), P("Tough", 2)], Melee("Thrust", 1));
+        var pikes = Unit("Pikes", "4+", "4+", [], 1, [], Melee("Pike", 1, P("Counter")));
+        var sim = Sim.Gf(State([riders], [pikes], x1: -3, x2: 0), 6, 1, 1, 5, 3, 1, 1);           // pike hits 6, rider blocks 1; Impact 1,5,3; pike blocks 1,1
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(riders.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([pikes.Id]));
+        sim.Answer(Samples.Team1, Into(sim, riders, pikes));
+        sim.Answer(Samples.Team2, new Passed());
+        var started = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        Assert.Equal(pikes.Id, started[0].Context.ActorUnitId);                                      // Counter first
+        sim.Answer(Samples.Team1, new Allocated(new Dictionary<Guid, int> { [riders.Models[0].Id] = 1 }));  // the pike's hit (6) got through (block 1)
+        var impact = sim.Steps("impact").First().Rolls.Single();                                     // the step completes again after pushing resolve-hits
+        Assert.Equal(("Impact", 2, 3), (impact.Roll, impact.Threshold, impact.Dice.Count));         // 2 × Impact(2) = 4, −1 for the Counter model
+        Assert.Equal(2, sim.Steps("impact").First().Values!["hits"]);                               // 1,5,3 → two at 2+
+        // Both hits wound (1,1) and the pike is the only model that can take them, so no Allocation Ask opens (R-N11): it dies.
+        Assert.Equal(0, sim.Alive(pikes.Id));
+        Assert.Equal(2, sim.Steps("compare").Single().Values!["loser"]);                            // a destroyed unit always loses; nobody left to test
+        Assert.Equal(3.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);    // consolidate 3"
+        sim.Answer(Samples.Team1, new Passed());
+        Assert.Contains(GfNames.Fatigued, sim.Unit(riders.Id).Conditions);
+        // A second melee this round: fatigued, the riders hit only on unmodified 6s.
+        var again = Unit("Again", "4+", "4+", [], 2, [], Melee("Club", 1));
+        var sim2 = Sim.Gf(State([riders], [again], x1: -3, x2: 0), 5, 6, 1, 1, 1);
+        sim2.Append([new ConditionSet(new Subject(SubjectKind.Unit, riders.Id), GfNames.Fatigued, true)]);
+        sim2.Start(GfNames.Melee, new SequenceContext(riders.Id, [again.Id], riders.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge));
+        var hit = sim2.Steps("roll-to-hit").First().Rolls.Single();
+        Assert.Equal(6, hit.Threshold);
+        Assert.Equal([false, true], hit.Dice.Select(d => d.Success));
+        Assert.Empty(sim2.Steps("impact").Single().Rolls);                                          // Impact does not roll when fatigued
+    }
+
+    [Fact]
+    public void No_target_in_charge_distance_ends_the_activation()
+    {
+        var u = Unit("U", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -20, x2: 20), 1);
+        // activation-terrain (no dangerous terrain), then charge-target with nothing in range: Finish.
+        Assert.Equal(["step_completed", "step_completed", "sequence_finished"], sim.Start(GfNames.ChargeSeq, new SequenceContext(u.Id, [], [], GfNames.Charge)).Select(EventKinds.Of));
+    }
+
+    [Fact]
+    public void A_charge_disembarks_measuring_from_the_transport_and_a_unit_inside_one_cannot_be_charged()
+    {
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var riders = Unit("Riders", "4+", "4+", [], 1, [], Melee("Axe", 1));
+        var enemy = Unit("Enemy", "4+", "4+", [], 1, [], Melee("Club", 1));
+        var truck = Unit("Truck", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var hidden = Unit("Hidden", "4+", "4+", [], 1, [], Melee("Knife", 1));
+        // Armies.State rows: team1's bus and riders and team2's enemy, truck and hidden each 12" apart in y; the enemy is the
+        // only enemy model within 6" of the bus, and the truck's row is 12" away.
+        var sim = Sim.Gf(State([bus, riders], [enemy, truck, hidden], x1: -4, x2: 0), 1, 1, 1, 1);
+        var container = bus.Models[0].Id;
+        sim.Append([new ModelsMoved([
+            new ModelRelocation(riders.Models[0].Id, sim.Model(riders.Models[0].Id).Location, new Inside(container)),
+            new ModelRelocation(hidden.Models[0].Id, sim.Model(hidden.Models[0].Id).Location, new Inside(truck.Models[0].Id))])]);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(riders.Id, [], [], GfNames.Charge));
+        // p.15: the reach is 6" from the bus, and a unit inside a container of its own is not a target at all.
+        var pick = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal([enemy.Id], pick.Eligible);
+        sim.Answer(Samples.Team1, new SelectedPieces([enemy.Id]));
+        var move = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal((container, GfNames.ExitWithin), (move.Containment!.ExitingId!.Value, move.Containment.ExitWithin!.Value));
+        Assert.Empty(move.Containment.Enterable);                                                   // p.14: a Charge disembarks; it never embarks
+    }
+
+    [Fact]
+    public void A_shaken_unit_strikes_back_counting_as_fatigued()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 2, [], Melee("Sword", 1));
+        var shaken = Unit("Shaken", "4+", "4+", [], 2, [], Melee("Club", 1));
+        var sim = Sim.Gf(State([charger], [shaken], x1: -3, x2: 0), 1, 1, 5, 6, 1);                // charger misses twice; strike-back 5,6; block 1
+        sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, shaken.Id), GfNames.Shaken, true)]);
+        sim.Start(GfNames.Melee, MeleeOf(charger, shaken));
+        sim.Answer(Samples.Team2, new Chosen("strike"));                                            // p.10: Shaken units "may strike back counting as fatigued"
+        var hit = sim.Steps("roll-to-hit").Last().Rolls.Single();
+        Assert.Equal(6, hit.Threshold);
+        Assert.Equal([false, true], hit.Dice.Select(d => d.Success));
+        sim.Answer(Samples.Team1, new Allocated(new Dictionary<Guid, int> { [charger.Models[0].Id] = 1 }));   // the one hit that got through
+        Assert.Contains(GfNames.Fatigued, sim.Unit(shaken.Id).Conditions);                          // and striking back fatigued it as well
+    }
+
+    [Fact]
+    public void The_fight_needs_a_charger_model_within_two_inches_of_the_target()
+    {
+        static Sim Charge(double gap, out Tabletop.Content.Unit charger)
+        {
+            charger = Unit("C", "4+", "4+", [], 1, [], Melee("Fist", 1));
+            var target = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
+            var sim = Sim.Gf(State([charger], [target], x1: -8, x2: 0), 1);
+            sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+            sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+            sim.Answer(Samples.Team1, Stop(sim, charger, target, gap));
+            sim.Answer(Samples.Team2, new Passed());
+            return sim;
+        }
+        var short2 = Charge(2.4, out _);                                                            // p.9: 2" horizontally; 2.4" is out of reach
+        Assert.DoesNotContain(short2.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.Melee);
+        Assert.Empty(short2.State.Projection.Stack);                                                // p.7: the unit ends its activation
+        var close = Charge(1.9, out _);
+        Assert.Contains(close.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.Melee);
+    }
+
+    [Fact]
+    public void Fear_counts_as_wounds_dealt_when_the_melee_is_compared()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [P("Fear", 1)], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], x1: -3, x2: 0), 1, 6);                          // the charger misses; the target passes its morale test
+        sim.Start(GfNames.Melee, MeleeOf(charger, target));
+        sim.Answer(Samples.Team2, new Chosen("pass"));
+        var compare = sim.Steps("compare").First();
+        Assert.Equal((1, 0, 2), (compare.Values!["charger_wounds"], compare.Values["defender_wounds"], compare.Values["loser"]));   // no wound landed, Fear(1) won it
+    }
+
+    [Fact]
+    public void A_single_tough_model_at_half_or_less_that_fails_the_melee_test_routs()
+    {
+        var brute = Unit("Brute", "4+", "4+", [], 1, [P("Tough", 3)]);
+        var routed = Sim.Gf(State([brute], [Unit("E", "4+", "4+", [], 1, [])]), 1);
+        routed.Append([new WoundsSet(brute.Models[0].Id, 2)]);                                       // 1 of 3 left: half or less
+        routed.Start(GfNames.MoraleTest, new SequenceContext(brute.Id, [], [], "melee"));
+        Assert.Equal(0, routed.Alive(brute.Id));
+        var shaken = Sim.Gf(State([brute], [Unit("E", "4+", "4+", [], 1, [])]), 1);
+        shaken.Append([new WoundsSet(brute.Models[0].Id, 1)]);                                       // 2 of 3 left: over half
+        shaken.Start(GfNames.MoraleTest, new SequenceContext(brute.Id, [], [], "melee"));
+        Assert.Equal(1, shaken.Alive(brute.Id));
+        Assert.Contains(GfNames.Shaken, shaken.Unit(brute.Id).Conditions);
+    }
+}
