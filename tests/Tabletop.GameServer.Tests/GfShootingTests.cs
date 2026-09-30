@@ -189,9 +189,13 @@ public class GfShootingTests
         var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
         var pair = Unit("Pair", "4+", "6+", [], 2, []);
         var sim = Sim.Gf(State([shooter], [pair], x1: -6, x2: 6, terrain: [wood]), 6, 5);                  // a hit, then a 5 that blocks only with the cover bonus
+        var (one, two) = (pair.Models[0].Id, pair.Models[1].Id);
+        var edge = ((OnTable)sim.Model(one).Location).Placement.Position;
+        sim.Append([new ModelsMoved([new ModelRelocation(two, sim.Model(two).Location,
+            new OnTable(new Placement(edge with { Y = -17.9 }, new Yaw(0))))])]);                          // the second model moves to (6, -17.9): its centre is inside the wood (y < -17.75) but its base, y -18.53..-17.27, straddles the edge
         sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [pair.Id], shooter.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Hold));
         var block = sim.Steps("roll-to-block").Single();
-        Assert.DoesNotContain(block.Rolls.Single().Modifiers, m => m.Source == "cover");                   // only Pair's first model has its whole base in the wood
+        Assert.DoesNotContain(block.Rolls.Single().Modifiers, m => m.Source == "cover");                   // only Pair's first model has its whole base in the wood; the second's centre is inside but its base is not
         Assert.False(block.Rolls.Single().Dice[0].Success);
         Assert.Equal(1, block.Values!["wounds"]);
 
