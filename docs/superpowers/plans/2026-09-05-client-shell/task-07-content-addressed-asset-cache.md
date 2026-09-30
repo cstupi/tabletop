@@ -6,7 +6,8 @@
 
 **Interfaces:**
 - Consumes: `ManifestEntry`, `ManagementClient.GetManifest/GetDownload` (Task 3).
-- Produces: `sealed class AssetCache(string root, HttpClient http)` — `string PathFor(string hash)` (`{root}/{hash}.bin`), `bool Has(string hash)`, `Task<string> FetchAsync(string hash, Uri url, CancellationToken ct)` (downloads to a `.part` file, verifies SHA-256 equals `hash`, moves into place; throws `HashMismatchException` and deletes the part on mismatch; returns the path; a second call for a cached hash never touches the network), `static string Sha256Hex(ReadOnlySpan<byte>)`; `sealed class HashMismatchException(string expected, string actual) : Exception` with `Expected`, `Actual`.
+- Produces: `sealed class AssetCache(string root, HttpClient http)` — `string PathFor(string hash)` (`{root}/{hash}.bin`), `bool Has(string hash)`, `Task<string> FetchAsync(string hash, Uri url, CancellationToken ct)` (downloads to a per-call `.part` file, verifies SHA-256 equals `hash`, moves into place; throws `HashMismatchException` and deletes the part on mismatch; returns the path; a second call for a cached hash never touches the network; concurrent calls for one hash all succeed), `static string Sha256Hex(ReadOnlySpan<byte>)`; `sealed class HashMismatchException(string expected, string actual) : Exception` with `Expected`, `Actual`.
+- Concurrent fetches of one hash are the ordinary case, because every model of a unit shares one asset. Each call writes its own part file. A destination that already exists counts as success: the move is skipped when the file is there, `catch (IOException) when (File.Exists(path))` covers the race between the check and the move, and the part file is deleted in a `finally`. The bytes were hash-verified before the move, so whichever call won wrote the same content.
 - The hash is the key, so the same mesh in two games is one download; the built-ins never enter the cache (they load from `res://`).
 
 Spec: client shell → The table view ("Assets load at runtime through `GLTFDocument` from a presigned URL, never through editor import. A content-addressed cache on disk means a blob is fetched once per machine: the hash is the key"); asset library → Two records (blob keyed by hash); management plan → The manifest (`ManifestEntry.Hash` is the blob's SHA-256; presigned GET URLs valid 60 minutes).
@@ -52,6 +53,19 @@ public class AssetCacheTests : IDisposable
         Assert.Equal((wrong, Hash(Glb)), (ex.Expected, ex.Actual));
         Assert.False(cache.Has(wrong));
         Assert.Empty(Directory.GetFiles(_dir));
+    }
+
+    [Fact]
+    public async Task Concurrent_fetches_of_the_same_hash_all_succeed()
+    {
+        var handler = new BytesHandler(Glb);
+        var cache = new AssetCache(_dir, new HttpClient(handler));
+        var hash = Hash(Glb);
+        var tasks = Enumerable.Range(0, 6).Select(_ => cache.FetchAsync(hash, new Uri("http://localhost:9000/tabletop-blobs/o/h"), CancellationToken.None)).ToList();
+        var results = await Task.WhenAll(tasks);
+        Assert.All(results, path => Assert.Equal(cache.PathFor(hash), path));
+        Assert.Equal(Glb, await File.ReadAllBytesAsync(cache.PathFor(hash)));
+        Assert.Empty(Directory.GetFiles(_dir, "*.part"));
     }
 
     sealed class BytesHandler(byte[] bytes) : HttpMessageHandler
@@ -101,7 +115,9 @@ public sealed class AssetCache(string root, HttpClient http)
                 await response.Content.CopyToAsync(hashing, ct);
             var actual = Convert.ToHexStringLower(sha.Hash!);
             if (actual != hash) { File.Delete(part); throw new HashMismatchException(hash, actual); }
-            if (File.Exists(path)) File.Delete(part); else File.Move(part, path);
+            try { if (!File.Exists(path)) File.Move(part, path); }
+            catch (IOException) when (File.Exists(path)) { }   // another call for this hash won the move; its bytes hashed to the same value
+            finally { if (File.Exists(part)) File.Delete(part); }
             return path;
         }
         catch (Exception) when (File.Exists(part)) { File.Delete(part); throw; }
@@ -112,4 +128,4 @@ public sealed class AssetCache(string root, HttpClient http)
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 37 passed. Commit: `Add the content-addressed asset cache`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.Client.Tests`; expect 55 passed. Commit: `Add the content-addressed asset cache`.**

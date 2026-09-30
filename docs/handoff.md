@@ -1,24 +1,26 @@
-# Handoff — 2026-09-29, step 3 in flight
+# Handoff — 2026-09-29, steps 3 and 4 in flight
 
 Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3: the web
-app is merged; the client and interpreter trees are part-way through their plans, each run by a controller
-that resumes from its brief and ledger.**
+app and the client are merged; the interpreter tree is part-way through its plan. Step 4: the scheduler tree
+runs off the interpreter branch. Each running tree has a controller that resumes from its brief and ledger.
+Checkpoint 1, the owner playing the table by hand, is due.**
 
 ## State
 
 Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`, branch
 `geometry` kept), the game-server skeleton (`862072a`, branch `game-server-skeleton` kept), the
-management API (`f0d0223`, branch `management` kept, its worktree removed) and the web app (`588b848`, branch
-`web-app` kept, its worktree removed). On `main`, `dotnet build` is clean with no warnings and `dotnet test`
-passes 413 tests: Geometry 131, Content 17, Protocol 36, GameServer 149, Management 80. The two server
+management API (`f0d0223`), the web app (`588b848`) and the client shell (`ba53db1`); each branch is kept and
+each worktree removed. On `main`, `dotnet build` is clean with no warnings, `./scripts/check-client` prints
+nothing, and `dotnet test` passes 477 tests: Geometry 131, Content 17, Protocol 36, Client 64, GameServer 149,
+Management 80. The two server
 suites need the compose stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0
 errors and `npm run build` writes `build/index.html`.
 
-**Steps 3 and 4, in flight.** Two worktrees off `main` at `8b5d8b1` and the scheduler's off `interpreter` at `e26eb31`, one branch each:
+**Steps 3 and 4, in flight.** The interpreter's worktree is off `main` at `8b5d8b1` and the scheduler's off
+`interpreter` at `e26eb31`, one branch each:
 
 | Tree | Worktree, branch | Head | Tasks complete | Next |
 | --- | --- | --- | --- | --- |
-| client | `.worktrees/client-shell`, `client-shell` | `1451287`, 25 commits | 1-14 of 16 | task 15 implemented, its task review not run |
 | interpreter | `.worktrees/interpreter`, `interpreter` | `7748c26`, 19 commits | 1-13 of 19 | task 14 reviewed, its fix round 1 not run |
 | scheduler | `.worktrees/scheduler`, `scheduler` | `e26eb31`, the interpreter's head | 0 of 10 | Task 1; controller dispatched 2026-09-29 |
 
@@ -27,8 +29,8 @@ lines say what not to redo, its rulings are binding on the rest of the tree, and
 or `Resume:` line naming the exact next step, the head and the last test count. The briefs are
 `.superpowers/briefs/common.md` plus `<tree>.md`. The interpreter's rebuilt rulings for tasks 9 to 19, its
 implementer and reviewer contracts and the extracted rulebook are in `.superpowers/sdd/interpreter/`; the
-client's review packages are in `.superpowers/sdd/client-shell/`. Test counts at the heads: client 47
-(`tests/Tabletop.Client.Tests`); interpreter 244 in the game-server suite.
+scheduler's are in `.superpowers/sdd/scheduler/`. The client's review packages and implementer contract
+are in `.superpowers/sdd/client-shell/`.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -39,16 +41,16 @@ client's review packages are in `.superpowers/sdd/client-shell/`. Test counts at
 **The management tree's record** is `.superpowers/reports/management.md`, seven sections: 4 holds every
 ruling, 5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees.
 Sections 6 and 7 are applied: 6 to the plan, the spec, the design doc and `docs/schema.md`, 7 to this
-file. The web-app tree's record is `.superpowers/reports/web-app.md`, in the same seven sections, with 6 and
-7 applied the same way. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
+file. The web-app and client trees' records are `.superpowers/reports/web-app.md` and `client-shell.md`, in
+the same seven sections, with 6 and 7 applied the same way. `.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
 `game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
 
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
 `2026-09-05-client-shell/`, `2026-09-05-interpreter-and-effects/` and `2026-09-05-scheduler/` are each
 a `README.md` (goal, constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces
 needed*, rulings) and one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves
-against the README. Seven task files still run 510 to 700 lines (client shell 5 and 8; interpreter 8, 11
-and 14; management 5; scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines and the design
+against the README. Five task files still run 510 to 700 lines (interpreter 8, 11 and 14; management 5;
+scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines and the design
 docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
@@ -61,7 +63,7 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 `2026-09-06-ruleset-3-5-1-design.md` (on the ruleset only) and `2026-09-09-open-questions-design.md`
 (on the twenty-five questions it names only).
 
-## Next: resume step 3
+## Next
 
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
@@ -69,20 +71,29 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    a second stack on the same ports). `.env` exists and carries the Stytch project id. Never `down -v` while
    a tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Resume the two controllers.** For each of `client-shell` and `interpreter`, dispatch a fresh controller
+2. **Resume a stopped controller.** For `interpreter` or `scheduler`, dispatch a fresh controller
    on `opus` with the prompt "read `.superpowers/briefs/<tree>.md` then `common.md`; resume from
    `.superpowers/ledgers/<tree>.md`; the worktree is clean at the head named in its last line; do exactly what
    that line says next, then continue". The briefs already carry every obligation the trees owe; nothing
-   needs re-deriving. The client brief's last section carries the web-app tree's obligations. A controller that is forced to hand back leaves the worktree clean at a committed head
+   needs re-deriving. A controller that is forced to hand back leaves the worktree clean at a committed head
    and writes the resume point as the ledger's last line.
 3. **Merge each tree when its report lands.** From the repo root, `git merge --no-ff <tree>`, resolve
    `CLAUDE.md`, `Tabletop.sln` and `.env.example` keep-both-sides, build and test on `main`, apply the
    report's section 6 to `docs/` and its section 7 to this file; remove the worktree, keep the branch.
 4. **Step 4** is the scheduler. Dispatch it now, in `.worktrees/scheduler` branched from `interpreter`, not
    after the interpreter lands; its plan's *Requires landed* line says why. Stop at each checkpoint in
-   `docs/design/README.md` → *Checkpoints* for the owner to play the build.
+   `docs/design/README.md` → *Checkpoints* for the owner to play the build. It is dispatched; its brief
+   allows it to merge `interpreter` in, and only that.
+5. **Checkpoint 1, the table by hand, is due now.** The owner checks are section 5 of
+   `.superpowers/reports/client-shell.md`, *Owner checks*, task by task, each with what should appear. They
+   need `./scripts/management` and `dotnet run --project server/game` in WSL, `./scripts/client` on Windows,
+   and two accounts. The Ask-panel checks of client Task 14 come due when the rules servers land.
 
-**Owner actions outstanding.** In the Stytch test project
+**Owner actions outstanding.** Author the fifteen built-in art files (ten `.glb` under
+`client/content/builtin/terrain/`, five 1024² tileable `.png` under `client/content/builtin/textures/`),
+whose formats and budgets are in `.superpowers/sdd/client-shell/task-06-report.md`; until then every
+built-in piece draws its volume proxy. Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
+app's real-STL test. In the Stytch test project
 `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
 as a `RESET_PASSWORD` redirect URL, and confirm the `SESSION` custom claim template is
 `{"account_id": "{{ user.external_id }}"}`, which no tool here can read. The secret is set in this
@@ -125,8 +136,8 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Landed.**
-3. web app, client, interpreter, together. Web app **landed**; the other two **in flight**, see *State*.
-4. scheduler;
+3. web app, client, interpreter, together. Web app and client **landed**; interpreter **in flight**, see *State*.
+4. scheduler. **In flight**, off the interpreter branch;
 5. simulator;
 6. viewer.
 
@@ -298,6 +309,37 @@ compose-init test and the two JWT negative tests it names.
 - **`CLAUDE.md`.** The web-app tree owns the `web/` Layout bullet, the Node/mise sentence in Environment,
   the `./scripts/web` and `cd web && npm test` Commands lines, and the Conventions line on inches and the
   endpoints the web app never calls. Other trees merge around them.
+
+## What the client tree settled that the plans did not say
+
+- **Socket.** `Session` sends nothing but `Connect` until `Welcome`: before it, `SendCommandAsync` and
+  `SendEditAsync` throw `InvalidOperationException` and `SendPresenceAsync` and `SendPingAsync` drop. A new send
+  path goes through the same gate. The client half-closes cleanly; a `Rejected` goes Home or to the update
+  screen, and any other close, 1011 included, reconnects at 1, 2, 5, 10 s. An unknown message `kind` throws in
+  `WireJson` and loops reconnects, so a tree that adds a kind bumps `ProtocolVersion`.
+- **Game-server plans.** The server keeps writing army snapshots before it broadcasts `GameInfo(Playing)`: the
+  client refetches the asset manifest on that transition and expects every army's assets in it. The mesh
+  fallback for an asset missing from the manifest is owner-only (`GetDownload`), so another player's asset
+  must be in `/v1/games/{id}/assets`.
+- **Management plan.** Only a 401 from `/v1/auth/session/refresh` signs the client out. Management answers
+  401 only for an invalid or revoked session, and 5xx or 429 for its own failures.
+- **Refresh.** `Session.RefreshAsync()` and `TryResumeAsync()` return `Task<bool>` and never throw; the
+  constructor takes an optional trailing `TimeProvider? time`; `SendCommandAsync(Command, Guid id)` names the
+  message id to match `Refused.MessageId`.
+- **Assets.** Library terrain is placed at `TerrainPlacement.Scale = 1`; the asset row's scale and
+  orientation apply to the mesh through `MeshLoader.Orient`, never to the placement, and `ScaleTerrain` is the
+  per-placement multiplier only. A change to the Base or Footprint convention changes `PieceNode`,
+  `TerrainNode`, `MeshLoader.LoadBuiltin`'s fit, `SetupToolbar` and `BuiltinContent` together.
+- **Rules plans.** The team panel's right-click (`MenuModel.OffTable`, `Names.TeamOfModel`) is the only manual
+  path to put a shelf or contained model on the table, and stays open when deployment runs through Asks.
+  `FixedAskEngineFactory` stays test-only.
+- **Client code.** The Godot-layer rules in `.superpowers/sdd/client-shell/implementer-contract.md` hold for
+  later client work: Session subscriptions are fields removed in `_ExitTree`; no exception escapes
+  `async void` and nothing is discarded unobserved; check `IsInstanceValid` after an await; never read global
+  transforms before a node is in the tree. `client/src/Core/` stays Godot-free, enforced by
+  `./scripts/check-client`.
+- **`CLAUDE.md`.** The client tree owns its three Commands lines, the `client/` Layout children and the
+  table-frame Conventions line. Other trees merge around them.
 
 ## What the contracts tree settled that the plans did not say
 

@@ -6,8 +6,11 @@
 
 **Interfaces:**
 - Consumes: `Session`, `SessionPhase`, `ManagementClient`, `ClientGameSocketFactory`, `SessionStore`, `ClientSettings`, `AssetCache`, `IDispatcher`, `ManagementException`, `UpdateRequiredException` (Tasks 2–7).
-- Produces (namespace `Tabletop`): `partial class Main : Node` with `static Main Instance`, `Session Session`, `AssetCache Cache`, `HttpClient Http`, `void Show(string scenePath)` (frees the current screen, instantiates the next under `Main`), the 60 s refresh `Timer`; `sealed class GodotDispatcher(Node host) : IDispatcher` (`Callable.From(action).CallDeferred()`); `partial class LoginScreen : Control` (email, password, "Sign in", "Sign up", "Email me a code" → code field → "Verify", "Remember me", the error label); `partial class UpdateRequiredScreen : Control` (the message and a "Quit" button).
+- Produces (namespace `Tabletop`): `partial class Main : Node` with `static Main Instance`, `Session Session`, `AssetCache Cache`, `HttpClient Http`, `void Show(string scenePath)` (frees the current screen and instantiates the next under `Main`; a path with no scene logs a warning and keeps the current screen), the 60 s refresh `Timer`; `sealed class GodotDispatcher : IDispatcher` (`Callable.From(action).CallDeferred()`); `partial class LoginScreen : Control` (email, password, "Sign in", "Sign up", "Email me a code" → code field, submitted with Enter, "Remember me", the error label); `partial class UpdateRequiredScreen : Control` (the message and a "Quit" button).
 - Screen routing is `Session.PhaseChanged`: `LoggedOut → Login.tscn`, `LoggedIn → Home.tscn` (Task 10), `Connecting/Reconnecting/Connected → Game.tscn` (Task 13), `UpdateRequired → UpdateRequired.tscn`. On start `TryResumeAsync()` decides between Login and Home.
+- Routing is posted. `PhaseChanged` is raised on whatever thread finished the call that changed the phase, so `Main` subscribes `() => _dispatcher.Post(Route)`, and `Boot` posts its route the same way. `Route` skips a swap to the scene already shown.
+- `Show` guards with `ResourceLoader.Exists`, so a phase whose scene a later task writes (Home before Task 10, Game before Task 13) keeps the current screen instead of throwing.
+- Nothing escapes `async void` or a fire-and-forget task. `Boot` catches `Exception`, so `Route` always runs and a startup failure lands on Login with a warning. `LoginScreen.Run` catches `Exception` last, after `UpdateRequiredException`, `ManagementException` and `HttpRequestException`, so a timeout or a malformed body shows on the error label.
 
 Spec: client shell → Structure (three screens, each a Godot scene swapped under the root; one session object beneath), Screens → Login (email and password, or email and a one-time code; remembered in the OS store when chosen), Home ("treats management's update required response as a screen of its own"); No social login; management API → The version check.
 
@@ -54,6 +57,7 @@ public sealed class GodotDispatcher : IDispatcher
 
 ```csharp
 using Godot;
+using HttpClient = System.Net.Http.HttpClient;
 using Tabletop.Client.Core;
 using Tabletop.Client.Screens;
 
@@ -68,6 +72,7 @@ public partial class Main : Node
     public HttpClient Http { get; } = new();
     Node? _screen;
     string _settingsPath = "";
+    readonly GodotDispatcher _dispatcher = new();
 
     public override void _Ready()
     {
@@ -76,10 +81,10 @@ public partial class Main : Node
         _settingsPath = Path.Combine(userDir, "settings.json");
         var settings = ClientSettings.Load(_settingsPath);
         var store = new SessionStore(Path.Combine(userDir, "session.bin"));
-        Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), new GodotDispatcher());
+        Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
         Cache = new AssetCache(Path.Combine(userDir, "cache"), Http);
-        Session.PhaseChanged += Route;
-        var refresh = new Timer { WaitTime = 60, Autostart = true };
+        Session.PhaseChanged += () => _dispatcher.Post(Route);
+        var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
         AddChild(refresh);
         _ = Boot();
@@ -87,8 +92,8 @@ public partial class Main : Node
 
     async Task Boot()
     {
-        try { await Session.TryResumeAsync(); } catch (ManagementException e) { GD.PushWarning($"resume failed: {e.Message}"); }
-        Route();
+        try { await Session.TryResumeAsync(); } catch (Exception e) { GD.PushWarning($"resume failed: {e.Message}"); }
+        _dispatcher.Post(Route);
     }
 
     void Route()
@@ -106,6 +111,7 @@ public partial class Main : Node
 
     public void Show(string scenePath)
     {
+        if (!ResourceLoader.Exists(scenePath)) { GD.PushWarning($"no scene at {scenePath}"); return; }
         _screen?.QueueFree();
         _screen = GD.Load<PackedScene>(scenePath).Instantiate();
         AddChild(_screen);
@@ -159,6 +165,7 @@ public partial class LoginScreen : Control
         catch (UpdateRequiredException) { }                             // routed to the update screen
         catch (ManagementException e) { _error.Text = e.Status == 401 ? "Wrong email, password or code." : e.Message; }
         catch (HttpRequestException e) { _error.Text = $"Cannot reach {session.Settings.ManagementUrl}: {e.Message}"; }
+        catch (Exception e) { _error.Text = e.Message; }
     }
 }
 ```
@@ -179,6 +186,6 @@ public partial class UpdateRequiredScreen : Control
 }
 ```
 
-- [ ] **Step 4: Run it.** `docker compose up -d`, `./scripts/management` in one WSL shell, then `./scripts/godot`. Expected: the login screen; a wrong password shows *Wrong email, password or code.*; a correct one leaves the screen (Home is Task 10, so the root shows an empty window until then); with "Remember me" ticked, `%APPDATA%\Godot\app_userdata\Tabletop\session.bin` exists and the next launch skips login. Set `MinimumClientVersion` to `2` in `server/management/appsettings.json`, restart management, launch: the update-required screen. Put it back.
+- [ ] **Step 4: Run it.** `docker compose up -d`, `./scripts/management` in one WSL shell, then `./scripts/godot`. Expected: the login screen; a wrong password shows *Wrong email, password or code.*; a correct one routes to `LoggedIn`, and the login screen stays with the warning `no scene at res://scenes/Home.tscn` until Task 10 writes it; with "Remember me" ticked, `%APPDATA%\Godot\app_userdata\Tabletop\session.bin` exists and the next launch skips login. Set `MinimumClientVersion` to `2` in `server/management/appsettings.json`, restart management, launch: the update-required screen. Put it back.
 
 - [ ] **Step 5: `./scripts/check-client` prints nothing. Commit: `Add the root, the dispatcher and the login and update-required screens`.**

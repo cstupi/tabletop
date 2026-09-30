@@ -5,8 +5,8 @@
 
 **Interfaces:**
 - Consumes: `TableView` (Task 11), `Session` (`SendPresenceAsync`, `SendPingAsync`, `SendCommandAsync`, `SendEditAsync`, `Others`, `PresenceChanged`, `Pinged`, `Game`, `Projection`, `Draft`, `ParticipantId`), `MoveRuler`, `RulerReadout` (Core); `Presence`, `Cursor`, `Selection`, `PresencePlacement`, `PlacementKind`, `Measurement`, `Ping`, `MoveModels`, `ModelRelocation`, `OnTable`, `Inside`, `MoveTerrain`, `MoveSetupMarker`, `MoveMarker`, `GameStatus` (Protocol); `Settling.SurfaceHeightAt(Point3, …)`, `Distance.ClosestPoints`, `PlacedModel`, `ModelBody`, `Placement` (Geometry).
-- Produces: `enum TableTool { Select, Measure }`; `partial class TableInput : Node` — `void Bind(TableView, Session)`, `TableTool Tool`, `Selection? Selected`, `event Action<Guid, Vector2>? PieceRightClicked` (a piece id and the screen position, for the menu), `event Action<Vector3>? TableRightClicked`, `event Action? SelectionChanged`, `event Action<Guid>? PieceLeftClicked` (the clicked piece's own id — a model, not the unit `Selected` widens it to — raised after the drag is made so a listener may `CancelDrag()`), `event Action<Guid, Point3>? ModelDragged`, `HashSet<Guid> Proposing`, `double? Allowance`, `void PickNextPiece(Action<Guid>)` and `void PickNextPoint(Action<Point3>)` (the menu's `PieceId` and `TablePoint` items: the next left click answers them instead of selecting or dragging, then clears itself — one field each, checked at the top of `OnLeftDown`); `void CancelDrag()` (drop the drag in progress and hide the ruler, without sending anything — the Ask panel calls it when a click on an enterable container answers the move instead of moving it); left click selects the unit under the cursor (Shift narrows to the model; during setup a terrain placement or marker); left drag moves the selection: every model of the selection follows by the same displacement, each settles with `Settling.SurfaceHeightAt(new Point3(x, y, currentZ), volumes)`, positions stream as `held` placements at 20 Hz (a `Timer`), the release sends one `MoveModels` with start and stop (or, in setup, one `MoveTerrain`/`MoveSetupMarker`; a token in play, one `MoveMarker`); `M` toggles the measure tool (two clicks on pieces, or one press-and-drag between them, → `Distance.ClosestPoints` → `Measurement`, drawn and relayed); `P` pings at the cursor; the cursor's ray point and hovered piece go in every presence sample. `partial class RulerNode : Node3D` — `void Show(Point3 from, Point3 to, RulerReadout readout, Color)`, `void Hide()`; `partial class PresenceOverlay : Node3D` — draws others' cursors (a small cone at the point, hovered piece highlighted), measurements (a line with the length), `held` placements (the piece node moved there, in the team's colour) and `proposed` ghosts (a translucent copy), rulers for others' held placements from the projection's start position, and pings (a ring that fades over two seconds); `void Bind(TableView, Session)`.
-- Picking is ray-versus-AABB over `TableView.Pieces` bounds and the slab plane (`Plane(Vector3.Up, 0).IntersectsRay`); no physics. `Pieces` includes a disembark’s exit ghosts (Task 11), which is the whole of what makes an occupant draggable.
+- Produces: `enum TableTool { Select, Measure }`; `partial class TableInput : Node` — `void Bind(TableView, Session)`, `TableTool Tool`, `Selection? Selected`, `event Action<Guid, Vector2>? PieceRightClicked` (a piece id and the screen position, for the menu), `event Action<Vector3>? TableRightClicked`, `event Action? SelectionChanged`, `event Action<Guid>? PieceLeftClicked` (the clicked piece's own id — a model, not the unit `Selected` widens it to — raised after the drag is made so a listener may `CancelDrag()`), `event Action<Guid, Point3>? ModelDragged`, `HashSet<Guid> Proposing`, `double? Allowance`, `void PickNextPiece(Action<Guid>)` and `void PickNextPoint(Action<Point3>)` (the menu's `PieceId` and `TablePoint` items: the next left click answers them instead of selecting or dragging, then clears itself — one field each, checked at the top of `OnLeftDown`); `void CancelDrag()` (drop the drag in progress and hide the ruler, without sending anything — the Ask panel calls it when a click on an enterable container answers the move instead of moving it); left click selects the unit under the cursor (Shift narrows to the model; during setup a terrain placement or marker); left drag moves the selection: every model of the selection follows by the same displacement, each settles with `Settling.SurfaceHeightAt(new Point3(x, y, currentZ), volumes)`, positions stream as `held` placements at 20 Hz (a `Timer`), the release sends one `MoveModels` with start and stop (or, in setup, one `MoveTerrain`/`MoveSetupMarker`; a token in play, one `MoveMarker`); `M` toggles the measure tool and `P` pings, both on the first press only (key echo is ignored); measuring is two clicks on pieces, or one press-and-drag between them, → `Distance.ClosestPoints` → `Measurement`, drawn and relayed; `P` pings at the cursor; the cursor's ray point and hovered piece go in every presence sample. `partial class RulerNode : Node3D` — `void Show(Point3 from, Point3 to, RulerReadout readout, Color)`, `void Hide()`; `partial class PresenceOverlay : Node3D` — draws others' cursors (a small cone at the point, hovered piece highlighted), measurements (a line with the length), `held` placements (the piece node moved there, in the team's colour) and `proposed` ghosts (a translucent copy), rulers for others' held placements from the projection's start position, and pings (a ring that fades over two seconds, drawn by `OnPing`); `void Bind(TableView, Session)`, whose subscriptions `_ExitTree` removes.
+- Picking is ray-versus-AABB over `TableView.Pieces` bounds and the slab plane (`Plane(Vector3.Up, 0).IntersectsRay`); no physics. Godot's `Aabb` has no ray test, so `RayHit` is a private slab test. **A piece beats terrain and markers**: a hit on a `PieceNode`, exit ghosts included, wins over any terrain or marker hit, and the nearest hit decides only within the same kind. A terrain box encloses its whole area volume, so a model standing in area terrain is hit after the box's top face and would otherwise be unpickable. Terrain under a model's box cannot be picked through the model. `Pieces` includes a disembark’s exit ghosts (Task 11), which is the whole of what makes an occupant draggable.
 - **Nothing here draws a ruler for a piece with no placement.** The ruler is drawn from `Drag.Starts`, which `Position` fills — and for a model `Inside` a container that start is the *container’s* placement, never `(0,0,0)`, because an occupant *"has no table position of its own … and disembarks relative to it"* (game flow → Inside a container). A piece that is neither on the table nor inside a container that is itself on the table has no node, so no drag can begin on it. The same holds for the other participants: `PresenceOverlay.StartOf` returns null for an occupant, so no ruler is drawn against a placement that does not exist, and their disembark ghosts arrive as `PlacementKind.Proposed`, which draws a standalone translucent cylinder needing no node of its own.
 
 Spec: client shell → Input and presence (every bullet), The table view (Godot physics is not in the scene; geometry runs in `Tabletop.Geometry`), Server wins; presence → The presence value, The cursor is where the ray lands, Drag and ghost are one value, A measurement is two points, A ping is silent; setup phase → The draft is the row (live drag is presence; the drop is the edit); table domain model → The one wire decision (start and stop); scheduler → Moving models by hand is not an answer; geometry plan → Interfaces needed → Client shell plan (`Distance.ClosestPoints` for measurements; `Settling.SurfaceHeightAt(new Point3(x, y, currentZ), volumes)` for a dragged model).
@@ -58,7 +58,7 @@ public enum TableTool { Select, Measure }
 public partial class TableInput : Node
 {
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
-    readonly Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
+    readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; Measurement? _measurement; Point3? _measureFrom;
     Drag? _drag;
     public TableTool Tool { get; set; } = TableTool.Select;
@@ -82,7 +82,18 @@ public partial class TableInput : Node
     {
         _view = view; _session = session;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
-        _presenceTimer.Timeout += () => { if (_presenceDirty) { _presenceDirty = false; _ = _session.SendPresenceAsync(Snapshot()); } };
+        _presenceTimer.Timeout += OnPresenceTick;
+    }
+
+    void OnPresenceTick() { if (_presenceDirty) { _presenceDirty = false; Observe(_session.SendPresenceAsync(Snapshot())); } }
+
+    public override void _ExitTree() => _presenceTimer.Timeout -= OnPresenceTick;
+
+    /// <summary>A socket send that fails is logged, never thrown into the engine and never left unobserved.</summary>
+    static async void Observe(Task task)
+    {
+        try { await task; }
+        catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); }
     }
 
     Presence Snapshot() => new(_session.ParticipantId ?? Guid.Empty, _cursor, Selected,
@@ -91,14 +102,34 @@ public partial class TableInput : Node
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
         var from = _view.Camera.ProjectRayOrigin(screen); var dir = _view.Camera.ProjectRayNormal(screen);
-        Node3D? best = null; var bestDistance = float.MaxValue; Vector3? hit = null;
+        Node3D? best = null; var bestIsPiece = false; var bestDistance = float.MaxValue; Vector3? hit = null;
         foreach (var piece in _view.Pieces)
         {
+            if (piece.IsQueuedForDeletion()) continue;
             var bounds = piece switch { PieceNode p => p.Bounds, TerrainNode t => t.Bounds, MarkerNode m => m.Bounds, _ => new Aabb() };
-            if (bounds.IntersectsRay(from, dir) is { } h && from.DistanceTo(h) < bestDistance) { best = piece; bestDistance = from.DistanceTo(h); hit = h; }
+            if (RayHit(bounds, from, dir) is not { } h) continue;
+            // A piece beats terrain and markers: a terrain box encloses its whole area volume, so a model standing inside it is hit after the box's top face.
+            var isPiece = piece is PieceNode; var d = from.DistanceTo(h);
+            if (best is null || (isPiece && !bestIsPiece) || (isPiece == bestIsPiece && d < bestDistance)) { best = piece; bestIsPiece = isPiece; bestDistance = d; hit = h; }
         }
         var ground = new Plane(Vector3.Up, 0).IntersectsRay(from, dir);
         return (WorldFrame.FromGodot(hit ?? ground ?? Vector3.Zero), best);
+    }
+
+    /// <summary>Ray against an axis-aligned box (slab method): the entry point, or null. Godot's Aabb has no ray test in C#.</summary>
+    static Vector3? RayHit(Aabb box, Vector3 from, Vector3 dir)
+    {
+        float near = 0, far = float.MaxValue;
+        for (var axis = 0; axis < 3; axis++)
+        {
+            var origin = from[axis]; var d = dir[axis]; var lo = box.Position[axis]; var hi = lo + box.Size[axis];
+            if (Mathf.Abs(d) < 1e-9f) { if (origin < lo || origin > hi) return null; continue; }
+            var t1 = (lo - origin) / d; var t2 = (hi - origin) / d;
+            if (t1 > t2) (t1, t2) = (t2, t1);
+            near = Mathf.Max(near, t1); far = Mathf.Min(far, t2);
+            if (near > far) return null;
+        }
+        return from + dir * near;
     }
 
     static Guid IdOf(Node3D piece) => piece switch { PieceNode p => p.ModelId, TerrainNode t => t.PlacementId, MarkerNode m => m.MarkerId, _ => Guid.Empty };
@@ -109,13 +140,13 @@ public partial class TableInput : Node
         {
             case InputEventMouseMotion m: OnMotion(m.Position); break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } b: OnLeftDown(b.Position, b.ShiftPressed); break;
-            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false }: _ = OnLeftUp(); break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false }: Observe(OnLeftUp()); break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true } b when !Input.IsMouseButtonPressed(MouseButton.Middle):
                 var (point, piece) = Pick(b.Position);
                 if (piece is not null && !b.AltPressed) PieceRightClicked?.Invoke(IdOf(piece), b.Position); else if (b.AltPressed) TableRightClicked?.Invoke(WorldFrame.ToGodot(point));
                 break;
-            case InputEventKey { Pressed: true, Keycode: Key.M }: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; break;
-            case InputEventKey { Pressed: true, Keycode: Key.P }: var (at, target) = Pick(GetViewport().GetMousePosition()); _ = _session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target))); break;
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.M }: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; break;
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.P }: var (at, target) = Pick(GetViewport().GetMousePosition()); Observe(_session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target)))); break;
             case InputEventKey { Pressed: true, Keycode: Key.Escape }: Selected = null; _measurement = null; _presenceDirty = true; SelectionChanged?.Invoke(); break;
         }
     }
@@ -228,15 +259,19 @@ public partial class TableInput : Node
         // the nodes are left where the player put them. Redrawing here would snap a proposed placement back to the projection,
         // and a disembark ghost has no projected placement to snap to at all.
         if (drag.ModelIds.All(Proposing.Contains)) return;
-        if (p is not null && drag.ModelIds.All(p.Models.ContainsKey))
-            await _session.SendCommandAsync(new MoveModels(drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList()));
-        else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
-            await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
-        else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
-            await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
-        else if (p is not null && p.Markers.ContainsKey(drag.PieceId))
-            await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
-        _view.Redraw();   // server wins: the node snaps back to the projection until the event lands
+        try
+        {
+            if (p is not null && drag.ModelIds.All(p.Models.ContainsKey))
+                await _session.SendCommandAsync(new MoveModels(drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList()));
+            else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
+                await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+            else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
+                await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+            else if (p is not null && p.Markers.ContainsKey(drag.PieceId))
+                await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+        }
+        catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); }
+        if (IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // server wins: the node snaps back to the projection until the event lands
     }
 
     void Measure(Point3 point, Node3D? piece)
@@ -274,7 +309,13 @@ public partial class PresenceOverlay : Node3D
     public void Bind(TableView view, Session session)
     {
         _view = view; _session = session;
-        session.PresenceChanged += Draw; session.Pinged += Ping;
+        session.PresenceChanged += Draw; session.Pinged += OnPing;
+    }
+
+    public override void _ExitTree()
+    {
+        if (_session is null) return;
+        _session.PresenceChanged -= Draw; _session.Pinged -= OnPing;
     }
 
     Color ColourOf(Guid participantId)
@@ -337,7 +378,7 @@ public partial class PresenceOverlay : Node3D
         if (previous?.Cursor?.Target is { } target) _view.PieceAt(target)?.SetHighlight(null);
     }
 
-    void Ping(Ping ping)
+    void OnPing(Ping ping)
     {
         var ring = new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.8f, OuterRadius = 1.2f }, Position = WorldFrame.ToGodot(ping.Point) + Vector3.Up * 0.1f, MaterialOverride = Palette.Translucent(ColourOf(ping.Sender)) };
         AddChild(ring);
@@ -345,6 +386,8 @@ public partial class PresenceOverlay : Node3D
     }
 }
 ```
+
+The presence sampler is a `Godot.Timer`, qualified against `System.Threading.Timer`; `_ExitTree` unhooks its tick. A drop that the server may refuse redraws only while `TableInput` and its view are still valid, because the await can outlive the screen.
 
 `Remove` reads `_drawn`, not `Session.Others`: the session has already replaced the value by the time `PresenceChanged` fires, and the overlay must release what it drew last.
 

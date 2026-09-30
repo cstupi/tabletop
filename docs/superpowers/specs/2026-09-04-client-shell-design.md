@@ -51,7 +51,12 @@ status change and fights the server's view that lobby, setup and play are one co
   JWT in memory and, if the player chooses, on disk so the next launch skips the screen. The
   stored JWT is the five-minute session token. On launch it goes to
   `POST /v1/auth/session/refresh`, which accepts an expired JWT while the Stytch session lives,
-  and a `401` shows the login screen. **The store is not an OS credential store**: it is
+  and the same call runs once a minute while signed in. **Only a `401` signs out** and shows the
+  login screen. A `426` is the update-required screen. Any other failure keeps the token, in
+  memory and on disk, and blocks the next refresh for one minute from the failed attempt's start.
+  Concurrent refreshes share one request. A login or a logout supersedes any refresh in flight,
+  whose outcome is then dropped. Logout always finishes locally, whatever the server answers.
+  **The store is not an OS credential store**: it is
   `user://session.bin`, a file created owner-only where the platform has file modes, because the
   client may run on more than one operating system (owner ruling, 2026-09-06). It keeps the token
   from other local accounts, not from anything running as this user.
@@ -95,7 +100,8 @@ same path a first join and a crashed server use. The client reconnects with back
 close it did not ask for. Two closes are excepted: a `rejected` frame, and a `1000` after
 `welcome`, which is how the server closes a socket it has replaced, so reconnecting there would
 fight the newer one. The socket's first frame is `connect`, sent inside the server's ten-second
-handshake window.
+handshake window. **Nothing else is sent before `welcome`.** Presence and pings are dropped, and
+commands and setup edits are refused locally.
 
 **A desync is not a network fault.** An event the applier cannot apply, because it names an id the
 projection does not hold, is a desync of this client's copy. The client drops the projection,
@@ -133,7 +139,9 @@ place. Those ghosts are not part of the projection and they vanish when the answ
 
 **Assets load at runtime** through `GLTFDocument` from a presigned URL, never through editor
 import. A content-addressed cache on disk means a blob is fetched once per machine: the hash is
-the key, so the same mesh in two games is one download. Built-in terrain, textures and zone
+the key, so the same mesh in two games is one download. The game's manifest of presigned URLs is
+fetched when the table opens, again when play starts because every army is in by then, once on
+an asset it does not list, and after its expiry. Built-in terrain, textures and zone
 shapes ship inside the client and load through the same path from local files. Loading is
 background, nearest to the camera first, so the table is usable before it is pretty.
 
@@ -214,7 +222,9 @@ greys the entries above the target until the server confirms. Presence never app
 The **menu** is the right-click on any piece, unit or team panel, and it is where *every
 property is editable* lives: mark activated or clear the action record, add or remove a
 condition, set wounds, set spell tokens, move to the shelf or back, put inside a container or
-take out, change a team's score, set the active team or round. The action names of the pinned
+take out, change a team's score, set the active team or round. A model with no placement, on the
+shelf or inside a container, has no piece to right-click, so the team panel's menu lists each
+off-table model with an item that places it on the table at a clicked point. The action names of the pinned
 `Properties` are not on the wire, so the menu offers the names it has seen, which are the actions
 already recorded in the log and on the units, and free text beside them. The activate Ask's option
 labels are display text and are not parsed. Each item is one

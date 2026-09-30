@@ -75,6 +75,13 @@ public class BuiltinContentTests
         Assert.Single(BuiltinContent.VolumesOf("forest"));
     }
 }
+```
+
+```csharp
+using Tabletop.Client.Core;
+using Tabletop.Geometry;
+
+namespace Tabletop.Client.Tests;
 
 public class TerrainGeneratorTests
 {
@@ -144,45 +151,45 @@ public static class BuiltinContent
     static readonly BuiltinTerrain[] All =
     [
         // Generic (p.18)
-        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | Cover), "wall"),        // as Wall or Fence, p.18: Cover, and Difficult when moving through it
-        T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
-        T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover), "field"),
+        T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | TerrainDeclarations.Cover), "wall"),        // as Wall or Fence, p.18: Cover, and Difficult when moving through it
+        T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | TerrainDeclarations.Cover), "field"),
         T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight), "building"),
-        T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, Cover, OnTop), "hill"),
-        T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
+        T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, TerrainDeclarations.Cover, OnTop), "hill"),
+        T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, TerrainDeclarations.Cover, RushCharge), "ruins"),
         T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable), "water"),
         // Hospitable (p.18)
-        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | Cover), "wall"),   // p.18: "Cover, as well as Difficult terrain when moving through it"
-        T("hill", "Hill", V(Solid, Footprint.Circle(3), 2, Cover, OnTop), "hill"),
-        T("plantation", "Plantation", V(Area, Footprint.Rect(6, 6), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
-        T("forest", "Forest", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("wall-or-fence", "Wall or Fence", V(Solid, Footprint.Rect(6, 0.5), 1.5, Difficult | TerrainDeclarations.Cover), "wall"),   // p.18: "Cover, as well as Difficult terrain when moving through it"
+        T("hill", "Hill", V(Solid, Footprint.Circle(3), 2, TerrainDeclarations.Cover, OnTop), "hill"),
+        T("plantation", "Plantation", V(Area, Footprint.Rect(6, 6), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("forest", "Forest", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("large-building", "Large Building", V(Solid, Footprint.Rect(6, 6), 8, Impassable | BlocksLineOfSight), "building"),
         T("deep-river", "Deep River or Lake", V(Area, Footprint.Rect(3, 12), 0.5, Impassable), "water"),
         T("shallow-river", "Shallow River or Stream", V(Area, Footprint.Rect(3, 12), 0.5, Difficult, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
-        T("tall-crops-field", "Tall Crops Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | Cover), "field"),
-        T("ruins", "Ruins or Debris", V(Area, Footprint.Rect(6, 6), 4, Cover, RushCharge), "ruins"),
+        T("tall-crops-field", "Tall Crops Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | TerrainDeclarations.Cover), "field"),
+        T("ruins", "Ruins or Debris", V(Area, Footprint.Rect(6, 6), 4, TerrainDeclarations.Cover, RushCharge), "ruins"),
         T("small-buildings", "Group of Small Buildings", V(Solid, Footprint.Rect(6, 6), 4, Impassable | BlocksLineOfSight), "building"),
-        T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, Cover, $"{MovingUp}. {OnTop}"), "hill"),
+        T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, TerrainDeclarations.Cover, $"{MovingUp}. {OnTop}"), "hill"),
         // Wasteland (p.19)
-        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, Cover, OnTop), "hill"),
+        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, TerrainDeclarations.Cover, OnTop), "hill"),
         T("large-rock", "Large Rock or Two to Three Small Rocks", V(Solid, Footprint.Rect(4, 4), 4, Impassable | BlocksLineOfSight), "rock"),
-        T("crater", "Crater", V(Area, Footprint.Circle(3), 1, Cover), "pad"),
-        T("toxic-smog", "Toxic Smog", V(Area, Footprint.Circle(4), 6, Cover | Dangerous | BlocksLineOfSight | SeeInAndOut), "haze"),
+        T("crater", "Crater", V(Area, Footprint.Circle(3), 1, TerrainDeclarations.Cover), "pad"),
+        T("toxic-smog", "Toxic Smog", V(Area, Footprint.Circle(4), 6, TerrainDeclarations.Cover | Dangerous | BlocksLineOfSight | SeeInAndOut), "haze"),
         T("toxic-river", "Toxic River", V(Area, Footprint.Rect(3, 12), 0.5, Difficult | Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
         T("sludge-stream", "Sludge Stream or Canal", V(Area, Footprint.Rect(2, 12), 0.5, Dangerous, "Optionally one 3\"-6\" wide bridge per full 24\""), "water"),
         T("sludge-field", "Sludge Field", V(Area, Footprint.Rect(6, 6), 0.5, Difficult), "pad"),
         T("mine-field", "Mine Field", V(Area, Footprint.Rect(6, 6), 0.1, Dangerous), "pad"),
         // Death (p.19)
-        T("overgrown-ruins", "Overgrown Ruins", V(Area, Footprint.Rect(6, 6), 4, Difficult | Cover), "ruins"),
-        T("deadly-vegetation", "Deadly Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | Dangerous), "woods"),
-        T("dense-vegetation", "Dense Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
+        T("overgrown-ruins", "Overgrown Ruins", V(Area, Footprint.Rect(6, 6), 4, Difficult | TerrainDeclarations.Cover), "ruins"),
+        T("deadly-vegetation", "Deadly Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | Dangerous), "woods"),
+        T("dense-vegetation", "Dense Vegetation", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("death-marsh", "Death Marsh", V(Area, Footprint.Rect(6, 6), 0.2, Difficult | Dangerous), "pad"),
         T("crumbly-rock", "Crumbly Rock", V(Solid, Footprint.Rect(4, 4), 2, Difficult), "rock"),
         T("beast-lair", "Beast Lair", V(Solid, Footprint.Circle(2), 2, Dangerous), "hill"),
         T("quicksand", "Quicksand", V(Area, Footprint.Rect(4, 4), 0.1, None, RushCharge), "pad"),
         // Names the contracts plan's samples use
         T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None), "hill"),
-        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),
+        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),
     ];
 
     /// <summary>The ten mesh files the 35 built-ins share, by their basename under res://content/builtin/terrain/.</summary>
@@ -203,6 +210,8 @@ public static class BuiltinContent
         new(Guid.CreateVersion7(), VisualRef.OfBuiltin(name), position, yaw, scale, VolumesOf(name));
 }
 ```
+
+`Cover` is written `TerrainDeclarations.Cover` in the table: under `using static Tabletop.Geometry.TerrainDeclarations` the bare name is ambiguous.
 
 - [ ] **Step 3: Write `TerrainGenerators.cs`**
 
@@ -245,12 +254,14 @@ public static class TerrainGenerators
         for (var i = 0; i < extra; i++)
         {
             var alternatives = Rolled(planet, rng.Next(1, 7) + rng.Next(1, 7));            // 2D6
-            names.Add(alternatives[rng.Next(alternatives.Length)]);
+            names.Add(alternatives[rng.Next(alternatives.Count)]);
         }
         return names.Select((name, i) => new AddTerrain(BuiltinContent.Place(name, new Point3(table.Width + 4 + (i % 4) * 8, 4 + (i / 4) * 8, 0), new Yaw(0)))).ToList();
     }
 }
 ```
+
+`Rolled` returns `IReadOnlyList<string>`, so the pick reads `alternatives.Count`.
 
 - [ ] **Step 4: Author the fifteen art files.** **This step is not code, and no code in this plan produces its output.** It is a person with a modelling tool and an image editor making fifteen files and copying them into `client/content/builtin/`. Nothing else in the plan depends on it: every step before and after passes with the directory empty, and the table renders as its hitboxes until the files exist. A minimal art set ships so a generated table looks like a table; the minimum is these fifteen.
 
@@ -263,4 +274,4 @@ public static class TerrainGenerators
 
   **These ship with the build and never enter the asset cache.** They are `res://` resources bundled into the export's `.pck`, read by `GltfDocument`/`ResourceLoader` from the local file (Task 11), with no hash, no manifest entry, no presigned URL and no `user://cache/` write. The content-addressed cache is only for a player's uploaded assets, which arrive over HTTP and are keyed by SHA-256. Adding a built-in therefore means shipping a new client build, which is the trade the ruling accepts.
 
-- [ ] **Step 5: Run `dotnet test tests/Tabletop.Client.Tests`; expect 35 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.** The art files, if Step 4 has produced them, are a separate commit: `Add the built-in terrain meshes and table textures`.
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.Client.Tests`; expect 52 passed. Commit: `Ship the built-in terrain inventory and the rulebook's four terrain generators`.** The art files, if Step 4 has produced them, are a separate commit: `Add the built-in terrain meshes and table textures`.

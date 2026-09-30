@@ -6,7 +6,7 @@
 
 **Interfaces:**
 - Consumes: `SocketMessage`, `WireJson`, `Presence` (Protocol).
-- Produces: `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)`; `interface IGameSocket : IAsyncDisposable { event Action<SocketMessage> FrameReceived; event Action<SocketClosed> Closed; Task ConnectAsync(Uri url, CancellationToken ct); Task SendAsync(SocketMessage frame); Task CloseAsync(); }`; `interface IGameSocketFactory { IGameSocket Create(); }`; `sealed class ClientGameSocket : IGameSocket` over `ClientWebSocket` (text frames, one `SocketMessage` per frame, a read loop that raises `FrameReceived` on its own thread and `Closed` once); `sealed class ClientGameSocketFactory : IGameSocketFactory`; `sealed class PresenceTable` — `void Set(Presence)`, `void Remove(Guid participantId)`, `Presence? Of(Guid)`, `IReadOnlyCollection<Presence> All`, `void Clear()`. Test infrastructure `FakeGameSocket` (`Sent`, `Deliver(SocketMessage)`, `Drop(int? code, string? reason)`, `Connected`) and `FakeSocketFactory` (`Created` list).
+- Produces: `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)`; `interface IGameSocket : IAsyncDisposable { event Action<SocketMessage> FrameReceived; event Action<SocketClosed> Closed; Task ConnectAsync(Uri url, CancellationToken ct); Task SendAsync(SocketMessage frame); Task CloseAsync(); }`; `interface IGameSocketFactory { IGameSocket Create(); }`; `sealed class ClientGameSocket : IGameSocket` over `ClientWebSocket` (text frames, one `SocketMessage` per frame, a read loop that raises `FrameReceived` on its own thread and `Closed` once; `CloseAsync` half-closes with `CloseOutputAsync` under the send gate and cancels the loop and raises `Closed` in a `finally`); `sealed class ClientGameSocketFactory : IGameSocketFactory`; `sealed class PresenceTable` — `void Set(Presence)`, `void Remove(Guid participantId)`, `Presence? Of(Guid)`, `IReadOnlyCollection<Presence> All`, `void Clear()`. Test infrastructure `FakeGameSocket` (`Sent`, `Deliver(SocketMessage)`, `Drop(int? code, string? reason)`, `Connected`, `Url`, `SendFails`: an exception every send but `Connect` returns) and `FakeSocketFactory` (`Created` list).
 - Both events fire off the Godot main thread; `Session` (Task 5) marshals them through `IDispatcher`. The game server's protocol (game server plan → Interfaces needed → Client shell plan): one text frame per message, `Connect` first, close codes `1000` (normal, or "replaced by a newer connection"), `1001` (server shutting down), `1002` (protocol error).
 
 Spec: `architecture.md` → Transport (WebSockets; Godot's high-level multiplayer is not used); presence → Nothing here is written down (a presence value exists while a socket is open; the table is cleared on close), Connectedness is not a field (who is connected is which values exist).
@@ -86,10 +86,18 @@ public sealed class ClientGameSocket : IGameSocket
 
     public async Task CloseAsync()
     {
-        try { if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }
-        catch (WebSocketException) { }
-        _stop.Cancel();
-        RaiseClosed(new SocketClosed(1000, "bye", null));
+        try
+        {
+            await _sendGate.WaitAsync();
+            try { if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }
+            catch (Exception ex) when (ex is WebSocketException or InvalidOperationException or ObjectDisposedException) { }
+            finally { _sendGate.Release(); }
+        }
+        finally
+        {
+            _stop.Cancel();
+            RaiseClosed(new SocketClosed(1000, "bye", null));
+        }
     }
 
     async Task ReadLoopAsync()
@@ -113,7 +121,7 @@ public sealed class ClientGameSocket : IGameSocket
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is WebSocketException or System.Text.Json.JsonException or IOException) { RaiseClosed(new SocketClosed(null, ex.Message, ex)); }
+        catch (Exception ex) when (ex is WebSocketException or System.Text.Json.JsonException or IOException or ObjectDisposedException or InvalidOperationException) { RaiseClosed(new SocketClosed(null, ex.Message, ex)); }
     }
 
     void RaiseClosed(SocketClosed closed) { if (Interlocked.Exchange(ref _closedRaised, 1) == 0) Closed?.Invoke(closed); }
@@ -123,6 +131,8 @@ public sealed class ClientGameSocket : IGameSocket
 
 public sealed class ClientGameSocketFactory : IGameSocketFactory { public IGameSocket Create() => new ClientGameSocket(); }
 ```
+
+`CloseAsync` sends its close frame with `CloseOutputAsync`. `ClientWebSocket.CloseAsync` would wait to receive the answering close frame while the read loop is already receiving, and a second concurrent receive throws. The half-close leaves the answering frame to the read loop. It holds the send gate so it cannot interleave with a send. The widened catch covers a socket already closed or disposed. Cancelling the loop and raising `Closed` sit in a `finally`, so a failed close still ends the loop and tells the session once.
 
 - [ ] **Step 3: Write `FakeGameSocket.cs` and the presence table test**
 
@@ -140,7 +150,12 @@ public sealed class FakeGameSocket : IGameSocket
     public event Action<SocketMessage>? FrameReceived;
     public event Action<SocketClosed>? Closed;
     public Task ConnectAsync(Uri url, CancellationToken ct) { Url = url; Connected = true; return Task.CompletedTask; }
-    public Task SendAsync(SocketMessage frame) { Sent.Add(frame); return Task.CompletedTask; }
+    public Exception? SendFails { get; set; }
+    public Task SendAsync(SocketMessage frame)
+    {
+        if (SendFails is { } error && frame is not Connect) return Task.FromException(error);
+        Sent.Add(frame); return Task.CompletedTask;
+    }
     public Task CloseAsync() { Connected = false; Closed?.Invoke(new SocketClosed(1000, "bye", null)); return Task.CompletedTask; }
     public void Deliver(SocketMessage frame) => FrameReceived?.Invoke(frame);
     public void Drop(int? code, string? reason) { Connected = false; Closed?.Invoke(new SocketClosed(code, reason, null)); }

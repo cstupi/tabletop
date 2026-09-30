@@ -401,7 +401,9 @@ whole contradicts free-for-all editing.
 `DraftEditor` is a pure function of `(TableState, SetupEdit) -> TableState?` with an `out string?
 missing`. The setup phase is therefore headless logic: fourteen edit kinds, no I/O, no clock, no
 session. It also owns two rules that are not edits. `OnSlab` is the corner frame,
-`0 <= x <= width` and `0 <= y <= length`. `DropOffSlab` is used once, by end-setup, to implement
+`0 <= x <= width` and `0 <= y <= length`. `OnSlab` re-implements `Tabletop.Geometry`'s
+`Table.ContainsPoint` rather than calling it, without that method's `Tolerance.Distance` margin.
+`DropOffSlab` is used once, by end-setup, to implement
 Grimdark Future page 17's *"if it's impossible to place the terrain piece, simply remove it"* for
 generated pieces never dragged onto the table.
 

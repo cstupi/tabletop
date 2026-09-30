@@ -74,7 +74,7 @@ public static class MoveRuler
     }
 
     /// <summary>How many facings a non-circular base is tried at. p.7 lets a model take any facing, so a placement is legal
-    /// if some yaw fits; the drawn region is the union over fitting yaws. Eight is 22.5° apart, which is
+    /// if some yaw fits; the drawn region is the union over fitting yaws. Eight are 45° apart, which is
     /// finer than the region's own 2° rays are deep. A circular base is yaw-invariant and skips every one of them.</summary>
     public const int ExitYaws = 8;
 

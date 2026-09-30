@@ -5,7 +5,12 @@
 
 **Interfaces:**
 - Consumes: `Session.Management` (`ListGames`, `ListProperties`, `ListArmies`, `CreateGame`, `JoinGame`), `Session.ConnectAsync`, `Session.SendEditAsync(PickArmy)`, `Session.LogoutAsync`, `Session.LastCloseReason`; `GameSummary`, `PropertiesSummary`, `ArmySummary`, `CreateGameRequest` (Task 3); `SchedulerShape`, `Enforcement`, `GameStatus`, `PickArmy` (Protocol).
-- Produces: `partial class HomeScreen : Control` — the game list (`ItemList`) with a status filter, a name filter and "created by me", a "More" button for the next keyset page, "Join", "Create game" (name, pack from `GET /v1/properties`, shape, enforcement, wait-between-steps, army from `GET /v1/armies`), "Sign out". Creating: `CreateGame` → `ConnectAsync(game.Id)` → once `Phase == Connected`, `SendEditAsync(new PickArmy(armyId))`. Joining: `JoinGame` → `ConnectAsync`.
+- Produces: `partial class HomeScreen : Control` — the game list (`ItemList`) with a status filter, a name filter and "created by me", a "More" button for the next keyset page, "Join", "Create game" (name, pack from `GET /v1/properties`, shape, enforcement, wait-between-steps, army from `GET /v1/armies`), "Sign out". Creating: `CreateGame` → the dialog is freed → `ConnectAsync(game.Id)` → once `Phase == Connected`, `SendEditAsync(new PickArmy(armyId))`. Joining: `JoinGame` → `ConnectAsync`.
+- Every handler runs through one private `async void Run(Func<Task>)` with LoginScreen's catch arms, `Exception` last. Its error text goes through `Show`, which checks `IsInstanceValid` on the screen and the label, because the action may have navigated away and freed both.
+- `PickWhenConnected` captures the new game's id. It unsubscribes on the first phase change that belongs to another game, so a stale `PickArmy` cannot reach the next game; a retry of the same game keeps it subscribed.
+- The filtered view is `Filtered()`: a method named `Visible()` would hide `CanvasItem.Visible`.
+- Refresh clears `_games` and renders the empty list before it loads the first page.
+- The Create dialog is freed before `ConnectAsync`, because the connect leaves this screen and frees it with its children. Cancel frees it too.
 - `POST /v1/games` takes no army (management plan → HTTP surface; whole-design review → Gaps filled); the army is a lobby edit after the socket opens (game server plan Task 10; setup phase → Editing is free for all).
 
 Spec: client shell → Screens → Home (the game list from `GET /v1/games`, every status, filtered by the player; create game with name, pack, shape, enforcement, wait and one of the player's armies; creating or joining leads to the same place); accounts → Games are public; setup phase → Joining is allowed at any status.
@@ -32,8 +37,8 @@ public partial class HomeScreen : Control
         var root = new VBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
         var top = new HBoxContainer(); root.AddChild(top);
         top.AddChild(new Label { Text = $"Signed in as {Main.Instance.Session.Account?.Name}" });
-        top.AddChild(Btn("Create game", () => _ = CreateDialog()));
-        top.AddChild(Btn("Sign out", () => _ = Main.Instance.Session.LogoutAsync()));
+        top.AddChild(Btn("Create game", () => Run(CreateDialog)));
+        top.AddChild(Btn("Sign out", () => Run(Main.Instance.Session.LogoutAsync)));
         var filters = new HBoxContainer(); root.AddChild(filters);
         filters.AddChild(_status = new OptionButton());
         _status.AddItem("Any status"); foreach (var s in Enum.GetNames<GameStatus>()) _status.AddItem(s);
@@ -41,21 +46,35 @@ public partial class HomeScreen : Control
         filters.AddChild(_search = new LineEdit { PlaceholderText = "name", CustomMinimumSize = new Vector2(200, 0) }); _search.TextChanged += _ => Render();
         filters.AddChild(_mine = new CheckBox { Text = "Created by me" }); _mine.Toggled += _ => Render();
         root.AddChild(_list = new ItemList { SizeFlagsVertical = SizeFlags.ExpandFill });
-        _list.ItemActivated += i => _ = Join(Visible()[(int)i].Id);
+        _list.ItemActivated += i => Run(() => Join(Filtered()[(int)i].Id));
         var bottom = new HBoxContainer(); root.AddChild(bottom);
-        bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) _ = Join(Visible()[sel[0]].Id); }));
-        bottom.AddChild(Btn("More", () => _ = LoadPage()));
-        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _ = LoadPage(); }));
+        bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) Run(() => Join(Filtered()[sel[0]].Id)); }));
+        bottom.AddChild(Btn("More", () => Run(LoadPage)));
+        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); Run(LoadPage); }));
         root.AddChild(_error = new Label { Modulate = Colors.Orange });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
         if (Main.Instance.Session.LastCloseReason is { } why) _error.Text = $"Dropped from the last game: {why}";
-        _ = LoadPage();
+        Run(LoadPage);
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 
-    List<GameSummary> Visible()
+    async void Run(Func<Task> action)
+    {
+        try { await action(); }
+        catch (ManagementException e) { Show(e.Message); }
+        catch (HttpRequestException e) { Show($"Cannot reach {Main.Instance.Session.Settings.ManagementUrl}: {e.Message}"); }
+        catch (Exception e) { Show(e.Message); }
+    }
+
+    /// <summary>The screen may have been freed by the navigation the action caused.</summary>
+    void Show(string message)
+    {
+        if (IsInstanceValid(this) && IsInstanceValid(_error)) _error.Text = message;
+    }
+
+    List<GameSummary> Filtered()
     {
         var me = Main.Instance.Session.Account?.Id;
         return _games.Where(g => (_status.Selected == 0 || g.Status.ToString() == _status.GetItemText(_status.Selected))
@@ -66,24 +85,20 @@ public partial class HomeScreen : Control
     void Render()
     {
         _list.Clear();
-        foreach (var g in Visible()) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
+        foreach (var g in Filtered()) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
     }
 
     async Task LoadPage()
     {
-        try
-        {
-            var page = await Main.Instance.Session.Management.ListGames(_next, 50);
-            _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next;
-            Render();
-        }
-        catch (ManagementException e) { _error.Text = e.Message; }
+        var page = await Main.Instance.Session.Management.ListGames(_next, 50);
+        _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next;
+        Render();
     }
 
     async Task Join(Guid gameId)
     {
-        try { await Main.Instance.Session.Management.JoinGame(gameId); await Main.Instance.Session.ConnectAsync(gameId); }
-        catch (ManagementException e) { _error.Text = e.Message; }
+        await Main.Instance.Session.Management.JoinGame(gameId);
+        await Main.Instance.Session.ConnectAsync(gameId);
     }
 
     async Task CreateDialog()
@@ -99,26 +114,33 @@ public partial class HomeScreen : Control
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
         var waits = new CheckBox { Text = "Wait between steps" }; form.AddChild(waits);
         var army = new OptionButton(); army.AddItem("No army (watch)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
-        dialog.Confirmed += async () =>
+        dialog.Confirmed += () => Run(async () =>
         {
             if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
-            try
+            var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
+            Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
+            if (armyId is { } id)
             {
-                var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
-                    shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
-                Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
-                if (armyId is { } id)
+                var gameId = game.Id;
+                void PickWhenConnected()
                 {
-                    void PickWhenConnected() { if (session.Phase == SessionPhase.Connected) { session.PhaseChanged -= PickWhenConnected; _ = session.SendEditAsync(new PickArmy(id)); } }
-                    session.PhaseChanged += PickWhenConnected;
+                    if (session.GameId != gameId) { session.PhaseChanged -= PickWhenConnected; return; }
+                    if (session.Phase == SessionPhase.Connected)
+                    {
+                        session.PhaseChanged -= PickWhenConnected;
+                        Run(() => session.SendEditAsync(new PickArmy(id)));
+                    }
                 }
-                await session.ConnectAsync(game.Id);
+                session.PhaseChanged += PickWhenConnected;
             }
-            catch (ManagementException e) { _error.Text = e.Message; }
-        };
+            dialog.QueueFree();             // before the connect: it leaves this screen, and the dialog goes with it
+            await session.ConnectAsync(game.Id);
+        });
+        dialog.Canceled += () => dialog.QueueFree();
         AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320));
     }
 }
 ```
 
-- [ ] **Step 3: Run it.** With a `properties` row seeded (management plan Task 12's `Seed()` insert, run once by hand: `docker compose exec postgres psql -U tabletop -d tabletop -c "insert into management.properties values ('sha256:gf-dev','Grimdark Future core','grimdark-future') on conflict do nothing"`) and `dotnet run --project server/game` running: Create game → the screen goes to the Game scene (Task 13; until then the Main root shows nothing and the log prints `Connect` sent). `Refresh` lists the game; a second account in a second client instance sees and joins it. `./scripts/check-client` prints nothing. Commit: `Add the Home screen: the game list, create game and join`.
+- [ ] **Step 3: Run it.** With a `properties` row seeded (management plan Task 12's `Seed()` insert, run once by hand: `docker compose exec postgres psql -U tabletop -d tabletop -c "insert into management.properties values ('sha256:gf-dev','Grimdark Future core','grimdark-future') on conflict do nothing"`) and `dotnet run --project server/game` running: Create game → the screen goes to the Game scene (Task 13; until then Home stays with the warning `no scene at res://scenes/Game.tscn`). `Refresh` lists the game; a second account in a second client instance sees and joins it. `./scripts/check-client` prints nothing. Commit: `Add the Home screen: the game list, create game and join`.

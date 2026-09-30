@@ -32,9 +32,10 @@ public readonly record struct Point3(double X, double Y, double Z)
 public readonly record struct Yaw(double Degrees);
 
 /// <summary>
-/// An asset's import rotation, in degrees, measured against the table's axes. The one convention (stated here; the web app's
-/// converter writes it, the client's mesh loader applies it): the mesh's raw coordinates are read as table-frame coordinates and
-/// rotated by Pitch about the table's X axis, then Roll about Y, then Yaw about Z — right-handed, extrinsic — and only then scaled.
+/// An asset's import rotation, in degrees, measured against the table's axes. This is the one convention: the web app's converter
+/// writes it and the client's mesh loader applies it. The mesh's raw coordinates are read as table-frame coordinates, rotated by
+/// Pitch about the table's X axis, then Roll about Y, then Yaw about Z, all right-handed and extrinsic, and only then scaled.
+/// The record is declared (Pitch, Yaw, Roll), which is not the application order, so every construction names its members.
 /// A Y-up glTF stood upright in the Z-up table frame is Pitch = 90.
 /// </summary>
 public readonly record struct Orientation(double Pitch, double Yaw, double Roll);

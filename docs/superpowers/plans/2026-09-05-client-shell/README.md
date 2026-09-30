@@ -4,28 +4,35 @@
 
 **Goal:** Build the Godot client's frame in `client/`: three screens over one session object, the management HTTP client, the game socket, the projection built by `Tabletop.Protocol.EventApplier`, presence, the table view with hitbox-first pieces and runtime GLB loading into a content-addressed cache, the setup-phase tools and the four terrain generators, the Ask panel, the log panel with undo-to-here, and the right-click menu — with every Godot-free part extracted under `client/src/Core/` and tested headlessly.
 
-**Architecture:** `client/src/Core/**` is Godot-free C# (`Tabletop.Client.Core`): `Session` owns `ManagementClient`, `IGameSocket`, the `EventApplier`, the draft and a `PresenceTable`, and raises events through an `IDispatcher` so Godot code runs on its main thread. `tests/Tabletop.Client.Tests` compiles those sources directly against the three `libs/`, which is what proves they are Godot-free. Godot code (`Tabletop.Client.Screens`, `.Table`, `.Panels`) is thin: it draws from the projection, converts frames with `WorldFrame`, and forwards input to `Session`. Godot physics is not in the scene; picking is ray-versus-AABB over proxy bounds, and every measurement is `Tabletop.Geometry`'s.
+**Architecture:** `client/src/Core/**` is Godot-free C# (`Tabletop.Client.Core`): `Session` owns `ManagementClient`, `IGameSocket`, the `EventApplier`, the draft and a `PresenceTable`, and handles every socket frame and close through an `IDispatcher`. Its other events are raised on the thread of the awaited call that caused them, so each Godot consumer posts its handler to the main thread. `tests/Tabletop.Client.Tests` compiles those sources directly against the three `libs/`, which is what proves they are Godot-free. Godot code (`Tabletop.Client.Screens`, `.Table`, `.Panels`) is thin: it draws from the projection, converts frames with `WorldFrame`, and forwards input to `Session`. Godot physics is not in the scene; picking is ray-versus-AABB over proxy bounds, and every measurement is `Tabletop.Geometry`'s.
 
 **Tech Stack:** Godot 4.7.2 Mono (Windows host), .NET 10 (`net10.0`, C# 12), `System.Net.Http`, `System.Net.WebSockets.ClientWebSocket`, xUnit 2.9.3; `Tabletop.Geometry`, `Tabletop.Content`, `Tabletop.Protocol` from the contracts and geometry plans.
 
 **Spec:** `docs/superpowers/specs/2026-09-04-client-shell-design.md` (primary); `2026-08-30-presence-design.md`; `2026-09-04-setup-phase-design.md`; `2026-08-29-setup-content-design.md`; `2026-08-27-table-domain-model-design.md`; `2026-08-28-game-flow-design.md`; `2026-08-28-resolution-design.md`; `2026-09-03-action-sequences-design.md`; `2026-09-04-scheduler-design.md`; `2026-08-28-asset-library-design.md`; `2026-08-29-geometry-values-design.md`; `2026-09-04-whole-design-review.md` (newest, wins); `docs/architecture.md`; Grimdark Future v3.5.1 pages 7 and 17–18. Earlier plans obeyed verbatim: `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`, `2026-09-05-geometry.md`, `2026-09-05-management-api/README.md`, `2026-09-05-game-server-skeleton.md`.
 
-**Requires landed:** the contracts, geometry, management and game-server skeleton plans. The rules plans are not required: Task 14's Step 4 exercises the Ask panel against the skeleton's `FixedAskEngine` and marks the interpreter- and scheduler-dependent checks as conditional.
+**Requires landed:** the contracts, geometry, management and game-server skeleton plans. The rules plans are not required: Task 14's Step 4 exercises the Ask panel against a scratch registration of the skeleton's test-only `FixedAskEngineFactory`, or waits for the scheduler's server, and marks the interpreter- and scheduler-dependent checks as conditional.
 
 ## Global Constraints
 
 - `client/Tabletop.csproj` stays `Godot.NET.Sdk/4.7.2`, `net10.0`, `LangVersion 12`, `Nullable enable`, `ImplicitUsings enable`, `RootNamespace Tabletop`; the SDK globs `**/*.cs` so no file needs registering. `Directory.Build.props` puts `obj/` under `obj/$(OS)/`; the Windows Godot build of the referenced libs produces `obj/Windows_NT/` beside WSL's `obj/Unix/`.
 - C# only; no GDScript. `.tscn`/`.tres`/`.godot`/`.import`/`.uid` files are editor-owned: this plan writes minimal `.tscn` files by hand (a root node and its script) and builds every control tree in `_Ready`; nothing reformats a scene the editor has saved.
-- **No rules type, physics body or legality check in `client/`** (`architecture.md` → The load-bearing seam; client shell → What must not be in the client). No reference to `Tabletop.GameServer`; no `StaticBody3D`, `RigidBody3D`, `CharacterBody3D`, `Area3D` or `CollisionShape3D` in any scene or script. `scripts/check-client` greps for both (client shell → Testing). Drawing a region the server offered is not a legality check: `MoveRuler.Region` and `MoveRuler.ExitRegion` render parameters the Ask carried, through `Tabletop.Geometry`, and the server re-decides every answer — `LegalSet.Contains` under `strict`, and `GfMoves.ExitPlacement` for a disembark (interpreter plan Task 14). The client never withholds an answer on its own geometry.
+- **No rules type, physics body or legality check in `client/`** (`architecture.md` → The load-bearing seam; client shell → What must not be in the client). No reference to `Tabletop.GameServer`; no `StaticBody3D`, `RigidBody3D`, `CharacterBody3D`, `Area3D` or `CollisionShape3D` in any scene or script. `scripts/check-client` greps for both (client shell → Testing). Drawing a region the server offered is not a legality check: `MoveRuler.Region` and `MoveRuler.ExitRegion` render parameters the Ask carried, through `Tabletop.Geometry`, and the server re-decides every answer — `LegalSetMembership.Contains` (`server/game/Dispatch/LegalSetMembership.cs`) under `strict`, and `GfMoves.ExitPlacement` for a disembark (interpreter plan Task 14). The client never withholds an answer on its own geometry.
 - **No truth outside the projection**: screens read `Session` and keep only what they draw. The projection is `Tabletop.Protocol.Projection`, written only by `EventApplier`.
 - One table frame everywhere — on the wire, in `Tabletop.Geometry` (`Table`, `ZoneStyles`, `Movement(table:)`) and in this client: origin at the table's corner, `0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up (geometry plan → Global Constraints, game server plan → `DraftEditor.OnSlab`). Nothing converts between table frames. Yaw 0 faces +Y, positive yaw counter-clockwise from above (geometry plan). Godot: `x = X`, `y = Z`, `z = −Y`, `rotation.y = yaw` in radians (`WorldFrame`).
 - One world unit = one inch; Godot units are inches too. The slab is drawn 1" thick (setup content → Thickness is a render constant).
 - The namespace `Tabletop.Client.Table` shadows the type `Tabletop.Geometry.Table` wherever both are in scope, so every use of the on-slab check is written `Tabletop.Geometry.Table.ContainsPoint(...)` outside `tests/`. Nothing else in the client names a bare `Table` type.
-- Every HTTP request carries `Tabletop-Client-Version: {ProtocolVersion.Current}`; a `426` shows the update-required screen and nothing else runs (management API → The version check). The JWT is refreshed with `POST /v1/auth/session/refresh` every 60 s (management plan → Interfaces needed → Client-shell plan).
+- Every HTTP request carries `Tabletop-Client-Version: {ProtocolVersion.Current}`; a `426` shows the update-required screen and nothing else runs (management API → The version check). The JWT is refreshed with `POST /v1/auth/session/refresh` every 60 s (management plan → Interfaces needed → Client-shell plan). Only a `401` signs out; any other failure keeps the token and the next refresh waits a full minute (Task 5).
 - Server wins, always: a `models_moved` event snaps the piece; `Undo` shows `EventApplier.ProjectTo(n)` until the server's `undone` or `refused` arrives; reconnect discards the projection and rebuilds from `Welcome`/`Board`/`Events` (client shell → The connection and the projection). A `ProjectionDesyncException` discards it the same way and resyncs immediately, once per sequence position, and the bound sends the player Home with the reason.
 - Presence is sent at 20 Hz while something changed and never logged; setup drags stream `held` placements and the drop is one edit; play drags the same and the drop is one `MoveModels` (presence; setup phase → The draft is the row).
 - Local settings (animate, muted window kinds, remember me, server URLs) live in `user://settings.json`; the remembered session in `user://session.bin` (a plain file, owner-only where the platform has file modes; no Windows-only mechanism, because the client may run on other operating systems); the mesh cache in `user://cache/` keyed by SHA-256 hash.
 - **The client is not Windows-only.** Windows is the first export target and the only one this plan builds a preset for, but no design decision here may depend on Windows (`architecture.md` → Deliverables). `OS.GetUserDataDir()` and `res://`/`user://` are portable, and the remembered session is a plain file rather than `ProtectedData` (Task 2). WSL plus a Windows Godot editor is the description of the development machine, a fact about the current machine and not a platform commitment.
+- Nothing but `Connect` is sent before `Welcome`. Presence and pings drop, and commands and edits throw `InvalidOperationException` (Task 5).
+- Godot-layer rules, in every node and panel:
+  - Session subscriptions are fields, removed in `_ExitTree`.
+  - No exception escapes `async void`; handlers catch `Exception` last, or run through `Guarded` (Task 13).
+  - After an await, check `IsInstanceValid(this)` before touching a node.
+  - Never read a global transform before the node is in the tree.
+  - A Session event may arrive off the main thread; the handler posts through `IDispatcher`, as `Main` does.
 - Identifiers are `Guid.CreateVersion7()` (client-generated ids for terrain placements, markers, commands, edits).
 - Local only: management at `http://localhost:5100`, the game server at `ws://localhost:5200/ws`, MinIO presigned URLs at `http://localhost:9000`, all over WSL's forwarded localhost (contracts plan → Local development).
 - Test-driven for everything with logic: xUnit in `tests/Tabletop.Client.Tests` over `client/src/Core/**`; the Godot layer is tested by running `./scripts/godot` against the local servers. Commit after every task, one-line imperative message, with the `Co-Authored-By` trailer naming the model.
@@ -40,7 +47,7 @@ client/scenes/Main.tscn                      modified: root Node (Main.cs) that 
 client/scenes/Login.tscn  Home.tscn  Game.tscn  UpdateRequired.tscn  TableView.tscn   minimal: root + script
 client/src/Main.cs                           modified: owns Session, builds the dispatcher, swaps screens
 client/src/Core/                             Godot-free; compiled into the test project by source inclusion
-  IDispatcher.cs           where Session raises events; ImmediateDispatcher for tests
+  IDispatcher.cs           where Session handles socket frames; ImmediateDispatcher for tests
   ClientSettings.cs        settings.json: animate, muted window kinds, remember me, URLs
   SessionStore.cs          session.bin: the remembered JWT in an owner-only file, no keystore
   ManagementDtos.cs        the management API's request/response shapes the client reads
@@ -62,7 +69,7 @@ client/src/Screens/  GodotDispatcher.cs  LoginScreen.cs  UpdateRequiredScreen.cs
 client/src/Table/    WorldFrame.cs  TableView.cs  SlabNode.cs  PieceNode.cs  TerrainNode.cs  MarkerNode.cs
                      ZoneNode.cs  OrbitCamera.cs  MeshLoader.cs  TableInput.cs  RulerNode.cs  MoveRegionNode.cs  PresenceOverlay.cs
                      Palette.cs  Animator.cs
-client/src/Panels/   LobbyPanel.cs  SetupToolbar.cs  AskPanel.cs  LogPanel.cs  PieceMenu.cs  TeamPanel.cs
+client/src/Panels/   Guarded.cs  LobbyPanel.cs  SetupToolbar.cs  AskPanel.cs  LogPanel.cs  PieceMenu.cs  TeamPanel.cs
 client/content/builtin/                      textures/*.png (5) and terrain/*.glb (10 group meshes); absence draws the proxy
 tests/Tabletop.Client.Tests/                 xUnit; <Compile Include="../../client/src/Core/**/*.cs" />
 scripts/check-client                         the two greps: no physics body in a scene, no rules type in a script
@@ -74,19 +81,28 @@ Files split by responsibility: `Core/` holds every decision that can be tested w
 
 ## Tasks
 
-One file per task, in plan order; each ends green and committed.
+One file per task, in plan order, and one file per group of steps where a task runs long; each task ends green and committed.
 
 - [Task 1: Reference the libs, the client test project and the two greps](task-01-reference-libs-client-test.md)
 - [Task 2: Local settings and the remembered session](task-02-local-settings-remembered-session.md)
 - [Task 3: The management client](task-03-management-client.md)
 - [Task 4: The socket seam, the real socket, and the presence table](task-04-socket-seam-real-socket.md)
-- [Task 5: The session object](task-05-session-object.md)
+- Task 5: The session object
+  - [5a: interfaces and the session tests](task-05a-session-tests.md)
+  - [5b: the refresh and sign-out tests](task-05b-refresh-sign-out-tests.md)
+  - [5c: `IDispatcher` and `Session`](task-05c-session-object.md)
 - [Task 6: Built-in content and the four terrain generators](task-06-built-content-terrain-generators.md)
 - [Task 7: The content-addressed asset cache](task-07-content-addressed-asset-cache.md)
-- [Task 8: View models — log text, the Ask view, the menu, the ruler, the animation queue](task-08-view-models-log-text.md)
+- Task 8: View models: log text, the Ask view, the menu, the ruler, the animation queue
+  - [8a: interfaces and the tests](task-08a-view-model-tests.md)
+  - [8b: `Names` and `LogText`](task-08b-names-log-text.md)
+  - [8c: `AskViewModel` and `MenuModel`](task-08c-ask-view-menu.md)
+  - [8d: `MoveRuler` and `AnimationQueue`](task-08d-ruler-animation-queue.md)
 - [Task 9: `Main`, the dispatcher, screen swapping, the login and update-required screens](task-09-main-dispatcher-screen-swapping.md)
 - [Task 10: The Home screen — the game list, create game, join](task-10-home-screen-game-list.md)
-- [Task 11: The table view — frame, slab, proxies, terrain, markers, zones, camera, mesh loading](task-11-table-view-frame-slab.md)
+- Task 11: The table view: frame, slab, proxies, terrain, markers, zones, camera, mesh loading
+  - [11a: interfaces, the frame and the nodes](task-11a-table-view-nodes.md)
+  - [11b: `MeshLoader` and `TableView`](task-11b-mesh-loader-table-view.md)
 - [Task 12: Input and presence — select, drag, drop, the ruler, measure, ping, others' cursors and ghosts](task-12-input-presence-select-drag.md)
 - [Task 13: The Game screen — status routing, the lobby panel and the setup toolbar](task-13-game-screen-status-routing.md)
 - [Task 14: The Ask panel and the declared move](task-14-ask-panel-declared-move.md)
@@ -110,14 +126,14 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 | `sealed class PresenceTable` | `Set`, `Remove`, `Of`, `All`, `Clear` |
 | `interface IDispatcher { Post(Action) }`; `ImmediateDispatcher` | |
 | `enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnecting, UpdateRequired }` | |
-| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings> persist, IDispatcher, Func<int,TimeSpan>? backoff)` | state: `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection` (prediction while undo pending), `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events: `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IRL<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool willReconnect)`; `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
+| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings> persist, IDispatcher, Func<int,TimeSpan>? backoff, TimeProvider? time)` | state: `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection` (prediction while undo pending), `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events: `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IRL<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool willReconnect)`; `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync : Task<bool>`, `RefreshAsync : Task<bool>`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendCommandAsync(Command, Guid id) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
 | `sealed record BuiltinTerrain(Name, Label, Volume, MeshFile?)`; `static class BuiltinContent` | `Terrain` (35 names, Task 6), `Textures` (5), `MarkerVisuals`, `TerrainMeshGroups` (10), `ZoneStyleIds`, `Place(name, Point3, Yaw, scale)`, `VolumesOf(name)`, `TextureFile(name)`, `TerrainMeshFile(name)` |
 | `enum Planet { Generic, Hospitable, Wasteland, Death }`; `static class TerrainGenerators` | `Generate(Planet, TableSize, Random) : IRL<AddTerrain>`, `Fixed(Planet)`, `Rolled(Planet, int twoD6)` |
 | `sealed class AssetCache(root, HttpClient)`; `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
-| `sealed class Names(GameInfo, Projection?)` | `Participant(Guid?)`, `Team`, `Unit`, `Model`, `UnitOfModel`, `Piece`, `static Short` |
+| `sealed class Names(GameInfo, Projection?)` | `Participant(Guid?)`, `Team`, `Unit`, `Model`, `UnitOfModel`, `TeamOfModel`, `Piece`, `static Short` |
 | `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer, Names)`, `Touched(GameEvent)` |
 | `enum AskMode`; `sealed record AskView(Ask, Mode, Highlights, AnsweredTeams, AutoPass)`; `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, muted)`, `WaitingFor(...)`, `AnsweredBy(log, askId, names)`, `ModeOf(LegalSet)`, `SpendableBy(Projection, GameInfo, Guid team, TokenSpend)`, `ConfirmLabel(Ask)` |
-| `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`; `sealed record MenuItem(Label, Input, Build)`; `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
+| `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`; `sealed record MenuItem(Label, Input, Build)`; `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `OffTable(Projection, teamId, Names)`, `ForMarker`, `ForFrame`, `KnownActionNames` |
 | `sealed record RulerReadout(Distance, Remaining, OverAllowance)`; `static class MoveRuler` | `Read(start, current, allowance)`, `UsedInFrame(Frame, modelId)`, `Region(PlacedModel start, MoveRegion, IRL<WorldVolume> volumes, TableSize) : IRL<Point2>`, `ExitRegion(ModelBody body, PlacedModel container, MoveRegion, IRL<WorldVolume> volumes, TableSize) : IRL<Point2>`, `IsDisembark(MoveRegion) : bool` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(animate)`, `Count` |
 
@@ -130,12 +146,13 @@ Later plans (the scheduler and interpreter plans' end-to-end runs, a replay view
 | `LoginScreen`, `UpdateRequiredScreen`, `HomeScreen`, `GameScreen : Control` | `GameScreen.Table`, `.Input`, `Toast(text)`; `partial void ShowPlayPanels(bool)` |
 | `static class WorldFrame` | `ToGodot(Point3)`, `FromGodot(Vector3)`, `Radians(Yaw)`, `YawFrom(float)` |
 | `static class Palette` | `Team(ordinal)`, `ForDeclarations`, `Proxy`, `Selected`, `Ghost`, `Unassigned`, `Translucent(Color)` |
-| `TableView : Node3D` | `Bind(Session)`, `Redraw()`, `PieceAt`, `TerrainAt`, `MarkerAt`, `Pieces`, `Volumes`, `Size`, `Camera`, `ShowExitGhosts(IRL<Guid>, Guid container)`, `ClearExitGhosts()`, `IsExitGhost(Guid)` |
+| `TableView : Node3D` | `Bind(Session)` (once), `Redraw()`, `PieceAt`, `TerrainAt`, `MarkerAt`, `Pieces`, `Volumes`, `Size`, `Camera`, `ShowExitGhosts(IRL<Guid>, Guid container)`, `ClearExitGhosts()`, `IsExitGhost(Guid)` |
 | `SlabNode`, `PieceNode`, `TerrainNode`, `MarkerNode`, `ZoneNode`, `RulerNode`, `MoveRegionNode`, `OrbitCamera`, `PresenceOverlay` | Tasks 11, 12, 14 |
-| `sealed class MeshLoader(AssetCache, ManagementClient, Guid gameId)` | `RefreshManifest()`, `LoadAssetAsync(assetId, camera, piece)`, `LoadBuiltin(name, fit)` |
+| `sealed class MeshLoader(AssetCache, ManagementClient, Guid gameId)` | `RefreshManifest() : Task` (refetched at `playing`, on a miss and past `ExpiresAt`), `LoadAssetAsync(assetId, camera, piece)`, `LoadBuiltin(name, fit)`, `static Orient(scene, scale, Orientation)` |
 | `TableInput : Node` | `Bind(TableView, Session)`, `Tool`, `Selected`, `Proposing`, `Allowance`, `PieceRightClicked`, `TableRightClicked`, `SelectionChanged`, `PieceLeftClicked`, `ModelDragged`, `PickNextPiece`, `PickNextPoint`, `CancelDrag()` |
-| `LobbyPanel`, `SetupToolbar(GameScreen)`, `TeamPanel(Team)`, `AskPanel`, `LogPanel`, `PieceMenu(Session)` | Tasks 13–15 |
-| `sealed class Animator(Session, TableView)` | Task 15 |
+| `static class Guarded` | `Run(Func<Task>, Action<string> report)`, `Send(Session, Edit)`, `Command(Session, Command, Action<string> report)`, all `async void` and catching every exception |
+| `LobbyPanel`, `SetupToolbar(GameScreen)`, `TeamPanel(Team)`, `AskPanel`, `LogPanel` (`Bind(Session, TableView, report)`), `PieceMenu(Session, report)` (`ItemChosen`) | Tasks 13–15 |
+| `sealed class Animator(Session, TableView) : IDisposable` | Task 15 |
 
 ### Files and scripts
 

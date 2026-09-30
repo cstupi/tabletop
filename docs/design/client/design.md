@@ -93,7 +93,11 @@ game list, create and join, armies, layouts, properties, the per-game asset mani
 presigned download URLs. Every request carries `Tabletop-Client-Version:
 {ProtocolVersion.Current}`. A `426` is a screen of its own rather than a reported error, and
 nothing else runs after it. The JWT lives five minutes. It is refreshed by `POST
-/v1/auth/session/refresh` on a 60-second `Timer` owned by `Main`.
+/v1/auth/session/refresh` on a 60-second `Timer` owned by `Main`. `TryResumeAsync` at boot and
+`RefreshAsync` on the timer share one in-flight request. Only a `401` signs out. A `426` sets `UpdateRequired`. Any other failure
+keeps the token, in memory and on disk, and sets `_noRefreshBefore` one minute past the attempt's
+start. `_authEpoch` is bumped by logout and by every login, and a refresh outcome from an older
+epoch is dropped. Neither method throws. `LogoutAsync` always finishes locally.
 
 The game server is the client's only source of game truth. One socket carries four kinds of
 traffic: commands up and events down (logged), Asks down, presence both ways and discarded, and
@@ -188,7 +192,9 @@ flowchart TD
   table -- reads --> session
 ```
 
-A status change happens inside the game screen. It is never a scene swap.
+A status change happens inside the game screen. It is never a scene swap. `GameScreen` creates
+one `TableView` and binds it once for the whole game, and a second `Bind` throws. It draws the
+draft in `lobby` and `setup` and the projection's board from `playing` on.
 
 `Main.Route` maps `Session.Phase` to a scene path and returns early when the path is unchanged, so
 `Connecting → Connected → Reconnecting` all stay on `Game.tscn` and the table is not rebuilt.
@@ -237,7 +243,7 @@ stateDiagram-v2
   Reconnecting --> LoggedIn: ProjectionDesyncException, at or under the floor
   Connected --> LoggedIn: Home button, Leave, or 1000 after welcome
   Connecting --> LoggedIn: Rejected: InvalidSession or NotAParticipant
-  LoggedIn --> LoggedOut: LogoutAsync
+  LoggedIn --> LoggedOut: LogoutAsync, or 401 on a refresh
   Connecting --> UpdateRequired: Rejected: UpgradeRequired
   LoggedIn --> UpdateRequired: 426 on any request
   UpdateRequired --> [*]: quit
@@ -252,6 +258,10 @@ by a close. A `BoardMessage` follows from `setup` on. Then one or more `EventsMe
 `playing`/`ended`, batched at up to 500 events, with an empty one when the log is empty. Then live
 frames. A game that ended before setup ran has no board and no log, so `Welcome` is the whole
 sequence.
+
+`Session` sends nothing but `Connect` before `Welcome`, gated on `_welcomed`. Presence and pings
+are dropped. `SendCommandAsync` and `SendEditAsync` throw `InvalidOperationException`. A failed
+undo send clears its prediction.
 
 Reconnect is connect. `ConnectAsync` calls `Reset()` before the first frame, discarding `Applier`,
 `Draft`, `Game`, `ParticipantId`, the undo prediction and the presence table. Everything comes back
@@ -522,7 +532,7 @@ sequenceDiagram
   participant S3 as blob store
   TV->>ML: LoadAssetAsync(assetId, cameraPos, piecePos)
   Note over TV: proxy is already drawn
-  ML->>MG: GET /v1/games/:id/assets (once)
+  ML->>MG: GET /v1/games/:id/assets (at Bind, at playing, on a miss, after ExpiresAt)
   MG-->>ML: Manifest: hash, presigned Url, Scale, Orientation
   ML->>AC: Has(hash)?
   alt cached
@@ -539,6 +549,11 @@ sequenceDiagram
 ```
 
 Loading is background and every failure degrades to the proxy.
+
+The manifest is fetched at `Bind`. `TableView` fetches it again when status becomes `playing`,
+because every army is in by then. `LoadAssetAsync` fetches it once more on an asset id it does not
+list, and before any lookup at or after `Manifest.ExpiresAt`. Concurrent fetches join the one in
+flight.
 
 The hash is the cache key, so the same mesh in two games, or used by two participants, is one
 download per machine. Ordering is by distance to the camera at request time, through a priority
@@ -618,7 +633,7 @@ participants: `PresenceOverlay.StartOf` returns null for an occupant.
 Every input to the region comes from the server. The Ask's `MoveRegion` carries the allowance, the
 impassable and difficult volume ids and the difficult cap. The client renders the consequence and
 the server re-decides every answer. Drawing a region the server offered is not a legality check.
-Under `strict` the server checks `LegalSet.Contains`, and for a disembark `GfMoves.ExitPlacement`
+Under `strict` the server checks `LegalSetMembership.Contains`, and for a disembark `GfMoves.ExitPlacement`
 re-checks every model. A ghost dropped outside the drawn region still commits.
 
 `Region` cannot serve a disembark, so there are two functions. When `Containment.ExitingId` is
@@ -814,7 +829,7 @@ or `Text` item, borrows the next click for a `PieceId` or `TablePoint` item, and
 | right-click a model | `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
 | Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, grants, wounds-this-activation |
 | right-click a marker | `ForMarker`: move, remove |
-| right-click a team panel | `ForTeam`: score, set the active team, set the round |
+| right-click a team panel | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |
 | Alt-right-click the table | drop a token here, leave the game |
 
 Each item is one ordinary command, logged with the actor, through the same path automation uses.
@@ -823,7 +838,9 @@ permanently recorded does not need a confirmation step. Menu edits are accepted 
 enforcement setting, since they are the override path.
 
 `ForFrame`'s `MenuInput.TablePoint` item ("Place on the table, here" / "Take out of the container,
-here") is the manual containment path beside the Ask-driven one. It is the only path when no Ask is
+here") is the manual containment path beside the Ask-driven one. A model off the table has no node
+to right-click, so `OffTable` offers the same item from its team's panel, through the shared
+`BackOnTable` builder and `Names.TeamOfModel`. That item is the only path when no Ask is
 open: a transport deploying with units inside (p.14), a correction after a misclick, or a group
 playing under `warn`/`silent`. `KnownActionNames` exists because the pinned `Properties`' action
 rows never reach the client. The menu offers the names it has seen, meaning the actions recorded
@@ -976,7 +993,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `sealed class PresenceTable` | `Set`, `Remove`, `Of`, `All`, `Clear` |
 | `interface IDispatcher { void Post(Action) }`, `ImmediateDispatcher` | |
 | `enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnecting, UpdateRequired }` | |
-| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings>, IDispatcher, Func<int,TimeSpan>?)` | state `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection`, `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IReadOnlyList<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool)`; methods `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
+| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings>, IDispatcher, Func<int,TimeSpan>?, TimeProvider?)` | state `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection`, `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IReadOnlyList<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool)`; methods `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
 | `sealed record BuiltinTerrain(string Name, string Label, Volume Volume, string? MeshFile)`, `static class BuiltinContent` | `Terrain`, `Textures`, `MarkerVisuals`, `ZoneStyleIds`, `Place(name, Point3, Yaw, scale)`, `VolumesOf(name)`, `TextureFile(name)`, `TerrainMeshFile(name)` |
 | `enum Planet { Generic, Hospitable, Wasteland, Death }`, `static class TerrainGenerators` | `Generate(Planet, TableSize, Random) : IReadOnlyList<AddTerrain>`, `Fixed(Planet)`, `Rolled(Planet, int twoD6)` |
 | `sealed class AssetCache(string root, HttpClient)`, `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
@@ -1290,7 +1307,8 @@ its own would mean the event spine had been broken.
 | --- | --- | --- |
 | Management unreachable | the login screen shows `Cannot reach {ManagementUrl}`; the Home screen's list stays stale | yes; no retry loop on HTTP |
 | `426` on any request | `UpdateRequiredException` sets `Phase = UpdateRequired`, which is a sink; the screen offers Quit and nothing else | yes |
-| JWT expired mid-session | the 60 s refresh normally prevents it; if a refresh fails with `401`, `TryResumeAsync` clears the store and drops to `LoggedOut`. An open socket is unaffected, because the server authenticates once at connect | yes; a socket can outlive its credential |
+| JWT expired mid-session | the 60 s refresh normally prevents it; a refresh answered `401` disconnects, clears the store and drops to `LoggedOut`. An open socket is otherwise unaffected, because the server authenticates once at connect | yes; a socket can outlive its credential |
+| Refresh fails with anything but `401` or `426` | the token stays in memory and on disk; no refresh is sent for one minute from the failed attempt's start | yes; a management outage does not sign anyone out, and the five-minute JWT absorbs one missed tick |
 | Socket closes unexpectedly | reconnect with backoff 1, 2, 5, 10, 10… s; `ConnectionLost(willReconnect: true)` toasts; the projection is discarded and rebuilt, and the `Welcome` restores the player's team | yes |
 | Socket replaced by the same participant's newer connection (`1000` after `welcome`) | no reconnect; drop to Home | yes; reconnecting would fight the newer socket |
 | Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two |
@@ -1301,12 +1319,12 @@ its own would mean the event spine had been broken.
 | A resync faulting again at or before `_desyncFloor` | no further attempt; `Phase = LoggedIn`, `LastCloseReason` is the exception's message, and Home prints it | yes; the bad event is in the server's own log, and rejoining buys one more attempt |
 | A frame kind the client does not act on, `AtRest` included | dropped; `Handle`'s switch has no default arm and deserialization has already succeeded | yes; contracts plan ruling 3 |
 | A mesh 404s, its presigned URL has expired, or its hash mismatches | `MeshLoader` logs and returns null; the proxy stays; the game is playable | yes, and load-bearing |
-| Presigned URLs expire mid-game (`Manifest.ExpiresAt`, 60 minutes) | `RefreshManifest()` must be called again; a long game that never re-fetches will fail to load newly-visible meshes | a gap: nothing schedules a refresh on expiry |
+| Presigned URLs expire mid-game (`Manifest.ExpiresAt`, 60 minutes) | the next `LoadAssetAsync` at or after `ExpiresAt` refetches the manifest before it looks the asset up | yes |
 | Presence stops without `PresenceEnded` | another player's `held` placement leaves that piece's node displaced from the projection until the next `Redraw` for it | a gap: the server sends `PresenceEnded` when a participant's last socket closes, and the client relies on that frame alone, with no timeout of its own |
 | A frame over 4 MiB | the server treats it as a protocol violation; a very large `ReplaceDraft` is the only realistic candidate | not guarded on the client |
 | Two players drag the same piece | last drop wins; each saw the other's drag through presence | yes |
 | An unknown zone shape id | `ZoneNode` draws nothing and logs a warning | yes; the game server's `DraftEditor` tests use shape ids `ZoneStyles` does not resolve |
-| A model placed outside the drawn region | committed as sent; the server re-decides (`LegalSet.Contains` under `strict`, `GfMoves.ExitPlacement` for a disembark) | yes; the client never withholds an answer on its own geometry |
+| A model placed outside the drawn region | committed as sent; the server re-decides (`LegalSetMembership.Contains` under `strict`, `GfMoves.ExitPlacement` for a disembark) | yes; the client never withholds an answer on its own geometry |
 
 Concurrency, ordering and lifecycle hazards:
 

@@ -4,8 +4,8 @@
 - Create: `client/src/Panels/AskPanel.cs`, `client/src/Table/MoveRegionNode.cs`, `client/src/Screens/GameScreen.Play.cs`
 
 **Interfaces:**
-- Consumes: `AskViewModel` (`Mine`, `SpendableBy`, `ConfirmLabel`), `AskView`, `AskMode`, `MoveRuler` (`Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark`), `Names` (Core); `Session` (`Projection`, `Game`, `MyTeamId`, `Settings.MutedWindowKinds`, `SendCommandAsync`, `EventsApplied`, `Log`); `TableView` (with `ShowExitGhosts`/`ClearExitGhosts`, Task 11), `TableInput` (with `PieceLeftClicked` and `CancelDrag`, Task 12), `RulerNode`, `PieceNode` (Table); `Ask`, `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `MoveContainment`, `TokenSpend`, `Confirmation`, `AnswerAsk`, `Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `TokensSpent`, `Confirmed`, `Passed`, `ModelRelocation`, `OnTable`, `Inside`, `Placement` (Protocol); `PlacedModel`, `ModelBody`, `Yaw`, `WorldVolume` (Geometry).
-- Produces: `partial class AskPanel : PanelContainer` — `void Bind(Session, TableView, TableInput)`; renders `AskViewModel.Mine(...)` by mode: `Choose` → one button per option (highlighting each option's pieces on hover), `PickPieces` → click eligible pieces on the table (highlighted), a counter `n of min–max` that names the piece when `Max` is 1, the consumed click cancelling the drag it started, "Done" → `SelectedPieces`; `Allocate` → a `SpinBox` per target summing to `Amount`, "Done" → `Allocated`; `Assign` → an `OptionButton` per item over the targets, "Done" → `Assigned`; `Move` → the region drawn (`MoveRegionNode`), the models draggable with the ruler showing distance and remaining allowance (`MoveRuler.Read(start, current, Allowance − UsedInFrame)`), positions streamed as `proposed` ghosts, "Commit" → `Destinations` with the settled positions — and, when the legal set's `Containment` says so, two more things: any `Enterable` container is a click target whose click answers `Destinations` with `Inside(container)` for **every** model of the unit, and a non-null `ExitingId` switches the whole mode to a disembark, where the region is `MoveRuler.ExitRegion` about the container's own base, the drag ghosts are `TableView.ShowExitGhosts` on the container's node, and the remaining-allowance readout is suppressed; `TokenSpend` → one private `SpinBox` per entry of `AskViewModel.SpendableBy`, prefixed with the model's name, bounded by that model's own maximum, with no total anywhere (p.13: any number up to what each model holds), "Spend" → `TokensSpent` of the non-zero boxes, plus `AnsweredTeams` as "Team 2 has answered" and, once the server closes the sealed Ask, every team's answer at once from `ask_closed` (`LogText.Answer`); `Confirm` → one button labelled `AskViewModel.ConfirmLabel` ("Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask) → `Confirmed`; a "Pass" button whenever `AllowPass`; an `AutoPass` view sends `Passed` at once and shows "auto-passed (muted: {kind})" with an "Unmute" link; `WaitingFor` renders as "Waiting for Team N…"; `AnsweredBy` shows under a sealed Ask. A `Refused` for the panel's last command shows in the panel (`strict` enforcement: "the server refused: outside the legal set"). `partial class MoveRegionNode : Node3D` — `Show(IReadOnlyList<Point2> boundaryWire, Color)`, `Hide()`. `GameScreen.Play.cs` — `partial void ShowPlayPanels(bool)` creating the `AskPanel` (and Task 15's `LogPanel`) at `playing`/`ended`.
+- Consumes: `AskViewModel` (`Mine`, `SpendableBy`, `ConfirmLabel`), `AskView`, `AskMode`, `MoveRuler` (`Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark`), `Names` (Core); `Session` (`Projection`, `Game`, `MyTeamId`, `Settings.MutedWindowKinds`, `SendCommandAsync(Command, Guid id)` (Task 5), `EventsApplied`, `RefusedReceived`, `Log`); `Guarded` (Task 13); `TableView` (with `ShowExitGhosts`/`ClearExitGhosts`, Task 11), `TableInput` (with `PieceLeftClicked` and `CancelDrag`, Task 12), `RulerNode`, `PieceNode` (Table); `Ask`, `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `MoveContainment`, `TokenSpend`, `Confirmation`, `AnswerAsk`, `Chosen`, `SelectedPieces`, `Allocated`, `Assigned`, `Destinations`, `TokensSpent`, `Confirmed`, `Passed`, `ModelRelocation`, `OnTable`, `Inside`, `Placement` (Protocol); `PlacedModel`, `ModelBody`, `Yaw`, `WorldVolume` (Geometry).
+- Produces: `partial class AskPanel : PanelContainer` — `void Bind(Session, TableView, TableInput)`; renders `AskViewModel.Mine(...)` by mode: `Choose` → one button per option (highlighting each option's pieces on hover), `PickPieces` → click eligible pieces on the table (highlighted), a counter `n of min–max` that names the piece when `Max` is 1, the consumed click cancelling the drag it started, "Done" → `SelectedPieces`; `Allocate` → a `SpinBox` per target summing to `Amount`, "Done" → `Allocated`; `Assign` → an `OptionButton` per item over the targets, "Done" → `Assigned`; `Move` → the region drawn (`MoveRegionNode`), the models draggable with the ruler showing distance and remaining allowance (`MoveRuler.Read(start, current, Allowance − UsedInFrame)`), positions streamed as `proposed` ghosts, "Commit" → `Destinations` with the settled positions — and, when the legal set's `Containment` says so, two more things: any `Enterable` container is a click target whose click answers `Destinations` with `Inside(container)` for **every** model of the unit, and a non-null `ExitingId` switches the whole mode to a disembark, where the region is `MoveRuler.ExitRegion` about the container's own base, the drag ghosts are `TableView.ShowExitGhosts` on the container's node, and the remaining-allowance readout is suppressed; `TokenSpend` → one private `SpinBox` per entry of `AskViewModel.SpendableBy`, prefixed with the model's name, bounded by that model's own maximum, with no total anywhere (p.13: any number up to what each model holds), "Spend" → `TokensSpent` of the non-zero boxes, plus `AnsweredTeams` as "Team 2 has answered" and, once the server closes the sealed Ask, every team's answer at once from `ask_closed` (`LogText.Answer`); `Confirm` → one button labelled `AskViewModel.ConfirmLabel` ("Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask) → `Confirmed`; a "Pass" button whenever `AllowPass`; an `AutoPass` view sends `Passed` at once and shows "auto-passed (muted: {kind})" with an "Unmute" link; `WaitingFor` renders as "Waiting for Team N…"; `AnsweredBy` shows under a sealed Ask. A `Refused` for the panel's last command shows in the panel's own refusal label (`strict` enforcement: "The server refused: …") and survives the re-render of the same Ask; a different Ask, or none, clears it. A failed send shows there too ("Could not send the answer: …") and rebuilds the still-rendered Ask from scratch. `partial class MoveRegionNode : Node3D` — `Show(IReadOnlyList<Point2> boundaryWire, Color)`, `Hide()`. `GameScreen.Play.cs` — `partial void ShowPlayPanels(bool)` creating the `AskPanel` (and Task 15's `LogPanel`) at `playing`/`ended`.
 - The move button of the spec is the activate Ask's option (`{unit}:{Action}`): choosing it starts the sequence, whose move step opens the `MoveRegion` Ask (client shell → Input and presence). "Hand moves arrange models and never end a turn" is the plain drag of Task 12.
 - **The panel keys on the legal set, never on the question name**, which is why a second ruleset question needs no new branch. Two of them arrive carrying a `move_region`: **`move`**, opened by the move step of `hold`/`advance`/`rush`/`charge` (interpreter plan Task 14), and **`disembark`**, opened by `transport-destroyed`'s `place` step when a wrecked container's survivors must be placed fully within 6" of it before it is removed (interpreter plan Task 19, rulebook p.15). `disembark` always carries `Containment.ExitingId`, sets `AllowPass` false, and puts the exit distance itself in `Allowance` — which `MoveRuler.IsDisembark` makes the panel ignore, so it renders exactly as a disembark move does and shares every line of `RenderMove`. Neither name belongs in `AskQuestions`: those are the engine's own eight, and a ruleset's question names are plain strings (`move`, `disembark`, `shoot-or-not`, `declare-targets`, `charge-target`, …) that this panel never switches on. The one place a question name is read at all is `AskViewModel.ConfirmLabel`, and it only ever compares against `AskQuestions.EndRound`.
 
@@ -26,6 +26,7 @@ public partial class MoveRegionNode : Node3D
     public void Show(IReadOnlyList<Point2> boundaryWire, Color colour)
     {
         Hide();
+        if (boundaryWire.Count == 0) return;
         var verts = boundaryWire.Select(p => WorldFrame.ToGodot(new Point3(p.X, p.Y, 0.03))).ToArray();
         var centre = verts.Aggregate(Vector3.Zero, (a, v) => a + v) / verts.Length;
         var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);
@@ -33,7 +34,7 @@ public partial class MoveRegionNode : Node3D
         _mesh = new MeshInstance3D { Mesh = st.Commit(), MaterialOverride = Palette.Translucent(colour with { A = 0.25f }) };
         AddChild(_mesh);
     }
-    public new void Hide() { _mesh?.QueueFree(); _mesh = null; }
+    public new void Hide() { if (_mesh is not null && IsInstanceValid(_mesh)) _mesh.QueueFree(); _mesh = null; }
 }
 ```
 
@@ -47,6 +48,7 @@ using Tabletop.Client.Core;
 using Tabletop.Client.Table;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
+using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Panels;
 
@@ -54,44 +56,81 @@ namespace Tabletop.Client.Panels;
 public partial class AskPanel : PanelContainer
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
-    readonly VBoxContainer _box = new(); readonly Label _title = new(), _note = new(); MoveRegionNode? _region;
+    readonly VBoxContainer _box = new(); readonly Label _title = new(), _note = new(), _refusalLabel = new() { Modulate = Colors.Orange }; MoveRegionNode? _region;
     Guid? _renderedAsk, _lastCommand; readonly List<Guid> _picked = new(); Dictionary<Guid, Point3>? _proposed;
-    readonly HashSet<Guid> _sealed = new(); string? _revealed;
+    readonly HashSet<Guid> _sealed = new(); string? _revealed, _refusal; Guid? _refusalAsk;
+    // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
+    double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
+    // Session outlives this panel: every subscription is a field and comes off in _ExitTree. _unhook holds the per-Ask ones.
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Refused>? _onRefused; Action? _unhook;
 
     public void Bind(Session s, TableView view, TableInput input)
     {
         _s = s; _view = view; _input = input;
-        AddChild(_box); _box.AddChild(_title); _box.AddChild(_note);
+        AddChild(_box); _box.AddChild(_title); _box.AddChild(_note); _box.AddChild(_refusalLabel);
         view.AddChild(_region = new MoveRegionNode());
-        s.EventsApplied += events => { Reveal(events); Render(); }; s.GameChanged += Render; s.BoardChanged += Render;
-        s.RefusedReceived += r => { if (r.MessageId == _lastCommand) { _note.Text = $"The server refused: {r.Detail}"; _renderedAsk = null; Render(); } };
+        _onEvents = events => { Reveal(events); Render(); }; _onChanged = Render;
+        _onRefused = r => { if (r.MessageId == _lastCommand) { _refusal = $"The server refused: {r.Detail}"; _refusalAsk = _renderedAsk; _renderedAsk = null; Render(); } };
+        s.EventsApplied += _onEvents; s.GameChanged += _onChanged; s.BoardChanged += _onChanged; s.RefusedReceived += _onRefused;
         Render();
     }
 
-    void Render()
+    public override void _ExitTree()
+    {
+        if (_s is null) return;
+        _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.RefusedReceived -= _onRefused;
+        Unhook();
+        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; }
+        if (_region is not null && IsInstanceValid(_region)) { _region.Hide(); _region.QueueFree(); }
+    }
+
+    void Unhook() { _unhook?.Invoke(); _unhook = null; ResetMove(); }
+
+    /// <summary>A move Ask's table state, dropped whenever the Ask ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
+    void ResetMove()
+    {
+        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; }
+        if (_region is not null && IsInstanceValid(_region)) _region.Hide();
+    }
+
+    /// <summary>The refusal or send error has its own label, set (not appended) on every render, so N renders show it once.</summary>
+    void Render() { RenderAsk(); _refusalLabel.Text = _refusal ?? ""; }
+
+    void RenderAsk()
     {
         var p = _s.Projection; var game = _s.Game;
         if (p is null || game is null) return;
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
+        if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         if (mine is null)
         {
-            ClearControls(); _renderedAsk = null; _region?.Hide();
+            ClearControls(); Unhook(); _renderedAsk = null; _region?.Hide();
             _title.Text = AskViewModel.WaitingFor(p, game, _s.MyTeamId) is { } teams ? $"Waiting for {teams}…" : (p.OpenAsks.Count == 0 ? "" : "Waiting…");
             _note.Text = _revealed ?? "";                                  // a sealed Ask's reveal stays up until the next Ask
             return;
         }
         if (_renderedAsk == mine.Ask.Id) return;
-        ClearControls(); _renderedAsk = mine.Ask.Id; _picked.Clear(); _proposed = null; _note.Text = ""; _revealed = null;
+        ClearControls(); Unhook(); _renderedAsk = mine.Ask.Id; _picked.Clear(); _proposed = null; _note.Text = ""; _revealed = null;
         _title.Text = mine.Ask.Prompt;
         foreach (var id in mine.Highlights) _view.PieceAt(id)?.SetHighlight(Palette.Selected);
-        if (mine.AutoPass) { _ = Answer(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})"; _box.AddChild(Btn("Unmute", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!)))); return; }
+        if (mine.AutoPass && _refusal is null) {   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
+            Send(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})"; _box.AddChild(Btn("Unmute", () => _s.UpdateSettings(x => x.Unmute(mine.Ask.WindowKind!)))); return; }
         var names = new Names(game, p);
         switch (mine.Mode)
         {
-            case AskMode.Choose: foreach (var c in ((Options)mine.Ask.Legal).Choices) _box.AddChild(Btn(c.Label, () => _ = Answer(mine.Ask, new Chosen(c.Id)))); break;
+            case AskMode.Choose:
+                foreach (var c in ((Options)mine.Ask.Legal).Choices)
+                {
+                    var b = Btn(c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
+                    var pieces = c.Pieces; var lit = mine.Highlights;
+                    b.MouseEntered += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(Palette.Selected); };
+                    b.MouseExited += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(lit.Contains(id) ? Palette.Selected : null); };
+                    _box.AddChild(b);
+                }
+                break;
             case AskMode.PickPieces:
                 var sel = (PieceSelection)mine.Ask.Legal; var count = new Label { Text = $"0 of {sel.Min}–{sel.Max}" }; _box.AddChild(count);
-                _input.PieceLeftClicked += OnPick;
+                _input.PieceLeftClicked += OnPick; _unhook += () => _input.PieceLeftClicked -= OnPick;
                 // The clicked piece's own id first, then the id selection widened to: an Eligible set holds
                 // model ids (a Takedown's chosen model, p.14) or unit ids (a charge target, a deploy), and a bare
                 // click on a model selects its unit — so keying on Selected.PieceId alone can never match a
@@ -109,17 +148,17 @@ public partial class AskPanel : PanelContainer
                         _view.PieceAt(pick)?.SetHighlight(Palette.Ghost);
                     }
                 }
-                _box.AddChild(Btn("Done", () => { _input.PieceLeftClicked -= OnPick; _ = Answer(mine.Ask, new SelectedPieces(_picked.ToList())); }));
+                _box.AddChild(Btn("Done", () => { _input.PieceLeftClicked -= OnPick; Send(mine.Ask, new SelectedPieces(_picked.ToList())); }));
                 break;
             case AskMode.Allocate:
                 var alloc = (Allocation)mine.Ask.Legal; var spins = alloc.Targets.ToDictionary(t => t, t => new SpinBox { MinValue = 0, MaxValue = alloc.Amount, Prefix = names.Piece(t) });
                 foreach (var sp in spins.Values) _box.AddChild(sp);
-                _box.AddChild(Btn($"Done (assign {alloc.Amount})", () => _ = Answer(mine.Ask, new Allocated(spins.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)))));
+                _box.AddChild(Btn($"Done (assign {alloc.Amount})", () => Send(mine.Ask, new Allocated(spins.ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)))));
                 break;
             case AskMode.Assign:
                 var asg = (Assignment)mine.Ask.Legal; var picks = new Dictionary<string, OptionButton>();
                 foreach (var item in asg.Items) { var ob = new OptionButton(); foreach (var t in asg.Targets) ob.AddItem(names.Piece(t)); _box.AddChild(new Label { Text = item.Label }); _box.AddChild(ob); picks[item.Id] = ob; }
-                _box.AddChild(Btn("Done", () => _ = Answer(mine.Ask, new Assigned(picks.ToDictionary(kv => kv.Key, kv => asg.Targets[kv.Value.Selected])))));
+                _box.AddChild(Btn("Done", () => Send(mine.Ask, new Assigned(picks.ToDictionary(kv => kv.Key, kv => asg.Targets[kv.Value.Selected])))));
                 break;
             case AskMode.Move: RenderMove(mine.Ask, (MoveRegion)mine.Ask.Legal, p, names); break;
             case AskMode.TokenSpend:
@@ -130,13 +169,13 @@ public partial class AskPanel : PanelContainer
                 var spendable = AskViewModel.SpendableBy(p, _s.Game!, _s.MyTeamId!.Value, (TokenSpend)mine.Ask.Legal);
                 var spends = spendable.ToDictionary(kv => kv.Key, kv => new SpinBox { MinValue = 0, MaxValue = kv.Value, Prefix = names.Piece(kv.Key) });
                 foreach (var sp in spends.Values) _box.AddChild(sp);
-                _box.AddChild(Btn("Spend", () => _ = Answer(mine.Ask,
+                _box.AddChild(Btn("Spend", () => Send(mine.Ask,
                     new TokensSpent(spends.Where(kv => kv.Value.Value > 0).ToDictionary(kv => kv.Key, kv => (int)kv.Value.Value)))));
                 if (mine.AnsweredTeams.Count > 0) _box.AddChild(new Label { Text = string.Join(", ", mine.AnsweredTeams.Select(t => $"{t} has answered")) });
                 break;
-            case AskMode.Confirm: _box.AddChild(Btn(AskViewModel.ConfirmLabel(mine.Ask), () => _ = Answer(mine.Ask, new Confirmed()))); break;   // "Continue" for a step gate, "End the round" at the round boundary
+            case AskMode.Confirm: _box.AddChild(Btn(AskViewModel.ConfirmLabel(mine.Ask), () => Send(mine.Ask, new Confirmed()))); break;   // "Continue" for a step gate, "End the round" at the round boundary
         }
-        if (mine.Ask.AllowPass) _box.AddChild(Btn("Pass", () => _ = Answer(mine.Ask, new Passed())));
+        if (mine.Ask.AllowPass) _box.AddChild(Btn("Pass", () => Send(mine.Ask, new Passed())));
         if (mine.Ask.WindowKind is { } kind) _box.AddChild(Btn($"Mute '{kind}' windows", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, names) is { } who) _note.Text = $"{who} answered for your team";
     }
@@ -145,10 +184,10 @@ public partial class AskPanel : PanelContainer
     {
         if (legal.ModelIds.Count == 0) return;                                      // nothing to move; the server closes the Ask
         var lead = p.Models[legal.ModelIds[0]];
-        var body = new ModelBody(lead.Slot.Base, lead.Slot.Height);
+        var body = BodyOf(p, lead.Id);
         var ordinal = _s.Game?.Teams.FirstOrDefault(t => t.Id == _s.MyTeamId)?.Ordinal ?? 1;
         _input.Proposing.Clear(); foreach (var id in legal.ModelIds) _input.Proposing.Add(id);
-        _input.ModelDragged += OnDragged;
+        _input.ModelDragged += OnDragged; _unhook += () => _input.ModelDragged -= OnDragged;
 
         if (MoveRuler.IsDisembark(legal))
         {
@@ -159,12 +198,13 @@ public partial class AskPanel : PanelContainer
             if (p.Models.GetValueOrDefault(containerId)?.Location is not OnTable at)
             {
                 _note.Text = "The container is no longer on the table.";               // it was wrecked and shelved; the server will close this Ask
+                Unhook();
                 return;
             }
-            var host = p.Models[containerId];
-            var container = new PlacedModel(new ModelBody(host.Slot.Base, host.Slot.Height), at.Placement);
+            var container = new PlacedModel(BodyOf(p, containerId), at.Placement);
             var within = legal.Containment.ExitWithin ?? 0;
-            _region!.Show(MoveRuler.ExitRegion(body, container, legal, _view.Volumes, _view.Size), Palette.Team(ordinal));
+            (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
+            _region!.Show(MoveRuler.ExitRegion(body, container, legal, _volumes, _size), Palette.Team(ordinal));
             _view.ShowExitGhosts(legal.ModelIds, containerId);                          // Inside carries no Placement: the ghosts start on the container's node
             _note.Text = $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
             _input.Allowance = null;
@@ -172,7 +212,7 @@ public partial class AskPanel : PanelContainer
         }
         else
         {
-            if (lead.Location is not OnTable on) return;
+            if (lead.Location is not OnTable on) { Unhook(); return; }
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             var remaining = Math.Max(0, legal.Allowance - used);
@@ -182,8 +222,8 @@ public partial class AskPanel : PanelContainer
             _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position);
             OfferEmbark(ask, legal, p, names);
         }
-        _box.AddChild(Btn("Commit move", () => _ = Answer(ask, new Destinations(legal.ModelIds.Select(id =>
-            new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(_proposed![id], YawOf(p, id))))).ToList()))));
+        _box.AddChild(Btn("Commit move", () => { if (_proposed is null) return; Send(ask, new Destinations(legal.ModelIds.Select(id =>
+            new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(_proposed![id], YawOf(p, id))))).ToList())); }));
     }
 
     /// <summary>
@@ -198,18 +238,17 @@ public partial class AskPanel : PanelContainer
         IReadOnlyList<Guid> enterable = legal.Containment?.Enterable ?? [];
         if (enterable.Count == 0) return;
         _note.Text += $" Or click a container in reach to embark: {string.Join(", ", enterable.Select(names.Piece))}.";
-        _input.PieceLeftClicked += OnEmbark;
+        _input.PieceLeftClicked += OnEmbark; _unhook += () => _input.PieceLeftClicked -= OnEmbark;
         void OnEmbark(Guid clicked)
         {
             if (_renderedAsk != ask.Id) { _input.PieceLeftClicked -= OnEmbark; return; }   // a later Ask is up: this closure is stale
             if (!enterable.Contains(clicked)) return;
             _input.PieceLeftClicked -= OnEmbark;
             _input.CancelDrag();
-            _ = Answer(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(clicked))).ToList()));
+            Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new Inside(clicked))).ToList()));
         }
     }
 
-    /// <summary>The yaw a destination keeps: the model's own if it has a placement, else the container's — an occupant has none (game flow → Inside a container).</summary>
     /// <summary>The facing the answer carries. A model on the table keeps its own. A disembarking model takes whatever fits at
     /// the point the player dropped it (p.7) — MoveRuler.ExitYawAt runs the same search that drew the region,
     /// so the answer is a placement the server accepts; the container's own facing is the fallback when nothing fits, which
@@ -222,6 +261,8 @@ public partial class AskPanel : PanelContainer
                 _exitWithin, _proposed![modelId].Horizontal, _volumes, _size) ?? c.Placement.Yaw,
         _ => new Yaw(0),
     };
+
+    static ModelBody BodyOf(Projection p, Guid modelId) { var m = p.Models[modelId]; return new ModelBody(m.Slot.Base, m.Slot.Height); }
 
     void OnDragged(Guid modelId, Point3 position) { if (_proposed is not null && _proposed.ContainsKey(modelId)) _proposed[modelId] = position; }
 
@@ -239,13 +280,26 @@ public partial class AskPanel : PanelContainer
         }
     }
 
+    void Send(Ask ask, AskAnswer answer) => Guarded.Run(() => Answer(ask, answer), message => Report(ask.Id, message));
+
+    /// <summary>A failed send is logged. If the Ask is still the one on screen, rebuild it from scratch (its hooks were dropped by the answer) and show the error; a later Ask is left alone.</summary>
+    void Report(Guid askId, string message)
+    {
+        GD.PushWarning($"Answer failed: {message}");
+        if (!IsInstanceValid(this) || _renderedAsk != askId) return;
+        _refusal = $"Could not send the answer: {message}"; _refusalAsk = askId; _renderedAsk = null; Render();
+    }
+
+    void SetButtons(bool disabled) { foreach (var b in _box.GetChildren().OfType<BaseButton>()) if (IsInstanceValid(b)) b.Disabled = disabled; }
+
     async Task Answer(Ask ask, AskAnswer answer)
     {
-        _input.ModelDragged -= OnDragged; _input.Proposing.Clear(); _input.Allowance = null; _proposed = null;
+        SetButtons(true); Unhook(); _proposed = null;                           // one answer per Ask: no second click can double-send
         _view.ClearExitGhosts();                                              // the occupants go back to having no node until the event lands
-        _lastCommand = await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer)); _region?.Hide();
+        _lastCommand = Guid.CreateVersion7();                                   // before the send, so a Refused that lands first still matches
+        await _s.SendCommandAsync(new AnswerAsk(ask.Id, answer), _lastCommand.Value);
     }
-    void ClearControls() { foreach (var c in _box.GetChildren()) if (c != _title && c != _note) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
+    void ClearControls() { ResetMove(); foreach (var c in _box.GetChildren()) if (c != _title && c != _note && c != _refusalLabel) c.QueueFree(); _view.ClearExitGhosts(); foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null); }
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 }
 ```
@@ -266,6 +320,10 @@ While a declared move is open the panel fills `TableInput.Proposing`, so the dra
 | yaw kept | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` |
 
 Everything else is shared: `Proposing`, the `proposed` presence stream, the Commit button, `Answer`, the `Refused` line. The ruler still draws — from the container's placement, because `TableInput.Position` resolves an `Inside` model to its container (Task 12) — and it shows a bare distance rather than a remaining allowance, which is right: p.14 constrains where the model may *end*, not how far it travels. The exit distance is on the panel's note instead.
+
+**One answer per Ask.** `Answer` disables the panel's buttons and drops the Ask's hooks before it sends, so a second click cannot double-send. It sets `_lastCommand` before the await and passes it to `SendCommandAsync(Command, Guid id)`, because a `Refused` can reach the dispatcher before the send's continuation runs. Move state (`Proposing`, `Allowance`, the drawn region) resets through `ResetMove`, which `ClearControls`, `Unhook` and `_ExitTree` all call, so no exit from an Ask leaves the table in a declared move. A failed send re-renders the Ask from scratch, so a half-built declared move is lost. `Projection` is aliased to `Tabletop.Protocol.Projection` against Godot's own `Projection`.
+
+**The disembark yaw reads fields, not the render's locals.** `YawOf` runs at Commit, after `RenderMove` has returned, so `RenderMove`'s disembark branch stores the exit distance, the view's volumes and the table size in `_exitWithin`, `_volumes` and `_size`. `BodyOf(Projection, Guid)` is a private static that builds the `ModelBody` from a `ModelInPlay`'s slot. A board event between render and Commit leaves those fields one render stale.
 
 **Embarking answers with the unit, not the model.** `OfferEmbark` sends one `ModelRelocation` per model of the unit, all to the same `Inside(container)`, because p.15 embarks the whole unit when one model reaches the transport; the server's `MoveStep.Apply` takes that as sent and only drops an `Inside` whose container is not on the table (interpreter plan Task 14). There is no per-reaching-model answer and no partial embark.
 
@@ -290,4 +348,4 @@ public partial class GameScreen
 }
 ```
 
-- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens, so exercise the panel with the skeleton's test engine: temporarily register `FixedAskEngineFactory` with an activate Ask in `server/game/Program.cs` (or run the scheduler plan's server once it exists). Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a simultaneous token spend. Then, once the interpreter plan's casting is in the server, cast with two token holders in reach: the panel shows one spin box per eligible model of my own team and none for the other team's spenders, each box stops at that model's own token count, there is no total to satisfy, the other team's panel says "Team 2 has answered" without saying what, and the close prints *"Revealed: Team 1 spent 2 tokens (…), Team 2 spent 1 token (…)"* with the same words in the log. A Takedown's shot opens a pick over the target unit's models: the models highlight rather than the unit, one click takes it and drags nothing, the panel names the model it took, and the log line reads *"Clay answered for Team 1: picked"* followed by that model's unit and slot name. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.
+- [ ] **Step 4: Run it against the game server skeleton.** With `InertEngine` no Ask ever opens. `FixedAskEngineFactory` exists only in `tests/Tabletop.GameServer.Tests`, and the server takes no reference to its tests, so exercising the panel before the scheduler plan's server exists means copying it into a scratch registration in `server/game/Program.cs` that is not committed. Otherwise this check waits for the scheduler's server. Expected: the option buttons appear for the addressed team, "Waiting for Team 1…" on the other client, the choice logs `ask_answered` and `ask_closed`, the panel shows who answered; muting `casting` in settings auto-passes a simultaneous token spend. Then, once the interpreter plan's casting is in the server, cast with two token holders in reach: the panel shows one spin box per eligible model of my own team and none for the other team's spenders, each box stops at that model's own token count, there is no total to satisfy, the other team's panel says "Team 2 has answered" without saying what, and the close prints *"Revealed: Team 1 spent 2 tokens (…), Team 2 spent 1 token (…)"* with the same words in the log. A Takedown's shot opens a pick over the target unit's models: the models highlight rather than the unit, one click takes it and drags nothing, the panel names the model it took, and the log line reads *"Clay answered for Team 1: picked"* followed by that model's unit and slot name. Once the scheduler plan's server exists, play a two-team round out: at the boundary both clients show one button reading "End the round", either player's click starts the next round, and the log reads *"… confirmed for Team 2"* then *"the game started round 2"*. Then, once the interpreter plan's `Transport(X)` is in the server, play the two containment paths: with a transport in reach the move Ask's note names it and it is highlighted, one click puts **every** model of the unit inside it and the log reads *"Clay put Battle Brothers inside Bus (Bus)"* on one line, and the occupants' nodes vanish from the table; activating that unit next turn opens the disembark offer instead — the region is a rounded-square band 6" out from the transport's base rather than a circle about its centre, one ghost per model sits on the transport, the note reads *"place every model fully within 6.0\" of Bus (Bus)"* with no remaining-allowance figure, dragging a ghost draws a ruler with a distance and no allowance, and Commit sends `Destinations` whose `From` is `Inside`. A ghost dropped outside the region still commits and the server leaves that model inside — the offer is drawn, not enforced, here. `./scripts/check-client` prints nothing. Commit: `Add the Ask panel and the declared move's region, ghost and commit`.

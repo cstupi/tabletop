@@ -50,14 +50,16 @@ In **Conventions**, append: "- The table frame's origin is the table's corner (`
 
 - [ ] **Step 3: Run the whole check**
 
+The Docker stack is the one started from the repository root. A worktree has its own directory name, so `docker compose up -d` there starts a second stack on the same ports; from a worktree, check that the root stack is up and run only the build, the tests and the check there.
+
 ```bash
-cd /home/cstupi/src/tabletop
-docker compose up -d && dotnet build && dotnet test && ./scripts/check-client
+(cd /home/cstupi/src/tabletop && docker compose up -d)
+dotnet build && dotnet test && ./scripts/check-client
 find client libs tests -path '*/obj/*' -maxdepth 3 -type d | grep -v -E 'Unix|Windows_NT'
 git status --short
 ```
 
-Then, with `./scripts/management` and `dotnet run --project server/game` running in WSL, `./scripts/client` on two accounts: log in (remember me), create a game, the second joins, teams and armies picked, setup with a generator batch, a saved layout reloaded, end setup; both see the board, presence, a hand move with its ruler, a menu edit in the log, an undo-to-here, Home and back (reconnect rebuilds, and the returning player is back on their own team with the same Ask controls), Leave. Expected: every test project green (Geometry, Content, Protocol, Management, GameServer, Client — 44 in Client), the check script silent, no `obj/` outside `Unix/` and `Windows_NT/`, and `git status` clean apart from the intended files (never `.env`, never `client/.godot/`).
+Then, with `./scripts/management` and `dotnet run --project server/game` running in WSL, `./scripts/client` on two accounts: log in (remember me), create a game, the second joins, teams and armies picked, setup with a generator batch, a saved layout reloaded, end setup; both see the board, presence, a hand move with its ruler, a menu edit in the log, an undo-to-here, Home and back (reconnect rebuilds, and the returning player is back on their own team with the same Ask controls), Leave. Expected: every test project green (Geometry, Content, Protocol, Management, GameServer, Client — 64 in Client), the check script silent, no `obj/` outside `Unix/` and `Windows_NT/`, and `git status` clean apart from the intended files (never `.env`, never `client/.godot/`).
 
 - [ ] **Step 4: Commit**
 
