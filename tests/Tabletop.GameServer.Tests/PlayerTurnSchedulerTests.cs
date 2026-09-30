@@ -106,4 +106,28 @@ public class PlayerTurnSchedulerTests
         Assert.Equal(1, h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq));   // p.50: the only roll-off was for deployment
         h.Rehydrate(); Assert.Empty(h.Run());
     }
+    [Fact]
+    public void A_unit_wounded_to_half_is_tested_once_not_after_every_later_activation_of_the_turn()
+    {
+        var h = Game(2, 2); h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
+        var a = h.Units(0); var b0 = h.Units(1)[0];
+        h.Append([new ModelsMoved([new ModelRelocation(h.P.Units[b0].Definition.Models[0].Id, h.P.Models[h.P.Units[b0].Definition.Models[0].Id].Location, new OnShelf())]), new WoundsThisActivationSet(b0, 1)]);
+        int Tests() => h.Log.Count(e => e.Payload is SequenceStarted s && s.Sequence == GfNames.MoraleTest && s.Context.ActorUnitId == b0);
+        h.Answer(0, new Chosen(TestGames.Activate(a[0])));
+        Assert.Equal(1, Tests());
+        Assert.Equal(0, h.P.Units[b0].WoundsThisActivation);
+        h.Answer(0, new Chosen(TestGames.Activate(a[1])));
+        Assert.Equal(1, Tests());                                                                          // p.10: at the end of the activation that wounded it, not again at the end of the next
+    }
+
+    [Fact]
+    public void A_shaken_unit_that_idles_in_a_mid_turn_activation_stops_being_shaken_before_the_turn_ends()
+    {
+        var h = Game(2, 1); h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
+        var a = h.Units(0);
+        h.Append([new ConditionSet(TestGames.UnitSubject(a[0]), GfNames.Shaken, true)]);
+        h.Answer(0, new Chosen(TestGames.Activate(a[0], ActivationOption.Idle)));
+        Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);                                              // the turn is still A's
+        Assert.DoesNotContain(GfNames.Shaken, h.P.Units[a[0]].Conditions);
+    }
 }

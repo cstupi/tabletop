@@ -26,11 +26,21 @@ public sealed class PlayerTurnScheduler(PropertySet properties) : SchedulerBase(
 
     protected override IReadOnlyList<EventPayload> OnComplete(GameState state, SchedulerLog log, TurnContext turn)
     {
+        if (ActivationResets(state, turn) is { Count: > 0 } resets) return resets;
         var ask = state.Rules.LegalTurn(state, Properties, turn.TeamId);
         return ask is null ? NextPhaseOrEnd(state, log, turn, passed: false) : [new AskOpened(TurnCycle.AskFor(turn.TeamId, ShapeAsk(state, ask)))];
     }
 
-    protected override IReadOnlyList<EventPayload> OnPassed(GameState state, SchedulerLog log, TurnContext turn) => NextPhaseOrEnd(state, log, turn, passed: true);
+    protected override IReadOnlyList<EventPayload> OnPassed(GameState state, SchedulerLog log, TurnContext turn) =>
+        ActivationResets(state, turn) is { Count: > 0 } resets ? resets : NextPhaseOrEnd(state, log, turn, passed: true);
+
+    /// <summary>
+    /// p.10's resets happen at the end of the activation, and a turn here holds many: the ruleset's turn-end changes are logged as bare state
+    /// changes when a cycle completes or passes, before the next Ask. The hook is idempotent, so the next call finds nothing and goes on;
+    /// the run at turn_ended stays.
+    /// </summary>
+    private IReadOnlyList<EventPayload> ActivationResets(GameState state, TurnContext turn) =>
+        state.Rules.OnTurnEnded(state, Properties, turn).Cast<EventPayload>().ToList();
     protected override IReadOnlyList<EventPayload> OnEmpty(GameState state, SchedulerLog log, TurnContext turn) => NextPhaseOrEnd(state, log, turn, passed: false);
 
     /// <summary>The next of GameRules' phases inside the turn, or turn_ended after the last (OPR has none: the turn ends).</summary>
