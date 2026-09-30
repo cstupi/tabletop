@@ -10,8 +10,13 @@ public enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnect
 /// projection (EventApplier), the draft during setup, and others' presence. Screens read it and hold no truth of their own.
 /// </summary>
 public sealed class Session(ManagementClient management, IGameSocketFactory sockets, SessionStore store, ClientSettings settings,
-    Action<ClientSettings> persistSettings, IDispatcher dispatcher, Func<int, TimeSpan>? backoff = null)
+    Action<ClientSettings> persistSettings, IDispatcher dispatcher, Func<int, TimeSpan>? backoff = null, TimeProvider? time = null)
 {
+    static readonly TimeSpan RefreshBackoff = TimeSpan.FromMinutes(1);
+    readonly TimeProvider _time = time ?? TimeProvider.System;
+    readonly object _refreshGate = new();
+    Task<bool>? _refreshing;            // the in-flight refresh, shared by concurrent callers
+    DateTimeOffset _noRefreshBefore;    // set after a failed refresh: one full minute from when it started
     static readonly TimeSpan[] DefaultBackoff = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10)];
     readonly Func<int, TimeSpan> _backoff = backoff ?? (attempt => DefaultBackoff[Math.Min(attempt, DefaultBackoff.Length - 1)]);
     IGameSocket? _socket;
@@ -53,16 +58,56 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public async Task<string> SendOtpAsync(string email) => (await Guard(() => management.SendOtp(email))).MethodId;
     public Task VerifyOtpAsync(string methodId, string code) => Complete(() => management.VerifyOtp(methodId, code));
 
-    public async Task<bool> TryResumeAsync()
+    /// <summary>Boot: refreshes the in-memory or stored JWT. True only on success; a 401 signs out, anything else keeps the token. Never throws.</summary>
+    public Task<bool> TryResumeAsync() => (management.Jwt ?? store.Read()) is { } jwt ? RefreshCore(jwt) : Task.FromResult(false);
+
+    /// <summary>
+    /// Once a minute from the Godot side: the JWT lives five minutes. Only a 401 signs out; a transport failure or any
+    /// other status keeps the token and waits a full minute before the next request. Concurrent calls share one request. Never throws.
+    /// </summary>
+    public Task<bool> RefreshAsync() => management.Jwt is { } jwt ? RefreshCore(jwt) : Task.FromResult(false);
+
+    Task<bool> RefreshCore(string jwt)
     {
-        var jwt = management.Jwt ?? store.Read();
-        if (jwt is null) return false;
-        try { await Complete(() => management.Refresh(jwt)); return true; }
-        catch (ManagementException e) when (e is not UpdateRequiredException) { management.Jwt = null; store.Clear(); SetPhase(SessionPhase.LoggedOut); return false; }
+        TaskCompletionSource<bool> done;
+        lock (_refreshGate)
+        {
+            if (_refreshing is not null) return _refreshing;
+            if (_time.GetUtcNow() < _noRefreshBefore) return Task.FromResult(false);
+            done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _refreshing = done.Task;
+        }
+        _ = RunRefresh(jwt, done);
+        return done.Task;
     }
 
-    /// <summary>Once a minute from the Godot side: the JWT lives five minutes.</summary>
-    public async Task RefreshAsync() { if (management.Jwt is { } jwt) await Complete(() => management.Refresh(jwt)); }
+    async Task RunRefresh(string jwt, TaskCompletionSource<bool> done)
+    {
+        var started = _time.GetUtcNow();
+        bool ok;
+        try
+        {
+            await Complete(() => management.Refresh(jwt));
+            _noRefreshBefore = default;
+            ok = true;
+        }
+        catch (UpdateRequiredException) { ok = false; }         // Guard has set the UpdateRequired phase
+        catch (ManagementException e) when (e.Status == 401)
+        {
+            ok = false;
+            try { await DisconnectAsync(); } catch (Exception) { }
+            management.Jwt = null; Account = null; store.Clear();
+            SetPhase(SessionPhase.LoggedOut);
+        }
+        catch (Exception)
+        {
+            ok = false;
+            management.Jwt = jwt;                               // Main's timer retries after the back-off
+            _noRefreshBefore = started + RefreshBackoff;
+        }
+        lock (_refreshGate) _refreshing = null;
+        done.SetResult(ok);
+    }
 
     public async Task LogoutAsync()
     {
