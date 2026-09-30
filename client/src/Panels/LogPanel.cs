@@ -40,7 +40,9 @@ public partial class LogPanel : PanelContainer
         foreach (var e in _s.Log)
         {
             var row = new HBoxContainer(); _rows.AddChild(row);
-            var text = new Button { Text = $"#{e.Seq}  {LogText.Describe(e, names)}", Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            var isLive = live.Contains(e.Seq);
+            var line = $"#{e.Seq}  {LogText.Describe(e, names)}";
+            var text = new Button { Text = !isLive && e.Payload is not Undone ? Strike(line) : line, Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
             if (!live.Contains(e.Seq) && e.Payload is not Undone) text.Modulate = new Color(0.5f, 0.5f, 0.5f);
             if (_s.PendingUndoTo is { } to && e.Seq > to) text.Modulate = new Color(0.6f, 0.6f, 0.6f);
             text.Pressed += () =>
@@ -50,8 +52,8 @@ public partial class LogPanel : PanelContainer
                 foreach (var id in LogText.Touched(e)) _view.PieceAt(id)?.SetHighlight(Colors.Yellow);
             };
             row.AddChild(text);
-            if (live.Contains(e.Seq) && e.Payload is not Undone) { var undo = new Button { Text = "Undo to here", Flat = true }; undo.Pressed += () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); row.AddChild(undo); }
-            if (e.Payload is StepCompleted { Rolls.Count: > 0 } step)
+            if (isLive && e.Payload is not Undone) { var undo = new Button { Text = "Undo to here", Flat = true }; undo.Pressed += () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); row.AddChild(undo); }
+            if (isLive && e.Payload is StepCompleted { Rolls.Count: > 0 } step)
             {
                 // A step holds several rolls whenever the ruleset splits one: OPR's roll-to-hit takes one pool per Quality value the
                 // attacking models bring, because p.4 tests each attack against "the model's Quality value" and a joined hero brings
@@ -68,6 +70,9 @@ public partial class LogPanel : PanelContainer
         }
         CallDeferred(nameof(ScrollToEnd));
     }
+
+    /// <summary>A Button has no strike style: U+0336 after each character.</summary>
+    static string Strike(string s) => string.Concat(s.Select(c => $"{c}\u0336"));
 
     void ScrollToEnd() { if (IsInstanceValid(_scroll)) _scroll.ScrollVertical = (int)_scroll.GetVScrollBar().MaxValue; }
 }

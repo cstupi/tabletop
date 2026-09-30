@@ -9,7 +9,7 @@ public sealed class Animator : IDisposable
 {
     readonly Session _s; readonly TableView _view; readonly AnimationQueue _queue = new();
     readonly Action<IReadOnlyList<GameEvent>> _onEvents;
-    bool _busy; int _generation;
+    bool _busy, _disposed; int _generation;
 
     public Animator(Session s, TableView view)
     {
@@ -19,19 +19,20 @@ public sealed class Animator : IDisposable
     }
 
     /// <summary>Session outlives the table: the subscription comes off when the panels go.</summary>
-    public void Dispose() => _s.EventsApplied -= _onEvents;
+    public void Dispose() { _disposed = true; _s.EventsApplied -= _onEvents; }
 
     /// <summary>The tween's end, or the fallback timer if the piece was freed mid-glide and the tween died with it; whichever comes first wins.</summary>
     void Done(int generation)
     {
-        if (generation != _generation) return;
+        if (_disposed || generation != _generation) return;
         _generation++; _busy = false;
         if (GodotObject.IsInstanceValid(_view)) Pump();
     }
 
     void Pump()
     {
-        if (_busy || !GodotObject.IsInstanceValid(_view)) return;
+        if (_disposed || _busy || !GodotObject.IsInstanceValid(_view)) return;
+        while (!_busy && _queue.Count > 0)
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
             List<ModelsMoved> moves = e.Payload switch { ModelsMoved m => [m], StepCompleted s => [.. s.Changes.OfType<ModelsMoved>()], _ => [] };
