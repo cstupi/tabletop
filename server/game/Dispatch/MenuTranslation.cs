@@ -36,7 +36,7 @@ public static class MenuTranslation
             SetWoundsThisActivation w when HasUnit(w.UnitId) => new WoundsThisActivationSet(w.UnitId, w.Wounds),
             SetScore s when HasTeam(s.TeamId) => new ScoreSet(s.TeamId, s.Score),
             SetActiveTeam t when HasTeam(t.TeamId) => new TurnStarted(t.TeamId),
-            SetRound r => new RoundStarted(r.Round, p.Scheduler.Order, []),
+            SetRound r => new RoundStarted(r.Round, p.Scheduler.Order.ToList(), []),
             _ => null,
         };
         missing = miss;

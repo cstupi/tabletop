@@ -21,7 +21,7 @@ public static class GfNames
 
     // The scheduler plan's names (its Task 2 reads them from here; one names class).
     public const string Deployment = "deployment", Scouts = "scouts";
-    public const string Rounds = "rounds";                                                                              // = SchedulerBase.RoundsPhase (scheduler plan Task 5); switch to the reference when it lands
+    public const string Rounds = Scheduler.SchedulerBase.RoundsPhase;
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
     public const string Artillery = "Artillery";                                                                        // p.13: "May only use Hold actions"; not in the core catalog, so read off a unit's own properties
