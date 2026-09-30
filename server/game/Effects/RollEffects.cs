@@ -55,4 +55,9 @@ public static class RollEffects
     /// <summary>Kind-5 rolls a property owns: the property supplies its own dice and threshold, and its child effect is applied once per success.</summary>
     public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter) =>
         live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
+
+    /// <summary>A once-grant is consumed the first time its effect applies: every granted instance whose entry contributed a modifier to this plan, with one use left.</summary>
+    public static IReadOnlyList<StateChange> ConsumeGrants(LiveSet live, Side side, RollPlan plan) =>
+        live.On(side).Where(p => p.GrantId is not null && plan.Modifiers.Any(m => m.Source == p.Entry.Name))
+            .Select(p => (StateChange)new GrantRemoved(live.Interaction.Of(side).UnitId, p.GrantId!.Value)).ToList();
 }
