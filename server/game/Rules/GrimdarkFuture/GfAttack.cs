@@ -84,7 +84,7 @@ public static partial class GfAttack
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
             else if (eligible.Count == 1) allocation = new Dictionary<Guid, int> { [eligible[0]] = wounds };   // nothing to choose
-            else if (ctx.History.LastClosed() is { Single: Allocated a }) allocation = a.Counts.ToDictionary(kv => kv.Key, kv => kv.Value);
+            else if (ctx.History.LastClosed() is { Single: Allocated } closed) allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
 
             var actor = ctx.Frame.Context.ActorUnitId;

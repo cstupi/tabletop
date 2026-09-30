@@ -27,6 +27,13 @@ public static class FrameReader
         return views;
     }
 
+    /// <summary>
+    /// The Ask a frame last opened with this question, as the log recorded it. A step reading an earlier step's answer reads it against
+    /// this Ask's legal set, since warn and silent accept an answer outside it and the answer alone proves nothing.
+    /// </summary>
+    public static Ask? Recorded(GameState state, Guid frameId, string question) =>
+        EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).OfType<AskOpened>().LastOrDefault(o => o.Ask.FrameId == frameId && o.Ask.Question == question)?.Ask;
+
     /// <summary>Everything that happened to this frame since its current step began: its Asks, and the sequences it pushed (depth 1 only).</summary>
     static StepHistory History(IReadOnlyList<GameEvent> log, Guid frameId, int from)
     {

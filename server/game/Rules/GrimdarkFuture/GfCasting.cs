@@ -92,10 +92,12 @@ public static class GfCasting
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            if (ctx.History.LastClosed() is { Single: Chosen chosen })
+            if (ctx.History.LastClosed() is { } closed)
             {
-                var (spellName, caster) = (chosen.OptionId.Split('|')[0], Guid.Parse(chosen.OptionId.Split('|')[1]));
-                var cost = ctx.Properties.Entry(spellName)!.Cost ?? 0;
+                // A pass, another type of answer or an id the Ask did not offer casts nothing and spends nothing.
+                if (GfAnswers.Option(closed) is not { } picked) return new Finish([]);
+                var (spellName, caster) = (picked.Id.Split('|')[0], Guid.Parse(picked.Id.Split('|')[1]));
+                var cost = ctx.Properties.Entry(spellName)?.Cost ?? 0;
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
@@ -158,7 +160,7 @@ public static class GfCasting
             var (spellName, _) = Picked(ctx.Frame);
             var spell = ctx.Properties.Entry(spellName)!;
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
-            var chosen = ((SelectedPieces)ctx.Frame.Frame.Steps.Last(s => s.Step == "targets").Answer!).PieceIds;
+            var chosen = GfAnswers.Pieces(ctx.State, ctx.Frame, "targets", "spell_targets");
             var index = ctx.Frame.Value("target_index");
             if (index >= chosen.Count) return new Complete([]);
             var target = chosen[index];
