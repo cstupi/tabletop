@@ -25,6 +25,7 @@ public static class GfNames
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
     public const string Transport = "Transport";                                                                        // p.15; its (X) is carried and never read — game flow: capacity is not enforced
+    public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover
     public const string Takedown = "Takedown";                                                                          // p.14; a weapon property, read by GfAttack.IsTakedownGroup
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit
     public const double AmbushDistance = 9;

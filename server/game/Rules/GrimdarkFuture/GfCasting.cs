@@ -61,8 +61,10 @@ public static class GfCasting
         var mine = Lookup.LivingModels(state, self.UnitId);
         var spenders = new List<ModelInPlay>();
         if (self.SpellTokens > 0) spenders.Add(self);
+        var sights = new Dictionary<Guid, Sight>();                                                                // one per spending unit, not per pair
+        Sight From(Guid unit) => sights.TryGetValue(unit, out var s) ? s : sights[unit] = Sight.From(state, unit);
         spenders.AddRange(state.Projection.Models.Values.Where(m => m.Id != casterModel && m.Location is OnTable && m.SpellTokens > 0
-                && mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && Battlefield.CanSee(state, m.Id, c)))
+                && mine.Any(c => Battlefield.Distance(state, c, m.Id) <= GfNames.CastRange && From(m.UnitId).CanSee(m.Id, c)))
             .OrderBy(m => mine.Min(c => Battlefield.Distance(state, c, m.Id))));
         return spenders;
     }
@@ -77,6 +79,7 @@ public static class GfCasting
         var t = spell.Targeting!; var casterUnit = ctx.Projection.Models[casterModel].UnitId; var team = ctx.TeamOf(casterUnit);
         var candidates = ctx.Projection.Units.Values.Where(u => (ctx.TeamOf(u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
         var result = new List<Guid>();
+        var sight = new Lazy<Sight>(() => Sight.From(ctx.State, casterUnit));                                        // built once for every candidate model
         foreach (var unit in candidates)
         {
             var reaches = Battlefield.InsideReach(ctx.State, casterUnit, unit);
@@ -84,7 +87,7 @@ public static class GfCasting
             {
                 true => Lookup.AliveModels(ctx.State, unit),
                 false => [],
-                null => Lookup.LivingModels(ctx.State, unit).Where(m => Battlefield.Distance(ctx.State, casterModel, m) <= t.Range && (m == casterModel || Battlefield.CanSee(ctx.State, casterModel, m))).ToList(),
+                null => Lookup.LivingModels(ctx.State, unit).Where(m => Battlefield.Distance(ctx.State, casterModel, m) <= t.Range && (m == casterModel || sight.Value.CanSee(casterModel, m))).ToList(),
             };
             if (models.Count == 0) continue;
             if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);

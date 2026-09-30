@@ -58,25 +58,29 @@ public static class GfRolls
             : ctx.Plan(live, Side.Attacker, GfNames.Hit, [], threshold: quality);
 
     /// <summary>
-    /// p.11's *"If the majority of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*, one
-    /// majority over the target unit's models applied to two facts. A majority is strictly more than half, so five of ten is not
-    /// one: the book's word governs, and half or more is not a majority.
-    /// Terrain cover is a majority of the unit's models inside a `Cover` volume, tested the way the book words it for the unit's
-    /// size: whole base inside ("fully inside") for a multi-model unit, base centre inside (standing for "mostly inside") for a
-    /// single-model unit, sized by starting size so a squad reduced to one model is still judged as a squad. Sight cover is the attacker seeing fewer than half of them, which is the same majority read
-    /// from the other side: fewer than half seen is more than half hidden. Either clause is enough. The fraction is a ruleset
-    /// number, so it is here and `Battlefield` only counts.
+    /// p.11's *"If the majority of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*: one
+    /// majority over the models that pass either test, so a unit with one model in a wood and another screened by a third unit's
+    /// base is in cover at three models. A majority is strictly more than half, so five of ten is not one.
+    /// The terrain test follows the book's wording for the unit's size: whole base inside ("fully inside") for a
+    /// multi-model unit, base centre inside (standing for "mostly inside") for a single-model unit, sized by starting size so a
+    /// squad reduced to one model is still judged as a squad. The sight test is the same for both sizes: every attacking model
+    /// with a clear line to the model has a sight blocker along it, or none sees it at all (`Battlefield.ModelsBehindSightBlockers`).
+    /// p.14 Indirect *"ignores cover from sight obstructions"*, which is the sight test only: `ignoresSightObstructions` drops it and
+    /// the terrain test stands. Blast's *"Ignores cover"* (p.13) is the whole modifier and is suppressed in the roll instead.
+    /// The fraction is a ruleset number, so it is here and `Battlefield` only lists.
     /// </summary>
-    public static bool InCover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels)
+    public static bool InCover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions)
     {
         var models = Lookup.LivingModels(state, targetUnit).Count;
         if (models == 0) return false;
-        return Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase: GfHooks.StartingSize(state, targetUnit) > 1) * 2 > models
-            || Battlefield.ModelsVisibleFrom(state, targetUnit, attackerModels) * 2 < models;
+        var covered = Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase: GfHooks.StartingSize(state, targetUnit) > 1).ToHashSet();
+        if (covered.Count * 2 > models || ignoresSightObstructions) return covered.Count * 2 > models;
+        covered.UnionWith(Battlefield.ModelsBehindSightBlockers(state, targetUnit, attackerModels));
+        return covered.Count * 2 > models;
     }
 
     /// <summary>
-    /// p.11: +1 to Defense against shooting when in cover. Blast and Indirect suppress it (pass one).
+    /// p.11: +1 to Defense against shooting when in cover. Blast suppresses it (pass one); Indirect's half is read in `InCover`.
     ///
     /// p.14's Hero clause is the other half of the threshold. A joined hero *"must use the unit's Defense until all other models have
     /// been killed"*, so the unit's value stands while anything else lives, and once the hero is alone its own slot Defense is read.

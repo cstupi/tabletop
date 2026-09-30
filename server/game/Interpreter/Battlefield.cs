@@ -31,18 +31,9 @@ public static class Battlefield
 
     public static IReadOnlyList<WorldVolume> Terrain(GameState state) => state.Board.Table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
 
-    /// <summary>Terrain plus every model not in the given unit, as sight blockers (p.8: a unit ignores its own models; p.11: other units block).</summary>
-    public static IReadOnlyList<WorldVolume> Blockers(GameState state, Guid exceptUnitId) =>
-        Terrain(state).Concat(state.Projection.Models.Values.Where(m => m.UnitId != exceptUnitId && m.Location is OnTable)
-            .Select(m => Bodies.AsBlockingVolume(m.Id, Placed(state, m.Id)!.Value))).ToList();
-
-    public static bool CanSee(GameState state, Guid fromModel, Guid toModel)
-    {
-        var (from, to) = (Placed(state, fromModel), Placed(state, toModel));
-        if (from is null || to is null) return false;
-        var blockers = Blockers(state, state.Projection.Models[fromModel].UnitId).Where(v => v.Id != toModel && v.Id != fromModel).ToList();
-        return LineOfSight.Check(from.Value, to.Value, blockers).Clear;
-    }
+    /// <summary>One pair, one sight line. A caller checking many pairs builds a <see cref="Sight"/> once and asks it instead.</summary>
+    public static bool CanSee(GameState state, Guid fromModel, Guid toModel) =>
+        Sight.From(state, state.Projection.Models[fromModel].UnitId).CanSee(fromModel, toModel);
 
     public static double Distance(GameState state, Guid a, Guid b) => Geometry.Distance.EdgeToEdge(Placed(state, a)!.Value, Placed(state, b)!.Value);
     public static double Vertical(GameState state, Guid a, Guid b) => Geometry.Distance.Vertical(Placed(state, a)!.Value, Placed(state, b)!.Value);
@@ -54,35 +45,33 @@ public static class Battlefield
     }
 
     /// <summary>
-    /// p.11's terrain half, counted and not judged: living models inside a volume declared `Cover`. Which test a model has to pass is
-    /// the ruleset's call, because the book words it differently by unit size: `wholeBase` counts models whose whole base is inside
-    /// (`Cover.InsideCoverVolumes`, the multi-model wording "fully inside"), otherwise a model counts when its base centre is inside
-    /// (`Containment.VolumesContaining`, standing for the single-model wording "mostly inside"). What fraction of the unit has to be
-    /// in cover is likewise the ruleset's and lives in `GfRolls.InCover`. "Behind a sight blocker" is not counted here; the sight
-    /// half is `ModelsVisibleFrom`.
+    /// p.11's terrain test, per model and not judged: the living models inside a volume declared `Cover`. Which test a model has to
+    /// pass is the ruleset's call, because the book words it differently by unit size: `wholeBase` takes models whose whole base is
+    /// inside (`Cover.InsideCoverVolumes`, the multi-model wording "fully inside"), otherwise a model is taken when its base centre is
+    /// inside (`Containment.VolumesContaining`, standing for the single-model wording "mostly inside"). The majority is the ruleset's.
     /// </summary>
-    public static int ModelsInCoverTerrain(GameState state, Guid unitId, bool wholeBase)
+    public static IReadOnlyList<Guid> ModelsInCoverTerrain(GameState state, Guid unitId, bool wholeBase)
     {
         var terrain = Terrain(state);
-        return Effects.Lookup.LivingModels(state, unitId).Count(id =>
+        return Effects.Lookup.LivingModels(state, unitId).Where(id =>
             wholeBase
                 ? Cover.InsideCoverVolumes(Placed(state, id)!.Value, terrain).Count > 0
-                : Containment.VolumesContaining(Placed(state, id)!.Value, terrain).Any(v => terrain.First(t => t.Id == v).Volume.Declarations.HasFlag(TerrainDeclarations.Cover)));
+                : Containment.VolumesContaining(Placed(state, id)!.Value, terrain).Any(v => terrain.First(t => t.Id == v).Volume.Declarations.HasFlag(TerrainDeclarations.Cover))).ToList();
     }
 
     /// <summary>
-    /// p.11's sight half, counted and not judged: how many of the target unit's living models at least one of these models can
-    /// see. `LineOfSight.VisibleModels` takes every observer, so the attacking unit sees a model when any of its models does, and
-    /// no single vantage point has to be chosen. It is called once per target model rather than once for the unit, because the
-    /// blockers must lose the target's own body and keep the unit's other models (p.11); the ray count is the same either way.
+    /// p.11's sight test, per model and not judged: the target unit's living models that are "behind a sight blocker" from these
+    /// attacking models. A model is when every attacking model with a clear line to it has a blocker along that line
+    /// (`Cover.SightBlockersBetween` non-empty while `LineOfSight.Check` is clear), which includes no attacking model seeing it at all.
+    /// The blockers are terrain and every unit but the two: p.11's other units "are sight blockers that can provide other units
+    /// with cover", so a model does not take cover behind its own unit, and the attackers ignore their own (p.8).
     /// </summary>
-    public static int ModelsVisibleFrom(GameState state, Guid targetUnit, IReadOnlyList<Guid> fromModels)
+    public static IReadOnlyList<Guid> ModelsBehindSightBlockers(GameState state, Guid targetUnit, IReadOnlyList<Guid> fromModels)
     {
-        var observers = fromModels.Select(m => Placed(state, m)).Where(p => p is not null).Select(p => p!.Value).ToList();
-        if (observers.Count == 0) return 0;
-        var blockers = Blockers(state, state.Projection.Models[fromModels[0]].UnitId);
-        return Effects.Lookup.LivingModels(state, targetUnit)
-            .Count(id => LineOfSight.VisibleModels(observers, [Placed(state, id)!.Value], blockers.Where(v => v.Id != id).ToList())[0]);
+        var living = Effects.Lookup.LivingModels(state, targetUnit);
+        if (fromModels.Count == 0) return living;
+        var sight = Sight.From(state, state.Projection.Models[fromModels[0]].UnitId, alsoIgnoring: targetUnit);
+        return living.Where(id => fromModels.All(o => sight.Look(o, id) is not { Clear: true, Screened: false })).ToList();
     }
 
     public static IReadOnlyList<string> TerrainUnder(GameState state, Guid unitId)

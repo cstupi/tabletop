@@ -206,8 +206,8 @@ public class GfRollsTests
         var state = State([a], [b], x1: -6, x2: 6);
         Assert.True(Battlefield.CanSee(state, a.Models[0].Id, b.Models[0].Id));
         Assert.InRange(Battlefield.Distance(state, a.Models[0].Id, b.Models[0].Id), 10.0, 12.0);   // 12" centre to centre, less the two bases
-        Assert.Equal((0, 2), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsVisibleFrom(state, b.Id, [a.Models[0].Id])));
-        Assert.False(GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                                 // nobody in terrain, both models seen: neither clause of p.11's majority
+        Assert.Equal((0, 0), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false).Count, Battlefield.ModelsBehindSightBlockers(state, b.Id, [a.Models[0].Id]).Count));
+        Assert.False(GfRolls.InCover(state, b.Id, [a.Models[0].Id], ignoresSightObstructions: false));   // nobody in terrain, neither model behind a blocker: no majority of p.11's union
         Assert.Empty(Battlefield.TerrainUnder(state, b.Id));
     }
 
@@ -226,8 +226,8 @@ public class GfRollsTests
     {
         var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 4, []);
         var state = State([a], [b], x1: -12, x2: 0, terrain: [CoverUpTo(edgeY)]);
-        Assert.Equal((byCentre, byBase), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true)));
-        Assert.Equal(inCover, GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                     // a multi-model unit is judged by whole bases: 2 of 4 is not a majority, 3 of 4 is
+        Assert.Equal((byCentre, byBase), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false).Count, Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true).Count));
+        Assert.Equal(inCover, GfRolls.InCover(state, b.Id, [a.Models[0].Id], ignoresSightObstructions: false));   // a multi-model unit is judged by whole bases: 2 of 4 is not a majority, 3 of 4 is
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class GfRollsTests
     {
         var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, []);
         var state = State([a], [b], x1: -12, x2: 4.9, terrain: [CoverUpTo(-13)]);                 // x = 4.9: centre inside x -5..5, base past it
-        Assert.Equal((1, 0), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false), Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true)));
-        Assert.True(GfRolls.InCover(state, b.Id, [a.Models[0].Id]));                               // p.11: single-model units need only be "mostly inside"
+        Assert.Equal((1, 0), (Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: false).Count, Battlefield.ModelsInCoverTerrain(state, b.Id, wholeBase: true).Count));
+        Assert.True(GfRolls.InCover(state, b.Id, [a.Models[0].Id], ignoresSightObstructions: false));   // p.11: single-model units need only be "mostly inside"
     }
 }
