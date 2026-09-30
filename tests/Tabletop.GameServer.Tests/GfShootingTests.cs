@@ -148,6 +148,18 @@ public class GfShootingTests
     }
 
     [Fact]
+    public void Hold_with_waits_between_steps_still_offers_shooting_after_its_confirms()
+    {
+        var squad = Unit("Squad", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
+        var sim = Sim.Gf(State([squad], [Unit("T", "4+", "4+", [], 1, [])], x1: -10, x2: 10, waits: true), 1);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(squad.Id, [], [], GfNames.Hold));
+        sim.Confirm();
+        var shoot = sim.AskFor(Samples.Team1);
+        Assert.Equal("shoot_or_not", shoot.Question);
+        Assert.Equal(["shoot", "pass"], Assert.IsType<Options>(shoot.Legal).Choices.Select(c => c.Id));
+    }
+
+    [Fact]
     public void Hold_with_a_shaken_unit_is_idle_and_clears_shaken_and_hold_without_a_target_asks_nothing()
     {
         var u = Unit("U", "4+", "4+", [], 2, [], Gun("Pistol", "6\"", 1));

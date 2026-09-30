@@ -61,6 +61,18 @@ public sealed class Sim
         return Run();
     }
 
+    /// <summary>Answer every open step-boundary Confirm, whoever it is addressed to, until none is open; then the open Asks are the steps' own.</summary>
+    public void Confirm()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            if (State.Projection.OpenAsks.Values.FirstOrDefault(a => a.Ask.Question == AskQuestions.Confirm) is not { } open) return;
+            var team = open.Ask.Teams.First(t => !open.Answers.ContainsKey(t));
+            Answer(team, new Confirmed());
+        }
+        throw new InvalidOperationException("the step-boundary Confirms did not stop");
+    }
+
     public IReadOnlyList<StepCompleted> Steps(string name) => Emitted.OfType<StepCompleted>().Where(s => s.Step == name).ToList();
     public UnitInPlay Unit(Guid id) => State.Projection.Units[id];
     public ModelInPlay Model(Guid id) => State.Projection.Models[id];

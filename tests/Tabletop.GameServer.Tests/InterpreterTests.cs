@@ -80,6 +80,21 @@ public class InterpreterTests
         Assert.Equal("pick", ((AskOpened)next.Single()).Ask.Question);                            // the confirm is spent; the step's own Ask follows
     }
 
+    [Fact]
+    public void A_step_that_reads_its_last_closed_ask_does_not_take_the_boundary_confirm_for_its_own_answer()
+    {
+        var state = State([A], [B], waits: true);
+        var seq = new Sequence("gated", [
+            new LambdaStep("first", _ => new Complete([])),
+            new LambdaStep("own", ctx => ctx.History.LastClosed() is null ? new OpenAsks([ctx.Ask("mine", "Mine", ctx.ActorTeam!.Value, new Confirmation())]) : new Complete([]))]);
+        var interpreter = new SequenceInterpreter(new StubRules(seq), TestProperties.Core, new ScriptedDice(1));
+        Append(state, interpreter.Start(state, "gated", new SequenceContext(A.Id, [], [], null)));
+        var confirm = ((AskOpened)Run(state, interpreter)[^1]).Ask;
+        Assert.Equal(AskQuestions.Confirm, confirm.Question);
+        Answer(state, confirm, new Confirmed());
+        Assert.Equal("mine", ((AskOpened)Run(state, interpreter).Single()).Ask.Question);
+    }
+
     /// <summary>
     /// The gate on a frame with no actor and no parent does not read WaitsBetweenSteps, which is off here, and it carries every team.
     /// The frame is still on the stack while it is open, which is what makes the roll-off's dice editable.

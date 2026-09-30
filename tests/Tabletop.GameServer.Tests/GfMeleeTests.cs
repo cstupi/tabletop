@@ -199,6 +199,34 @@ public class GfMeleeTests
     }
 
     [Fact]
+    public void A_charge_with_waits_between_steps_asks_for_the_target_and_then_the_move()
+    {
+        var warriors = Unit("Warriors", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var dwarves = Unit("Dwarves", "4+", "4+", [], 1, [], Melee("Hammer", 1));
+        var sim = Sim.Gf(State([warriors], [dwarves], x1: -8, x2: 0, waits: true), 1);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(warriors.Id, [], [], GfNames.Charge));
+        sim.Confirm();
+        Assert.Equal([dwarves.Id], Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal).Eligible);
+        sim.Answer(Samples.Team1, new SelectedPieces([dwarves.Id]));
+        sim.Confirm();
+        Assert.Equal(12.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+    }
+
+    [Fact]
+    public void A_melee_with_waits_between_steps_asks_for_the_consolidation_move()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], x1: -3, x2: 0, waits: true), 1, 1);              // both miss: 0-0
+        sim.Start(GfNames.Melee, MeleeOf(charger, target));
+        sim.Confirm();
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        sim.Confirm();
+        var move = sim.AskFor(Samples.Team1);
+        Assert.Equal(("move", 1.0), (move.Question, Assert.IsType<MoveRegion>(move.Legal).Allowance));   // p.10: the charger moves back 1"
+    }
+
+    [Fact]
     public void Fear_counts_for_the_defender_when_it_strikes_back()
     {
         var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));

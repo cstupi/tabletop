@@ -10,13 +10,15 @@ public readonly record struct Footprint(FootprintKind Kind, double A, double B)
 
     /// <summary>
     /// The outline WorldVolumes builds from this footprint at the given scale can be built and measured: a defined kind, a finite
-    /// scale and scaled size above zero, and for a rect the polygon constructor's own area test on the scaled corners.
+    /// scale and scaled size above zero, and for a rect twice the scaled corners' area at least twice the polygon constructor's threshold.
+    /// The margin is there because the outline is built from the corners after rotation and translation, and rounding there can take
+    /// an area sitting exactly on the threshold below it.
     /// </summary>
     public bool IsValid(double scale)
     {
         static bool Positive(double v) => double.IsFinite(v) && v > 0;
         if (!Enum.IsDefined(Kind) || !Positive(scale) || !Positive(A * scale)) return false;
-        return Kind == FootprintKind.Circle || (Positive(B * scale) && PolygonOutline.Builds(Corners(scale)));
+        return Kind == FootprintKind.Circle || (Positive(B * scale) && PolygonOutline.Builds(Corners(scale), 2 * Tolerance.Distance));
     }
 
     /// <summary>A rect's corners at the given scale, centred on the origin and unrotated.</summary>

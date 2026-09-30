@@ -48,7 +48,9 @@ public sealed record StepHistory(IReadOnlyList<AskRecord> Asks, IReadOnlyList<Ch
 {
     public static readonly StepHistory Empty = new([], []);
     public bool Waiting => Asks.Any(a => !a.Closed);
-    public AskRecord? LastClosed(string? question = null) => Asks.LastOrDefault(a => a.Closed && (question is null || a.Ask.Question == question));
+    /// <summary>With no question, the step-boundary Confirm is never the answer: it belongs to the gate, not to the step.</summary>
+    public AskRecord? LastClosed(string? question = null) =>
+        (question is null ? ClosedExceptConfirm : Asks.Where(a => a.Closed && a.Ask.Question == question)).LastOrDefault();
     public int Confirmed => Asks.Count(a => a.Closed && a.Ask.Question == AskQuestions.Confirm);
     public IEnumerable<AskRecord> ClosedExceptConfirm => Asks.Where(a => a.Closed && a.Ask.Question != AskQuestions.Confirm);
 }

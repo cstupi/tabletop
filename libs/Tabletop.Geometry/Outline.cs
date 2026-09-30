@@ -155,8 +155,8 @@ internal sealed record PolygonOutline : Outline
         Vertices = twiceArea < 0 ? vertices.Reverse().ToList() : vertices.ToList();
     }
 
-    /// <summary>The constructor's own test, asked without constructing: three vertices or more, and twice the area at least Tolerance.Distance.</summary>
-    internal static bool Builds(IReadOnlyList<Point2> vertices) => vertices.Count >= 3 && Math.Abs(TwiceArea(vertices)) >= Tolerance.Distance;
+    /// <summary>The constructor's own test, asked without constructing: three vertices or more, and twice the area at least Tolerance.Distance, or at least a caller's larger minimum.</summary>
+    internal static bool Builds(IReadOnlyList<Point2> vertices, double minTwiceArea = Tolerance.Distance) => vertices.Count >= 3 && Math.Abs(TwiceArea(vertices)) >= minTwiceArea;
 
     static double TwiceArea(IReadOnlyList<Point2> vertices)
     {

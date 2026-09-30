@@ -25,6 +25,22 @@ public class ValidityTests
         Assert.Equal(valid, !Throws(() => Containment.VolumesContaining(Fx.Model(10, 10), [volume])));
     }
 
+    /// <summary>
+    /// The outline is built from the corners after rotation and translation, and rounding there moves the area: a rect whose unplaced
+    /// twice-area is exactly the constructor's threshold fails to build at this placement, so validity keeps a margin above it.
+    /// </summary>
+    [Theory]
+    [InlineData(5e-7, false)]                                          // twice its area is exactly 1e-6: the constructor throws once placed
+    [InlineData(1.1e-6, true)]                                         // 2.2e-6: above the margin, and it builds placed and rotated
+    public void A_rect_at_the_area_threshold_is_valid_only_with_margin_to_build_where_it_is_placed(double width, bool valid)
+    {
+        var footprint = Footprint.Rect(width, 1);
+        Assert.Equal(valid, footprint.IsValid(1));
+        var volume = new WorldVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, footprint, new Point2(0, 0), new Yaw(0), 0, 2, TerrainDeclarations.Cover, null),
+            new TerrainTransform(new Point3(71.9, 47.9, 0), new Yaw(123), 1));
+        Assert.Equal(valid, !Throws(() => Containment.VolumesContaining(Fx.Model(71.9, 47.9), [volume])));
+    }
+
     [Theory]
     [InlineData(double.NaN, 1)]
     [InlineData(double.PositiveInfinity, 1)]
