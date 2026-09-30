@@ -15,6 +15,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     static readonly TimeSpan RefreshBackoff = TimeSpan.FromMinutes(1);
     readonly TimeProvider _time = time ?? TimeProvider.System;
     readonly object _refreshGate = new();
+    int _authEpoch;                     // bumped by logout and by every login: a refresh started before it is stale
     Task<bool>? _refreshing;            // the in-flight refresh, shared by concurrent callers
     DateTimeOffset _noRefreshBefore;    // set after a failed refresh: one full minute from when it started
     static readonly TimeSpan[] DefaultBackoff = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10)];
@@ -84,33 +85,45 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     async Task RunRefresh(string jwt, TaskCompletionSource<bool> done)
     {
         var started = _time.GetUtcNow();
-        bool ok;
+        var epoch = _authEpoch;
+        var ok = false;
         try
         {
-            await Complete(() => management.Refresh(jwt));
-            _noRefreshBefore = default;
-            ok = true;
+            try
+            {
+                var response = await Guard(() => management.Refresh(jwt));
+                if (epoch != _authEpoch) return;
+                Accept(response);
+                _noRefreshBefore = default;
+                ok = true;
+            }
+            catch (UpdateRequiredException) { }                 // Guard has set the UpdateRequired phase
+            catch (ManagementException e) when (e.Status == 401)
+            {
+                if (epoch != _authEpoch) return;
+                try { await DisconnectAsync(); } catch (Exception) { }
+                management.Jwt = null; Account = null;
+                try { store.Clear(); } catch (Exception) { }
+                SetPhase(SessionPhase.LoggedOut);
+            }
+            catch (Exception)
+            {
+                if (epoch != _authEpoch) return;
+                management.Jwt = jwt;                           // Main's timer retries after the back-off
+                _noRefreshBefore = started + RefreshBackoff;
+            }
         }
-        catch (UpdateRequiredException) { ok = false; }         // Guard has set the UpdateRequired phase
-        catch (ManagementException e) when (e.Status == 401)
+        catch (Exception) { ok = false; }                       // nothing above may leave the refresh unfinished
+        finally
         {
-            ok = false;
-            try { await DisconnectAsync(); } catch (Exception) { }
-            management.Jwt = null; Account = null; store.Clear();
-            SetPhase(SessionPhase.LoggedOut);
+            lock (_refreshGate) _refreshing = null;
+            done.SetResult(ok);
         }
-        catch (Exception)
-        {
-            ok = false;
-            management.Jwt = jwt;                               // Main's timer retries after the back-off
-            _noRefreshBefore = started + RefreshBackoff;
-        }
-        lock (_refreshGate) _refreshing = null;
-        done.SetResult(ok);
     }
 
     public async Task LogoutAsync()
     {
+        _authEpoch++; _noRefreshBefore = default;
         await DisconnectAsync();
         try { await management.Logout(); } catch (ManagementException) { }
         management.Jwt = null; Account = null; store.Clear();
@@ -124,9 +137,16 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         if (!Settings.RememberMe) store.Clear(); else if (management.Jwt is { } jwt) store.Write(jwt);
     }
 
+    /// <summary>A login path: its response supersedes any refresh still in flight.</summary>
     async Task Complete(Func<Task<SessionResponse>> call)
     {
         var response = await Guard(call);
+        _authEpoch++; _noRefreshBefore = default;
+        Accept(response);
+    }
+
+    void Accept(SessionResponse response)
+    {
         management.Jwt = response.SessionJwt;
         Account = response.Account;
         if (Settings.RememberMe) store.Write(response.SessionJwt);

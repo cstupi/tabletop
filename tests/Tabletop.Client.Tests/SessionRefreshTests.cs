@@ -133,4 +133,76 @@ public class SessionRefreshTests : IDisposable
         Assert.False(await _s.RefreshAsync());
         Assert.Equal(SessionPhase.UpdateRequired, _s.Phase);
     }
+
+    [Fact]
+    public async Task A_store_that_cannot_clear_does_not_wedge_later_refreshes()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root") return;      // read-only directories do not stop these
+        await LoggedIn();
+        var dir = Path.GetDirectoryName(Path.Combine(_dir, "session.bin"))!;
+        File.SetUnixFileMode(dir, UnixFileMode.UserRead | UnixFileMode.UserExecute);      // File.Delete now throws
+        try
+        {
+            Problem(401);
+            Assert.False(await _s.RefreshAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(SessionPhase.LoggedOut, _s.Phase);
+            Assert.Null(_s.Management.Jwt);
+        }
+        finally { File.SetUnixFileMode(dir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+        await LoggedIn();
+        _http.Answer(HttpStatusCode.OK, new SessionResponse(Jwt2, Clay));
+        Assert.True(await _s.RefreshAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task A_logout_during_a_refresh_that_then_fails_leaves_the_token_gone()
+    {
+        await LoggedIn();
+        _http.Gate = new TaskCompletionSource();
+        Problem(502);
+        var refresh = _s.RefreshAsync();
+        var logout = _s.LogoutAsync();
+        _http.Gate.SetResult();
+        Assert.False(await refresh);
+        await logout;
+        Assert.Null(_s.Management.Jwt);
+        var before = _http.Requests.Count;
+        _time.Advance(Minute);
+        Assert.False(await _s.RefreshAsync());
+        Assert.Equal(before, _http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_login_during_a_refresh_that_then_succeeds_keeps_the_new_login()
+    {
+        await LoggedIn();
+        var other = new AccountRow(Guid.NewGuid(), "Other");
+        var gate = _http.Gate = new TaskCompletionSource();
+        _http.Answer(HttpStatusCode.OK, new SessionResponse("a.jwt-3.z", other));           // the login, answered first: the gate holds only the refresh
+        _http.Answer(HttpStatusCode.OK, new SessionResponse(Jwt2, Clay));                   // the refresh
+        var refresh = _s.RefreshAsync();
+        _http.Gate = null;
+        await _s.LoginWithPasswordAsync("o@example.com", "pw");
+        gate.SetResult();
+        Assert.False(await refresh);
+        Assert.Equal(("a.jwt-3.z", "Other"), (_s.Management.Jwt, _s.Account!.Name));
+        Assert.Equal("a.jwt-3.z", _store.Read());
+    }
+
+    [Fact]
+    public async Task A_login_during_a_refresh_that_then_401s_stays_logged_in()
+    {
+        await LoggedIn();
+        var other = new AccountRow(Guid.NewGuid(), "Other");
+        var gate = _http.Gate = new TaskCompletionSource();
+        _http.Answer(HttpStatusCode.OK, new SessionResponse("a.jwt-3.z", other));           // the login, answered first: the gate holds only the refresh
+        Problem(401);                                                                       // the refresh
+        var refresh = _s.RefreshAsync();
+        _http.Gate = null;
+        await _s.LoginWithPasswordAsync("o@example.com", "pw");
+        gate.SetResult();
+        Assert.False(await refresh);
+        Assert.Equal(SessionPhase.LoggedIn, _s.Phase);
+        Assert.Equal("a.jwt-3.z", _s.Management.Jwt);
+    }
 }
