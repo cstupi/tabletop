@@ -155,6 +155,33 @@ public class GameSessionTests
     }
 
     [Fact]
+    public async Task An_engine_that_throws_in_advance_faults_the_session_and_closes_every_socket()
+    {
+        var (session, _, clay, opponent, _) = await PlayingAsync(new ThrowingEngineFactory());
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        Assert.True(session.Faulted);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, opponent.Closed!.Value.Status);
+        Assert.Empty(session.Clients);
+    }
+
+    [Fact]
+    public async Task Hydrating_a_session_whose_engine_throws_on_the_catch_up_faults_it_instead_of_throwing()
+    {
+        var log = new InMemoryEventLog();
+        var session = await Hydrate(Info with { Status = GameStatus.Playing }, log, Services(log, new ThrowingEngineFactory(always: true)));
+        Assert.True(session.Faulted);
+    }
+
+    [Fact]
+    public async Task An_ended_game_with_a_draft_hydrates_without_the_engine_appending_anything()
+    {
+        var log = new InMemoryEventLog();
+        var session = await Hydrate(Info with { Status = GameStatus.Ended }, log, Services(log, new FixedAskEngineFactory(SimultaneousSpend)));
+        Assert.False(session.Faulted);
+        Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Losing_the_seq_race_faults_the_session_and_closes_every_socket()
     {
         var (session, log, clay, opponent, _) = await PlayingAsync();
@@ -224,4 +251,17 @@ public sealed class DesyncingEngine : IRulesEngine
 public sealed class DesyncingEngineFactory : IRulesEngineFactory
 {
     public IRulesEngine Create(IGameRules rules, GameInfo game) => new DesyncingEngine();
+}
+
+/// <summary>Throws from Advance: on the first call when always, otherwise once the log holds an event.</summary>
+public sealed class ThrowingEngine(bool always) : IRulesEngine
+{
+    public Tabletop.GameServer.Dispatch.Legality Judge(GameState state, Command command, Actor actor) => Tabletop.GameServer.Dispatch.Legality.Legal;
+    public EngineResult Execute(GameState state, Command command, Actor actor) => new RefuseCommand(RefusalReason.Unknown, "test engine");
+    public IReadOnlyList<EventPayload> Advance(GameState state) => always || state.Applier.Log.Count > 0 ? throw new InvalidOperationException("the engine broke") : [];
+}
+
+public sealed class ThrowingEngineFactory(bool always = false) : IRulesEngineFactory
+{
+    public IRulesEngine Create(IGameRules rules, GameInfo game) => new ThrowingEngine(always);
 }

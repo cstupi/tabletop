@@ -44,11 +44,11 @@ public sealed partial class GameSession
     public IReadOnlyList<ISessionClient> Clients => _clients;
     public bool Faulted { get; private set; }
 
-    /// <summary>Starts the loop, then catches the engine up (Advance) if the game is playing — crash recovery between append and advance.</summary>
+    /// <summary>Starts the loop, then catches the engine up (Advance) if the game is Playing (an Ended game hydrates inert) — crash recovery between append and advance.</summary>
     public Task StartAsync()
     {
         _loop ??= Task.Run(async () => { await foreach (var work in _mailbox.Reader.ReadAllAsync()) await work(); });
-        return RunAsync(async () => { if (Play is not null) await AdvanceAsync(); return 0; });
+        return RunAsync(async () => { if (Play is not null && Info.Status == GameStatus.Playing) await AdvanceAsync(); return 0; });
     }
 
     public Task<T> RunAsync<T>(Func<Task<T>> work)
@@ -122,7 +122,9 @@ public sealed partial class GameSession
         if (Play is null || Engine is null || Faulted) return;
         for (var i = 0; i < 10_000; i++)
         {
-            var events = Engine.Advance(Play);
+            IReadOnlyList<EventPayload> events;
+            try { events = Engine.Advance(Play); }
+            catch (Exception ex) { await FaultAsync($"the engine threw in Advance: {ex.Message}"); return; }
             if (events.Count == 0) return;
             await AppendAsync(events, null, null);
             if (Faulted) return;
