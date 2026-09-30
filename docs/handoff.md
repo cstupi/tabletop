@@ -14,12 +14,13 @@ passes 413 tests: Geometry 131, Content 17, Protocol 36, GameServer 149, Managem
 suites need the compose stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0
 errors and `npm run build` writes `build/index.html`.
 
-**Step 3, in flight.** Two worktrees off `main` at `8b5d8b1`, one branch each:
+**Steps 3 and 4, in flight.** Two worktrees off `main` at `8b5d8b1` and the scheduler's off `interpreter` at `e26eb31`, one branch each:
 
 | Tree | Worktree, branch | Head | Tasks complete | Next |
 | --- | --- | --- | --- | --- |
 | client | `.worktrees/client-shell`, `client-shell` | `1451287`, 25 commits | 1-14 of 16 | task 15 implemented, its task review not run |
 | interpreter | `.worktrees/interpreter`, `interpreter` | `7748c26`, 19 commits | 1-13 of 19 | task 14 reviewed, its fix round 1 not run |
+| scheduler | `.worktrees/scheduler`, `scheduler` | `e26eb31`, the interpreter's head | 0 of 10 | Task 1; controller dispatched 2026-09-29 |
 
 Each unfinished tree's ledger is `.superpowers/ledgers/<tree>.md` and is the resume point: its `complete`
 lines say what not to redo, its rulings are binding on the rest of the tree, and its last line is a `RESUME`
