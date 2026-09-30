@@ -7,6 +7,7 @@ using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Session;
 
 DotEnv.Load(Directory.GetCurrentDirectory());
@@ -22,7 +23,7 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredServic
 builder.Services.AddSingleton<IGameRows, PostgresGameRows>();
 builder.Services.AddSingleton<IEventLog, PostgresEventLog>();
 builder.Services.AddSingleton<IDiceSource, DiceSource>();
-builder.Services.AddSingleton<ISchedulerFactory, NoSchedulerFactory>();   // the scheduler plan replaces this registration
+builder.Services.AddSingleton<ISchedulerFactory, SchedulerFactory>();
 builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
 builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>();
 builder.Services.AddSingleton<PropertiesSeeder>();
