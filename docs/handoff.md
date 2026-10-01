@@ -40,7 +40,7 @@ and `task-06-report.md`. `.superpowers/briefs/common.md` is the brief every tree
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
 `2026-09-05-client-shell/`, `2026-09-05-interpreter-and-effects/` and `2026-09-05-scheduler/` are each
 a `README.md` (goal, constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces
-needed*, rulings) and one `task-NN-*.md` per task; interpreter Tasks 8, 11 and 14 are two files each,
+needed*, rulings) and one `task-NN-*.md` per task; interpreter Tasks 8, 11, 14 and 16 are two files each,
 `-1.md` and `-2.md`. A reference of the form `plan → *Section*` resolves against the README. Three task
 files still run over 500 lines (management 5; scheduler 2 and 5): split one by step before editing it at
 length. The other five plans run 2 000 to 4 700 lines and the design docs 1 000 to 1 700; split each the
@@ -58,12 +58,14 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 
 ## Next
 
-0. **Finish the interpreter plan's docs corrections.** Section 6 of `.superpowers/reports/interpreter.md`
-   is applied to the design docs, specs, `CLAUDE.md` and this file, and the three oversized task files are
-   split; its items for `plans/2026-09-05-interpreter-and-effects/` (README and task files) were in progress
-   at the pause and may be partial. Check each item against the plan directory and the code on `main`, then
-   delete `.superpowers/briefs/interpreter.md`, `.superpowers/ledgers/interpreter.md` and
-   `.superpowers/sdd/interpreter/`, which are kept until then. The scheduler's corrections are fully applied.
+0. **Bring the interpreter plan up to the fix rounds (optional, docs only).** Both reports' section 6 is
+   applied. `plans/2026-09-05-interpreter-and-effects/` does not yet carry the hardening from the
+   interpreter's fix rounds 1 and 3, which section 6 did not list: `GfAnswers` and the out-of-set answer
+   handling, `FrameReader.Recorded`, the `declare_targets` offer check, the `Sim.Confirm` tests, the
+   kind-conflict refusal and `order by ctid` in `PostgresPropertiesStore`, Task 17's per-caster tried
+   spells and `Sight` in `EligibleSpenders`/`SpellTargets`, `GfShooting.Groups`'s `shootingFrame`
+   (Limited counts only spends before this shooting), and `Windows.Run`'s empty-`OpenAsks` guard
+   (task-09). The code on `main` is the reference.
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
