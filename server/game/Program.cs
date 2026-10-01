@@ -1,8 +1,11 @@
 using Npgsql;
 using Tabletop.GameServer.Auth;
 using Tabletop.GameServer.Configuration;
+using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Engine;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Persistence;
+using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Session;
 
@@ -18,13 +21,18 @@ builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection));
 builder.Services.AddSingleton<IGameRows, PostgresGameRows>();
 builder.Services.AddSingleton<IEventLog, PostgresEventLog>();
-builder.Services.AddSingleton<IRulesEngineFactory, InertEngineFactory>();
+builder.Services.AddSingleton<IDiceSource, DiceSource>();
+builder.Services.AddSingleton<ISchedulerFactory, NoSchedulerFactory>();   // the scheduler plan replaces this registration
+builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
+builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>();
+builder.Services.AddSingleton<PropertiesSeeder>();
 builder.Services.AddSingleton<SessionServices>();
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<ConnectionHandshake>();
 builder.Services.AddHostedService<SessionHost>();
 
 var app = builder.Build();
+if (!app.Environment.IsEnvironment("Test")) await app.Services.GetRequiredService<PropertiesSeeder>().SeedEmbeddedAsync(CancellationToken.None);
 var options = app.Services.GetRequiredService<GameServerOptions>();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = options.KeepAliveInterval, KeepAliveTimeout = options.KeepAliveTimeout });
 

@@ -47,4 +47,18 @@ public class GameRowsReadTests(PostgresFixture pg)
         Assert.Equal(owner, owned.OwnerId);
         Assert.Equal(Tabletop.Content.ContentJson.Serialize(seeded), Tabletop.Content.ContentJson.Serialize(owned.Army));
     }
+
+    [Fact]
+    public async Task Weapons_and_properties_read_back_in_import_order_not_id_or_name_order()
+    {
+        var sample = Tabletop.Content.Tests.ArmyTests.Sample();
+        var unit = sample.Units[0]; var slot = unit.Models[0];
+        Tabletop.Content.Weapon W(string id, string name) => new(Guid.Parse(id), name, new Dictionary<string, string>(), [new("Zeta", null), new("Alpha", 2), new("Mid", null)]);
+        var weapons = new[] { W("ffffffff-0000-7000-8000-000000000001", "Second"), W("80000000-0000-7000-8000-000000000002", "First"), W("10000000-0000-7000-8000-000000000003", "Third") };
+        var army = sample with { Units = [unit with { Models = [slot with { Weapons = weapons }, .. unit.Models.Skip(1)] }, .. sample.Units.Skip(1)] };
+        var seeded = await pg.SeedArmyAsync(await pg.SeedAccountAsync("Owner"), army);
+        var read = (await _rows.ReadArmyAsync(seeded.Id, CancellationToken.None))!.Army.Units[0].Models[0].Weapons;
+        Assert.Equal(["Second", "First", "Third"], read.Select(w => w.Name));
+        Assert.All(read, w => Assert.Equal(["Zeta", "Alpha", "Mid"], w.Properties.Select(p => p.Name)));
+    }
 }

@@ -150,10 +150,19 @@ internal sealed record PolygonOutline : Outline
     public PolygonOutline(IReadOnlyList<Point2> vertices)
     {
         if (vertices.Count < 3) throw new ArgumentException("A polygon outline needs at least three vertices.", nameof(vertices));
-        double twiceArea = 0;
-        for (int i = 0, j = vertices.Count - 1; i < vertices.Count; j = i++) twiceArea += vertices[j].Cross(vertices[i]);
+        var twiceArea = TwiceArea(vertices);
         if (Math.Abs(twiceArea) < Tolerance.Distance) throw new ArgumentException("A polygon outline needs positive area.", nameof(vertices));
         Vertices = twiceArea < 0 ? vertices.Reverse().ToList() : vertices.ToList();
+    }
+
+    /// <summary>The constructor's own test, asked without constructing: three vertices or more, and twice the area at least Tolerance.Distance, or at least a caller's larger minimum.</summary>
+    internal static bool Builds(IReadOnlyList<Point2> vertices, double minTwiceArea = Tolerance.Distance) => vertices.Count >= 3 && Math.Abs(TwiceArea(vertices)) >= minTwiceArea;
+
+    static double TwiceArea(IReadOnlyList<Point2> vertices)
+    {
+        double twiceArea = 0;
+        for (int i = 0, j = vertices.Count - 1; i < vertices.Count; j = i++) twiceArea += vertices[j].Cross(vertices[i]);
+        return twiceArea;
     }
 
     public override bool Contains(Point2 p)

@@ -14,6 +14,8 @@ public static class DraftEditor
         // both fields null, IsValid false. The row's check constraint (builtin is null) <> (asset_id is null) would then
         // reject the write after the board was already broadcast, so this is caught here, before any of it happens.
         if (InvalidVisual(edit) is { } bad) return Miss(out missing, $"{bad} is not a valid visual");
+        // Geometry throws at construction for an outline without area, and every later cover, sight or settle call would fault the game.
+        if (Degenerate(d, edit) is { } flat) return Miss(out missing, $"{flat} is degenerate");
         switch (edit)
         {
             case SetTableSize s: return d with { Size = s.Size };
@@ -60,6 +62,26 @@ public static class DraftEditor
         ReplaceDraft r when !r.Draft.Texture.IsValid => "the layout's texture",
         ReplaceDraft r when r.Draft.Terrain.FirstOrDefault(t => !t.Mesh.IsValid) is { } badTerrain => $"the layout terrain {badTerrain.Id}'s mesh",
         ReplaceDraft r when r.Draft.Markers.FirstOrDefault(m => !m.Visual.IsValid) is { } badMarker => $"the layout marker {badMarker.Id}'s visual",
+        _ => null,
+    };
+
+    static bool Positive(double v) => double.IsFinite(v) && v > 0;
+    static bool Flat(TerrainPlacement t) => !Positive(t.Scale) || t.Volumes.Any(v => !v.Volume.Footprint.IsValid(t.Scale));
+    static bool Flat(TableSize s) => !Table.IsValid(s);
+    static TerrainPlacement? Placed(TableState d, Guid id) => d.Terrain.FirstOrDefault(t => t.Id == id);
+
+    /// <summary>
+    /// Names the first outline an edit carries that geometry could not build, or null. The tests are geometry's own (Footprint.IsValid,
+    /// Table.IsValid), on the placement as the edit would leave it: a new scale over the placement's volumes, new volumes under its scale.
+    /// </summary>
+    static string? Degenerate(TableState d, SetupEdit edit) => edit switch
+    {
+        SetTableSize s when Flat(s.Size) => "the table size",
+        AddTerrain a when Flat(a.Placement) => $"terrain {a.Placement.Id}",
+        ScaleTerrain s when !Positive(s.Scale) || (Placed(d, s.PlacementId) is { } t && Flat(t with { Scale = s.Scale })) => $"terrain {s.PlacementId}'s scale",
+        OverrideTerrainVolumes o when Flat(new TerrainPlacement(o.PlacementId, default, default, default, Placed(d, o.PlacementId)?.Scale ?? 1, o.Volumes)) => $"terrain {o.PlacementId}'s volumes",
+        ReplaceDraft r when Flat(r.Draft.Size) => "the layout's table size",
+        ReplaceDraft r when r.Draft.Terrain.FirstOrDefault(Flat) is { } t => $"the layout terrain {t.Id}",
         _ => null,
     };
 

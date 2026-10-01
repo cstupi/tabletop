@@ -44,7 +44,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         try { game = await registry.GetOrHydrateAsync(connect.GameId, aborted); }
         // ProjectionDesyncException here means the stored log does not apply to the stored snapshot, which is a server bug and
         // not something a reconnect can clear: every attempt replays the same event.
-        catch (Exception ex) when (ex is GameNotFoundException or GameRowsInconsistentException or Rules.UnknownGameRulesException or ProjectionDesyncException)
+        catch (Exception ex) when (ex is GameNotFoundException or GameRowsInconsistentException or Rules.UnknownGameRulesException or Engine.PropertiesNotFoundException or ProjectionDesyncException)
         { log.LogError(ex, "cannot hydrate {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot hydrate this game"); return; }
 
         var connection = new SocketConnection(socket, participantId.Value, log);

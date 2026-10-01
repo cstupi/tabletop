@@ -88,9 +88,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     /// <summary>Inserts ArmyTests.Sample() under owner and returns exactly what it inserted (the sample makes fresh ids per call).</summary>
-    public async Task<Tabletop.Content.Army> SeedArmyAsync(Guid ownerId)
+    public async Task<Tabletop.Content.Army> SeedArmyAsync(Guid ownerId, Tabletop.Content.Army? given = null)
     {
-        var army = Tabletop.Content.Tests.ArmyTests.Sample();
+        var army = given ?? Tabletop.Content.Tests.ArmyTests.Sample();
         await using var conn = await Db.OpenConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         async Task Run(string sql, params object?[] args)
@@ -164,6 +164,21 @@ public sealed class PostgresFixture : IAsyncLifetime
             await Run("insert into management.deployment_zone (id, table_state_id, shape, team_ordinal) values ($1, $2, $3, $4)", z.Id, layout.Id, z.Shape, z.TeamOrdinal);
         await tx.CommitAsync();
         return layout;
+    }
+
+    /// <summary>
+    /// Deletes a properties set seeded outside the fixture (SeedAsync writes it directly, not through SeedPropertiesAsync).
+    /// `effect` goes first: its target_roll/target_stat/target_entry/target_action foreign keys are plain (not
+    /// on delete cascade), and properties' own cascade to action/roll/stat_definition/catalog_entry races the
+    /// catalog_entry-to-effect cascade within one statement, so deleting `properties` directly can fail with
+    /// "violates foreign key constraint effect_properties_hash_target_action_fkey" depending on trigger order.
+    /// Deleting `effect` (which cascades to effect_condition and condition_value) first removes that race; the
+    /// remaining six tables then cascade cleanly from `properties`.
+    /// </summary>
+    public async Task DeletePropertiesAsync(string hash)
+    {
+        await Exec("delete from management.effect where properties_hash = $1", hash);
+        await Exec("delete from management.properties where content_hash = $1", hash);
     }
 
     public async Task<int> CountAsync(string sql, params object[] args)

@@ -1,0 +1,95 @@
+{
+  "name": "Grimdark Future v3.5.1 core", "gameRules": "grimdark-future",
+  "stats": [
+    { "level": "unit", "name": "Quality", "kind": "target_number" }, { "level": "unit", "name": "Defense", "kind": "target_number" },
+    { "level": "model", "name": "Quality", "kind": "target_number" }, { "level": "model", "name": "Defense", "kind": "target_number" },
+    { "level": "weapon", "name": "Range", "kind": "distance" }, { "level": "weapon", "name": "Attacks", "kind": "count" } ],
+  "actions": [ { "name": "Hold", "distance": 0 }, { "name": "Advance", "distance": 6 }, { "name": "Rush", "distance": 12 }, { "name": "Charge", "distance": 12 } ],
+  "rolls": [ "hit", "defense", "morale", "casting" ],
+  "entries": [
+    { "name": "Aircraft", "kind": "unit", "ruleText": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12\" to their range.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_stat", "targetStat": { "level": "weapon", "name": "Range" }, "amount": -12 } ] },
+    { "name": "Ambush", "kind": "unit", "ruleText": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambushers, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.", "effects": [] },
+    { "name": "AP", "kind": "weapon", "takesParameter": true, "ruleText": "Targets get -X to Defense rolls when blocking hits from weapons with this special rule.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "defense", "amount": -1, "amountFromParameter": true } ] },
+    { "name": "Artillery", "kind": "model", "aggregation": "all", "ruleText": "May only use Hold actions. When this model shoots at enemies over 9\" away, it gets +1 to hit rolls. When enemy units shoot at this model from over 9\" away, they get -2 to hit rolls.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": 1, "conditions": [
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] },
+        { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -2, "conditions": [
+          { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
+    { "name": "Bane", "kind": "weapon", "ruleText": "Ignores Regeneration, and when attacking the target must re-roll unmodified Defense results of 6.",
+      "effects": [
+        { "subject": "opponent", "ordinal": 20, "kind": "force_reroll", "targetRoll": "defense", "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "defense", "raw" ] } ] },
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" } ] },
+    { "name": "Blast", "kind": "weapon", "takesParameter": true, "ruleText": "Ignores cover, and after resolving other special rules, each hit is multiplied by X, where X is up to as many hits as models in the target unit.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "suppress_modifiers", "targetModifier": "cover" },
+        { "subject": "self", "ordinal": 90, "kind": "multiply", "targetQuantity": "hits", "amount": 1, "amountFromParameter": true, "capKind": "models_in_target_unit" } ] },
+    { "name": "Caster", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "Gets X spell tokens at the start of each round, but can't hold more than 6 tokens at once. At any point before attacking, spend as many tokens as the spell's value to try casting one or more spells (only one try per spell). Roll one die, on 4+ resolve the effect on a target in line of sight. Models within 18\" in line of sight of the caster's unit may spend any number of spell tokens at the same time before rolling, to give the caster +1/-1 to the roll per token.", "effects": [] },
+    { "name": "Counter", "kind": "weapon", "ruleText": "Strikes first with this weapon when charged, and the charging unit gets -1 total Impact rolls per model with Counter.", "effects": [] },
+    { "name": "Deadly", "kind": "weapon", "takesParameter": true, "ruleText": "Assign each wound to one model, and multiply it by X. Hits from Deadly must be resolved first, and these wounds don't carry over to other models if the original target is killed.",
+      "effects": [ { "subject": "self", "ordinal": 0, "kind": "multiply", "targetQuantity": "wounds", "amount": 1, "amountFromParameter": true } ] },
+    { "name": "Fast", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move +2\" when using Advance and +4\" when using Rush/Charge.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": 2 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": 4 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": 4 } ] },
+    { "name": "Fear", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "This model counts as having dealt +X wounds when checking who won melee.", "effects": [] },
+    { "name": "Fearless", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule fails a morale test, roll one die. On a 4+ it counts as passed instead.",
+      "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 4, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "morale_test" } ] } ] },
+    { "name": "Flying", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may move through units and terrain, and ignore terrain effects whilst moving.", "effects": [] },
+    { "name": "Furious", "kind": "model", "aggregation": "all", "ruleText": "When charging, unmodified results of 6 to hit in melee deal 1 extra hit (only the original hit counts as a 6 for special rules).",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] },
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Hero", "kind": "model", "aggregation": "none", "ruleText": "Heroes with up to Tough(6) may deploy as part of one multi-model unit without another Hero. The hero may take morale tests on behalf of the unit, but must use the unit's Defense until all other models have been killed.", "effects": [] },
+    { "name": "Immobile", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule may only use Hold actions.", "effects": [] },
+    { "name": "Impact", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "Roll X dice when attacking after charging, unless fatigued. For each 2+ the target takes one hit.",
+      "effects": [ { "subject": "self", "ordinal": 20, "kind": "roll", "amount": 1, "amountFromParameter": true, "threshold": 2,
+        "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "actor_state", "subject": "self", "comparison": "neq", "values": [ "fatigued" ] } ],
+        "children": [ { "subject": "self", "ordinal": 0, "kind": "add_hit", "amount": 1 } ] } ] },
+    { "name": "Indirect", "kind": "weapon", "ruleText": "Gets -1 to hit rolls when shooting after moving. May target enemies that are not in line of sight as if in line of sight, and ignores cover from sight obstructions.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Advance" ] } ] } ] },
+    { "name": "Limited", "kind": "weapon", "ruleText": "Weapons with this rule may only be used once per game.", "effects": [] },
+    { "name": "Regeneration", "kind": "model", "aggregation": "all", "ruleText": "When a unit where all models have this rule takes wounds, roll one die for each. On a 5+ it is ignored.",
+      "effects": [ { "subject": "self", "ordinal": 50, "kind": "roll", "amount": 1, "threshold": 5, "children": [ { "subject": "self", "ordinal": 0, "kind": "override_result", "targetResult": "wound" } ] } ] },
+    { "name": "Relentless", "kind": "model", "aggregation": "all", "ruleText": "When this model shoots at enemies over 9\" away, unmodified results of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 },
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Reliable", "kind": "weapon", "ruleText": "Models attacks at Quality 2+ with this weapon.",
+      "effects": [ { "subject": "self", "ordinal": 1, "kind": "replace_stat", "targetStat": { "level": "unit", "name": "Quality" }, "replacement": "2+" } ] },
+    { "name": "Rending", "kind": "weapon", "ruleText": "Ignores Regeneration, and on unmodified results of 6 to hit, those hits get AP(+4).",
+      "effects": [
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
+        { "subject": "self", "ordinal": 30, "kind": "grant_property", "targetEntry": "AP", "amount": 4, "conditions": [ { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Scout", "kind": "unit", "ruleText": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 12\" of their deployment zone. Players alternate in placing Scout units, starting with the player that activates next.", "effects": [] },
+    { "name": "Slow", "kind": "model", "aggregation": "all", "ruleText": "Models with this special rule move -2\" when using Advance, and -4\" when using Rush/Charge.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Advance", "amount": -2 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Rush", "amount": -4 },
+        { "subject": "self", "ordinal": 10, "kind": "modify_stat", "targetAction": "Charge", "amount": -4 } ] },
+    { "name": "Stealth", "kind": "model", "aggregation": "all", "ruleText": "When units where all models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls.",
+      "effects": [ { "subject": "opponent", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": -1, "conditions": [
+        { "kind": "attack_kind", "comparison": "eq", "values": [ "shooting" ] }, { "kind": "range", "comparison": "gt", "number": 9 } ] } ] },
+    { "name": "Strider", "kind": "model", "aggregation": "all", "ruleText": "May ignore the effects of difficult terrain when moving.", "effects": [] },
+    { "name": "Surge", "kind": "weapon", "ruleText": "On unmodified results of 6 to hit, this weapon deals 1 extra hit (only the original hit counts as a 6 for special rules).",
+      "effects": [ { "subject": "self", "ordinal": 30, "kind": "add_hit", "amount": 1, "conditions": [
+        { "kind": "roll_result", "comparison": "eq", "number": 6, "values": [ "hit", "raw" ] } ] } ] },
+    { "name": "Takedown", "kind": "weapon", "ruleText": "This model may pick any model in the target unit as its individual target, which is resolved as if it was a unit of [1]. Takedown attacks must be resolved before other weapons.",
+      "effects": [] },
+    { "name": "Thrust", "kind": "weapon", "ruleText": "When charging, gets +1 to hit rolls and AP(+1) in melee.",
+      "effects": [
+        { "subject": "self", "ordinal": 10, "kind": "modify_roll", "targetRoll": "hit", "amount": 1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] } ] },
+        { "subject": "self", "ordinal": 5, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [ { "kind": "action_taken", "subject": "self", "comparison": "eq", "values": [ "Charge" ] }, { "kind": "attack_kind", "comparison": "eq", "values": [ "melee" ] } ] } ] },
+    { "name": "Tough", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "This model must take X wounds before being killed. If a model with tough joins a unit without it, then it is removed last when the unit takes wounds. You must continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on the next tough model (heroes must be assigned wounds last, even if already wounded).", "effects": [] },
+    { "name": "Transport", "kind": "model", "aggregation": "none", "takesParameter": true, "ruleText": "May transport up to X models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which occupy 3 spaces each. Transports may deploy with units inside, and units may enter/exit by using any move action, but must stay fully within 6\" of it when exiting. Units inside/outside transports may not target other units outside/inside transports, but may target the transport itself. When a transport is destroyed, units inside must take a dangerous terrain test, are Shaken, and must be placed fully within 6\" of the transport before it's removed.", "effects": [] },
+    { "name": "Unstoppable", "kind": "weapon", "ruleText": "Ignores Regeneration, and ignores all negative modifiers to this weapon.",
+      "effects": [
+        { "subject": "opponent", "ordinal": 5, "kind": "suppress_property", "targetEntry": "Regeneration" },
+        { "subject": "self", "ordinal": 5, "kind": "suppress_modifiers", "targetModifier": "to_hit_penalties" },
+        { "subject": "self", "ordinal": 5, "kind": "suppress_modifiers", "targetModifier": "range_penalties" } ] }
+  ]
+}
