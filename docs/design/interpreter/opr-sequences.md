@@ -117,11 +117,11 @@ per-die grant are rolled separately with that property folded into the live set 
 roll. Every one of those plans takes `Values["defender_models"]` off the `attack-sequence` frame,
 because p.14 lets a joined hero block on its own `Defense` only *"until all other models have been
 killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.InCover(target, eligible attacker models)` asked once for the whole action
-(p.11). Both of p.11's thresholds live in that call: a majority of the target's living models
-with a base centre in a `Cover` volume, or fewer than half of them seen. `Battlefield` supplies
-only the two counts, `ModelsInCoverTerrain` and `ModelsVisibleFrom`, because the fraction is a
-ruleset number. Sight is measured from the whole eligible attacker set, not from one vantage
-model. `deal` pushes `deal-wounds`.
+(p.11). p.11's one majority lives in that call: more than half of the target's living models are
+in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies only the two
+model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
+of their union, because the fraction is a ruleset number. Sight is measured from the whole
+eligible attacker set, not from one vantage model. Indirect drops the sight list. `deal` pushes `deal-wounds`.
 
 `Impact` hits enter here directly, skipping the hit roll. Spell hits enter after a hit roll that
 cannot fail, so *on rolls of 6* rules read a real die.

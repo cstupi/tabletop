@@ -2,15 +2,16 @@
 
 **Files:**
 - Modify: `server/game/Rules/IGameRules.cs` (add the scheduler's members beside the interpreter plan's)
-- Read, do not modify: `server/game/Rules/GrimdarkFuture/GfNames.cs` — the interpreter plan's Task 11 declares every name this plan uses; land it first
+- Modify: `server/game/Rules/GrimdarkFuture/GfNames.cs` — the interpreter plan's Task 11 declares every name this plan uses except `Artillery`, which this task adds; land it first
 - Create: `server/game/Rules/GrimdarkFuture/GfRules.Scheduling.cs`, `server/game/Rules/GrimdarkFuture/GfRules.Deployment.cs`, `server/game/Scheduler/TeamUnits.cs`
+- Modify: `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs` (`WithSequences` forwards the seven new members to `inner`)
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/TestArmies.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/TestGames.cs`, `tests/Tabletop.GameServer.Tests/GrimdarkFutureRulesTests.cs`
 
 **Interfaces:**
 - Consumes: Task 1's types, `SchedulerLog`, `ActivationOption`; `UnitInPlay`, `ModelInPlay`, `Location`, `OnShelf`, `PropertyInstance`, `Grant` (Protocol/Content); the skeleton's `GrimdarkFutureRules` (`sealed partial`, `Rules/GrimdarkFuture/GfRules.cs`); the interpreter plan's `Effects.Lookup.UnitHas(GameState, PropertySet, Guid unitId, string entry)` (Task 6 — own properties, aggregated model properties, and the grants store), `PropertySet`, `TestProperties.Core`, and its three hooks `OnRoundStarted`/`EndOfTurnSequences`/`OnTurnEnded` with their `GfHooks` bodies (Task 11) — this plan implements none of those three.
-- Produces: `IGameRules` members `IReadOnlyList<string> PhasesBeforeRounds { get; }`, `IReadOnlyList<string> PhasesInTurn { get; }`, `FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams)`, `TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId)`, `Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer)`, `bool ActivationComplete(GameState state, Activation activation)`, `HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order)`, `IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams)` — and no others: what this plan first drafted as `RoundStartChanges`, `EndOfTurn` and `TurnEndChanges` is the interpreter plan's `OnRoundStarted(GameState, PropertySet, int round)`, `EndOfTurnSequences(GameState, PropertySet, TurnContext)` and `OnTurnEnded(GameState, PropertySet, TurnContext)`, one body each in `GfHooks` (the merged interface is written in full in the skeleton plan → Interfaces → Produces); `GrimdarkFutureRules` partials `GfRules.Scheduling.cs` and `GfRules.Deployment.cs` (no `RulesId`, `Instance` or `Id` — the skeleton's `GfRules.cs` has them) with `internal static IReadOnlyList<string> ActionsFor(GameState, PropertySet, UnitInPlay, IReadOnlyList<string> rows)` and `internal static IReadOnlyList<Guid> Ambushers(GameState, PropertySet, Guid teamId)` (this task adds nothing to `GfNames`: `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside` are declared there by the interpreter plan's Task 11, beside `Hold`, `Advance`, `Rush`, `Charge`, `Shaken`, `Fatigued`, `MoraleTest`, `Melee`, `RollOffSeq`, `TokenCap` — redeclaring any of them is a duplicate, not a gap); `static class TeamUnits { Guid? TeamOf(GameState, Guid participantId); IReadOnlyList<UnitInPlay> Of(GameState, Guid teamId); bool AllShelved(GameState, UnitInPlay); bool AnyOnTable(GameState, UnitInPlay); IReadOnlyList<ModelInPlay> ModelsOf(GameState, UnitInPlay); int IndexOf(IReadOnlyList<Guid> order, Guid team); }`. Test infrastructure `TestArmies.Build(string name, int units, int modelsPerUnit, (int Unit, string Rule, int? Parameter)[]? unitRules = null, (int Unit, string Rule, int? Parameter)[]? modelRules = null)`; `TestGames.Build(IReadOnlyList<Army?> armyPerTeam, SchedulerShape shape = AlternatingActivation, Enforcement enforcement = Warn, bool waits = false, int spectators = 0, IGameRules? rules = null)` returning `TestGames.Built(GameState State, GameInfo Info, IReadOnlyList<Guid> Teams, IReadOnlyList<Guid> Participants)`; `TestGames.Apply(Built, params EventPayload[])`; `TestGames.Relocations(GameState, Guid unitId)` and, over it, `TestGames.Place` (the `ModelsMoved` event, for `Apply`/`Append`) and `TestGames.Move` (the identical `MoveModels` command, for `Dispatch`) putting every model of the unit on the table.
+- Produces: `IGameRules` members `IReadOnlyList<string> PhasesBeforeRounds { get; }`, `IReadOnlyList<string> PhasesInTurn { get; }`, `FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams)`, `TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId)`, `Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer)`, `bool ActivationComplete(GameState state, Activation activation)`, `HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order)` — seven members and no others: `OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams)` is the interpreter plan's (R-F1, null body in `GfRules.Sequences.cs`), and the round-start changes, the end-of-turn sequences and the turn-end changes are the interpreter plan's `OnRoundStarted(GameState, PropertySet, int round)`, `EndOfTurnSequences(GameState, PropertySet, TurnContext)` and `OnTurnEnded(GameState, PropertySet, TurnContext)`, one body each in `GfHooks` (the merged interface is written in full in the skeleton plan → Interfaces → Produces); `GrimdarkFutureRules` partials `GfRules.Scheduling.cs` and `GfRules.Deployment.cs` (no `RulesId`, `Instance` or `Id` — the skeleton's `GfRules.cs` has them) with `public static IReadOnlyList<string> ActionsFor(GameState, PropertySet, UnitInPlay, IReadOnlyList<string> rows)` and `public static IReadOnlyList<Guid> Ambushers(GameState, PropertySet, Guid teamId)` (this task adds `GfNames.Artillery` and nothing else to it: `Deployment, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Caster`, `Tough`, `SetAside` are declared there by the interpreter plan's Task 11, beside `Hold`, `Advance`, `Rush`, `Charge`, `Shaken`, `Fatigued`, `MoraleTest`, `Melee`, `RollOffSeq`, `TokenCap` — redeclaring any of them is a duplicate, not a gap); `static class TeamUnits { Guid? TeamOf(GameState, Guid participantId); IReadOnlyList<UnitInPlay> Of(GameState, Guid teamId); bool AllShelved(GameState, UnitInPlay); bool AnyOnTable(GameState, UnitInPlay); IReadOnlyList<ModelInPlay> ModelsOf(GameState, UnitInPlay); int IndexOf(IReadOnlyList<Guid> order, Guid team); }`. Test infrastructure `TestArmies.Build(string name, int units, int modelsPerUnit, (int Unit, string Rule, int? Parameter)[]? unitRules = null, (int Unit, string Rule, int? Parameter)[]? modelRules = null)`; `TestGames.Build(IReadOnlyList<Army?> armyPerTeam, SchedulerShape shape = AlternatingActivation, Enforcement enforcement = Warn, bool waits = false, int spectators = 0, IGameRules? rules = null, long rngSeed = 7)` returning `TestGames.Built(GameState State, GameInfo Info, IReadOnlyList<Guid> Teams, IReadOnlyList<Guid> Participants)`; `TestGames.Apply(Built, params EventPayload[])`; `TestGames.UnitSubject(Guid)`; `TestGames.Activate(Guid unitId, string action = "Hold")`; `TestGames.Relocations(GameState, Guid unitId)` and, over it, `TestGames.Place` (the `ModelsMoved` event, for `Apply`/`Append`) and `TestGames.Move` (the identical `MoveModels` command, for `Dispatch`) putting every model of the unit on the table.
 
-Spec: scheduler → The line (the right-hand column is this interface), The turn is an Ask (legal set = activatable units × actions; `Immobile` means Hold only; Shaken means idle), Deployment (shelf minus set-aside; Scouts after every other unit), The round boundary (fatigue, spell tokens, Ambushers "starting with the player that activates next", nothing written to the record), What the interface must not assume 1 (first team is a policy: finished-first for two teams, roll-off every round for free-for-all — page 50 "including the first"), 6 (reaction ordering replaceable). Action sequences → End-of-activation hook (half or less of starting size or Tough; melee units compare instead), Fatigue (cleared at the round boundary), The token economy (+X, capped at 6, even off the table). Rulebook page 10: Shaken units "must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation"; page 13 `Aircraft` "May only use Advance actions", `Ambush`; page 14 `Immobile`, `Scout`. Set-aside is a condition on the shelved unit (scheduler → Deployment), written from the menu with `SetCondition` like any other property (game flow → Nothing is an invariant); no phase Asks for it.
+Spec: scheduler → The line (the right-hand column is this interface), The turn is an Ask (legal set = activatable units × actions; `Immobile` and `Artillery` mean Hold only; Shaken means idle), Deployment (shelf minus set-aside; Scouts after every other unit), The round boundary (fatigue, spell tokens, Ambushers "starting with the player that activates next", nothing written to the record), What the interface must not assume 1 (first team is a policy: one roll-off for deployment order, then finished-first at every team count — page 50), 6 (reaction ordering replaceable). Action sequences → End-of-activation hook (half or less of starting size or Tough; melee units compare instead), Fatigue (cleared at the round boundary), The token economy (+X, capped at 6, even off the table). Rulebook page 10: Shaken units "must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation"; page 13 `Aircraft` "May only use Advance actions", `Ambush`; page 13 `Artillery` "May only use Hold actions"; page 14 `Immobile`, `Scout`. Set-aside is a condition on the shelved unit (scheduler → Deployment), written from the menu with `SetCondition` like any other property (game flow → Nothing is an invariant); no phase Asks for it.
 
 - [ ] **Step 1: Write the test infrastructure `TestArmies.cs` and `TestGames.cs`**
 
@@ -85,6 +86,11 @@ public static class TestGames
     public static IReadOnlyList<ModelRelocation> Relocations(GameState state, Guid unitId) => state.Projection.Units[unitId].Definition.Models
         .Select((m, i) => new ModelRelocation(m.Id, state.Projection.Models[m.Id].Location, new OnTable(new Placement(new Point3(6 + i * 2, 6, 0), new Yaw(0))))).ToList();
 
+    public static Subject UnitSubject(Guid unitId) => new(SubjectKind.Unit, unitId);
+
+    /// <summary>The activate Ask's option id for a unit's action.</summary>
+    public static string Activate(Guid unitId, string action = "Hold") => Tabletop.GameServer.Scheduler.ActivationOption.Id(unitId, action);
+
     public static ModelsMoved Place(GameState state, Guid unitId) => new(Relocations(state, unitId));
     public static MoveModels Move(GameState state, Guid unitId) => new(Relocations(state, unitId));
 }
@@ -107,7 +113,7 @@ public class GrimdarkFutureRulesTests
     static readonly GrimdarkFutureRules Rules = GrimdarkFutureRules.Instance;
     static readonly PropertySet Core = TestProperties.Core;                                    // its action rows: Hold, Advance, Rush, Charge
     static readonly string[] Rows = ["Hold", "Advance", "Rush", "Charge"];
-    static Subject UnitSubject(Guid id) => new(SubjectKind.Unit, id);
+    static Subject UnitSubject(Guid id) => TestGames.UnitSubject(id);
 
     /// <summary>Team 1: three units of three (unit 2 is a Scout, unit 3 an Ambusher); team 2: two units, the second Immobile with one Tough(6) Caster(2) model.</summary>
     static TestGames.Built Game(SchedulerShape shape = SchedulerShape.AlternatingActivation) => TestGames.Build([
@@ -179,6 +185,28 @@ public class GrimdarkFutureRulesTests
     }
 
     [Fact]
+    public void Artillery_and_Immobile_units_may_only_hold()
+    {
+        var g = TestGames.Build([TestArmies.Build("A", 2, 1, unitRules: [(1, Artillery, null), (2, Immobile, null)])]);
+        foreach (var unit in g.State.Projection.Units.Values)
+            Assert.Equal(["Hold"], GrimdarkFutureRules.ActionsFor(g.State, Core, unit, Rows));           // p.13 Artillery: "May only use Hold actions"
+        TestGames.Apply(g, new PhaseStarted(Rounds));
+        var units = Units(g, 0);
+        TestGames.Apply(g, TestGames.Place(g.State, units[0]));
+        Assert.Equal([TestGames.Activate(units[0])], Assert.IsType<Options>(Rules.LegalTurn(g.State, Core, g.Teams[0])!.Legal).Choices.Select(c => c.Id));
+    }
+
+    [Fact]
+    public void Artillery_and_Immobile_declared_on_every_model_are_read_through_aggregation_and_mean_hold_only()
+    {
+        var g = TestGames.Build([TestArmies.Build("A", 2, 2, modelRules: [(1, Artillery, null), (2, Immobile, null)])]);
+        var units = Units(g, 0);
+        TestGames.Apply(g, TestGames.Place(g.State, units[0]), TestGames.Place(g.State, units[1]));
+        foreach (var id in units)
+            Assert.Equal(["Hold"], GrimdarkFutureRules.ActionsFor(g.State, Core, g.State.Projection.Units[id], Rows));
+    }
+
+    [Fact]
     public void First_team_is_a_roll_off_before_round_one_then_the_winner_then_whoever_finished_first()
     {
         var g = Game(); var teams = g.Teams;
@@ -221,7 +249,8 @@ public class GrimdarkFutureRulesTests
         TestGames.Apply(g, new ModelsMoved([new ModelRelocation(models[1].Id, new OnTable(new(new(3, 1, 0), new(0))), new OnShelf())]));
         var started = Rules.EndOfTurnSequences(g.State, Core, turn);
         Assert.Equal((MoraleTest, a[0]), (started.Single().Sequence, started.Single().Context.ActorUnitId));
-        TestGames.Apply(g, new SequenceStarted(Guid.CreateVersion7(), Melee, new SequenceContext(b[0], [a[0]], [], null)));
+        TestGames.Apply(g, new SequenceStarted(Guid.CreateVersion7(), HoldSeq, new SequenceContext(b[0], [], [], Hold)),   // the root frame GfHooks anchors "this activation" on
+            new SequenceStarted(Guid.CreateVersion7(), Melee, new SequenceContext(b[0], [a[0]], [], null)));
         Assert.Empty(Rules.EndOfTurnSequences(g.State, Core, turn));                                    // fought this melee: the melee compares wounds instead
         var tough = g.State.Projection.Units[b[1]].Definition.Models[0].Id;
         TestGames.Apply(g, new TurnStarted(g.Teams[0]), TestGames.Place(g.State, b[1]), new WoundsThisActivationSet(b[1], 3), new WoundsSet(tough, 3));
@@ -250,6 +279,9 @@ public class GrimdarkFutureRulesTests
         TestGames.Apply(g, new AskClosed(ask.Id, [new TeamAnswer(g.Teams[1], new SelectedPieces([b[0]]))]));
         Assert.IsType<HookWaiting>(Rules.RoundBoundaryStep(g.State, Core, 2, order));                    // models still on the shelf
         TestGames.Apply(g, TestGames.Place(g.State, b[0]));
+        var cleared = Assert.IsType<HookEmit>(Rules.RoundBoundaryStep(g.State, Core, 2, order));           // arrived: set-aside is cleared before the next Ask
+        Assert.Equal(new ConditionSet(UnitSubject(b[0]), SetAside, false), Assert.Single(cleared.Events));
+        TestGames.Apply(g, cleared.Events.ToArray());
         var second = Assert.IsType<AskOpened>(Assert.IsType<HookEmit>(Rules.RoundBoundaryStep(g.State, Core, 2, order)).Events.Single()).Ask;
         Assert.Equal([g.Teams[0]], second.Teams);
         TestGames.Apply(g, new AskOpened(second), new AskClosed(second.Id, [new TeamAnswer(g.Teams[0], new Passed())]));
@@ -278,22 +310,33 @@ public class GrimdarkFutureRulesTests
     bool ActivationComplete(GameState state, Activation activation);
     /// <summary>The interactive round-boundary step, called each Advance after round_started until HookDone (OPR: Ambushers).</summary>
     HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order);
-    /// <summary>Order for simultaneous reactions, or null for Windows.ReactionOrder's default: turn order starting after the actor, passed teams dropped.</summary>
-    IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams);
 ```
 
-What rides on `round_started` and `turn_ended`, and what runs at the end of an activation, are the interpreter plan's `OnRoundStarted(state, properties, round)`, `OnTurnEnded(state, properties, turn)` and `EndOfTurnSequences(state, properties, turn)` — the scheduler calls those three and adds nothing of its own beside them.
+What rides on `round_started` and `turn_ended`, and what runs at the end of an activation, are the interpreter plan's `OnRoundStarted(state, properties, round)`, `OnTurnEnded(state, properties, turn)` and `EndOfTurnSequences(state, properties, turn)`; reaction order is its `OrderReactions`. The scheduler calls the first three and adds nothing beside them.
 
-- [ ] **Step 4: Check `GfNames.cs` already carries the scheduler's names; write `TeamUnits.cs`**
+`WithSequences` in `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs` implements `IGameRules` and gains the seven forwards, each to `inner`:
 
-Nothing is added to `GfNames`. The interpreter plan's Task 11 declares the whole block this plan reads — confirm these lines are in `server/game/Rules/GrimdarkFuture/GfNames.cs` before writing anything that uses them, and if that plan's Task 11 has not landed, land it first rather than declaring a second names class:
+```csharp
+    public IReadOnlyList<string> PhasesBeforeRounds => inner.PhasesBeforeRounds;
+    public IReadOnlyList<string> PhasesInTurn => inner.PhasesInTurn;
+    public Scheduler.FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => inner.FirstTeam(state, round, teams);
+    public Scheduler.TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => inner.LegalTurn(state, properties, teamId);
+    public Scheduler.Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => inner.ReadAnswer(state, teamId, answer);
+    public bool ActivationComplete(GameState state, Scheduler.Activation activation) => inner.ActivationComplete(state, activation);
+    public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
+```
+
+- [ ] **Step 4: Check `GfNames.cs` carries the scheduler's names, add `Artillery`; write `TeamUnits.cs`**
+
+The interpreter plan's Task 11 declares the block this plan reads, except `Artillery`. Confirm the first four lines are in `server/game/Rules/GrimdarkFuture/GfNames.cs` before writing anything that uses them, and if that plan's Task 11 has not landed, land it first rather than declaring a second names class. Add the `Artillery` line beside them:
 
 ```csharp
     // The scheduler plan's names (its Task 2 reads them from here; one names class).
-    public const string Deployment = "deployment", Scouts = "scouts", Rounds = Scheduler.SchedulerBase.RoundsPhase;   // phases
+    public const string Deployment = "deployment", Scouts = "scouts", Rounds = "rounds";   // phases (Task 5 makes Rounds a reference to SchedulerBase.RoundsPhase)
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough";
     public const string SetAside = "set-aside";                                                                         // menu-written condition on a shelved unit
+    public const string Artillery = "Artillery";                                                                        // p.13: "May only use Hold actions"; not in the core catalog, so read off a unit's own properties
 ```
 
 ```csharp
@@ -315,7 +358,7 @@ public static class TeamUnits
 }
 ```
 
-`GfNames.Rounds` is `SchedulerBase.RoundsPhase` so the two spellings cannot drift, which makes `GfNames.cs` depend on this plan's Task 5: land Task 5's `SchedulerBase.cs` constant first (it has no other dependency), or leave `GfNames.Rounds` as the literal `"rounds"` until it does. `GrimdarkFutureRules` itself is the skeleton's `sealed partial class` in `GfRules.cs`; the skeleton's tests already import `Tabletop.GameServer.Rules.GrimdarkFuture`.
+Task 5 makes `GfNames.Rounds` the reference `SchedulerBase.RoundsPhase`, so the two spellings cannot drift. `GrimdarkFutureRules` itself is the skeleton's `sealed partial class` in `GfRules.cs`; the skeleton's tests already import `Tabletop.GameServer.Rules.GrimdarkFuture`.
 
 - [ ] **Step 5: Write `GfRules.Scheduling.cs`**
 
@@ -335,8 +378,6 @@ public sealed partial class GrimdarkFutureRules
 {
     public IReadOnlyList<string> PhasesBeforeRounds { get; } = [Deployment, Scouts];
     public IReadOnlyList<string> PhasesInTurn { get; } = [];
-    /// <summary>No OPR rule orders simultaneous reactions; Windows.ReactionOrder's default stands (scheduler → Windows).</summary>
-    public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams) => null;
 
     /// <summary>
     /// Page 6: deployment order is a roll-off, and page 50 keeps one for a free-for-all's deploy order. Turn order is not a roll-off
@@ -367,13 +408,13 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>
     /// Page 13: Aircraft "may only use Advance actions ... (even if Shaken)", and "their mandatory move doesn't break the staying idle
     /// requirement to stop being Shaken" — so Aircraft is read before Shaken, and a Shaken Aircraft is offered Advance, not Idle.
-    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile means Hold only.
+    /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and page 13: Artillery mean Hold only.
     /// </summary>
-    internal static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
+    public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
     {
         if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
         if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
-        if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return actionRows.Where(a => a == Hold).ToList();
+        if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
         return actionRows;
     }
 
@@ -420,7 +461,7 @@ public sealed partial class GrimdarkFutureRules
             : new TurnAsk(AskQuestions.DeployScouts, "Deploy a Scout", new PieceSelection(ids, 1, 1), AllowPass: false);
     }
 
-    internal static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
+    public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
         TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Ambush) && TeamUnits.AllShelved(state, u)).Select(u => u.Id).ToList();
 
     /// <summary>
@@ -437,9 +478,13 @@ public sealed partial class GrimdarkFutureRules
         foreach (var a in asks)
         {
             if (state.Projection.OpenAsks.ContainsKey(a.Ask.Id)) return new HookWaiting();
-            var answer = since.OfType<AskClosed>().First(c => c.AskId == a.Ask.Id).Answers.FirstOrDefault()?.Answer;
-            if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u) && TeamUnits.AllShelved(state, u))
-                return new HookWaiting();                                            // models still coming off the shelf
+            var answer = since.OfType<AskClosed>().FirstOrDefault(c => c.AskId == a.Ask.Id)?.Answers.FirstOrDefault()?.Answer;   // no close in the log: nothing was answered, as a pass
+            if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u))
+            {
+                if (TeamUnits.ModelsOf(state, u).Any(m => m.Location is OnShelf)) return new HookWaiting();      // models still coming off the shelf
+                if (u.Conditions.Contains(SetAside))                                                             // arrived: no longer set aside, so casualties on the shelf are never offered again
+                    return new HookEmit([new ConditionSet(new Subject(SubjectKind.Unit, u.Id), SetAside, false)]);
+            }
             if (answer is not SelectedPieces) passed.Add(a.Ask.Teams[0]);
         }
         var eligible = order.Where(t => !passed.Contains(t) && Ambushers(state, props, t).Count > 0).ToList();
@@ -457,4 +502,4 @@ public sealed partial class GrimdarkFutureRules
 }
 ```
 
-- [ ] **Step 7: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect every earlier test still green and 8 new passed. Commit: `Give GameRules the scheduler's hooks and implement them for Grimdark Future`.**
+- [ ] **Step 7: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect every earlier test still green and 10 new passed. Commit: `Give GameRules the scheduler's hooks and implement them for Grimdark Future`.**

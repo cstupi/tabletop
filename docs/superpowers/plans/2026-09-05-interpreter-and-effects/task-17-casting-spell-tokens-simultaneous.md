@@ -8,7 +8,7 @@
 **Interfaces:**
 - Consumes: Tasks 9, 11–13; `GrantAdded`, `GrantRemoved`, `Grant`, `SpellTokensSet`, `PieceSelection`, `SelectedPieces`, `TokenSpend`, `TokensSpent` (Protocol); `CatalogEntry.Targeting`, `EffectDuration.Once`.
 - Produces: `GfCasting.Casting()` (`casting`: `pick-spell`, `spend-tokens`, `roll`, `targets`, `effects`) and `GfCasting.SpellHits()` (`spell-hits`: `hit`, `resolve`); `static IRL<Guid> Casters(GameState, Guid unit)` (models with `Caster(X)` and tokens); `static IRL<string> TriedThisActivation(GameState, Guid unit)` (spells named by a closed `pick-spell` since the activation's `sequence_started` — `OneTryPerSpellScope = "activation"`); `static IRL<ModelInPlay> EligibleSpenders(GameState, Guid casterModel)` (p.13's per-model test: on the table, holding tokens, within 18" and in line of sight of the caster's unit, **the caster included**, admitted without measurement) and `static IRD<Guid,IRD<Guid,int>> SpendCapacity(GameState, Guid casterModel)` (the same models grouped by team, each keyed to the tokens it holds, which is `TokenSpend.MaxByModel` per team); `static IRL<Guid> SpellTargets(StepContext, Guid casterModel, CatalogEntry spell)`; `RollEffects.ConsumeGrants(LiveSet live, Side side, RollPlan plan) : IRL<StateChange>` (a `GrantRemoved` for every granted instance whose entry contributed a modifier to the plan and has one use left).
-- The option id of `pick-spell` is `"{spell}|{casterModelId}"`, so the paying model is in the Answer, and its `Changes` deduct the cost (`SpellTokensSet`). It records nothing else: the spend's caps are built by the step that opens the spend and travel in the Ask. `spend-tokens` is `Windows.SimultaneousSpend` then `Windows.Spends`, over `SpendCapacity`: the player names which of its own models pays what and each named model is deducted its own count, rather than the server taking them nearest the caster first (ruling 14). **`SpendCapacity` runs in `spend-tokens`, after `pick-spell`'s `SpellTokensSet` is applied**, so the caster's cap is what it holds with the spell paid for and no step subtracts the cost twice; a caster whose tokens exactly paid the cost holds none and is not an entry. `net_tokens` = own team's counts summed − everyone else's. `roll` is `GfRolls.CastingPlan(net_tokens)`, one die; a failure `Finish`es. `targets`: the spell's four columns — `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the selection maximum (minimum 1), `Range` from the caster model, line of sight from the caster model (p.13) — as a `PieceSelection`. `effects` runs once per chosen target (`Values["target_index"]`, `Repeat`): every effect of the spell entry whose conditions hold, in ordinal order — `AddHit` with no `RollResult` condition → `Push(spell-hits, (casterUnit, [target unit], [], null))`, whose `hit` step rolls `amount` dice on threshold 1 (every die a hit, so `on rolls of 6` rules read a real die) and writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`; any effect with `Duration = Once` → `GrantAdded(targetUnit, new Grant(id, effect.Id, effect.TargetEntry ?? spell.Name, casterUnit, 1))` (a model-grain target's grant lands on its unit — the grants store is the unit's). Nothing else can appear: `Validate` (Task 2) refuses a spell whose top-level effect is neither `add_hit` nor `duration = once`, which is what spell effects read in all forty-eight — *"always with one duration: once"*.
+- The option id of `pick-spell` is `"{spell}|{casterModelId}"`, so the paying model is in the Answer, and its `Changes` deduct the cost (`SpellTokensSet`). It records nothing else: the spend's caps are built by the step that opens the spend and travel in the Ask. `spend-tokens` is `Windows.SimultaneousSpend` then `Windows.Spends`, over `SpendCapacity`: the player names which of its own models pays what and each named model is deducted its own count, rather than the server taking them nearest the caster first (ruling 14). **`SpendCapacity` runs in `spend-tokens`, after `pick-spell`'s `SpellTokensSet` is applied**, so the caster's cap is what it holds with the spell paid for and no step subtracts the cost twice; a caster whose tokens exactly paid the cost holds none and is not an entry. `net_tokens` = own team's counts summed − everyone else's. `roll` is `GfRolls.CastingPlan(net_tokens)`, one die; a failure `Finish`es. `targets`: the spell's four columns — `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the selection maximum (minimum 1), `Range` from the caster model, line of sight from the caster model (p.13) — as a `PieceSelection`. `effects` runs once per chosen target (`Values["target_index"]`, `Repeat`): every effect of the spell entry whose conditions hold, in ordinal order (`EffectsStep.Holding`, which `effects` and `hit` both read, judges each effect's own conditions with the caster as holder and the target unit opposite) — `AddHit` with no `RollResult` condition → `Push(spell-hits, (casterUnit, [target unit], [], null))`, whose `hit` step rolls `amount` dice on threshold 1 (every die a hit, so `on rolls of 6` rules read a real die) and writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`; any effect with `Duration = Once` → `GrantAdded(targetUnit, new Grant(id, effect.Id, effect.TargetEntry ?? spell.Name, casterUnit, 1))` (a model-grain target's grant lands on its unit — the grants store is the unit's). Nothing else can appear: `Validate` (Task 2) refuses a spell whose top-level effect is neither `add_hit` nor `duration = once`, which is what spell effects read in all forty-eight — *"always with one duration: once"*.
 - Consumption: a granted instance (`LiveProperty.GrantId` set) whose entry contributed to a roll plan is consumed by that roll's step (`RollEffects.ConsumeGrants` in `roll-to-hit`/`roll-to-block`); a granted `Regeneration` is consumed by `assign` when it rolls. `Grant.RemainingUses` is 1 for every once-effect (spell effects → The grants store: "remaining uses (one)").
 
 Spec: action sequences → Grimdark Future's sequences (Casting, The token economy), Windows (sealed simultaneous; invoked by the actor); spell effects → Duration, The grants store (written by the effect step's `step_completed`, consumed by the consuming step's, read by both passes and by name checks), Damage spells need nothing new (kind 6 with a nested grant; a hit roll that cannot fail), Target selection (one to `target_count`, each target independently); rulebook p.13 `Caster`.
@@ -16,9 +16,12 @@ Spec: action sequences → Grimdark Future's sequences (Casting, The token econo
 - [ ] **Step 1: Write the test spell book and the failing tests**
 
 ```csharp
+using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
@@ -38,7 +41,7 @@ public class GfCastingTests
     static Sim Casting(Tabletop.Content.Unit wizard, Tabletop.Content.Unit[] friends, Tabletop.Content.Unit[] enemies, params int[] dice)
     {
         var state = State([wizard, .. friends], enemies, x1: -4, x2: 4);
-        var sim = new Sim(state, GrimdarkFutureRules.Instance, Book, new Dice.ScriptedDice(dice));
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Book, new ScriptedDice(dice));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
         return sim;
     }
@@ -48,7 +51,7 @@ public class GfCastingTests
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var enemyCaster = Unit("Warlock", "4+", "4+", [], 1, [P("Caster", 1)]); var grunts = Unit("Grunts", "4+", "5+", [], 3, []);
-        var sim = Casting(wizard, [], [enemyCaster, grunts], 5, 6, 1, 1, 2, 3, 4);
+        var sim = Casting(wizard, [], [grunts, enemyCaster], 5, 6, 1, 1, 2, 3, 4);
         sim.Append([new SpellTokensSet(enemyCaster.Models[0].Id, 2)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         var pick = Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal);
@@ -88,6 +91,7 @@ public class GfCastingTests
         Assert.Equal([Samples.Team1], sim.AskFor(Samples.Team1).Teams);                              // no enemy caster in range: only the caster itself may spend
         sim.Answer(Samples.Team1, new Passed());
         Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
+        Assert.Equal(1, sim.Model(wizard.Models[0].Id).SpellTokens);                                  // a failed cast keeps its cost spent
         Assert.Empty(sim.State.Projection.Stack);                                                     // casting finished; no activation frame in this test, so the scan covers the whole log
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         Assert.Equal([$"Ward|{wizard.Models[0].Id}"], Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal).Choices.Select(c => c.Id));
@@ -99,6 +103,8 @@ public class GfCastingTests
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var a = Unit("A", "4+", "4+", [], 2, []); var b = Unit("B", "4+", "4+", [], 2, []);
         var sim = Casting(wizard, [a, b], [Unit("G", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1))], 4, 6, 1);
+        sim.Append([new ModelsMoved(b.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location,
+            new OnTable(new Placement(((OnTable)sim.Model(m.Id).Location).Placement.Position with { X = 0 }, new Yaw(0))))).ToList())]);   // B off A's line of sight
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Ward|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());                                                          // the caster declines to add its own two
@@ -106,7 +112,7 @@ public class GfCastingTests
         Assert.Equal((1, 2), (targets.Min, targets.Max)); Assert.Equal(new HashSet<Guid> { wizard.Id, a.Id, b.Id }, targets.Eligible.ToHashSet());
         sim.Answer(Samples.Team1, new SelectedPieces([a.Id, b.Id]));
         Assert.All(new[] { a.Id, b.Id }, u => Assert.Equal(("Regeneration", 1, wizard.Id), (sim.Unit(u).Grants.Single().EntryName, sim.Unit(u).Grants.Single().RemainingUses, sim.Unit(u).Grants.Single().CasterUnitId)));
-        Assert.True(Effects.Lookup.UnitHas(sim.State, Book, a.Id, "Regeneration"));
+        Assert.True(Lookup.UnitHas(sim.State, Book, a.Id, "Regeneration"));
         // A wound on A: the granted Regeneration rolls (6: ignored) and is consumed.
         var shooter = sim.State.Board.Armies[1].Snapshot.Units[0];
         var parent = Guid.CreateVersion7();
@@ -154,6 +160,41 @@ public class GfCastingTests
         sim.Answer(Samples.Team1, new SelectedPieces([wizard.Id]));
         Assert.Single(sim.Unit(wizard.Id).Grants);
     }
+
+    [Fact]
+    public void A_hit_effect_whose_own_condition_fails_rolls_no_hits()
+    {
+        var spark = new EntryDocument("Spark", CatalogKind.Spell, false, null, 1, "Test Book", "Target enemy unit within 12\" takes 1 hit, and 2 more in round 99.",
+            new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [Fx(EffectKind.AddHit, amount: 1), Fx(EffectKind.AddHit, amount: 2) with { Conditions = [new ConditionDocument(ConditionKind.RoundNumber, null, Comparison.Eq, 99, [])] }]);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]); var target = Unit("T", "4+", "4+", [], 2, []);
+        var state = State([wizard], [target], x1: -4, x2: 4);
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4, 4, 4));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Spark|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        Assert.Single(sim.Steps("hit").Single().Rolls.Single().Dice);
+    }
+
+    [Fact]
+    public void A_granted_rule_on_the_shooter_is_spent_once_by_the_block_step_however_many_pools_it_modified()
+    {
+        var sharpen = new EntryDocument("Sharpen", CatalogKind.Spell, false, null, 1, "Test Book", "Target friendly unit gets AP(1) once.",
+            new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12), [Fx(EffectKind.GrantProperty, "AP", 1, EffectDuration.Once)]);
+        var book = TestProperties.WithSpells(sharpen);
+        var shooter = Unit("Shooter", "4+", "4+", [], 2, [], Gun("Rifle", "24\"", 1, P("Rending")));
+        var target = Unit("T", "4+", "2+", [], 1, []);
+        var sim = new Sim(State([shooter], [target], x1: -4, x2: 4), GrimdarkFutureRules.Instance, book, new ScriptedDice(6, 4, 6, 6));
+        var grantId = Guid.CreateVersion7();
+        sim.Append([new GrantAdded(shooter.Id, new Grant(grantId, book.Entry("Sharpen")!.Effects[0].Id, "AP", shooter.Id, 1))]);
+        sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
+        var block = sim.Steps("roll-to-block").Single();
+        Assert.Equal(2, block.Rolls.Count);                                                                // the Rending group and the plain hit: two pools, both AP(1)-modified
+        Assert.Equal([grantId], block.Changes.OfType<GrantRemoved>().Select(c => c.GrantId));              // one removal for the one instance (R-N7)
+        Assert.Empty(sim.Unit(shooter.Id).Grants);
+    }
 }
 ```
 
@@ -180,11 +221,14 @@ public static class GfCasting
         state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken) ? []
             : Lookup.AliveModels(state, unit).Where(m => Lookup.ModelParameter(state, m, "Caster") is not null && state.Projection.Models[m].SpellTokens > 0).ToList();
 
-    /// <summary>Spells picked by a closed pick-spell since this unit's activation began (OneTryPerSpellScope = activation).</summary>
+    /// <summary>
+    /// Spells picked by a closed pick-spell since this unit's activation began (OneTryPerSpellScope = activation). The activation is
+    /// the unit's last root action sequence, which only the scheduler starts: nested frames inherit the action name.
+    /// </summary>
     public static IReadOnlyList<string> TriedThisActivation(GameState state, Guid unit)
     {
         var log = EventApplier.EffectiveLog(state.Applier.Log).ToList();
-        var since = log.FindLastIndex(e => e.Payload is SequenceStarted { Context.ActorUnitId: { } u } s && u == unit && s.Context.Action is GfNames.Hold or GfNames.Advance or GfNames.Rush or GfNames.Charge);
+        var since = log.FindLastIndex(e => e.Payload is SequenceStarted { Sequence: GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq } s && s.Context.ActorUnitId == unit);
         return log.Skip(Math.Max(0, since)).Select(e => e.Payload).OfType<StepCompleted>().Where(s => s.Step == "pick-spell" && s.Answer is Chosen)
             .Select(s => ((Chosen)s.Answer!).OptionId.Split('|')[0]).ToList();
     }
@@ -310,13 +354,26 @@ public static class GfCasting
             if (index >= chosen.Count) return new Complete([]);
             var target = chosen[index];
             var targetUnit = ctx.Projection.Units.ContainsKey(target) ? target : ctx.Projection.Models[target].UnitId;
-            var hits = spell.Effects.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
+            var holding = Holding(ctx, casterUnit, targetUnit, spell);
+            var hits = holding.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
             if (hits.Count > 0 && ctx.History.Children.Count == 0)
                 return new Push("spell-hits", new SequenceContext(casterUnit, [targetUnit], [], null));
             if (hits.Count > 0 && !(ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned)) return new OpenAsks([]);
-            var changes = spell.Effects.Where(e => e.Duration == EffectDuration.Once)
+            var changes = holding.Where(e => e.Duration == EffectDuration.Once)
                 .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, e.TargetEntry ?? spell.Name, casterUnit, 1))).ToList();
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
+        }
+
+        /// <summary>The spell's effects whose own conditions hold for this target, in order; both the effects step and the hit step read it.</summary>
+        internal static List<Effect> Holding(StepContext ctx, Guid casterUnit, Guid targetUnit, CatalogEntry spell) =>
+            spell.Effects.Where(e => Holds(ctx, casterUnit, targetUnit, spell, e)).OrderBy(e => e.Ordinal).ToList();
+
+        /// <summary>The spell's own conditions, judged with the caster as the holder and the target unit opposite (no roll, so a per-die condition waits for its die).</summary>
+        static bool Holds(StepContext ctx, Guid casterUnit, Guid targetUnit, CatalogEntry spell, Effect effect)
+        {
+            if (effect.Conditions.Count == 0) return true;
+            var ix = GfAttack.AttackInteraction(ctx, casterUnit, targetUnit, [], null, null);
+            return effect.Conditions.All(c => c.Kind == ConditionKind.RollResult || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
         }
     }
 
@@ -331,7 +388,8 @@ public static class GfCasting
             var spell = ctx.Properties.Entry(spellName)!;
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1 };
             var total = 0;
-            foreach (var hit in spell.Effects.Where(e => e.Kind == EffectKind.AddHit))
+            var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
+            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, ctx.Frame.Context.TargetUnitIds[0], spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
                 var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
@@ -355,6 +413,14 @@ public static class GfCasting
             .Select(p => (StateChange)new GrantRemoved(live.Interaction.Of(side).UnitId, p.GrantId!.Value)).ToList();
 ```
 
-`RollToHitStep` returns `new Complete(RollEffects.ConsumeGrants(live, Side.Attacker, plan), values)` and `RollToBlockStep` accumulates `ConsumeGrants(live, Side.Defender, plan)` per defense roll into its `Changes`. `AssignStep`: a granted `Regeneration` instance has no `ModelId` (it is the unit's), so the `regen` dictionary is built as: per-model instances by model id, plus, when a unit-level instance exists, every living model of the target maps to it; when a unit-level instance rolls, `GrantRemoved(target, grantId)` joins the changes. `GrantAdded` carries no parameter; `Lookup.UnitProperties` reads the granting effect's `Amount` (Task 6), which is null for `Ward`'s `Regeneration` and `1` for a *"gets AP(1)"* grant.
+`GfAttack` gains the one place a step's grants are collected, because a granted rule may sit on either unit and modify the other's roll, and the same instance contributes to every pool a step rolled:
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfCastingTests`; expect 5 passed, and the whole project still green. Commit: `Add casting: spell and tokens, the simultaneous spend, the roll, targets, hits that cannot miss, once-grants`.**
+```csharp
+    static IReadOnlyList<StateChange> Consumed(LiveSet live, IEnumerable<Dice.RollPlan> plans) =>
+        plans.SelectMany(plan => new[] { Side.Attacker, Side.Defender }.SelectMany(side => RollEffects.ConsumeGrants(live, side, plan)))
+            .Cast<GrantRemoved>().DistinctBy(c => c.GrantId).Cast<StateChange>().ToList();
+```
+
+`RollToHitStep` collects every pool's plan and returns `new Complete(Consumed(live, plans), values)`, and `RollToBlockStep` does the same over every defense roll it throws, so one `GrantRemoved` is written per instance however many pools it modified. `AssignStep` (Task 12) takes the one live `Regeneration` roll, a granted instance included, since instances of a rule without a parameter do not stack; it gains a `rolled` flag, set when that roll is taken, and `if (rolled && regen.Source?.GrantId is { } grantId) changes.Add(new GrantRemoved(target, grantId));` follows the `ModelsMoved` change, so a granted instance is spent when it rolls. `GrantAdded` carries no parameter; `Lookup.UnitProperties` reads the granting effect's `Amount` (Task 6), which is null for `Ward`'s `Regeneration` and `1` for a *"gets AP(1)"* grant.
+
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfCastingTests`; expect 7 passed, and the whole project still green. Commit: `Add casting: spell and tokens, the simultaneous spend, the roll, targets, hits that cannot miss, once-grants`.**

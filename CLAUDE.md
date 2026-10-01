@@ -86,8 +86,8 @@ Three kinds of top-level directory:
 - `server/game/` — the WebSocket game server (`Tabletop.GameServer`, `net10.0`): the connect handshake and Stytch JWT
   verification, a `GameSession` per game hydrated from management's rows plus `game.game_event`, the append-only log and
   replay, `CommandDispatcher` over the `IRulesEngine` seam, the lobby and setup row writes. Tested in
-  `tests/Tabletop.GameServer.Tests`. What sits behind the rules seam is listed by the children below; with none, the
-  engine is `InertEngine`.
+  `tests/Tabletop.GameServer.Tests`. The engine behind the rules seam is `RulesEngine`, built by `RulesEngineFactory` over
+  `SchedulerFactory`; its parts are the children below.
   - `Properties/` (the pinned set, its authored `Content/*.properties.json` form, the store and the startup seeder),
     `Dice/` (the seeded counter-based roll primitive), `Effects/` (the two passes over live properties), `Interpreter/`
     (frames from the log, steps, windows, the battlefield reader), `Engine/` (`RulesEngine`, the one `IRulesEngine`, and

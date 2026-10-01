@@ -83,11 +83,14 @@ public class DiceTests
     public void The_cursor_is_counted_from_the_effective_log_and_the_seed_from_the_game()
     {
         var hit = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [new Die(3, 3, false), new Die(5, 5, true)]);
-        var state = State(new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []),
+        // EventApplier requires the frame's SequenceStarted before a StepCompleted.
+        var state = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []),
             new DiceRerolled(Samples.Frame, hit.Id, [new DieReplacement(0, new Die(3, 3, false), new Die(6, 6, true))]),
             new DiceEdited(Samples.Frame, hit.Id, [new DieReplacement(1, new Die(5, 5, true), new Die(1, 1, false))]));
         Assert.Equal(3, DiceCursor.DrawnSoFar(state));
-        var undone = State(new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []), new Undone(0));
+        var undone = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []), new Undone(0));
         Assert.Equal(0, DiceCursor.DrawnSoFar(undone));
         Assert.Equal(state.RngSeed, undone.RngSeed);                                          // undo never touches the seed
         Assert.Equal(unchecked((ulong)Samples.Game.RngSeed), state.RngSeed);                  // the stored value, whole; nothing is derived from the id

@@ -1,15 +1,16 @@
 # Task 13: attack-sequence and resolve-hits — the four steps of pages 8 and 9
 
 **Files:**
+- Create: `server/game/Rules/GrimdarkFuture/GfGroups.cs`
 - Modify: `server/game/Rules/GrimdarkFuture/GfAttack.cs`, `server/game/Rules/GrimdarkFuture/GfRules.Sequences.cs`
 - Test: `tests/Tabletop.GameServer.Tests/GfAttackTests.cs`
 
 **Interfaces:**
 - Consumes: Tasks 7, 11, 12; `PieceSelection`, `SelectedPieces` (Protocol).
-- Produces: `GfAttack.AttackSequence()` (`attack-sequence`: `determine-attacks`, `pick-target-model`, `roll-to-hit`, `resolve`), `GfAttack.ResolveHits()` (`resolve-hits`: `roll-to-block`, `deal`); `static bool IsTakedownGroup(GameState, IRL<Guid> weapons)` (a weapon in the group carries `Takedown`, p.14 — the one predicate, which `GfShooting.Groups` reads for `WeaponGroup.Takedown` in Task 14); `static AttackKind KindOf(GameState, IRL<Guid> weapons)` (a group with a `Range` stat shoots, otherwise melee — content values → a melee weapon has no range); `static IRL<Guid> EligibleModels(GameState, LiveSet, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (shooting: line of sight to a target model and a weapon in range of it, p.8; melee: within 2" horizontally and 4" vertically, p.9; `Battlefield.InsideReach` first, so containment short-circuits both — p.15: no sight into or out of a container, but an occupant may target a fellow occupant and the container itself, with nothing to measure); `static int HitsFrom(FrameView parent)` (successes of **every** `hit` roll on the parent's steps plus its `extra_hits`, times its `hit_multiplier`, which is what makes one roll per Quality value a total the same way one roll did; `parent.Value("hits")` when the parent rolled no hit roll — `Impact`); `static IRL<(int Quality, int Attacks)> AttacksAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (p.8's Determine Attacks, callable before the group's own frame exists, split by the Quality value each attack is tested against — what `fire-groups` settles each group's counts with); `static bool InCoverAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons)` (p.11's majority, settled at the same moment and for the same reason); `static IRL<(int Quality, int Attacks)> ByQuality(IRD<string,int> values, string prefix)` (the `attacks_q<n>` and `attacks_<i>_q<n>` keys read back off a frame).
-- Context of an `attack-sequence` frame: `ActorUnitId` = the attacker, `TargetUnitIds = [target]`, `WeaponIds` = one weapon group (one weapon type), `Action` = the action the attacker took this activation (null for a strike-back). `determine-attacks` records `Values`: `attacks` (the total), one `attacks_q<n>` per Quality value the attacking models bring (p.4: *"the model's Quality value"*), `eligible_models` (live), `defender_models` (the defending unit's living models as `fire-groups` settled them) and `in_cover` (p.11's majority as `fire-groups` settled it). `roll-to-hit` rolls one pooled `hit` roll per `attacks_q<n>`, ascending, and records `Values`: `extra_hits` (`Furious`/`Relentless` per unmodified 6, summed over every pool), `hit_multiplier` (`Blast(X)` capped at `defender_models` — p.13's models in the target, settled with the attack counts), and `granted_<entry>_<amount>` counts for per-die grants (`Rending`'s 6s, summed over every pool), so `roll-to-block` rolls one defense roll per grant group with that property folded into the live set. Cover: `GfRolls.InCover(target, eligible attacker models)` — the whole eligible set, not one vantage model, because `LineOfSight.VisibleModels` takes observers and p.11 reads sight as the attacking unit's. `roll-to-block` reads the frozen `in_cover` rather than asking again.
-- **A `Takedown` weapon names the model its wounds go to**, in `pick-target-model`, a `PieceSelection(Lookup.AliveModels(target), 1, 1)` addressed to the **attacker's** team (p.14: *"This model may pick any model in the target unit as its individual target"*). It sits **after `determine-attacks` and before `roll-to-hit`**: p.8 declares targets before any roll, so the pick cannot be informed by the hits, and a group whose models are all out of range has already finished. **Once per takedown model**, which is what `GfShooting.Groups` splitting a takedown weapon type into one group per model buys: each such group holds one model's weapon, so its `pick-target-model` is that model's own choice and its `roll-to-hit` pools only its own attacks; 3.5.1 says *"This model"*, so the pick is per model and not per weapon type. The step completes with no Ask for anything else: a melee group (`KindOf`), a group no weapon of which carries `Takedown`, and a target with one living model, whose only model the ordinary allocation reaches anyway. Every other `attack-sequence` therefore records one empty `pick-target-model` step, as `deal-wounds` records an empty `disgorge`. `deal-wounds` reads the answer through `GfAttack.TakedownModel` (Task 12) and opens no allocation for it.
-- **Every group's attack counts are settled once, before any group fires** (ruling 3). `fire-groups` records `attacks_<i>_q<n>` for every assigned group on the `shooting` frame before it pushes the first one, one key per Quality value that group's models bring, and `determine-attacks` reads its own group's keys back off the pushing frame, so a group that fires after another group's casualties rolls as if nobody had died. p.8's *"all weapons are fired simultaneously"* wins over the order the groups are pushed in. `determine-attacks` counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 orders melee by hand — `Counter` strikes first, the defender strikes back with what survives — so a melee push is already at the moment the rulebook fires it. `eligible_models` stays the live figure, so the log distinguishes a group that fired at a target none of its models could still reach. **The defending unit's model count is frozen with the counts**: `fire-groups` records `defender_models_<i>` beside the attack counts, `determine-attacks` carries it onto its own frame as `defender_models`, and two rules read it there. p.13 caps `Blast` at *"as many hits as models in the target unit"*, and p.14 lets a joined hero block on its own `Defense` only *"until all other models have been killed"*. Both are therefore counted when the action starts rather than when the group fires, so a second group neither caps lower nor finds the hero alone that the first group left. **p.11's cover majority is frozen with them**: `fire-groups` records `in_cover_<i>`, `determine-attacks` carries it down as `in_cover`, and `roll-to-block` reads it there, so killing models cannot push a unit out of cover part-way through one action. `GfAttack.Pushed(frame, prefix)` is the reader, and it falls back to counting living models when the pusher recorded nothing, which is every melee push.
+- Produces: `GfAttack.AttackSequence()` (`attack-sequence`: `determine-attacks`, `pick-target-model`, `roll-to-hit`, `resolve`), `GfAttack.ResolveHits()` (`resolve-hits`: `roll-to-block`, `deal`); `static bool IsTakedownGroup(GameState, IRL<Guid> weapons)` (a weapon in the group carries `Takedown`, p.14 — the one predicate, which `GfGroups.Of` reads for `WeaponGroup.Takedown`); `static AttackKind KindOf(GameState, IRL<Guid> weapons)` (a group with a `Range` stat shoots, otherwise melee — content values → a melee weapon has no range); `static IRL<Guid> EligibleModels(GameState, LiveSet, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind)` (shooting: line of sight to a target model and a weapon in range of it, p.8; melee: within 2" horizontally and 4" vertically, p.9; `Battlefield.InsideReach` first, so containment short-circuits both — p.15: no sight into or out of a container, but an occupant may target a fellow occupant and the container itself, with nothing to measure); `static int HitsFrom(FrameView parent)` (successes of **every** `hit` roll on the parent's steps plus its `extra_hits`, times its `hit_multiplier`, which is what makes one roll per Quality value a total the same way one roll did; `parent.Value("hits")` when the parent rolled no hit roll — `Impact`); `static IRL<(int Quality, int Attacks)> AttacksAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons, AttackKind, string? action)` (p.8's Determine Attacks, callable before the group's own frame exists, split by the Quality value each attack is tested against — what `fire-groups` settles each group's counts with, and `strike` each melee group's, under the action the pushed child will carry); `static bool InCoverAgainst(StepContext, Guid attacker, Guid target, IRL<Guid> weapons)` (p.11's majority, settled at the same moment and for the same reason, with Indirect's sight half dropped when a weapon of the group carries it); `static IRL<(int Quality, int Attacks)> ByQuality(IRD<string,int> values, string prefix)` (the `attacks_q<n>` and `attacks_<i>_q<n>` keys read back off a frame).
+- Context of an `attack-sequence` frame: `ActorUnitId` = the attacker, `TargetUnitIds = [target]`, `WeaponIds` = one weapon group (one weapon type), `Action` = the action the attacker took this activation (null for a strike-back). `determine-attacks` records `Values`: `attacks` (the total), one `attacks_q<n>` per Quality value the attacking models bring (p.4: *"the model's Quality value"*), `eligible_models` (live), `defender_models` (the defending unit's living models as `fire-groups` settled them) and `in_cover` (p.11's majority as `fire-groups` settled it). `roll-to-hit` rolls one pooled `hit` roll per `attacks_q<n>`, ascending, and records `Values`: `extra_hits` (`Furious`/`Relentless` per unmodified 6, summed over every pool), `hit_multiplier` (`Blast(X)` capped at `defender_models` — p.13's models in the target, settled with the attack counts), and `granted_<entry>_<amount>` counts for per-die grants (`Rending`'s 6s, summed over every pool), so `roll-to-block` rolls one defense roll per grant group with that property folded into the live set. Cover: `GfRolls.InCover(target, eligible attacker models, ignoresSightObstructions)` — the whole eligible set, not one vantage model, because p.11 reads sight as the attacking unit's, and `ignoresSightObstructions` is whether the attacker has `Indirect` (p.14). `roll-to-block` reads the frozen `in_cover` rather than asking again.
+- **A `Takedown` weapon names the model its wounds go to**, in `pick-target-model`, a `PieceSelection(Lookup.AliveModels(target), 1, 1)` addressed to the **attacker's** team (p.14: *"This model may pick any model in the target unit as its individual target"*). It sits **after `determine-attacks` and before `roll-to-hit`**: p.8 declares targets before any roll, so the pick cannot be informed by the hits, and a group whose models are all out of range has already finished. **Once per takedown model**, which is what `GfShooting.Groups` splitting a takedown weapon type into one group per model buys: each such group holds one model's weapon, so its `pick-target-model` is that model's own choice and its `roll-to-hit` pools only its own attacks; 3.5.1 says *"This model"*, so the pick is per model and not per weapon type. The step completes with no Ask for anything else: a group no weapon of which carries `Takedown`, and a target with one living model, whose only model the ordinary allocation reaches anyway. A melee Takedown group asks too: p.14's pick does not depend on the attack kind. Every other `attack-sequence` therefore records one empty `pick-target-model` step, as `deal-wounds` records an empty `disgorge`. `deal-wounds` reads the answer through `GfAttack.TakedownModel` (Task 12) and opens no allocation for it.
+- **Every group's attack counts are settled once, before any group fires** (ruling 3). `fire-groups` records `attacks_<i>_q<n>` for every assigned group on the `shooting` frame before it pushes the first one, one key per Quality value that group's models bring, and `determine-attacks` reads its own group's keys back off the pushing frame, so a group that fires after another group's casualties rolls as if nobody had died. p.8's *"all weapons are fired simultaneously"* wins over the order the groups are pushed in. `determine-attacks` counts for itself only when the pushing step recorded nothing. Melee's striking steps record too (Task 16): p.9 sums *"how many attacks the unit has in total for this melee"* before the first strike, so each group's counts are frozen per group before its side strikes, and a strike that kills models cannot shorten a later group. `Counter` strikes first and the defender strikes back with what survives, each as a side's own striking step. `eligible_models` stays the live figure, so the log distinguishes a group that fired at a target none of its models could still reach. **The defending unit's model count is frozen with the counts**: `fire-groups` records `defender_models_<i>` beside the attack counts, `determine-attacks` carries it onto its own frame as `defender_models`, and two rules read it there. p.13 caps `Blast` at *"as many hits as models in the target unit"*, and p.14 lets a joined hero block on its own `Defense` only *"until all other models have been killed"*. Both are therefore counted when the action starts rather than when the group fires, so a second group neither caps lower nor finds the hero alone that the first group left. **p.11's cover majority is frozen with them**: `fire-groups` records `in_cover_<i>`, `determine-attacks` carries it down as `in_cover`, and `roll-to-block` reads it there, so killing models cannot push a unit out of cover part-way through one action. `GfAttack.Pushed(frame, prefix)` is the reader, and it falls back to counting living models when the pusher recorded nothing.
 
 Spec: action sequences → Grimdark Future's sequences (attack-sequence, resolve-hits), Shooting and melee are one sequence; rulebook p.8 (the worked example: 3 attacks, Quality 4+, rolls 3/4/5 → 2 hits; Defense 4+, rolls 3/4 → 1 wound), p.9 (melee reach), p.13 `Blast`, `Furious`, p.14 `Rending`.
 
@@ -105,7 +106,7 @@ public class GfAttackTests
         var takedown = Unit("Takedown", "5+", "4+", [], 1, [], Gun("Long Rifle", "30\"", 1, P("Takedown")));
         var t = Unit("T", "4+", "6+", [], 2, []) with { Models = [Unit("T", "4+", "6+", [], 1, []).Models[0], Unit("H", "4+", "6+", [], 1, [P("Hero")]).Models[0] with { Ordinal = 2 }] };
         var (plain, hero) = (t.Models[0].Id, t.Models[1].Id);
-        var sim = Sim.Gf(State([takedown], [t], x1: -6, x2: 6), 3, 1);
+        var sim = Sim.Gf(State([takedown], [t], x1: -6, x2: 6), 5, 1);
         sim.Start(GfNames.AttackSequence, Attack(takedown, t, GfNames.Hold));
         var pick = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((1, 1, 2), (pick.Min, pick.Max, pick.Eligible.Count));
@@ -165,7 +166,9 @@ public class GfAttackTests
         full.Start(GfNames.AttackSequence, Attack(shooters, joined, GfNames.Hold));
         var blocked = full.Steps("roll-to-block").Single().Rolls.Single();
         Assert.Equal((5, false), (blocked.Threshold, blocked.Dice[0].Success));                        // p.14: the unit's Defense while anything else lives
-        full.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [joined.Models[1].Id] = 1 }));
+        Assert.Null(full.AskForOrNull(Samples.Team2));                                                  // heroes last (p.14): one eligible model, so no Ask
+        Assert.Equal(1, full.Alive(joined.Id));
+        Assert.IsType<OnShelf>(full.Model(joined.Models[1].Id).Location);
 
         var alone = Sim.Gf(State([shooters], [joined], x1: -6, x2: 6), 6, 3);
         alone.Append([new ModelsMoved([new ModelRelocation(joined.Models[1].Id, alone.Model(joined.Models[1].Id).Location, new OnShelf())])]);
@@ -177,13 +180,49 @@ public class GfAttackTests
 }
 ```
 
-- [ ] **Step 2: Run; expect compile errors. Add to `GfAttack.cs`**
+- [ ] **Step 2: Run; expect compile errors. Create `GfGroups.cs` and add to `GfAttack.cs`**
+
+`GfGroups.cs`, the one grouping shooting (Task 14) and melee (Task 16) share:
+
+```csharp
+using Tabletop.Content;
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Rules.GrimdarkFuture;
+
+public sealed record WeaponGroup(string Name, IReadOnlyList<Guid> WeaponIds, bool Takedown);
+
+/// <summary>One group per weapon type, shared by shooting (p.8) and melee (p.9), so a weapon's AP and Deadly reach only its own hits.</summary>
+public static class GfGroups
+{
+    /// <summary>
+    /// Groups by weapon name. A Takedown weapon type splits into one group per weapon, because p.14 gives the pick to "This model" and
+    /// the group's name (the key a target declaration uses) carries the ordinal so two groups never share one. Order: p.14 says
+    /// "Takedown attacks must be resolved before other weapons" and p.13 says "Hits from Deadly must be resolved first"; both say
+    /// first, so Takedown leads on p.14's "before other weapons", then Deadly, then the rest, each by name.
+    /// </summary>
+    public static IReadOnlyList<WeaponGroup> Of(GameState state, IEnumerable<Weapon> weapons)
+    {
+        var groups = new List<(WeaponGroup Group, bool Deadly)>();
+        foreach (var g in weapons.GroupBy(w => w.Name))
+        {
+            var ids = g.Select(w => w.Id).ToList();
+            var deadly = g.Any(w => w.Properties.Any(p => p.Name == "Deadly"));
+            if (!GfAttack.IsTakedownGroup(state, ids)) { groups.Add((new WeaponGroup(g.Key, ids, false), deadly)); continue; }
+            groups.AddRange(ids.Select((id, i) => (new WeaponGroup(ids.Count == 1 ? g.Key : $"{g.Key} ({i + 1})", [id], true), deadly)));
+        }
+        return groups.OrderByDescending(x => x.Group.Takedown).ThenByDescending(x => x.Deadly).ThenBy(x => x.Group.Name, StringComparer.Ordinal).Select(x => x.Group).ToList();
+    }
+}
+```
+
+Add to `GfAttack.cs`:
 
 ```csharp
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
-    /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfShooting.Groups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
+    /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
     public static bool IsTakedownGroup(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Takedown));
 
@@ -204,25 +243,27 @@ public class GfAttackTests
         if (Battlefield.InsideReach(state, attacker, target) is { } reaches)
             return reaches ? Lookup.AliveModels(state, attacker).Where(m => state.Projection.Models[m].Slot.Weapons.Any(w => weapons.Contains(w.Id))).ToList() : [];
         var targets = Lookup.LivingModels(state, target);
+        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var sight = kind == AttackKind.Shooting && !indirect ? Sight.From(state, attacker) : null;               // built once for every pair below
         return Lookup.LivingModels(state, attacker).Where(m =>
         {
             var mine = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).ToList();
             if (mine.Count == 0) return false;
             if (kind == AttackKind.Melee) return targets.Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical);
             var range = mine.Max(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0);
-            var indirect = live.Has(Side.Attacker, "Indirect");
-            return targets.Any(t => Battlefield.Distance(state, m, t) <= range && (indirect || Battlefield.CanSee(state, m, t)));
+            return targets.Any(t => Battlefield.Distance(state, m, t) <= range && (sight is null || sight.CanSee(m, t)));
         }).ToList();
     }
 
     /// <summary>
     /// p.8's Determine Attacks, asked from outside the group's own frame: what this group would roll against this target now,
     /// split by the Quality value each attack is tested against. `fire-groups` calls it once per group before the first shot,
-    /// because p.8 fires a unit's weapons simultaneously.
+    /// because p.8 fires a unit's weapons simultaneously, and melee's striking steps before the first strike (p.9). The action is
+    /// the pushed child's, since a defender strikes back under none.
     /// </summary>
-    public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind)
+    public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind, string? action)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, ctx.Frame.Context.Action));
+        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
         return Attacks(ctx, live, EligibleModels(ctx.State, live, attacker, target, weapons, kind), weapons, kind);
     }
 
@@ -235,7 +276,7 @@ public class GfAttackTests
     public static bool InCoverAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons)
     {
         var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
-        return GfRolls.InCover(ctx.State, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting));
+        return GfRolls.InCover(ctx.State, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting), live.Has(Side.Attacker, GfNames.Indirect));
     }
 
     /// <summary>
@@ -277,25 +318,25 @@ public class GfAttackTests
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>
-    public sealed class PushStep(string name, string sequence) : IStep
+    public sealed class PushStep(string name, string sequence, Func<StepContext, SequenceContext>? context = null) : IStep
     {
         public string Name => name;
-        public StepOutcome Run(StepContext ctx) => ctx.History.Children.Any(ch => ch.Finished || ch.Abandoned) ? new Complete([]) : new Push(sequence, ctx.Frame.Context);
+        public StepOutcome Run(StepContext ctx) => ctx.History.Children.Any(ch => ch.Finished || ch.Abandoned) ? new Complete([]) : new Push(sequence, context?.Invoke(ctx) ?? ctx.Frame.Context);
     }
 
     /// <summary>
     /// p.8's first step. The counts are not this frame's to compute when a pushing step already settled them: `fire-groups` fixes
-    /// every group's attacks before the first shot, because p.8 fires a unit's weapons simultaneously, and this reads
-    /// `attacks_&lt;i&gt;_q&lt;n&gt;` back off the pushing frame. Only a push that recorded nothing is counted
-    /// here and now, which is every melee push, since p.9 orders those attacks by hand. `eligible_models` is the live figure either
-    /// way, so a recorded count standing over an empty eligible set is visible in the log.
+    /// every group's attacks before the first shot, because p.8 fires a unit's weapons simultaneously, and melee's striking steps
+    /// fix them before the first strike, because p.9 sums "how many attacks the unit has in total for this melee"; this reads
+    /// `attacks_&lt;i&gt;_q&lt;n&gt;` back off the pushing frame. Only a push that recorded nothing is counted here and now.
+    /// `eligible_models` is the live figure either way, so a recorded count standing over an empty eligible set is visible in the log.
     ///
     /// The counts are per Quality value, one key each, because p.4 tests every attack against *"the model's Quality value"* and a
     /// joined hero brings its own. `attacks` stays the total, which is what the log line and the readers that do
     /// not care about the split read. `defender_models` is the defending unit's living models, settled at the same moment and for
     /// the same reason, and carried here so `roll-to-hit` can cap `Blast` with it (p.13) and `roll-to-block` can decide whether
     /// p.14's joined hero is alone. `in_cover` is p.11's majority, settled at that same moment and carried here for
-    /// `roll-to-block`. A melee push settles none of the three and each falls back to the live reading.
+    /// `roll-to-block`. A melee push settles no `in_cover`, which melee does not read; a push that settled nothing falls back to the live reading.
     /// </summary>
     sealed class DetermineAttacksStep : IStep
     {
@@ -313,7 +354,7 @@ public class GfAttackTests
                 ["attacks"] = settled ?? byQuality.Sum(x => x.Attacks),
                 ["eligible_models"] = eligible.Count,
                 ["defender_models"] = Pushed(ctx.Frame, "defender_models") ?? Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count,
-                ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && GfRolls.InCover(ctx.State, ix.Defender.UnitId, eligible) ? 1 : 0),
+                ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && GfRolls.InCover(ctx.State, ix.Defender.UnitId, eligible, live.Has(Side.Attacker, GfNames.Indirect)) ? 1 : 0),
             };
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
             return values["attacks"] == 0 ? new Finish([], values) : new Complete([], values);
@@ -323,20 +364,24 @@ public class GfAttackTests
 
     /// <summary>
     /// A number the pushing step settled for this child before it pushed anything, keyed by the child's ordinal among that step's
-    /// children: `defender_models_&lt;i&gt;`, and `attacks_&lt;i&gt;_q&lt;n&gt;` through `ByQuality`. Null when the pusher wrote none, which is
-    /// every melee push.
+    /// children: `defender_models_&lt;i&gt;`, and `attacks_&lt;i&gt;_q&lt;n&gt;` through `ByQuality`. Read off the pusher's recording run, the
+    /// parent's last completion, which is still marked as a repeat while its children run; a frame's merged values would mix in the
+    /// keys an earlier striking step of the same melee wrote. Null when the pusher recorded none.
     /// </summary>
     static int? Pushed(FrameView frame, string prefix) =>
-        frame.Parent is { History.Children.Count: > 0 } parent && parent.Values.TryGetValue($"{prefix}_{parent.History.Children.Count - 1}", out var n) ? n : null;
+        Recording(frame) is { } values && values.TryGetValue($"{prefix}_{frame.Parent!.History.Children.Count - 1}", out var n) ? n : null;
 
-    /// <summary>The same read for the per-Quality keys, which are a set rather than one number. Empty when the pusher wrote none.</summary>
+    /// <summary>The same read for the per-Quality keys, which are a set rather than one number. Empty when the pusher recorded none.</summary>
     static IReadOnlyList<(int Quality, int Attacks)> PushedByQuality(FrameView frame) =>
-        frame.Parent is { History.Children.Count: > 0 } parent ? ByQuality(parent.Values, $"attacks_{parent.History.Children.Count - 1}_q") : [];
+        Recording(frame) is { } values ? ByQuality(values, $"attacks_{frame.Parent!.History.Children.Count - 1}_q") : [];
+
+    static IReadOnlyDictionary<string, int>? Recording(FrameView frame) =>
+        frame.Parent is { History.Children.Count: > 0 } parent && parent.Frame.Steps is [.., var last] && last.Values is { } values && values.ContainsKey(StepRepeat.Key) ? values : null;
 
     /// <summary>
     /// p.14 Takedown: the model names one model in the target unit as the target of its wounds. A target declaration, so it is made
     /// before this group's hit roll (p.8), and after determine-attacks, so a group with nothing in range never asks. One pick per
-    /// group and not per shot: GfShooting.Groups gives a takedown weapon type one group per model, so the group is one model's dice
+    /// group and not per shot: GfGroups gives a takedown weapon type one group per model, so the group is one model's dice
     /// at one Quality value and roll-to-hit pools them into one roll. deal-wounds reads the answer
     /// back through TakedownModel and assigns to that model without opening an allocation.
     /// </summary>
@@ -347,7 +392,7 @@ public class GfAttackTests
         {
             if (ctx.History.LastClosed() is not null) return new Complete([]);
             var (weapons, target) = (ctx.Frame.Context.WeaponIds, ctx.Frame.Context.TargetUnitIds[0]);
-            if (KindOf(ctx.State, weapons) != AttackKind.Shooting || !IsTakedownGroup(ctx.State, weapons)) return new Complete([]);
+            if (!IsTakedownGroup(ctx.State, weapons)) return new Complete([]);
             var models = Lookup.AliveModels(ctx.State, target);
             if (models.Count < 2) return new Complete([]);   // one model to choose from: the ordinary allocation reaches it anyway
             return new OpenAsks([ctx.Ask("takedown_target", "Pick the model this takedown weapon targets", ctx.ActorTeam!.Value, new PieceSelection(models, 1, 1))]);
@@ -393,15 +438,16 @@ public class GfAttackTests
             var parent = ctx.Frame.Parent!;
             var hits = HitsFrom(parent);
             if (hits <= 0) return new Finish([], new Dictionary<string, int> { ["wounds"] = 0 });
-            var shooters = EligibleModels(ctx.State, live, ix.Attacker.UnitId, ix.Defender!.UnitId, ctx.Frame.Context.WeaponIds, kind);
+            var defender = ix.Defender!.UnitId;
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
             // fact determine-attacks carried down. A parent that recorded none is a spell's hits or Impact's, where live is the answer.
             var inCover = kind == AttackKind.Shooting
-                && parent.Value("in_cover", GfRolls.InCover(ctx.State, ix.Defender.UnitId, shooters) ? 1 : 0) == 1;
+                && (parent.Values.TryGetValue("in_cover", out var settled) ? settled == 1
+                    : GfRolls.InCover(ctx.State, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind), live.Has(Side.Attacker, GfNames.Indirect)));
             var multiplier = Math.Max(1, parent.Value("hit_multiplier", 1));
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
-            var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count);
+            var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
             var wounds = 0; var plain = hits;
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {

@@ -2,6 +2,8 @@
 
 **Files:**
 - Create: `server/game/Scheduler/SchedulerBase.cs`, `server/game/Scheduler/AlternatingActivationScheduler.cs`
+- Modify: `server/game/Rules/GrimdarkFuture/GfNames.cs` (`Rounds` becomes `SchedulerBase.RoundsPhase`), `libs/Tabletop.Protocol/EventApplier.cs` (`RoundStarted` copies `Order` before clearing), `server/game/Dispatch/MenuTranslation.cs` (`SetRound` copies the projection's order)
+- Test: `tests/Tabletop.Protocol.Tests/EventApplierTests.cs`
 - Test: `tests/Tabletop.GameServer.Tests/Infrastructure/FakeRules.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/SchedulerHarness.cs`, `tests/Tabletop.GameServer.Tests/AlternatingSchedulerTests.cs`
 
 **Interfaces:**
@@ -191,7 +193,6 @@ namespace Tabletop.GameServer.Tests;
 public class AlternatingSchedulerTests
 {
     static SchedulerHarness TwoTeams(int unitsA = 2, int unitsB = 1) => new([TestArmies.Build("A", unitsA, 2), TestArmies.Build("B", unitsB, 2)]);
-    static string Activate(Guid unit, string action = "Hold") => ActivationOption.Id(unit, action);
 
     [Fact]
     public void A_fresh_game_rolls_off_then_alternates_deployment_skipping_a_team_with_nothing_left_then_starts_round_one()
@@ -212,7 +213,7 @@ public class AlternatingSchedulerTests
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());
         h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                   // B has nothing left: skipped
-        seq = h.P.LastSeq; h.Answer(0, new SelectedPieces([a[1]])); h.Deploy(a[1]);
+        h.Answer(0, new SelectedPieces([a[1]])); seq = h.P.LastSeq; h.Deploy(a[1]);
         Assert.Equal(["models_moved", "turn_ended", "phase_started", "round_started", "phase_started", "turn_started", "ask_opened"], h.Kinds(seq));
         Assert.Equal((1, SchedulerBase.RoundsPhase, h.Teams[1]), (h.P.Scheduler.Round, h.P.Scheduler.Phase, h.P.Scheduler.ActiveTeamId));  // the winner takes round one's first turn
         Assert.Equal(AskQuestions.Activate, h.Open.Question);
@@ -225,15 +226,15 @@ public class AlternatingSchedulerTests
         var h = TwoTeams(); h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
         var a = h.Units(0); var b = h.Units(1);
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);
-        var seq = h.P.LastSeq; h.Answer(0, new Chosen(Activate(a[0], "Advance")));
+        var seq = h.P.LastSeq; h.Answer(0, new Chosen(TestGames.Activate(a[0], "Advance")));
         Assert.Equal(["ask_answered", "ask_closed", "action_recorded", "sequence_started", "sequence_finished", "turn_ended", "turn_started", "ask_opened"], h.Kinds(seq));
         Assert.Equal((a[0], "Advance", "advance"), h.Log.Select(e => e.Payload).OfType<SequenceStarted>().Select(s => (s.Context.ActorUnitId, s.Context.Action, s.Sequence)).Single(s => s.Action is not null));   // the roll-off is the other frame
         Assert.Contains("Advance", h.P.Units[a[0]].Actions);
         Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
-        h.Answer(1, new Chosen(Activate(b[0])));
+        h.Answer(1, new Chosen(TestGames.Activate(b[0])));
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);
         Assert.Single(Assert.IsType<Options>(h.Open.Legal).Choices.Select(c => c.Pieces[0]).Distinct());   // only a[1] remains
-        seq = h.P.LastSeq; h.Answer(0, new Chosen(Activate(a[1])));
+        seq = h.P.LastSeq; h.Answer(0, new Chosen(TestGames.Activate(a[1])));
         Assert.Equal(["ask_answered", "ask_closed", "action_recorded", "sequence_started", "sequence_finished", "turn_ended", "ask_opened"], h.Kinds(seq));
         Assert.Equal((AskQuestions.EndRound, false, 1), (h.Open.Question, h.Open.AllowPass, h.P.Scheduler.Round));   // the round waits to be ended
         Assert.Equal(h.Teams, h.Open.Teams);                                                               // every team that has a participant; any one of them may answer
@@ -259,23 +260,23 @@ public class AlternatingSchedulerTests
         var h = new SchedulerHarness([TestArmies.Build("A", 3, 2), TestArmies.Build("B", 2, 2)]);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
         var a = h.Units(0); var b = h.Units(1);
-        h.Answer(0, new Chosen(Activate(a[0]))); h.Answer(1, new Chosen(Activate(b[0]))); h.Answer(0, new Chosen(Activate(a[1])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.Answer(0, new Chosen(TestGames.Activate(a[1])));
         var seq = h.P.LastSeq; h.Answer(1, new Passed());
         Assert.Equal(["ask_answered", "ask_closed", "turn_ended", "turn_started", "ask_opened"], h.Kinds(seq));
         Assert.True(((TurnEnded)h.Log.First(e => e.Seq > seq && e.Payload is TurnEnded).Payload).Passed);
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);
         h.Dispatch(new ClearActionRecord(b[0]));                                                          // a menu edit while B has passed
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId); Assert.Single(h.P.OpenAsks);
-        h.Answer(0, new Chosen(Activate(a[2])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[2])));
         Assert.Equal((AskQuestions.EndRound, 1), (h.Open.Question, h.P.Scheduler.Round));                 // B was not re-asked: the pass stood, and the round waits
         h.EndRound();
         Assert.Equal(2, h.P.Scheduler.Round);
         Assert.Equal([h.Teams[1], h.Teams[0]], h.P.Scheduler.Order);                                      // B finished (passed) before A's last turn
-        h.Answer(1, new Chosen(Activate(b[0]))); h.Answer(0, new Chosen(Activate(a[0])));
-        h.Answer(1, new Chosen(Activate(b[1]))); h.Answer(0, new Chosen(Activate(a[1])));
+        h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.Answer(0, new Chosen(TestGames.Activate(a[0])));
+        h.Answer(1, new Chosen(TestGames.Activate(b[1]))); h.Answer(0, new Chosen(TestGames.Activate(a[1])));
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);                                             // B's legal set is empty: A goes again
         h.Dispatch(new ClearActionRecord(b[0]));
-        h.Answer(0, new Chosen(Activate(a[2])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[2])));
         Assert.Equal((2, h.Teams[1]), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));                 // B re-entered at its slot
         h.Rehydrate(); Assert.Empty(h.Run());
     }
@@ -316,10 +317,10 @@ public class AlternatingSchedulerTests
         var h = new SchedulerHarness([TestArmies.Build("A", 2, 2), TestArmies.Build("B", 1, 2)], enforcement: Enforcement.Strict);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
         var a = h.Units(0); var ask = h.Open; var seq = h.P.LastSeq;
-        Assert.Throws<InvalidOperationException>(() => h.Answer(0, new Chosen(Activate(a[0], "Teleport"))));   // OutsideLegalSet under strict: refused by the dispatcher
+        Assert.Throws<InvalidOperationException>(() => h.Answer(0, new Chosen(TestGames.Activate(a[0], "Teleport"))));   // OutsideLegalSet under strict: refused by the dispatcher
         Assert.Equal(seq, h.P.LastSeq);                                                                        // nothing logged, so the scheduler never saw it
         Assert.Equal((ask.Id, h.Teams[0]), (h.Open.Id, h.P.Scheduler.ActiveTeamId!.Value));                     // the same Ask stands
-        h.Answer(0, new Chosen(Activate(a[0])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0])));
         Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
     }
 
@@ -341,7 +342,7 @@ public class AlternatingSchedulerTests
             Assert.Equal(seq, h.P.LastSeq);                                                                    // refused before anything was written
             Assert.Equal((ask.Id, h.Teams[0]), (h.Open.Id, h.P.Scheduler.ActiveTeamId!.Value));                 // the same Ask stands and the turn is still A's: nothing is waiting on it
             Assert.Throws<InvalidOperationException>(() => h.Answer(0, new Chosen("not-an-option")));           // and again, as often as the client likes
-            h.Answer(0, new Chosen(Activate(h.Units(0)[0])));                                                   // a readable answer moves the game on
+            h.Answer(0, new Chosen(TestGames.Activate(h.Units(0)[0])));                                                   // a readable answer moves the game on
             Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
             return;
         }
@@ -350,7 +351,7 @@ public class AlternatingSchedulerTests
         var ended = (TurnEnded)h.Log.First(e => e.Seq > seq && e.Payload is TurnEnded).Payload;
         Assert.Equal((h.Teams[0], true), (ended.TeamId, ended.Passed));                                        // read as a pass, which stands for the round
         Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);
-        h.Answer(1, new Chosen(Activate(h.Units(1)[0])));
+        h.Answer(1, new Chosen(TestGames.Activate(h.Units(1)[0])));
         Assert.Equal((AskQuestions.EndRound, 1), (h.Open.Question, h.P.Scheduler.Round));                      // A passed and B is done: the round waits for a player, not for A's turn
     }
 
@@ -363,7 +364,7 @@ public class AlternatingSchedulerTests
         Assert.Equal(h.Teams[0], h.Open.Teams.Single());                                                  // B won the roll-off but has nothing to deploy
         h.SkipDeployment();
         var a0 = h.Units(0)[0];
-        h.Answer(0, new Chosen(Activate(a0)));
+        h.Answer(0, new Chosen(TestGames.Activate(a0)));
         Assert.Equal((AskQuestions.EndRound, 1), (h.Open.Question, h.P.Scheduler.Round));                  // B never had a turn, so it is not asked to act — but it is asked to end the round
         h.EndRound(team: 1);
         Assert.Equal(2, h.P.Scheduler.Round);
@@ -375,8 +376,8 @@ public class AlternatingSchedulerTests
         Assert.Equal((3, (Guid?)null, AskQuestions.EndRound), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId, h.Open.Question));   // round 3 began; nobody can act, so it waits at its own boundary
         Assert.Empty(h.Run());
         var asked = h.Log.Select(e => e.Payload).OfType<AskOpened>().Select(o => o.Ask).ToList();
-        Assert.All(asked.Where(a => a.Question != AskQuestions.EndRound), a => Assert.Equal([h.Teams[0]], a.Teams));   // only A is ever asked to deploy or activate
-        Assert.All(asked.Where(a => a.Question == AskQuestions.EndRound), a => Assert.Equal(h.Teams, a.Teams));        // both teams may end a round; the spectator has no team and is in no Ask
+        Assert.All(asked.Where(a => a.FrameId is null && a.Question != AskQuestions.EndRound), a => Assert.Equal([h.Teams[0]], a.Teams));   // only A is ever asked to deploy or activate
+        Assert.All(asked.Where(a => a.FrameId is null && a.Question == AskQuestions.EndRound), a => Assert.Equal(h.Teams, a.Teams));        // both teams may end a round; the spectator has no team and is in no Ask
         var empty = new SchedulerHarness([null, null]); empty.Run(); empty.ConfirmRollOff();
         Assert.Equal((1, AskQuestions.EndRound), (empty.P.Scheduler.Round, empty.Open.Question));          // round one began and stopped at its boundary
         Assert.Empty(empty.Run());
@@ -422,6 +423,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
         var stale = StaleAsks(state, log);
         if (stale.Count > 0) return stale;
         if (state.Projection.OpenAsks.Count > 0) return [];                                       // an unframed Ask of ours (or a boundary hook's) is live: wait for its answer
+        if (s.Round >= 1 && s.Phase is { } phase && state.Rules.PhasesBeforeRounds.Contains(phase)) return [new PhaseStarted(RoundsPhase)];   // set_round from the menu mid-deployment: the pre-round phases are over
         if (s.ActiveTeamId is { } active) return InTurn(state, log, active, starter);
         if (log.RoundStartedAt == 0) return BeginRound(state, log, teams, state.Rules.PhasesBeforeRounds.Count > 0 ? 0 : 1, starter);
 
@@ -485,7 +487,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
         IReadOnlyList<Guid> order;
         switch (state.Rules.FirstTeam(state, round, teams))
         {
-            case OrderedTeams o: order = o.Order; break;
+            case OrderedTeams o: order = o.Order.ToList(); break;                                  // a copy: a hook may hand back Projection.Scheduler.Order itself, which round_started's own apply clears first
             case RollOffNeeded r:
                 switch (RollOff.Advance(state, log, r.Sequence, starter))
                 {
@@ -547,6 +549,10 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
         return [new TurnEnded(turn.TeamId, passed, changes)];
     }
 
+    /// <summary>ActionRecordCleared for every unit that has an action on record: what a shape clears at a round start or a turn end.</summary>
+    protected static IReadOnlyList<StateChange> ClearRecords(IEnumerable<UnitInPlay> units) =>
+        units.Where(u => u.Actions.Count > 0).Select(u => (StateChange)new ActionRecordCleared(u.Id)).ToList();
+
     protected virtual IReadOnlyList<StateChange> ShapeRoundStartChanges(GameState state, int round) => [];
     protected virtual IReadOnlyList<StateChange> ShapeTurnEndChanges(GameState state, TurnContext turn) => [];
     /// <summary>Events a shape emits when a turn (round one on) has opened and no Ask exists yet — the player-turn shape's first phase_started.</summary>
@@ -576,8 +582,40 @@ public sealed class AlternatingActivationScheduler(PropertySet properties) : Sch
     protected override IReadOnlyList<EventPayload> OnComplete(GameState state, SchedulerLog log, TurnContext turn) => EndTurn(state, turn, passed: false);
 
     protected override IReadOnlyList<StateChange> ShapeRoundStartChanges(GameState state, int round) =>
-        round == 0 ? [] : state.Projection.Units.Values.Where(u => u.Actions.Count > 0).Select(u => (StateChange)new ActionRecordCleared(u.Id)).ToList();
+        round == 0 ? [] : ClearRecords(state.Projection.Units.Values);
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter AlternatingScheduler`; expect 10 passed (7 facts + the dial's 3 theory cases). Commit: `Add the scheduler base and the alternating-activation shape`.**
+- [ ] **Step 6: Make a `round_started` order survive its own apply, and point `GfNames.Rounds` at the constant**
+
+`EventApplier` clears the projection's order before it fills it, so a `RoundStarted.Order` that is `Projection.Scheduler.Order` itself empties on apply and on replay. In `libs/Tabletop.Protocol/EventApplier.cs` the `RoundStarted` case copies first, and `MenuTranslation`'s `SetRound` passes a copy (`SchedulerBase.BeginRound` already does, in the block above):
+
+```csharp
+            case RoundStarted r:
+                p.Scheduler.Round = r.Round; var order = r.Order.ToList(); p.Scheduler.OrderMut.Clear(); p.Scheduler.OrderMut.AddRange(order);
+```
+
+```csharp
+            SetRound r => new RoundStarted(r.Round, p.Scheduler.Order.ToList(), []),
+```
+
+The Protocol test:
+
+```csharp
+    [Fact]
+    public void A_round_started_whose_order_is_the_projections_own_list_keeps_that_order()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new RoundStarted(1, [Samples.Team1, Samples.Team2], [])));
+        a.Apply(Ev(2, new RoundStarted(2, a.Projection.Scheduler.Order, [])));
+        Assert.Equal([Samples.Team1, Samples.Team2], a.Projection.Scheduler.Order);
+    }
+```
+
+In `GfNames.cs`, `Rounds` is `Scheduler.SchedulerBase.RoundsPhase` (the two spellings cannot drift):
+
+```csharp
+    public const string Rounds = Scheduler.SchedulerBase.RoundsPhase;
+```
+
+- [ ] **Step 7: Run `dotnet test --filter "AlternatingScheduler|EventApplier"`; expect 10 `AlternatingScheduler` passed (7 facts + the dial's 3 theory cases). Commit: `Add the scheduler base and the alternating-activation shape`.**

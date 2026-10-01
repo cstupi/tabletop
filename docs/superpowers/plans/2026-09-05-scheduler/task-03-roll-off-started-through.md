@@ -86,7 +86,7 @@ public class RollOffTests
         var again = Guid.CreateVersion7();
         TestGames.Apply(g, new SequenceStarted(again, GfNames.RollOffSeq, new SequenceContext(null, [], [], null)), new SequenceAbandoned(again));
         Assert.IsType<RollOff.Emit>(RollOff.Advance(g.State, Log(g), GfNames.RollOffSeq, starter));      // abandoned from the menu: start over
-        Assert.Equal(3, starter.Started.Count);
+        Assert.Equal(2, starter.Started.Count);
     }
 
     [Fact]

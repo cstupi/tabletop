@@ -30,7 +30,9 @@ public class PropertiesStoreTests(PostgresFixture pg)
     [Fact]
     public async Task Seeding_the_core_document_round_trips_through_the_eight_tables_and_is_idempotent()
     {
-        var doc = TestProperties.CoreDocument with { Name = "Core " + Guid.CreateVersion7().ToString("N")[..6] };
+        // [24..32], not [..6]: a v7 guid's leading hex digits are its millisecond timestamp, identical across calls made
+        // minutes or hours apart; the tail is random.
+        var doc = TestProperties.CoreDocument with { Name = "Core " + Guid.CreateVersion7().ToString("N")[24..32] };
         var hash = PropertiesJson.Hash(doc);
         Assert.Null(await _store.LoadAsync(hash, CancellationToken.None));
         Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
@@ -39,7 +41,7 @@ public class PropertiesStoreTests(PostgresFixture pg)
         Assert.NotNull(set);
         var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);
         Assert.Equal(Shape(expected), Shape(set));
-        Assert.Equal(32, set.Entries.Count);
+        Assert.Equal(33, set.Entries.Count);
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1", hash));
         Assert.Equal(expected.AllEffects().Count(), await pg.CountAsync("select count(*) from management.effect where properties_hash = $1", hash));
         var again = await _store.LoadAsync(hash, CancellationToken.None);
@@ -47,13 +49,27 @@ public class PropertiesStoreTests(PostgresFixture pg)
         await pg.DeletePropertiesAsync(hash);
     }
 
-    /// <summary>The set with every id blanked, as canonical JSON, so two loads compare on content.</summary>
+    /// <summary>
+    /// The set with every id blanked, as canonical JSON, so two loads compare on content. Row order within an entry
+    /// carries no meaning (`PropertiesJson.ToSet` keeps the author's order; the store's loader returns `order by
+    /// ordinal, id`, and `id` is not deterministic between siblings sharing an ordinal), so effects, their
+    /// children and their conditions are each sorted by their own blanked, serialised content before comparing.
+    /// Only `Ordinal` and the conjunction of `Conditions` carry meaning, and both are preserved either way.
+    /// </summary>
     static string Shape(PropertySet s)
     {
-        Effect Blank(Effect e) => e with { Id = Guid.Empty, Conditions = e.Conditions.Select(c => c with { Id = Guid.Empty }).ToList(), Children = e.Children.Select(Blank).ToList() };
-        var entries = s.Entries.OrderBy(e => e.Name, StringComparer.Ordinal).Select(e => e with { Effects = e.Effects.Select(Blank).ToList() });
+        Effect Blank(Effect e) => e with
+        {
+            Id = Guid.Empty,
+            Conditions = SortByContent(e.Conditions.Select(c => c with { Id = Guid.Empty })),
+            Children = SortByContent(e.Children.Select(Blank)),
+        };
+        var entries = s.Entries.OrderBy(e => e.Name, StringComparer.Ordinal).Select(e => e with { Effects = SortByContent(e.Effects.Select(Blank)) });
         return ContentJson.Serialize(new { s.ContentHash, s.Name, s.GameRules, Stats = s.Stats.OrderBy(x => x.Level).ThenBy(x => x.Name), Actions = s.Actions.OrderBy(a => a.Name), Rolls = s.Rolls.OrderBy(r => r.Name), Entries = entries });
     }
+
+    static List<T> SortByContent<T>(IEnumerable<T> items) =>
+        items.Select(i => (Item: i, Key: ContentJson.Serialize(i))).OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => x.Item).ToList();
 
     [Fact]
     public async Task The_embedded_documents_seed_at_startup()
@@ -67,7 +83,7 @@ public class PropertiesStoreTests(PostgresFixture pg)
 }
 ```
 
-Add `public Task DeletePropertiesAsync(string hash)` to the skeleton's `PostgresFixture` (`delete from management.properties where content_hash = $1`; the seven tables cascade) — the fixture only tracks rows it seeded itself. The embedded core set is left in place after the second test: it is what a developer's database should hold.
+Add `public Task DeletePropertiesAsync(string hash)` to the skeleton's `PostgresFixture`: it deletes the hash's `management.effect` rows first, because `effect`'s `target_*` foreign keys do not cascade, then `management.properties` where `content_hash = $1`, which cascades to the other tables. The fixture only tracks rows it seeded itself. The embedded core set is left in place after the second test: it is what a developer's database should hold.
 
 - [ ] **Step 2: Run; expect compile errors. Write `IPropertiesStore.cs`**
 
@@ -118,22 +134,45 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
 
         var stats = await Rows(conn, "select level, name, kind from management.stat_definition where properties_hash = $1", hash, ct,
             r => new StatDefinition(EnumFrom<StatLevel>(r.GetString(0)), r.GetString(1), EnumFrom<StatKind>(r.GetString(2))));
-        var actions = await Rows(conn, "select name, distance from management.action where properties_hash = $1", hash, ct, r => new ActionDefinition(r.GetString(0), r.GetFloat(1)));
+        var actions = await Rows(conn, "select name, distance from management.action where properties_hash = $1", hash, ct, r => new ActionDefinition(r.GetString(0), r.GetDouble(1)));
         var rolls = await Rows(conn, "select name from management.roll where properties_hash = $1", hash, ct, r => new RollDefinition(r.GetString(0)));
         var values = (await Rows(conn, "select cv.condition_id, cv.value from management.condition_value cv join management.effect_condition c on c.id = cv.condition_id join management.effect e on e.id = c.effect_id where e.properties_hash = $1 order by cv.value", hash, ct,
             r => (Id: r.GetGuid(0), Value: r.GetString(1)))).ToLookup(x => x.Id, x => x.Value);
         var conditions = (await Rows(conn, "select c.id, c.effect_id, c.kind, c.subject, c.comparison, c.number from management.effect_condition c join management.effect e on e.id = c.effect_id where e.properties_hash = $1 order by c.id", hash, ct,
             r => (EffectId: r.GetGuid(1), Condition: Condition(r.GetGuid(0), EnumFrom<ConditionKind>(r.GetString(2)), NullableString(r, 3), EnumFrom<Comparison>(r.GetString(4)), r.IsDBNull(5) ? null : r.GetInt32(5), values[r.GetGuid(0)].ToList())))).ToLookup(x => x.EffectId, x => x.Condition);
+        // Build captures locals read while the reader is open, never `r` itself — `r` is disposed when Rows returns,
+        // but Build is not invoked until Children(...) runs afterward.
         var effectRows = await Rows(conn, "select id, entry_name, parent_effect_id, subject, ordinal, kind, target_roll, target_stat_level, target_stat, target_entry, target_action, target_quantity, target_result, target_modifier, amount, amount_from_parameter, threshold, cap_kind, replacement, duration from management.effect where properties_hash = $1 order by ordinal, id", hash, ct,
-            r => (Entry: r.GetString(1), Parent: NullableGuid(r, 2), Row: r.GetGuid(0), Build: new Func<IReadOnlyList<Effect>, Effect>(children => new Effect(r.GetGuid(0), EnumFrom<EffectSubject>(r.GetString(3)), r.GetInt32(4), EnumFrom<EffectKind>(r.GetString(5)),
-                NullableString(r, 6), r.IsDBNull(8) ? null : new StatRef(EnumFrom<StatLevel>(r.GetString(7)), r.GetString(8)), NullableString(r, 9), NullableString(r, 10),
-                r.IsDBNull(11) ? null : EnumFrom<TargetQuantity>(r.GetString(11)), r.IsDBNull(12) ? null : EnumFrom<TargetResult>(r.GetString(12)), r.IsDBNull(13) ? null : EnumFrom<TargetModifier>(r.GetString(13)),
-                r.IsDBNull(14) ? null : r.GetInt32(14), r.GetBoolean(15), r.IsDBNull(16) ? null : r.GetInt32(16), r.IsDBNull(17) ? null : EnumFrom<CapKind>(r.GetString(17)), NullableString(r, 18), EnumFrom<EffectDuration>(r.GetString(19)),
-                conditions[r.GetGuid(0)].ToList(), children))));
+            r =>
+            {
+                var id = r.GetGuid(0);
+                var entry = r.GetString(1);
+                var parent = NullableGuid(r, 2);
+                var subject = EnumFrom<EffectSubject>(r.GetString(3));
+                var ordinal = r.GetInt32(4);
+                var kind = EnumFrom<EffectKind>(r.GetString(5));
+                var targetRoll = NullableString(r, 6);
+                var targetStat = r.IsDBNull(8) ? null : new StatRef(EnumFrom<StatLevel>(r.GetString(7)), r.GetString(8));
+                var targetEntry = NullableString(r, 9);
+                var targetAction = NullableString(r, 10);
+                var targetQuantity = r.IsDBNull(11) ? null : (TargetQuantity?)EnumFrom<TargetQuantity>(r.GetString(11));
+                var targetResult = r.IsDBNull(12) ? null : (TargetResult?)EnumFrom<TargetResult>(r.GetString(12));
+                var targetModifier = r.IsDBNull(13) ? null : (TargetModifier?)EnumFrom<TargetModifier>(r.GetString(13));
+                var amount = r.IsDBNull(14) ? null : (int?)r.GetInt32(14);
+                var amountFromParameter = r.GetBoolean(15);
+                var threshold = r.IsDBNull(16) ? null : (int?)r.GetInt32(16);
+                var capKind = r.IsDBNull(17) ? null : (CapKind?)EnumFrom<CapKind>(r.GetString(17));
+                var replacement = NullableString(r, 18);
+                var duration = EnumFrom<EffectDuration>(r.GetString(19));
+                var effectConditions = conditions[id].ToList();
+                return (Entry: entry, Parent: parent, Row: id, Build: new Func<IReadOnlyList<Effect>, Effect>(children => new Effect(id, subject, ordinal, kind,
+                    targetRoll, targetStat, targetEntry, targetAction, targetQuantity, targetResult, targetModifier, amount, amountFromParameter, threshold, capKind,
+                    replacement, duration, effectConditions, children)));
+            });
         IReadOnlyList<Effect> Children(Guid parent) => effectRows.Where(x => x.Parent == parent).Select(x => x.Build(Children(x.Row))).ToList();
         var entries = await Rows(conn, "select name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range from management.catalog_entry where properties_hash = $1 order by name", hash, ct,
             r => new CatalogEntry(r.GetString(0), EnumFrom<CatalogKind>(r.GetString(1)), r.GetBoolean(2), r.IsDBNull(3) ? null : EnumFrom<Aggregation>(r.GetString(3)), r.IsDBNull(4) ? null : r.GetInt32(4), NullableString(r, 5), r.GetString(6),
-                r.IsDBNull(7) ? null : new SpellTargeting(EnumFrom<TargetSide>(r.GetString(7)), EnumFrom<TargetGrain>(r.GetString(8)), r.GetInt32(9), r.GetFloat(10)),
+                r.IsDBNull(7) ? null : new SpellTargeting(EnumFrom<TargetSide>(r.GetString(7)), EnumFrom<TargetGrain>(r.GetString(8)), r.GetInt32(9), r.GetDouble(10)),
                 effectRows.Where(x => x.Entry == r.GetString(0) && x.Parent is null).Select(x => x.Build(Children(x.Row))).ToList()));
         return new PropertySet(hash, name, rules, stats, actions, rolls, entries);
     }
@@ -167,12 +206,12 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
         }
         if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0) return false;
         foreach (var s in set.Stats) await Run("insert into management.stat_definition (properties_hash, level, name, kind) values ($1, $2, $3, $4)", set.ContentHash, EnumText(s.Level), s.Name, EnumText(s.Kind));
-        foreach (var a in set.Actions) await Run("insert into management.action (properties_hash, name, distance) values ($1, $2, $3)", set.ContentHash, a.Name, (float)a.Distance);
+        foreach (var a in set.Actions) await Run("insert into management.action (properties_hash, name, distance) values ($1, $2, $3)", set.ContentHash, a.Name, a.Distance);
         foreach (var r in set.Rolls) await Run("insert into management.roll (properties_hash, name) values ($1, $2)", set.ContentHash, r.Name);
         foreach (var e in set.Entries)
             await Run("insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
                 set.ContentHash, e.Name, EnumText(e.Kind), e.TakesParameter, e.Aggregation is { } ag ? EnumText(ag) : null, e.Cost, e.Faction, e.RuleText,
-                e.Targeting is { } t ? EnumText(t.Side) : null, e.Targeting is { } t2 ? EnumText(t2.Grain) : null, e.Targeting?.Count, e.Targeting is { } t3 ? (float?)t3.Range : null);
+                e.Targeting is { } t ? EnumText(t.Side) : null, e.Targeting is { } t2 ? EnumText(t2.Grain) : null, e.Targeting?.Count, e.Targeting is { } t3 ? (double?)t3.Range : null);
         foreach (var e in set.Entries) foreach (var f in e.Effects) await Effect(e.Name, null, f);
         await tx.CommitAsync(ct);
         return true;
@@ -193,8 +232,6 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
     }
 }
 ```
-
-`Validate` (Task 2) gains one rule so the read-back order is unambiguous: a `roll_result` condition has exactly two values, the second being `raw` or `modified`, and no roll may be named `raw` or `modified`.
 
 - [ ] **Step 4: Write `PropertiesSeeder.cs` and register**
 

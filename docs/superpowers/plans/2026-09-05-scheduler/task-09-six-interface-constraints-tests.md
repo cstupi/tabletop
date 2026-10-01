@@ -13,6 +13,7 @@ Spec: scheduler → What the interface must not assume, 1–6. Each test drives 
 
 ```csharp
 using Tabletop.GameServer.Interpreter;
+using Interpreter = Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Tests.Infrastructure;
@@ -22,24 +23,28 @@ namespace Tabletop.GameServer.Tests;
 
 public class SchedulerConstraintTests
 {
-    static string Activate(Guid unit) => ActivationOption.Id(unit, "Hold");
     static SchedulerHarness Game(FakeRules rules, bool playerTurn = false) => new(
         [TestArmies.Build("A", 2, 1), TestArmies.Build("B", 1, 1)],
         scheduler: playerTurn ? p => new PlayerTurnScheduler(p) : null, rules: rules,
         shape: playerTurn ? SchedulerShape.PlayerTurn : SchedulerShape.AlternatingActivation);
 
+    static SchedulerHarness PlacedUnrun(FakeRules rules, bool playerTurn = false)
+    {
+        var h = Game(rules, playerTurn);
+        foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]);
+        return h;
+    }
+    static SchedulerHarness Placed(FakeRules rules, bool playerTurn = false) { var h = PlacedUnrun(rules, playerTurn); h.Run(); return h; }
+
     [Fact]
     public void One_the_first_team_each_round_is_a_policy_the_same_team_every_round_needs_no_roll_off()
     {
-        var h = Game(new FakeRules());                                                                   // no phases before round one, same order every round
-        h.Run();
-        foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]);
-        h.Run();
+        var h = Placed(new FakeRules());                                                                 // no phases before round one, same order every round
         Assert.Equal((1, h.Teams[0]), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));
         Assert.DoesNotContain(h.Log, e => e.Payload is SequenceStarted s && s.Sequence == GfNames.RollOffSeq);
         Assert.DoesNotContain(h.Log, e => e.Payload is PhaseStarted { Phase: "deployment" });
         var a = h.Units(0); var b = h.Units(1);
-        h.Answer(0, new Chosen(Activate(a[0]))); h.Answer(1, new Chosen(Activate(b[0]))); h.Answer(0, new Chosen(Activate(a[1])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.Answer(0, new Chosen(TestGames.Activate(a[1])));
         h.EndRound();                                                                                     // a player ends the round whatever the first-team policy is
         Assert.Equal((2, h.Teams[0]), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId));                 // OPR would have put B first
         Assert.Equal(h.Teams, h.P.Scheduler.Order);
@@ -48,15 +53,14 @@ public class SchedulerConstraintTests
     [Fact]
     public void Two_a_turn_may_be_a_list_of_phases_each_with_its_own_ask_loop()
     {
-        var h = Game(new FakeRules { PhasesInTurn = ["movement", "shooting"] }, playerTurn: true);
-        h.Run(); foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]);
+        var h = PlacedUnrun(new FakeRules { PhasesInTurn = ["movement", "shooting"] }, playerTurn: true);
         var seq = h.P.LastSeq; h.Run();
-        Assert.Equal(["turn_started", "phase_started", "ask_opened"], h.Kinds(seq));
+        Assert.Equal(["round_started", "phase_started", "turn_started", "phase_started", "ask_opened"], h.Kinds(seq));
         Assert.Equal("movement", h.P.Scheduler.Phase);
         seq = h.P.LastSeq; h.Answer(0, new Passed());
         Assert.Equal(["ask_answered", "ask_closed", "phase_started", "ask_opened"], h.Kinds(seq));
         Assert.Equal(("shooting", h.Teams[0]), (h.P.Scheduler.Phase, h.P.Scheduler.ActiveTeamId));
-        seq = h.P.LastSeq; h.Answer(0, new Chosen(Activate(h.Units(0)[0])));
+        seq = h.P.LastSeq; h.Answer(0, new Chosen(TestGames.Activate(h.Units(0)[0])));
         Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);                                             // the loop continues inside the phase
         h.Answer(0, new Passed());
         Assert.Equal(h.Teams[1], h.P.Scheduler.ActiveTeamId);                                             // the last phase ended: turn_ended, next team
@@ -78,9 +82,9 @@ public class SchedulerConstraintTests
                 return state.Projection.OpenAsks.ContainsKey(asked.Ask.Id) ? new HookWaiting() : new HookDone();
             },
         };
-        var h = Game(rules); h.Run(); foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]); h.Run();
+        var h = Placed(rules);
         var a = h.Units(0); var b = h.Units(1);
-        h.Answer(0, new Chosen(Activate(a[0]))); h.Answer(1, new Chosen(Activate(b[0]))); h.Answer(0, new Chosen(Activate(a[1])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(b[0]))); h.Answer(0, new Chosen(TestGames.Activate(a[1])));
         h.EndRound();                                                                                     // the boundary Ask first, then the ruleset's own boundary hook
         Assert.Equal((2, (Guid?)null, reserves), (h.P.Scheduler.Round, h.P.Scheduler.ActiveTeamId, h.Open.Question));   // before the first turn
         h.Dispatch(new AnswerAsk(h.Open.Id, new Confirmed()), team: 0);
@@ -98,9 +102,9 @@ public class SchedulerConstraintTests
                 return units.Count == 0 ? null : new TurnAsk(AskQuestions.Activate, "Activate", new Options(units.Select(u => ActivationOption.For(u, "Hold")).ToList()), true);
             },
         };
-        var h = Game(rules); h.Run(); foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]); h.Run();
+        var h = Placed(rules);
         var a = h.Units(0);
-        h.Answer(0, new Chosen(Activate(a[0]))); h.Answer(1, new Chosen(Activate(h.Units(1)[0])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0]))); h.Answer(1, new Chosen(TestGames.Activate(h.Units(1)[0])));
         Assert.Contains(Assert.IsType<Options>(h.Open.Legal).Choices, c => c.Pieces[0] == a[0]);           // offered again despite its record
         Assert.Contains("Hold", h.P.Units[a[0]].Actions);
         h.Answer(0, new Passed()); h.Answer(1, new Passed());
@@ -118,10 +122,9 @@ public class SchedulerConstraintTests
             SequenceHook = name => new Sequence(name, [new LambdaStep("overwatch", ctx => ctx.History.LastClosed() is not null ? new Complete([])
                 : new OpenAsks([ctx.Ask(AskQuestions.React, "Overwatch?", ctx.State.Info.Teams.Select(t => t.Id).Single(t => t != ctx.ActorTeam), new Options([new AskOption("fire", "Fire", [])]), allowPass: true, windowKind: "overwatch")]))]),
         };
-        var h = Game(rules);
-        h.Run(); foreach (var u in h.P.Units.Keys.ToList()) h.Append([TestGames.Place(h.State, u)]); h.Run();
+        var h = Placed(rules);
         var a = h.Units(0);
-        h.Answer(0, new Chosen(Activate(a[0])));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0])));
         var window = h.Open;
         Assert.Equal((AskQuestions.React, h.Teams[1], h.P.Stack.Single().Id), (window.Question, window.Teams.Single(), window.FrameId!.Value));
         Assert.False(SchedulerLog.IsSchedulerAsk(window));
@@ -136,11 +139,11 @@ public class SchedulerConstraintTests
     {
         var g = TestGames.Build([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1), TestArmies.Build("C", 1, 1)]);
         TestGames.Apply(g, new RoundStarted(1, g.Teams, []));
-        Assert.Equal([g.Teams[1], g.Teams[2]], Windows.ReactionOrder(g.State, g.Teams[0], [g.Teams[2], g.Teams[1]]));   // the default
+        Assert.Equal([g.Teams[1], g.Teams[2]], Interpreter.Windows.ReactionOrder(g.State, g.Teams[0], [g.Teams[2], g.Teams[1]]));   // the default
         var chooser = TestGames.Build([TestArmies.Build("A", 1, 1), TestArmies.Build("B", 1, 1), TestArmies.Build("C", 1, 1)],
             rules: new FakeRules { OrderReactionsHook = (_, _, reacting) => reacting });                                                    // "the active player chooses": as sent
         TestGames.Apply(chooser, new RoundStarted(1, chooser.Teams, []));
-        Assert.Equal([chooser.Teams[2], chooser.Teams[1]], Windows.ReactionOrder(chooser.State, chooser.Teams[0], [chooser.Teams[2], chooser.Teams[1]]));
+        Assert.Equal([chooser.Teams[2], chooser.Teams[1]], Interpreter.Windows.ReactionOrder(chooser.State, chooser.Teams[0], [chooser.Teams[2], chooser.Teams[1]]));
     }
 }
 ```

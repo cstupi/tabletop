@@ -18,7 +18,7 @@ Undo-by-replay, a rejoining client and a rehydrated server therefore reach the s
 Ask through the interpreter's own Ask machinery; one activation cycle read from the log; the
 phases before round one (deployment, Scouts) and the flip into round one; the first-team policy
 and the roll-off started through the interpreter; the round boundary, its confirmation Ask and
-the interactive boundary hook (Ambushers); reaction *ordering* as a policy hook; the eight
+the interactive boundary hook (Ambushers); reaction *ordering* as a policy hook; the seven
 `IGameRules` members the scheduler adds and their Grimdark Future bodies; one clause in the
 skeleton's `CommandDispatcher.Answer` putting an unreadable turn answer on the enforcement dial;
 the factory and its registration in `Program.cs`.
@@ -28,7 +28,7 @@ the factory and its registration in `Program.cs`.
 | Not built here | Where it lives |
 | --- | --- |
 | The interpreter, frames, steps, the roll primitive, the confirm gate | interpreter plan, `Interpreter/`, `Dice/`, `Engine/RulesEngine.cs` |
-| `Windows.ReactionOrder` itself; the scheduler supplies only the hook it consults | `Interpreter/Windows.cs` |
+| `Windows.ReactionOrder` and the `IGameRules.OrderReactions` hook it consults | `Interpreter/Windows.cs` |
 | Reaction *eligibility* (`IGameRules.ReactionsAt`) | interpreter plan, `GfHooks` |
 | Fatigue clearing, spell tokens, end-of-activation morale, the wounds-this-activation reset | `IGameRules.OnRoundStarted` / `EndOfTurnSequences` / `OnTurnEnded`, bodies in `GfHooks` |
 | Appending, broadcasting, `ask_answered` / `ask_closed` for an answer, authorization | `GameSession`, `CommandDispatcher` (skeleton) |
@@ -37,11 +37,12 @@ the factory and its registration in `Program.cs`.
 | `Overwatch` (p.33) and action boosting's *Random* playstyle (p.31) | deferred; `handoff.md` |
 
 **Code lands in** `server/game/Scheduler/` (ten new files), two partials of the one ruleset in
-`server/game/Rules/GrimdarkFuture/` (`GfRules.Scheduling.cs`, `GfRules.Deployment.cs`), eight
+`server/game/Rules/GrimdarkFuture/` (`GfRules.Scheduling.cs`, `GfRules.Deployment.cs`), seven
 new members on `server/game/Rules/IGameRules.cs`, one registration line in
-`server/game/Program.cs`, one Layout bullet in `CLAUDE.md`, and thirteen test classes plus five
+`server/game/Program.cs`, two changes in `server/game/Session/GameSession.cs` (`StartAsync` advances only a `Playing` game; `AdvanceAsync` catches a throw from `Engine.Advance` and faults the session), one Layout bullet in `CLAUDE.md`, and fourteen test classes plus five
 infrastructure files in `tests/Tabletop.GameServer.Tests/`.
-Nothing is added to `libs/`. No Protocol type is reshaped. `Scheduler/` is a sibling of `Rules/`
+`libs/Tabletop.Protocol/EventApplier.cs` copies `RoundStarted.Order` before it clears the
+projection's order. No Protocol type is reshaped. `Scheduler/` is a sibling of `Rules/`
 and `Dispatch/` because the scheduler is engine code, not a ruleset.
 
 **Position in the build order.** `architecture.md` step 7 (*Scheduler and OPR skeleton*). Nothing
@@ -58,9 +59,9 @@ exists yet: the client is a scaffold and `server/game/` is empty. What must land
    `Sim`, `TestProperties.Core`, `LambdaStep`.
 
 Only this module's Tasks 1–2 can start before the interpreter's Task 11. Everything from the
-roll-off onward needs it. One edge is cyclic: `GfNames.Rounds` is defined as
-`SchedulerBase.RoundsPhase` so the two spellings cannot drift. Either that constant lands first,
-or `GfNames.Rounds` is the literal `"rounds"` until it does.
+roll-off onward needs it. One edge is cyclic: `GfNames.Rounds` is
+`SchedulerBase.RoundsPhase` so the two spellings cannot drift, which makes `GfNames.cs` depend on
+`SchedulerBase.cs` (Task 5).
 
 ## Context
 
@@ -128,8 +129,9 @@ skeleton's hydration. Its state is the event log, `game.game_event (game_id, seq
 
 ### Ownership boundary with `GameRules`
 
-The scheduler spec draws this line as a two-column table. In code the right-hand column is eight
-members of `IGameRules`, plus three the interpreter plan owns and the scheduler calls. The
+The scheduler spec draws this line as a two-column table. In code the right-hand column is seven
+members of `IGameRules`, plus four the interpreter plan owns (`OnRoundStarted`, `EndOfTurnSequences`,
+`OnTurnEnded`, `OrderReactions`) and the scheduler calls. The
 governing rule is `architecture.md` → Turn scheduling: *"No engine code branches on ruleset
 identity; the scheduler is the firewall."*
 
@@ -149,7 +151,7 @@ flowchart LR
         H4["ReadAnswer -> Activation?"]
         H5["ActivationComplete"]
         H6["RoundBoundaryStep -> HookResult"]
-        H7["OrderReactions"]
+        H7["OrderReactions (interpreter plan)"]
         H8["OnRoundStarted / EndOfTurnSequences / OnTurnEnded (interpreter plan)"]
         H9["ActionSequence(action) -> sequence name"]
     end
@@ -360,17 +362,17 @@ one model on the table*, crossed with `ActionsFor`:
 ```csharp
 if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
 if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
-if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return actionRows.Where(a => a == Hold).ToList();
+if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
 return actionRows;
 ```
 
-The order of those three tests is a rulebook reading, not a preference. Page 13 gives `Aircraft`
+The order of those tests is a rulebook reading, not a preference. Page 13 gives `Aircraft`
 *"may only use Advance actions … (even if Shaken)"* and adds that their mandatory move *"doesn't
 break the staying idle requirement to stop being Shaken"*. `Aircraft` is therefore read before
 `Shaken`, and a Shaken Aircraft is offered `Advance`, not `Idle`. Page 10 gives every other Shaken
 unit *"must spend their activation being idle and doing nothing, which stops them from being
 Shaken at the end of their activation"*, which is `ActivationOption.Idle`, a `const string` that
-is not an action row and runs no sequence. Page 14 gives `Immobile`: `Hold` only. The action rows
+is not an action row and runs no sequence. Page 14 gives `Immobile`, and page 13 gives `Artillery` (*"May only use Hold actions"*): `Hold` only. The action rows
 come from `PropertySet.Actions` in catalog order (`Hold`, `Advance`, `Rush`, `Charge`), because
 actions are named per ruleset rather than enumerated.
 
@@ -488,7 +490,8 @@ no *set aside or deploy* Ask and no phase for it. Game flow's *Nothing is an inv
 every property editable at any time through the same path automation writes. The players set it
 whenever they like, and the next deploy Ask's legal set excludes it. A set-aside unit that is
 neither a Scout nor an Ambusher is never offered at all. It stays on the shelf until somebody
-clears the condition and hand-moves it.
+clears the condition and hand-moves it. An Ambusher's arrival logs its `set-aside` condition
+cleared, so a destroyed Ambusher is never offered again (W-I3).
 
 **The turn ends when the last model of the unit has a placement.** `ActivationComplete` is the
 whole rule:
@@ -515,7 +518,8 @@ The base calls it on every `Advance` until it says done:
 | What the hook reads since `round_started` | What it returns |
 | --- | --- |
 | a `deploy_ambusher` Ask still open | `HookWaiting` |
-| an Ask closed with a unit whose models are all still shelved | `HookWaiting` |
+| an Ask closed with a unit with any model still shelved | `HookWaiting` |
+| an Ask closed with a unit fully placed that is still `set-aside` | `HookEmit([condition_set(set-aside, false)])` |
 | an eligible team after the last one asked | `HookEmit([ask_opened(...)])` |
 | every team passed or out of Ambushers | `HookDone` |
 
@@ -670,8 +674,7 @@ stateDiagram-v2
 
 ### Reaction ordering
 
-Eligibility is the sequence's business. Ordering is the scheduler's. This module contributes one
-member, `IGameRules.OrderReactions(state, actorTeamId, reactingTeams)`, and no type. The single
+Eligibility is the sequence's business. Ordering is the scheduler's. `IGameRules.OrderReactions(state, actorTeam, reactingTeams)` is the interpreter plan's member, and the scheduler adds no type. The single
 policy lives in the interpreter's `Windows.ReactionOrder`. It consults the hook first, and
 otherwise applies the default the spec fixes: the current turn order rotated to start with the
 team *after the actor*, teams missing from the order following in `Info.Teams` order, restricted
@@ -683,8 +686,9 @@ Two constraints apply. The actor is whoever's step opened the window, not the ac
 another team's turn, so `ReactionOrder` anchors on `actorTeam` and never on
 `Scheduler.ActiveTeamId`. Ordering is a policy with a default (constraint 6). OPR needs no hook,
 so `GrimdarkFutureRules.OrderReactions` returns null. 40k's *"the player whose turn it is chooses
-the order"* would be a body here and nothing else would change. With two teams the question never
-arises.
+the order"* would be a body here and nothing else would change. Page 13 orders simultaneous rules
+across players by a roll-off, the winner picking. That case is unreachable while only the acting
+team can react.
 
 ### Menu overrides, stale Asks, and enforcement
 
@@ -760,7 +764,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Free-for-all is a first-team policy inside the ruleset hook, not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.50 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
 | The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | scheduler → Deployment (*every roll result is editable*); the plan's ruling 7 |
-| Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window is the interpreter's mechanism | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
+| Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window and the hook are the interpreter's | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
 | Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement; whole-design review → ruling 1 |
 | An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | scheduler → Enforcement; the plan's ruling 3 |
 | A superseded scheduler Ask closes with an **empty** answer list, the engine's only `ask_closed` | the dispatcher only closes Asks with a `FrameId`; an Ask is never withdrawn | leaving it open, or having the dispatcher close unframed Asks | scheduler → The turn is an Ask; skeleton plan (`CommandDispatcher` closes only framed Asks) |
@@ -794,9 +798,9 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 
 ### Produced: `Tabletop.GameServer.Rules`
 
-Eight members added to `IGameRules`, implemented on `GrimdarkFutureRules` in
+Seven members added to `IGameRules`, implemented on `GrimdarkFutureRules` in
 `GfRules.Scheduling.cs` and `GfRules.Deployment.cs`. `RulesId`, `Instance` and `Id` stay the
-skeleton's. Nothing is added to `GfNames`.
+skeleton's. `GfNames` gains `Artillery`; `GfNames.Rounds` is `SchedulerBase.RoundsPhase`.
 
 | Member | Grimdark Future's answer |
 | --- | --- |
@@ -807,11 +811,10 @@ skeleton's. Nothing is added to `GfNames`.
 | `Activation? ReadAnswer(GameState, Guid teamId, AskAnswer)` | `SelectedPieces` → deploy; `Chosen` → parsed unit and action with `ActionRecorded`; else null, which is also the dispatcher's readability probe |
 | `bool ActivationComplete(GameState, Activation)` | true unless a deploy still has a shelved model |
 | `HookResult RoundBoundaryStep(GameState, PropertySet, int round, IRL<Guid> order)` | the Ambusher loop from round 2; `HookDone` before |
-| `IRL<Guid>? OrderReactions(GameState, Guid? actorTeamId, IRL<Guid> reactingTeams)` | null; the default stands |
 
-Plus two internals the tests reach directly:
-`internal static IRL<string> ActionsFor(GameState, PropertySet, UnitInPlay, IRL<string> rows)` and
-`internal static IRL<Guid> Ambushers(GameState, PropertySet, Guid teamId)`.
+Plus two public statics the tests call directly:
+`public static IRL<string> ActionsFor(GameState, PropertySet, UnitInPlay, IRL<string> rows)` and
+`public static IRL<Guid> Ambushers(GameState, PropertySet, Guid teamId)`.
 
 ### Consumed
 
@@ -843,15 +846,15 @@ Plus two internals the tests reach directly:
 2. **Skeleton plan:** `CommandDispatcher.Answer` gains the readability clause above, and its
    `CommandDispatcherTests` fixture gains a real activation option id — its `activate` sample
    offers `"a"`, which is in that Ask's legal set and unreadable, so under `strict` it would be
-   refused where the file expects `Applied`. No test is added or removed there.
+   refused where the file expects `Applied`. A readability-probe Theory over strict, warn and
+   silent, and a Pass-and-framed fact, are added there.
 3. **Interpreter plan:** `GfRolls.RollOffSequence` derives the ranking in a step *after* the gate,
    so an edited die changes the order. `RollOff.Order` reads values rather than dice and cannot
    rank a roll-off itself; if the ranking were recorded before the gate, the order written would
    be the pre-edit one. That plan's Task 11 does this as two steps for exactly this reason.
-4. **Interpreter plan:** `GfHooks.OnTurnEnded` clears `shaken` only when
-   `turn.Activation.Action == ActivationOption.Idle`. Page 13 says an Aircraft's mandatory
-   `Advance` *"doesn't break the staying idle requirement"*, and `ActionsFor` offers a Shaken
-   Aircraft exactly that. The condition belongs in `GfHooks`, not here.
+4. **Interpreter plan:** `GfHooks.OnTurnEnded` clears `shaken` for an Idle activation and for a
+   Shaken Aircraft's `Advance`. Page 13 says an Aircraft's mandatory `Advance` *"doesn't break the
+   staying idle requirement"*, and `ActionsFor` offers a Shaken Aircraft exactly that.
 5. **Client shell plan:** nothing new. The boundary Ask is an unframed `Confirmation` addressed to
    several teams, which the Ask panel already renders. That plan relabels the confirm button
    "End the round" and the log line "confirmed for Team 1". Window mutes stay client-side.
@@ -1067,6 +1070,14 @@ team's `ActionRecordCleared` rows, then the wounds-this-activation resets and an
 `shaken` clear. Both orderings are asserted by tests, because a record clear after a fatigue set
 would be a different game state on replay.
 
+Under player-turn a turn holds many activations, and p.10's resets happen "at the end of the
+activation". `PlayerTurnScheduler` therefore logs `OnTurnEnded`'s changes as bare state changes
+after every cycle that completes or passes, before the next Ask (W-I1). The hook is called again
+at `turn_ended` and finds nothing left to reset, so a ruleset's body must be idempotent.
+`IGameRules` gains no member for it. `PlayerTurnSchedulerTests` pins a unit tested once for a wound
+taken in an earlier activation and a Shaken unit that idles mid-turn losing `shaken` before the turn
+ends.
+
 ## Failure modes
 
 **The engine does not rest.** `AdvanceAsync` caps the loop at 10 000 iterations and logs an error.
@@ -1109,10 +1120,14 @@ already emitted. The game then gains a duplicate `turn_started` or a second `rou
 range, so undoing past the `end_round` answer un-ends the round and re-opens the boundary Ask.
 Round two's record clearing goes with it. Undoing past a roll-off re-rolls the same dice, because
 the RNG is counter-based over the effective log; undoing back into one leaves the frame live and
-the gate to answer again. Both are tested.
+the gate to answer again. `AlternatingSchedulerTests` covers undo past the `end_round` answer, and
+`RollOffUndoTests` covers undo into and past the roll-off.
 
-**Left to break.** A `set_round` to an arbitrary number is followed without question. There is no
-clamp, no maximum, and no check that the round is not already past. A unit hand-moved onto the
+**Left to break.** A `set_round` to an arbitrary number is followed. There is no clamp, no maximum,
+and no check that the round is not already past. One consequence is not left to break: a `set_round`
+to round one or later while the phase is still a pre-round one moves the game to the `rounds` phase
+(`phase_started("rounds")`), so the game does not stay in deployment (W-I2). The guard is one-way, so
+`set_round(0)` after the `rounds` phase leaves the phase at `rounds`. A unit hand-moved onto the
 table after its team's Ask opened is not in that Ask's legal set and cannot be activated until the
 next one. A model placed half-deployed leaves the phase waiting. All three are *"the players are
 in charge"* rather than bugs, and the log is the accountability. A team appearing mid-game is not
@@ -1133,8 +1148,8 @@ Godot and no socket.
 | Level | Files | What it pins |
 | --- | --- | --- |
 | Unit, no engine | `ActivationOptionTests`, `SchedulerLogTests`, `GrimdarkFutureRulesTests`, `RollOffTests`, `TurnCycleTests` | the option id round trip and its malformed cases; the five anchors and the scheduler-Ask predicate; every OPR hook against hand-built logs; the roll-off's four states, its wait across the confirm gate and a mangled values map; the cycle's whole state machine, including the `Running`/`WaitingCompletion` states the real engine never reaches |
-| Through the real engine | `AlternatingSchedulerTests`, `DeploymentTests`, `RoundBoundaryTests`, `PlayerTurnSchedulerTests`, `SchedulerConstraintTests` | both shapes for two teams and for N teams of one; roll-off, its gate and a die edited there, deployment, Scouts, Ambushers, the boundary Ask, passes, re-entry, menu overrides, the enforcement dial over an out-of-set and an unreadable answer; the six interface constraints |
-| Ordering policy | `ReactionOrderingTests` | `Windows.ReactionOrder` from the scheduler's side: turn order after the actor, the actor last, passed teams dropped, the hook replacing it |
+| Through the real engine | `AlternatingSchedulerTests`, `DeploymentTests`, `RoundBoundaryTests`, `PlayerTurnSchedulerTests`, `SchedulerConstraintTests`, `RollOffUndoTests` | both shapes for two teams and for N teams of one; roll-off, its gate, a die edited there and undo into and past it, deployment, Scouts, Ambushers, the boundary Ask, passes, re-entry, menu overrides, `set_round` mid-deployment, the enforcement dial over an out-of-set and an unreadable answer; the six interface constraints |
+| Ordering policy | `ReactionOrderingTests` | `Interpreter.Windows.ReactionOrder` from the scheduler's side: turn order after the actor, the actor last, passed teams dropped, the hook replacing it |
 | Composition | `SchedulerFactoryTests` | the shape comes from `GameInfo`, and `RulesEngineFactory` composes it |
 | Socket, Docker Postgres | `SchedulerEndToEndTests` (collection `Postgres`) | `Program.cs`'s real registrations: ending setup rolls off, waits at the gate over the socket, opens deployment once a team confirms, and a deploy answer plus hand moves end the turn; and a second process rehydrates mid-deployment, re-serves the open Ask and adds no events |
 

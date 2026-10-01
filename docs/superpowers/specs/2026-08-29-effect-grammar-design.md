@@ -88,7 +88,7 @@ different lifetimes. The predicates test exactly those.
 
 ### Conditions belong to the effect, not the entry
 
-`Indirect` settles this. It has three effects with **different** conditions:
+`Indirect` settles this. It has three clauses with **different** conditions:
 
 - −1 to hit — *when shooting after moving*
 - may target enemies not in line of sight — **unconditional**
@@ -113,7 +113,7 @@ which is preferable to being wrong.
 | 9 | Grant a property | `Rending` (unmodified 6s *get AP(+4)*) |
 | 10 | Suppress a property | `Bane` and `Rending` (*ignores Regeneration*) |
 | 11 | Modify a property's parameter | `Thrust` (*AP(+1)*), `Counter` (*−1 Impact rolls*) |
-| 12 | Suppress modifiers | `Unstoppable` (*ignores all negative modifiers to this weapon*), `Blast` and `Indirect` (*ignores cover*) |
+| 12 | Suppress modifiers | `Unstoppable` (*ignores all negative modifiers to this weapon*), `Blast` (*ignores cover*) |
 
 ### `Roll` nests
 
@@ -188,9 +188,10 @@ already owns**, grouped by where the check happens rather than by what they rese
 grammar for deployment timing, movement exemption and a token economy, most of which would
 be used by one property each. That is where effects-as-data stops paying.
 
-**A property may be in both places.** `Aircraft` has two ordinary modifier effects — *units
-targeting them get −12" range and −1 to hit* — and is also checked by name during movement
-and targeting. `Hero` is mostly list-building and deployment that players handle, plus one
+**A property may be in both places.** `Aircraft` has one ordinary modifier effect, *units
+targeting them get −12" to their range*, and is also checked by name during movement
+and targeting. `Indirect`'s *ignores cover from sight obstructions* is checked by name: it drops
+only the sight half of p.11's cover, so it is no suppression of the cover modifier. `Hero` is mostly list-building and deployment that players handle, plus one
 real effect: *"must use the unit's Defense until all other models have been killed"* is a
 stat replacement conditioned on other models remaining.
 

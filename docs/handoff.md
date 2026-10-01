@@ -1,36 +1,26 @@
-# Handoff — 2026-09-29, paused for the night in steps 3 and 4
+# Handoff — 2026-09-30, steps 1 to 4 merged; checkpoints 1 and 2 due
 
-Where the project stands, and what to pick up next. **Steps 1 and 2 are built and merged. Step 3: the web
-app and the client are merged; the interpreter tree has every task built and is in its whole-branch review's
-fix loop, stopped clean for the night before its report. Step 4: the scheduler tree is finished and green, waiting to
-merge after the interpreter. Checkpoint 1, the owner playing the table by hand, is due.**
+Where the project stands, and what to pick up next. **Steps 1 to 4 are built and merged: contracts,
+geometry, management, the game-server skeleton, the web app, the client, the interpreter and the
+scheduler. No tree is open. Checkpoint 1 (the table by hand) and checkpoint 2 (first turns) are the
+owner's next; step 5, the simulator, waits for checkpoint 2.**
 
 ## State
 
 Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`), the game-server
-skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`) and the client shell
-(`ba53db1`); each branch is kept and each worktree removed. On `main`, `dotnet build` is clean with no
-warnings, `./scripts/check-client` prints nothing, and `dotnet test` passes 477 tests: Geometry 131,
-Content 17, Protocol 36, Client 64, GameServer 149, Management 80. The two server suites need the compose
-stack up. In `web/`, `npm test` passes 62 with 1 skipped, `svelte-check` reports 0 errors and `npm run
-build` writes `build/index.html`. `main` is clean at the commit that carries this file.
+skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), the client shell
+(`ba53db1`), the interpreter and effects (`c8ae306`) and the scheduler (`2f7a168`); each branch is kept and
+each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
+in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
+`LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
+`dotnet test` passes 805 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 450,
+Management 80. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`.
 
-**Two trees are open**, each clean at a committed head, with no controller running:
-
-| Tree | Worktree, branch | Base | Head | State | Next |
-| --- | --- | --- | --- | --- | --- |
-| interpreter | `.worktrees/interpreter`, `interpreter` | `main` at `8b5d8b1` | `373f202` | tasks 1-19 complete; whole-branch review and six fix rounds done; last run 664 (GameServer 374), not yet the controller's own | round 6's scoped re-review, the whole-tree check, the report |
-| scheduler | `.worktrees/scheduler`, `scheduler` | `interpreter` at `e26eb31` | `47ee5e2` | **finished**; report `.superpowers/reports/scheduler.md`; whole-tree check green under the manager's run, 659 tests (GameServer 394) | merge after the interpreter; do not dispatch a controller |
-
-The scheduler carries `interpreter` up to `d458530` through two merges its brief allowed; the interpreter's
-later fix rounds are not in it and meet it at the merge into `main`.
-
-The interpreter's ledger `.superpowers/ledgers/interpreter.md` is its resume point: its `complete` lines say
-what not to redo, its rulings bind the rest of the tree, and its last line is a `Resume:` line naming the exact
-next step, the head and the last test count. Its brief is `.superpowers/briefs/common.md` plus
-`interpreter.md`; its rebuilt rulings for tasks 9 to 19, implementer and reviewer contracts and extracted
-rulebook are in `.superpowers/sdd/interpreter/`. The scheduler's brief, ledger and `.superpowers/sdd/scheduler/`
-are kept until its merge for the rulings its report cites.
+The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
+reaches `playing` runs the Grimdark Future roll-off, deployment, activations, rounds, shooting, melee,
+morale, casting and transports through Asks. No wire kind was added after the contracts plan, so
+`ProtocolVersion` is unchanged.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -38,23 +28,23 @@ are kept until its merge for the rulings its report cites.
 | Implementation plans | `docs/superpowers/plans/`, the unsplit files and five directories | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
-**The management tree's record** is `.superpowers/reports/management.md`, seven sections: 4 holds every
-ruling, 5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees.
-Sections 6 and 7 are applied: 6 to the plan, the spec, the design doc and `docs/schema.md`, 7 to this
-file. The web-app and client trees' records are `.superpowers/reports/web-app.md` and `client-shell.md`, in
-the same seven sections, with 6 and 7 applied the same way; the scheduler's `scheduler.md` is not yet applied.
-`.superpowers/` is git-ignored and local to this machine; `.superpowers/reports/geometry.md` and
-`game-server-skeleton.md` are the other two trees' reports, kept for their deferred-minor lists.
-`.superpowers/sdd/client-shell/` keeps two files the client obligations cite: `implementer-contract.md` and
-`task-06-report.md`. `.superpowers/manager.md` is the manager's scratch and defers to this file.
+**Each merged tree's record** is `.superpowers/reports/<tree>.md`, seven sections: 4 holds every ruling,
+5 the parked and deferred findings, 6 the docs corrections, 7 the obligations on later trees. For
+`management`, `web-app`, `client-shell`, `interpreter` and `scheduler`, sections 6 and 7 are applied: 6 to
+the plans, specs and design docs, 7 to this file. `geometry.md` and `game-server-skeleton.md` are kept for
+their deferred-minor lists. `.superpowers/` is git-ignored and local to this machine.
+`.superpowers/sdd/client-shell/` keeps two files the client obligations cite: `implementer-contract.md`
+and `task-06-report.md`. `.superpowers/briefs/common.md` is the brief every tree's controller reads.
+`.superpowers/manager.md` is the manager's scratch and defers to this file.
 
 **Split plans are directories.** `plans/2026-09-05-management-api/`, `2026-09-05-web-app/`,
 `2026-09-05-client-shell/`, `2026-09-05-interpreter-and-effects/` and `2026-09-05-scheduler/` are each
 a `README.md` (goal, constraints, file structure, the task index, *Interfaces → Produces*, *Interfaces
-needed*, rulings) and one `task-NN-*.md` per task. A reference of the form `plan → *Section*` resolves
-against the README. Five task files still run 510 to 700 lines (interpreter 8, 11 and 14; management 5;
-scheduler 5): split one by step before editing it at length. The other five plans run 2 000 to 4 700 lines
-and the design docs 1 000 to 1 700; split each the same way before a tree is dispatched on it or before editing it.
+needed*, rulings) and one `task-NN-*.md` per task; interpreter Tasks 8, 11 and 14 are two files each,
+`-1.md` and `-2.md`. A reference of the form `plan → *Section*` resolves against the README. Three task
+files still run over 500 lines (management 5; scheduler 2 and 5): split one by step before editing it at
+length. The other five plans run 2 000 to 4 700 lines and the design docs 1 000 to 1 700; split each the
+same way before a tree is dispatched on it or before editing it.
 
 **Read in this order from cold:** this file, then `docs/design/README.md`, then `docs/architecture.md`,
 then the design document for whatever you are touching and its plan beside it.
@@ -68,37 +58,28 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 
 ## Next
 
+0. **Finish the interpreter plan's docs corrections.** Section 6 of `.superpowers/reports/interpreter.md`
+   is applied to the design docs, specs, `CLAUDE.md` and this file, and the three oversized task files are
+   split; its items for `plans/2026-09-05-interpreter-and-effects/` (README and task files) were in progress
+   at the pause and may be partial. Check each item against the plan directory and the code on `main`, then
+   delete `.superpowers/briefs/interpreter.md`, `.superpowers/ledgers/interpreter.md` and
+   `.superpowers/sdd/interpreter/`, which are kept until then. The scheduler's corrections are fully applied.
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
-   `docker compose up -d` follows from the repo root, never from a worktree (a worktree's compose file starts
-   a second stack on the same ports). `.env` exists and carries the Stytch project id. Never `down -v` while
-   a tree is running: the volume holds the schema every server test reads. The compose `tabletop` database
-   carries `public.schema_version` with 001 baselined and 002 applied.
-2. **Resume the interpreter.** Dispatch a fresh controller on `opus` with the prompt "read
-   `.superpowers/briefs/interpreter.md` then `common.md`; resume from `.superpowers/ledgers/interpreter.md`;
-   the worktree is clean at the head named in its last line; do exactly what that line says next, then
-   continue". The next step is round 6's scoped re-review over `4220fee..373f202`. Round 6 ran past the
-   brief's five-round budget because round 5's re-review found a Critical: with waits between steps on, a
-   Charge ended before asking for its target and Hold or Advance never offered shooting (ruling R-N19). If
-   the re-review reports anything Critical or Important, the controller hands it back and the owner decides. A controller forced to stop leaves the
-   worktree clean and writes the resume point as the ledger's last line.
-3. **Merge the interpreter, then the scheduler.** From the repo root, for each in that order: run its
-   whole-tree check from its worktree, `git merge --no-ff <tree>`, resolve `CLAUDE.md`, `Tabletop.sln` and
-   `.env.example` keep-both-sides, build and test on `main`, apply the report's section 6 to `docs/` and its
-   section 7 to this file, remove the worktree and keep the branch; delete the tree's brief, ledger and
-   `.superpowers/sdd/<tree>/` once its report is applied. The scheduler's section 7 names the files both trees
-   touch: `GfNames.cs`, `StubRules.cs`, `CommandDispatcherTests.cs`, `CLAUDE.md`, `GameSession.cs` and
-   `EventApplier.cs`. Where the interpreter's later fix rounds conflict there, the interpreter's side is the
-   base and the scheduler's additions go on top; rerun the whole-tree check on `main` after.
-4. **Checkpoint 1, the table by hand, is due now.** The owner checks are section 5 of
+   `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
+   Never `down -v`: the volume holds the schema every server test reads. The compose `tabletop` database
+   carries `public.schema_version` with 001 baselined and 002 applied. A database seeded before the
+   interpreter merge holds an extra `properties` row from an earlier core-document hash; games created
+   on it keep their own set.
+2. **Checkpoint 1, the table by hand.** The owner checks are section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*, task by task, each with what should appear. They
    need `./scripts/management` and `dotnet run --project server/game` in WSL, `./scripts/client` on Windows,
    and two accounts.
-5. **Checkpoint 2, first turns, comes due when the scheduler merges.** What a player should see at the
-   roll-off, deployment, activation and end of round is section 7 of `.superpowers/reports/scheduler.md`,
-   *What a player should see*; casting, Takedown, Transport and disembark are in the interpreter's report.
-   Step 5, the simulator, is not dispatched until the owner has played checkpoint 2
-   (`docs/design/README.md` → *Checkpoints*).
+3. **Checkpoint 2, first turns.** Same setup, a game taken through setup to `playing` with an army on each
+   side. What a player should see is *Checkpoint 2: what a player should see* below.
+4. **Step 5, the simulator**, is dispatched only after the owner has played checkpoint 2
+   (`docs/design/README.md` → *Checkpoints*). Its plan is `plans/2026-09-06-simulation.md`, 4 652 lines:
+   split it into a directory before dispatching a tree on it.
 
 **Owner actions outstanding.** Author the fifteen built-in art files (ten `.glb` under
 `client/content/builtin/terrain/`, five 1024² tileable `.png` under `client/content/builtin/textures/`),
@@ -112,6 +93,64 @@ machine's user-secrets (`dotnet user-secrets set STYTCH_SECRET` from `server/man
 carries the project id. Then do the management plan's Task 5 Step 8 once: a manual login through
 `./scripts/management` against the real project with an emailed code, reading the JWT's claims at
 jwt.io. It is the only check that proves the claim template exists; the tree's tests use a fake Stytch.
+
+## Checkpoint 2: what a player should see
+
+No Ask kind is new; each uses an existing `Legal` type, and the client renders them as its plan says.
+
+- **Roll-off.** After the flip to `playing`, every team gets one framed `Confirm` Ask between the
+  roll-off's two steps. The dice can be edited until any team confirms. After the confirm,
+  `round_started(0)` carries the order and `phase_started("deployment")` follows.
+- **Deployment.** The active team gets "Deploy one unit", a one-piece `PieceSelection` over its shelved
+  units, with no pass; set-aside units are excluded. The player picks the unit and places its models from
+  the team panel. The turn ends when the unit's last model is on the table by a hand `MoveModels`, and the
+  teams alternate one unit each (p.6). Scouts come after every other unit, as "Deploy a Scout", starting
+  with the roll-off winner. A unit is set aside as a Scout or Ambusher with the menu's `set_condition`;
+  nothing asks for it. The team panel's right-click stays the manual placement path. Hand moves never end
+  an activation turn.
+- **Activation.** "Activate a unit": options labelled `"{unit name}: {action}"`, pass allowed. A Shaken
+  unit is offered only Idle. Immobile and Artillery units are offered only Hold. An Aircraft is offered
+  only Advance. Under the player-turn shape the same team is asked again until it passes or has nothing
+  left.
+- **Casting.** At the before-attacking checkpoint of an activation (Hold's `casting-window` step, and after
+  each move segment of a moving action), the acting team only gets `react` "React at before-attacking?"
+  with one option, "Cast a spell" (id `cast`), and may pass. Choosing it opens `cast` "Cast which spell?",
+  an `Options` of `"{spell} ({cost})"` per caster model and affordable, untried spell (id
+  `"{spell}|{modelId}"`); the cost is deducted on pick. A sealed `spend_tokens` "Spend tokens for or
+  against the casting roll" then goes to every team with a `TokenSpend` (max by model; casters within 18"
+  and in sight), on both sides at once. The roll follows. On a success, `spell_targets` "{spell}: pick up
+  to {n}" is a `PieceSelection` (1..n). The window reopens after each cast while budget remains. A player
+  sees only their own team's offers, and the tokens drop after the pick. The spell list is every catalog
+  spell, not the faction's (p.13), until the army snapshot carries a faction.
+- **Takedown.** Before a Takedown group's hit roll, if the target has 2 or more alive models, the attacker
+  gets `takedown_target` "Pick the model this takedown weapon targets", a `PieceSelection` (1..1) of the
+  target's alive models, per Takedown weapon per model, in shooting and in melee, before other weapons. Its
+  wounds go to that model with no `remove_casualties` Ask.
+- **Transport (embark).** The activation's `move` Ask is a `MoveRegion` whose `Containment.Enterable`
+  lists the containers in reach (not on Charge, and not after disembarking this activation). An `Inside`
+  destination embarks at no measured distance.
+- **Disembark.** A unit inside a container gets `move` "Disembark: place every model fully within 6\" of
+  the transport", with `Containment.ExitingId` the container and `ExitWithin` 6; allowance and difficulty
+  are unbound. When the container is destroyed, its unit gets `disembark` "Place the survivors fully within
+  6\" of the wreck" (`MoveRegion` with `ExitingId`, no pass). Survivors are Shaken, and a survivor left
+  unplaced or placed outside the radius is destroyed. The rules path deploys through these Asks only; the
+  team panel's right-click stays open.
+- **End of round.** When every team has passed or has nothing legal, one unframed `Confirmation` Ask "End
+  the round" (question `end_round`, no pass) goes to every team with a participant. Any one player's
+  confirm ends the round; the client shows "End the round" and logs "confirmed for Team N". Nothing
+  advances until someone confirms, including a round nobody could act in. After the confirm,
+  `round_started(n+1)` clears Fatigued and grants Caster(X) tokens (+X, capped at 6, even off the table),
+  with no prompt; the end of each activation clears wounds-this-activation and clears Shaken after an idle
+  activation (or an Aircraft's Advance). From round 2, "Deploy an Ambusher or pass" goes to each team with
+  an Ambusher, starting with the team that activates next (p.13). Then the first team gets its activation
+  Ask: the team that finished activating first last round.
+- **Menu edits.** A menu `set_round` or `set_active_team` closes an open end-of-round, deploy or activation
+  Ask with no answer: it disappears from the panel.
+
+Known parked behaviour a player can hit (scheduler report section 4, items 35 to 37): under warn or silent,
+a pass on a deploy Ask also skips that team's Scouts turn; `set_round(0)` once the phase is `rounds` leaves
+it at `rounds`, so no deploy Asks return; a partly placed Ambusher holds the next Ask until it is fully
+placed.
 
 ## The mode
 
@@ -147,9 +186,9 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 
 1. contracts, alone. **Landed.**
 2. geometry, management, game-server skeleton, together. **Landed.**
-3. web app, client, interpreter, together. Web app and client **landed**; interpreter **paused** before its report, see *State*.
-4. scheduler. **Finished**, off the interpreter branch; merges after it;
-5. simulator;
+3. web app, client, interpreter, together. **Landed.**
+4. scheduler. **Landed.**
+5. simulator, after checkpoint 2;
 6. viewer.
 
 **What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle;
@@ -160,15 +199,10 @@ rulings lists are exhaustive by contract, and each ends with what it costs if wr
 the lines it owns and appends the rest), `Tabletop.sln` and `.env.example`. Everything else a later
 plan modifies belongs to a plan it already requires.
 
-**The interpreter precedes the scheduler.** The scheduler consumes the interpreter's `RulesEngine`,
-`ISchedulerFactory`, `ISequenceStarter` and `SequenceStart`, and its `CLAUDE.md` step assumes the
-interpreter's bullet text is present. The interpreter's `IGameRules` members reference the
-scheduler's seam records (`TurnContext`, `TurnAsk`, `Activation`, `HookResult`, `FirstTeamDecision`,
-`ActivationOption`), so the interpreter plan's Task 8 declares them in `server/game/Scheduler/` and
-the scheduler plan's Task 1 reads them. The skeleton already ships `IGameRules`, `GrimdarkFutureRules`
-(partial), `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`,
-`CommandDispatcher`, `DispatchOutcome`, `CommandClass` and `MenuTranslation` exactly as its plan's
-*Interfaces → Produces* table spells them; with no engine registered the session runs `InertEngine`.
+**`IGameRules` spans two modules.** The interpreter's nine members and the scheduler's seven sit on one
+interface (`server/game/Rules/IGameRules.cs`); the scheduler's seam records (`TurnContext`, `TurnAsk`,
+`Activation`, `HookResult`, `FirstTeamDecision`, `ActivationOption`) live in `server/game/Scheduler/`. A
+new member is forwarded in the test decorator `WithSequences` (`StubRules.cs`).
 
 Tasks 7, 12, 13 and 14 of `plans/2026-09-05-interpreter-and-effects/README.md` carry more mechanism than a
 summary of them shows; read them as they stand.
@@ -194,11 +228,13 @@ database. The compose volume on this machine was rebuilt from it: 33 tables, 21 
 
 - A degenerate outline throws `ArgumentException` at construction: a `WorldVolume` whose
   `Transform.Scale` is 0 (`default(TerrainTransform)`, or a wire message that omits `scale`), a footprint
-  with a zero dimension, or a `TableSize` with a zero edge. **Neither server guards this yet.** The
-  skeleton's `DraftEditor.Apply` refuses an invalid `VisualRef` but not a zero scale or zero table edge,
-  and nothing in `server/game` calls geometry today. The interpreter tree, the first server-side caller,
-  adds the refusal to `DraftEditor.Apply` alongside the `VisualRef` check; management's layout
-  validation (`POST`/`PATCH /v1/layouts`, 422) does the same.
+  with a zero dimension, or a `TableSize` with a zero edge. The game server's
+  `DraftEditor.Apply` refuses such an edit through `DraftEditor.Degenerate`, which calls the
+  geometry-owned checks `Footprint.IsValid(scale)` (for a rect, twice the scaled area at least twice
+  the polygon threshold) and `Table.IsValid` (including every built-in zone style's polygons).
+  **Management does not guard it yet:** its layout validation (`POST`/`PATCH /v1/layouts`, 422) and
+  the web volume editor should call or mirror those two checks before a save, so that `DraftEditor`
+  does not refuse what an editor accepted.
 - `LineOfSight.Check` is asymmetric: the eye is the caller's body centre and the target is sampled, so
   `Check(a, b).Clear` and `Check(b, a).Clear` differ when the centre line is blocked. The rules module
   calls it from the shooter's side. It returns on the first clear line, so `ObstructedBy` is complete
@@ -228,7 +264,8 @@ database. The compose volume on this machine was rebuilt from it: 33 tables, 21 
   the visual named in `Refused.Detail`.
 - **Scheduler and interpreter plans.** `GameSession.AdvanceAsync` caps at 10 000 iterations and logs.
   A faulted session drops every frame, tick and attach; an engine that throws inside `Advance` faults
-  the session through `AppendAsync`'s catch. `EventFilter.ForViewer` understands `Undone`, so an engine
+  the session through `AdvanceAsync`'s own catch (`FaultAsync`), at runtime and on the hydrate catch-up.
+  `GameSession.StartAsync` advances only a `Playing` game. `EventFilter.ForViewer` understands `Undone`, so an engine
   that emits sealed Asks needs nothing more. `HttpJwksSource` refetches only on an unknown `kid`; a
   JWKS fetch failure propagates and the handshake closes `1011`.
 - **Management plan.** `TABLETOP_DB_CONNECTION` is read from `.env` through `DotEnv.Load`, which walks
@@ -352,6 +389,44 @@ compose-init test and the two JWT negative tests it names.
 - **`CLAUDE.md`.** The client tree owns its three Commands lines, the `client/` Layout children and the
   table-frame Conventions line. Other trees merge around them.
 
+## What the interpreter and scheduler trees settled that the plans did not say
+
+The parked and deferred findings, each with its ruling, are section 5 of
+`.superpowers/reports/interpreter.md` and of `scheduler.md`.
+
+- **Engine and session.** A seeded `Playing` game whose log has no roll-off starts one on its first
+  `Advance`, including on hydrate; a test that seeds a Playing game and expects no engine events uses
+  `GameServerFactory.WithoutScheduler()`. `GameSession.StartAsync` advances only a `Playing` game, and
+  `AdvanceAsync` faults the session when the engine throws. The GF first-team policy never branches on the
+  scheduler shape. Only OPR's `GameRules` is built; 40k is tested only through `FakeRules`.
+- **Later rules work.** Under the player-turn shape, `IGameRules.OnTurnEnded` runs after every activation
+  as well as at `turn_ended`, so a ruleset's body must be idempotent. A Shaken activation stays
+  sequence-less (`ActivationOption.Idle`): `ShootOrNotStep`'s Shaken exit relies on it. A step that wants
+  the step-boundary Confirm names it; a bare `StepHistory.LastClosed()` skips it. A new turn-level Ask
+  question must be classified by `SchedulerLog.IsSchedulerAsk` and `IsTurnAsk`, which decide whether the
+  stale-Ask close and the dispatcher's readability probe cover it. When reactions reach more than one team,
+  `Windows.Run` must count `Chosen` answers in log order rather than recount from `ReactionsAt` (R-N1), and
+  `OrderReactions`, null for GF today, must implement p.13's roll-off for simultaneous rules (the winner
+  picks the order).
+- **A second ruleset.** `LiveSet.SuppressedModifiers` is one set, not one per side; scope it per side if
+  any modifier class has two sides. GF's cover policy sits in the generic
+  `Battlefield.ModelsBehindSightBlockers` and belongs in `Rules/GrimdarkFuture/`.
+- **Recorders and log panels** (the client log, `viewer/`, `sim/`). A panel that displays
+  `StepCompleted.Values` filters out `StepRepeat.Key` (`"$repeat"`), which stays on the wire and in
+  `CompletedStep.Values`. `round_started.Order` is always a copy (`EventApplier` copies it before clearing),
+  so a recording tool that builds payloads from a projection is safe.
+- **Management.** `effect.target_action`, `target_roll` and `target_stat_level`+`target_stat` do not
+  cascade, so a bare `delete from management.properties` can fail: delete `effect` rows first, or add
+  `on delete cascade` in a new migration. The kind-conflict refusal is only in
+  `PostgresPropertiesStore.SeedAsync`, not in `InMemoryPropertiesStore`.
+- **Geometry consumers.** `Footprint.IsValid(scale)` and `Table.IsValid` are the outline validity checks;
+  management's layouts and the web volume editor should call or mirror them (*What the geometry tree
+  settled*).
+- **Content.** The spell list is not filtered by faction (p.13) until the army snapshot carries a faction.
+- **Wire.** Neither tree added a wire kind; `AskQuestions.EndRound` and `DeployAmbusher` predate them, and
+  `ProtocolVersion` is unchanged. Army snapshots are still written before `GameInfo(Playing)` is broadcast
+  (`GameSession.EndSetup.cs`).
+
 ## What the contracts tree settled that the plans did not say
 
 Obligations the contracts implementation places on later trees, beyond the plan's *Interfaces needed*
@@ -426,6 +501,11 @@ is redirected. `Impact` and melee read live model counts mid-action, deliberatel
 sequences melee by hand. The end-of-turn morale test's die is unreachable from the menu: a
 single-step frame with an actor pops before anything can gate it. `SpellTargets`' model-grain branch
 measures per model.
+Aircraft's movement (p.13: straight line, +30", ignores units and terrain) is not built; only its
+action restriction and its -12" to attackers' range are. Takedown's picked model still blocks line of
+sight and gives cover, against p.14's *"does not block line of sight or provide cover"*. A Limited
+weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice`
+carry no actor check, because the design does not say who may edit dice.
 
 **Deferred by design**, each recorded where it belongs: hosting; buildings as shootable targets and
 army terrain; garrison mechanics beyond hand placement; action boosting; Advanced Casting's optional

@@ -455,9 +455,9 @@ A merge is gated on the whole-tree check. A checkpoint is gated on the owner pla
 next step is not dispatched until the owner has.
 
 1. **The table, by hand.** After the client merges. Two clients: login, lobby, setup, terrain, drag,
-   presence, menu edits, the log, undo. Under `InertEngine` no model leaves the shelf: the table draws only
-   `OnTable` models, the menu opens only on a drawn piece, and only the scheduler's deploy Ask places one.
-   This checkpoint judges the table and setup, not play.
+   presence, menu edits, the log, undo. The table draws only `OnTable` models and the menu opens only on a
+   drawn piece; the team panel's right-click puts a shelved model on the table. This checkpoint judges
+   the table and setup, not play.
 2. **First turns.** After the scheduler merges. Two clients roll off, deploy, activate, shoot, charge and
    fight in melee, through the real engine.
 3. **Whole games.** After simulation Task 6, the run loop: in-process games run to `decided` or the round

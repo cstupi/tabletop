@@ -22,6 +22,8 @@ Spec: game flow → Inside a container (a container is a model or a piece of ter
 - [ ] **Step 1: Write the failing tests**
 
 ```csharp
+using Tabletop.GameServer.Dice;
+using Tabletop.Geometry;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
@@ -33,13 +35,16 @@ namespace Tabletop.GameServer.Tests;
 
 public class GfContainersTests
 {
-    /// <summary>Starts deal-wounds under a parent frame that recorded the wounds, the way resolve-hits does (Task 12's harness).</summary>
-    static void Wound(Sim sim, Tabletop.Content.Unit attacker, Guid target, int wounds)
+    /// <summary>Starts deal-wounds under a parent frame that recorded the wounds, the way resolve-hits does (Task 12's harness, R-F3). Riders, when given, are inside the container first.</summary>
+    static Sim Wound(Tabletop.Content.Unit attacker, Tabletop.Content.Unit[] team2, Tabletop.Content.Unit target, int wounds, Tabletop.Content.Unit? riders, Guid container, params int[] dice)
     {
+        var sim = new Sim(State([attacker], team2), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "wounds")), TestProperties.Core, new ScriptedDice(dice));
+        if (riders is not null) sim.Append([new ModelsMoved(riders.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container))).ToList())]);
         var parent = Guid.CreateVersion7();
-        sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(attacker.Id, [target], [], GfNames.Hold)),
+        sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(attacker.Id, [target.Id], [], GfNames.Hold)),
             new StepCompleted(parent, "wounds", null, [], []) { Values = new Dictionary<string, int> { ["wounds"] = wounds } }]);
-        sim.Start(GfNames.DealWounds, new SequenceContext(attacker.Id, [target], [], GfNames.Hold));
+        sim.Start(GfNames.DealWounds, new SequenceContext(attacker.Id, [target.Id], [], GfNames.Hold));
+        return sim;
     }
 
     [Fact]
@@ -48,12 +53,9 @@ public class GfContainersTests
         var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
         var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
         var riders = Unit("Riders", "4+", "4+", [], 3, []);
-        // Three wounds kill the Tough(3) bus; the riders then roll three dangerous terrain dice — 1, 4, 4 — for one wound.
-        var sim = Sim.Gf(State([gunners], [bus, riders]), 1, 4, 4);
+        // Three wounds kill the Tough(3) bus; the riders then roll three dangerous terrain dice (1, 4, 4) for one wound.
         var container = bus.Models[0].Id;
-        sim.Append([new ModelsMoved(riders.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container))).ToList())]);
-        Wound(sim, gunners, bus.Id, 3);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [container] = 3 }));
+        var sim = Wound(gunners, [bus, riders], bus, 3, riders, container, 1, 4, 4);
         Assert.IsType<OnTable>(sim.Model(container).Location);                                        // p.15: not removed until the occupants are out
         Assert.Equal(3, sim.Steps("test").Single().Rolls.Single().Dice.Count);                        // one die per rider (p.11)
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [riders.Models[2].Id] = 1 }));
@@ -66,7 +68,7 @@ public class GfContainersTests
             new ModelRelocation(riders.Models[1].Id, new Inside(container), new OnTable(new Placement(seat with { X = seat.X + 12 }, new Yaw(0)))),
         ]));
         Assert.Equal(seat.X + 4, ((OnTable)sim.Model(riders.Models[0].Id).Location).Placement.Position.X, 6);
-        Assert.IsType<OnShelf>(sim.Model(riders.Models[1].Id).Location);                              // 12" out is not "fully within 6"": nowhere legal to stand
+        Assert.IsType<OnShelf>(sim.Model(riders.Models[1].Id).Location);                              // 12" out is not "fully within 6": nowhere legal to stand
         Assert.Equal(1, sim.Model(riders.Models[1].Id).Wounds);                                       // and so destroyed, not parked
         Assert.Equal(1, sim.Steps("place").Single().Values!["destroyed"]);
         Assert.Equal(2, sim.Unit(riders.Id).WoundsThisActivation);                                    // one from the test, one from the removal
@@ -81,13 +83,29 @@ public class GfContainersTests
     {
         var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
         var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11)]);
-        var sim = Sim.Gf(State([gunners], [bus]), 1);
-        Wound(sim, gunners, bus.Id, 1);
-        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [bus.Models[0].Id] = 1 }));
+        var sim = Wound(gunners, [bus], bus, 1, null, Guid.Empty, 1);                              // one eligible model: no allocation is asked (R-N11)
         Assert.IsType<OnShelf>(sim.Model(bus.Models[0].Id).Location);                                 // assign shelved it; Wrecks never sees it
         Assert.Empty(sim.Steps("test"));
         Assert.Empty(GfContainers.Wrecks(sim.State));
         Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void A_wreck_held_for_its_occupants_is_not_offered_a_carried_wound()
+    {
+        var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
+        var buses = Unit("Buses", "4+", "4+", [], 2, [P("Transport", 11), P("Tough", 2)]);
+        var riders = Unit("Riders", "4+", "4+", [], 1, []);
+        var (wreck, other) = (buses.Models[0].Id, buses.Models[1].Id);
+        var sim = Wound(gunners, [buses, riders], buses, 3, riders, wreck, 4);
+        Assert.Equal(new[] { wreck, other }.Order(), Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Targets.Order());   // two Tough models: the owner chooses
+        // Three wounds on the first bus: two kill it, the third carries to the next segment. The wreck stays on the table holding the riders (p.15),
+        // at capacity, and is the most-wounded Tough model, which is who the ordering would name if it were still a candidate.
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [wreck] = 3 }));
+        Assert.Equal(1, sim.Model(other).Wounds);                                                     // the carried wound went to the other bus, unasked
+        Assert.Equal(2, sim.Model(wreck).Wounds);
+        Assert.IsType<OnTable>(sim.Model(wreck).Location);
+        Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team2).Legal);                                   // the next question is the riders' placement, not another allocation
     }
 }
 ```
@@ -103,23 +121,23 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 /// <summary>
-/// p.14: "When a transport is destroyed, units inside must take a dangerous terrain test, are Shaken, and must be placed fully
-/// within 6" of the transport before removal." p.21 says the same of a solid building. One frame per occupant unit, pushed by
-/// deal-wounds' disgorge step, which shelves the wreck once the last of them is out — which is what "before removal" requires.
+/// p.15 Transport(X): "When a transport is destroyed, units inside must take a dangerous terrain test, are Shaken, and must be placed
+/// fully within 6" of the transport before it's removed." p.21 says the same of a solid building under BUILDING DESTRUCTION. One frame
+/// per occupant unit, pushed by deal-wounds' disgorge step, which shelves the wreck once the last of them is out.
 /// </summary>
 public static class GfContainers
 {
     public static Sequence TransportDestroyed() => new(GfNames.TransportDestroyedSeq, [new WreckTestStep(), new PlaceSurvivorsStep()]);
 
     /// <summary>
-    /// Destroyed containers still on the table. `assign` leaves a container at or past its Tough capacity in place while it holds
-    /// anybody, so this is the whole predicate: a container destroyed empty is an ordinary casualty and is already on the shelf.
+    /// Destroyed containers still on the table: `assign` leaves a container holding anybody in place at its Tough capacity, so this is the
+    /// whole predicate. A container destroyed empty is an ordinary casualty and is already on the shelf.
     /// </summary>
     public static IReadOnlyList<Guid> Wrecks(GameState state) =>
         state.Projection.Models.Values.Where(m => m.Location is OnTable && GfMoves.IsContainer(state, m.Id)
-            && m.Wounds >= (Lookup.ModelParameter(state, m.Id, GfNames.Tough) ?? 1)).Select(m => m.Id).ToList();
+            && GfAttack.AtCapacity(state, m.Id)).Select(m => m.Id).ToList();
 
-    /// <summary>p.11's third trigger. Same shape as GfMoves.ActivationTerrainStep: settle the dice on this frame, then push, so the child reads a settled count.</summary>
+    /// <summary>p.11's dangerous terrain test, invoked by a destroyed transport. Same shape as GfMoves.ActivationTerrainStep: settle the dice on this frame, then push, so the child reads a settled count.</summary>
     sealed class WreckTestStep : IStep
     {
         public string Name => "wreck-test";
@@ -136,12 +154,11 @@ public static class GfContainers
     }
 
     /// <summary>
-    /// p.15: the survivors are Shaken and placed fully within 6" of the wreck. The Ask is a move_region whose containment names the
-    /// container it is exiting, so the client draws the same region the disembark move draws. A survivor with no placement in the
-    /// answer, or one outside the radius, is destroyed — the rulebook does not cover the case; such a model is removed.
-    /// Removal is a casualty, so it writes what `assign` writes for one: wounds at the model's capacity, the model to
-    /// the shelf, and those wounds on the unit's activation tally, so a unit cut to half or less this way still owes p.10's
-    /// end-of-activation morale test. `Values["destroyed"]` is how many models went that way.
+    /// p.15: the survivors are Shaken and "placed fully within 6" of the transport". The Ask is a move_region whose containment names
+    /// the container being exited, so the client draws the region a disembark move draws. A survivor with no placement in the answer,
+    /// or one outside the radius, has nowhere legal to stand; the rulebook does not cover it (ruling 12), so it is destroyed.
+    /// That removal is a casualty and writes what `assign` writes for one: wounds at capacity, the model to the shelf, and the wounds on the
+    /// unit's activation tally, so p.10's end-of-activation morale test counts it. `Values["destroyed"]` is how many went that way.
     /// </summary>
     sealed class PlaceSurvivorsStep : IStep
     {
@@ -152,8 +169,7 @@ public static class GfContainers
             if (Lookup.ContainerOf(ctx.State, unit) is not { } container) return new Complete([]);     // the test killed everyone
             if (ctx.History.LastClosed() is not { } closed)
                 return new OpenAsks([ctx.Ask("disembark", $"Place the survivors fully within {GfNames.ExitWithin:0.#}\" of the wreck", ctx.TeamOf(unit)!.Value,
-                    // Allowance is unbound on a disembark (see Task 14): ExitWithin is passed so the number
-                    // is the exit distance rather than a misleading zero. The client reads Containment, not this.
+                    // Allowance is unbound on a disembark (Task 14): ExitWithin is passed so the number is the exit distance. The client reads Containment.
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), GfNames.ExitWithin,
                         Battlefield.Terrain(ctx.State).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
                         [], null, new MoveContainment([], container, GfNames.ExitWithin)), allowPass: false)]);
@@ -163,8 +179,8 @@ public static class GfContainers
             foreach (var m in Lookup.AliveModels(ctx.State, unit))
             {
                 var to = proposed.FirstOrDefault(r => r.ModelId == m)?.To as OnTable;
-                Placement? exit = to is null ? null : GfMoves.ExitPlacement(ctx.State, m, container, to.Placement, GfNames.ExitWithin);
-                if (exit is { } p) { moves.Add(new ModelRelocation(m, new Inside(container), new OnTable(p))); continue; }
+                if (to is not null && GfMoves.ExitPlacement(ctx.State, m, container, to.Placement, GfNames.ExitWithin) is { } p)
+                { moves.Add(new ModelRelocation(m, new Inside(container), new OnTable(p))); continue; }
                 var capacity = Lookup.ModelParameter(ctx.State, m, GfNames.Tough) ?? 1;
                 destroyed++; fatal += capacity - ctx.Projection.Models[m].Wounds;
                 changes.Add(new WoundsSet(m, capacity));
@@ -184,12 +200,21 @@ public static class GfContainers
     public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
 ```
 
-In `AssignStep.Run`, the casualty line becomes:
+`AssignStep` (Task 12) treats a model whose wounds have reached its capacity as taken out of play even while it stays on the table. The shared predicate lives in `GfAttack`:
 
 ```csharp
-                // p.15: a container holding anybody stays on the table until disgorge has placed them — "before removal".
-                if (total >= capacity && !(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0))
-                    moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
+    /// <summary>Wounds have reached the model's Tough (1 without it). A dead model is removed at once, so on the table this is only a destroyed container held for disgorge.</summary>
+    public static bool AtCapacity(GameState state, Guid modelId) =>
+        state.Projection.Models[modelId].Wounds >= (Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1);
+```
+
+`EligibleForNextWound` starts from `Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m))`, so a carried wound is never offered to a wreck, and `assign`'s survivor check is `Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m))`, which excludes a retained wreck from the repeat. In `AssignStep.Run`, the casualty lines become:
+
+```csharp
+                // p.15: a container holding anybody stays on the table until disgorge has placed them, "before it's removed".
+                if (model.Wounds + applied < capacity) continue;
+                dead.Add(modelId);
+                if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
 ```
 
 and the new step goes beside it:
@@ -224,4 +249,4 @@ and the new step goes beside it:
 
 `GfRules._sequences` gains `GfContainers.TransportDestroyed()`.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect `GfContainersTests` 2 passed and every earlier sequence test still green — `deal-wounds` has a second step after this task, so `GfDealWoundsTests` gains a `step_completed` named `disgorge` with no changes in each of its six cases. Commit: `Disgorge a destroyed container: the occupants test, are shaken, are placed within 6", and the wreck goes last`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect `GfContainersTests` 3 passed and every earlier sequence test still green — `deal-wounds` has a second step after this task, so `GfDealWoundsTests` gains a `step_completed` named `disgorge` with no changes in every case that reaches `disgorge`. Commit: `Disgorge a destroyed container: the occupants test, are shaken, are placed within 6", and the wreck goes last`.**

@@ -111,6 +111,6 @@ find server tests -path '*/obj/*' -maxdepth 3 -type d | grep -v Unix
 git status --short
 ```
 
-Expected: build clean; every test project green (this plan adds 87 tests to `Tabletop.GameServer.Tests`); the `find` prints nothing.
+Expected: build clean; every test project green (this plan adds 131 tests to `Tabletop.GameServer.Tests`); the `find` prints nothing.
 
 - [ ] **Step 4: Commit: `Pin the interpreter's nine constraints and record the engine in CLAUDE.md`.**

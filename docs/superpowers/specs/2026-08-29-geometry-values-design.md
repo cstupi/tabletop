@@ -134,10 +134,11 @@ Cover volume's footprint and vertical range. `Cover.SightBlockersBetween` non-em
 filtered to Cover is *"mostly inside"* for a single-model unit, which is the base centre inside
 the volume (confirmed by the owner 2026-09-06). `LineOfSight.VisibleModels(observers, unit,
 volumes)` is how many of a unit's models an attacker can see, one boolean per model. Every fact
-is per model, and the thresholds are `GameRules`'. p.11's *"majority of models in a unit"*
-governs both counts: strictly more than half of a unit's models must be inside cover terrain for
-it to count, and a sight blocker grants cover when a majority of the unit is hidden, which is
-fewer than half of it visible. The +1 to Defense is the ruleset's too.
+is per model, and the threshold is `GameRules`'. p.11's *"majority of models in a unit"* is one
+majority over the models that pass either test: strictly more than half of a unit's models must
+be inside cover terrain, behind a sight blocker, or unseen. A screened model counts: its sight
+line is clear but passes another unit or a blocking volume, and p.11 makes other units sight
+blockers that provide cover. The +1 to Defense is the ruleset's too.
 
 **What geometry answers about the other declarations.** `Movement.Region` and
 `Movement.Check` read impassable and difficult from the volumes the server names.

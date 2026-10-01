@@ -26,7 +26,7 @@ suspension. Undo-by-replay, hydration and crash recovery are the same mechanism 
 | `server/game/Engine/` | `RulesEngine`, `RulesEngineFactory`, `IScheduler`, `ISchedulerFactory`, `NoScheduler` |
 | `server/game/Rules/GrimdarkFuture/` | `GfRules.Sequences.cs`, `GfNames`, `GfRolls`, `GfHooks`, `GfMoves`, `GfAttack`, `GfShooting`, `GfMelee`, `GfMorale`, `GfCasting`, `GfContainers` |
 
-Modified, not created: `Rules/IGameRules.cs` (the interpreter's eight members), `Rules/IRulesEngine.cs`
+Modified, not created: `Rules/IGameRules.cs` (the interpreter's nine members), `Rules/IRulesEngine.cs`
 (`GameState.RngSeed`), `Program.cs` (three registrations plus startup seeding),
 `Session/ConnectionHandshake.cs` (one more exception in the hydrate catch),
 `Tabletop.GameServer.csproj` (the embedded content), and the skeleton's `PostgresFixture`.
@@ -71,7 +71,7 @@ Nothing of this module exists yet. The repository is at scaffold stage: only `cl
 and `server/game/` is empty until the skeleton lands.
 
 `IGameRules` gains members from two modules at once. The merged interface is written in full in
-the skeleton plan. The scheduler module adds eight members and this one adds eight, each exactly
+the skeleton plan. The scheduler module adds seven members and this one adds nine, each exactly
 once. `TurnContext` and `Activation` are the scheduler's records, so this module's
 `EndOfTurnSequences` and `OnTurnEnded` signatures require that module's Task 1 to have landed,
 or those two records to be copied from it.
@@ -730,21 +730,24 @@ to be wounded when their transport is.
 Every use of either is a decision. Getting one wrong produces a bug that only shows up with a
 transport on the table.
 
-**Cover is a fraction of the unit, and the fraction is the ruleset's.** p.11 says *"the majority of
-models in a unit"*, one majority applied to two facts. A majority is strictly more than half, so
-five of ten is not one. Terrain cover is a majority of the unit's models
-with a base centre inside a volume declared `Cover`. Sight cover is the attacker seeing fewer than
-half of them. Either clause is enough. A single-model unit reduces to that model's own base centre
-under the first. `Battlefield` therefore returns counts, `ModelsInCoverTerrain` and
-`ModelsVisibleFrom`, and `GfRolls.InCover` compares them against the fraction, because a fraction
-is a ruleset number and no ruleset number belongs outside `Rules/GrimdarkFuture/`.
+**Cover is a fraction of the unit, and the fraction is the ruleset's.** p.11 says *"If the majority
+of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*: one
+majority over the models that pass either test. A majority is strictly more than half, so five of
+ten is not one. A model counts when it is in cover terrain, when it is screened (every attacking
+model with a clear line to it has a sight blocker along that line), or when no attacking model sees
+it. The terrain test follows the book's wording for the unit's size: the whole base inside a `Cover`
+volume for a multi-model unit ("fully inside"), the base centre for a single-model unit ("mostly
+inside"), sized by starting size. `Battlefield` lists models and never judges:
+`ModelsInCoverTerrain(state, unit, wholeBase)` and `ModelsBehindSightBlockers(state, unit,
+attackerModels)`. `GfRolls.InCover` takes the union and compares its size against the fraction,
+because a fraction is a ruleset number and no ruleset number belongs outside `Rules/GrimdarkFuture/`.
 
-Cover is read from every eligible attacker model, not from one of them.
-`LineOfSight.VisibleModels` takes a list of observers and reports a target model as seen when any
-observer sees it, which is how p.11 reads sight: the attacking unit's, not one model's.
-`Battlefield.ModelsVisibleFrom` calls it once per target model, so the target's own body leaves
-the blocker list while the unit's other models stay in it. Measuring from the first eligible
-attacker model alone would make the answer depend on the order models sit in the army snapshot.
+The sight test reads every eligible attacker model, not one of them, so the answer does not depend
+on the order models sit in the army snapshot. Its blockers are terrain and every unit except the
+target's and the attacker's own: p.11's other units *"are sight blockers that can provide other
+units with cover"*, so a model takes no cover behind its own unit, and the attackers ignore their
+own (p.8). p.14's Indirect *"ignores cover from sight obstructions"* drops the sight test only; the
+terrain test stands. Blast's *"Ignores cover"* (p.13) suppresses the whole modifier in the roll.
 
 ### The generalisation budget: nine constraints
 
@@ -765,8 +768,8 @@ pinned by the shape of Tasks 8 and 9 rather than by an assertion.
 | 8 | Interrupts push whole sequences from the non-active team | Fire Overwatch is a shooting sequence inside an enemy move step | `Windows.Run` returning `Push` | by shape |
 | 9 | Who answers an Ask differs per ruleset | 40k's defender allocates attacks; OPR's removes casualties in any order | `Ask.Teams`; `StepContext.Ask(..., Guid team, ...)` | `SequenceInterpreter.cs` contains neither `Attacker` nor `Defender` |
 
-The tests are source-text scans. They will produce false positives on an innocent comment. They
-are also the only mechanism available for "this directory must not know that word".
+The tests are source-text scans and read comments too, so a doc comment in a generic folder names
+no catalog entry. They are also the only mechanism available for "this directory must not know that word".
 
 ### Grimdark Future's sequences
 
@@ -824,10 +827,10 @@ what it held.
 | A caster inside a container may cast, modified by its own tokens and nobody else's | `ReactionsAt` reads `AliveModels`, so the window opens; `EligibleSpenders` stays positional for everyone but the caster, so no other model's tokens reach it | Barring it by reading `LivingModels` in `ReactionsAt` and `Casters`; keeping the caster out of its own spend, which p.13 does not require | the plan's ruling 10 |
 | The disembark radius is `GfNames.ExitWithin = 6`, measured edge to edge from the container's base | Every other distance in the system is edge to edge | A 6-inch circle about the hull centre | the plan's ruling 11 |
 | A survivor with nowhere legal to stand is destroyed | The rulebook does not cover the case. `PlaceSurvivorsStep` writes what `assign` writes for a casualty: wounds at capacity, the model to the shelf, the wounds on the unit's activation tally | Shelving them unwounded; leaving them inside a removed container; auto-placing them | the plan's ruling 12 |
-| Cover is p.11's majority over the target unit's models: more than half with a base centre in a `Cover` volume, or fewer than half of them seen by the attacker | p.11's *"the majority of models in a unit"* is one majority applied to two facts, terrain and sight, and a majority is strictly more than half. `Battlefield` counts and `GfRolls.InCover` holds the fraction, since a fraction is a ruleset number | A strict majority of models fully inside a `Cover` volume or behind a sight blocker, judged as a boolean between two models | §Battlefield reader and the two model readings |
+| Cover is p.11's one majority over the union of the target unit's models in cover terrain, screened by a sight blocker, or unseen; Indirect drops the sight half | p.11's *"the majority of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"* is one majority over the models that pass either test, and a majority is strictly more than half. A screened model counts because p.11 makes other units sight blockers that provide cover. `Battlefield` lists and `GfRolls.InCover` holds the fraction, since a fraction is a ruleset number | Two majorities, one per test; sight cover as fewer than half of the unit seen, which drops screened models; a boolean between two models | §Battlefield reader and the two model readings |
 | `Hero`'s *must use the unit's Defense* needs no effect row, in either half | `GfRolls.DefensePlan` reads `Defense` at unit level while the target holds more than one model, and reads the surviving model's own slot `Defense` once the settled count is one, which for a slot without one is the unit's value again and so branches on no rule name. No effect row could have expressed the sunset: `roll-to-block` throws one roll per hit before `deal` assigns a wound to any model, so the threshold is chosen while no model is named, and the count has to be the frozen one rather than a live read | A `replace_stat` row restating the first half; a live model count, against the plan's ruling 3's *no live read of the target's size is left in the shooting path* | Task 3; the plan's ruling 13 |
 | `Quality` and `Defense` are declared at `model` level as well as `unit` level, and the model-level `Quality` is read | A joined hero is a model of the unit it joined (the management plan), and it attacks at its own Quality and blocks on the unit's Defense until every other model is dead: p.4 defines a Quality test against *"the model's Quality value"*, the Hero rule overrides `Defense` alone, and its *may take morale tests on behalf of the unit* clause is meaningless unless the hero's Quality is its own. `StatReader.TargetNumber` resolves either level for a named model, `GfAttack` splits a group's attacks by the value each model brings and `roll-to-hit` rolls a pool per value, and `GfRolls.MoralePlan` takes the best of the unit's and every living `Hero` model's own; the plan's ruling 13 records the mechanism | Reading only the unit's, which makes the Hero rule's morale clause a no-op | Task 3; the plan's ruling 13 |
-| A `unit`-kind entry on a model slot means the unit has the rule, read off the definition in both `Lookup.UnitHas` and `LiveProperties.Gather` | If the two readers disagree, `Gather` treating it as live for the whole unit through its `_ => true` arm while `UnitHas` answers false, a joined hero with `Ambush` is invisible to the scheduler's deployment set while its effects apply to the squad. The definition rather than the living models, because a unit-scoped rule does not lapse when the model carrying it dies, and `Ambush` and `Scout` are read before any model has a position. One model therefore grants the whole unit a unit-scoped rule | Answering false in both, which makes a joined hero's own `Ambush` and `Scout` do nothing and applies `Aircraft`'s two effect rows nowhere, with no diagnostic | Task 6; the plan's ruling 13 |
+| A `unit`-kind entry on a model slot means the unit has the rule, read off the definition in both `Lookup.UnitHas` and `LiveProperties.Gather` | If the two readers disagree, `Gather` treating it as live for the whole unit through its `_ => true` arm while `UnitHas` answers false, a joined hero with `Ambush` is invisible to the scheduler's deployment set while its effects apply to the squad. The definition rather than the living models, because a unit-scoped rule does not lapse when the model carrying it dies, and `Ambush` and `Scout` are read before any model has a position. One model therefore grants the whole unit a unit-scoped rule | Answering false in both, which makes a joined hero's own `Ambush` and `Scout` do nothing and applies `Aircraft`'s effect row nowhere, with no diagnostic | Task 6; the plan's ruling 13 |
 
 ## Interfaces
 
@@ -859,11 +862,11 @@ what it held.
 | `sealed class StepContext` | `State`, `Properties`, `Rules`, `Frame`, `History`, `Projection`, `ActorTeam`, `TeamOf`, `Roll`, `Rolls`, `ForcedRerolls`, `Plan`, `Ask`, `SealedAsk` |
 | `sealed class SequenceInterpreter(IGameRules, PropertySet, IDiceSource) : ISequenceStarter` | `Advance(GameState)`, `Start(...)` |
 | `static class Windows` | `ReactionOrder`, `Run`, `SimultaneousSpend`, `Spends` |
-| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `Blockers`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain`, `ModelsVisibleFrom`, `TerrainUnder`, `Settle` |
+| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle` |
 | `static class Teams` | `Of(GameState, Guid unitId)`, `Others(GameState, Guid? team)` |
 
-`Tabletop.GameServer.Rules`, the eight members added to `IGameRules` beside the scheduler's
-eight:
+`Tabletop.GameServer.Rules`, the nine members added to `IGameRules` beside the scheduler's
+seven:
 
 | Member | Meaning |
 | --- | --- |
@@ -874,16 +877,18 @@ eight:
 | `IRL<Reaction> ReactionsAt(GameState, PropertySet, string point, FrameView)`, `sealed record Reaction(Guid TeamId, string OptionId, string Label, string Sequence, SequenceContext Context)` | who may react at a window |
 | `IRL<SequenceStart> EndOfTurnSequences(GameState, PropertySet, TurnContext)`, `sealed record SequenceStart(string Sequence, SequenceContext Context)` | OPR: end-of-activation morale tests |
 | `IRL<StateChange> OnRoundStarted(GameState, PropertySet, int round)` | OPR: clear `fatigued`, grant `Caster(X)` tokens capped at 6; round 0 yields none |
-| `IRL<StateChange> OnTurnEnded(GameState, PropertySet, TurnContext)` | OPR: `WoundsThisActivation` to 0; an idle activation clears `shaken` |
+| `IRL<StateChange> OnTurnEnded(GameState, PropertySet, TurnContext)` | OPR: `WoundsThisActivation` to 0; an idle activation, or an Aircraft's Advance, clears `shaken` |
+| `IRL<Guid>? OrderReactions(GameState, Guid? actorTeam, IRL<Guid> reactingTeams)` | the order teams react in at a window; null takes the rotation of `Projection.Scheduler.Order`. OPR returns null |
 
 Plus `GameState.RngSeed : ulong` on the skeleton's `GameState`, `unchecked((ulong)Info.RngSeed)`
 from the game's stored seed, and `GfNames` as the one names class. `GfNames` declares the
-scheduler module's names too: `Deployment`, `Scouts`, `Rounds`, `Deploy`, `Scout`, `Ambush`,
-`Immobile`, `Aircraft`, `Caster`, `Tough`, `Transport`, `SetAside`.
+scheduler module's names too: `Deployment`, `Scouts`, `Rounds` (a reference to
+`SchedulerBase.RoundsPhase`), `Deploy`, `Scout`, `Ambush`, `Immobile`, `Aircraft`, `Artillery`
+(added by the scheduler), `Caster`, `Tough`, `SetAside`. `Transport` is this module's own.
 
 `Tabletop.GameServer.Properties`, `.Dice`, `.Effects` are consumed by the scheduler module only
 through four names: `PropertySet.Actions` for the turn Ask's action rows, `Lookup.UnitHas` for
-`Immobile`/`Aircraft`/`Scout`/`Ambush` legality (so the grants store counts), `GfRolls.RollOffSequence`
+`Immobile`/`Artillery`/`Aircraft`/`Scout`/`Ambush` legality (so the grants store counts), `GfRolls.RollOffSequence`
 by the name `FirstTeamDecision.RollOffNeeded` carries, and `ScriptedDice`/`InMemoryPropertiesStore`
 in tests.
 
@@ -902,9 +907,9 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_ca
 | From | Exact names |
 | --- | --- |
 | Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog`, `GameInfo.RngSeed : long` |
-| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `LineOfSight.VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed` |
+| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed`, `Footprint.IsValid(scale)`, `Table.IsValid` (for `DraftEditor.Degenerate`) |
 | Skeleton (`server/game/`) | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult` (`Emit`, `RefuseCommand`), `Legality`, `CommandDispatcher`, `RowMapping.EnumText/EnumFrom`, `IEventLog`, `InMemoryEventLog`, `PostgresFixture`, `RecordingClient`, `FixedAskEngine`, `GrimdarkFutureRules` as `sealed partial` |
-| Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `IGameRules.OrderReactions`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
+| Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
 | Management | `GET /v1/properties` already lists the seeded sets, and the Army Forge import's stat names `Quality`, `Defense`, `Range`, `Attacks` must match `grimdark-future-core.properties.json`. Its joined hero is a model of the unit it joined, which obliges this module in two places: the document declares `Quality` and `Defense` at `model` level as well as `unit` level, so a joined hero's `slot_stat` rows are declared ones, and a `unit`-kind entry on a model slot is read as the unit's rule in both readers. The hero attacks at its own Quality and blocks on the unit's Defense until it is alone, so the model-level `Quality` is read; `StatReader.TargetNumber` resolves either level for a named model and the split lives in `GfRolls.HitQuality`, `GfAttack.Attacks` and `GfRolls.DefensePlan` (the plan's ruling 13) |
 
 Two geometry obligations are discharged by this module rather than by geometry. A dangerous

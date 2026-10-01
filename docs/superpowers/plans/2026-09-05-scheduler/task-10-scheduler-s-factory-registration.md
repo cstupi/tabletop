@@ -3,7 +3,7 @@
 **Files:**
 - Create: `server/game/Scheduler/SchedulerFactory.cs`
 - Modify: `server/game/Program.cs` (replace the `NoSchedulerFactory` registration the interpreter plan's Task 10 left), `CLAUDE.md` (one Layout line)
-- Test: `tests/Tabletop.GameServer.Tests/SchedulerFactoryTests.cs`, `tests/Tabletop.GameServer.Tests/SchedulerEndToEndTests.cs`
+- Test: `tests/Tabletop.GameServer.Tests/SchedulerFactoryTests.cs`, `tests/Tabletop.GameServer.Tests/SchedulerEndToEndTests.cs`; modify `tests/Tabletop.GameServer.Tests/Infrastructure/GameServerFactory.cs` (`WithoutScheduler()`), `tests/Tabletop.GameServer.Tests/SocketTests.cs` and `tests/Tabletop.GameServer.Tests/EndSetupTests.cs` (Step 3)
 
 **Interfaces:**
 - Consumes: the interpreter plan's `Engine.ISchedulerFactory`, `Engine.RulesEngine`, `Engine.RulesEngineFactory`, `Properties.IPropertiesStore`/`InMemoryPropertiesStore`, `Dice.IDiceSource`/`ScriptedDice`, `TestProperties.Core`; both shapes (Tasks 5, 7); test infrastructure `PostgresFixture`, `GameServerFactory`, `TestClient` (skeleton).
@@ -66,7 +66,13 @@ public sealed class SchedulerFactory : ISchedulerFactory
 }
 ```
 
-- [ ] **Step 3: Register.** In `Program.cs` replace `builder.Services.AddSingleton<ISchedulerFactory, NoSchedulerFactory>();` (interpreter plan Task 10, Step 5) with `builder.Services.AddSingleton<ISchedulerFactory, SchedulerFactory>();`. The `IDiceSource`, `IPropertiesStore` and `IRulesEngineFactory` registrations are the interpreter plan's and do not change. `NoScheduler`/`NoSchedulerFactory` stay in the tree for that plan's tests.
+- [ ] **Step 3: Register.** In `Program.cs` replace `builder.Services.AddSingleton<ISchedulerFactory, NoSchedulerFactory>();` (interpreter plan Task 10, Step 5) with `builder.Services.AddSingleton<ISchedulerFactory, SchedulerFactory>();`. The `IDiceSource`, `IPropertiesStore` and `IRulesEngineFactory` registrations are the interpreter plan's and do not change. `NoScheduler`/`NoSchedulerFactory` stay in the tree for tests that need no scheduler.
+
+With the real scheduler registered, a hydrated `Playing` game whose log has no roll-off starts one on its first `Advance`. Five pre-existing tests seed such a game and assert on session mechanics, so they run on `GameServerFactory.WithoutScheduler()`: four in `SocketTests` and `EndSetupTests.A_fresh_process_hydrates_the_played_game_from_rows_and_log`. Add the factory method to `Infrastructure/GameServerFactory.cs`:
+
+```csharp
+    public static GameServerFactory WithoutScheduler() => new() { ConfigureTestServices = s => s.AddSingleton<Engine.ISchedulerFactory, Engine.NoSchedulerFactory>() };
+```
 
 - [ ] **Step 4: Write the end-to-end test**
 
@@ -121,6 +127,8 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
 
         await other.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         Assert.Equal(RefusalReason.NotPermitted, (await other.ExpectAsync<Refused>()).Reason);                // not their team
+        await creator.ExpectAsync<GameInfoMessage>(); await creator.ExpectAsync<BoardMessage>(); await creator.ExpectAsync<EventsMessage>();   // the creator's socket saw the flip and the same eleven events; drain them
+        for (var seen = 0; seen < 11;) seen += (await creator.ExpectAsync<EventsMessage>()).Events.Count;
         await creator.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         var answered = (await creator.ExpectAsync<EventsMessage>()).Events;
         Assert.Equal(["ask_answered", "ask_closed"], answered.Select(e => e.Kind));
@@ -166,7 +174,7 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
 }
 ```
 
-The second team in the first test has an army but the second-process test gives it none; both are legal games and the second is skipped through deployment as a team with an empty legal set.
+The creator's socket has an unread `GameInfo`, `Board` and the flip's eleven events when the other team's refused answer returns, so the test drains them before the creator's own `AnswerAsk`. The second team in the first test has an army but the second-process test gives it none; both are legal games and the second is skipped through deployment as a team with an empty legal set.
 
 - [ ] **Step 5: `CLAUDE.md`** — under Layout, append one child bullet under the `server/game/` bullet, after the interpreter plan's children, editing nothing else: ``  - `Scheduler/` — the generic turn machinery behind `Engine.IScheduler` (two shapes, the turn as an Ask, the roll-off read back from the ruleset's sequence); its Grimdark Future hooks are the `GfRules.Scheduling.cs`/`GfRules.Deployment.cs` partials in `Rules/GrimdarkFuture/`, beside the interpreter's sequences.`` The ownership rule (contracts plan Task 16): a plan edits only the lines it owns.
 

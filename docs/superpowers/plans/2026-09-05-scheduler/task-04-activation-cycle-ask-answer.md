@@ -3,7 +3,7 @@
 **Files:**
 - Create: `server/game/Scheduler/TurnCycle.cs`
 - Modify: `server/game/Dispatch/CommandDispatcher.cs` (the skeleton's, Task 6 there) — `Answer` probes a turn answer's readability, so the enforcement dial decides an unreadable one (ruling 3)
-- Test: `tests/Tabletop.GameServer.Tests/TurnCycleTests.cs`; modify `tests/Tabletop.GameServer.Tests/CommandDispatcherTests.cs` (its `activate` fixture's option id, Step 3)
+- Test: `tests/Tabletop.GameServer.Tests/TurnCycleTests.cs`; modify `tests/Tabletop.GameServer.Tests/CommandDispatcherTests.cs` (its `activate` fixture's option id and two readability-probe tests, Step 3)
 
 **Interfaces:**
 - Consumes: `SchedulerLog`, `Activation`, `TurnAsk`, `TurnContext` (Task 1); `IGameRules.LegalTurn/ReadAnswer/ActivationComplete` (Task 2); the interpreter plan's `IGameRules.ActionSequence` (null: no sequence) and `EndOfTurnSequences(state, properties, turn)`, `ISequenceStarter.Start`, `PropertySet`; the skeleton's `LegalSetMembership.Contains`, `Legality`, `Verdict`, `EnforcementPolicy.Decide` and `GameInfo.Enforcement`; test infrastructure `ScriptedStarter` (Task 3), `TestProperties.Core`.
@@ -25,7 +25,6 @@ public class TurnCycleTests
 {
     readonly ScriptedStarter _starter = new();
     static TurnCycle Cycle => new(TestProperties.Core);
-    static Subject U(Guid id) => new(SubjectKind.Unit, id);
 
     /// <summary>Two teams of two three-model units, everything on the table, round one in progress, team 0's turn started.</summary>
     static TestGames.Built InRounds(out Guid team, out IReadOnlyList<Guid> units, Enforcement enforcement = Enforcement.Warn)
@@ -88,7 +87,7 @@ public class TurnCycleTests
     public void Idle_and_an_unknown_action_write_the_record_and_complete_without_a_sequence()
     {
         var g = InRounds(out var team, out var units);
-        TestGames.Apply(g, new ConditionSet(U(units[0]), GfNames.Shaken, true));
+        TestGames.Apply(g, new ConditionSet(TestGames.UnitSubject(units[0]), GfNames.Shaken, true));
         var ask = Opened(Step(g, team, Cycle)); TestGames.Apply(g, new AskOpened(ask));
         Answer(g, ask, team, new Chosen(ActivationOption.Id(units[0], ActivationOption.Idle)));
         var start = Assert.IsType<CycleEmit>(Step(g, team, Cycle)).Events;
@@ -165,6 +164,8 @@ public class TurnCycleTests
 - [ ] **Step 2: Run `dotnet test tests/Tabletop.GameServer.Tests --filter TurnCycle`; expect compile errors. Write `TurnCycle.cs`**
 
 ```csharp
+using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
 using Tabletop.Protocol;
 
@@ -278,6 +279,37 @@ public sealed class TurnCycle(PropertySet properties)
 
 The file gains `using Tabletop.GameServer.Scheduler;` for `SchedulerLog`. Nothing else in `Answer` changes, and no signature does: the enforcement setting is already there as `state.Info.Enforcement`, and `ReadAnswer` needs `GameState` and the answering team, which are the arguments the method already has — so there is nothing to thread. `ask_answered.OutsideLegalSet` carries the `warn` warning for both halves, which is what the client already renders. Under `strict` nothing is appended and the Ask stays open, so a client that keeps sending an unreadable answer keeps being refused and the same turn stands; nothing waits on a turn ending, because the round boundary is a player's own Ask (Task 5) and the engine rests while an unframed Ask of the scheduler's is live.
 
-One fixture in the skeleton's `CommandDispatcherTests` moves with it, and must: its `Activate` sample offers the option id `"a"`, which is in its legal set and unreadable, so under `strict` it would be refused where that file expects `Applied`. Give the sample a real activation option id — `new Options([new AskOption(Samples.Unit.ToString("N") + "/Advance", "Advance", [Samples.Unit])])` — and let the two `new Chosen("a")` answers in `An_in_set_answer_answers_and_closes_an_unsealed_ask` follow it. `Chosen("zzz")` stays as it is: out of set under either reading. No test is added or removed there, and the fixture is truer for it, since an `activate` Ask's option ids are the scheduler's.
+Fixtures in the skeleton's `CommandDispatcherTests` move with it, and must: its `Activate` sample offers the option id `"a"`, which is in its legal set and unreadable, so under `strict` it would be refused where that file expects `Applied`. Give the sample a real activation option id, held in one `static readonly string ActivateId = Samples.Unit.ToString("N") + "/Advance"`, and offer it as `new Options([new AskOption(ActivateId, "Advance", [Samples.Unit])])`. The two `new Chosen("a")` answers in `An_in_set_answer_answers_and_closes_an_unsealed_ask` and the option id asserted in `Legal_commands_are_enumerated_from_the_open_asks` become `ActivateId`. `Chosen("zzz")` stays as it is: out of set under either reading. Two tests are added, over an `Unreadable` sample (the `Activate` Ask with the one option id `"not-an-option"`) and an `UnreadableFramed` copy of it with `FrameId = Samples.Frame`:
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter TurnCycle`; expect 6 passed. Then run `--filter CommandDispatcher`; expect all green with the fixture above. Commit: `Drive one activation from Ask to end-of-turn hook by reading the log`.**
+```csharp
+    static readonly Ask Unreadable = Activate with { Legal = new Options([new AskOption("not-an-option", "Unreadable", [Samples.Unit])]) };
+    static readonly Ask UnreadableFramed = Unreadable with { FrameId = Samples.Frame };
+
+    [Theory]
+    [InlineData(Enforcement.Strict, false, false)] [InlineData(Enforcement.Warn, true, true)] [InlineData(Enforcement.Silent, true, false)]
+    public void An_in_set_turn_answer_the_ruleset_cannot_read_follows_the_enforcement_setting(Enforcement enforcement, bool applied, bool warned)
+    {
+        var state = State(enforcement, new AskOpened(Unreadable));
+        var outcome = Dispatcher().Dispatch(state, new AnswerAsk(Unreadable.Id, new Chosen("not-an-option")), Clay);
+        if (!applied)
+        {
+            Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(outcome).Reason);
+            Assert.Contains(Unreadable.Id, state.Projection.OpenAsks.Keys);
+            return;
+        }
+        var ok = Assert.IsType<Applied>(outcome);
+        Assert.Equal(warned, ok.Warning is not null);
+        Assert.True(Assert.IsType<AskAnswered>(ok.Events[0]).OutsideLegalSet);
+        Assert.IsType<AskClosed>(ok.Events[1]);
+    }
+
+    [Fact]
+    public void A_pass_is_never_probed_and_a_non_turn_ask_is_not_probed()
+    {
+        Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Unreadable)), new AnswerAsk(Unreadable.Id, new Passed()), Clay));
+        var framed = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(UnreadableFramed)), new AnswerAsk(UnreadableFramed.Id, new Chosen("not-an-option")), Clay));
+        Assert.False(Assert.IsType<AskAnswered>(framed.Events[0]).OutsideLegalSet);
+    }
+```
+
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter TurnCycle`; expect 6 passed. Then run `--filter CommandDispatcher`; expect all green with the fixtures and the two added tests above. Commit: `Drive one activation from Ask to end-of-turn hook by reading the log`.**

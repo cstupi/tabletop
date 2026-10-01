@@ -51,7 +51,7 @@ public class PropertySetDocumentTests
         Assert.Equal(2, bane.Effects.Count);
         Assert.Equal(["defense", "raw"], bane.Effects[0].Conditions[0].Values);
         Assert.Equal(EffectKind.OverrideResult, set.Entry("Regeneration")!.Effects[0].Children[0].Kind);
-        Assert.Equal(3, set.AllEffects().Count());
+        Assert.Equal(4, set.AllEffects().Count());
         Assert.NotEqual(Guid.Empty, bane.Effects[0].Id);
         Assert.All(set.AllEffects(), e => Assert.Equal(EffectDuration.Interaction, e.Duration));
     }
@@ -89,6 +89,63 @@ public class PropertySetDocumentTests
         Assert.Empty(PropertiesJson.Validate(doc with { Entries = [.. doc.Entries, Spell(EffectKind.GrantProperty, EffectDuration.Once)] }));
         Assert.Contains(PropertiesJson.Validate(doc with { Entries = [.. doc.Entries, Spell(EffectKind.GrantProperty, EffectDuration.Interaction)] }),
             p => p.Contains("Bolt") && p.Contains("duration"));
+    }
+
+    [Fact]
+    public void Roll_result_condition_must_have_exactly_two_values_with_second_raw_or_modified()
+    {
+        var doc = PropertiesJson.Parse(ApJson);
+        // Well-formed: ["defense", "raw"] validates clean
+        var wellFormed = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit", "raw"])], [])
+            ])
+        ]};
+        Assert.Empty(PropertiesJson.Validate(wellFormed));
+
+        // One value only: ["hit"]
+        var oneValue = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit"])], [])
+            ])
+        ]};
+        var problems = PropertiesJson.Validate(oneValue);
+        Assert.Contains(problems, p => p.Contains("Test") && p.Contains("roll_result") && p.Contains("values"));
+
+        // Invalid second value: ["hit", "modified_invalid"]
+        var badModifier = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["hit", "modified_invalid"])], [])
+            ])
+        ]};
+        var badProblems = PropertiesJson.Validate(badModifier);
+        Assert.Contains(badProblems, p => p.Contains("Test") && p.Contains("modifier"));
+
+        // Undeclared roll: ["unknown", "raw"]
+        var undeclaredRoll = doc with { Entries = [
+            new EntryDocument("Test", CatalogKind.Weapon, false, null, null, null, "x", null, [
+                new EffectDocument(EffectSubject.Self, 0, EffectKind.ForceReroll, "hit", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                    [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 5, ["unknown", "raw"])], [])
+            ])
+        ]};
+        var undeclaredProblems = PropertiesJson.Validate(undeclaredRoll);
+        Assert.Contains(undeclaredProblems, p => p.Contains("Test") && p.Contains("unknown"));
+    }
+
+    [Fact]
+    public void Rolls_named_raw_or_modified_are_reserved()
+    {
+        var doc = PropertiesJson.Parse(ApJson);
+        var withRawRoll = doc with { Rolls = [.. doc.Rolls, "raw"] };
+        var problems = PropertiesJson.Validate(withRawRoll);
+        Assert.Contains(problems, p => p.Contains("raw") && p.Contains("reserved"));
+
+        var withModifiedRoll = doc with { Rolls = [.. doc.Rolls, "modified"] };
+        var modifiedProblems = PropertiesJson.Validate(withModifiedRoll);
+        Assert.Contains(modifiedProblems, p => p.Contains("modified") && p.Contains("reserved"));
     }
 }
 ```
@@ -146,6 +203,7 @@ public static class PropertiesJson
         var problems = new List<string>();
         var names = d.Entries.Select(e => e.Name).ToHashSet();
         if (names.Count != d.Entries.Count) problems.Add("entry names must be unique");
+        foreach (var r in d.Rolls.Where(r => r is "raw" or "modified")) problems.Add($"roll '{r}' is reserved");
         foreach (var e in d.Entries)
         {
             if ((e.Kind == CatalogKind.Model) != (e.Aggregation is not null)) problems.Add($"{e.Name}: aggregation is set exactly when kind is model");
@@ -174,6 +232,18 @@ public static class PropertiesJson
         if (f.Kind == EffectKind.Roll && f.Children.Count == 0) problems.Add(At("a roll needs a per-success child"));
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
+        foreach (var c in f.Conditions)
+        {
+            if (c.Kind == ConditionKind.RollResult)
+            {
+                if (c.Values.Count != 2) problems.Add(At($"roll_result condition has {c.Values.Count} values, need exactly 2"));
+                else
+                {
+                    if (!d.Rolls.Contains(c.Values[0])) problems.Add(At($"roll_result roll '{c.Values[0]}' is not declared"));
+                    if (c.Values[1] is not "raw" and not "modified") problems.Add(At($"roll_result modifier is '{c.Values[1]}', need 'raw' or 'modified'"));
+                }
+            }
+        }
         foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems);
     }
 
@@ -190,4 +260,4 @@ public static class PropertiesJson
 }
 ```
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter PropertySetDocumentTests`; expect 3 passed. Commit: `Parse, validate and content-address an authored Properties document`.**
+- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter PropertySetDocumentTests`; expect 5 passed. Commit: `Parse, validate and content-address an authored Properties document`.**

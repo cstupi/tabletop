@@ -145,7 +145,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 9 | `GrantProperty` | one, or two when per-die | `LiveProperties.Settle` adds a `LiveProperty`; per-die, `RollEffects.PerDie` names it and the step folds it in with `LiveSet.WithGranted` | `Rending`, every spell grant |
 | 10 | `SuppressProperty` | one | `Settle` removes every instance of the entry on the acted-on side | `Bane`, `Rending` and `Unstoppable` ignoring `Regeneration` |
 | 11 | `ModifyParameter` | one | `Settle` adds to every matching instance's parameter | `Counter` (−1 `Impact` rolls) |
-| 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, `Blast` and `Indirect` for cover |
+| 12 | `SuppressModifiers` | one | `Settle` records the `TargetModifier` class in `LiveSet.SuppressedModifiers` | `Unstoppable`, and `Blast` for cover |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
 the entry's parameter, whose `Threshold` is the score, and whose `Children` hold the per-success
@@ -284,11 +284,11 @@ parts the first four do not.
 | `Rending` | `grant_property` with `target_entry = AP` and `amount = 4`, conditioned on a raw `hit` result of 6, so it is deferred to pass two and folded in per die |
 | `Thrust` | **two** effects. `modify_roll` on `hit`, `amount = 1`; and `grant_property` with `target_entry = AP` and `amount = 1`. Both conditioned on the action taken being `Charge` and the attack kind melee. The grant is not per-die, so unlike `Rending`'s it settles in pass one |
 | `Blast(X)` | `kind = multiply`, `target_quantity = hits`, `amount_from_parameter`, `cap_kind = models_in_target_unit`, at a high `ordinal` because the book says *after resolving other special rules* |
-| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` and `Indirect` are what suppress that |
+| `Unstoppable` | *"Ignores Regeneration, and ignores all negative modifiers to this weapon"*: one `suppress_property` on `Regeneration`, plus `suppress_modifiers` for `to_hit_penalties` and `range_penalties`. Not `cover`, which is a bonus to the target's defence roll rather than a modifier to this weapon; `Blast` is what suppresses that |
 
 `Bane` shows why conditions belong to the effect and not to the entry. One of its two effects
 is conditional and the other is not, and a single condition list on the entry would get it wrong.
-`Indirect` is the same argument with three effects, one conditional and two not.
+`Indirect` is the same argument with three clauses, one conditional and two not.
 
 `Thrust` shows why an additive `AP` is a grant and not a `modify_parameter`. 3.5.1 writes both
 `Thrust`'s `AP(+1)` and `Rending`'s `AP(+4)` with the same `+`, and `Settle` applies a
@@ -361,9 +361,12 @@ This is name-matching. The alternative is inventing grammar for deployment timin
 exemption and a token economy, most of which would be used by one property each. That is where
 effects-as-data stops paying.
 
-**A property may be in both places.** `Indirect` carries two effect rows *and* is checked by name
-for *"may target enemies that are not in line of sight"*, which is no kind. `Aircraft` carries
-two and is checked by name during movement. `Hero` is the opposite case. Its third clause, *must
+**A property may be in both places.** `Indirect` carries one effect row, its −1 to hit after
+moving, *and* is checked by name for *"may target enemies that are not in line of sight"* and
+*"ignores cover from sight obstructions"*. Neither is a kind: the second drops only the sight half
+of p.11's cover, which `GfRolls.InCover` reads, while `suppress_modifiers cover` would drop the
+terrain half too. `Aircraft` carries one, the −12" to the range of units targeting it, and is
+checked by name during movement. `Hero` is the opposite case. Its third clause, *must
 use the unit's Defense until all other models have been killed*, needs **no** effect row at all,
 in either half. `GfRolls.DefensePlan` reads `Defense` at unit level while the target holds more
 than one model, so a `replace_stat` row would restate it, and it reads the surviving model's own

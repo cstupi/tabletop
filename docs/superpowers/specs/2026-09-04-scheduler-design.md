@@ -19,8 +19,9 @@ closes all three.
 
 The rulebook's structure, page 7: rounds are made of turns, a turn is a single activation, an
 activation is one action. Teams alternate until every unit has activated; on each new round
-the player that finished activating first goes first. Page 49 makes turn order **team-based**
-in team games, and has free-for-all players **roll off at the start of every round**.
+the player that finished activating first goes first. Page 50 makes turn order **team-based**
+in team games. Free-for-all players **roll off once, for deployment order**, and every round
+after round one is finished-first, as in a two-player game.
 
 ## The line
 
@@ -142,7 +143,8 @@ the one close the engine writes, and it is never an answer.
 first-team policy at `round_started`; turns rotate through it, skipping finished teams. A team
 finishes when its legal set is empty or it passes. The round ends when every team has finished.
 The action record clears at `round_started`. Next round's order is the policy's: OPR two-team,
-the team that finished first goes first; free-for-all, roll off.
+the team that finished first goes first, at any team count, after one roll-off for deployment
+order (p.50).
 
 **Player-turn.** A team holds the turn for every activation until its legal set is empty or it
 passes. The turn is a list of phases from `GameRules`; each phase is an Ask loop of *act or end
@@ -225,8 +227,9 @@ Eligibility is the sequence's business: a step names an interrupt point and the 
 who can react. **Ordering is the scheduler's.** When more than one team answers *react*, their
 reactions resolve **in the current turn order, starting with the team after the actor** — ruled
 in this session. Teams that passed drop out. `GameRules` may replace the ordering with a hook,
-which is where 40k's *"the player whose turn it is chooses the order"* would go; no OPR rule
-needs it. With two teams the question never arises.
+which is where 40k's *"the player whose turn it is chooses the order"* would go. Page 13 orders
+simultaneous rules across players by a roll-off, the winner picking. That case is unreachable
+while only the acting team can react, and OPR's `OrderReactions` returns null.
 
 **Muted window kinds are per player**, closing action sequences' open item. Muting is client
 convenience, the client renders for one player, and two members of one team may want different

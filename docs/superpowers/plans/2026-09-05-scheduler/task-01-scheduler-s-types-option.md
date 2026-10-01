@@ -2,7 +2,7 @@
 
 **Files:**
 - Create: `server/game/Scheduler/SchedulerLog.cs`
-- Read, do not modify: `server/game/Scheduler/SchedulerTypes.cs`, `server/game/Scheduler/ActivationOption.cs` — **the interpreter plan's Task 8 declares both**, in this namespace and to the letter of Steps 2 and 4 below, because that plan runs first and its `IGameRules` members and `StubRules` reference the types. Land it first. The blocks below are what must already be there; verify, do not rewrite
+- Read, do not modify: `server/game/Scheduler/SchedulerTypes.cs`, `server/game/Scheduler/ActivationOption.cs` — **the interpreter plan's Task 8 declares both**, in this namespace, matching Steps 2 and 4 below on types and members, because that plan runs first and its `IGameRules` members and `StubRules` reference the types. Land it first. The blocks below are what must already be there; verify, do not rewrite
 - Test: `tests/Tabletop.GameServer.Tests/ActivationOptionTests.cs`, `tests/Tabletop.GameServer.Tests/SchedulerLogTests.cs`
 
 **Interfaces:**
@@ -82,7 +82,7 @@ public class SchedulerLogTests
         Assert.Equal((1L, 2L, 8L, 2L, 8L), (log.RoundStartedAt, log.PhaseStartedAt, log.TurnStartedAt, log.RotationStartAt, log.CycleStartAt));
         Assert.Equal([9L], log.SinceTurn.Select(e => e.Seq));
         Assert.Equal([9L], log.SinceCycle.Select(e => e.Seq));
-        Assert.Equal([3L, 4L, 8L, 9L], log.SinceRotation.Select(e => e.Seq));
+        Assert.Equal([3L, 4L, 5L, 8L, 9L], log.SinceRotation.Select(e => e.Seq));
         Assert.Equal(9, log.LastSeq);
         Assert.Equal(Samples.Team1, log.LastTurnEndedTeam(log.SinceRound));
         Assert.Equal(4, log.LastTurnEndedByTeam(log.SinceRound)[Samples.Team1]);
@@ -105,7 +105,8 @@ public class SchedulerLogTests
         Assert.NotNull(found);
         Assert.Equal((AskA, 2L, 4L), (found.Value.Opened.Ask.Id, found.Value.OpenedAt, found.Value.ClosedAt));
         Assert.IsType<Passed>(found.Value.Closed!.Answers[0].Answer);
-        Assert.Null(SchedulerLog.Of(State(new TurnStarted(Samples.Team1))).LastSchedulerAsk(log.SinceTurn));
+        var bare = SchedulerLog.Of(State(new TurnStarted(Samples.Team1)));
+        Assert.Null(bare.LastSchedulerAsk(bare.SinceTurn));
     }
 
     [Fact]
@@ -118,7 +119,7 @@ public class SchedulerLogTests
 }
 ```
 
-- [ ] **Step 2: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "ActivationOption|SchedulerLog"`; expect `SchedulerLogTests` to fail to compile and `ActivationOptionTests` to pass. Verify `SchedulerTypes.cs` reads as follows** (the interpreter plan's Task 8 wrote it; if it is absent, that plan has not landed — stop)
+- [ ] **Step 2: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "ActivationOption|SchedulerLog"`; expect the build to fail with a compile error in `SchedulerLogTests` (no `SchedulerLog` yet), so no test runs. Verify `SchedulerTypes.cs` reads as follows** (the interpreter plan's Task 8 wrote it; if it is absent, that plan has not landed — stop)
 
 ```csharp
 using Tabletop.GameServer.Rules;

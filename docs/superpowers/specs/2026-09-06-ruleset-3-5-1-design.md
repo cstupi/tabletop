@@ -297,11 +297,13 @@ pass and answered the same day.
    model's ordinal, because the name is the key the target declaration and `fire-groups` use. This
    replaces the per-group compromise of the earlier ruling, which 3.4.1's *"each model with
    Sniper"* had forced on a pooled roll.
-2. **Cover is p.11's majority, strictly more than half.** Five of ten models inside cover terrain
-   is not a majority and gives nothing. This revises the 2026-09-06 ruling recorded as *"half or
-   more inside cover terrain gives cover"*; that ruling's other clause, *"fewer than half the
-   models visible gives cover"*, already means majority-hidden and needed no change, so both
-   clauses now use one threshold. `GfRolls.InCover` is `* 2 > models`.
+2. **Cover is p.11's one majority, strictly more than half.** p.11's *"the majority of models in
+   a unit are fully inside a piece of cover terrain or behind a sight blocker"* is one majority over
+   the models that pass either test. A model counts when it is in cover terrain, when every
+   attacking model that sees it does so past a sight blocker (screened), or when no attacking
+   model sees it. Five of ten such models is not a majority and gives nothing. A model's own unit
+   does not screen it (p.11, *"other units"*). Indirect's *"ignores cover from sight
+   obstructions"* (p.14) drops the sight half only. `GfRolls.InCover` is `union * 2 > models`.
 3. **`Artillery` aggregates `all`.** Every model in the unit must carry it for the -2 to apply.
    Decided after `Stealth`, which is the same to-hit penalty at the same range band and reads
    *"units where all models have this rule"* in both books; cover's majority was the alternative,

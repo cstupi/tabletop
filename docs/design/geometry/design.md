@@ -32,8 +32,8 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 
 Not in scope:
 
-- **The rules.** No legality decision, no majority-of-models rule, neither of the two 50%
-  cover thresholds, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
+- **The rules.** No legality decision, no majority-of-models rule, not p.11's cover
+  majority, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
   per model and the caller counts. `architecture.md` → Rules enforcement: flagged, never
   prevented.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
@@ -458,9 +458,8 @@ rather than in arc length, so the 2.8° and 0.24" figures are exact only for the
 The cost is 27 rays a pair rather than 17, each a segment-prism test against every blocker, and
 there is still no broad phase.
 
-**Counting visible models.** p.11's majority read from the attacker's side: fewer than half of a
-unit's models seen is more than half of them hidden. Cover was served only by a blocker list from one model to one
-model, so `LineOfSight` gained
+**Counting visible models.** Which of a unit's models a set of observers sees is a per-model
+fact over a unit, so `LineOfSight` has
 `VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume> volumes) : IRL<bool>`,
 index-aligned with `unit`, true at `i` when at least one observer's `Check` against `unit[i]` is
 clear. A single shooter is a one-element `observers` list. The caller counts and compares; no
@@ -509,15 +508,13 @@ blockers (for single-model units), they get +1 to Defense rolls"*.
 | *fully inside a piece of cover terrain* | `Cover.InsideCoverVolumes` non-empty | geometry |
 | *behind a sight blocker* | `LineOfSight.Check` clear **and** `Cover.SightBlockersBetween` non-empty | geometry |
 | *mostly inside cover terrain* | `Containment.VolumesContaining` filtered to `Cover` | geometry |
-| seeing fewer than half a unit's models (the plan's ruling 3) | `LineOfSight.VisibleModels` count against the list length | geometry counts, `GameRules` compares |
-| *the majority of models*, both of p.11's thresholds, *+1 to Defense* | — | `GameRules` |
+| *the majority of models*, *+1 to Defense* | — | `GameRules` |
 
-Both thresholds are p.11's one majority: a majority of the unit's models inside cover terrain,
-or a majority of them hidden, which is fewer than half of them seen. Every fact above is per
-model, and no member of this library takes a fraction, so the counting and the comparison are
-the ruleset's. Containment needed nothing new, since `InsideCoverVolumes` and
-`VolumesContaining` are already called per model; visibility did, and `LineOfSight.VisibleModels`
-is section 8's answer.
+p.11 has one majority, over the models that pass either test: a model counts when it is inside
+cover terrain, when it is behind a sight blocker from every attacking model with a clear line to
+it, or when no attacking model sees it. A screened model counts, since p.11 makes other units
+sight blockers that provide cover. Every fact above is per model, and no member of this library
+takes a fraction, so the union, the counting and the comparison are the ruleset's.
 
 `SightBlockersBetween` draws the same twenty-seven rays as `Check` and returns every blocker that
 stopped at least one of them, whether or not sight is clear overall. That is the only way to
@@ -573,7 +570,7 @@ spread stays at one distance: p.7's 9" has no elevation clause.
 ### 11. The slab
 
 The table is *a rectangle. No shape field and no play-area boundary volume* (setup content →
-The table is a slab), so `Table` is three members over `TableSize`:
+The table is a slab), so `Table` is four members over `TableSize`:
 
 - `Bounds(TableSize)`: the four corners as a `Polygon`, in the corner frame;
 - `ContainsPoint(TableSize, Point2)`: edge inclusive, `0 <= x <= W && 0 <= y <= L`. This is the
@@ -581,7 +578,18 @@ The table is a slab), so `Table` is three members over `TableSize`:
   (setup phase → Terrain: *"A piece still off the slab when setup ends is dropped from the
   snapshot"*);
 - `ContainsBase(TableSize, PlacedModel)`: the **whole base** on the slab, rulebook p.7
-  *"models may also never move outside of the battlefield (no part of them, at any point)"*.
+  *"models may also never move outside of the battlefield (no part of them, at any point)"*;
+- `IsValid(TableSize)`: both edges finite and above zero, and the polygon constructor's area test
+  passes on the slab and on every built-in zone style's polygons resolved against the size. The
+  game server's `DraftEditor` refuses a table size that fails it.
+
+`Footprint.IsValid(double scale)` is the matching check for terrain: a defined kind, a finite
+scale and scaled size above zero, and for a rect twice the scaled corners' area at least twice
+the polygon constructor's threshold (`2 * Tolerance.Distance`). The margin covers rounding after
+rotation and translation, which can take an area sitting exactly on the threshold below it.
+`DraftEditor` refuses a placement whose volumes fail it at the placement's scale. A consumer that
+accepts outlines from users (management's layouts, the web app's volume editor) calls both, or
+mirrors them, before a save.
 
 `ContainsPoint` is an axis comparison and `ContainsBase` goes through `PolygonOutline`. The two
 agree. They are two implementations of the same predicate.
@@ -821,7 +829,7 @@ Contested decisions first.
 | **`impassable` is a declaration of its own** | Without it a hill and a building are indistinguishable | A five-declaration set without it | geometry values → Declarations |
 | **"What it is resting on" is not stored** | Settling re-derives it; terrain is locked after setup, so nothing a model stands on ever moves | The table domain model's stored surface reference | geometry values → Height, position, facing |
 | **Enforcement is advisory here** | Every result is a measurement, a flag or a region; `strict` refusal lives in the server | Geometry returning legality | `architecture.md` → Rules enforcement; whole-design review → Five rulings, 1 |
-| **`LineOfSight.VisibleModels`**, one boolean per model of a unit | p.11's majority, read as *fewer than half of a unit's models seen* is a count over a unit, and cover was served only by a blocker list from one model to one model | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | The plan's ruling 3; Task 8, section 9 |
+| **`LineOfSight.VisibleModels`**, one boolean per model of a unit | Which of a unit's models a set of observers sees is a per-model fact over a unit. p.11's cover is not read from it: its sight half is `Check` with `SightBlockersBetween` per pair | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | The plan's ruling 3; Task 8, section 9 |
 
 Decisions the plan took because **no spec said anything**:
 
@@ -859,7 +867,8 @@ plan.
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 | `sealed record CoherencyResult(bool Coherent, IRL<int> OutOfCoherency)` *added* | indices into the input |
 | `static class Coherency` *added* | `CoherencyResult Check(IRL<PlacedModel> models, double chainDistance, double elevatedChainDistance, double maxSpread)` |
-| `static class Table` *added* | `Polygon Bounds(TableSize)`, `bool ContainsPoint(TableSize, Point2)`, `bool ContainsBase(TableSize, PlacedModel)` |
+| `static class Table` *added* | `Polygon Bounds(TableSize)`, `bool ContainsPoint(TableSize, Point2)`, `bool ContainsBase(TableSize, PlacedModel)`, `bool IsValid(TableSize)` |
+| `Footprint` | *added:* `bool IsValid(double scale)` |
 | `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
 | `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
 | `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)` |
@@ -885,7 +894,7 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); settle a `Destinations` answer with the `Point3` overload using the client's `To.Z`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply the two 50% cover thresholds itself, counting `Cover.InsideCoverVolumes` per model and `LineOfSight.VisibleModels` over the target unit; supply every OPR constant from `GameRules` |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); settle a `Destinations` answer with the `Point3` overload using the client's `To.Z`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
 | Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `Movement.Region(...).Boundary`; show `Movement.Check(...).Distance` as the readout and `EffectiveAllowance - Distance` as the remainder; settle a dragged model with the `Point3` overload |
 
 ## Sequences
@@ -937,14 +946,13 @@ sequenceDiagram
     Geo-->>GR: blocker ids, in input order
     GR->>Geo: Cover.InsideCoverVolumes(target, volumes)
     Geo-->>GR: cover volume ids
-    GR->>Geo: LineOfSight.VisibleModels(shooters, target unit, volumes)
-    Geo-->>GR: one boolean per model of the unit
-    GR->>GR: p.11's majority on both counts, then +1 to Defense
+    GR->>GR: per target model: in cover terrain, or behind a sight blocker from every shooter
+    GR->>GR: p.11's one majority over that union, then +1 to Defense
     GR-->>Seq: target legal, with its cover modifier
 ```
 
-The first two calls redraw the same twenty-seven rays, and `VisibleModels` redraws them once
-per model of the unit per shooter. Two hazards. The cost is quadratic in models when every model
+The first two calls redraw the same twenty-seven rays, once per model of the target unit per
+shooting model. Two hazards. The cost is quadratic in models when every model
 of every other unit is converted to a blocking volume, and the three calls multiply it. And
 `SightBlockersBetween` is permissive, so scatter terrain near the line grants cover.
 
@@ -1093,7 +1101,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list. The server warns under `warn` and refuses only under `strict` | Yes, flagged never prevented |
 | A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, straight-line reach (the plan's ruling 4) |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
-| A target visible only through a gap narrower than the sampling | Called hidden, and `VisibleModels` under-counts, which biases toward granting cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
+| A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
 | A model dragged into a wall by the client | The client's region already excluded it, but nothing stops a hand-placed model overlapping a Solid. `Overlap.WithSolid` flags it | Yes |
 | Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list. `PolygonOutline` is the same shape over `Vertices` and shares the hazard | **Trap.** Nothing in this library compares polygons, but a consumer might |
 
@@ -1109,7 +1117,7 @@ reentrant. The two remaining hazards are **ordering** and **cost**:
   do full work on every pair, with no bounding-circle rejection. Three places this bites:
   `Movement.Region` (180 rays × up to 24 samples × every volume), `Coherency.Check` (O(n²) full
   separations, 64-gons for ovals) and `Cover` plus `LineOfSight` called back to back on the
-  same pair, now at 27 rays each and multiplied again by `VisibleModels` over a whole unit. No
+  same pair, now at 27 rays each and multiplied again over every shooting and target model. No
   test would catch a performance regression here, because every test uses one or two volumes.
 
 ## Testing
@@ -1166,8 +1174,8 @@ Coverage gaps:
   long-edge rule, and 60×44 for Side Battle's fractions. The six anchored styles are untested
   below their own insets, which is not a gap: small tables are out of scope, and a test there
   would freeze the degenerate output named under Failure modes as if it were wanted behaviour.
-- **`VisibleModels` has no test at unit scale.** Both facts use one or two models and one wall,
-  so the cost that the cover rules impose on a shooting Ask is unmeasured.
+- **Cover has no test at unit scale here.** The `Cover` and `LineOfSight` facts use one or two
+  models and one wall, so the cost that the cover rules impose on a shooting Ask is unmeasured.
 
 ## Rulings and deferred work
 
@@ -1179,7 +1187,7 @@ the answer differs.
 | --- | --- | --- | --- |
 | 1 | Where is the origin? | **The corner.** The game server plan's `DraftEditor.OnSlab` and the contracts plan's wire samples use it, and one frame everywhere removes a conversion layer | Nothing. The frame is settled on the wire, in the library, in both servers and in the client |
 | 2 | What is the sight-line policy? | ***"Center to any part of target."*** Eye at the centre of the shooter's body, half height; 27 target points, 15 for a square; clear if any line is clear | A denser sample changes only `TargetPoints`; a shooter-rim sample contradicts the ruling's *center* |
-| 3 | What does *mostly inside* mean for a single model? | **The base centre inside the volume.** A centre test is exact and needs no new primitive; the unit threshold is *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the companion rule about seeing a unit is served by `LineOfSight.VisibleModels` |
+| 3 | What does *mostly inside* mean for a single model? | **The base centre inside the volume.** A centre test is exact and needs no new primitive; the unit threshold is *"50% models in unit in cover for it to count"* | Nothing here. The threshold is `GameRules`', over per-model facts; the sight half is `Check` with `SightBlockersBetween` per model |
 | 4 | Is straight-line reach enough? | **Yes**, on `architecture.md`'s own terms: the region is a cosmetic prediction and the server judges the landed move | Geodesic reach is a visibility graph over footprint polygons: a separate, larger task. A plain disc drops Task 12's obstacle handling entirely |
 | 5 | Free-for-all's *2'x1'*, which way round? | **24" along the long edge, 12" along the short.** p.50 gives no orientation | Nothing |
 | 6 | Side Battle's anchoring | **Proportional to the table.** Legs are `0.75` of the long edge and `0.625` of the short, the p.22 diagram's 54" and 30" on 72×48; a diagonal has no table feature to anchor to. The diagram's own three labels are inconsistent: those legs put the band at 24.5", not 24", so legs are the shape and the band is illustration | Anchored legs, `Leg(edge) = edge - 18`, invent a constant no page states and degenerate at 18". The other six styles stay anchored |
@@ -1199,7 +1207,7 @@ Two further items the plan does not ask about:
 - **No broad phase.** A bounding-circle rejection at the top of `InteriorsIntersect` and
   `Separation` would be a handful of lines and would change the cost of `Movement.Region` and
   `Coherency.Check` by an order of magnitude. Line of sight would gain the most: 27 rays a pair,
-  multiplied again by `VisibleModels` over a unit. It is not in the plan.
+  multiplied again over every shooting and target model. It is not in the plan.
 
 Deferred, with where it is recorded:
 
