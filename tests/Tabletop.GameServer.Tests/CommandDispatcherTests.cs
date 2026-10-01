@@ -19,7 +19,8 @@ public class CommandDispatcherTests
         return new GameState(info, board, applier, GrimdarkFutureRules.Instance);
     }
     static CommandDispatcher Dispatcher() => new(new InertEngine());
-    static readonly Ask Activate = new(Samples.AskId, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([new AskOption("a", "Advance", [Samples.Unit])]), true, false, null, null);
+    static readonly string ActivateId = Samples.Unit.ToString("N") + "/Advance";
+    static readonly Ask Activate = new(Samples.AskId, AskQuestions.Activate, "Activate", [Samples.Team1], new Options([new AskOption(ActivateId, "Advance", [Samples.Unit])]), true, false, null, null);
     /// <summary>Two model ids out of Samples, so the spend map is concrete: one key per eligible spender, capped at its own tokens.</summary>
     static readonly Guid M1 = Samples.Model, M2 = Samples.Container;
     static readonly TokensSpent SpentByTeam1 = new(new Dictionary<Guid, int> { [M1] = 2 }), SpentByTeam2 = new(new Dictionary<Guid, int> { [M2] = 1 });
@@ -73,10 +74,39 @@ public class CommandDispatcherTests
         Assert.IsType<AskClosed>(ok.Events[1]);
     }
 
+    static readonly Ask Unreadable = Activate with { Legal = new Options([new AskOption("not-an-option", "Unreadable", [Samples.Unit])]) };
+    static readonly Ask UnreadableFramed = Unreadable with { FrameId = Samples.Frame };
+
+    [Theory]
+    [InlineData(Enforcement.Strict, false, false)] [InlineData(Enforcement.Warn, true, true)] [InlineData(Enforcement.Silent, true, false)]
+    public void An_in_set_turn_answer_the_ruleset_cannot_read_follows_the_enforcement_setting(Enforcement enforcement, bool applied, bool warned)
+    {
+        var state = State(enforcement, new AskOpened(Unreadable));
+        var outcome = Dispatcher().Dispatch(state, new AnswerAsk(Unreadable.Id, new Chosen("not-an-option")), Clay);
+        if (!applied)
+        {
+            Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(outcome).Reason);
+            Assert.Contains(Unreadable.Id, state.Projection.OpenAsks.Keys);
+            return;
+        }
+        var ok = Assert.IsType<Applied>(outcome);
+        Assert.Equal(warned, ok.Warning is not null);
+        Assert.True(Assert.IsType<AskAnswered>(ok.Events[0]).OutsideLegalSet);
+        Assert.IsType<AskClosed>(ok.Events[1]);
+    }
+
+    [Fact]
+    public void A_pass_is_never_probed_and_a_non_turn_ask_is_not_probed()
+    {
+        Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Unreadable)), new AnswerAsk(Unreadable.Id, new Passed()), Clay));
+        var framed = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(UnreadableFramed)), new AnswerAsk(UnreadableFramed.Id, new Chosen("not-an-option")), Clay));
+        Assert.False(Assert.IsType<AskAnswered>(framed.Events[0]).OutsideLegalSet);
+    }
+
     [Fact]
     public void An_in_set_answer_answers_and_closes_an_unsealed_ask()
     {
-        var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Chosen("a")), Clay));
+        var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Chosen(ActivateId)), Clay));
         Assert.Equal([typeof(AskAnswered), typeof(AskClosed)], ok.Events.Select(e => e.GetType()));
         Assert.Equal(Samples.Team1, ((AskClosed)ok.Events[1]).Answers.Single().TeamId);
         Assert.IsType<Applied>(Dispatcher().Dispatch(State(Enforcement.Strict, new AskOpened(Activate)), new AnswerAsk(Activate.Id, new Passed()), Clay));
@@ -86,9 +116,9 @@ public class CommandDispatcherTests
     public void Only_an_addressed_team_may_answer_and_an_unknown_ask_is_unknown()
     {
         var state = State(Enforcement.Silent, new AskOpened(Activate));
-        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Activate.Id, new Chosen("a")), Opponent)).Reason);
-        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Activate.Id, new Chosen("a")), Watcher)).Reason);
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Guid.CreateVersion7(), new Chosen("a")), Clay)).Reason);
+        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Activate.Id, new Chosen(ActivateId)), Opponent)).Reason);
+        Assert.Equal(RefusalReason.NotPermitted, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Activate.Id, new Chosen(ActivateId)), Watcher)).Reason);
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new AnswerAsk(Guid.CreateVersion7(), new Chosen(ActivateId)), Clay)).Reason);
     }
 
     [Fact]
@@ -125,7 +155,7 @@ public class CommandDispatcherTests
         var state = State(Enforcement.Warn, new AskOpened(Activate));
         var legal = Dispatcher().EnumerateLegalCommands(state, Samples.Team1);
         Assert.Equal(2, legal.Count);
-        Assert.Contains(legal, c => c is AnswerAsk { Answer: Chosen { OptionId: "a" } });
+        Assert.Contains(legal, c => c is AnswerAsk { Answer: Chosen chosen } && chosen.OptionId == ActivateId);
         Assert.Contains(legal, c => c is AnswerAsk { Answer: Passed });
         Assert.Empty(Dispatcher().EnumerateLegalCommands(state, Samples.Team2));
         Assert.Empty(Dispatcher().EnumerateLegalCommands(state, null));

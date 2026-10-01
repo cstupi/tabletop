@@ -64,7 +64,7 @@ public sealed class EventApplier(Board board, GameInfo game)
         {
             case StateChange c: ApplyChange(p, c); break;
             case RoundStarted r:
-                p.Scheduler.Round = r.Round; p.Scheduler.OrderMut.Clear(); p.Scheduler.OrderMut.AddRange(r.Order);
+                p.Scheduler.Round = r.Round; var order = r.Order.ToList(); p.Scheduler.OrderMut.Clear(); p.Scheduler.OrderMut.AddRange(order);
                 p.Scheduler.ActiveTeamId = null; p.Scheduler.PassedMut.Clear();
                 foreach (var c in r.Changes) ApplyChange(p, c);
                 break;

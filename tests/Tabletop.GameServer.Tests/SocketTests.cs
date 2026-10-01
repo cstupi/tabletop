@@ -67,7 +67,7 @@ public class SocketTests(PostgresFixture pg)
     [Fact]
     public async Task Connecting_at_playing_yields_welcome_board_and_the_log_then_live_events()
     {
-        using var factory = new GameServerFactory();
+        using var factory = GameServerFactory.WithoutScheduler();
         var seeded = await pg.SeedGameAsync(GameStatus.Playing, teams: 2);
         await pg.SeedTableStateAsync(seeded.GameId);
         await new PostgresEventLog(pg.Db).AppendAsync(seeded.GameId, [new GameEvent(1, null, new PhaseStarted("deployment"), null), new GameEvent(2, null, new ScoreSet(seeded.TeamIds[0], 1), null)], CancellationToken.None);
@@ -97,7 +97,7 @@ public class SocketTests(PostgresFixture pg)
     [Fact]
     public async Task At_rest_closes_the_connect_sequence_and_follows_every_batch()
     {
-        using var factory = new GameServerFactory();
+        using var factory = GameServerFactory.WithoutScheduler();
         var seeded = await pg.SeedGameAsync(GameStatus.Playing, teams: 2);
         await pg.SeedTableStateAsync(seeded.GameId);
         await new PostgresEventLog(pg.Db).AppendAsync(seeded.GameId, [new GameEvent(1, null, new PhaseStarted("deployment"), null)], CancellationToken.None);
@@ -121,7 +121,7 @@ public class SocketTests(PostgresFixture pg)
     [Fact]
     public async Task Reconnecting_rebuilds_from_the_log_and_replaces_the_older_socket()
     {
-        using var factory = new GameServerFactory();
+        using var factory = GameServerFactory.WithoutScheduler();
         var seeded = await pg.SeedGameAsync(GameStatus.Playing);
         await pg.SeedTableStateAsync(seeded.GameId);
         await using var first = await TestClient.OpenAsync(factory);
@@ -141,7 +141,7 @@ public class SocketTests(PostgresFixture pg)
     [Fact]
     public async Task The_last_socket_leaving_releases_the_session_and_the_next_hydrates_again()
     {
-        using var factory = new GameServerFactory();
+        using var factory = GameServerFactory.WithoutScheduler();
         var seeded = await pg.SeedGameAsync(GameStatus.Playing);
         await pg.SeedTableStateAsync(seeded.GameId);
         var registry = factory.Services.GetRequiredService<Tabletop.GameServer.Session.SessionRegistry>();

@@ -58,7 +58,7 @@ public class EndSetupTests(PostgresFixture pg)
     {
         var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
         var army = await pg.SeedArmyAsync(seeded.CreatorAccountId);
-        using (var first = new GameServerFactory())
+        using (var first = GameServerFactory.WithoutScheduler())
         {
             await using var c = await TestClient.OpenAsync(first);
             await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
@@ -68,7 +68,7 @@ public class EndSetupTests(PostgresFixture pg)
             await c.SendAsync(new CommandMessage(Guid.CreateVersion7(), new MoveModels([new ModelRelocation(army.Units[0].Models[0].Id, new OnShelf(), new OnTable(new Placement(new Point3(12, 12, 0), new Yaw(0))))])));
             await c.ExpectAsync<EventsMessage>();
         }
-        using var second = new GameServerFactory();
+        using var second = GameServerFactory.WithoutScheduler();
         await using var again = await TestClient.OpenAsync(second);
         var welcome = await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         Assert.Equal(GameStatus.Playing, welcome.Game.Status);
