@@ -158,4 +158,15 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var mini = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Mini"));
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/v1/assets/{mini!.Asset.Id}/volumes", volumes, ContentJson.Options)).StatusCode);
     }
+
+    [Fact]
+    public async Task The_list_filters_by_kind_in_its_wire_spelling()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((36, null, true));
+        var mini = (await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Mini"))).Asset;
+        await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Hill") with { Kind = AssetKind.Terrain, ModelledBase = null });
+        Assert.Equal([mini.Id], (await c.GetJson<Page<AssetDto>>("/v1/assets?kind=miniature")).Items.Select(a => a.Id));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.GetAsync("/v1/assets?kind=tank")).StatusCode);
+    }
 }

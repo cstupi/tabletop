@@ -13,10 +13,17 @@ public static class AssetEndpoints
     {
         var g = app.MapGroup("/v1/assets").RequireAuthorization();
 
-        g.MapGet("", async (ClaimsPrincipal user, AssetRepository assets, int? limit, Guid? after, AssetKind? kind) =>
+        // kind binds as a string: the minimal-API enum binder is case-sensitive, and the wire spelling is lowercase ("miniature").
+        g.MapGet("", async (ClaimsPrincipal user, AssetRepository assets, int? limit, Guid? after, string? kind) =>
         {
+            AssetKind? k = null;
+            if (kind is not null)
+            {
+                if (!Enum.TryParse<AssetKind>(kind, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed)) return Problems.Unprocessable("kind is miniature, terrain or texture.");
+                k = parsed;
+            }
             var page = Keyset.Parse(limit, after);
-            return Results.Ok(Page<AssetDto>.Of(await assets.List(CurrentAccount.Id(user), page, kind), page.Limit, a => a.Id));
+            return Results.Ok(Page<AssetDto>.Of(await assets.List(CurrentAccount.Id(user), page, k), page.Limit, a => a.Id));
         });
 
         g.MapPost("", async (ClaimsPrincipal user, CreateAssetRequest r, AssetRepository assets, IBlobStore blobs) =>
