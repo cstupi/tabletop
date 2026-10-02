@@ -67,11 +67,13 @@ public class RunLoopTests
         return (report, winner, dice);
     }
 
-    [Fact]
-    public async Task The_same_seed_produces_the_same_dice_the_same_answers_and_a_different_game_id()
+    [Theory]
+    [InlineData("skirmish", 12ul)]
+    [InlineData("casting", 3ul)]
+    public async Task The_same_seed_produces_the_same_dice_the_same_answers_and_a_different_game_id(string name, ulong seed)
     {
-        var one = await RunTwice("skirmish", 12);
-        var two = await RunTwice("skirmish", 12);
+        var one = await RunTwice(name, seed);
+        var two = await RunTwice(name, seed);
         Assert.Equal(one.Report.Outcome.Kind, two.Report.Outcome.Kind);
         Assert.Equal(one.WinnerOrdinal, two.WinnerOrdinal);
         Assert.Equal(one.Report.Rounds, two.Report.Rounds);

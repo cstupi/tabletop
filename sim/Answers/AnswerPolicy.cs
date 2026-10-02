@@ -74,14 +74,14 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
     /// p.13's spend: any number of tokens, per model, up to what that model holds. One draw per entry in the map, each
     /// uniform in [0, that model's maximum], which is what makes a model's own bound the thing under test — a single
     /// draw against the sum could never produce the answer "one from the model holding four and none from the other".
-    /// Entries are taken in id order so one seed answers one run identically. An empty map is nothing to spend.
+    /// Entries are taken in the order the server sent them. An empty map is nothing to spend.
     /// </summary>
     private AskAnswer AnswerSpend(Ask ask, TokenSpend t)
     {
         if (t.MaxByModel.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
         if (Pass(ask) is { } passed) return passed;
         var counts = new Dictionary<Guid, int>();
-        foreach (var (modelId, max) in t.MaxByModel.OrderBy(kv => kv.Key))
+        foreach (var (modelId, max) in t.MaxByModel)
             counts[modelId] = chooser.Next(Math.Max(max, 0) + 1);
         return new TokensSpent(counts);
     }
