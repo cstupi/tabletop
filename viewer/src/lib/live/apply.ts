@@ -154,7 +154,7 @@ export function applyTo(p: Projection, event: GameEvent): void {
     case 'ask_answered': askIn(p, payload.kind, payload.askId).answers.set(payload.teamId, payload.answer); break;
     case 'ask_closed': p.openAsks.delete(payload.askId); break;
     // The frame stack is not ported: RecordedFrame carries no stack, and its rolls come from the
-    // step_completed payload, so these four change nothing any field of a frame records.
+    // step_completed payload, so these six change nothing any field of a frame records.
     // Unported stack-site faults: Pop on sequence_finished/sequence_abandoned, FrameOf,
     // ReplaceDice's roll and die-index lookups.
     case 'sequence_started': case 'sequence_finished': case 'sequence_abandoned':
