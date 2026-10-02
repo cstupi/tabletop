@@ -149,8 +149,10 @@ public class RecordingTests
         var projector = new FrameProjector(c);
         projector.Add(new GameEvent(1, null, new PhaseStarted("deployment"), null));
         projector.Add(new GameEvent(2, null, new RoundStarted(1, c.TeamIds, []), null));
+        projector.Add(new GameEvent(3, null, new ScoreSet(c.TeamIds[0], 4), null));
+        var teams = c.Info.Teams.Select(t => new RecordedTeam(t.Id, t.Ordinal, $"Team {t.Ordinal}", [])).ToList();
         var meta = new RecordingMeta("terrain", 1, "in-process", "grimdark-future", c.Properties.ContentHash,
-            "alternating-activation", "strict", 8, [], "round_limit", null, null, 1, 2, DateTimeOffset.UnixEpoch, 12.5);
+            "alternating-activation", "strict", 8, teams, "round_limit", null, null, 1, 2, DateTimeOffset.UnixEpoch, 12.5);
         var recording = projector.Build(meta);
 
         var path = Path.Combine(Path.GetTempPath(), $"sim-{Guid.CreateVersion7():N}.json");
@@ -160,7 +162,9 @@ public class RecordingTests
             var read = await RecordingJson.ReadAsync(path, CancellationToken.None);
             Assert.Equal(RecordingJson.SchemaVersion, read.Version);
             Assert.Equal(RecordingJson.Serialize(recording), RecordingJson.Serialize(read));
-            Assert.Equal(2, read.Frames.Count);
+            Assert.Equal(3, read.Frames.Count);
+            Assert.Equal(4, read.Frames[2].Scores[c.TeamIds[0]]);
+            Assert.Equal(teams.Count, read.Meta.Teams.Count);
             Assert.Equal("terrain", read.Meta.Scenario);
             Assert.Contains("\"schemaVersion\"", await File.ReadAllTextAsync(path, CancellationToken.None));
         }
@@ -179,7 +183,7 @@ public class RecordingTests
         Assert.Contains("\"frames\"", json);
         Assert.DoesNotContain("\"Frames\"", json);
         Assert.Contains("\"polygons\"", json);            // the resolved zone rings, in the board block
-        Assert.Contains("\"scores\"", json);              // empty, but present: a frame is whole state
+        Assert.Contains("\"scores\"", json);              // present even with no points scored: a frame is whole state
         Assert.Contains("\"passed\"", json);
         Assert.DoesNotContain("roundCap", json);          // null, so omitted
         Assert.DoesNotContain("activeTeamId", json);      // no active team yet, so omitted
@@ -192,5 +196,25 @@ public class RecordingTests
         var frame = projector.Add(new GameEvent(9, null, new Undone(5), null));
         Assert.Equal("undone", frame.Kind);
         Assert.Equal(18, frame.Models.Count);
+    }
+
+    [Fact]
+    public void An_earlier_frames_scores_and_passed_are_copies_that_later_events_do_not_change()
+    {
+        var c = Scenario();
+        var projector = new FrameProjector(c);
+        var team = c.TeamIds[0];
+        projector.Add(new GameEvent(1, null, new RoundStarted(1, c.TeamIds, []), null));
+        projector.Add(new GameEvent(2, null, new TurnStarted(team), null));
+        var before = projector.Add(new GameEvent(3, null, new ScoreSet(team, 3), null));
+        var passed = projector.Add(new GameEvent(4, null, new TurnEnded(team, true, []), null));
+        projector.Add(new GameEvent(5, null, new ScoreSet(team, 7), null));
+        projector.Add(new GameEvent(6, null, new RoundStarted(2, c.TeamIds, []), null));
+
+        Assert.Equal(3, before.Scores[team]);
+        Assert.Empty(before.Passed);
+        Assert.Equal(team, Assert.Single(passed.Passed));
+        Assert.Equal(3, passed.Scores[team]);
+        Assert.Equal(3, projector.Frames[2].Scores[team]);
     }
 }
