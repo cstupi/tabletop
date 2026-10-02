@@ -4,7 +4,11 @@ namespace Tabletop.Sim.Run;
 /// A hard stop, so a bug in this loop cannot spin forever — and the only guard against an engine that makes
 /// no real progress while emitting one non-Ask event per pass, which clears the AskReopenedUnchanged check.
 /// </param>
-public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true);
+/// <param name="Record">
+/// False builds no frames: a loop attached to a game already past its first event (the redo after an Undo) has
+/// no projector state for the events that refer back to the kept prefix.
+/// </param>
+public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true);
 
 /// <param name="RecordingPath">
 /// Where the recording was written, or null. <b><c>RunLoop</c> never sets this and always leaves it null.</b>

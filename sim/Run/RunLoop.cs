@@ -26,6 +26,7 @@ public sealed partial class RunLoop(
 
     public FrameProjector Projector { get; } = new(scenario);
     public IReadOnlyList<GameEvent> Log => _log;
+    public IAnswerSource Answers => answers;
 
     public async Task<RunReport> RunAsync(CancellationToken ct)
     {
@@ -175,7 +176,7 @@ public sealed partial class RunLoop(
         foreach (var e in events)
         {
             _log.Add(e);
-            Projector.Add(e);
+            if (_settings.Record) Projector.Add(e);
             _absorbedThisCycle++;
             if (e.Payload is not (AskOpened or AskAnswered or AskClosed)) _sinceLastAnswer++;
         }
