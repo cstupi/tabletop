@@ -47,12 +47,12 @@ DELETE /v1/auth/session                  log out
 `GET /v1/auth/oauth/callback`~~ â€” struck 09-04 with the methods they served.
 
 Every session-returning call ends the same way: the account row is created or found by
-`external_id`. The JWT carries our id because the project's Stytch custom claim template maps
-`{{ user.external_id }}` to the claim `account_id`, and Stytch evaluates the template on every
-mint; *We issue no tokens of our own* states what the claim is and what Stytch's own JWT holds
-instead. Management sends `session_custom_claims` nowhere. On the one login where `external_id`
-is first written the session was minted a moment too early, so that login re-mints the JWT once.
-No other login and no refresh does. Refresh exists because the JWT lives five minutes and only
+`external_id`. The JWT carries our id because management adds it to the session as the custom
+claim `account_id` through `session_custom_claims` on `POST /v1/sessions/authenticate`; *We issue no
+tokens of our own* states what the claim is and what Stytch's own JWT holds instead. A new session
+mints without the claim, so every login (signup, password, OTP, password reset) makes that one extra
+call when the minted JWT lacks it. Stytch keeps session custom claims on the session, so a refresh
+makes none and its JWT carries the claim. Refresh exists because the JWT lives five minutes and only
 management holds the project secret.
 
 The web app is served on a different origin in development (`TABLETOP_WEB_URL`, port 5173) and
@@ -100,8 +100,7 @@ an account id and an expiry, all to state a fact `participant` already records â
 issued at the lobby could lapse before a player who dropped at hour three tried to reconnect.
 
 **Corrected 2026-09-06.** Stytch's session JWT puts its own `user_id` in `sub` and does not carry
-`external_id`. Our account UUID arrives as the top-level custom claim `account_id`, rendered by
-the project's Stytch custom claim template from `{{ user.external_id }}` on every mint. Stytch
+`external_id`. Our account UUID arrives as the top-level custom claim `account_id`, which management sets on each new session with `session_custom_claims`; Stytch keeps it on the session across refreshes. Stytch
 reserves `sub` and the `https://stytch.com/*` names, and custom claims are merged at the top
 level. The game server reads `account_id` and nothing else.
 

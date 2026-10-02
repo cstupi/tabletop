@@ -9,16 +9,16 @@
 **Interfaces:**
 - Consumes: `AccountRepository.Insert/Get`; `StytchAuthentication.AccountClaim`; `ManagementOptions.StytchBaseUrl/StytchProjectId/StytchSecret/SessionMinutes/WebUrl`.
 - Produces: `StytchClient(HttpClient, ManagementOptions)` over the named client `StytchClient.HttpClientName = "stytch"` with `SendEmailOtp(email) : Task<OtpSent(string MethodId, string UserId, bool UserCreated)>`, `AuthenticateOtp(methodId, code)`, `AuthenticatePassword(email, password)`, `CreatePassword(email, password)`, `StartPasswordReset(email, redirectUrl) : Task`, `CompletePasswordReset(token, password)`, `RefreshSession(sessionJwt)`, `RevokeSession(sessionJwt) : Task`, `SetExternalId(userId, externalId) : Task`, `DeleteUser(externalId) : Task`, and four used only by the development mint below — `FindUserId(externalId) : Task<string?>`, `CreateUser(email, externalId) : Task<string>`, `CreateEmbeddableToken(userId) : Task<string>`, `AuthenticateMagicLink(token) : Task<StytchSession>` — each authenticate returns `StytchSession(string SessionJwt, StytchUser User)`, `StytchUser(string UserId, string? ExternalId, IReadOnlyList<StytchEmail> Emails)`, `StytchEmail(string Email)`; failures throw `StytchException(int Status, string ErrorType, string Message)`.
-- `Sessions(StytchClient, AccountRepository).Complete(StytchSession) : Task<SessionResponse>` — the one path every login takes: read `user.external_id`; when present, make sure the account row exists and hand back the JWT Stytch just minted, which the claim template already stamped — **one Stytch call, no more**; when absent, link first with `PUT /v1/users/{user_id} {external_id}` for a fresh `Guid.CreateVersion7()`, then insert the account row (name = the email's local part), then re-mint the JWT once with `POST /v1/sessions/authenticate` (no body beyond `session_jwt` and `session_duration_minutes`). The order is what makes a partial failure harmless: a Stytch failure at the link leaves no row behind, and a failure after it self-heals on the next login, which finds the user linked and takes the branch above, whose `Insert` writes the row that is missing. `SessionResponse(string SessionJwt, AccountRow Account)`.
-- **Why the re-mint, and only there** — the template reads `user.external_id`, and on a brand-new account the session is minted by the very call that consumes the OTP code or the signup password, *before* we know the account id, so that first JWT has no `account_id`. Stytch's custom-claim-template page is explicit that this is fixable and how: *"Updates to the custom claim template or user metadata propagate to existing sessions the next time a JWT is minted"* and *"A JWT cannot be modified once it is minted. You must authenticate again to update claims."* So one `sessions/authenticate` after the link re-runs the template against the now-linked user. The alternative — never mint until the user is linked — cannot work for OTP: the code is single-use, so the session must be minted by the call that spends it, and linking earlier at `POST /v1/auth/otp` would create an account row for any email anyone types. The cost is one extra call on the first login of an account and never again: a returning login and a refresh are one Stytch call each.
+- `Sessions(StytchClient, AccountRepository).Complete(StytchSession) : Task<SessionResponse>` — the one path every login takes: read `user.external_id`; when present, make sure the account row exists; when absent, link first with `PUT /v1/users/{user_id} {external_id}` for a fresh `Guid.CreateVersion7()`, then insert the account row (name = the email's local part). Then read the minted JWT's `account_id` claim: when it is the account id, hand the JWT back; otherwise call `StytchClient.StampAccount` — `POST /v1/sessions/authenticate` with `session_jwt`, `session_duration_minutes` and `session_custom_claims: {"account_id": "<uuid>"}` — and hand back that JWT. The order is what makes a partial failure harmless: a Stytch failure at the link leaves no row behind, and a failure after it self-heals on the next login, which finds the user linked and takes the branch above, whose `Insert` writes the row that is missing. `SessionResponse(string SessionJwt, AccountRow Account)`.
+- **Why the stamp, on every new session** — a session minted by the call that consumes the OTP code or the signup password carries no `account_id`: on a brand-new account that call runs *before* we know the account id, and for a linked account nothing has put the claim on the new session. A JWT cannot be modified once minted, so one `sessions/authenticate` with `session_custom_claims` sets `account_id` on the session. Stytch keeps session custom claims on the session, so every later JWT it mints, including each refresh, carries the claim with no further call. The alternative — never mint until the user is linked — cannot work for OTP: the code is single-use, so the session must be minted by the call that spends it, and linking earlier at `POST /v1/auth/otp` would create an account row for any email anyone types. A Stytch dashboard claim template is rejected: it is configuration outside the repo whose absence fails silently. The cost is one extra Stytch call per new session (signup, password login, OTP login, password-reset completion, dev session mint) and none per refresh.
 - Endpoints (anonymous unless noted): `POST /v1/auth/otp {email} → {methodId}`; `POST /v1/auth/otp/verify {methodId, code} → SessionResponse`; `POST /v1/auth/password {email, password} → SessionResponse`; `POST /v1/auth/password/signup {email, password} → 201 SessionResponse`; `POST /v1/auth/password/reset {email} → 202`; `POST /v1/auth/password/reset/complete {token, password} → SessionResponse`; `POST /v1/auth/session/refresh {sessionJwt} → SessionResponse` (an expired JWT is accepted while the Stytch session lives); `DELETE /v1/auth/session` (bearer) `→ 204` whatever Stytch answers, since a logout has nothing to roll back. Stytch `401/404` → `401`; `duplicate_email` → `409`; `429` → `429`; `weak_password`/other `4xx` → `422`; `5xx`, a transport failure and an unparseable body → `502`.
-- **`POST /v1/dev/sessions` — the development-only mint.** Body `DevSessionRequest(string Name)`, response the ordinary `SessionResponse(SessionJwt, Account)`. The simulator's socket driver needs a real session token per team, hand-pasting them is rejected, and management is the only process holding the Stytch secret, so the mint lives here and returns a **real Stytch session JWT** (simulation design → Two drivers behind one interface). `DevSessions.Mint(name)` does four things: derives the account id from the name (`AccountIdFor`, a name-based UUIDv8 — SHA-256 over a fixed namespace and the name, the first sixteen bytes, version and variant stamped), inserts the `account` row (`on conflict do nothing`, so a repeated name is the same row), finds the Stytch user by `GET /v1/users/{accountId}` and creates it with `POST /v1/users {email, external_id = accountId}` when that is `404`, then mints by `POST /v1/magic_links` followed by `POST /v1/magic_links/authenticate` and hands the session to `Sessions.Complete` like every other login. Because `external_id` is set at user creation, the claim template renders `account_id` on the very first mint and `Complete` takes its one-call branch — the re-mint below never fires here.
+- **`POST /v1/dev/sessions` — the development-only mint.** Body `DevSessionRequest(string Name)`, response the ordinary `SessionResponse(SessionJwt, Account)`. The simulator's socket driver needs a real session token per team, hand-pasting them is rejected, and management is the only process holding the Stytch secret, so the mint lives here and returns a **real Stytch session JWT** (simulation design → Two drivers behind one interface). `DevSessions.Mint(name)` does four things: derives the account id from the name (`AccountIdFor`, a name-based UUIDv8 — SHA-256 over a fixed namespace and the name, the first sixteen bytes, version and variant stamped), inserts the `account` row (`on conflict do nothing`, so a repeated name is the same row), finds the Stytch user by `GET /v1/users/{accountId}` and creates it with `POST /v1/users {email, external_id = accountId}` when that is `404`, then mints by `POST /v1/magic_links` followed by `POST /v1/magic_links/authenticate` and hands the session to `Sessions.Complete` like every other login. Because `external_id` is set at user creation, `Complete` skips the link and stamps `account_id` on the new session: one `StampAccount` call per mint.
   - **Gating is the hosting environment, not a flag.** The route is registered inside `if (app.Environment.IsDevelopment())` and the service inside `if (builder.Environment.IsDevelopment())`. `IHostEnvironment.EnvironmentName` defaults to `Production` when neither `ASPNETCORE_ENVIRONMENT` nor `DOTNET_ENVIRONMENT` is set, so a published build serves no such route unless someone deliberately names the environment `Development`. There is no configuration key, so no deployment can turn it on by mistake, and the test host's environment is `Testing`, which is also not development.
   - **An account that does not exist is created.** The name is the input and the account id is a function of it, so the endpoint has nothing to look up and nothing to refuse: the row is inserted if absent and reused if present. That is what lets `SocketRowSeeder` create its own accounts instead of requiring three to exist first.
-  - **Idempotent for a repeated name.** Same name → same account id → same `account` row → same Stytch user, found by `external_id` rather than created again. Only the JWT differs, because each mint is a fresh session. A first mint costs four Stytch calls, every later one three.
+  - **Idempotent for a repeated name.** Same name → same account id → same `account` row → same Stytch user, found by `external_id` rather than created again. Only the JWT differs, because each mint is a fresh session. A first mint costs five Stytch calls, every later one four.
   - **The email is derived and never used.** `EmailFor(name)` is the name lowercased with every non-alphanumeric character replaced by `-`, at `example.com` (RFC 2606, reserved and undeliverable). Nothing in this path sends mail: `POST /v1/users` does not, and an embeddable magic link is explicitly the endpoint that hands the token back instead of emailing it. Two different names that slug to the same address collide as Stytch `duplicate_email` → `409`.
   - **No second signing key and no local trust anchor.** The JWT is minted by Stytch, signed by Stytch's key, and verified by both servers against Stytch's JWKS exactly as a player's is. That is the whole point: a bypass in the verifier would leave the socket driver testing something the product does not do.
-- Stytch endpoints, from the Consumer API docs: `POST /v1/otps/email/login_or_create` (`email`, `expiration_minutes` 1–10, default 2; returns `user_id`, **`email_id`**, `user_created` — there is no `method_id` in the response, and `email_id` is what the next call sends as `method_id`); `POST /v1/otps/authenticate` (`method_id`, `code`, `session_duration_minutes`, range 5–527040); `POST /v1/passwords/authenticate` (`email`, `password`); `POST /v1/passwords` (`email`, `password`; error types `duplicate_email`, `weak_password` for a strength score ≤ 2, and `breached_password` for a leaked one — two distinct errors, both `4xx`, both `422` here); `POST /v1/passwords/email/reset/start` (`email`, `reset_password_redirect_url`); `POST /v1/passwords/email/reset` (`token`, `password`); `POST /v1/sessions/authenticate` (`session_jwt`, `session_duration_minutes` — we send no `session_custom_claims`; "You may provide a JWT that needs to be refreshed and is expired according to its `exp` claim", which is what `/session/refresh` relies on, and the response's `session_jwt` is freshly minted, so the claim template runs again); `POST /v1/sessions/revoke` (**exactly one** of `session_id`, `session_token`, `session_jwt` — sending more than one is an error, so only `session_jwt` goes); `PUT /v1/users/{user_id}` (`external_id`: alphanumeric, `.`, `_`, `-`, `|`, ≤128 — a GUID string fits); `DELETE /v1/users/{user_id}` ("You may use an `external_id` here if one is set for the user"). All Basic-auth `project_id:secret` against `https://test.stytch.com`.
+- Stytch endpoints, from the Consumer API docs: `POST /v1/otps/email/login_or_create` (`email`, `expiration_minutes` 1–10, default 2; returns `user_id`, **`email_id`**, `user_created` — there is no `method_id` in the response, and `email_id` is what the next call sends as `method_id`); `POST /v1/otps/authenticate` (`method_id`, `code`, `session_duration_minutes`, range 5–527040); `POST /v1/passwords/authenticate` (`email`, `password`); `POST /v1/passwords` (`email`, `password`; error types `duplicate_email`, `weak_password` for a strength score ≤ 2, and `breached_password` for a leaked one — two distinct errors, both `4xx`, both `422` here); `POST /v1/passwords/email/reset/start` (`email`, `reset_password_redirect_url`); `POST /v1/passwords/email/reset` (`token`, `password`); `POST /v1/sessions/authenticate` (`session_jwt`, `session_duration_minutes` — we send no `session_custom_claims`; "You may provide a JWT that needs to be refreshed and is expired according to its `exp` claim", which is what `/session/refresh` relies on, and the response's `session_jwt` is freshly minted and carries the session's custom claims, so a refresh needs none); `POST /v1/sessions/revoke` (**exactly one** of `session_id`, `session_token`, `session_jwt` — sending more than one is an error, so only `session_jwt` goes); `PUT /v1/users/{user_id}` (`external_id`: alphanumeric, `.`, `_`, `-`, `|`, ≤128 — a GUID string fits); `DELETE /v1/users/{user_id}` ("You may use an `external_id` here if one is set for the user"). All Basic-auth `project_id:secret` against `https://test.stytch.com`.
 - Four more, used only by `POST /v1/dev/sessions`: `GET /v1/users/{user_id}` (the same external-id substitution as the delete, so the account id is the lookup key and `404` is `user_not_found`); `POST /v1/users` (`email` required, `external_id` optional and accepting a GUID string, `create_user_as_pending` left false so the user is `active`; returns `user_id`, `email_id`, `status`, and `duplicate_email` when the address is taken); `POST /v1/magic_links` (embeddable magic links, **Consumer API only, absent from the B2B API** — `user_id`, which "You may substitute an `external_id`" for, plus `expiration_minutes` 5–10080 default 60; returns `token` and **sends no email**, which is what makes it usable from a server); `POST /v1/magic_links/authenticate` (`token`, `session_duration_minutes`, and no `session_custom_claims` for the same reason the other authenticates send none; returns `session_jwt`, `session_token` and the user). The pair is Stytch's documented server-side way to mint a session for a user you already know, and the authenticate is the same endpoint a real emailed magic link would hit.
 - Signup, refresh and reset-complete are in the spec's list (management API → Authentication).
 
@@ -33,7 +33,7 @@ using System.Text.Json.Nodes;
 
 namespace Tabletop.Management.Tests;
 
-/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys — including the project's claim template.</summary>
+/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys. No claim template: a session carries account_id only once session_custom_claims set it, and keeps it across refreshes, as the real project does.</summary>
 public sealed class FakeStytch : HttpMessageHandler
 {
     public const string Code = "123456";
@@ -85,7 +85,7 @@ public sealed class FakeStytch : HttpMessageHandler
             {
                 var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(S("session_jwt"));
                 var u = Users.Values.First(x => x.Id == jwt.Subject);
-                return Session(u, body);
+                return Session(u, body, jwt.Claims.FirstOrDefault(c => c.Type == Identity.StytchAuthentication.AccountClaim)?.Value);
             }
             case "/v1/sessions/revoke": Revoked.Add(S("session_jwt")); return Json(200, new { });
             case "/v1/users":
@@ -129,11 +129,11 @@ public sealed class FakeStytch : HttpMessageHandler
     /// <summary>By Stytch user id or by external id, which the get, the delete and the embeddable magic link all accept interchangeably.</summary>
     private User? Find(string key) => Users.Values.FirstOrDefault(x => x.Id == key || x.ExternalId == key);
 
-    /// <summary>Minting runs the project's custom claim template: account_id = user.external_id, or no claim when the user is not linked yet.</summary>
-    private HttpResponseMessage Session(User u, JsonObject body)
+    /// <summary>A session's account_id is whatever session_custom_claims set on it, carried over from the incoming JWT on a refresh.</summary>
+    private HttpResponseMessage Session(User u, JsonObject body, string? carried = null)
     {
-        Assert.Null(body["session_custom_claims"]);   // the template stamps the claim; nothing may send it per call
-        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(u.ExternalId, out var linked) ? linked : null);
+        var claim = body["session_custom_claims"]?[Identity.StytchAuthentication.AccountClaim]?.GetValue<string>() ?? carried;
+        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(claim, out var stamped) ? stamped : null);
         return Json(200, new { user_id = u.Id, session_jwt = jwt, session_token = "tok-" + u.Id,
             user = new { user_id = u.Id, external_id = u.ExternalId, emails = new[] { new { email_id = "email-" + u.Id, email = u.Email, verified = true } } } });
     }
@@ -168,7 +168,7 @@ public class AuthTests : IClassFixture<ManagementFactory>
         var before = _f.Stytch.Authenticates;
         var r = await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent!.MethodId, code = FakeStytch.Code });
         var session = await r.Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one re-mint, because external_id was written on this login
+        Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one: the call that adds account_id to the session
         Assert.Equal("clay", session!.Account.Name);
         Assert.Equal(session.Account.Id.ToString(), _f.Stytch.Users["clay@example.com"].ExternalId);
         var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(session.SessionJwt);
@@ -194,12 +194,12 @@ public class AuthTests : IClassFixture<ManagementFactory>
 
         var beforeLogin = _f.Stytch.Authenticates;
         var again = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "once@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(0, _f.Stytch.Authenticates - beforeLogin);    // no re-mint: the user was already linked, so the template stamped the claim
+        Assert.Equal(1, _f.Stytch.Authenticates - beforeLogin);    // every new session gets account_id added once
         Assert.Equal(again!.Account.Id.ToString(), Claim(again.SessionJwt));
 
         var beforeRefresh = _f.Stytch.Authenticates;
         var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = again.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(1, _f.Stytch.Authenticates - beforeRefresh);   // the refresh itself and nothing after it
+        Assert.Equal(1, _f.Stytch.Authenticates - beforeRefresh);   // the refresh itself: the session already carries the claim
         Assert.Equal(again.Account.Id.ToString(), Claim(refreshed!.SessionJwt));
     }
 
@@ -281,9 +281,13 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
         Call(HttpMethod.Post, "/v1/passwords/email/reset/start", new { email, reset_password_redirect_url = redirectUrl });
     public Task<StytchSession> CompletePasswordReset(string token, string password) =>
         Session(HttpMethod.Post, "/v1/passwords/email/reset", new { token, password, session_duration_minutes = options.SessionMinutes });
-    /// <summary>Extends the session and mints a fresh JWT; the project's claim template runs on every mint, so nothing is passed here.</summary>
+    /// <summary>Extends the session and mints a fresh JWT. The session keeps the custom claims set on it, so a refresh passes none.</summary>
     public Task<StytchSession> RefreshSession(string sessionJwt) =>
         Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes });
+    /// <summary>As RefreshSession, adding account_id to the session's custom claims; every JWT the session mints from here on carries it.</summary>
+    public Task<StytchSession> StampAccount(string sessionJwt, Guid accountId) =>
+        Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes,
+            session_custom_claims = new Dictionary<string, string> { [StytchAuthentication.AccountClaim] = accountId.ToString() } });
     public Task RevokeSession(string sessionJwt) => Call(HttpMethod.Post, "/v1/sessions/revoke", new { session_jwt = sessionJwt });
     public Task SetExternalId(string userId, string externalId) => Call(HttpMethod.Put, $"/v1/users/{userId}", new { external_id = externalId });
     public Task DeleteUser(string externalId) => Call(HttpMethod.Delete, $"/v1/users/{externalId}", null);
@@ -346,13 +350,12 @@ namespace Tabletop.Management.Identity;
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
-/// <summary>After any Stytch authenticate: make sure the account exists and is linked to the Stytch user. The JWT's account_id comes from the project's claim template.</summary>
+/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, and rides in the session's account_id claim.</summary>
 public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
 {
     public async Task<SessionResponse> Complete(StytchSession session)
     {
         var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
-        var jwt = session.SessionJwt;
         Guid accountId;
         if (Guid.TryParse(session.User.ExternalId, out var linked))
         {
@@ -365,12 +368,18 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
             // Link first: a throw here inserts no row, so a retry (a fresh v7 id) orphans nothing; a throw after it leaves the user linked, and the next login's branch above writes the missing row.
             await stytch.SetExternalId(session.User.UserId, accountId.ToString());
             await accounts.Insert(accountId, name);
-            // The session above was minted before the link, so its JWT has no account_id; re-minting is the documented way to pick the template up. First login only.
-            jwt = (await stytch.RefreshSession(jwt)).SessionJwt;
         }
+        // A new session carries no account_id until it is stamped; a refreshed one keeps its stamp, so this skips.
+        var jwt = AccountClaim(session.SessionJwt) == accountId.ToString()
+            ? session.SessionJwt
+            : (await stytch.StampAccount(session.SessionJwt, accountId)).SessionJwt;
         var account = await accounts.Get(accountId) ?? throw new InvalidOperationException("account vanished");
         return new SessionResponse(jwt, account);
     }
+
+    /// <summary>Read without verifying: the JWT came straight from Stytch over the authenticated call.</summary>
+    private static string? AccountClaim(string jwt) =>
+        new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(jwt).TryGetPayloadValue<string>(StytchAuthentication.AccountClaim, out var v) ? v : null;
 
     public static IResult Problem(StytchException e) => e.Status switch
     {
@@ -460,7 +469,6 @@ public sealed class DevSessions(StytchClient stytch, AccountRepository accounts,
         var externalId = accountId.ToString();
         var userId = await stytch.FindUserId(externalId) ?? await stytch.CreateUser(EmailFor(name), externalId);
         var token = await stytch.CreateEmbeddableToken(userId);
-        // external_id was set at creation, so the claim template stamps account_id on this first mint and Complete makes no second call.
         return await sessions.Complete(await stytch.AuthenticateMagicLink(token));
     }
 }
@@ -510,7 +518,7 @@ public class DevSessionTests(ManagementFactory f) : IClassFixture<ManagementFact
         Assert.Equal(first.Account.Id, second.Account.Id);
         Assert.Single(_dev.Stytch.Users);                                                              // found by external_id, not created twice
         Assert.Equal(1, _dev.Stytch.Calls.Count(p => p == "/v1/users"));
-        Assert.Equal(0, _dev.Stytch.Authenticates);                                                    // no re-mint: the template stamped the claim
+        Assert.Equal(2, _dev.Stytch.Authenticates);                                                    // one stamp per mint: each is a new session
         c.DefaultRequestHeaders.Authorization = new("Bearer", second.SessionJwt);
         Assert.Equal(first.Account.Id, (await c.GetFromJsonAsync<AccountRow>("/v1/account"))!.Id);
     }
@@ -521,6 +529,6 @@ The second test is what proves the endpoint is on the real path: the JWT it retu
 
 - [ ] **Step 7: Wire `Program.cs`** — `builder.Services.AddHttpClient(StytchClient.HttpClientName); builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(StytchClient.HttpClientName), sp.GetRequiredService<ManagementOptions>())); builder.Services.AddSingleton<Sessions>(); if (builder.Environment.IsDevelopment()) builder.Services.AddSingleton<DevSessions>();` and `app.MapAuth(); if (app.Environment.IsDevelopment()) app.MapDevSession();`.
 
-- [ ] **Step 8: Run `dotnet test tests/Tabletop.Management.Tests`; expect at least 27 passed. Then the real thing once: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`, `dotnet run --project server/management`, `curl -X POST localhost:5100/v1/auth/otp -H 'content-type: application/json' -d '{"email":"<your address>"}'`, verify with the emailed code, and check the JWT at jwt.io carries `account_id`. That last check is the only thing that proves the dashboard claim template is in place — set it before running this (*Interfaces needed from other modules → Stytch dashboard*), and if `account_id` is absent it is the template, not the code. While the secret is set, mint once too: `ASPNETCORE_ENVIRONMENT=Development dotnet run --project server/management`, then `curl -X POST localhost:5100/v1/dev/sessions -H 'content-type: application/json' -d '{"name":"team-1"}'`, and check the returned JWT the same way. Repeat it and confirm the same `account.id` comes back. Commit: `Log in through Stytch by email code or password, and mint a development session for a named account`.**
+- [ ] **Step 8: Run `dotnet test tests/Tabletop.Management.Tests`; expect at least 27 passed. Then the real thing once: `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`, `dotnet run --project server/management`, `curl -X POST localhost:5100/v1/auth/otp -H 'content-type: application/json' -d '{"email":"<your address>"}'`, verify with the emailed code, and check the JWT's `account_id` claim is the account id (the `RESET_PASSWORD` redirect URL is the only dashboard setting; *Interfaces needed from other modules → Stytch dashboard*). While the secret is set, mint once too: `ASPNETCORE_ENVIRONMENT=Development dotnet run --project server/management`, then `curl -X POST localhost:5100/v1/dev/sessions -H 'content-type: application/json' -d '{"name":"team-1"}'`, and check the returned JWT the same way. Repeat it and confirm the same `account.id` comes back. Commit: `Log in through Stytch by email code or password, and mint a development session for a named account`.**
 
 **What the mint costs.** A `--driver socket` simulator run needs network access to the Stytch test project, because every token it uses is minted there. The in-process driver needs none, and neither does the rest of this suite, which runs against `FakeStytch`. That is the price of keeping the socket driver on the real verification path. It falls on console runs only: the simulator's own tests mint with `TestKeys` against a fake JWKS and reach no network, as does every test here.

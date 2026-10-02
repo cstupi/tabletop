@@ -270,11 +270,11 @@ join token. Both are gone (management API → *We issue no tokens of our own*). 
 Stytch session JWT that both servers verify locally.
 
 Stytch's JWT names the user by Stytch's own `sub`. It does not carry `external_id`. The account id
-therefore rides in the custom claim `account_id`, rendered by the Stytch project's `SESSION` custom
-claim template, `{"account_id": "{{ user.external_id }}"}`, which Stytch evaluates every time it
-mints a JWT. Management passes `session_custom_claims` nowhere. Its one
-job is keeping every Stytch user's `external_id` equal to its `Account.id`, which
-`Sessions.Complete(StytchSession)` does, and every login method passes through it:
+therefore rides in the custom claim `account_id`, which management adds to the session through
+`session_custom_claims` on `POST /v1/sessions/authenticate`. Stytch keeps session custom claims on the
+session, so every later JWT the session mints carries it. Keeping every Stytch user's `external_id`
+equal to its `Account.id` and stamping the session are the job of
+`Sessions.Complete(StytchSession)`, and every login method passes through it:
 
 ```mermaid
 sequenceDiagram
@@ -299,12 +299,13 @@ sequenceDiagram
         X->>R: Insert(Guid.CreateVersion7(), email local part)
         X->>S: SetExternalId(user_id, account id)
         S->>K: PUT /v1/users/{user_id}
-        X->>S: RefreshSession(jwt)
-        S->>K: POST /v1/sessions/authenticate
-        K-->>X: a re-minted JWT, the template now rendering account_id
     else external_id present
         X->>R: Insert(linked id, name) on conflict do nothing
-        Note over X,K: no further Stytch call: the minted JWT already carries account_id
+    end
+    opt the minted JWT's account_id is not the account id
+        X->>S: StampAccount(jwt, account id)
+        S->>K: POST /v1/sessions/authenticate {session_custom_claims: {account_id}}
+        K-->>X: a JWT carrying account_id
     end
     X-->>A: SessionResponse{sessionJwt, account}
     A-->>C: 200
@@ -312,28 +313,21 @@ sequenceDiagram
 
 *Every session-returning endpoint ends in this same tail.*
 
-A returning login costs no Stytch call beyond the authenticate itself, and a refresh exactly one.
-One re-mint survives, in one place. On a brand-new account Stytch mints the session by the same
-call that spends the single-use one-time code, before `external_id` exists, so that first JWT
-carries no claim. `Sessions.Complete` therefore creates the account row, sets `external_id`, and
-re-mints once through `POST /v1/sessions/authenticate`. Linking earlier does not work: the code is
-single-use, so the session must be minted by the call that spends it, and linking at
-`POST /v1/auth/otp` would create an account row for any email anyone types.
+A new session costs one Stytch call beyond the authenticate itself, and a refresh none beyond the
+refresh. A session minted by the call that spends a single-use one-time code or a signup password
+carries no claim, because that call runs before `external_id` exists, and a new session of a linked
+account carries none either. `Sessions.Complete` therefore creates the account row, sets `external_id`
+when absent, and, when the minted JWT's `account_id` is not the account id, calls
+`StytchClient.StampAccount`, which posts `session_custom_claims: {"account_id": "<uuid>"}` to
+`POST /v1/sessions/authenticate` and returns that JWT. Every new session pays this call: signup, password
+login, OTP login, password-reset completion and the dev session mint. A refresh
+(`/v1/auth/session/refresh`, `/v1/sessions/authenticate` with no claims) carries the claim already.
+Linking earlier does not work: the code is single-use, so the session must be minted by the call that
+spends it, and linking at `POST /v1/auth/otp` would create an account row for any email anyone types.
 
-`external_id` is the entire link between the two systems, and the mechanism rather than an
-incidental: the template reads it, so a user whose `external_id` is unset gets JWTs with no claim.
-**No Stytch identifier is stored in our schema** (accounts → *Auth is a module, not a vendor*).
-`account` is two columns.
-
-The template is project configuration rather than code, and its absence is silent: every JWT mints
-without the claim, `CurrentAccount.Id` throws on every management request, the game server rejects
-every connection, and Stytch reports no error. It is environment setup, listed beside the
-reset-password redirect URL (*Obligations this module places on others → Stytch dashboard*). It is
-also readable and writable through Stytch's Workspace Management API at `GET` and
-`PUT https://management.stytch.com/pwa/v3/projects/{project_slug}/environments/{environment_slug}/jwt_templates/SESSION`,
-authenticated with a workspace management key rather than the project secret. That `PUT` body
-requires both `template_content` and `custom_audience`, and a non-empty `custom_audience` replaces
-`aud`, which both verifiers require to equal the project id.
+`external_id` is the link between the two systems: `Sessions.Complete` reads it to find the account and
+stamps the claim from it. **No Stytch identifier is stored in our schema** (accounts → *Auth is a module,
+not a vendor*). `account` is two columns.
 
 Verification is `Microsoft.AspNetCore.Authentication.JwtBearer` with
 `MapInboundClaims = false`, `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = {project_id}`,
@@ -370,8 +364,8 @@ belongs here.
    `session_duration_minutes`. The second is the same endpoint an emailed magic link would reach.
 5. `Sessions.Complete(session)`, the path every login takes.
 
-Because `external_id` is written when the user is created, the claim template renders `account_id`
-on the first mint and `Complete` takes its one-call branch. The re-mint above never fires here.
+Because `external_id` is written when the user is created, `Complete` skips the link and stamps the
+account's `account_id` on the new session: one `StampAccount` call per mint.
 
 The derived email is the name lowercased, non-alphanumeric characters replaced by `-`, at
 `example.com`, reserved by RFC 2606 and undeliverable. No call on this path sends mail: creating a
@@ -917,7 +911,7 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 | **No token of our own.** Stytch's session JWT is the only credential. Both servers verify it locally against Stytch's JWKS | our UUID is the identifier on both sides, so swapping vendors changes what issues the token, not what it means. Verification is local, so nothing calls Stytch on the request path. Short expiry covers revocation | two opaque token tables, a `session` table and a join token | management API → *We issue no tokens of our own*; accounts → *Auth is a module, not a vendor* |
 | **The join token is gone.** A game has an id, a session says who you are, `participant` records who is allowed in | the token restated three facts and added an expiry that could lapse mid-game. A four-player game runs hours, so a token issued at the lobby could be dead when a player who dropped at hour three reconnects | a fourth frozen contract between two servers that never call each other | accounts → *A game is a lobby*; `architecture.md` → *Contracts to freeze* |
 | **The client has its own login screen. Both it and the web app call the same two methods** | there is no social login and no magic link, so nothing needs a browser page to redirect to, and email plus password or one-time code costs the client the same two management calls the web app makes | loopback and device code, both designed to carry a browser session into the client; an embedded webview to catch an auth redirect | client shell → *No social login*; web app → *Login is the web app's* |
-| **The account id rides in a custom claim the Stytch claim template renders, not in `external_id`** | Stytch's JWT names the user by its own `sub` and does not carry `external_id`, so our id has to ride in a custom claim. The `SESSION` template renders `{{ user.external_id }}` on every mint, so the claim costs nothing at run time | reading `external_id` from the token, which the JWT does not carry; stamping the claim per login with `session_custom_claims`, which costs an extra Stytch call on every login and every refresh | management API → *Authentication*; the plan's ruling 1; plan Task 5 |
+| **The account id rides in a custom claim set per session with `session_custom_claims`, not in `external_id`** | Stytch's JWT names the user by its own `sub` and does not carry `external_id`, so our id has to ride in a custom claim. Stytch keeps session custom claims on the session, so one stamp per new session carries every refresh | reading `external_id` from the token, which the JWT does not carry; a `SESSION` custom claim template rendering `{{ user.external_id }}`, which is dashboard configuration outside the repo and fails silently when absent | management API → *Authentication*; the plan's ruling 1; plan Task 5 |
 | **GLB only**, narrowed from "glTF/GLB" | a `.gltf` with external buffers is several files with relative references: single-object presigned upload breaks, the header read becomes pointless, and serving it to another player's client can fail | accepting `.gltf` with sidecar buffers | management API → *GLB only*; `architecture.md` → *GLB only* |
 | **The triangle check warns and never blocks**, above 100,000 | the guardrail exists because nothing stops an undecimated Blender export landing on every client. Refusing an upload is not this product's shape | a hard limit; server-side decimation, which would mean a job queue, a worker and an async upload state | mesh conversion → *The threshold*; asset library → *Still open* |
 | **`enforcement` is `silent \| warn \| strict`**, not a boolean | action sequences and the scheduler both carry a refusing mode, which a boolean cannot express | `warns boolean`, on the reading that a blocking mode contradicts the product. This module only stores and validates the column | whole-design review ruling 1 |
@@ -1059,7 +1053,7 @@ and a build whose environment is unset serves `404` for it.
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |
 | Client shell | send `Tabletop-Client-Version: {ProtocolVersion.Current}` on every request; treat `426` as a screen; refresh with `POST /v1/auth/session/refresh` about once a minute; apply `ManifestEntry.Scale/Orientation` to another participant's mesh; mirror `AccountRow`, `SessionResponse`, `OtpSentResponse`, `Page<T>`, `GameSummary`, `CreateGameRequest`, `PropertiesSummary`, `ArmySummary`, `LayoutSummary`, `AssetKind`, `AssetDto`, `DownloadResponse`, `ManifestEntry`, `Manifest` member-for-member |
 | Simulator | call `POST /v1/dev/sessions` once per team plus once for the recorder, and seed `participant` rows for the account ids it returns. It needs this service running under `ASPNETCORE_ENVIRONMENT=Development` with the Stytch secret set, and network access to the Stytch test project |
-| Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a redirect URL; the `SESSION` custom claim template set to exactly `{"account_id": "{{ user.external_id }}"}`, in the test environment and again in live, because its absence takes both services down with no Stytch error; the OAuth and magic-link redirect URLs are unused and can go |
+| Stytch dashboard | `TABLETOP_WEB_URL/reset-password` registered as a `RESET_PASSWORD` redirect URL, in the test environment and again in live; the OAuth and magic-link redirect URLs are unused and can go. Claims need no dashboard setting |
 
 ---
 
@@ -1116,9 +1110,9 @@ a request thread behind a `SemaphoreSlim` that every other concurrent caller als
 **Refresh.** The client calls `POST /v1/auth/session/refresh` about once a minute with the JWT it
 holds, expired or not. Stytch documents that `/v1/sessions/authenticate` accepts a JWT already past
 its `exp`, which the endpoint depends on. The handler calls `RefreshSession(jwt)` and hands the
-result to `Sessions.Complete`, which finds the account already linked and returns the JWT Stytch
-has just minted. **That is one `POST /v1/sessions/authenticate` call per refresh, per client, per
-minute.** The fresh JWT carries `account_id` because the template runs on every mint.
+result to `Sessions.Complete`, which finds the account already linked, sees `account_id` in the JWT and
+returns the JWT Stytch has just minted. **That is one `POST /v1/sessions/authenticate` call per refresh, per client, per
+minute.** The fresh JWT carries `account_id` because the session keeps its custom claims.
 
 ### Ending or deleting a game the game server is holding
 
@@ -1437,7 +1431,6 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 | S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
 | Account deletion: Stytch fails with anything but `404` | content and games are already gone. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
 | A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Notable gaps* |
-| The `SESSION` claim template missing or misspelled | every JWT mints without `account_id`, so every management request is the row above and the game server rejects every connection. Stytch reports no error anywhere | **not defended.** The template is configuration living outside the repo, so no test can see it. The manual pass at the end of Task 5, reading the JWT at jwt.io, is the only evidence it exists |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
 | Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
 | Presigned download URL outlives participation | a player who left keeps a working URL for up to 60 minutes | **accepted**: another player retaining a mesh they were already shown harms nobody |
@@ -1504,16 +1497,15 @@ assets across two owners with the owner's corrections and excluding the unconfir
 removing content, blobs, three games including one created-and-left, and the Stytch user, while
 leaving another account's untouched game alone; `POST /v1/dev/sessions` answering `404` on the
 `Testing` host and no Stytch call being made; the same name minting twice to one account id, one
-Stytch user and no re-mint, with the second JWT accepted by `GET /v1/account`.
+Stytch user and one stamp call per mint, with the second JWT accepted by `GET /v1/account`.
 
 ### What cannot be tested headlessly
 
 - **Real Stytch.** Every automated test runs against `FakeStytch`. Task 5 ends with one manual
   pass: set the secret, `POST /v1/auth/otp` to a real address, verify the emailed code, and check
-  the JWT at jwt.io carries `account_id`. Two things stay unproven by the suite: that the project's
-  `SESSION` claim template is in place, and that `session_duration_minutes` behaves as documented.
-  `FakeStytch` renders the template itself, so a missing real one looks exactly like a passing
-  test run. Task 5 also mints once for real through `POST /v1/dev/sessions`, which is the only
+  the JWT's `account_id` claim is the account id. One thing stays unproven by the suite: that
+  `session_duration_minutes` behaves as documented. `FakeStytch` models the project without a claim
+  template: a session carries `account_id` only once `session_custom_claims` set it. Task 5 also mints once for real through `POST /v1/dev/sessions`, which is the only
   proof that the embeddable-magic-link pair works against the live project. A `--driver socket`
   simulator run depends on that pair and therefore on network access to the Stytch test project,
   which the in-process driver does not need.
@@ -1547,7 +1539,7 @@ Stytch user and no re-mint, with the second JWT accepted by `GET /v1/account`.
 
 | Question | Decision | Reason |
 | --- | --- | --- |
-| 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | **the template** | a per-login claim costs an extra Stytch call on every login and every refresh, which outweighs the code path's advantage of living in the repo and being testable. `Sessions.Complete` makes no second call on a returning login or a refresh, `external_id` is the mechanism, and the template is environment setup whose absence fails silently |
+| 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | **`session_custom_claims`, stamped once per new session** | the template is dashboard configuration outside the repo and its absence fails silently, so signup and sign-in could not be shown to work from the repo. Stytch keeps session custom claims on the session, so the stamp costs one extra call per new session and a refresh makes none. `external_id` links the account and `Sessions.Complete` stamps from it |
 | 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | **no: the hero is a model of the unit it joined** | Army Forge publishes the attachment on the joining entry, and `ModelSlot` already carries the stats and properties the hero needs, so no table records the join. `Merge` returns a host plus the entries joining it, `Section` appends one entry's slots with its own stats, base and cursor, the unit's stats and properties stay the host's, and an unresolvable `joinToUnit` imports as a unit of its own |
 | 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 221 × 119 × 113 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its long axis** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
 | 4. How are partial weapon counts dealt onto models? | **an advancing cursor**, and the flamer lands last | import expands deterministically; asking the user would need a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |

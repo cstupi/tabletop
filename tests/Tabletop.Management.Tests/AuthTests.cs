@@ -20,7 +20,7 @@ public class AuthTests : IClassFixture<ManagementFactory>
         var before = _f.Stytch.Authenticates;
         var r = await c.PostAsJsonAsync("/v1/auth/otp/verify", new { methodId = sent!.MethodId, code = FakeStytch.Code });
         var session = await r.Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one re-mint, because external_id was written on this login
+        Assert.Equal(1, _f.Stytch.Authenticates - before);        // exactly one: the call that adds account_id to the session
         Assert.Equal("clay", session!.Account.Name);
         Assert.Equal(session.Account.Id.ToString(), _f.Stytch.Users["clay@example.com"].ExternalId);
         var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(session.SessionJwt);
@@ -46,12 +46,12 @@ public class AuthTests : IClassFixture<ManagementFactory>
 
         var beforeLogin = _f.Stytch.Authenticates;
         var again = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "once@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(0, _f.Stytch.Authenticates - beforeLogin);    // no re-mint: the user was already linked, so the template stamped the claim
+        Assert.Equal(1, _f.Stytch.Authenticates - beforeLogin);    // every new session gets account_id added once
         Assert.Equal(again!.Account.Id.ToString(), Claim(again.SessionJwt));
 
         var beforeRefresh = _f.Stytch.Authenticates;
         var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = again.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(1, _f.Stytch.Authenticates - beforeRefresh);   // the refresh itself and nothing after it
+        Assert.Equal(1, _f.Stytch.Authenticates - beforeRefresh);   // the refresh itself: the session already carries the claim
         Assert.Equal(again.Account.Id.ToString(), Claim(refreshed!.SessionJwt));
     }
 

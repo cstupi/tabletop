@@ -40,9 +40,13 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
         Call(HttpMethod.Post, "/v1/passwords/email/reset/start", new { email, reset_password_redirect_url = redirectUrl });
     public Task<StytchSession> CompletePasswordReset(string token, string password) =>
         Session(HttpMethod.Post, "/v1/passwords/email/reset", new { token, password, session_duration_minutes = options.SessionMinutes });
-    /// <summary>Extends the session and mints a fresh JWT; the project's claim template runs on every mint, so nothing is passed here.</summary>
+    /// <summary>Extends the session and mints a fresh JWT. The session keeps the custom claims set on it, so a refresh passes none.</summary>
     public Task<StytchSession> RefreshSession(string sessionJwt) =>
         Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes });
+    /// <summary>As RefreshSession, adding account_id to the session's custom claims; every JWT the session mints from here on carries it.</summary>
+    public Task<StytchSession> StampAccount(string sessionJwt, Guid accountId) =>
+        Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes,
+            session_custom_claims = new Dictionary<string, string> { [StytchAuthentication.AccountClaim] = accountId.ToString() } });
     public Task RevokeSession(string sessionJwt) => Call(HttpMethod.Post, "/v1/sessions/revoke", new { session_jwt = sessionJwt });
     public Task SetExternalId(string userId, string externalId) => Call(HttpMethod.Put, $"/v1/users/{userId}", new { external_id = externalId });
     public Task DeleteUser(string externalId) => Call(HttpMethod.Delete, $"/v1/users/{externalId}", null);

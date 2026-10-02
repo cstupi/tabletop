@@ -30,7 +30,7 @@ public static class TestKeys
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    /// <summary>As Mint, but for FakeStytch: sub is the Stytch user id, and the account_id claim is present only when the user is linked (the custom claim template's behavior).</summary>
+    /// <summary>As Mint, but for FakeStytch: sub is the Stytch user id, and the account_id claim is present only when the session has it.</summary>
     public static string MintForUser(string userId, Guid? accountId)
     {
         var exp = DateTimeOffset.UtcNow.AddMinutes(5);

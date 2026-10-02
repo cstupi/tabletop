@@ -6,7 +6,7 @@ namespace Tabletop.Management.Identity;
 
 public static class StytchAuthentication
 {
-    /// <summary>Our account UUID. Stytch's custom claim template maps {{ user.external_id }} to this name on every mint; we never send it per call.</summary>
+    /// <summary>Our account UUID. Sessions.Complete adds it to each new session as a session custom claim; refreshes keep it.</summary>
     public const string AccountClaim = "account_id";
     public const string SessionClaim = "https://stytch.com/session";
     /// <summary>Named client so tests can swap its handler; the cache must be a singleton, which a typed client is not.</summary>

@@ -27,7 +27,7 @@ public class DevSessionTests(ManagementFactory f) : IClassFixture<ManagementFact
         Assert.Equal(first.Account.Id, second.Account.Id);
         Assert.Single(_dev.Stytch.Users);                                                              // found by external_id, not created twice
         Assert.Equal(1, _dev.Stytch.Calls.Count(p => p == "/v1/users"));
-        Assert.Equal(0, _dev.Stytch.Authenticates);                                                    // no re-mint: the template stamped the claim
+        Assert.Equal(2, _dev.Stytch.Authenticates);                                                    // one stamp per mint: each is a new session
         c.DefaultRequestHeaders.Authorization = new("Bearer", second.SessionJwt);
         Assert.Equal(first.Account.Id, (await c.GetFromJsonAsync<AccountRow>("/v1/account"))!.Id);
     }

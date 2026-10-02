@@ -40,9 +40,8 @@ cd server/management && dotnet user-secrets set STYTCH_SECRET <secret> && cd -
 cd web && npm install && cd -
 ```
 
-The Stytch test project's `SESSION` custom claim template must be exactly
-`{"account_id": "{{ user.external_id }}"}` (set in the Stytch dashboard). Without it login appears to
-work but every request after it answers 401 and the game server refuses the socket.
+The Stytch test project needs `http://localhost:5173/reset-password` registered as a
+`RESET_PASSWORD` redirect URL (Stytch dashboard), or password resets fail at Stytch.
 
 Each session, one terminal per line, from the repo root in WSL. Docker Desktop must be running on
 the Windows host.

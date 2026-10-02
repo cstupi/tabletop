@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace Tabletop.Management.Tests;
 
-/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys — including the project's claim template.</summary>
+/// <summary>Enough of Stytch to log in: users by email, one OTP code, passwords, external ids, sessions minted with TestKeys. No claim template: a session carries account_id only once session_custom_claims set it, and keeps it across refreshes, as the real project does.</summary>
 public sealed class FakeStytch : HttpMessageHandler
 {
     public const string Code = "123456";
@@ -62,7 +62,7 @@ public sealed class FakeStytch : HttpMessageHandler
             {
                 var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(S("session_jwt"));
                 var u = Users.Values.First(x => x.Id == jwt.Subject);
-                return Session(u, body);
+                return Session(u, body, jwt.Claims.FirstOrDefault(c => c.Type == Identity.StytchAuthentication.AccountClaim)?.Value);
             }
             case "/v1/sessions/revoke": Revoked.Add(S("session_jwt")); return Json(200, new { });
             case "/v1/users":
@@ -106,11 +106,11 @@ public sealed class FakeStytch : HttpMessageHandler
     /// <summary>By Stytch user id or by external id, which the get, the delete and the embeddable magic link all accept interchangeably.</summary>
     private User? Find(string key) => Users.Values.FirstOrDefault(x => x.Id == key || x.ExternalId == key);
 
-    /// <summary>Minting runs the project's custom claim template: account_id = user.external_id, or no claim when the user is not linked yet.</summary>
-    private HttpResponseMessage Session(User u, JsonObject body)
+    /// <summary>A session's account_id is whatever session_custom_claims set on it, carried over from the incoming JWT on a refresh.</summary>
+    private HttpResponseMessage Session(User u, JsonObject body, string? carried = null)
     {
-        Assert.Null(body["session_custom_claims"]);   // the template stamps the claim; nothing may send it per call
-        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(u.ExternalId, out var linked) ? linked : null);
+        var claim = body["session_custom_claims"]?[Identity.StytchAuthentication.AccountClaim]?.GetValue<string>() ?? carried;
+        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(claim, out var stamped) ? stamped : null);
         return Json(200, new { user_id = u.Id, session_jwt = jwt, session_token = "tok-" + u.Id,
             user = new { user_id = u.Id, external_id = u.ExternalId, emails = new[] { new { email_id = "email-" + u.Id, email = u.Email, verified = true } } } });
     }

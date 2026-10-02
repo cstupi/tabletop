@@ -30,14 +30,11 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   running. Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
   the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
   management 5100, game server 5200.
-- The management API needs the Stytch test project (id in `.env.example`) configured in two ways
-  that live in the Stytch dashboard, not in this repo, and fail silently when missing: the `SESSION` custom
-  claim template must be exactly `{"account_id": "{{ user.external_id }}"}` — without it every JWT lacks
-  `account_id`, every authenticated management request answers 401 and the game server rejects every
-  socket — and `{TABLETOP_WEB_URL}/reset-password` (`http://localhost:5173/reset-password` locally) must be a
-  registered `RESET_PASSWORD` redirect URL, or password resets fail at Stytch. The secret is set once per
-  machine with `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`; a real login through
-  `./scripts/management` and a look at the JWT's claims is the only check that the template is in place.
+- The management API needs the Stytch test project (id in `.env.example`) to have
+  `{TABLETOP_WEB_URL}/reset-password` (`http://localhost:5173/reset-password` locally) registered as a
+  `RESET_PASSWORD` redirect URL in the Stytch dashboard, not in this repo, or password resets fail at Stytch.
+  The `account_id` claim needs no dashboard setting: management adds it to each new session. The secret is set
+  once per machine with `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`.
 
 `.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection("Postgres")]` need the Docker Postgres up. Node 24 for `web/` comes from mise (`~/.local/share/mise`) in WSL; `npm`, exact versions (`web/.npmrc`).
 

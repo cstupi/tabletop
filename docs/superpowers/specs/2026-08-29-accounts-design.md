@@ -35,8 +35,7 @@ management calls Stytch; a **Stytch session JWT carrying our account UUID** come
 outside management holds a Stytch secret, and no Stytch identifier is stored in our schema.
 
 *Corrected 2026-09-06.* Stytch's session JWT puts its own `user_id` in `sub` and does not carry
-`external_id`. The account UUID arrives as the top-level custom claim `account_id`, rendered by
-the project's Stytch custom claim template from `{{ user.external_id }}` on every mint. Stytch
+`external_id`. The account UUID arrives as the top-level custom claim `account_id`, which management sets on each new session with `session_custom_claims`; Stytch keeps it on the session across refreshes. Stytch
 reserves `sub` and the `https://stytch.com/*` names, and custom claims are merged at the top
 level. The game server reads `account_id` and nothing else.
 

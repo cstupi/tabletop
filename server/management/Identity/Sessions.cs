@@ -5,13 +5,12 @@ namespace Tabletop.Management.Identity;
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
-/// <summary>After any Stytch authenticate: make sure the account exists and is linked to the Stytch user. The JWT's account_id comes from the project's claim template.</summary>
+/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, and rides in the session's account_id claim.</summary>
 public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
 {
     public async Task<SessionResponse> Complete(StytchSession session)
     {
         var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
-        var jwt = session.SessionJwt;
         Guid accountId;
         if (Guid.TryParse(session.User.ExternalId, out var linked))
         {
@@ -22,19 +21,23 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
         {
             accountId = Guid.CreateVersion7();
             // Link first: if this throws, no row is ever inserted for this attempt, so a retry
-            // (a fresh v7 id) leaves nothing orphaned. If the row-insert or the re-mint below
+            // (a fresh v7 id) leaves nothing orphaned. If the row-insert or the stamp below
             // throws instead, the user is already linked, and the next login takes the branch
             // above, which inserts the row that is missing — that is the self-heal.
             await stytch.SetExternalId(session.User.UserId, accountId.ToString());
             await accounts.Insert(accountId, name);
-            // The session above was minted before the user was linked, so its JWT has no account_id.
-            // Re-minting is the documented way to pick the template up ("You must authenticate again to update claims").
-            // First login only; every later login and every refresh skips this branch.
-            jwt = (await stytch.RefreshSession(jwt)).SessionJwt;
         }
+        // A new session carries no account_id until it is stamped; a refreshed one keeps its stamp, so this skips.
+        var jwt = AccountClaim(session.SessionJwt) == accountId.ToString()
+            ? session.SessionJwt
+            : (await stytch.StampAccount(session.SessionJwt, accountId)).SessionJwt;
         var account = await accounts.Get(accountId) ?? throw new InvalidOperationException("account vanished");
         return new SessionResponse(jwt, account);
     }
+
+    /// <summary>Read without verifying: the JWT came straight from Stytch over the authenticated call.</summary>
+    private static string? AccountClaim(string jwt) =>
+        new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(jwt).TryGetPayloadValue<string>(StytchAuthentication.AccountClaim, out var v) ? v : null;
 
     public static IResult Problem(StytchException e) => e.Status switch
     {

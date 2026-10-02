@@ -31,7 +31,6 @@ public sealed class DevSessions(StytchClient stytch, AccountRepository accounts,
         var externalId = accountId.ToString();
         var userId = await stytch.FindUserId(externalId) ?? await stytch.CreateUser(EmailFor(name), externalId);
         var token = await stytch.CreateEmbeddableToken(userId);
-        // external_id was set at creation, so the claim template stamps account_id on this first mint and Complete makes no second call.
         return await sessions.Complete(await stytch.AuthenticateMagicLink(token));
     }
 }

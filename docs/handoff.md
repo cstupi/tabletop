@@ -89,12 +89,10 @@ whose formats and budgets are in `.superpowers/sdd/client-shell/task-06-report.m
 built-in piece draws its volume proxy. Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
 app's real-STL test. In the Stytch test project
 `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
-as a `RESET_PASSWORD` redirect URL, and confirm the `SESSION` custom claim template is
-`{"account_id": "{{ user.external_id }}"}`, which no tool here can read. The secret is set in this
+as a `RESET_PASSWORD` redirect URL. The secret is set in this
 machine's user-secrets (`dotnet user-secrets set STYTCH_SECRET` from `server/management`) and `.env`
 carries the project id. Then do the management plan's Task 5 Step 8 once: a manual login through
-`./scripts/management` against the real project with an emailed code, reading the JWT's claims at
-jwt.io. It is the only check that proves the claim template exists; the tree's tests use a fake Stytch.
+`./scripts/management` against the real project with an emailed code; the tree's tests use a fake Stytch.
 
 ## Checkpoint 2: what a player should see
 
@@ -558,10 +556,8 @@ code calls the Consumer API. The Stytch MCP tools are project configuration only
 management, so the Consumer user schema has to come from the docs. The local `stytch` MCP server
 cannot log in: Stytch's login server returns an `iss` that differs from its published issuer and
 Claude Code rejects the mismatch (RFC 9207); the `claude.ai Stytch` connector works but is signed into
-a workspace that does not hold this project. **Two pieces of Stytch configuration are
-load-bearing and not in the repo:** the `SESSION` claim template mapping `{{ user.external_id }}` to
-`account_id`, whose absence takes both services down with no error from Stytch; and a registered
-redirect URL for password resets.
+a workspace that does not hold this project. **One piece of Stytch configuration is
+load-bearing and not in the repo:** a registered redirect URL for password resets.
 
 ### The rulebooks
 
