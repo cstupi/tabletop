@@ -72,8 +72,34 @@ public sealed partial class RunLoop(
             answers.History.Count, clock.Elapsed.TotalMilliseconds, failures, RecordingPath: null);
     }
 
+    /// <summary>Continue after a pause, under whatever Mode the driver is in now.</summary>
+    public Task<RunReport> ResumeAsync(CancellationToken ct) => RunAsync(ct);
+
+    /// <summary>
+    /// Answer the Ask the run paused on, from outside the answer source, then continue under the current
+    /// Mode, so in StepAndWait this advances exactly one decision. The seam the spec leaves for answering an
+    /// Ask from a debugger; nothing here is a control channel.
+    /// </summary>
+    public async Task<RunReport> AnswerPausedAsync(Guid teamId, AskAnswer answer, CancellationToken ct)
+    {
+        var open = (await driver.OpenAsksAsync(ct)).FirstOrDefault(a => a.Ask.Teams.Contains(teamId) && !a.Answers.ContainsKey(teamId))
+            ?? throw new InvalidOperationException($"no ask is open for team {teamId:N}");
+        var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct);
+        if (result is SubmitResult.Rejected rejected)
+            throw new InvalidOperationException($"'{open.Ask.Question}' refused: {rejected.Reason} {rejected.Detail}");
+        Absorb(await driver.DrainEventsAsync(ct));
+
+        if (DeployQuestions.Contains(open.Ask.Question) && answer is SelectedPieces selected)
+            foreach (var unitId in selected.PieceIds)
+                if (await PlaceAsync(teamId, unitId, ct) is { } refusal)
+                    throw new InvalidOperationException(refusal.ToString());
+
+        return await RunAsync(ct);
+    }
+
     private async Task<RunOutcome> DriveAsync(CancellationToken ct)
     {
+        _lastAnswered = null;       // a pause between an answer and its reopening is not a hang
         Absorb(await driver.DrainEventsAsync(ct));
         for (var step = 0; step < _settings.MaxSteps; step++)
         {
