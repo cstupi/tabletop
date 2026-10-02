@@ -14,9 +14,9 @@
   import { fromUrl, recordingUrlFrom } from './lib/recording/source';
   import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from './lib/timeline/timeline';
 
-  let feed: Feed | null = $state(null);
+  let feed: Feed | null = $state.raw(null);
   let unsubscribe: (() => void) | null = null;
-  let feedState: FeedState = $state(IDLE);
+  let feedState: FeedState = $state.raw(IDLE);
   let timeline: TimelineState = $state(EMPTY);
   let error: string | null = $state(null);
   let selected: string | null = $state(null);

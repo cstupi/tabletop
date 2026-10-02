@@ -1,5 +1,5 @@
 import type {
-  RecordedBoard, RecordedFrame, RecordedModel, RecordedModelState, RecordedTerrain, RecordedVolume,
+  RecordedBoard, RecordedFrame, RecordedModel, RecordedTerrain, RecordedVolume,
 } from '../protocol/recording.generated';
 import { type Point, rotate } from './transform';
 

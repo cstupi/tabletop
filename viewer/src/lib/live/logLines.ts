@@ -42,7 +42,7 @@ function answerOf(answer: AskAnswer | undefined): string {
     case 'tokens_spent': return `${Object.values(answer.counts).reduce((a, b) => a + b, 0)} token(s) spent`;
     case 'confirmed': return 'yes';
     case 'passed': return 'a pass';
-    default: return (answer as { kind: string }).kind;
+    default: { const unreachable: never = answer; return (unreachable as { kind: string }).kind; }
   }
 }
 
@@ -78,6 +78,6 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'marker_placed': return `marker placed${e.marker.label === undefined ? '' : `: ${e.marker.label}`}`;
     case 'marker_moved': return 'marker moved';
     case 'marker_removed': return 'marker removed';
-    default: return (e as { kind: string }).kind;
+    default: { const unreachable: never = e; return (unreachable as { kind: string }).kind; }
   }
 }

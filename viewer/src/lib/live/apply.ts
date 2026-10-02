@@ -122,14 +122,22 @@ export function applyChange(p: Projection, change: StateChange): void {
       return;
     }
     case 'marker_removed': p.markers.delete(change.markerId); return;
-    default: throw new Error(`Unknown state change ${(change as { kind: string }).kind}`);
+    default: {
+      // A kind added to the generated union fails `npm run check` here.
+      const unreachable: never = change;
+      throw new Error(`Unknown state change ${(unreachable as { kind: string }).kind}`);
+    }
   }
 }
 
+// A Record, not a list: a kind added to the generated StateChange union is a missing key and fails the check.
+const STATE_CHANGE_KINDS: Record<StateChange['kind'], true> = {
+  models_moved: true, wounds_set: true, condition_set: true, action_recorded: true, action_record_cleared: true,
+  grant_added: true, grant_removed: true, spell_tokens_set: true, wounds_this_activation_set: true,
+  score_set: true, marker_placed: true, marker_moved: true, marker_removed: true,
+};
 const isStateChange = (payload: { kind: string }): payload is StateChange =>
-  ['models_moved', 'wounds_set', 'condition_set', 'action_recorded', 'action_record_cleared', 'grant_added',
-    'grant_removed', 'spell_tokens_set', 'wounds_this_activation_set', 'score_set', 'marker_placed',
-    'marker_moved', 'marker_removed'].includes(payload.kind);
+  Object.hasOwn(STATE_CHANGE_KINDS, payload.kind);
 
 export function applyTo(p: Projection, event: GameEvent): void {
   const payload = event.payload;
@@ -160,7 +168,10 @@ export function applyTo(p: Projection, event: GameEvent): void {
     case 'sequence_started': case 'sequence_finished': case 'sequence_abandoned':
     case 'dice_rerolled': case 'dice_edited': case 'modifier_added': break;
     case 'undone': throw new Error('undone is applied by rebuilding; use Applier.apply');
-    default: throw new Error(`Unknown payload ${(payload as { kind: string }).kind}`);
+    default: {
+      const unreachable: never = payload;
+      throw new Error(`Unknown payload ${(unreachable as { kind: string }).kind}`);
+    }
   }
   p.lastSeq = event.seq;
 }

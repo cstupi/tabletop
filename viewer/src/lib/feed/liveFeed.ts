@@ -66,6 +66,7 @@ export function liveFeed(
   }, WELCOME_TIMEOUT_MS);
 
   function fail(detail: string): void {
+    if (failed) return;
     failed = true;
     clearTimeout(timeout);
     emitter.emit({ status: 'error', detail });
@@ -83,7 +84,7 @@ export function liveFeed(
       propertiesHash: info.propertiesHash, schedulerShape: info.schedulerShape,
       enforcement: info.enforcement, teams, outcome: 'live',
       rounds, lastSeq, startedAt: new Date(started).toISOString(), durationMs: Date.now() - started,
-    } as RecordingMeta;
+    };
   }
 
   function publish(): void {
@@ -101,7 +102,12 @@ export function liveFeed(
     try {
       for (const event of pending.splice(0)) projector.add(event);
     } catch (error) {
-      if (!(error instanceof ProjectionDesyncError)) throw error;
+      if (!(error instanceof ProjectionDesyncError)) {
+        projector = null;
+        pending.length = 0;
+        fail(String(error));
+        return;
+      }
       // A desync: an event named an id this projection does not hold, so this copy of the game
       // has diverged from the server's. The projection is dropped rather than carried on with. The
       // viewer does not resync by itself: it is the tool a desync is meant to be visible in, and an

@@ -128,6 +128,27 @@ describe('the live feed', () => {
     expect(last().status).toBe('error');
   });
 
+  it('keeps the first error when later socket errors follow', () => {
+    const { socket, last } = attach();
+    socket.deliver({ kind: 'rejected', reason: 'no seat' });
+    expect(last().detail).toBe('rejected: no seat');
+    socket.fire('error', {});
+    expect(last().detail).toBe('rejected: no seat');
+  });
+
+  it('reports any other fault while applying events as an error with its detail', () => {
+    const { game, board } = loadFixture('skirmish');
+    const { socket, last } = attach();
+    socket.fire('open', {});
+    socket.deliver({ kind: 'welcome', participantId: 'p9', game });
+    socket.deliver({ kind: 'board', board });
+    // models_moved with no `moves`: a TypeError, not a desync.
+    expect(() => socket.deliver({ kind: 'events', events: [{ seq: 1, actor: null, warning: null, payload: {
+      kind: 'models_moved' } }] })).not.toThrow();
+    expect(last().status).toBe('error');
+    expect(last().detail).toContain('TypeError');
+  });
+
   it('closes on request and on the socket closing', () => {
     const { socket, feed, last } = attach();
     socket.fire('open', {});

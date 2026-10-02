@@ -26,7 +26,7 @@ function volumeOf(id: string, v: Volume): RecordedVolume {
     offsetX: v.offset.x, offsetY: v.offset.y, yaw: v.yaw.degrees, bottom: v.bottom, top: v.top,
     declarations: declarationsOf(v.declarations),
     ...(v.notes === undefined ? {} : { notes: v.notes }),
-  } as RecordedVolume;
+  };
 }
 
 function terrainOf(piece: TerrainPlacement): RecordedTerrain {
@@ -57,7 +57,7 @@ export function recordedBoardOf(board: Board, game: GameInfo): RecordedBoard {
     terrain: table.terrain.map(terrainOf),
     markers: table.markers.map((m) => ({
       id: m.id, kind: m.kind, diameter: m.diameter, ...(m.label === undefined ? {} : { label: m.label }),
-    }) as RecordedBoard['markers'][number]),
+    })),
     // The live feed resolves no zone: ZoneStyles is C# and is not ported (Task 4). An empty ring list
     // is what an unresolvable shape id produces C#-side too, and draws no outline rather than a wrong
     // one. Task 10's normaliseBoard drops `polygons` before comparing, and says why.
@@ -70,11 +70,11 @@ const modelState = (m: ModelInPlay): RecordedModelState => {
   const common = { id: m.id, wounds: m.wounds, spellTokens: m.spellTokens, conditions: [...m.conditions].sort() };
   if (m.location.kind === 'table') {
     const { position, yaw } = m.location.placement;
-    return { ...common, where: 'table', x: position.x, y: position.y, z: position.z, yaw: yaw.degrees } as RecordedModelState;
+    return { ...common, where: 'table', x: position.x, y: position.y, z: position.z, yaw: yaw.degrees };
   }
   if (m.location.kind === 'inside')
-    return { ...common, where: 'inside', containerId: m.location.containerId } as RecordedModelState;
-  return { ...common, where: 'shelf' } as RecordedModelState;
+    return { ...common, where: 'inside', containerId: m.location.containerId };
+  return { ...common, where: 'shelf' };
 };
 
 const unitState = (u: UnitInPlay): RecordedUnitState => ({
@@ -106,7 +106,7 @@ function askOf(open: OpenAsk): RecordedAsk {
       allowance = Object.values(legal.maxByModel).reduce((a, b) => a + b, 0);
       break;
     case 'confirmation': break;
-    default: kind = (legal as { kind: string }).kind;
+    default: { const unreachable: never = legal; kind = (unreachable as { kind: string }).kind; }
   }
   return {
     id: ask.id, question: ask.question, prompt: ask.prompt, teams: ask.teams,
@@ -115,7 +115,7 @@ function askOf(open: OpenAsk): RecordedAsk {
     ...(ask.frameId === undefined ? {} : { frameId: ask.frameId }),
     legalKind: kind, answered: [...open.answers.keys()], options, pieces,
     ...(allowance === undefined ? {} : { allowance }),
-  } as RecordedAsk;
+  };
 }
 
 const rollOf = (r: RollRecord): RecordedRoll => ({
@@ -123,7 +123,7 @@ const rollOf = (r: RollRecord): RecordedRoll => ({
   net: r.dice.length === 0 ? 0 : r.dice[0]!.modified - r.dice[0]!.raw,
   raw: r.dice.map((d) => d.raw), modified: r.dice.map((d) => d.modified), success: r.dice.map((d) => d.success),
   modifiers: r.modifiers.map((m) => ({ source: m.source, amount: m.amount })),
-}) as RecordedRoll;
+});
 
 export class FrameProjector {
   readonly #applier: Applier;
@@ -162,7 +162,7 @@ export class FrameProjector {
       // Copied, not aliased: every frame is kept for the whole run and the applier keeps mutating both.
       scores: Object.fromEntries(p.scores),
       passed: [...p.scheduler.passed],
-    } as RecordedFrame;
+    };
     this.#frames.push(frame);
     return frame;
   }

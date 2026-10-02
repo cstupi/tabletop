@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Recording;
@@ -29,6 +30,26 @@ public class AgreementFixtureTests
         Assert.NotEmpty(recording.Board.Models);
         Assert.Equal(RecordingJson.Serialize(recording),
             RecordingJson.Serialize(RecordingJson.Deserialize(RecordingJson.Serialize(recording))));
+
+        // The C# replay: the fixture's welcome, board and events through FrameProjector, as RunLoop.Absorb
+        // feeds it, must reproduce the recorded board and frames. A change to the C# side that leaves the
+        // fixtures stale fails here.
+        var welcome = Assert.IsType<Welcome>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.welcome.json"))));
+        var boardMessage = Assert.IsType<BoardMessage>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.board.json"))));
+        var eventsMessage = Assert.IsType<EventsMessage>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.events.json"))));
+        // FrameProjector reads only Board and Info from the scenario; the rest is the compiler's.
+        var projector = new FrameProjector(new CompiledScenario(null!, welcome.Game, boardMessage.Board, null!,
+            [], [], new Dictionary<Guid, Guid>(), null!, welcome.ParticipantId));
+        foreach (var e in eventsMessage.Events) projector.Add(e);
+        Assert.Equal(JsonSerializer.Serialize(recording.Board, RecordingJson.Options),
+            JsonSerializer.Serialize(projector.Board, RecordingJson.Options));
+        Assert.Equal(recording.Frames.Count, projector.Frames.Count);
+        for (var i = 0; i < recording.Frames.Count; i++)
+            Assert.Equal(JsonSerializer.Serialize(recording.Frames[i], RecordingJson.Options),
+                JsonSerializer.Serialize(projector.Frames[i], RecordingJson.Options));
 
         // Every frame index is its position, and every frame names only board models — what read.ts enforces.
         var ids = recording.Board.Models.Select(m => m.Id).ToHashSet();
