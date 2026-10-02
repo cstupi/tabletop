@@ -1,0 +1,130 @@
+using Tabletop.Content;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+using Tabletop.Sim.Answers;
+
+namespace Tabletop.Sim.Tests;
+
+public class MoveRegionPolicyTests
+{
+    static readonly Guid Model = Guid.CreateVersion7(), Unit = Guid.CreateVersion7(), Part = Guid.CreateVersion7(), Team = Guid.CreateVersion7();
+
+    static (PolicyView View, Guid ModelId) Standing(Point3 at)
+    {
+        var slot = new ModelSlot(Model, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [slot]);
+        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
+            SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
+            [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var projection = Projection.Initial(board, info);
+        var applier = new EventApplier(board, info);
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([new ModelRelocation(Model, new OnShelf(), new OnTable(new Placement(at, new Yaw(0))))]), null));
+        return (new PolicyView(applier.Projection, board), Model);
+    }
+
+    [Fact]
+    public void A_destination_is_within_the_allowance_and_on_the_table()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 6, [], [], null, null), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To);
+            var check = Movement.Check(view.PlacedOf(model)!.Value, to.Placement.Position.Horizontal, 6, [], [], null, view.Table);
+            Assert.True(check.WithinAllowance, $"seed {seed} moved {check.Distance}");
+            Assert.False(check.LeavesTable);
+            Assert.Equal(new OnTable(new Placement(view.PlacedOf(model)!.Value.Placement.Position, new Yaw(0))).GetType(), answer.Moves[0].From.GetType());
+        }
+    }
+
+    [Fact]
+    public void An_impassable_volume_is_not_crossed()
+    {
+        var (view, model) = Standing(new Point3(10, 24, 0));
+        var wall = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(2, 40), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(14, 24, 0), new Yaw(0), 1));
+        var walled = new PolicyView(view.Projection, view.Board, [wall]);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team],
+            new MoveRegion([model], 12, [wall.Id], [], null, null), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled));
+            var to = Assert.IsType<OnTable>(answer.Moves[0].To);
+            Assert.False(Movement.Check(walled.PlacedOf(model)!.Value, to.Placement.Position.Horizontal, 12, [wall], [], null, walled.Table).CrossesImpassable);
+        }
+    }
+
+    [Fact]
+    public void Embarking_puts_every_model_inside_an_enterable_container()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var container = Guid.CreateVersion7();
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team],
+            new MoveRegion([model], 6, [], [], null, new MoveContainment([container], null, null)), false, false, null, Guid.CreateVersion7());
+        var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(4), new PolicyOptions(EmbarkProbability: 1)).Answer(ask, view));
+        Assert.Equal(new Inside(container), answer.Moves[0].To);
+    }
+
+    [Fact]
+    public void The_difficult_cap_does_not_shorten_the_reach_in_open_ground()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 12, [], [], 6), false, false, null, Guid.CreateVersion7());
+        var farthest = 0.0;
+        for (var seed = 0ul; seed < 40; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To);
+            var d = Movement.Check(view.PlacedOf(model)!.Value, to.Placement.Position.Horizontal, 12, [], [], null, view.Table).Distance;
+            Assert.True(d <= 12 + 1e-9);
+            farthest = Math.Max(farthest, d);
+        }
+        Assert.True(farthest > 6, $"farthest {farthest}");
+    }
+
+    [Fact]
+    public void No_sampled_destination_stands_still_or_passes_and_never_throws()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var region = new MoveRegion([model], 6, [], [], null, null);
+        var none = new PolicyOptions(MoveSamples: 0);
+        var forced = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], region, false, false, null, Guid.CreateVersion7());
+        var moves = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(1), none).Answer(forced, view)).Moves;
+        Assert.Equal(moves[0].From, moves[0].To);   // OnTable at the same placement: standing still
+        var optional = forced with { AllowPass = true };
+        Assert.IsType<Passed>(new AnswerPolicy(new Chooser(1), none).Answer(optional, view));
+    }
+
+    [Fact]
+    public void Disembarking_places_the_models_on_the_table_within_the_exit_distance_of_the_container()
+    {
+        var wreck = Guid.CreateVersion7(); var rider = Guid.CreateVersion7();
+        ModelSlot Slot(Guid id) => new(id, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(wreck), Slot(rider)]);
+        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
+            SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
+            [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var applier = new EventApplier(board, info);
+        var at = new Point3(30, 20, 0);
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([
+            new ModelRelocation(wreck, new OnShelf(), new OnTable(new Placement(at, new Yaw(0)))),
+            new ModelRelocation(rider, new OnShelf(), new Inside(wreck))]), null));
+        var view = new PolicyView(applier.Projection, board);
+        var ask = new Ask(Guid.CreateVersion7(), "disembark", "Disembark", [Team],
+            new MoveRegion([rider], 6, [], [], null, new MoveContainment([], wreck, 6)), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var move = Assert.Single(answer.Moves);
+            Assert.Equal(new Inside(wreck), move.From);
+            var to = Assert.IsType<OnTable>(move.To);
+            Assert.True(to.Placement.Position.Horizontal.DistanceTo(at.Horizontal) <= 6 + 1e-9, $"seed {seed}");
+        }
+    }
+}
