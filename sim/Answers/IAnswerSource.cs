@@ -14,6 +14,9 @@ public interface IAnswerSource
 {
     AskAnswer Answer(Ask ask, PolicyView view);
     IReadOnlyList<AnsweredAsk> History { get; }
+
+    /// <summary>An answer given from outside this source (a debugger): counted and ordinal-advanced as Answer would, without consulting anything.</summary>
+    void Record(Ask ask, AskAnswer answer);
 }
 
 public sealed class UnscriptedAskException(Ask ask, int ordinal)
@@ -42,5 +45,12 @@ public sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) :
         var answer = policy.Answer(ask, view);
         _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, answer, FromScript: false));
         return answer;
+    }
+
+    public void Record(Ask ask, AskAnswer answer)
+    {
+        var ordinal = _seen.GetValueOrDefault(ask.Question);
+        _seen[ask.Question] = ordinal + 1;
+        _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, answer, FromScript: false));
     }
 }

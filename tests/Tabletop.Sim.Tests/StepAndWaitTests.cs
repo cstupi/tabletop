@@ -86,4 +86,29 @@ public class StepAndWaitTests
         }
         Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
     }
+
+    [Fact]
+    public async Task An_external_answer_is_recorded_once_and_consumes_its_ordinal()
+    {
+        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(33);
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
+        driver.Mode = DriverMode.StepAndWait;
+        var script = AnswerScript.Build().At(AskQuestions.Confirm, 1, new Confirmed()).Build();
+        var answers = new ComposedAnswers(script, new AnswerPolicy(new Chooser(33)));
+        var loop = new RunLoop(driver, compiled, answers, new Chooser(33));
+        await loop.RunAsync(Ct);
+        var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
+
+        var report = await loop.AnswerPausedAsync(gate.Teams[0], new Confirmed(), Ct);
+
+        Assert.Equal(1, report.AsksAnswered);
+        var recorded = Assert.Single(answers.History);
+        Assert.Equal((AskQuestions.Confirm, 0, false), (recorded.Question, recorded.Ordinal, recorded.FromScript));
+
+        // the next confirm Ask is ordinal 1, so the scripted entry is the one that applies
+        var next = answers.Answer(gate, new PolicyView(await driver.ProjectionAsync(Ct), driver.Board, null, driver.Info, compiled.Properties));
+        Assert.IsType<Confirmed>(next);
+        Assert.Equal((1, true), (answers.History[1].Ordinal, answers.History[1].FromScript));
+    }
 }

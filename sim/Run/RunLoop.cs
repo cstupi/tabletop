@@ -22,6 +22,7 @@ public sealed partial class RunLoop(
     private readonly List<GameEvent> _log = [];
     private AskFingerprint? _lastAnswered;
     private int _sinceLastAnswer;       // non-Ask events absorbed since the last accepted answer, wherever they were drained
+    private RunOutcome? _forced;     // an outcome decided outside DriveAsync, reported by the next RunAsync
     private int _absorbedThisCycle;     // every event absorbed since the last step's check
 
     public FrameProjector Projector { get; } = new(scenario);
@@ -35,7 +36,8 @@ public sealed partial class RunLoop(
         RunOutcome outcome;
         try
         {
-            outcome = await DriveAsync(ct);
+            outcome = _forced ?? await DriveAsync(ct);
+            _forced = null;
         }
         catch (UnscriptedAskException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         // A hung server or a dead socket, not a stuck game: the engine may have been making progress.
@@ -87,12 +89,13 @@ public sealed partial class RunLoop(
         var result = await driver.AnswerAsync(teamId, open.Ask.Id, answer, ct);
         if (result is SubmitResult.Rejected rejected)
             throw new InvalidOperationException($"'{open.Ask.Question}' refused: {rejected.Reason} {rejected.Detail}");
+        answers.Record(open.Ask, answer);
         Absorb(await driver.DrainEventsAsync(ct));
 
+        // A refused placement is the loop's own Stuck(SubmitRefused): the next RunAsync reports it instead of driving.
         if (DeployQuestions.Contains(open.Ask.Question) && answer is SelectedPieces selected)
             foreach (var unitId in selected.PieceIds)
-                if (await PlaceAsync(teamId, unitId, ct) is { } refusal)
-                    throw new InvalidOperationException(refusal.ToString());
+                if (await PlaceAsync(teamId, unitId, ct) is { } refusal) { _forced = refusal; break; }
 
         return await RunAsync(ct);
     }
