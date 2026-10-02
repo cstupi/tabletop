@@ -24,7 +24,17 @@ start cannot be pointed at a problem. Neither is in the client's export, neither
 server, and a release that omits both is complete. `sim/` plays a game headlessly and asserts the
 invariants that hold for any game; it reads game state freely but contains no second implementation
 of the rules. `viewer/` draws a run's recording top-down and is separate from `web/`, which owns
-preparation for players.
+preparation for players — a static page with its own `package.json`, plain Vite and Svelte 5,
+sharing no code and no build with `web/`.
+
+The recording is `viewer/`'s only input shape. A recording file is read directly; a live game over
+the socket is *converted* into the same frames in the browser, so the renderer, the timeline and
+the panels have one shape to draw and neither feed is privileged. That second path is the one place
+in the project where `Tabletop.Protocol` and the event applier exist twice, and the duplication is
+generated away rather than maintained: the TypeScript types come from the C# JSON contracts, and
+the ported applier is checked against the C# one by replaying a recording through both and
+comparing every frame (`tests/Tabletop.Viewer.Tests`). Playback is the whole of it — the viewer
+sends no command and answers no Ask, and the seam where it could is deliberately empty.
 
 **Windows is the client's first target, not its only one.** The same Godot project exports to
 Linux and macOS, so **the client may not take a Windows-only dependency**; the remembered session

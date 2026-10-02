@@ -57,6 +57,8 @@ cd web && npm test           # Vitest: the API client, session, units, the mesh 
 dotnet test tests/Tabletop.Client.Tests   # the client's Godot-free core
 dotnet run --project sim -- --list                 # the scenarios
 dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
+cd viewer && npm install && npm test   # the viewer's Vitest suite
+cd viewer && npm run dev               # the viewer on :5174, /v1 proxied to management on :5100
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -102,8 +104,12 @@ Three kinds of top-level directory:
   (in process and over the socket), the invariant checks, and one recording file per run.
   It reads game state freely but holds no second implementation of the rules: it answers from the
   server's legal sets without narrowing them, and asserts invariants.
-- `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
-  live game as a spectator. Does not exist yet.
+- `viewer/` — a static developer web app that draws a `sim/` recording top-down on a 2D canvas: a
+  grid in inches, a circle per model coloured by team with its facing, terrain as outlines
+  labelled with their declarations, and a timeline beside the log. Plain Vite and Svelte 5, its
+  own `package.json`, **no SvelteKit and no code shared with `web/`**. Two feeds: a recording file,
+  which needs no server, and a live socket as a spectator with no team. Playback only — it sends
+  no command and answers no Ask.
 - `libs/` — `net10.0`, Godot-free, persistence-free. One child per library:
   - `Tabletop.Geometry` — values; distance, line of sight, cover, settling, containment, overlap, coherency, the movement region, the slab, and the built-in zone styles — all headless, all tested.
   - `Tabletop.Content` — the army snapshot and the table state.
@@ -137,3 +143,11 @@ Each module is designed before it is built.
 - The web app speaks inches to the API; millimetres exist only in its UI (`src/lib/units/`). It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
 - The table frame's origin is the table's corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up) on the wire and in `Tabletop.Geometry` alike; nothing converts. Godot: x = X, y = Z, z = −Y, `rotation.y` = yaw (`WorldFrame`). No Godot physics; picking is ray-versus-AABB.
 - The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json`, seeded by hash at startup; editing one makes a new set with a new hash — old games keep theirs.
+- `viewer/`'s TypeScript protocol types are **generated, not written**:
+  `viewer/src/lib/protocol/{recording,wire}.generated.ts` come from the C# JSON contracts and are
+  checked in. Regenerate with `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests`;
+  a plain `dotnet test` fails if they are stale. Never hand-edit them.
+- `viewer/tests/fixtures/` holds one recording plus the three socket frames of the same run, per
+  scenario. They are checked in and regenerated deliberately with
+  `TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests` — ids differ between runs, so
+  they are never diffed against a previous version.
