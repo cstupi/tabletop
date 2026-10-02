@@ -14,9 +14,11 @@ Spec: spec → *Two feeds* — "the applier is checked against the C# one by rep
 
 **How the comparison gets both sides.** The recording's frames *are* the C# `EventApplier`'s output, canonicalised by `FrameProjector` — so no separate C# projection dump is needed and nothing has to be exported for the test to read. The fixture is therefore the four frames a live socket delivers on connect (`welcome`, `board`, `events`) plus the recording the same run wrote. The TypeScript side is handed `welcome` and `board`, builds a `FrameProjector`, feeds it the events one at a time, and must reproduce `recording.board` and every `recording.frames[i]` field for field. That is a stronger check than comparing final projections: it compares 200-odd intermediate states, and it exercises the generated wire types, the ported applier, the ported log lines and the ported board projection in one pass. It is also, incidentally, an end-to-end test of the live feed's decoding, since those are the exact bytes the socket sends.
 
+**The C# side replays the same files.** Each `Names` theory case also reads the fixture's `welcome`, `board` and `events` frames and feeds the events through `FrameProjector`, starting from the welcome's game and the board message. It asserts that the serialised board and every serialised frame equal `recording.json`'s. A change on the C# side that leaves the fixtures stale therefore fails `dotnet test`, and the TypeScript replay is not the only check on them. `FrameProjector` reads only `Board` and `Info` from its `CompiledScenario`, so the test builds one with nothing else set. The recording round trip compares serialised strings, because record equality over `IReadOnlyList` compares references.
+
 **What frame comparison cannot prove, and the one pair that covers it.** Every frame matching says the two appliers agree on a *valid* log. It says nothing about an invalid one, and that is where two implementations of the same switch diverge most cheaply: the C# throws `ProjectionDesyncException` on an id the projection does not hold, while the natural TypeScript spelling of the same line spreads `undefined` into a fresh object and carries on. So one event — `marker_moved` naming a marker nothing placed — is applied on both sides and both must fault: `AgreementFixtureTests.The_csharp_applier_faults_on_an_id_the_projection_does_not_hold` in C#, *the two appliers fault the same way* in `agreement.test.ts`. A typed throw on one side against a quiet `undefined` on the other is not equivalence, and this plan will not claim it while the pair is missing.
 
-**Fixtures are checked in and regenerated deliberately, not diffed.** Ids are `Guid.CreateVersion7()` and differ between runs (spec → *The seed is stored, so a run sets it*: "the ids differ between runs. Nothing asserts that two runs share an id, and nothing compares two recordings byte for byte"), so a fixture cannot be regenerated and compared to its predecessor. `TABLETOP_WRITE_FIXTURES=1` rewrites them; every other run reads what is checked in. Both scenarios run under a two-round cap so the eight files stay a few megabytes: a recording is 5 to 6 MB for an eight-round game, so a two-round recording is about 1.5 MB, and an uncapped game would put tens of megabytes in the repo.
+**Fixtures are checked in and regenerated deliberately, not diffed.** Ids are `Guid.CreateVersion7()` and differ between runs (spec → *The seed is stored, so a run sets it*: "the ids differ between runs. Nothing asserts that two runs share an id, and nothing compares two recordings byte for byte"), so a fixture cannot be regenerated and compared to its predecessor. `TABLETOP_WRITE_FIXTURES=1` rewrites them; every other run reads what is checked in. `FixtureWriter` builds the answer policy as `sim/Program.cs` does: none when the scenario is `ScriptOnly`. It throws when the run ends `Stuck` or `Failed`, so a broken run is never written as a fixture. Both scenarios run under a two-round cap so the eight files stay a few megabytes: a recording is 5 to 6 MB for an eight-round game, so a two-round recording is about 1.5 MB, and an uncapped game would put tens of megabytes in the repo.
 
 - [ ] **Step 1: Write `FixtureWriter.cs`**
 
@@ -46,10 +48,13 @@ public static class FixtureWriter
     public static async Task<Fixture> RunAsync(Scenario scenario, CancellationToken ct)
     {
         var compiled = ScenarioCompiler.Compile(scenario);
+        // The policy is built as sim/Program.cs does.
+        var answers = new ComposedAnswers(scenario.Script, scenario.ScriptOnly ? null : new AnswerPolicy(new Chooser(scenario.Seed)));
         await using var driver = await InProcessDriver.StartAsync(compiled, ct);
-        var answers = new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(scenario.Seed), null));
         var loop = new RunLoop(driver, compiled, answers, HandPlacement.ChooserFor(scenario.Seed), new RunSettings());
         var report = await loop.RunAsync(ct);
+        if (report.Outcome is RunOutcome.Stuck or RunOutcome.Failed)
+            throw new InvalidOperationException($"{scenario.Name}: the run ended {report.Outcome}; a broken run is not written as a fixture");
         return new Fixture(scenario.Name, loop.BuildRecording(report), loop.Log, driver.Info, driver.Board,
             compiled.RecorderParticipantId);
     }
@@ -72,6 +77,8 @@ public static class FixtureWriter
 - [ ] **Step 2: Write `AgreementFixtureTests.cs`**
 
 ```csharp
+using System.Text.Json;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Scenarios;
@@ -90,17 +97,38 @@ public class AgreementFixtureTests
         {
             var scenario = ScenarioCatalog.Get(name) with { RoundCap = 2 };
             await FixtureWriter.WriteAsync(
-                await FixtureWriter.RunAsync(scenario, TestContext.Current.CancellationToken),
-                RepoPaths.Fixtures, TestContext.Current.CancellationToken);
+                await FixtureWriter.RunAsync(scenario, CancellationToken.None),
+                RepoPaths.Fixtures, CancellationToken.None);
         }
 
         var path = Path.Combine(RepoPaths.Fixtures, $"{name}.recording.json");
         Assert.True(File.Exists(path), $"{path} is missing; run TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests");
-        var recording = await RecordingJson.ReadAsync(path, TestContext.Current.CancellationToken);
+        var recording = await RecordingJson.ReadAsync(path, CancellationToken.None);
         Assert.Equal(RecordingJson.SchemaVersion, recording.Version);
         Assert.NotEmpty(recording.Frames);
         Assert.NotEmpty(recording.Board.Models);
-        Assert.Equal(recording, RecordingJson.Deserialize(RecordingJson.Serialize(recording)));
+        Assert.Equal(RecordingJson.Serialize(recording),
+            RecordingJson.Serialize(RecordingJson.Deserialize(RecordingJson.Serialize(recording))));
+
+        // The C# replay: the fixture's welcome, board and events through FrameProjector, as RunLoop.Absorb
+        // feeds it, must reproduce the recorded board and frames. A change to the C# side that leaves the
+        // fixtures stale fails here.
+        var welcome = Assert.IsType<Welcome>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.welcome.json"))));
+        var boardMessage = Assert.IsType<BoardMessage>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.board.json"))));
+        var eventsMessage = Assert.IsType<EventsMessage>(WireJson.Deserialize<SocketMessage>(
+            await File.ReadAllTextAsync(Path.Combine(RepoPaths.Fixtures, $"{name}.events.json"))));
+        // FrameProjector reads only Board and Info from the scenario; the rest is the compiler's.
+        var projector = new FrameProjector(new CompiledScenario(null!, welcome.Game, boardMessage.Board, null!,
+            [], [], new Dictionary<Guid, Guid>(), null!, welcome.ParticipantId));
+        foreach (var e in eventsMessage.Events) projector.Add(e);
+        Assert.Equal(JsonSerializer.Serialize(recording.Board, RecordingJson.Options),
+            JsonSerializer.Serialize(projector.Board, RecordingJson.Options));
+        Assert.Equal(recording.Frames.Count, projector.Frames.Count);
+        for (var i = 0; i < recording.Frames.Count; i++)
+            Assert.Equal(JsonSerializer.Serialize(recording.Frames[i], RecordingJson.Options),
+                JsonSerializer.Serialize(projector.Frames[i], RecordingJson.Options));
 
         // Every frame index is its position, and every frame names only board models — what read.ts enforces.
         var ids = recording.Board.Models.Select(m => m.Id).ToHashSet();
@@ -131,9 +159,9 @@ public class AgreementFixtureTests
     [Fact]
     public void The_csharp_applier_faults_on_an_id_the_projection_does_not_hold()
     {
-        var welcome = Assert.IsType<Welcome>(WireJson.Deserialize(
+        var welcome = Assert.IsType<Welcome>(WireJson.Deserialize<SocketMessage>(
             File.ReadAllText(Path.Combine(RepoPaths.Fixtures, "skirmish.welcome.json"))));
-        var board = Assert.IsType<BoardMessage>(WireJson.Deserialize(
+        var board = Assert.IsType<BoardMessage>(WireJson.Deserialize<SocketMessage>(
             File.ReadAllText(Path.Combine(RepoPaths.Fixtures, "skirmish.board.json"))));
         var applier = new EventApplier(board.Board, welcome.Game);
 
@@ -151,12 +179,12 @@ public class AgreementFixtureTests
 - [ ] **Step 3: Generate the fixtures, then run the C# side**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests --filter AgreementFixtureTests
 dotnet test tests/Tabletop.Viewer.Tests
 du -sh viewer/tests/fixtures
 ```
-Expected: 4 tests passed on the second run (the `Names` theory is two cases, plus two facts); the directory is under 4 MB. If it is larger, drop `RoundCap` to 1 for `terrain` and regenerate.
+Expected: 4 tests passed on the second run (the `Names` theory is two cases, plus two facts, and each case includes the C# replay); the directory is under 4 MB. If it is larger, drop `RoundCap` to 1 for `terrain` and regenerate.
 
 - [ ] **Step 4: Write `viewer/tests/normalise.ts`**
 
@@ -304,7 +332,7 @@ Expected: 7 more tests passed — three per fixture, plus the one desync case th
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/cstupi/src/tabletop
-git add tests/Tabletop.Viewer.Tests viewer/tests/fixtures viewer/tests/normalise.ts viewer/tests/agreement.test.ts
+cd "$(git rev-parse --show-toplevel)"
+git add tests/Tabletop.Viewer.Tests viewer/tests/fixtures viewer/tests/normalise.ts viewer/tests/fixture.ts viewer/tests/agreement.test.ts
 git commit -m "Replay a recording through both appliers and compare every frame"
 ```

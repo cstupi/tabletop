@@ -5,7 +5,7 @@
 - Test: `viewer/tests/smoke.test.ts`
 
 **Interfaces:**
-- Produces: `npm run dev` (Vite on `0.0.0.0:5174`, proxying `/v1` to `http://localhost:5100`), `npm test` (Vitest, `tests/**/*.test.ts`, Node environment), `npm run check` (`svelte-check`), `npm run build` (static output in `viewer/dist/`); `VITE_API_BASE` (default `''`, meaning same origin through the proxy) and `VITE_GAME_SOCKET` (default `ws://localhost:5200/ws`).
+- Produces: `npm run dev` (Vite on `0.0.0.0:5174`, proxying `/v1` to `http://localhost:5100`), `npm test` (Vitest, `tests/**/*.test.ts`, Node environment), `npm run check` (`svelte-check`), `npm run build` (static output in `viewer/dist/`). Task 11 defines and reads `VITE_API_BASE` (default `''`, meaning same origin through the proxy) and `VITE_GAME_SOCKET` (default `ws://localhost:5200/ws`).
 - Decision — **plain Vite + Svelte 5, not SvelteKit.** `web/` chose SvelteKit because Stytch redirects to `/reset-password?token=…` and it needs real paths and per-page code splitting for the three.js and WASM bundles (web-app plan Task 1). The viewer has one screen, no redirect target, no route to split, and no server-side anything; a single `index.html` is the whole app. `?recording=<url>` is read from `location.search`, which needs no router. Versions are `web/`'s exactly, so one Node install serves both.
 
 Spec: spec → *`viewer/` is a developer web app, separate from `web/`* — "A static page, its own top-level directory, sharing no code and no build with `web/`."
@@ -28,6 +28,7 @@ Spec: spec → *`viewer/` is a developer web app, separate from `web/`* — "A s
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@types/node": "24.19.0",
     "svelte": "5.57.0",
     "svelte-check": "4.7.6",
     "typescript": "5.9.3",
@@ -80,7 +81,7 @@ export default defineConfig({
     "module": "esnext", "target": "es2022", "lib": ["es2022", "dom", "dom.iterable"],
     "verbatimModuleSyntax": true, "isolatedModules": true, "esModuleInterop": true,
     "skipLibCheck": true, "sourceMap": true, "noEmit": true,
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client", "vitest/globals", "node"]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts", "vite.config.ts"]
 }
@@ -171,7 +172,7 @@ Both assertions fail until Step 2's `vite.config.ts` is in place. The port is in
 - [ ] **Step 5: Install and run everything**
 
 ```bash
-cd /home/cstupi/src/tabletop/viewer && npm install && npm test && npm run check && npm run build
+cd "$(git rev-parse --show-toplevel)/viewer" && npm install && npm test && npm run check && npm run build
 ls dist/index.html
 ```
 
@@ -180,6 +181,6 @@ Expected: 2 tests passed, `svelte-check` reports 0 errors and 0 warnings, `dist/
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 git add viewer && git commit -m "Scaffold the developer viewer as a plain Vite and Svelte 5 page"
 ```

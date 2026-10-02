@@ -276,6 +276,10 @@ function shapeCentre(shape: Shape): { x: number; y: number } {
   let view: View | null = $state(null);
   let hovered: string | undefined = $state(undefined);
   let dragging: { x: number; y: number } | null = null;
+  let downAt: { x: number; y: number } | null = null;
+
+  // A new recording is a different table: the old pan and zoom mean nothing on it.
+  $effect(() => { void scene.table.width; void scene.table.length; view = null; });
 
   const current = $derived(view ?? fit(scene.table, box));
 
@@ -309,7 +313,7 @@ function shapeCentre(shape: Shape): { x: number; y: number } {
   <canvas
     bind:this={canvas}
     onwheel={(e) => { e.preventDefault(); view = zoomAt(current, scene.table, local(e), e.deltaY < 0 ? 1.15 : 1 / 1.15); }}
-    onpointerdown={(e) => { dragging = local(e); canvas!.setPointerCapture(e.pointerId); }}
+    onpointerdown={(e) => { dragging = downAt = local(e); canvas!.setPointerCapture(e.pointerId); }}
     onpointermove={(e) => {
       const p = local(e);
       if (dragging !== null) { view = panBy(current, p.x - dragging.x, p.y - dragging.y); dragging = p; return; }
@@ -318,11 +322,13 @@ function shapeCentre(shape: Shape): { x: number; y: number } {
     }}
     onpointerup={(e) => {
       const p = local(e);
-      const moved = dragging !== null && (Math.abs(p.x - dragging.x) > 2 || Math.abs(p.y - dragging.y) > 2);
-      dragging = null;
+      const moved = downAt !== null && (Math.abs(p.x - downAt.x) > 2 || Math.abs(p.y - downAt.y) > 2);
+      dragging = downAt = null;
       canvas!.releasePointerCapture(e.pointerId);
       if (!moved) onPick(pickAt(scene, toTable(current, scene.table, p)));
     }}
+    onpointercancel={() => { dragging = downAt = null; }}
+    onpointerleave={() => { hovered = undefined; }}
   ></canvas>
   <button onclick={() => (view = null)}>Reset view</button>
 </div>

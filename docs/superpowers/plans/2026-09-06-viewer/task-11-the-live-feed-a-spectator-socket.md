@@ -17,7 +17,9 @@ Spec: spec → *Two feeds*; *Interactive debugging is a door, not a room* — "T
 
 **Frames the viewer does not read, `at_rest` among them.** The socket also carries `presence`, `ping`, `presence_ended` and `at_rest(seq)` — the frame the server sends when it has finished processing and has nothing further to emit. The viewer acts on none of them and must ignore each without faulting, which is what `HANDLED` and the `switch`'s `default` arm are for. `at_rest` is pruned out of `wire.generated.ts` (Task 2), so it arrives as a kind the generated union does not declare, and that is exactly the case the ignore path exists to survive: a viewer that threw on an unrecognised kind would die the next time the protocol grew one. Nothing about the timing matters here either — the viewer republishes on every `EventsMessage`, so it is never waiting to hear that the server has stopped, and `at_rest` arriving after a run of events with nothing appended is a frame it never looks at.
 
-**A desync stops the feed.** `FrameProjector.add` throws `ProjectionDesyncError` on an event naming an id the projection does not hold (Task 9). `drain` catches exactly that type, drops the projector and the pending events, and reports `status: 'error'` with the event kind and the id. It does not skip the event and continue, because a viewer silently diverging from the server is worse than one that visibly stops, and the whole point of this tool is to show what the server did. It also does not reconnect on its own: reconnecting is the source picker's connect form, a fresh `liveFeed` whose connect sequence redelivers the whole log and rebuilds the projection from scratch. Doing it by hand is deliberate for a developer tool — an automatic retry loop would repair the symptom repeatedly and hide the fault being debugged. If the server's own log genuinely names an id nothing created, reconnecting faults again at the same event, which is a server bug and belongs to the game server, not here; the game server faults the session rather than resyncing.
+**A desync stops the feed.** `FrameProjector.add` throws `ProjectionDesyncError` on an event naming an id the projection does not hold (Task 9). `drain` drops the projector and the pending events and reports `status: 'error'` with the event kind and the id. Any other error thrown while applying events takes the same path and reports `String(error)` as the detail, so a fault in the port is visible rather than thrown out of the socket handler. It does not skip the event and continue, because a viewer silently diverging from the server is worse than one that visibly stops, and the whole point of this tool is to show what the server did. It also does not reconnect on its own: reconnecting is the source picker's connect form, a fresh `liveFeed` whose connect sequence redelivers the whole log and rebuilds the projection from scratch. Doing it by hand is deliberate for a developer tool — an automatic retry loop would repair the symptom repeatedly and hide the fault being debugged. If the server's own log genuinely names an id nothing created, reconnecting faults again at the same event, which is a server bug and belongs to the game server, not here; the game server faults the session rather than resyncing.
+
+**A failure is final.** `fail()` returns at once if the feed has already failed, so the first error is the one the header keeps. It closes the socket once and stops the feed listening: frames that arrive after a failure are ignored, and they neither queue nor overwrite the error. `close()` and the socket's `close` event together emit `closed` once.
 
 - [ ] **Step 1: Write `viewer/tests/live.test.ts`**
 
@@ -152,6 +154,27 @@ describe('the live feed', () => {
     expect(last().status).toBe('error');
   });
 
+  it('keeps the first error when later socket errors follow', () => {
+    const { socket, last } = attach();
+    socket.deliver({ kind: 'rejected', reason: 'no seat' });
+    expect(last().detail).toBe('rejected: no seat');
+    socket.fire('error', {});
+    expect(last().detail).toBe('rejected: no seat');
+  });
+
+  it('reports any other fault while applying events as an error with its detail', () => {
+    const { game, board } = loadFixture('skirmish');
+    const { socket, last } = attach();
+    socket.fire('open', {});
+    socket.deliver({ kind: 'welcome', participantId: 'p9', game });
+    socket.deliver({ kind: 'board', board });
+    // models_moved with no `moves`: a TypeError, not a desync.
+    expect(() => socket.deliver({ kind: 'events', events: [{ seq: 1, actor: null, warning: null, payload: {
+      kind: 'models_moved' } }] })).not.toThrow();
+    expect(last().status).toBe('error');
+    expect(last().detail).toContain('TypeError');
+  });
+
   it('closes on request and on the socket closing', () => {
     const { socket, feed, last } = attach();
     socket.fire('open', {});
@@ -194,11 +217,39 @@ describe('the live feed', () => {
 
   it('gives up if the server has not answered the connect', () => {
     vi.useFakeTimers();
-    const { socket, last } = attach();
+    try {
+      const { socket, last } = attach();
+      socket.fire('open', {});
+      vi.advanceTimersByTime(10_000);
+      expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
+      expect(socket.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stays in error when a welcome and a board arrive after the timeout', () => {
+    const { game, board } = loadFixture('skirmish');
+    vi.useFakeTimers();
+    try {
+      const { socket, last } = attach();
+      socket.fire('open', {});
+      vi.advanceTimersByTime(10_000);
+      socket.deliver({ kind: 'welcome', participantId: 'p9', game });
+      socket.deliver({ kind: 'board', board });
+      expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
+      expect(last().board).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('emits closed once when close() is followed by the socket close event', () => {
+    const { socket, feed, seen } = attach();
     socket.fire('open', {});
-    vi.advanceTimersByTime(10_000);
-    expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
-    vi.useRealTimers();
+    feed.close();
+    socket.fire('close', {});
+    expect(seen.filter((s) => s.status === 'closed')).toHaveLength(1);
   });
 });
 ```
@@ -215,10 +266,10 @@ export class ManagementError extends Error {}
 
 export type Session = { readonly sessionJwt: string };
 
-const base = (): string => import.meta.env.VITE_API_BASE ?? '';
+const defaultBase = (): string => import.meta.env.VITE_API_BASE ?? '';
 
-async function post(path: string, body: unknown): Promise<Session> {
-  const response = await fetch(`${base()}${path}`, {
+async function post(base: string, path: string, body: unknown): Promise<Session> {
+  const response = await fetch(`${base}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -233,15 +284,15 @@ async function post(path: string, body: unknown): Promise<Session> {
   return { sessionJwt: session.sessionJwt };
 }
 
-export const logIn = (email: string, password: string): Promise<Session> =>
-  post('/v1/auth/password', { email, password });
+export const logIn = (email: string, password: string, base: string = defaultBase()): Promise<Session> =>
+  post(base, '/v1/auth/password', { email, password });
 
 /**
  * The JWT lasts five minutes and is verified once, at connect (game server plan → Client shell plan:
  * "an open socket is never re-authenticated"), so this matters only for the next connect.
  */
-export const refreshSession = (sessionJwt: string): Promise<Session> =>
-  post('/v1/auth/session/refresh', { sessionJwt });
+export const refreshSession = (sessionJwt: string, base: string = defaultBase()): Promise<Session> =>
+  post(base, '/v1/auth/session/refresh', { sessionJwt });
 ```
 
 - [ ] **Step 3: Write `liveFeed.ts`**
@@ -308,15 +359,19 @@ export function liveFeed(
   const pending: GameEvent[] = [];
   let welcomed = false;
   let failed = false;
+  let closedOnce = false;
 
   const timeout = setTimeout(() => {
     if (!welcomed) fail('no welcome within 10 s');
   }, WELCOME_TIMEOUT_MS);
 
   function fail(detail: string): void {
+    if (failed) return;
     failed = true;
     clearTimeout(timeout);
     emitter.emit({ status: 'error', detail });
+    // Stop listening for good: later frames must neither queue nor overwrite the error.
+    if (!closedOnce) { closedOnce = true; socket.close(); }
   }
 
   function metaOf(info: GameInfo, lastSeq: number, rounds: number): RecordingMeta {
@@ -329,7 +384,7 @@ export function liveFeed(
       propertiesHash: info.propertiesHash, schedulerShape: info.schedulerShape,
       enforcement: info.enforcement, teams, outcome: 'live',
       rounds, lastSeq, startedAt: new Date(started).toISOString(), durationMs: Date.now() - started,
-    } as RecordingMeta;
+    };
   }
 
   function publish(): void {
@@ -347,7 +402,12 @@ export function liveFeed(
     try {
       for (const event of pending.splice(0)) projector.add(event);
     } catch (error) {
-      if (!(error instanceof ProjectionDesyncError)) throw error;
+      if (!(error instanceof ProjectionDesyncError)) {
+        projector = null;
+        pending.length = 0;
+        fail(String(error));
+        return;
+      }
       // A desync: an event named an id this projection does not hold, so this copy of the game
       // has diverged from the server's. The projection is dropped rather than carried on with. The
       // viewer does not resync by itself: it is the tool a desync is meant to be visible in, and an
@@ -380,6 +440,7 @@ export function liveFeed(
     } catch {
       return;                                   // not our frame; the socket carries nothing else we read
     }
+    if (failed) return;
     if (!isServerFrame(parsed)) return;         // presence, ping, presence_ended, at_rest: not read here
     const frame = parsed;
     switch (frame.kind) {
@@ -418,7 +479,7 @@ export function liveFeed(
   socket.addEventListener('error', () => fail('the socket failed'));
   socket.addEventListener('close', () => {
     clearTimeout(timeout);
-    if (!failed) emitter.emit({ status: 'closed' });
+    if (!failed && !closedOnce) { closedOnce = true; emitter.emit({ status: 'closed' }); }
   });
 
   return {
@@ -427,6 +488,8 @@ export function liveFeed(
     subscribe: (listener: (state: FeedState) => void) => emitter.subscribe(listener),
     close: () => {
       clearTimeout(timeout);
+      if (closedOnce) return;
+      closedOnce = true;
       socket.close();
       if (!failed) emitter.emit({ status: 'closed' });
     },
@@ -455,27 +518,28 @@ A `game` frame after teams change rebuilds nothing: `recordedBoardOf`'s team ord
 
   async function connect() {
     const token = jwt.length > 0 ? jwt : (await logIn(email, password)).sessionJwt;
-    jwt = token;
     onFeed(liveFeed({ url: socketUrl, gameId, sessionJwt: token }));
   }
 ```
 
 ```svelte
 <!-- add to the markup, after the recording inputs -->
-<details class="live">
-  <summary>Watch a live game</summary>
-  <p class="muted">
-    A spectator socket to {socketUrl}. The account must already be a participant with no team on that
-    game; the viewer only watches — it sends no command and answers no Ask.
-  </p>
-  <input type="text" placeholder="game id" bind:value={gameId} style="width: 22rem" />
-  <input type="text" placeholder="session JWT (or log in below)" bind:value={jwt} style="width: 22rem" />
-  <input type="email" placeholder="email" bind:value={email} />
-  <input type="password" placeholder="password" bind:value={password} />
-  <button disabled={gameId.length === 0 || (jwt.length === 0 && email.length === 0)}
-    onclick={tryConnect}>Connect</button>
-</details>
+  <details class="live">
+    <summary>Watch a live game</summary>
+    <p class="muted">
+      A spectator socket to {socketUrl}. The account must already be a participant with no team on that
+      game; the viewer only watches — it sends no command and answers no Ask.
+    </p>
+    <input type="text" placeholder="game id" bind:value={gameId} style="width: 22rem" />
+    <input type="text" placeholder="session JWT (or log in below)" bind:value={jwt} style="width: 22rem" />
+    <input type="email" placeholder="email" bind:value={email} />
+    <input type="password" placeholder="password" bind:value={password} />
+    <button disabled={gameId.length === 0 || (jwt.length === 0 && email.length === 0)}
+      onclick={tryConnect}>Connect</button>
+  </details>
 ```
+
+`connect` never writes a logged-in token back into the JWT field. A pasted JWT is used as given. With an email and password filled in, every connect logs in afresh, because a Stytch session JWT lasts five minutes and reusing one would break the reconnect after a desync.
 
 `connect` calls `onFeed` itself rather than going through `load`, because it is asynchronous in two stages — log in, then open the socket — so it gets its own handler:
 
@@ -496,14 +560,14 @@ Add to `viewer/vite.config.ts`'s `defineConfig`:
 ```bash
 cd viewer && npm test && npm run check && npm run build
 ```
-Expected: 13 more tests passed. The thirteenth is the desync; the ignored frames are two deliveries inside one test rather than a test of their own.
+Expected: 17 more tests passed. The ignored frames after a failure are two deliveries inside the desync test rather than a test of their own.
 
 Then, once the game server runs: start it, create a game and join with a third account through management so that account is a participant with `team_id = null`, run `dotnet run --project sim -- skirmish --driver socket`, and connect the viewer with that account's game id and JWT. Expected: the board appears, frames arrive as the simulator plays, the timeline follows the end until you step, and the log fills.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 git add viewer/src viewer/vite.config.ts viewer/tests/live.test.ts
 git commit -m "Watch a live game as a spectator with no team, over the socket"
 ```

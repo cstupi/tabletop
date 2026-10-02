@@ -101,7 +101,7 @@ A static page, its own top-level directory, sharing no code and no build with `w
 2026-09-06: `web/` owns preparation for players, and a debugging surface for the person writing
 the engine does not belong in it.
 
-Top-down and schematic on purpose. A grid in inches, a circle per model coloured by team,
+Top-down and schematic on purpose. A grid in inches, each model's base outline (circle, oval or rect) coloured by team,
 terrain as outlines carrying their declarations, deployment zones, and a timeline with play,
 step and scrub. The log sits beside the board and clicking a line jumps to that sequence.
 Nothing is rendered in 3D and no mesh is ever loaded, so a model is its base and its facing.

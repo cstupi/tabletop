@@ -20,7 +20,7 @@ Replace the `viewer/` bullet (the line beginning "- `viewer/` —" and ending "D
 
 ```markdown
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down on a 2D canvas: a
-  grid in inches, a circle per model coloured by team with its facing, terrain as outlines
+  grid in inches, each model's base outline (circle, oval or rect) coloured by team with its facing, terrain as outlines
   labelled with their declarations, and a timeline beside the log. Plain Vite and Svelte 5, its
   own `package.json`, **no SvelteKit and no code shared with `web/`**. Two feeds: a recording file,
   which needs no server, and a live socket as a spectator with no team. Playback only — it sends
@@ -82,7 +82,7 @@ sends no command and answers no Ask, and the seam where it could is deliberately
 - [ ] **Step 5: Run the whole-tree check**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d
 dotnet build && dotnet test
 cd viewer && npm ci && npm test && npm run check && npm run build && cd ..

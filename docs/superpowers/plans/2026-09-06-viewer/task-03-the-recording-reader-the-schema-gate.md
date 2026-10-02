@@ -24,7 +24,7 @@ const minimal = () => ({
   schemaVersion: SCHEMA_VERSION,
   meta: {
     scenario: 'terrain', seed: 1, driver: 'in-process', gameRules: 'grimdark-future',
-    propertiesHash: 'sha256:x', schedulerShape: 'alternating_activation', enforcement: 'strict',
+    propertiesHash: 'sha256:x', schedulerShape: 'alternating-activation', enforcement: 'strict',
     teams: [{ id: 't1', ordinal: 1, name: 'Team 1', participants: ['p1'] }],
     outcome: 'round_limit', rounds: 1, lastSeq: 1, startedAt: '1970-01-01T00:00:00+00:00', durationMs: 1,
   },

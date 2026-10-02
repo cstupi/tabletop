@@ -13,6 +13,7 @@
 `scores` is the schema's only dictionary, so it reads as `frame.scores[team.id] ?? 0` — the generated type is `{ readonly [key: string]: number }` and its Guid keys are canonical lowercase strings, because neither `RecordingJson.Options` nor `WireJson.Options` sets a dictionary key policy. `?? 0` is not a fallback for a missing feature: `noUncheckedIndexedAccess` makes every index read `number | undefined`, and a team the projection has not scored for is genuinely absent.
 - Produces: `type FeedStatus = 'idle' | 'loading' | 'open' | 'closed' | 'error'`; `type FeedState = { readonly label: string; readonly status: FeedStatus; readonly detail: string | null; readonly meta: RecordingMeta | null; readonly board: RecordedBoard | null; readonly frames: readonly RecordedFrame[] }`; `const IDLE: FeedState`; `type ControlChannel`; `interface Feed { readonly kind: 'recording' | 'live'; readonly control: ControlChannel | null; subscribe(listener: (state: FeedState) => void): () => void; close(): void }`; `class Emitter` (the shared subscribe/emit base); `function detachFeed(previous: Feed | null, unsubscribe: (() => void) | null): void`; `function attachFeed(previous: Feed | null, unsubscribe: (() => void) | null, next: Feed, listener: (state: FeedState) => void): () => void`; `function recordingFeed(source: RecordingSource): Feed`.
 - **Swapping feeds is a function, not a habit.** `attachFeed` owns the whole sequence — drop the old subscription, close the old feed, subscribe to the new one, return the new unsubscribe — so `App.svelte` holds what it returns and has no ordering logic of its own, and Task 11's test drives the same function the component does rather than a copy of its steps. The order is load-bearing: a live feed's socket closes asynchronously, so a listener left attached across a swap can fire afterwards and overwrite the new feed's state with the old feed's frames.
+- **`feedState`, not `state`.** `state` collides with the `$state` rune, so `App.svelte` names the variable `feedState`. `feed` and `feedState` are `$state.raw`, because both are only ever reassigned. The header renders `feedState.detail` beside the status, so a live rejection or desync shows its reason rather than a bare `error`.
 - **The control channel is the seam and stays empty.** `ControlChannel` is declared, both feeds return `null` for it, and `feed.test.ts` asserts that. Spec → *Interactive debugging is a door, not a room*: "the viewer's feed abstraction has room for a control channel. None of that is built yet."
 
 Spec: spec → *Two feeds*; *The recording is the artifact* — "A recording, loaded from a file. The primary case, and the only one that works with no server running."
@@ -29,7 +30,7 @@ import { SCHEMA_VERSION } from '../src/lib/protocol/recording.generated';
 const recording = {
   schemaVersion: SCHEMA_VERSION,
   meta: { scenario: 'skirmish', seed: 3, driver: 'in-process', gameRules: 'grimdark-future',
-    propertiesHash: 'sha256:x', schedulerShape: 'alternating_activation', enforcement: 'strict',
+    propertiesHash: 'sha256:x', schedulerShape: 'alternating-activation', enforcement: 'strict',
     teams: [], outcome: 'decided', rounds: 2, lastSeq: 2, startedAt: '1970-01-01T00:00:00+00:00', durationMs: 4 },
   board: { width: 72, length: 48, texture: 'grass', terrain: [], markers: [], zones: [], models: [] },
   frames: [
@@ -283,9 +284,9 @@ export function recordingFeed(source: RecordingSource): Feed {
   import { fromUrl, recordingUrlFrom } from './lib/recording/source';
   import { EMPTY, frameOf, reduce, type Timeline as TimelineState, type TimelineAction } from './lib/timeline/timeline';
 
-  let feed: Feed | null = $state(null);
+  let feed: Feed | null = $state.raw(null);
   let unsubscribe: (() => void) | null = null;
-  let state: FeedState = $state(IDLE);
+  let feedState: FeedState = $state.raw(IDLE);
   let timeline: TimelineState = $state(EMPTY);
   let error: string | null = $state(null);
   let selected: string | null = $state(null);
@@ -300,17 +301,17 @@ export function recordingFeed(source: RecordingSource): Feed {
     // attachFeed owns the order — old listener, then old feed, then the new subscription — and hands
     // back the unsubscribe function, which this component holds and passes back on the next swap.
     unsubscribe = attachFeed(feed, unsubscribe, next, (s) => {
-      state = s;
+      feedState = s;
       timeline = reduce(timeline, { type: 'frames', count: s.frames.length });
     });
     feed = next;
   }
 
   const dispatch = (action: TimelineAction) => { timeline = reduce(timeline, action); };
-  const frame = $derived(frameOf(state.frames, timeline));
-  const scene = $derived(state.board !== null && frame !== null ? sceneOf(state.board, frame) : null);
-  const teamLabels = $derived(new Map((state.meta?.teams ?? []).map((t) => [t.id, t.name])));
-  const seqs = $derived(state.frames.map((f) => f.seq));
+  const frame = $derived(frameOf(feedState.frames, timeline));
+  const scene = $derived(feedState.board !== null && frame !== null ? sceneOf(feedState.board, frame) : null);
+  const teamLabels = $derived(new Map((feedState.meta?.teams ?? []).map((t) => [t.id, t.name])));
+  const seqs = $derived(feedState.frames.map((f) => f.seq));
   const picked = $derived(scene?.models.find((m) => m.id === selected) ?? null);
 
   $effect(() => {
@@ -334,10 +335,11 @@ export function recordingFeed(source: RecordingSource): Feed {
   <strong>Tabletop viewer</strong>
   <SourcePicker onFeed={attach} onError={(m) => (error = m)} />
   <span class="muted">
-    {state.status === 'idle' ? 'no recording loaded' : `${state.label} · ${state.status} · ${state.frames.length} frames`}
+    {feedState.status === 'idle' ? 'no recording loaded' : `${feedState.label} · ${feedState.status} · ${feedState.frames.length} frames`}
   </span>
   {#if error !== null}<span class="error">{error}</span>{/if}
-  <Scoreboard teams={state.meta?.teams ?? []} {frame} />
+  {#if feedState.detail !== null}<span class="error">{feedState.detail}</span>{/if}
+  <Scoreboard teams={feedState.meta?.teams ?? []} {frame} />
 </header>
 
 <div class="panes">
@@ -356,19 +358,19 @@ export function recordingFeed(source: RecordingSource): Feed {
     </nav>
     <div class="tab">
       {#if tab === 'log'}
-        <LogPanel frames={state.frames} index={timeline.index} onJump={(seq) => dispatch({ type: 'jump', seq, seqs })} />
+        <LogPanel frames={feedState.frames} index={timeline.index} onJump={(seq) => dispatch({ type: 'jump', seq, seqs })} />
       {:else if tab === 'ask'}
         <AskPanel asks={frame?.openAsks ?? []} {teamLabels} />
       {:else if tab === 'dice'}
         <RollPanel rolls={frame?.rolls ?? []} />
       {:else}
         <div class="pad">
-          {#if state.meta !== null}
-            <p>{state.meta.scenario} · seed {state.meta.seed} · {state.meta.driver}</p>
-            <p class="muted">{state.meta.gameRules} · {state.meta.schedulerShape} · {state.meta.enforcement}</p>
-            <p>outcome: <strong>{state.meta.outcome}</strong>{state.meta.outcomeDetail === undefined ? '' : ` — ${state.meta.outcomeDetail}`}</p>
-            <p class="muted">{state.meta.rounds} round(s), last seq {state.meta.lastSeq}, {Math.round(state.meta.durationMs)} ms</p>
-            {#each state.meta.teams as team (team.id)}<p>Team {team.ordinal}: {team.name}</p>{/each}
+          {#if feedState.meta !== null}
+            <p>{feedState.meta.scenario} · seed {feedState.meta.seed} · {feedState.meta.driver}</p>
+            <p class="muted">{feedState.meta.gameRules} · {feedState.meta.schedulerShape} · {feedState.meta.enforcement}</p>
+            <p>outcome: <strong>{feedState.meta.outcome}</strong>{feedState.meta.outcomeDetail === undefined ? '' : ` — ${feedState.meta.outcomeDetail}`}</p>
+            <p class="muted">{feedState.meta.rounds} round(s), last seq {feedState.meta.lastSeq}, {Math.round(feedState.meta.durationMs)} ms</p>
+            {#each feedState.meta.teams as team (team.id)}<p>Team {team.ordinal}: {team.name}</p>{/each}
           {/if}
           {#if scene !== null}
             <p class="muted">{scene.offTable.length} model(s) off the table</p>
@@ -418,7 +420,7 @@ p { margin: 0.15rem 0; }
 - [ ] **Step 6: Run everything, then look at it**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 dotnet run --project sim -- terrain --seeds 1..1        # writes ./recordings/terrain-1.json
 cd viewer && npm test && npm run check && npm run build
 npm run dev
@@ -428,7 +430,7 @@ Then open `http://localhost:5174/?recording=/dev/null` to see the error path, an
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/cstupi/src/tabletop
+cd "$(git rev-parse --show-toplevel)"
 git add viewer/src viewer/tests/feed.test.ts
 git commit -m "Play a recording end to end behind a feed abstraction with an empty control seam"
 ```

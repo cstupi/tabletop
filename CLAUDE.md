@@ -105,7 +105,7 @@ Three kinds of top-level directory:
   It reads game state freely but holds no second implementation of the rules: it answers from the
   server's legal sets without narrowing them, and asserts invariants.
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down on a 2D canvas: a
-  grid in inches, a circle per model coloured by team with its facing, terrain as outlines
+  grid in inches, each model's base outline (circle, oval or rect) coloured by team with its facing, terrain as outlines
   labelled with their declarations, and a timeline beside the log. Plain Vite and Svelte 5, its
   own `package.json`, **no SvelteKit and no code shared with `web/`**. Two feeds: a recording file,
   which needs no server, and a live socket as a spectator with no team. Playback only — it sends
@@ -150,4 +150,6 @@ Each module is designed before it is built.
 - `viewer/tests/fixtures/` holds one recording plus the three socket frames of the same run, per
   scenario. They are checked in and regenerated deliberately with
   `TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests` — ids differ between runs, so
-  they are never diffed against a previous version.
+  they are never diffed against a previous version. A change to `EventApplier`, `FrameProjector` or
+  `LogLines` regenerates them and ports the same change to `viewer/src/lib/live/` until
+  `viewer/tests/agreement.test.ts` passes.

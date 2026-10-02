@@ -11,7 +11,7 @@
 - Produces (`frame.ts`): `type Shape = { kind: 'circle'; centre: Point; radius: number } | { kind: 'polygon'; points: readonly Point[] }`; `const OVAL_VERTICES = 64`; `type ModelShape`, `type TerrainShape`, `type MarkerShape`, `type ZoneShape`, `type OffTable`, `type Scene` as declared below; `function sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene`; `function baseOutline(model: RecordedModel, centre: Point, yaw: number): Shape`; `function volumeOutline(terrain: RecordedTerrain, volume: RecordedVolume): Shape`.
 - Ported, not invented: `baseOutline` is `Tabletop.Geometry.Bodies.BaseOutline` (geometry plan Task 3) and `volumeOutline` is `WorldVolumes.WorldOutline` (same task), line for line, including `OvalVertices = 64` and `Point2.Rotate`'s "yaw 0 faces +Y, positive yaw counter-clockwise seen from above". These are the only two pieces of `Tabletop.Geometry` the viewer needs, and it needs them because a canvas draws outlines.
 
-Spec: spec → *`viewer/` is a developer web app* — "A grid in inches, a circle per model coloured by team, terrain as outlines carrying their declarations, deployment zones"; "a model is its base and its facing". Spec → *Testing* — "the frame-to-geometry projection".
+Spec: spec → *`viewer/` is a developer web app* — a grid in inches, each model's base outline (circle, oval or rect) coloured by team with its facing, terrain as outlines carrying their declarations, deployment zones; "a model is its base and its facing". Spec → *Testing* — "the frame-to-geometry projection".
 
 **Deployment zones.** `RecordedZone` carries `shape` (a shape id such as `frontline/1`), `teamOrdinal` and `polygons` — an array of rings, each a list of `RecordedPoint` `{x, y}`, already resolved by `Tabletop.Geometry.ZoneStyles.Resolve` and already in the corner frame, so the viewer converts nothing and resolves nothing. That is why the field exists: resolving a shape id is C#, and OPR's frontline is an absolute twelve-inch inset rather than a fraction of the table, so a browser cannot recover it from the id and the table size, and porting `ZoneStyles` would be a second geometry implementation. `sceneOf` reads `zone.polygons` directly and wraps each ring as a `Shape`. A ring list can still be **empty** — `ZoneStyles.Resolve` answers an empty list for a shape id it does not know, and the live feed has no resolver at all (Task 9) — so an empty `polygons` draws no outline and is not an error; the zone panel lists shape id → team ordinal either way.
 
@@ -300,7 +300,7 @@ describe('sceneOf', () => {
 ```ts
 // viewer/src/lib/board/frame.ts
 import type {
-  RecordedBoard, RecordedFrame, RecordedModel, RecordedModelState, RecordedTerrain, RecordedVolume,
+  RecordedBoard, RecordedFrame, RecordedModel, RecordedTerrain, RecordedVolume,
 } from '../protocol/recording.generated';
 import { type Point, rotate } from './transform';
 

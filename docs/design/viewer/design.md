@@ -198,6 +198,18 @@ second implementation of the JSON conventions, which is the drift the approach e
 computed C# property that the serializer includes appears in the output, because the output
 describes the bytes.
 
+`Emit` first calls `Options.MakeReadOnly(populateMissingResolver: true)`, because `GetTypeInfo`
+throws on options that have not been made read-only. The property walk skips any property whose
+`Get` is null, which is a `[JsonIgnore]`d property, so `GameEvent.kind`, `Point3.horizontal` and
+`TerrainPlacement.transform` are not declared. A nested array reference is parenthesised, as in
+`readonly (readonly RecordedPoint[])[]`.
+
+An object type written by a custom converter has a contract with no properties. The emitter declares
+it from a fixed converter map of one entry, `VisualRef` as `{ builtin?: string; assetId?: string }`,
+and throws on any other converter-backed object type reachable from a root. A new one is therefore
+loud. Reflection cannot see the converter's output, so the wire test asserts the `VisualRef`
+declaration.
+
 `EmitRequest` carries `Module`, `Options`, `Roots`, `PrunedUnions` and `Rename`. `PrunedUnions`
 narrows `SocketMessage` to the seven frames the live feed reads: `Connect`, `Welcome`,
 `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected`. No `Command`, no `Edit`,
@@ -411,10 +423,18 @@ moved. Four sites fault on neither side, because the C# writes through an indexe
 there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
 the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
 ported, so `step_completed` and `modifier_added` can fault on an unknown frame id in C# and cannot
-here. That is the unported stack showing again rather than a second divergence.
+here. That is the unported stack showing again rather than a second divergence. A comment in
+`applyTo` names every stack-site fault the port leaves unported: `Pop` on `sequence_finished` and
+`sequence_abandoned`, `FrameOf`, and `ReplaceDice`'s roll and die-index lookups.
 
-A desync stops the live feed. `drain` catches `ProjectionDesyncError`, drops the projector and the
-pending events, and reports `status: 'error'` naming the kind and the id. It never skips the event and
+Every `default` arm that reads a union's `kind` is a `const unreachable: never = ...` check, so a
+kind added to a generated union fails `npm run check`. `isStateChange` is backed by a
+`Record<StateChange['kind'], true>` for the same reason. The projector builds each `Recorded*` value
+as an object literal with no cast to a generated type.
+
+A desync stops the live feed. `drain` drops the projector and the pending events and reports
+`status: 'error'` naming the kind and the id. Any other error thrown while applying events takes the
+same path, with `String(error)` as the detail. It never skips the event and
 continues, because a copy of the game that silently disagrees with the server is worse than one that
 visibly stops. It does not reconnect on its own either. Reconnecting is the source picker's connect
 form, and the connect sequence redelivers the whole log, so a fresh feed rebuilds the projection from
@@ -427,11 +447,12 @@ fault the session over.
 projection and replays `effectiveLog(this.#log)` into it. The log itself stays append-only with the
 undone markers in place. Cost is one full replay per undo event.
 
-**The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s so that
-`dice_rerolled`, `dice_edited` and `modifier_added` can amend a completed step's rolls. A
-`RecordedFrame` carries no stack, and its `rolls` come from the `step_completed` payload rather than
-from the stack, so the C# recording does not show a reroll in `rolls` either. Those three event
-kinds are no-ops in `applyTo`, and `apply.test.ts` pins that.
+**The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s. `sequence_started` pushes one,
+`sequence_finished` and `sequence_abandoned` pop one, and `dice_rerolled`, `dice_edited` and
+`modifier_added` amend a completed step's rolls. A `RecordedFrame` carries no stack, and its `rolls`
+come from the `step_completed` payload rather than from the stack, so the C# recording does not
+show a reroll in `rolls` either. Those six event kinds are no-ops in `applyTo`. `apply.test.ts` pins
+the reroll, the edit and the modifier.
 
 `FrameProjector` in TypeScript takes `(board: Board, game: GameInfo)`, while the C# original takes a
 `CompiledScenario`. The live feed has no scenario, and `recordedBoardOf` needs only the wire board
@@ -539,7 +560,7 @@ The score is not geometry. `Scene` is unchanged by it.
 | Fixtures checked in, rewritten only under a flag, never diffed against a predecessor | ids are UUIDv7 and differ between runs, so two recordings are never byte-comparable | generating fixtures on demand, which makes `npm test` need a .NET SDK to have run first | plan ruling 2; spec → *The seed is stored* |
 | Agreement compares every frame, not final projections | localises a ported branch to one event; needs no extra export | comparing the last projection only | plan Task 10; spec → *Two feeds* |
 | Plain Vite and Svelte 5, no SvelteKit | one screen, no redirect target, no route to split, no server-side anything; `?recording=<url>` needs no router | SvelteKit, which `web/` uses for Stytch redirect paths and code splitting | **(plan)** plan Task 1 |
-| The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for three no-op event kinds | **(plan)** plan Task 9 |
+| The resolution frame stack is not ported | no field of a `RecordedFrame` reads it; the C# recording does not show a reroll in `rolls` either | porting `Projection.Stack` for six no-op event kinds | **(plan)** plan Task 9 |
 | The score and the passed teams live in the header, not in a tab | the score is wanted continuously and must not cost a tab change | a fifth tab, or drawing them on the board | **(plan)** plan Task 8, ruling 5 |
 | `at_rest` is pruned out of the generated wire union | the viewer republishes on every `EventsMessage` and has no quiet window to replace, so a rest signal changes nothing it draws; the generated surface stays the smallest thing the live feed reads | declaring the kind, which moves the golden file and adds a declaration with no reader | plan Task 2 |
 | An unrecognised wire kind is dropped by a membership test, not by a `switch` on a closed union | the union in TypeScript is a pruned seven of thirteen, so the set of kinds actually read is the authority; the protocol grows without an edit here | narrowing on the generated union alone, which faults on a kind it cannot name | **(plan)** plan Task 11 |
@@ -582,7 +603,7 @@ The score is not geometry. `Scene` is unchanged by it.
 | --- | --- |
 | `static class RepoPaths` | `string Root`, `string Viewer`, `string Generated`, `string Fixtures` |
 | `sealed record EmitRequest(string Module, JsonSerializerOptions Options, IReadOnlyList<Type> Roots, IReadOnlyDictionary<Type, IReadOnlyList<Type>> PrunedUnions, IReadOnlyDictionary<Type, string> Rename)` | |
-| `static class TypeScriptEmitter` | `string Emit(EmitRequest)` |
+| `static class TypeScriptEmitter` | `string Emit(EmitRequest)`, with the converter map for `VisualRef` |
 | `sealed record Fixture(string Name, Recording Recording, IReadOnlyList<GameEvent> Log, GameInfo Game, Board Board, Guid RecorderParticipantId)` | |
 | `static class FixtureWriter` | `string[] FixtureNames`, `Task<Fixture> RunAsync(Scenario, CancellationToken)`, `Task WriteAsync(Fixture, string directory, CancellationToken)` |
 | `GeneratedTypesTests`, `AgreementFixtureTests` | the two golden guards; `TABLETOP_WRITE_GENERATED=1` and `TABLETOP_WRITE_FIXTURES=1` rewrite |
@@ -695,8 +716,11 @@ unrecognised kind would die the next time the protocol grew one.
 
 Three orderings matter. Events can arrive before the board, so `liveFeed` holds them in `pending`
 and drains on the `board` frame. A game ended before setup ever ran has no `table_state` row and no
-log, so `Welcome` is the whole sequence and status stays `open` with nothing to draw. A `Rejected`
-sets `failed`, and the close that follows it does not overwrite the error.
+log, so `Welcome` is the whole sequence and status stays `open` with nothing to draw. A failure is
+final. `fail()` returns at once if the feed has already failed, so the first error is kept. It closes
+the socket once, and frames that arrive after a failure are ignored. `close()` and the socket's
+`close` event together emit `closed` once. A `Rejected` fails the feed, and the close that follows
+it does not overwrite the error.
 
 ### One event becoming one frame
 
@@ -716,7 +740,7 @@ sequenceDiagram
         AP->>AP: rebuild from effectiveLog(log)
     else scheduler or Ask event
         AP->>AP: update scheduler / openAsks
-    else reroll, edit, modifier
+    else sequence, reroll, edit, modifier
         AP->>AP: no-op, no frame field reads the stack
     end
     AP-->>P: projection after
@@ -766,13 +790,19 @@ is read once from `location.search`.
 | --- | --- | --- |
 | `Emitter` | the current `FeedState`, one `Set` of listeners | the feed |
 | `recordingFeed` | nothing beyond the `Emitter` | the feed |
-| `liveFeed` | `game`, `projector`, `pending`, `welcomed`, `failed`, one timeout handle | the socket |
+| `liveFeed` | `game`, `projector`, `pending`, `welcomed`, `failed`, `closedOnce`, one timeout handle | the socket |
 | `FrameProjector` | the ported `Projection` plus every `RecordedFrame` produced so far | the socket |
-| `App.svelte` | `feed`, `state`, `timeline`, `error`, `selected`, `tab`, three visibility flags | the page |
-| `Board.svelte` | `canvas`, `box`, `view`, `hovered`, `dragging` | the component |
+| `App.svelte` | `feed` and `feedState` (both `$state.raw`, reassigned and never mutated), `timeline`, `error`, `selected`, `tab`, three visibility flags | the page |
+| `Board.svelte` | `canvas`, `box`, `view`, `hovered`, `dragging`, `downAt` | the component |
 
 `view` is `null` until the user zooms or pans, and `fit(scene.table, box)` is derived until then, so
-`Reset view` is one assignment.
+`Reset view` is one assignment. `view` also resets when the table's width or length changes, because
+a new table makes the old pan and zoom meaningless. `downAt` records where the pointer went down,
+so a click is told from a pan by distance moved since the press and not since the last move.
+`pointercancel` ends a drag without a pick, and `pointerleave` clears the hover.
+
+`App.svelte` names its feed state `feedState`, because `state` collides with the `$state` rune. The
+header renders `feedState.detail` beside the status, so a rejection or a desync shows its reason.
 
 **Rebuilt rather than stored.** The live feed's whole frame list is rebuilt by replaying events. An
 `undone` event rebuilds the projection from the effective log. `Scene` is recomputed from
@@ -788,7 +818,7 @@ stateDiagram-v2
     loading --> open: welcome
     loading --> error: rejected / socket error / no welcome within 10 s
     open --> open: board, events, game, refused
-    open --> error: rejected, board before welcome
+    open --> error: rejected, board before welcome, a fault applying events
     open --> closed: close() or socket close
     error --> error: close does not overwrite an error
     closed --> [*]
@@ -816,9 +846,10 @@ only. The one field excluded from the comparison is `polygons`, and the same tes
 side resolved non-empty rings so the exclusion cannot cover an empty field on both sides.
 
 **A desync.** An event names an id the projection does not hold. `FrameProjector.add` throws
-`ProjectionDesyncError`, `drain` catches it, the projector and the pending events are dropped, and
-the feed goes to `status: 'error'` naming the event kind and the id. Later frames change nothing,
-because `publish` and `drain` both return early with no projector. The operator reconnects from the
+`ProjectionDesyncError`, `drain` drops the projector and the pending events, and
+the feed goes to `status: 'error'` naming the event kind and the id. Any other error thrown while
+applying events fails the feed the same way with `String(error)` as the detail. Later frames change
+nothing, because the message handler ignores every frame once the feed has failed. The operator reconnects from the
 source picker, which rebuilds from the redelivered log. The two designed features that reach this
 are moving a marker placed during setup and editing the dice of a popped frame.
 
@@ -828,12 +859,11 @@ arriving after teams change does not rebuild the board, so a team created mid-ga
 recolour existing models. Lobby edits are refused from `playing` on, so it cannot happen in a
 watched game.
 
-**Stale subscriptions.** `App.svelte` discards the unsubscribe function `Feed.subscribe` returns.
-Attaching a second feed calls `close()` on the first, and a `recordingFeed` emits its `closed` state
-synchronously before the new feed is attached. A `liveFeed`'s socket `close` event is asynchronous,
-so the old listener can fire after the new feed is attached and overwrite `state` with the old
-feed's frames. The case is switching away from a live feed. Holding
-the unsubscribe function in `attach` is the fix.
+**Stale subscriptions.** A `liveFeed`'s socket `close` event is asynchronous, so a listener left
+attached across a swap can fire after the new feed is attached and overwrite `feedState` with the old
+feed's frames. The case is switching away from a live feed. `attachFeed` owns the order: it drops the
+old listener, closes the old feed, subscribes to the new one and returns the new unsubscribe function.
+`App.svelte` holds that function and passes it back on the next swap and on teardown.
 
 **Cost per live frame.** `publish()` copies the whole frame array, builds a fresh `RecordingMeta`
 and notifies every subscriber, on every `EventsMessage`. `App.svelte` then recomputes `seqs` over
@@ -842,8 +872,10 @@ eight-round game is 5 to 6 MB of indented JSON, which the browser parses once on
 recording feed publishes once, so it is unaffected and only a long-lived live socket is exposed.
 
 **No reconnect.** A dropped socket sets `closed` and the user reconnects by hand. The JWT is
-verified once at connect, so nothing refreshes it on an open socket. `refreshSession` exists for
-the next connect. A second socket for the same participant closes the first with code `1000`, which
+verified once at connect, so nothing refreshes it on an open socket. The source picker never writes
+a logged-in token back into the JWT field. A pasted JWT is used as given, and with an email and
+password filled in every connect logs in afresh, because a session JWT lasts five minutes and
+reusing one would break the reconnect after a desync. A second socket for the same participant closes the first with code `1000`, which
 the viewer reports as a plain close.
 
 **Left to break.** A recording whose `meta.gameRules` or `meta.propertiesHash` the viewer has never
@@ -863,9 +895,9 @@ needs a build of `sim/` and `libs/Tabletop.Protocol`.
 | Suite | Files | What it pins |
 | --- | --- | --- |
 | Vitest, pure modules | `read.test.ts`, `transform.test.ts`, `frame.test.ts`, `pick.test.ts`, `timeline.test.ts`, `describe.test.ts` | the schema gate and every refusal; the single `y` flip, the zoom anchor and the grid step ladder; the ported base and volume outlines against hand-computed corners; boundary-inclusive containment and last-drawn-wins picking; the eleven timeline actions including `follow`; every legal kind and the note list |
-| Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames including `at_rest` and an invented kind, a desync going to error, the close paths and the 10-second timeout |
-| Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the three no-op kinds, undo by rebuild, `ProjectionDesyncError` on an unknown unit, model, marker or Ask id; then every frame of two real recordings, field for field, and the shared desync case |
-| xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order and the absence of `AtRest`; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces; the C# applier throws `ProjectionDesyncException` on the event the TypeScript one throws on |
+| Vitest, feeds | `feed.test.ts`, `live.test.ts` | one emission and a null control channel; the connect frame and that it is the only frame sent; events before the board, an empty events frame, a rejection, a refusal, ignored frames including `at_rest` and an invented kind, a desync going to error, any other fault applying events going to error, the first error kept, `closed` emitted once, a feed that cannot clobber its replacement and the 10-second timeout |
+| Vitest, the port | `apply.test.ts`, `agreement.test.ts` | all thirteen state changes, the four scheduler events, the Ask lifecycle, the reroll, edit and modifier no-ops, undo by rebuild, `ProjectionDesyncError` on an unknown unit, model, marker or Ask id; then every frame of two real recordings, field for field, and the shared desync case |
+| xUnit | `GeneratedTypesTests`, `AgreementFixtureTests` | the two generated modules are what the C# emits today, including `RecordedMarkerState`'s member order and the absence of `AtRest`; the fixtures exist, round-trip and satisfy the same invariants `read.ts` enforces, and their events replayed through the C# `FrameProjector` reproduce the recorded board and every frame; the C# applier throws `ProjectionDesyncException` on the event the TypeScript one throws on |
 | By hand | the page | the board, the zones, the terrain declarations, the team colours, the facing ticks, the scoreboard, play, step, scrub, and a live game watched while `sim/` plays it |
 
 **Nothing needs Docker.** `sim/`'s in-process driver has no Postgres, so the fixture writer runs a

@@ -1,22 +1,23 @@
-# Handoff — 2026-10-02, steps 1 to 5 merged; the simulator plays whole games with no client; the viewer is next
+# Handoff — 2026-10-02, steps 1 to 6 merged; every planned module is built
 
-Where the project stands, and what to pick up next. **Steps 1 to 5 are built and merged: contracts,
-geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler and
-the simulator. No tree is open. `sim/` plays whole games in process or over the socket with no client. The
-owner has logged in, imported armies and started a game in the client. Checkpoint 3 (whole games, by the
-owner) gates step 6, the viewer.**
+Where the project stands, and what to pick up next. **Steps 1 to 6 are built and merged: contracts,
+geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler, the
+simulator and the viewer. No tree is open and no module has a plan left to build. `sim/` plays whole games in
+process or over the socket with no client; `viewer/` draws a recording or a live game top-down. The owner has
+logged in, imported armies and started a game in the client, and signed off checkpoint 3.**
 
 ## State
 
 Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`), the game-server
 skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), the client shell
-(`ba53db1`), the interpreter and effects (`c8ae306`), the scheduler (`2f7a168`) and the simulator (`0e49d3f`); each branch is kept and
+(`ba53db1`), the interpreter and effects (`c8ae306`), the scheduler (`2f7a168`), the simulator (`0e49d3f`) and the viewer (`9049683`); each branch is kept and
 each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 918 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
-Management 88, Sim 102. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
-skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`.
+`dotnet test` passes 927 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
+Management 88, Sim 102, Viewer 9. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`. In `viewer/`, `npm test`
+passes 83, `svelte-check` reports 0 errors and 0 warnings, and `npm run build` writes `dist/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
 reaches `playing` runs the Grimdark Future roll-off, deployment, activations, rounds, shooting, melee,
@@ -113,14 +114,14 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    spec's *Ending is a flag* and the rows-by-writer table.
    `sim/` scenarios run under `strict`, and `SubmitResult.Accepted.Warning` is never populated: a `warn`
    breach is visible only on its event.
-3. **Checkpoint 3, then step 6, the viewer.** Checkpoint 3 is whole games through `sim/`. Run on 2026-10-02
-   against the live servers: `skirmish --seeds 1..5` and `casting --seeds 1..3` in process passed (casting seed 2
-   `decided`), `skirmish --seeds 1..3 --driver socket` passed 3 of 3, and `casting --driver socket` exits 2 because
-   the shipped properties hold no spells. A socket run reads `TABLETOP_DB_CONNECTION` from the nearest `.env` and
-   calls management at `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`). The owner's sign-off on
-   checkpoint 3 dispatches the viewer. Its spec is the simulation spec, its design `docs/design/viewer/`, its
-   plan `plans/2026-09-06-viewer/README.md` and one file per task. Its first version is playback only and sends
-   no command; answering an Ask from the browser is a later design session.
+3. **The viewer by hand.** `cd viewer && npm install && npm run dev` serves it on `http://localhost:5174`.
+   Recordings come from `dotnet run --project sim -- skirmish --seeds 1..3` (written to `./recordings`). What no
+   headless test covers: the board's drawing and pointer picking, panning versus picking; loading a recording by
+   file, by URL and by `?recording=`, then scrub, step and a log-line jump; the Space key while a button has focus
+   (it may toggle play twice); and "Watch a live game", attached as a participant with no team to a game the
+   socket driver is playing. A spectator sees no sealed answer before its Ask closes (`EventFilter.ForViewer`
+   redacts every team's but the viewer's own, and a spectator has none). Answering an Ask from the browser is a
+   later design session; the seam is `Feed.control`, `null` in both feeds.
 4. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*. Checkpoint 2 is *Checkpoint 2: what a player
    should see* below; its server side is covered by the end-to-end driver, and what remains is the client's
@@ -223,7 +224,7 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 3. web app, client, interpreter, together. **Landed.**
 4. scheduler. **Landed.**
 5. simulator. **Landed.**
-6. viewer.
+6. viewer. **Landed.**
 
 **What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle;
 every tree so far has overshot it as rulings added tests, and the runner decides. The controllers'
@@ -461,6 +462,21 @@ The parked and deferred findings, each with its ruling, are section 5 of
 - **Wire.** Neither tree added a wire kind; `AskQuestions.EndRound` and `DeployAmbusher` predate them, and
   `ProtocolVersion` is unchanged. Army snapshots are still written before `GameInfo(Playing)` is broadcast
   (`GameSession.EndSetup.cs`).
+
+## What the simulator and viewer trees settled that the plans did not say
+
+- `ProtocolVersion.Current` moving past 1 moves `CLIENT_VERSION` in `viewer/src/lib/feed/liveFeed.ts` with it, or
+  the server answers the viewer `rejected: upgrade_required`.
+- A new `StateChange` or `EventPayload` kind, or a new `Recorded*` field, fails `cd viewer && npm run check` until
+  `viewer/src/lib/live/apply.ts` or `project.ts` handles it. A recording-schema change that is not additive bumps
+  `RecordingJson.SchemaVersion`, and the viewer refuses older recordings.
+- A new custom `JsonConverter` on a type reachable from `SocketMessage` makes the TypeScript emitter throw until its
+  shape is added to `TypeScriptEmitter`'s `ConverterBacked` map. A new server-to-client socket kind needs nothing in
+  `viewer/`, which ignores unknown kinds.
+- A viewer served from an origin other than Vite's dev proxy (`:5174`, `/v1` to `:5100`) needs that origin in
+  management's CORS policy.
+- The two checked-in fixtures (`skirmish`, `terrain`, two rounds, about 3.2 MB in eight files) exercise the same
+  12 payload kinds.
 
 ## What the contracts tree settled that the plans did not say
 

@@ -13,11 +13,11 @@
 
 Spec: spec → *Two feeds* — "the socket carries events, so the viewer must apply them, so `Tabletop.Protocol`'s message types and the event applier exist a second time in TypeScript. **Accepted, with the drift generated away where possible**."
 
-**An unknown id throws `ProjectionDesyncError`, matching the C# site for site.** `EventApplier` throws `ProjectionDesyncException`, carrying the event kind and the unknown id, wherever it would otherwise index a dictionary by an id it does not hold. The port must fault on the same input or the agreement test is comparing two different appliers. Written with `!`, the TypeScript would not: `p.models.get(id)!.wounds = w` throws an untyped `TypeError`, which is at least loud, but `{ ...p.markers.get(id)!, position }` on a missing marker spreads `undefined` and **succeeds**, writing a marker with no `id` into the store — a silent divergence at exactly the case the C# exception exists for, a marker placed during setup and then moved. So every read-through-a-lookup site goes through `unitIn`, `modelIn`, `markerIn` or `askIn`, which throw `ProjectionDesyncError(kind, unknownId)`; no `!` on a `Map.get` survives in `apply.ts`. Those four helpers cover twelve of the sixteen lookups the contracts plan lists as fallible — four on `ModelsMut`, six on `UnitsMut`, one on `MarkersMut`, one on `OpenAsksMut`. The other four are the frame-stack ones, `FrameOf` under `step_completed` and `modifier_added` and the roll lookup inside `ReplaceDice`, and the port has no stack to look in: those kinds are no-ops here, so the C# can fault on an unknown `frameId` where this cannot. That is the same divergence the unported stack already causes and is not a new one. The four sites where the C# writes through an indexer or calls `Remove` — `score_set`, `marker_placed`, `marker_removed` and `ask_closed` — fault on neither side, and the code says so, because a port that threw where the C# returns quietly would be just as wrong. Task 10 pins the pair.
+**An unknown id throws `ProjectionDesyncError`, matching the C# site for site.** `EventApplier` throws `ProjectionDesyncException`, carrying the event kind and the unknown id, wherever it would otherwise index a dictionary by an id it does not hold. The port must fault on the same input or the agreement test is comparing two different appliers. Written with `!`, the TypeScript would not: `p.models.get(id)!.wounds = w` throws an untyped `TypeError`, which is at least loud, but `{ ...p.markers.get(id)!, position }` on a missing marker spreads `undefined` and **succeeds**, writing a marker with no `id` into the store — a silent divergence at exactly the case the C# exception exists for, a marker placed during setup and then moved. So every read-through-a-lookup site goes through `unitIn`, `modelIn`, `markerIn` or `askIn`, which throw `ProjectionDesyncError(kind, unknownId)`; no `!` on a `Map.get` survives in `apply.ts`. Those four helpers cover twelve of the sixteen lookups the contracts plan lists as fallible — four on `ModelsMut`, six on `UnitsMut`, one on `MarkersMut`, one on `OpenAsksMut`. The other four are the frame-stack ones, `FrameOf` under `step_completed` and `modifier_added` and the roll lookup inside `ReplaceDice`, and the port has no stack to look in: those kinds are no-ops here, so the C# can fault on an unknown `frameId` where this cannot. That is the same divergence the unported stack already causes and is not a new one. A comment in `applyTo` names every stack-site fault the port leaves unported: `Pop` on `sequence_finished` and `sequence_abandoned`, `FrameOf`, and `ReplaceDice`'s roll and die-index lookups. The four sites where the C# writes through an indexer or calls `Remove` — `score_set`, `marker_placed`, `marker_removed` and `ask_closed` — fault on neither side, and the code says so, because a port that threw where the C# returns quietly would be just as wrong. Task 10 pins the pair.
 
 **What the viewer does with a desync** is Task 11's: the live feed reports it and stops, rather than skipping the change and carrying on. The recording feed cannot raise one, because a recording carries frames rather than events and never reaches `applyTo`; only the agreement test and the live socket run this code.
 
-**The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s so that `dice_rerolled`, `dice_edited` and `modifier_added` can amend a completed step's rolls. `RecordedFrame` carries no stack, and its `rolls` come from the `step_completed` payload rather than from the stack, so the C# recording does not show a reroll in `rolls` either — three event kinds therefore change nothing a frame records, and porting the stack would add code no field reads. `applyTo` handles those three kinds as no-ops with that reason on them, and `apply.test.ts` pins it.
+**The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s: `sequence_started` pushes one, `sequence_finished` and `sequence_abandoned` pop one, and `dice_rerolled`, `dice_edited` and `modifier_added` amend a completed step's rolls. `RecordedFrame` carries no stack, and its `rolls` come from the `step_completed` payload rather than from the stack, so the C# recording does not show a reroll in `rolls` either. Six event kinds therefore change nothing a frame records, and porting the stack would add code no field reads. `applyTo` handles those six kinds as no-ops with that reason on them, and `apply.test.ts` pins it.
 
 - [ ] **Step 1: Write `viewer/tests/apply.test.ts`**
 
@@ -42,7 +42,7 @@ const R2 = '0198b7ac-0000-7000-8000-000000000072';
 
 const game = {
   id: '0198b7ac-0000-7000-8000-0000000000ff', name: 'Friday', status: 'playing', createdBy: P1,
-  gameRules: 'grimdark-future', propertiesHash: 'sha256:x', schedulerShape: 'alternating_activation',
+  gameRules: 'grimdark-future', propertiesHash: 'sha256:x', schedulerShape: 'alternating-activation',
   enforcement: 'strict', waitsBetweenSteps: false,
   teams: [{ id: T1, ordinal: 1 }, { id: T2, ordinal: 2 }],
   participants: [{ id: P1, accountId: P1, name: 'Clay', teamId: T1 }],
@@ -410,14 +410,22 @@ export function applyChange(p: Projection, change: StateChange): void {
       return;
     }
     case 'marker_removed': p.markers.delete(change.markerId); return;
-    default: throw new Error(`Unknown state change ${(change as { kind: string }).kind}`);
+    default: {
+      // A kind added to the generated union fails `npm run check` here.
+      const unreachable: never = change;
+      throw new Error(`Unknown state change ${(unreachable as { kind: string }).kind}`);
+    }
   }
 }
 
+// A Record, not a list: a kind added to the generated StateChange union is a missing key and fails the check.
+const STATE_CHANGE_KINDS: Record<StateChange['kind'], true> = {
+  models_moved: true, wounds_set: true, condition_set: true, action_recorded: true, action_record_cleared: true,
+  grant_added: true, grant_removed: true, spell_tokens_set: true, wounds_this_activation_set: true,
+  score_set: true, marker_placed: true, marker_moved: true, marker_removed: true,
+};
 const isStateChange = (payload: { kind: string }): payload is StateChange =>
-  ['models_moved', 'wounds_set', 'condition_set', 'action_recorded', 'action_record_cleared', 'grant_added',
-    'grant_removed', 'spell_tokens_set', 'wounds_this_activation_set', 'score_set', 'marker_placed',
-    'marker_moved', 'marker_removed'].includes(payload.kind);
+  Object.hasOwn(STATE_CHANGE_KINDS, payload.kind);
 
 export function applyTo(p: Projection, event: GameEvent): void {
   const payload = event.payload;
@@ -442,11 +450,16 @@ export function applyTo(p: Projection, event: GameEvent): void {
     case 'ask_answered': askIn(p, payload.kind, payload.askId).answers.set(payload.teamId, payload.answer); break;
     case 'ask_closed': p.openAsks.delete(payload.askId); break;
     // The frame stack is not ported: RecordedFrame carries no stack, and its rolls come from the
-    // step_completed payload, so these four change nothing any field of a frame records.
+    // step_completed payload, so these six change nothing any field of a frame records.
+    // Unported stack-site faults: Pop on sequence_finished/sequence_abandoned, FrameOf,
+    // ReplaceDice's roll and die-index lookups.
     case 'sequence_started': case 'sequence_finished': case 'sequence_abandoned':
     case 'dice_rerolled': case 'dice_edited': case 'modifier_added': break;
     case 'undone': throw new Error('undone is applied by rebuilding; use Applier.apply');
-    default: throw new Error(`Unknown payload ${(payload as { kind: string }).kind}`);
+    default: {
+      const unreachable: never = payload;
+      throw new Error(`Unknown payload ${(unreachable as { kind: string }).kind}`);
+    }
   }
   p.lastSeq = event.seq;
 }
@@ -539,7 +552,7 @@ function answerOf(answer: AskAnswer | undefined): string {
     case 'tokens_spent': return `${Object.values(answer.counts).reduce((a, b) => a + b, 0)} token(s) spent`;
     case 'confirmed': return 'yes';
     case 'passed': return 'a pass';
-    default: return (answer as { kind: string }).kind;
+    default: { const unreachable: never = answer; return (unreachable as { kind: string }).kind; }
   }
 }
 
@@ -575,7 +588,7 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'marker_placed': return `marker placed${e.marker.label === undefined ? '' : `: ${e.marker.label}`}`;
     case 'marker_moved': return 'marker moved';
     case 'marker_removed': return 'marker removed';
-    default: return (e as { kind: string }).kind;
+    default: { const unreachable: never = e; return (unreachable as { kind: string }).kind; }
   }
 }
 ```
@@ -611,7 +624,7 @@ function volumeOf(id: string, v: Volume): RecordedVolume {
     offsetX: v.offset.x, offsetY: v.offset.y, yaw: v.yaw.degrees, bottom: v.bottom, top: v.top,
     declarations: declarationsOf(v.declarations),
     ...(v.notes === undefined ? {} : { notes: v.notes }),
-  } as RecordedVolume;
+  };
 }
 
 function terrainOf(piece: TerrainPlacement): RecordedTerrain {
@@ -642,7 +655,7 @@ export function recordedBoardOf(board: Board, game: GameInfo): RecordedBoard {
     terrain: table.terrain.map(terrainOf),
     markers: table.markers.map((m) => ({
       id: m.id, kind: m.kind, diameter: m.diameter, ...(m.label === undefined ? {} : { label: m.label }),
-    }) as RecordedBoard['markers'][number]),
+    })),
     // The live feed resolves no zone: ZoneStyles is C# and is not ported (Task 4). An empty ring list
     // is what an unresolvable shape id produces C#-side too, and draws no outline rather than a wrong
     // one. Task 10's normaliseBoard drops `polygons` before comparing, and says why.
@@ -655,11 +668,11 @@ const modelState = (m: ModelInPlay): RecordedModelState => {
   const common = { id: m.id, wounds: m.wounds, spellTokens: m.spellTokens, conditions: [...m.conditions].sort() };
   if (m.location.kind === 'table') {
     const { position, yaw } = m.location.placement;
-    return { ...common, where: 'table', x: position.x, y: position.y, z: position.z, yaw: yaw.degrees } as RecordedModelState;
+    return { ...common, where: 'table', x: position.x, y: position.y, z: position.z, yaw: yaw.degrees };
   }
   if (m.location.kind === 'inside')
-    return { ...common, where: 'inside', containerId: m.location.containerId } as RecordedModelState;
-  return { ...common, where: 'shelf' } as RecordedModelState;
+    return { ...common, where: 'inside', containerId: m.location.containerId };
+  return { ...common, where: 'shelf' };
 };
 
 const unitState = (u: UnitInPlay): RecordedUnitState => ({
@@ -691,7 +704,7 @@ function askOf(open: OpenAsk): RecordedAsk {
       allowance = Object.values(legal.maxByModel).reduce((a, b) => a + b, 0);
       break;
     case 'confirmation': break;
-    default: kind = legal.kind;
+    default: { const unreachable: never = legal; kind = (unreachable as { kind: string }).kind; }
   }
   return {
     id: ask.id, question: ask.question, prompt: ask.prompt, teams: ask.teams,
@@ -700,7 +713,7 @@ function askOf(open: OpenAsk): RecordedAsk {
     ...(ask.frameId === undefined ? {} : { frameId: ask.frameId }),
     legalKind: kind, answered: [...open.answers.keys()], options, pieces,
     ...(allowance === undefined ? {} : { allowance }),
-  } as RecordedAsk;
+  };
 }
 
 const rollOf = (r: RollRecord): RecordedRoll => ({
@@ -708,7 +721,7 @@ const rollOf = (r: RollRecord): RecordedRoll => ({
   net: r.dice.length === 0 ? 0 : r.dice[0]!.modified - r.dice[0]!.raw,
   raw: r.dice.map((d) => d.raw), modified: r.dice.map((d) => d.modified), success: r.dice.map((d) => d.success),
   modifiers: r.modifiers.map((m) => ({ source: m.source, amount: m.amount })),
-}) as RecordedRoll;
+});
 
 export class FrameProjector {
   readonly #applier: Applier;
@@ -747,7 +760,7 @@ export class FrameProjector {
       // Copied, not aliased: every frame is kept for the whole run and the applier keeps mutating both.
       scores: Object.fromEntries(p.scores),
       passed: [...p.scheduler.passed],
-    } as RecordedFrame;
+    };
     this.#frames.push(frame);
     return frame;
   }
@@ -756,11 +769,11 @@ export class FrameProjector {
 
 `[...set].sort()` is JavaScript's code-unit order and C#'s `.Order()` is `Comparer<string>.Default`, which is culture-sensitive; the two agree for the ASCII identifiers conditions and actions actually use, and Task 10's comparison sorts both sides anyway, so a difference cannot produce a false failure. The same holds for `Map` insertion order versus `Dictionary` enumeration order after a marker or Ask is removed and another added.
 
-- [ ] **Step 6: Run the tests; expect 14 more passed**
+- [ ] **Step 6: Run the tests; expect 13 more passed**
 
 Run: `cd viewer && npm test && npm run check`
 
-Fourteen: the desync test is the fourteenth.
+Thirteen: the desync test is the thirteenth.
 
 - [ ] **Step 7: Commit**
 

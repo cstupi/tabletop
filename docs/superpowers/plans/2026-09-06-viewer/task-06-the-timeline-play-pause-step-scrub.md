@@ -140,10 +140,8 @@ export function reduce(state: Timeline, action: TimelineAction): Timeline {
       return reduce(state, { type: state.playing ? 'pause' : 'play' });
     case 'tick': {
       if (!state.playing) return state;
-      const next = state.index + 1;
-      return next >= state.count
-        ? { ...state, playing: false, index: clamp(state.index, state.count) }
-        : { ...state, index: next };
+      const index = clamp(state.index + 1, state.count);
+      return { ...state, index, playing: index < state.count - 1 };
     }
     case 'step':
       return { ...state, playing: false, follow: false, index: clamp(state.index + action.by, state.count) };
@@ -241,6 +239,7 @@ export function frameOf<T>(frames: readonly T[], t: Timeline): T | null {
   let list: HTMLDivElement | undefined = $state();
 
   $effect(() => {
+    void index;
     list?.querySelector<HTMLElement>('[data-current="true"]')?.scrollIntoView({ block: 'nearest' });
   });
 </script>

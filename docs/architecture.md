@@ -33,7 +33,8 @@ the panels have one shape to draw and neither feed is privileged. That second pa
 in the project where `Tabletop.Protocol` and the event applier exist twice, and the duplication is
 generated away rather than maintained: the TypeScript types come from the C# JSON contracts, and
 the ported applier is checked against the C# one by replaying a recording through both and
-comparing every frame (`tests/Tabletop.Viewer.Tests`). Playback is the whole of it — the viewer
+comparing every frame, on the C# side in `tests/Tabletop.Viewer.Tests` and on the TypeScript side in
+`viewer/tests/agreement.test.ts`. Playback is the whole of it — the viewer
 sends no command and answers no Ask, and the seam where it could is deliberately empty.
 
 **Windows is the client's first target, not its only one.** The same Godot project exports to
