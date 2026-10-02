@@ -63,6 +63,7 @@ erDiagram
     ACCOUNT {
         uuid id
         string name
+        timestamptz starter_seeded_at
     }
     ARMY {
         uuid id

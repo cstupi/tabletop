@@ -59,12 +59,13 @@ server/management/Tabletop.Management.csproj      net10.0, LangVersion 12, RootN
   Program.cs                                      composition root; `public partial class Program` for the test host
   Configuration/                                  ManagementOptions, DotEnv
   Http/                                           ClientVersionMiddleware, Keyset, Page<T>, Problems, CurrentAccount
-  Persistence/                                    Database, Migrator, Migrations/001_schema.sql, Migrations/002_blob_uploaded.sql
+  Persistence/                                    Database, Migrator, Migrations/001_schema.sql, Migrations/002_blob_uploaded.sql,
+                                                  Migrations/003_account_starter.sql
   Identity/                                       StytchJwks, StytchAuthentication, StytchClient, Sessions,
                                                   AccountRepository, AuthEndpoints, AccountEndpoints, AccountDeleter
   Content/VolumeRows.cs                           VolumeRow, shared by asset_volume and terrain_volume
   Content/Assets/                                 IBlobStore, S3BlobStore, GlbHeader, AssetRepository/Endpoints/Dtos,
-                                                  FolderRepository/Endpoints
+                                                  FolderRepository/Endpoints, StarterMeshes, StarterAssets
   Content/Armies/                                 ArmyForgeList, ArmyForgeClient, ArmyForgeImport, CatalogKinds,
                                                   ArmyRepository, ArmyEndpoints
   Content/Layouts/                                LayoutRepository, LayoutEndpoints
@@ -302,6 +303,9 @@ sequenceDiagram
     else external_id present
         X->>R: Insert(linked id, name) on conflict do nothing
     end
+    opt account.starter_seeded_at is null
+        X->>X: StarterAssets.SeedIfNeeded(account id), failures logged
+    end
     opt the minted JWT's account_id is not the account id
         X->>S: StampAccount(jwt, account id)
         S->>K: POST /v1/sessions/authenticate {session_custom_claims: {account_id}}
@@ -327,7 +331,10 @@ spends it, and linking at `POST /v1/auth/otp` would create an account row for an
 
 `external_id` is the link between the two systems: `Sessions.Complete` reads it to find the account and
 stamps the claim from it. **No Stytch identifier is stored in our schema** (accounts → *Auth is a module,
-not a vendor*). `account` is two columns.
+not a vendor*). `account` is `id`, `name` and `starter_seeded_at`.
+
+After the account row exists and before the session is stamped, `Sessions.Complete` calls
+`StarterAssets.SeedIfNeeded` (§6, *Starter miniatures*). A failure is logged and never blocks the login.
 
 Verification is `Microsoft.AspNetCore.Authentication.JwtBearer` with
 `MapInboundClaims = false`, `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = {project_id}`,
@@ -450,6 +457,9 @@ Migration `002_blob_uploaded.sql` adds `blob.uploaded boolean not null default f
 Both are needed by the presigned protocol (`docs/schema.md` → *`blob` records whether its bytes
 arrived, and what they are*).
 
+Migration `003_account_starter.sql` adds `account.starter_seeded_at timestamptz null`
+(`docs/schema.md` → *`account` records whether its starter meshes were seeded*).
+
 ### 6. The asset library and the presigned protocol
 
 Two records, per the asset library spec. `blob` is the bytes, keyed `(owner_id, hash)`, so
@@ -531,6 +541,15 @@ rows rather than a cross-account count.
 terrain declarations are `bool` columns mapped to the `TerrainDeclarations` flags enum. `PUT
 /v1/assets/{id}/volumes` is delete-then-insert with fresh ids and answers `409` unless the kind is
 terrain.
+
+**Starter miniatures.** `StarterMeshes` builds six GLBs in memory (five round figures, 25 to 60 mm, and the
+221 × 119 mm hull), sized from `ArmyForgeImport.HeightFromBase` and `DefaultBody`. `StarterAssets.SeedIfNeeded`
+runs from `Sessions.Complete` when `account.starter_seeded_at` is null: it finds or creates a top-level
+`Starter` folder, writes each mesh with `IBlobStore.Put` to `Key(owner, hash)`, inserts the `blob` row
+(`uploaded = true`, on conflict do nothing), the `asset` row (`kind = miniature`) and the folder link, then
+sets the column. A throw is logged and the column stays null, so the next login retries; a retry after a
+partial seed can leave a duplicate mesh. Dev sessions pass through the same path
+([starter meshes](../../superpowers/specs/2026-10-01-starter-meshes-design.md)).
 
 ### 7. Folders
 
@@ -931,6 +950,7 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
+| Starter miniatures are copied into each account's library at first login | the army editor can bind a mesh without an upload first, with no change to the snapshot, the wire or the client: the copies are ordinary assets | shipping built-in model meshes with the client, which needs a `model_slot` builtin-or-asset column, a snapshot change and client and web changes | starter meshes spec |
 | Asset bytes never pass through the service. Presigned `PUT` and `GET` | every participant pulls every mesh in a game, including other people's. Streaming that through the API is the wrong shape, and no AWS credential reaches a client | proxying bytes; a signed-download endpoint that reads and re-serves | management API → *Asset bytes never pass through the API* |
 | The triangle count is a ranged `GET` of the GLB header | a GLB's first chunk is JSON carrying the mesh accessors, so the total needs no part of the binary. One small read, no worker, no queue | a background job on upload; trusting a client-declared count | management API → *The triangle count is a ranged read* |
 | Owner-only authorization answering `404` | existence is not disclosed, and there is no sharing model for a `403` to mean anything in | `403` for another owner's row | management API → *The rest of the surface* |
@@ -1019,7 +1039,8 @@ and a build whose environment is unset serves `404` for it.
 | `Identity.AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
-| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Delete` |
+| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Put`, `Delete` |
+| `Content.Assets.StarterMeshes`, `StarterAssets` | `StarterMeshes` builds the six starter GLBs in memory, deterministically; `StarterAssets.SeedIfNeeded(account)` writes them into the `Starter` folder and sets `starter_seeded_at` |
 | `Content.Assets.GlbHeader` | `IsGlb`, `JsonChunkLength`, `CountTriangles`, `HeaderBytes = 20`, `WarnAbove = 100_000` |
 | `Content.Assets.AssetKind`, `AssetRules` | `{ Miniature, Terrain, Texture }`; `ContentTypes`, `IsSha256`, `Kind`, `Shape` |
 | `Content.Assets.AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes` |
@@ -1168,6 +1189,7 @@ erDiagram
     ACCOUNT {
         uuid id PK
         text name
+        timestamptz starter_seeded_at
     }
     BLOB {
         uuid owner_id PK
@@ -1216,8 +1238,8 @@ erDiagram
     }
 ```
 
-*The account and the library. `blob.uploaded` and `blob.content_type` come from this module's
-migration `002` and are not yet in `schema.md`. `ASSET_VOLUME` is abbreviated here: it carries all
+*The account and the library. `blob.uploaded`, `blob.content_type` and `account.starter_seeded_at` come from this module's
+migrations `002` and `003`. `ASSET_VOLUME` is abbreviated here: it carries all
 six declaration booleans and the full footprint, seventeen columns mapped by one `VolumeRow`.*
 
 ```mermaid

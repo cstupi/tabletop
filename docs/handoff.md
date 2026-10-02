@@ -22,6 +22,10 @@ reaches `playing` runs the Grimdark Future roll-off, deployment, activations, ro
 morale, casting and transports through Asks. No wire kind was added after the contracts plan, so
 `ProtocolVersion` is unchanged.
 
+Management seeds each account's library with six generated starter miniatures (five round figures and the
+default hull, in a `Starter` folder) at first login, once per account via `account.starter_seeded_at`
+(migration `003`); spec `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`.
+
 | Layer | Where | Role |
 | --- | --- | --- |
 | Design sessions | `docs/superpowers/specs/`, 24 files | the requirements; settle behaviour |
@@ -292,7 +296,7 @@ compose-init test and the two JWT negative tests it names.
   accepts it, DbUp does not, so management strips it before migrating. The skeleton qualifies table
   names and needs nothing. It reads the army rows management writes: `weapon`, `*_stat` and `*_property`
   have no ordering column, and a reader that needs import order uses `order by ctid` until an `ordinal`
-  column lands as management's `003_*.sql`; the skeleton's `Reads_an_army_tree_back_to_the_sample`
+  column lands as a new management migration; the skeleton's `Reads_an_army_tree_back_to_the_sample`
   depends on this. The JWT parameters to match are those in
   `server/management/Identity/StytchAuthentication.cs`: `MapInboundClaims = false`, RS256 only,
   `ValidIssuer = stytch.com/{project_id}`, `ValidAudience = project_id`, 30 s skew, a key resolver over

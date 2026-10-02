@@ -25,6 +25,7 @@ builder.Services.AddSingleton(sp => new StytchClient(sp.GetRequiredService<IHttp
 builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp => new Tabletop.Management.Content.Assets.S3BlobStore(sp.GetRequiredService<ManagementOptions>()));
 builder.Services.AddSingleton<AssetRepository>();
 builder.Services.AddSingleton<FolderRepository>();
+builder.Services.AddSingleton<StarterAssets>();
 builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName);
 builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName)));
 builder.Services.AddSingleton<CatalogKinds>();

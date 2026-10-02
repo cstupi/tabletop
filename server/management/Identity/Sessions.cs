@@ -1,3 +1,4 @@
+using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Identity;
@@ -5,8 +6,8 @@ namespace Tabletop.Management.Identity;
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
-/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, and rides in the session's account_id claim.</summary>
-public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
+/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, has its starter miniatures, and rides in the session's account_id claim.</summary>
+public sealed class Sessions(StytchClient stytch, AccountRepository accounts, StarterAssets starter, ILogger<Sessions> log)
 {
     public async Task<SessionResponse> Complete(StytchSession session)
     {
@@ -27,6 +28,9 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts)
             await stytch.SetExternalId(session.User.UserId, accountId.ToString());
             await accounts.Insert(accountId, name);
         }
+        // Starter content never blocks a login: on failure starter_seeded_at stays null and the next login tries again.
+        try { await starter.SeedIfNeeded(accountId); }
+        catch (Exception e) { log.LogError(e, "cannot seed the starter miniatures for {AccountId}", accountId); }
         // A new session carries no account_id until it is stamped; a refreshed one keeps its stamp, so this skips.
         var jwt = AccountClaim(session.SessionJwt) == accountId.ToString()
             ? session.SessionJwt

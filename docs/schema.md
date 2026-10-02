@@ -60,6 +60,7 @@ erDiagram
     ACCOUNT {
         uuid id PK
         text name
+        timestamptz starter_seeded_at
     }
     BLOB {
         uuid owner_id PK
@@ -661,8 +662,15 @@ touching the game.
 `model/gltf-binary | image/png | image/jpeg | image/webp`. The row is written when `POST /v1/assets` hands out a
 presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
 indistinguishable from a finished upload. These two columns arrive as management's
-`002_blob_uploaded.sql` rather than in `001_schema.sql`, which is the one place this document's
-tables and the init SQL differ on purpose.
+`002_blob_uploaded.sql` rather than in `001_schema.sql`. Together with `account.starter_seeded_at` below,
+these are the places this document's tables and the init SQL differ on purpose.
+
+### `account` records whether its starter meshes were seeded
+
+`starter_seeded_at timestamptz null`, arriving as management's `003_account_starter.sql`. Null means the
+account has not been given the starter miniature set; management's `Sessions.Complete` seeds it at login and
+sets the column. Nothing else reads it, and deleting a starter asset does not clear it
+([starter meshes](superpowers/specs/2026-10-01-starter-meshes-design.md)).
 
 ### A deployment zone names a team ordinal, not a team
 
@@ -712,7 +720,7 @@ dedup a property of the schema rather than a rule in code.
   `slot_property`, `weapon_stat` and `weapon_property` carry no ordering column; they are written
   once at import and `ArmyRepository.Get` reads them `order by ctid`, which reproduces insertion
   order until a `VACUUM FULL` or an `UPDATE` moves a row. The durable fix is an `ordinal` column on
-  all seven, as a new `003_*.sql` migration (`001` is never edited after the fact).
+  all seven, as a new migration (`001` is never edited after the fact).
 - ~~Presence has never been designed.~~ **Settled** by
   [presence](superpowers/specs/2026-08-30-presence-design.md), which changes nothing here:
   cursors, pings, measurements, selection and live placements are relayed and never written,

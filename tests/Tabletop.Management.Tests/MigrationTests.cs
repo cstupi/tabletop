@@ -9,7 +9,7 @@ public class MigrationTests : IClassFixture<ManagementFactory>
     public MigrationTests(ManagementFactory f) { _f = f; _f.CreateClient(); }
 
     [Fact]
-    public async Task Schema_has_every_table_and_the_upload_columns()
+    public async Task Schema_has_every_table_the_upload_columns_and_the_starter_column()
     {
         await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
         var tables = await c.ExecuteScalarAsync<int>("select count(*) from information_schema.tables where table_schema in ('management','game')");
@@ -17,6 +17,7 @@ public class MigrationTests : IClassFixture<ManagementFactory>
         var cols = (await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='blob'")).ToList();
         Assert.Contains("uploaded", cols);
         Assert.Contains("content_type", cols);
+        Assert.Contains("starter_seeded_at", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='account'"));
     }
 
     [Fact]

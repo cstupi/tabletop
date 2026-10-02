@@ -17,6 +17,12 @@ public sealed class S3BlobStore(ManagementOptions options) : IBlobStore
     public async Task<Uri> PresignUpload(string key, string contentType, TimeSpan ttl) => new(await _s3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         { BucketName = options.S3Bucket, Key = key, Verb = HttpVerb.PUT, ContentType = contentType, Expires = DateTime.UtcNow.Add(ttl), Protocol = _http ? Amazon.S3.Protocol.HTTP : Amazon.S3.Protocol.HTTPS }));
 
+    public async Task Put(string key, byte[] bytes, string contentType)
+    {
+        using var body = new MemoryStream(bytes);
+        await _s3.PutObjectAsync(new PutObjectRequest { BucketName = options.S3Bucket, Key = key, InputStream = body, ContentType = contentType });
+    }
+
     public async Task<Uri> PresignDownload(string key, TimeSpan ttl) => new(await _s3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         { BucketName = options.S3Bucket, Key = key, Verb = HttpVerb.GET, Expires = DateTime.UtcNow.Add(ttl), Protocol = _http ? Amazon.S3.Protocol.HTTP : Amazon.S3.Protocol.HTTPS }));
 
