@@ -1,9 +1,10 @@
-# Handoff — 2026-09-30, steps 1 to 4 merged; checkpoints 1 and 2 due
+# Handoff — 2026-10-01, steps 1 to 4 merged; a full game plays end to end over the API; the simulator is next
 
 Where the project stands, and what to pick up next. **Steps 1 to 4 are built and merged: contracts,
 geometry, management, the game-server skeleton, the web app, the client, the interpreter and the
-scheduler. No tree is open. Checkpoint 1 (the table by hand) and checkpoint 2 (first turns) are the
-owner's next; step 5, the simulator, waits for checkpoint 2.**
+scheduler. No tree is open. A scripted driver has played whole games against the running servers with no
+client (four rounds, every Checkpoint 2 item it reached as described below). The owner has logged in, imported
+armies and started a game in the client. Step 5, the simulator, is next.**
 
 ## State
 
@@ -13,8 +14,8 @@ skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), t
 each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 805 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 450,
-Management 80. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+`dotnet test` passes 815 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
+Management 87. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
 skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
@@ -22,13 +23,39 @@ reaches `playing` runs the Grimdark Future roll-off, deployment, activations, ro
 morale, casting and transports through Asks. No wire kind was added after the contracts plan, so
 `ProtocolVersion` is unchanged.
 
-Management seeds each account's library with six generated starter miniatures (five round figures and the
-default hull, in a `Starter` folder) at first login, once per account via `account.starter_seeded_at`
-(migration `003`); spec `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`.
+The first owner session against the real stack (2026-10-01) produced these commits on `main`:
+
+| Commit | What |
+| --- | --- |
+| `ebcdb2b` | `Sessions.Complete` stamps `account_id` on each new session through `session_custom_claims` (`StytchClient.StampAccount`); no Stytch claim template is involved |
+| `c45d974` | six generated starter miniatures in a `Starter` folder at first login (`StarterMeshes`, `StarterAssets`, migration `003`); spec `docs/superpowers/specs/2026-10-01-starter-meshes-design.md` |
+| `5d22033` | `GET /v1/assets?kind=` parses the kind ignoring case; the army editor's mesh picker sends `miniature` |
+| `2432975` | the Windows client and presigned MinIO URLs use `127.0.0.1`, not `localhost` (Environment, below) |
+| `03df02d` | Charge is offered only with an enemy unit within charge distance (p.7, `GfMelee.ChargeTargets` in `ActionsFor`); the cast window opens only when a caster can afford an untried spell (`GfCasting.SpellOptions`); `moved` clears at `turn_ended` |
+
+**The end-to-end driver** is `.superpowers/e2e/` (git-ignored, local): a .NET console app that makes two
+dev-session accounts (`e2e-alpha`, `e2e-bravo`), imports one army each from Army Forge, creates and joins a game
+through management, then plays it over the socket, answering every Ask from its `Legal` set and planning
+moves with `Tabletop.Geometry`. It references copies of the built `Tabletop.{Protocol,Content,Geometry}.dll`
+in `lib/`; recopy them from `server/game/bin/Debug/net10.0/` after a library changes. It needs management
+under `./scripts/management` (Development, for `POST /v1/dev/sessions`) and the game server running. Run
+from that directory: `dotnet build && E2E_MAX_ROUND=4 dotnet run --no-build`, with `E2E_PROBE=1` for the
+deliberate wrong-team and out-of-range probes; `E2E_PROPS` overrides the hard-coded properties hash, which is
+the set the running server seeds. It writes `transcript.log`; `transcript-last.log` is the run after
+`03df02d`. What it has not exercised, because neither army has the units or the content has none: spells
+(the core properties hold no spell entries), Takedown, Transport, Scout and Ambush. It is the stand-in for
+`sim/`, which replaces it.
+
+**Open findings from the end-to-end runs, not fixed:**
+- `GET /v1/properties` lists two sets named "Grimdark Future v3.5.1 core" (an older hash a pre-existing game
+  uses, and the one the server seeds), so the client's create-game dialog shows two identical entries.
+- The game does not end after round 4. p.7 says *"After 4 rounds have been played the game ends"*; the
+  accounts spec has a game end only when a participant ends it. A rules-versus-spec decision for the owner.
+- Orc BOOM's army data has two units named "Specialists", so their activate labels are identical.
 
 | Layer | Where | Role |
 | --- | --- | --- |
-| Design sessions | `docs/superpowers/specs/`, 24 files | the requirements; settle behaviour |
+| Design sessions | `docs/superpowers/specs/`, 25 files | the requirements; settle behaviour |
 | Implementation plans | `docs/superpowers/plans/`, the unsplit files and five directories | what gets written, task by task |
 | Engineering design docs | `docs/design/`, 10 folders plus an index | structure and vocabulary |
 
@@ -74,29 +101,30 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
    Never `down -v`: the volume holds the schema every server test reads. The compose `tabletop` database
-   carries `public.schema_version` with 001 baselined and 002 applied. A database seeded before the
-   interpreter merge holds an extra `properties` row from an earlier core-document hash; games created
-   on it keep their own set.
-2. **Checkpoint 1, the table by hand.** The owner checks are section 5 of
-   `.superpowers/reports/client-shell.md`, *Owner checks*, task by task, each with what should appear. They
-   need `./scripts/management` and `dotnet run --project server/game` in WSL, `./scripts/client` on Windows,
-   and two accounts.
-3. **Checkpoint 2, first turns.** Same setup, a game taken through setup to `playing` with an army on each
-   side. What a player should see is *Checkpoint 2: what a player should see* below.
-4. **Step 5, the simulator**, is dispatched only after the owner has played checkpoint 2
-   (`docs/design/README.md` → *Checkpoints*). Its plan is `plans/2026-09-06-simulation.md`, 4 652 lines:
-   split it into a directory before dispatching a tree on it.
+   carries `public.schema_version` with 001 baselined and 002 and 003 applied, and two `properties` rows
+   (an older core-document hash and the current one). The servers are long-running: start them in the
+   owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
+   Claude Code background command is stopped after two hours.
+2. **Step 5, the simulator.** The owner wants client-free testing of the core game, which is what
+   `sim/` is. `docs/design/README.md` gates it on checkpoint 2; the end-to-end driver has played that
+   checkpoint's server side, and the owner confirms the dispatch. Its spec is `docs/superpowers/specs/2026-09-06-simulation-design.md`, its design
+   `docs/design/simulation/`, its plan `plans/2026-09-06-simulation.md`, 4 652 lines: split it into a
+   directory before dispatching a tree on it. Read `.superpowers/e2e/` first: it already drives the live
+   socket and settled the command sequence, the dev-session flow and move planning.
+3. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
+   `.superpowers/reports/client-shell.md`, *Owner checks*. Checkpoint 2 is *Checkpoint 2: what a player
+   should see* below; its server side is covered by the end-to-end driver, and what remains is the client's
+   rendering and input. The client's setup panel is `client/src/Panels/SetupToolbar.cs`: table size and
+   texture, the "{planet} planet" generators, built-in terrain added beside the table and dragged on, the
+   selected placement's volumes, objectives and tokens, zone style and swap, layouts, End setup.
 
 **Owner actions outstanding.** Author the fifteen built-in art files (ten `.glb` under
 `client/content/builtin/terrain/`, five 1024² tileable `.png` under `client/content/builtin/textures/`),
 whose formats and budgets are in `.superpowers/sdd/client-shell/task-06-report.md`; until then every
 built-in piece draws its volume proxy. Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
-app's real-STL test. In the Stytch test project
-`project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`: register `http://localhost:5173/reset-password`
-as a `RESET_PASSWORD` redirect URL. The secret is set in this
-machine's user-secrets (`dotnet user-secrets set STYTCH_SECRET` from `server/management`) and `.env`
-carries the project id. Then do the management plan's Task 5 Step 8 once: a manual login through
-`./scripts/management` against the real project with an emailed code; the tree's tests use a fake Stytch.
+app's real-STL test. Decide whether the game ends after round 4 (open findings, above). Delete the two
+root-owned leftovers `.worktrees/contracts/scripts/postgres` and `.worktrees/game-server-skeleton/scripts/postgres`
+(`sudo rm -rf .worktrees`); nothing else is under `.worktrees/`.
 
 ## Checkpoint 2: what a player should see
 
@@ -192,7 +220,7 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 2. geometry, management, game-server skeleton, together. **Landed.**
 3. web app, client, interpreter, together. **Landed.**
 4. scheduler. **Landed.**
-5. simulator, after checkpoint 2;
+5. simulator, after checkpoint 2 (its server side is covered by `.superpowers/e2e/`; the owner confirms dispatch);
 6. viewer.
 
 **What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle;
@@ -551,7 +579,11 @@ WSL is Ubuntu 26.04. `dotnet` 10.0.400 on PATH; Docker 29.7 and Compose v5.4 rea
 Docker Desktop is running on the Windows host, and `docker: command not found` means it is not;
 `./venv` has `pypdf` for the rulebook; Godot 4.7.2 Mono on the Windows host, opened with
 `./scripts/godot -e`. No `pdftotext`, and headless Chrome cannot launch (missing `libnspr4`), so the
-rulebook's diagrams are read by extracting images with `pypdf` and Pillow.
+rulebook's diagrams are read by extracting images with `pypdf` and Pillow. WSL runs mirrored networking
+(`%UserProfile%\.wslconfig`): Windows reaches the WSL servers at `127.0.0.1`, while `localhost` resolves to
+`::1` first, which does not reach WSL, and .NET waits about 21 s before falling back. The client's defaults
+(`ClientSettings.Default`) and `TABLETOP_S3_ENDPOINT` therefore name `127.0.0.1`; an older saved
+`%APPDATA%\Godot\app_userdata\Tabletop\settings.json` carrying `localhost` has to be edited by hand.
 
 Stytch: test project `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`, project domain
 `https://serious-chicory-4478.customers.stytch.dev` (the JWKS answers there and at
@@ -562,9 +594,17 @@ management, so the Consumer user schema has to come from the docs. The local `st
 cannot log in: Stytch's login server returns an `iss` that differs from its published issuer and
 Claude Code rejects the mismatch (RFC 9207); the `claude.ai Stytch` connector works but is signed into
 a workspace that does not hold this project. **One piece of Stytch configuration is
-load-bearing and not in the repo:** a registered redirect URL for password resets.
+load-bearing and not in the repo:** `http://localhost:5173/reset-password` registered as a `RESET_PASSWORD`
+redirect URL, which the owner reports is in place. Password signup and login through the web app and the client
+work against the real project; a reset email has not been sent from here, because the test project refuses
+mail to unverified domains (`billing_not_verified_for_email` for `@example.com`).
 
 ### The rulebooks
+
+The skill `grimdark-future-rules`, in the local plugin `licensed` (`.claude/skills/licensed/skills/grimdark-future-rules/`;
+the plugin holds third-party licensed content and is not committed), holds the Grimdark
+Future v3.5.1 text one file per printed page (`pages/p07.md` is p.7), with a page index; grep it and quote
+the page. The PDFs are the source:
 
 Grimdark Future v3.5.1 and Age of Fantasy v3.5.1 are at `/mnt/c/Users/clays/Downloads/`:
 
