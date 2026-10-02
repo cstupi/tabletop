@@ -7,6 +7,18 @@ namespace Tabletop.Sim.Scenarios;
 /// <summary>The named scenarios the console runs. Regression scripts are added here beside the soak ones.</summary>
 public static class ScenarioCatalog
 {
+    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
+    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
+    static readonly EntryDocument Bolt = PropertiesJson.Parse(
+        """
+        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
+          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
+            "ruleText": "Target enemy unit within 12\" takes 3 hits with AP(1).",
+            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 12 },
+            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
+              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
+        """).Entries.Single();
+
     private static readonly Dictionary<string, Func<Scenario>> Factories = new(StringComparer.Ordinal)
     {
         ["skirmish"] = () => new ScenarioBuilder("skirmish", seed: 1)
@@ -43,18 +55,6 @@ public static class ScenarioCatalog
             .Army("Blue", 2, 3)
             .Build(),
     };
-
-    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
-    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
-    static readonly EntryDocument Bolt = PropertiesJson.Parse(
-        """
-        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
-          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
-            "ruleText": "Target enemy unit within 12\" takes 3 hits with AP(1).",
-            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 12 },
-            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
-              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
-        """).Entries.Single();
 
     public static IReadOnlyList<string> Names { get; } = Factories.Keys.Order().ToList();
     public static Scenario Get(string name) =>
