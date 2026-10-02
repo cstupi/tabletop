@@ -33,7 +33,7 @@ public sealed record MintedSession(string Jwt, Guid AccountId);
 /// </summary>
 public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
 {
-    public const string ManagementUrlVariable = "TABLETOP_MANAGEMENT_URL";
+    public const string ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT";
     public const string MintPath = "/v1/dev/sessions";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

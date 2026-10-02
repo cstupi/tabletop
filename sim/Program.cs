@@ -1,4 +1,5 @@
 using Npgsql;
+using Tabletop.GameServer.Configuration;
 using Tabletop.GameServer.Persistence;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
@@ -79,6 +80,7 @@ public static class Program
             IGameDriver driver;
             if (options.Driver == SimOptions.Socket)
             {
+                DotEnv.Load(Directory.GetCurrentDirectory());
                 db = NpgsqlDataSource.Create(Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION")
                     ?? throw new UsageException("TABLETOP_DB_CONNECTION is not set; --driver socket needs the same database the servers use"));
                 driver = await OpenSocketAsync(compiled, db, ct);
