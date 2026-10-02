@@ -110,6 +110,9 @@ public sealed class InProcessDriver : IGameDriver
     /// </summary>
     private void Absorb()
     {
+        // The session closes every client when the engine faults and then drops every later frame, so a closed recorder is the cause.
+        if (_recorder.Closed)
+            throw new DriverFaultException($"the session closed the recorder: {_recorder.CloseStatus} {_recorder.CloseReason}");
         foreach (var player in _players) player.TakeFrames();
         var events = _recorder.TakeFrames().OfType<EventsMessage>().SelectMany(m => m.Events).OrderBy(e => e.Seq);
         foreach (var e in events)

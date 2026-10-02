@@ -43,7 +43,13 @@ public static class Program
         {
             var scenario = template.WithSeed(seed);
             if (options.RoundCap is { } cap) scenario = scenario with { RoundCap = cap };
-            reports.Add(await PlayAsync(scenario, options, ct));
+            try { reports.Add(await PlayAsync(scenario, options, ct)); }
+            // A setup fault (a refused seed, a dead server) fails this seed; the range and the summary go on.
+            catch (Exception ex) when (ex is not (UsageException or OperationCanceledException))
+            {
+                reports.Add(new RunReport(scenario.Name, scenario.Seed, options.Driver, new RunOutcome.Failed(ex.ToString()),
+                    0, 0, 0, 0, 0, [$"failed: {ex}"], RecordingPath: null));
+            }
         }
 
         var summary = Summary.Of(options.Driver, reports);

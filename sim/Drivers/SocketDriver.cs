@@ -273,7 +273,13 @@ public sealed class SocketDriver : IGameDriver
                 {
                     if (total == buffer.Length) throw new InvalidOperationException($"a frame larger than {buffer.Length} bytes");
                     result = await peer.Socket.ReceiveAsync(new Memory<byte>(buffer, total, buffer.Length - total), _stopping.Token);
-                    if (result.MessageType == WebSocketMessageType.Close) { peer.Inbox.Writer.TryComplete(); return; }
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        // A server fault closes with InternalServerError and the reason; keep both for the wait that fails.
+                        peer.Fault ??= new IOException($"the server closed the socket: {peer.Socket.CloseStatus} {peer.Socket.CloseStatusDescription}");
+                        peer.Inbox.Writer.TryComplete();
+                        return;
+                    }
                     total += result.Count;
                 } while (!result.EndOfMessage);
                 peer.Inbox.Writer.TryWrite(WireJson.Deserialize(Encoding.UTF8.GetString(buffer, 0, total)));

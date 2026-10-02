@@ -13,6 +13,8 @@ public sealed class RecorderClient(Guid participantId) : ISessionClient
     public Guid ConnectionId { get; } = Guid.CreateVersion7();
     public Guid ParticipantId { get; } = participantId;
     public bool Closed { get; private set; }
+    public WebSocketCloseStatus? CloseStatus { get; private set; }
+    public string? CloseReason { get; private set; }
 
     public IReadOnlyList<SocketMessage> Frames { get { lock (_gate) return _frames.ToList(); } }
 
@@ -22,5 +24,5 @@ public sealed class RecorderClient(Guid participantId) : ISessionClient
     }
 
     public ValueTask SendAsync(SocketMessage message) { lock (_gate) _frames.Add(message); return ValueTask.CompletedTask; }
-    public ValueTask CloseAsync(WebSocketCloseStatus status, string reason) { Closed = true; return ValueTask.CompletedTask; }
+    public ValueTask CloseAsync(WebSocketCloseStatus status, string reason) { Closed = true; CloseStatus = status; CloseReason = reason; return ValueTask.CompletedTask; }
 }

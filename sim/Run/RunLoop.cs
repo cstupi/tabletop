@@ -44,6 +44,8 @@ public sealed partial class RunLoop(
         catch (RestTimeoutException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         catch (DriverFaultException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         catch (NoLegalAnswerException ex) { outcome = new RunOutcome.Stuck(StuckReason.NoLegalAnswer, ex.Message); }
+        // Anything else (a policy or projection fault, a refused submit shape) is this seed's failure, with the frame dump below.
+        catch (Exception ex) when (ex is not OperationCanceledException) { outcome = new RunOutcome.Failed(ex.ToString()); }
 
         var projection = await driver.ProjectionAsync(ct);
         // A paused run is mid-game: the expectations describe the end and would fail at every pause.

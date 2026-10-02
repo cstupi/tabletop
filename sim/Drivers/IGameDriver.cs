@@ -20,7 +20,7 @@ public enum DriverMode { Run, StepAndWait }
 /// </summary>
 public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq, Exception? cause = null)
     : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}"
-        + (cause is null ? "" : $" (the socket reader failed: {cause.GetType().Name}: {cause.Message})"), cause)
+        + (cause is null ? "" : $" (the socket failed: {cause.GetType().Name}: {cause.Message})"), cause)
 {
     public TimeSpan Timeout { get; } = timeout;
     public long LastSeq { get; } = lastSeq;
