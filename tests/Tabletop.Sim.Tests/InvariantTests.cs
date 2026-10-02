@@ -17,7 +17,7 @@ public class InvariantTests
         var scenario = ScenarioCatalog.Get("skirmish").WithSeed(seed);
         var compiled = ScenarioCompiler.Compile(scenario);
         var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         var report = await loop.RunAsync(CancellationToken.None);
         return (compiled, loop, report, driver);
     }

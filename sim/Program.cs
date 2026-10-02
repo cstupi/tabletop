@@ -87,7 +87,7 @@ public static class Program
 
             await using (driver)
             {
-                var loop = new RunLoop(driver, compiled, answers, new Chooser(scenario.Seed ^ 0x5EED));
+                var loop = new RunLoop(driver, compiled, answers, HandPlacement.ChooserFor(scenario.Seed));
                 var report = await loop.RunAsync(ct);
 
                 if (!options.Recording) return report;

@@ -16,7 +16,7 @@ public class ExpectationTests
         var scenario = ScenarioCatalog.Get("stalemate");
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), new Chooser(2));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
         var report = await loop.RunAsync(Ct);
         return (compiled, await driver.ProjectionAsync(Ct), loop.Log.ToList(), report.Outcome);
     }
@@ -72,8 +72,23 @@ public class ExpectationTests
             var scenario = ScenarioCatalog.Get("stalemate") with { Expectations = [expectation] };
             var compiled = ScenarioCompiler.Compile(scenario);
             await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
-            var report = await new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), new Chooser(2)).RunAsync(Ct);
+            var report = await new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1)).RunAsync(Ct);
             Assert.Equal(passes, report.Passed);
         }
+    }
+
+    [Fact]
+    public async Task A_run_that_ends_normally_but_fails_an_expectation_is_recorded_as_failed_with_the_first_failure()
+    {
+        var scenario = ScenarioCatalog.Get("stalemate") with { Expectations = [new Expectation.ReachedRound(99)] };
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
+        var report = await loop.RunAsync(Ct);
+        Assert.NotEqual("failed", report.Outcome.Kind);                 // the loop's own outcome is how the game ended
+        var meta = loop.BuildRecording(report).Meta;
+        Assert.Equal("failed", meta.Outcome);
+        Assert.Equal(report.Failures[0], meta.OutcomeDetail);
+        Assert.Contains("expected round 99", meta.OutcomeDetail);
     }
 }

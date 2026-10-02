@@ -16,7 +16,7 @@ public class StepAndWaitTests
         var compiled = ScenarioCompiler.Compile(scenario);
         var driver = await InProcessDriver.StartAsync(compiled, Ct);
         driver.Mode = DriverMode.StepAndWait;
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(seed))), new Chooser(seed));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         return (compiled, driver, loop);
     }
 
@@ -96,7 +96,7 @@ public class StepAndWaitTests
         driver.Mode = DriverMode.StepAndWait;
         var script = AnswerScript.Build().At(AskQuestions.Confirm, 1, new Confirmed()).Build();
         var answers = new ComposedAnswers(script, new AnswerPolicy(new Chooser(33)));
-        var loop = new RunLoop(driver, compiled, answers, new Chooser(33));
+        var loop = new RunLoop(driver, compiled, answers, HandPlacement.ChooserFor(33));
         await loop.RunAsync(Ct);
         var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
 

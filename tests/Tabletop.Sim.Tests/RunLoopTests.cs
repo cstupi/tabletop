@@ -15,7 +15,7 @@ public class RunLoopTests
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed ^ 0xF00D));
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         return await loop.RunAsync(CancellationToken.None);
     }
 
@@ -36,7 +36,7 @@ public class RunLoopTests
         var scenario = ScenarioCatalog.Get("skirmish");
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(1))), new Chooser(2));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
         await loop.RunAsync(CancellationToken.None);
         var placed = loop.Projector.Frames
             .First(f => f.Round >= 1 && f.Kind == EventKinds.Of(new RoundStarted(1, [], [])))
@@ -54,7 +54,7 @@ public class RunLoopTests
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed ^ 0xF00D));
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         var report = await loop.RunAsync(CancellationToken.None);
         var winner = report.Outcome is RunOutcome.Decided d
             ? compiled.Info.Teams.Single(t => t.Id == d.WinningTeamId).Ordinal
@@ -119,7 +119,7 @@ public class RunLoopTests
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), new Chooser(7));
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), HandPlacement.ChooserFor(7));
         var report = await loop.RunAsync(CancellationToken.None);
 
         Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
@@ -138,7 +138,7 @@ public class RunLoopTests
             .Scripted(AnswerScript.Empty, only: true).Build();
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, null), new Chooser(1));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, null), HandPlacement.ChooserFor(1));
         var report = await loop.RunAsync(CancellationToken.None);
         Assert.False(report.Passed);
         Assert.Equal("failed", report.Outcome.Kind);
@@ -153,7 +153,7 @@ public class RunLoopTests
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(3))), new Chooser(3));
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(3))), HandPlacement.ChooserFor(3));
         var report = await loop.RunAsync(CancellationToken.None);
 
         var meta = loop.BuildRecording(report).Meta;

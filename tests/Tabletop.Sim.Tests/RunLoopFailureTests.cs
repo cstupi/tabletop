@@ -19,7 +19,7 @@ public class RunLoopFailureTests
     static async Task<RunReport> Play(ScriptedDriver driver, AnswerScript? script = null, bool withPolicy = false)
     {
         var answers = new ComposedAnswers(script ?? AnswerScript.Empty, withPolicy ? new AnswerPolicy(new Chooser(1)) : null);
-        return await new RunLoop(driver, Compiled, answers, new Chooser(2)).RunAsync(Ct);
+        return await new RunLoop(driver, Compiled, answers, HandPlacement.ChooserFor(1)).RunAsync(Ct);
     }
 
     static void AssertFailed(RunReport report, string kind)

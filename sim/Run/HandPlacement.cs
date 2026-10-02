@@ -17,6 +17,10 @@ public static class HandPlacement
     private const int Attempts = 40;
     private const int MaxColumns = 5;
 
+    /// <summary>The chooser a run places its units with, derived from the scenario's seed: Program and every test that
+    /// reproduces a console run use this, so one seed names one game through every entry point.</summary>
+    public static Chooser ChooserFor(ulong scenarioSeed) => new(scenarioSeed ^ 0x5EED);
+
     public static IReadOnlyList<ModelRelocation> IntoZone(
         Projection projection, CompiledScenario scenario, Guid teamId, Guid unitId, Chooser chooser)
     {

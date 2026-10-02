@@ -55,7 +55,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     }
 
     static RunLoop LoopFor(IGameDriver driver, CompiledScenario c, ulong seed, AnswerScript? script = null, RunSettings? settings = null) =>
-        new(driver, c, new ComposedAnswers(script ?? c.Scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed ^ 0xF00D), settings);
+        new(driver, c, new ComposedAnswers(script ?? c.Scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed), settings);
 
     static async Task<(RunReport Report, RunLoop Loop)> RunWith(IGameDriver driver, CompiledScenario c, ulong seed)
     {
