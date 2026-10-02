@@ -38,6 +38,12 @@ public static class Program
             return 2;
         }
 
+        return await RunScenarioAsync(template, options, output, ct);
+    }
+
+    /// <summary>Every seed of the options' range against one scenario; the seam a test uses for a scenario the catalog does not hold.</summary>
+    public static async Task<int> RunScenarioAsync(Scenario template, SimOptions options, TextWriter output, CancellationToken ct)
+    {
         var reports = new List<RunReport>();
         foreach (var seed in options.Seeds)
         {
