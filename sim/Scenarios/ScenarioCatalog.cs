@@ -13,8 +13,8 @@ public static class ScenarioCatalog
         """
         { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
           { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
-            "ruleText": "Target enemy unit within 12\" takes 3 hits with AP(1).",
-            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 12 },
+            "ruleText": "Target enemy unit within 24\" takes 3 hits with AP(1).",
+            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 24 },
             "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
               "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
         """).Entries.Single();
@@ -52,7 +52,7 @@ public static class ScenarioCatalog
         ["casting"] = () => new ScenarioBuilder("casting", seed: 1)
             .Spells(Bolt)
             .Army("Red", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
-            .Army("Blue", 2, 3)
+            .Army("Blue", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
             .Build(),
     };
 
