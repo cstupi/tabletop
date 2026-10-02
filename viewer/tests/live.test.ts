@@ -170,10 +170,38 @@ describe('the live feed', () => {
 
   it('gives up if the server has not answered the connect', () => {
     vi.useFakeTimers();
-    const { socket, last } = attach();
+    try {
+      const { socket, last } = attach();
+      socket.fire('open', {});
+      vi.advanceTimersByTime(10_000);
+      expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
+      expect(socket.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stays in error when a welcome and a board arrive after the timeout', () => {
+    const { game, board } = loadFixture('skirmish');
+    vi.useFakeTimers();
+    try {
+      const { socket, last } = attach();
+      socket.fire('open', {});
+      vi.advanceTimersByTime(10_000);
+      socket.deliver({ kind: 'welcome', participantId: 'p9', game });
+      socket.deliver({ kind: 'board', board });
+      expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
+      expect(last().board).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('emits closed once when close() is followed by the socket close event', () => {
+    const { socket, feed, seen } = attach();
     socket.fire('open', {});
-    vi.advanceTimersByTime(10_000);
-    expect(last()).toMatchObject({ status: 'error', detail: 'no welcome within 10 s' });
-    vi.useRealTimers();
+    feed.close();
+    socket.fire('close', {});
+    expect(seen.filter((s) => s.status === 'closed')).toHaveLength(1);
   });
 });

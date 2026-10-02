@@ -21,7 +21,6 @@
 
   async function connect() {
     const token = jwt.length > 0 ? jwt : (await logIn(email, password)).sessionJwt;
-    jwt = token;
     onFeed(liveFeed({ url: socketUrl, gameId, sessionJwt: token }));
   }
 

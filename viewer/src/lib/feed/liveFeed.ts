@@ -59,6 +59,7 @@ export function liveFeed(
   const pending: GameEvent[] = [];
   let welcomed = false;
   let failed = false;
+  let closedOnce = false;
 
   const timeout = setTimeout(() => {
     if (!welcomed) fail('no welcome within 10 s');
@@ -68,6 +69,8 @@ export function liveFeed(
     failed = true;
     clearTimeout(timeout);
     emitter.emit({ status: 'error', detail });
+    // Stop listening for good: later frames must neither queue nor overwrite the error.
+    if (!closedOnce) { closedOnce = true; socket.close(); }
   }
 
   function metaOf(info: GameInfo, lastSeq: number, rounds: number): RecordingMeta {
@@ -131,6 +134,7 @@ export function liveFeed(
     } catch {
       return;                                   // not our frame; the socket carries nothing else we read
     }
+    if (failed) return;
     if (!isServerFrame(parsed)) return;         // presence, ping, presence_ended, at_rest: not read here
     const frame = parsed;
     switch (frame.kind) {
@@ -169,7 +173,7 @@ export function liveFeed(
   socket.addEventListener('error', () => fail('the socket failed'));
   socket.addEventListener('close', () => {
     clearTimeout(timeout);
-    if (!failed) emitter.emit({ status: 'closed' });
+    if (!failed && !closedOnce) { closedOnce = true; emitter.emit({ status: 'closed' }); }
   });
 
   return {
@@ -178,6 +182,8 @@ export function liveFeed(
     subscribe: (listener: (state: FeedState) => void) => emitter.subscribe(listener),
     close: () => {
       clearTimeout(timeout);
+      if (closedOnce) return;
+      closedOnce = true;
       socket.close();
       if (!failed) emitter.emit({ status: 'closed' });
     },
