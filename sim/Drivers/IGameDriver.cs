@@ -18,12 +18,16 @@ public enum DriverMode { Run, StepAndWait }
 /// The server did not say it was at rest inside the driver's timeout. A hung server or a dead
 /// connection, never a stuck game: RunLoop turns it into RunOutcome.Failed.
 /// </summary>
-public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq)
-    : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}")
+public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq, Exception? cause = null)
+    : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}"
+        + (cause is null ? "" : $" (the socket reader failed: {cause.GetType().Name}: {cause.Message})"), cause)
 {
     public TimeSpan Timeout { get; } = timeout;
     public long LastSeq { get; } = lastSeq;
 }
+
+/// <summary>A driver's own stream broke an invariant (a lost, reordered or duplicated frame). RunLoop turns it into RunOutcome.Failed.</summary>
+public sealed class DriverFaultException(string message) : Exception(message);
 
 /// <summary>
 /// One game, played from outside. Two implementations: in process and over the socket, and the same

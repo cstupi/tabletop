@@ -38,20 +38,20 @@ public class DriverAgreementTests(PostgresFixture pg)
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
             PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
 
-    /// <summary>Seeds the rows and returns what the finally block cleans up with.</summary>
-    async Task<(SocketRowSeeder Seeder, SocketCredentials Credentials)> Seed(CompiledScenario c)
+    /// <summary>The seeder and credentials exist before the try, so the finally can always clean up what a partial seed left.</summary>
+    (SocketRowSeeder Seeder, SocketCredentials Credentials) Prepare(CompiledScenario c) =>
+        (new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)), Credentials(c));
+
+    async Task Seed(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
     {
         await SeedCoreProperties();
-        var seeder = new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db));
-        var credentials = Credentials(c);
         await seeder.SeedAsync(c, credentials, Ct);
-        return (seeder, credentials);
     }
 
     static async Task Clean(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
     {
-        await seeder.DeleteAsync(c.Info.Id, Ct);
-        await seeder.DeleteAccountsAsync(credentials, Ct);
+        try { await seeder.DeleteAsync(c.Info.Id, Ct); }
+        finally { await seeder.DeleteAccountsAsync(credentials, Ct); }
     }
 
     static RunLoop LoopFor(IGameDriver driver, CompiledScenario c, ulong seed, AnswerScript? script = null, RunSettings? settings = null) =>
@@ -89,9 +89,10 @@ public class DriverAgreementTests(PostgresFixture pg)
         // A second compile: the ids differ, the seed does not.
         var c = ScenarioCompiler.Compile(scenario);
         using var factory = new GameServerFactory();
-        var (seeder, credentials) = await Seed(c);
+        var (seeder, credentials) = Prepare(c);
         try
         {
+            await Seed(seeder, c, credentials);
             RunReport overSocket;
             RunLoop socketLoop;
             await using (var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct))
@@ -133,9 +134,10 @@ public class DriverAgreementTests(PostgresFixture pg)
         const ulong seed = 22;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate").WithSeed(seed));
         using var factory = new GameServerFactory();
-        var (seeder, credentials) = await Seed(c);
+        var (seeder, credentials) = Prepare(c);
         try
         {
+            await Seed(seeder, c, credentials);
             long lastSeq;
             Projection played;
             await using (var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct))
@@ -168,9 +170,10 @@ public class DriverAgreementTests(PostgresFixture pg)
         // A refused command from team 1 must still be reported as refused, not read off one of those.
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(5));
         using var factory = new GameServerFactory();
-        var (seeder, credentials) = await Seed(c);
+        var (seeder, credentials) = Prepare(c);
         try
         {
+            await Seed(seeder, c, credentials);
             IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
             await using var _ = driver;
             var gate = (await driver.OpenAsksAsync(Ct)).Single().Ask;
@@ -194,9 +197,10 @@ public class DriverAgreementTests(PostgresFixture pg)
     {
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(6));
         using var factory = new GameServerFactory();
-        var (seeder, credentials) = await Seed(c);
+        var (seeder, credentials) = Prepare(c);
         try
         {
+            await Seed(seeder, c, credentials);
             IGameDriver driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
             await using var _ = driver;
             var seen = new List<GameEvent>();
@@ -217,9 +221,10 @@ public class DriverAgreementTests(PostgresFixture pg)
         const ulong seed = 23;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(seed));
         using var factory = new GameServerFactory();
-        var (seeder, credentials) = await Seed(c);
+        var (seeder, credentials) = Prepare(c);
         try
         {
+            await Seed(seeder, c, credentials);
             await using var driver = await SocketDriver.StartAsync(c, new FactoryConnector(factory), credentials, Ct);
             var loop = LoopFor(driver, c, seed);
             await loop.RunAsync(Ct);
@@ -244,6 +249,84 @@ public class DriverAgreementTests(PostgresFixture pg)
             Assert.Equal(original, Dice(replay.Log).ToList());
         }
         finally { await Clean(seeder, c, credentials); }
+    }
+
+    sealed class TrackingConnector(GameServerFactory factory, Func<WebSocket, WebSocket>? wrap = null) : IWebSocketConnector
+    {
+        public List<WebSocket> Sockets { get; } = [];
+        public async Task<WebSocket> ConnectAsync(CancellationToken ct)
+        {
+            WebSocket socket = await factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), ct);
+            var given = wrap?.Invoke(socket) ?? socket;
+            Sockets.Add(given);
+            return given;
+        }
+    }
+
+    /// <summary>Delivers the real frames until `garbleAt`, then a frame that is not JSON.</summary>
+    sealed class GarblingSocket(WebSocket inner, int garbleAt) : WebSocket
+    {
+        private int _received;
+        public override WebSocketCloseStatus? CloseStatus => inner.CloseStatus;
+        public override string? CloseStatusDescription => inner.CloseStatusDescription;
+        public override WebSocketState State => inner.State;
+        public override string? SubProtocol => inner.SubProtocol;
+        public override void Abort() => inner.Abort();
+        public override Task CloseAsync(WebSocketCloseStatus s, string? d, CancellationToken ct) => inner.CloseAsync(s, d, ct);
+        public override Task CloseOutputAsync(WebSocketCloseStatus s, string? d, CancellationToken ct) => inner.CloseOutputAsync(s, d, ct);
+        public override void Dispose() => inner.Dispose();
+        public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> b, CancellationToken ct) => inner.ReceiveAsync(b, ct);
+        public override Task SendAsync(ArraySegment<byte> b, WebSocketMessageType t, bool e, CancellationToken ct) => inner.SendAsync(b, t, e, ct);
+        public override async ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, CancellationToken ct)
+        {
+            if (++_received < garbleAt) return await inner.ReceiveAsync(buffer, ct);
+            var junk = "{ this is not a frame"u8.ToArray();
+            junk.CopyTo(buffer.Span);
+            return new ValueWebSocketReceiveResult(junk.Length, WebSocketMessageType.Text, true);
+        }
+    }
+
+    [Fact]
+    public async Task A_malformed_frame_is_reported_as_the_cause_of_the_failed_wait()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(7));
+        using var factory = new GameServerFactory();
+        var (seeder, credentials) = Prepare(c);
+        try
+        {
+            await Seed(seeder, c, credentials);
+            var connector = new TrackingConnector(factory, s => new GarblingSocket(s, garbleAt: 2));   // welcome, then junk
+            var ex = await Assert.ThrowsAsync<RestTimeoutException>(() => SocketDriver.StartAsync(c, connector, credentials, Ct));
+            Assert.NotNull(ex.InnerException);
+            Assert.IsAssignableFrom<System.Text.Json.JsonException>(ex.InnerException);
+            Assert.All(connector.Sockets, s => Assert.NotEqual(WebSocketState.Open, s.State));
+        }
+        finally { await Clean(seeder, c, credentials); }
+    }
+
+    [Fact]
+    public async Task A_rejected_connect_leaves_no_socket_open_and_no_session_pinned()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(8));
+        using var factory = new GameServerFactory();
+        var (seeder, good) = Prepare(c);
+        try
+        {
+            await Seed(seeder, c, good);
+            // The recorder (index last) connects first and is fine; team 0's token is signed by another key.
+            var sessions = good.Sessions.ToList();
+            sessions[0] = new MintedSession(TestKeys.Mint(sessions[0].AccountId, signingKey: TestKeys.OtherKey), sessions[0].AccountId);
+            var connector = new TrackingConnector(factory);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => SocketDriver.StartAsync(c, connector, new SocketCredentials(sessions), Ct));
+
+            Assert.True(connector.Sockets.Count >= 2);
+            Assert.All(connector.Sockets, s => Assert.NotEqual(WebSocketState.Open, s.State));
+            var registry = factory.Services.GetRequiredService<SessionRegistry>();
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (registry.Live.Count > 0 && DateTime.UtcNow < deadline) await Task.Delay(20);
+            Assert.Empty(registry.Live);
+        }
+        finally { await Clean(seeder, c, good); }
     }
 
     /// <summary>The answers the first run gave after `target`, keyed from zero, so the redo takes the same path.</summary>

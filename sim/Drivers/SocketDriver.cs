@@ -31,6 +31,8 @@ public sealed class SocketDriver : IGameDriver
         public WebSocket Socket { get; } = socket;
         public Channel<SocketMessage> Inbox { get; } = Channel.CreateUnbounded<SocketMessage>();
         public Task Reader { get; set; } = Task.CompletedTask;
+        /// <summary>The first thing that broke the read loop (transport, framing, JSON), kept so a wait can report its cause.</summary>
+        public Exception? Fault { get; set; }
     }
 
     private readonly CompiledScenario _scenario;
@@ -38,7 +40,8 @@ public sealed class SocketDriver : IGameDriver
     private readonly SocketCredentials _credentials;
     private readonly EventApplier _applier;
     private readonly List<Peer> _players = [];
-    private readonly List<Peer> _retired = [];
+    private readonly List<Peer> _all = [];                  // every socket ever opened, for disposal
+    private bool _disposed;
     private readonly List<GameEvent> _incoming = [];        // read off the recorder's socket, not yet applied
     private readonly List<GameEvent> _handout = [];         // applied, not yet handed to a caller
     private readonly CancellationTokenSource _stopping = new();
@@ -62,7 +65,8 @@ public sealed class SocketDriver : IGameDriver
         SocketCredentials credentials, CancellationToken ct)
     {
         var driver = new SocketDriver(scenario, connector, credentials);
-        await driver.StartAsync(ct);
+        try { await driver.StartAsync(ct); }
+        catch { await driver.DisposeAsync(); throw; }   // a rejected connect leaves no socket, reader or pinned session
         return driver;
     }
 
@@ -95,6 +99,7 @@ public sealed class SocketDriver : IGameDriver
     {
         var socket = await _connector.ConnectAsync(ct);
         var peer = new Peer(participantId, socket);
+        _all.Add(peer);
         peer.Reader = Task.Run(() => ReadLoopAsync(peer), CancellationToken.None);
         await SendAsync(peer, new Connect(_credentials.For(credentialIndex), GameId, ProtocolVersion.Current));
         var welcome = await ReadAsync(peer, ct);
@@ -176,7 +181,7 @@ public sealed class SocketDriver : IGameDriver
         // One connection delivers in order, so every EventsMessage of a batch preceded its AtRest. A mismatch
         // is a lost, reordered or duplicated frame, and it is a fault rather than a step.
         if (_applier.Projection.LastSeq != _recorderRest)
-            throw new InvalidOperationException(
+            throw new DriverFaultException(
                 $"the server rested at seq {_recorderRest} but the recorder's stream reached {_applier.Projection.LastSeq}");
         var events = Handout();
         return new StepResult(events, _applier.Projection.OpenAsks.Values.ToList(), events.Count == 0);
@@ -187,7 +192,6 @@ public sealed class SocketDriver : IGameDriver
     {
         Absorb();
         var old = _recorder;
-        _retired.Add(old);
         _incoming.Clear();
         _recorder = await OpenAsync(old.ParticipantId, _scenario.Info.Participants.Count - 1, ct);
         await AwaitConnectRestAsync(ct);
@@ -205,6 +209,7 @@ public sealed class SocketDriver : IGameDriver
     {
         while (_recorder.Inbox.Reader.TryRead(out var frame)) Take(frame);
         foreach (var player in _players) while (player.Inbox.Reader.TryRead(out _)) { }
+        if (_recorder.Fault is { } fault) throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq, fault);
         if (_incoming.Count == 0) return;
         var ordered = _incoming.OrderBy(e => e.Seq).ToList();
         _incoming.Clear();
@@ -243,11 +248,12 @@ public sealed class SocketDriver : IGameDriver
         try { return await peer.Inbox.Reader.ReadAsync(window.Token); }
         catch (OperationCanceledException) when (!caller.IsCancellationRequested)
         {
-            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq, peer.Fault);
         }
         catch (ChannelClosedException)
         {
-            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq);
+            // A reader fault is the cause; a plain close carries none.
+            throw new RestTimeoutException(RestTimeout, _applier.Projection.LastSeq, peer.Fault);
         }
     }
 
@@ -265,6 +271,7 @@ public sealed class SocketDriver : IGameDriver
                 ValueWebSocketReceiveResult result;
                 do
                 {
+                    if (total == buffer.Length) throw new InvalidOperationException($"a frame larger than {buffer.Length} bytes");
                     result = await peer.Socket.ReceiveAsync(new Memory<byte>(buffer, total, buffer.Length - total), _stopping.Token);
                     if (result.MessageType == WebSocketMessageType.Close) { peer.Inbox.Writer.TryComplete(); return; }
                     total += result.Count;
@@ -272,14 +279,20 @@ public sealed class SocketDriver : IGameDriver
                 peer.Inbox.Writer.TryWrite(WireJson.Deserialize(Encoding.UTF8.GetString(buffer, 0, total)));
             }
         }
-        catch (OperationCanceledException) { }
-        catch (WebSocketException) { }
+        catch (OperationCanceledException) { peer.Inbox.Writer.TryComplete(); }
+        catch (Exception ex)
+        {
+            peer.Fault = ex;
+            peer.Inbox.Writer.TryComplete(ex);
+        }
         finally { peer.Inbox.Writer.TryComplete(); }
     }
 
     public async ValueTask DisposeAsync()
     {
-        var peers = _players.Append(_recorder).Concat(_retired).Where(p => p is not null).ToList();
+        if (_disposed) return;
+        _disposed = true;
+        var peers = _all.ToList();
         // Close while the readers still run, so the server's close reply is read; its registry then drops the game.
         foreach (var peer in peers)
         {

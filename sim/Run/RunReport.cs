@@ -6,7 +6,8 @@ namespace Tabletop.Sim.Run;
 /// </param>
 /// <param name="Record">
 /// False builds no frames: a loop attached to a game already past its first event (the redo after an Undo) has
-/// no projector state for the events that refer back to the kept prefix.
+/// no projector state for the events that refer back to the kept prefix. Pair it with CheckInvariants: false, since
+/// the invariants replay the loop's own log from its first event.
 /// </param>
 public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true);
 

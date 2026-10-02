@@ -40,6 +40,7 @@ public sealed partial class RunLoop(
         catch (UnscriptedAskException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         // A hung server or a dead socket, not a stuck game: the engine may have been making progress.
         catch (RestTimeoutException ex) { outcome = new RunOutcome.Failed(ex.Message); }
+        catch (DriverFaultException ex) { outcome = new RunOutcome.Failed(ex.Message); }
         catch (NoLegalAnswerException ex) { outcome = new RunOutcome.Stuck(StuckReason.NoLegalAnswer, ex.Message); }
 
         var projection = await driver.ProjectionAsync(ct);

@@ -17,7 +17,8 @@ public sealed class ClientWebSocketConnector(Uri uri) : IWebSocketConnector
     public async Task<WebSocket> ConnectAsync(CancellationToken ct)
     {
         var socket = new ClientWebSocket();
-        await socket.ConnectAsync(uri, ct);
+        try { await socket.ConnectAsync(uri, ct); }
+        catch { socket.Dispose(); throw; }
         return socket;
     }
 }
