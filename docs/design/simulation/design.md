@@ -1274,7 +1274,7 @@ compares the two drivers run for run, and a socket step costs what the server ta
 
 ### The plan
 
-`docs/superpowers/plans/2026-09-06-simulation.md`, eleven tasks. Task 1 the project, chooser and
+`docs/superpowers/plans/2026-09-06-simulation/README.md`, eleven tasks. Task 1 the project, chooser and
 scenario; Task 2 the answer policy; Task 3 the script and composition; Task 4 `IGameDriver` and
 the in-process driver; Task 5 the recording; Task 6 the run loop; Task 7 the five invariants;
 Task 8 the socket driver; Task 9 the step-and-wait seam; Task 10 the console; Task 11 the two

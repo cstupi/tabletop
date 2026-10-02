@@ -947,7 +947,7 @@ threshold for the same reason.
 
 ### Sibling plans read for their seams
 
-- [`2026-09-06-simulation.md`](../../superpowers/plans/2026-09-06-simulation.md) Task 5: the
+- [`2026-09-06-simulation/README.md`](../../superpowers/plans/2026-09-06-simulation/README.md) Task 5: the
   recording schema, owned there and consumed here; Task 9: the step-and-wait seam this module
   deliberately does not reach.
 - [`2026-09-05-contracts-and-local-dev.md`](../../superpowers/plans/2026-09-05-contracts-and-local-dev.md):

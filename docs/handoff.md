@@ -114,9 +114,9 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    spec's *Ending is a flag* and the rows-by-writer table.
 3. **Step 5, the simulator.** The owner wants client-free testing of the core game, which is what
    `sim/` is. `docs/design/README.md` gates it on checkpoint 2; the end-to-end driver has played that
-   checkpoint's server side, and the owner confirms the dispatch. Its spec is `docs/superpowers/specs/2026-09-06-simulation-design.md`, its design
-   `docs/design/simulation/`, its plan `plans/2026-09-06-simulation.md`, 4 652 lines: split it into a
-   directory before dispatching a tree on it. Read `.superpowers/e2e/` first: it already drives the live
+   checkpoint's server side, and the owner has confirmed the dispatch. Its spec is
+   `docs/superpowers/specs/2026-09-06-simulation-design.md`, its design `docs/design/simulation/`, its plan
+   `plans/2026-09-06-simulation/README.md` and one file per task. Read `.superpowers/e2e/` first: it already drives the live
    socket and settled the command sequence, the dev-session flow and move planning.
 4. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*. Checkpoint 2 is *Checkpoint 2: what a player
@@ -124,11 +124,6 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    rendering and input. The client's setup panel is `client/src/Panels/SetupToolbar.cs`: table size and
    texture, the "{planet} planet" generators, built-in terrain added beside the table and dragged on, the
    selected placement's volumes, objectives and tokens, zone style and swap, layouts, End setup.
-
-**Owner actions outstanding.** Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
-app's real-STL test. Delete the two
-root-owned leftovers `.worktrees/contracts/scripts/postgres` and `.worktrees/game-server-skeleton/scripts/postgres`
-(`sudo rm -rf .worktrees`); nothing else is under `.worktrees/`.
 
 ## Checkpoint 2: what a player should see
 
@@ -508,7 +503,7 @@ activation, and free text covers the rest. `GameInfo` gains no `Actions` list. T
 | Client | `client/` | `2026-09-05-client-shell/README.md` | `design/client/` |
 | Interpreter and effects | `server/game/`, the rules | `2026-09-05-interpreter-and-effects/README.md` | `design/interpreter/` |
 | Scheduler | `server/game/`, turn order | `2026-09-05-scheduler/README.md` | `design/scheduler/` |
-| Simulator | `sim/`, a developer tool | `2026-09-06-simulation.md` | `design/simulation/` |
+| Simulator | `sim/`, a developer tool | `2026-09-06-simulation/README.md` | `design/simulation/` |
 | Viewer | `viewer/`, a developer tool | `2026-09-06-viewer.md` | `design/viewer/` |
 
 The simulator plays whole games with no client, through either an in-process driver or a real socket,
