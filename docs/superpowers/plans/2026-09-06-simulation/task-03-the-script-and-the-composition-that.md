@@ -6,7 +6,7 @@
 
 **Interfaces:**
 - Consumes: `Ask`, `AskAnswer` and its members, `AskQuestions` (Protocol); `AnswerPolicy`, `PolicyView`, `PolicyOptions`, `NoLegalAnswerException` (Task 2); `Chooser` (Task 1).
-- Produces: `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IReadOnlyDictionary<ScriptKey, AskAnswer> Answers)` with `static AnswerScript Empty`, `static ScriptBuilder Build()`, `bool TryGet(string question, int ordinal, out AskAnswer answer)`, `int Count`; `sealed class ScriptBuilder` with `ScriptBuilder At(string question, int ordinal, AskAnswer answer)`, `ScriptBuilder Then(string question, AskAnswer answer)` (the next unused ordinal for that question, starting at 0), `AnswerScript Build()`; `sealed class UnscriptedAskException(Ask ask, int ordinal) : Exception`; `interface IAnswerSource { AskAnswer Answer(Ask ask, PolicyView view); IReadOnlyList<AnsweredAsk> History { get; } }`; `sealed record AnsweredAsk(string Question, int Ordinal, Guid AskId, AskAnswer Answer, bool FromScript)`; `sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) : IAnswerSource` — script first, then the policy; a null policy is a script-only run and throws `UnscriptedAskException` on the first Ask the script does not cover.
+- Produces: `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IReadOnlyDictionary<ScriptKey, AskAnswer> Answers)` with `static AnswerScript Empty`, `static ScriptBuilder Build()`, `bool TryGet(string question, int ordinal, out AskAnswer answer)`, `int Count`; `sealed class ScriptBuilder` with `ScriptBuilder At(string question, int ordinal, AskAnswer answer)`, `ScriptBuilder Then(string question, AskAnswer answer)` (the next unused ordinal for that question, starting at 0), `AnswerScript Build()`; `sealed class UnscriptedAskException(Ask ask, int ordinal) : Exception`; `interface IAnswerSource { AskAnswer Answer(Ask ask, PolicyView view); IReadOnlyList<AnsweredAsk> History { get; } void Record(Ask ask, AskAnswer answer); }`; `sealed record AnsweredAsk(string Question, int Ordinal, Guid AskId, AskAnswer Answer, bool FromScript)`; `sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) : IAnswerSource` — script first, then the policy; a null policy is a script-only run and throws `UnscriptedAskException` on the first Ask the script does not cover.
 
 Spec: spec → *Two ways to answer an Ask* — "**Both, and mixed in one run.** A scenario scripts the opening and hands the rest to the policy… An unscripted Ask under a script-only run is a failure; under a mixed run it goes to the policy." Module prompt → "scripted answers keyed by Ask question and ordinal … Scripted answers take precedence, the policy handles the rest, and a script-only run fails on an unscripted Ask."
 
@@ -85,7 +85,7 @@ public class AnswerScriptTests
 }
 ```
 
-`AnswerPolicyTests.EmptyViewForOtherTests()` is Task 2's `EmptyView()` made `internal static` under that name, so both test classes build the same bare view without a second copy of the eight lines.
+`AnswerPolicyTests.EmptyViewForOtherTests()` is Task 2's `internal static` bare view, so both test classes build it without a second copy.
 
 - [ ] **Step 2: Run; expect failure, then write `AnswerScript.cs`**
 
@@ -153,6 +153,9 @@ public interface IAnswerSource
 {
     AskAnswer Answer(Ask ask, PolicyView view);
     IReadOnlyList<AnsweredAsk> History { get; }
+
+    /// <summary>An answer given from outside this source (a debugger): counted and ordinal-advanced as Answer would, without consulting anything.</summary>
+    void Record(Ask ask, AskAnswer answer);
 }
 
 public sealed class UnscriptedAskException(Ask ask, int ordinal)
@@ -182,10 +185,17 @@ public sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) :
         _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, answer, FromScript: false));
         return answer;
     }
+
+    public void Record(Ask ask, AskAnswer answer)
+    {
+        var ordinal = _seen.GetValueOrDefault(ask.Question);
+        _seen[ask.Question] = ordinal + 1;
+        _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, answer, FromScript: false));
+    }
 }
 ```
 
-A sealed Ask addressed to several teams is answered once per team, so `ComposedAnswers.Answer` is called once per (Ask, team) pair and the ordinal advances each time. That is what a script writer counts: one line per answer given, not one per Ask opened. Task 6's run loop is what calls it per unanswered team.
+The first Ask of every game is the roll-off `confirm` gate, addressed to both teams, so `("confirm", 0)` is that gate and not a deployment answer. An unsealed Ask addressed to several teams (the roll-off gate, `end_round`) is answered once, by the first-listed team that has not answered, so `ComposedAnswers.Answer` is called once for it and the ordinal advances once. A sealed Ask is answered by every addressed team, so `Answer` is called once per team and the ordinal advances each time. That is what a script writer counts: one line per answer given, not one per Ask opened. Task 6's run loop is what calls it for each team that still owes an answer.
 
 - [ ] **Step 4: Run the tests; expect all green, then commit**
 

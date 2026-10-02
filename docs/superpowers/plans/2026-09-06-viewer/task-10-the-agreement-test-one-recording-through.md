@@ -6,7 +6,7 @@
 - Create: `viewer/tests/normalise.ts`, `viewer/tests/fixture.ts`, `viewer/tests/agreement.test.ts`
 
 **Interfaces:**
-- Consumes: `Scenario`, `ScenarioCatalog`, `ScenarioCompiler`, `CompiledScenario` (simulation plan Task 1); `Chooser` (Task 1); `AnswerPolicy`, `ComposedAnswers` (Tasks 2–3); `InProcessDriver` (Task 4); `RunLoop`, `RunReport`, `RunSettings` (Task 6); `Recording`, `RecordingJson`, `FrameProjector` (Task 5); `WireJson`, `Welcome`, `BoardMessage`, `EventsMessage`, `GameEvent`, `MarkerMoved`, `MarkerRemoved`, `Point3`, `Yaw` (contracts plan Task 12); `EventApplier` and `ProjectionDesyncException` (contracts plan Task 14); `RepoPaths` (Task 2); `FrameProjector`, `Applier`, `ProjectionDesyncError`, `recordedBoardOf` (Task 9); `readRecording` (Task 3).
+- Consumes: `Scenario`, `ScenarioCatalog`, `ScenarioCompiler`, `CompiledScenario` (simulation plan Task 1); `Chooser` (Task 1); `HandPlacement.ChooserFor`; `AnswerPolicy`, `ComposedAnswers` (Tasks 2–3); `InProcessDriver` (Task 4); `RunLoop`, `RunReport`, `RunSettings` (Task 6); `Recording`, `RecordingJson`, `FrameProjector` (Task 5); `WireJson`, `Welcome`, `BoardMessage`, `EventsMessage`, `GameEvent`, `MarkerMoved`, `MarkerRemoved`, `Point3`, `Yaw` (contracts plan Task 12); `EventApplier` and `ProjectionDesyncException` (contracts plan Task 14); `RepoPaths` (Task 2); `FrameProjector`, `Applier`, `ProjectionDesyncError`, `recordedBoardOf` (Task 9); `readRecording` (Task 3).
 - Produces (C#): `sealed record Fixture(string Name, Recording Recording, IReadOnlyList<GameEvent> Log, GameInfo Game, Board Board, Guid RecorderParticipantId)`; `static class FixtureWriter` with `Task<Fixture> RunAsync(Scenario, CancellationToken)` and `Task WriteAsync(Fixture, string directory, CancellationToken)`; `const string[] FixtureNames = ["skirmish", "terrain"]`.
 - Produces (TypeScript): in `normalise.ts` — `function normaliseFrame(frame: RecordedFrame): unknown`, `function normaliseBoard(board: RecordedBoard): unknown`; in `fixture.ts` — `const FIXTURES: readonly string[]`, `function loadFixture(name: string): { game: GameInfo; board: Board; events: readonly GameEvent[]; recording: Recording }` (Task 11's live-feed test loads the same four files, so this lives in its own module rather than inside a test file).
 
@@ -16,7 +16,7 @@ Spec: spec → *Two feeds* — "the applier is checked against the C# one by rep
 
 **What frame comparison cannot prove, and the one pair that covers it.** Every frame matching says the two appliers agree on a *valid* log. It says nothing about an invalid one, and that is where two implementations of the same switch diverge most cheaply: the C# throws `ProjectionDesyncException` on an id the projection does not hold, while the natural TypeScript spelling of the same line spreads `undefined` into a fresh object and carries on. So one event — `marker_moved` naming a marker nothing placed — is applied on both sides and both must fault: `AgreementFixtureTests.The_csharp_applier_faults_on_an_id_the_projection_does_not_hold` in C#, *the two appliers fault the same way* in `agreement.test.ts`. A typed throw on one side against a quiet `undefined` on the other is not equivalence, and this plan will not claim it while the pair is missing.
 
-**Fixtures are checked in and regenerated deliberately, not diffed.** Ids are `Guid.CreateVersion7()` and differ between runs (spec → *The seed is stored, so a run sets it*: "the ids differ between runs. Nothing asserts that two runs share an id, and nothing compares two recordings byte for byte"), so a fixture cannot be regenerated and compared to its predecessor. `TABLETOP_WRITE_FIXTURES=1` rewrites them; every other run reads what is checked in. Both scenarios run under a two-round cap so the eight files stay a few hundred kilobytes rather than a few megabytes.
+**Fixtures are checked in and regenerated deliberately, not diffed.** Ids are `Guid.CreateVersion7()` and differ between runs (spec → *The seed is stored, so a run sets it*: "the ids differ between runs. Nothing asserts that two runs share an id, and nothing compares two recordings byte for byte"), so a fixture cannot be regenerated and compared to its predecessor. `TABLETOP_WRITE_FIXTURES=1` rewrites them; every other run reads what is checked in. Both scenarios run under a two-round cap so the eight files stay a few megabytes: a recording is 5 to 6 MB for an eight-round game, so a two-round recording is about 1.5 MB, and an uncapped game would put tens of megabytes in the repo.
 
 - [ ] **Step 1: Write `FixtureWriter.cs`**
 
@@ -48,7 +48,7 @@ public static class FixtureWriter
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, ct);
         var answers = new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(scenario.Seed), null));
-        var loop = new RunLoop(driver, compiled, answers, new Chooser(scenario.Seed), new RunSettings());
+        var loop = new RunLoop(driver, compiled, answers, HandPlacement.ChooserFor(scenario.Seed), new RunSettings());
         var report = await loop.RunAsync(ct);
         return new Fixture(scenario.Name, loop.BuildRecording(report), loop.Log, driver.Info, driver.Board,
             compiled.RecorderParticipantId);
@@ -156,7 +156,7 @@ TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests --filter Agree
 dotnet test tests/Tabletop.Viewer.Tests
 du -sh viewer/tests/fixtures
 ```
-Expected: 4 tests passed on the second run (the `Names` theory is two cases, plus two facts); the directory is well under 2 MB. If it is larger, drop `RoundCap` to 1 for `terrain` and regenerate.
+Expected: 4 tests passed on the second run (the `Names` theory is two cases, plus two facts); the directory is under 4 MB. If it is larger, drop `RoundCap` to 1 for `terrain` and regenerate.
 
 - [ ] **Step 4: Write `viewer/tests/normalise.ts`**
 

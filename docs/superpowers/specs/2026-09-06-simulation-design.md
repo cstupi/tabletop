@@ -40,6 +40,8 @@ therefore a function from an Ask to an answer, and there are two useful ones.
   the soak form: a game plays to completion unattended, and five hundred games with five
   hundred seeds is a fuzz run.
 
+**Who answers a multi-team Ask.** An unsealed Ask addressed to several teams, such as the roll-off `confirm` gate that opens every game or `end_round`, is answered once, by the first listed team that has not answered. A sealed Ask is answered by every addressed team, each in turn.
+
 **Both, and mixed in one run.** A scenario scripts the opening and hands the rest to the
 policy, which is how a specific position becomes a whole game. An unscripted Ask under a
 script-only run is a failure; under a mixed run it goes to the policy.
@@ -154,7 +156,7 @@ reaches none of them is a bug the simulator exists to find.
 | Decided | One team has models and the others do not. Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game |
 | Round limit | A configured round cap, since OPR has no round limit and a stalemate must still terminate. A cap of *n* means *n* whole rounds: the run ends on round *n*'s boundary Ask rather than part-way through round *n* + 1 |
 | Stuck | No Ask is open and the engine emits nothing, or an Ask is answered and reopens unchanged |
-| Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending, and it is the outcome that makes the console exit non-zero |
+| Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending. A failed invariant or expectation shows as `failed` in the recording only for an otherwise decided or round-capped run, with the first failure as the detail. Stuck and Failed runs keep their own kind in the recording. `RunReport.Passed` decides the console's exit code, which is non-zero for a run with any failure |
 | Paused | The step-and-wait seam: the loop stopped with an Ask open and answered nothing, waiting for a person or a test to answer it. A paused run is not a failure and is resumed rather than ended |
 
 Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in

@@ -1,21 +1,21 @@
-# Handoff — 2026-10-01, steps 1 to 4 merged; a full game plays end to end over the API; the simulator is next
+# Handoff — 2026-10-02, steps 1 to 5 merged; the simulator plays whole games with no client; the viewer is next
 
-Where the project stands, and what to pick up next. **Steps 1 to 4 are built and merged: contracts,
-geometry, management, the game-server skeleton, the web app, the client, the interpreter and the
-scheduler. No tree is open. A scripted driver has played whole games against the running servers with no
-client (four rounds, every Checkpoint 2 item it reached as described below). The owner has logged in, imported
-armies and started a game in the client. Step 5, the simulator, is next.**
+Where the project stands, and what to pick up next. **Steps 1 to 5 are built and merged: contracts,
+geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler and
+the simulator. No tree is open. `sim/` plays whole games in process or over the socket with no client. The
+owner has logged in, imported armies and started a game in the client. Checkpoint 3 (whole games, by the
+owner) gates step 6, the viewer.**
 
 ## State
 
 Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`), the game-server
 skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), the client shell
-(`ba53db1`), the interpreter and effects (`c8ae306`) and the scheduler (`2f7a168`); each branch is kept and
+(`ba53db1`), the interpreter and effects (`c8ae306`), the scheduler (`2f7a168`) and the simulator (`0e49d3f`); each branch is kept and
 each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 816 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
-Management 88. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+`dotnet test` passes 918 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
+Management 88, Sim 102. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
 skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
@@ -33,18 +33,17 @@ The first owner session against the real stack (2026-10-01) produced these commi
 | `2432975` | the Windows client and presigned MinIO URLs use `127.0.0.1`, not `localhost` (Environment, below) |
 | `03df02d` | Charge is offered only with an enemy unit within charge distance (p.7, `GfMelee.ChargeTargets` in `ActionsFor`); the cast window opens only when a caster can afford an untried spell (`GfCasting.SpellOptions`); `moved` clears at `turn_ended` |
 
-**The end-to-end driver** is `.superpowers/e2e/` (git-ignored, local): a .NET console app that makes two
-dev-session accounts (`e2e-alpha`, `e2e-bravo`), imports one army each from Army Forge, creates and joins a game
-through management, then plays it over the socket, answering every Ask from its `Legal` set and planning
-moves with `Tabletop.Geometry`. It references copies of the built `Tabletop.{Protocol,Content,Geometry}.dll`
-in `lib/`; recopy them from `server/game/bin/Debug/net10.0/` after a library changes. It needs management
-under `./scripts/management` (Development, for `POST /v1/dev/sessions`) and the game server running. Run
-from that directory: `dotnet build && E2E_MAX_ROUND=4 dotnet run --no-build`, with `E2E_PROBE=1` for the
-deliberate wrong-team and out-of-range probes; `E2E_PROPS` overrides the hard-coded properties hash, which is
-the set the running server seeds. It writes `transcript.log`; `transcript-last.log` is the run after
-`03df02d`. What it has not exercised, because neither army has the units or the content has none: spells
-(the core properties hold no spell entries), Takedown, Transport, Scout and Ambush. It is the stand-in for
-`sim/`, which replaces it.
+**The simulator** is `sim/` (`Tabletop.Sim`), with `tests/Tabletop.Sim.Tests`. It plays a scenario from a
+catalog of six (`skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting`), answers every Ask
+from its legal set with a uniform seeded policy or a script, drives the session in process or over a real
+socket, checks five invariants, and writes one recording per run (5 to 6 MB for an eight-round game). The
+first Ask of every game is the roll-off `confirm` gate addressed to both teams, answered once. A socket run
+mints its sessions from `POST /v1/dev/sessions`, so it needs management in Development and the game server;
+socket-backed tests seed the core properties document themselves. Coverage: uniform play almost never
+reaches `decided` in `skirmish`; `casting` reaches `decided`, spell targets and two-team sealed spend windows.
+No catalog scenario exercises Takedown, Transport, Scout or Ambush. `casting` runs in process only, because
+the shipped properties hold no spells and `sim/` never writes a properties row. `.superpowers/e2e/`, the
+scripted driver that preceded it, is superseded.
 
 **Settled by the owner on 2026-10-02:**
 - `GET /v1/properties` lists one set per `(game_rules, name)`, the most recently seeded (`properties.seeded_at`,
@@ -112,12 +111,16 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    client (*Settled by the owner on 2026-10-02*, above). Design session first: a spec, then a plan, propagated
    to `architecture.md` → *Rules enforcement*, the scheduler spec's *There is no round limit*, the accounts
    spec's *Ending is a flag* and the rows-by-writer table.
-3. **Step 5, the simulator.** The owner wants client-free testing of the core game, which is what
-   `sim/` is. `docs/design/README.md` gates it on checkpoint 2; the end-to-end driver has played that
-   checkpoint's server side, and the owner has confirmed the dispatch. Its spec is
-   `docs/superpowers/specs/2026-09-06-simulation-design.md`, its design `docs/design/simulation/`, its plan
-   `plans/2026-09-06-simulation/README.md` and one file per task. Read `.superpowers/e2e/` first: it already drives the live
-   socket and settled the command sequence, the dev-session flow and move planning.
+   `sim/` scenarios run under `strict`, and `SubmitResult.Accepted.Warning` is never populated: a `warn`
+   breach is visible only on its event.
+3. **Checkpoint 3, then step 6, the viewer.** Checkpoint 3 is whole games through `sim/`. Run on 2026-10-02
+   against the live servers: `skirmish --seeds 1..5` and `casting --seeds 1..3` in process passed (casting seed 2
+   `decided`), `skirmish --seeds 1..3 --driver socket` passed 3 of 3, and `casting --driver socket` exits 2 because
+   the shipped properties hold no spells. A socket run reads `TABLETOP_DB_CONNECTION` from the nearest `.env` and
+   calls management at `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`). The owner's sign-off on
+   checkpoint 3 dispatches the viewer. Its spec is the simulation spec, its design `docs/design/viewer/`, its
+   plan `plans/2026-09-06-viewer/README.md` and one file per task. Its first version is playback only and sends
+   no command; answering an Ask from the browser is a later design session.
 4. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*. Checkpoint 2 is *Checkpoint 2: what a player
    should see* below; its server side is covered by the end-to-end driver, and what remains is the client's
@@ -219,7 +222,7 @@ The graph, from `docs/design/README.md` → *Build order and why*:
 2. geometry, management, game-server skeleton, together. **Landed.**
 3. web app, client, interpreter, together. **Landed.**
 4. scheduler. **Landed.**
-5. simulator, after checkpoint 2 (its server side is covered by `.superpowers/e2e/`; the owner confirms dispatch);
+5. simulator. **Landed.**
 6. viewer.
 
 **What the manager should not trust.** A plan's *expect N passed* is a checkpoint, not an oracle;

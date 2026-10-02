@@ -5,8 +5,8 @@
 - Test: `tests/Tabletop.Sim.Tests/RecordingTests.cs`
 
 **Interfaces:**
-- Consumes: `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `OpenAsk`, `Ask`, `LegalSet`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `Grant`, `RollRecord`, `Die`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Board`, `GameInfo`, `EventApplier`, `AskAnswer` members (Protocol); `TableState`, `Marker`, `MarkerKind`, `TerrainPlacement`, `TerrainVolume`, `DeploymentZone`, `VisualRef` (Content); `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `Base`, `BaseShape`, `Point2`, `Polygon`, `ZoneStyles` (Geometry); `CompiledScenario` (Task 1).
-- Produces: the record schema below (`Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier`); `static class RecordingJson` with `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `Task WriteAsync(Recording, string path, CancellationToken)`, `Task<Recording> ReadAsync(string path, CancellationToken)`, `string Serialize(Recording)`, `Recording Deserialize(string)`; `static class LogLines` with `string Of(GameEvent, Projection after, IReadOnlyDictionary<Guid,int> teamOrdinals)`; `sealed class FrameProjector(CompiledScenario scenario)` with `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IReadOnlyList<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta meta)`.
+- Consumes: `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `OpenAsk`, `Ask`, `LegalSet`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `Grant`, `RollRecord`, `Die`, `Location` (`OnTable`, `OnShelf`, `Inside`), `Board`, `GameInfo`, `EventApplier`, `AskAnswer` members (Protocol); `TableState`, `Marker`, `MarkerKind`, `TerrainPlacement`, `TerrainVolume`, `DeploymentZone`, `VisualRef` (Content); `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `Base`, `BaseShape`, `Placement`, `Point3`, `Yaw`, `Polygon`, `ZoneStyles` (Geometry); `CompiledScenario` (Task 1).
+- Produces: the record schema below (`Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedPoint`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier`); `static class RecordingJson` with `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `Task WriteAsync(Recording, string path, CancellationToken)`, `Task<Recording> ReadAsync(string path, CancellationToken)`, `string Serialize(Recording)`, `Recording Deserialize(string)`; `static class LogLines` with `string Of(GameEvent, Projection after, IReadOnlyDictionary<Guid,int> teamOrdinals)`; `sealed class FrameProjector(CompiledScenario scenario)` with `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IReadOnlyList<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta meta)`.
 
 Spec: spec → *The recording is the artifact* — "A run writes one file: the board, then one frame per event, each frame carrying the model positions, wounds, conditions and the log line that event produced. It is a **recording of a projection, not a log of events**"; "Given frames, the viewer interpolates nothing and decides nothing; it draws what it is handed"; "The recording is derived and disposable. It is not a save format, it is not replayed into the engine, and the event log remains the only thing undo and hydration read." Spec → *Interactive debugging is a door* — "the recording carries the open Ask at every frame". Spec → *Still open*: "Whether a recording should carry the dice so a viewer can show a roll, or only its result" — settled: it carries the dice, in `RecordedRoll` (every die's raw and modified face, whether it succeeded, the threshold and the modifiers).
 
@@ -58,7 +58,7 @@ public class RecordingTests
         var projector = new FrameProjector(c);
         var unit = c.Board.Armies[0].Snapshot.Units[0];
         var moved = new ModelsMoved([new ModelRelocation(unit.Models[0].Id, new OnShelf(),
-            new OnTable(new Tabletop.Protocol.Placement(new Tabletop.Geometry.Point3(6, 6, 0), new Tabletop.Geometry.Yaw(0))))]);
+            new OnTable(new Tabletop.Geometry.Placement(new Tabletop.Geometry.Point3(6, 6, 0), new Tabletop.Geometry.Yaw(0))))]);
         var frame = projector.Add(new GameEvent(1, null, moved, null));
 
         Assert.Equal(0, frame.Index);
@@ -128,10 +128,12 @@ public class RecordingTests
     {
         var c = Scenario();
         var projector = new FrameProjector(c);
+        var frameId = Guid.CreateVersion7();
+        projector.Add(new GameEvent(1, null, new SequenceStarted(frameId, "attack", new SequenceContext(null, [], [], null)), null));
         var roll = new RollRecord(Guid.CreateVersion7(), "hit", 4, [new RollModifier("Good Shot", 1)],
             [new Die(3, 4, true), new Die(1, 2, false)]);
-        var frame = projector.Add(new GameEvent(1, null,
-            new StepCompleted(Guid.CreateVersion7(), "hit-roll", null, [roll], []), null));
+        var frame = projector.Add(new GameEvent(2, null,
+            new StepCompleted(frameId, "hit-roll", null, [roll], []), null));
         var recorded = Assert.Single(frame.Rolls);
         Assert.Equal([3, 1], recorded.Raw);
         Assert.Equal([4, 2], recorded.Modified);
@@ -147,10 +149,12 @@ public class RecordingTests
         // value the attacking models bring, since p.4 tests each attack against "the model's Quality value" and a joined hero
         // brings its own. The recording carries both, and the line has to say which is which.
         var projector = new FrameProjector(Scenario());
+        var frameId = Guid.CreateVersion7();
+        projector.Add(new GameEvent(1, null, new SequenceStarted(frameId, "attack", new SequenceContext(null, [], [], null)), null));
         var captain = new RollRecord(Guid.CreateVersion7(), "hit", 3, [], [new Die(4, 4, true)]);
         var squad = new RollRecord(Guid.CreateVersion7(), "hit", 5, [], [new Die(4, 4, false)]);
-        var frame = projector.Add(new GameEvent(1, null,
-            new StepCompleted(Guid.CreateVersion7(), "roll-to-hit", null, [captain, squad], []), null));
+        var frame = projector.Add(new GameEvent(2, null,
+            new StepCompleted(frameId, "roll-to-hit", null, [captain, squad], []), null));
         Assert.Equal([3, 5], frame.Rolls.Select(r => r.Threshold));
         Assert.Equal("roll-to-hit: hit 3+ 4!; hit 5+ 4", frame.Line);
     }
@@ -162,18 +166,24 @@ public class RecordingTests
         var projector = new FrameProjector(c);
         projector.Add(new GameEvent(1, null, new PhaseStarted("deployment"), null));
         projector.Add(new GameEvent(2, null, new RoundStarted(1, c.TeamIds, []), null));
+        projector.Add(new GameEvent(3, null, new ScoreSet(c.TeamIds[0], 4), null));
+        var teams = c.Info.Teams.Select(t => new RecordedTeam(t.Id, t.Ordinal, $"Team {t.Ordinal}", [])).ToList();
         var meta = new RecordingMeta("terrain", 1, "in-process", "grimdark-future", c.Properties.ContentHash,
-            "alternating-activation", "strict", 8, [], "round_limit", null, null, 1, 2, DateTimeOffset.UnixEpoch, 12.5);
+            "alternating-activation", "strict", 8, teams, "round_limit", null, null, 1, 2, DateTimeOffset.UnixEpoch, 12.5);
         var recording = projector.Build(meta);
 
         var path = Path.Combine(Path.GetTempPath(), $"sim-{Guid.CreateVersion7():N}.json");
         try
         {
-            await RecordingJson.WriteAsync(recording, path, TestContext.Current.CancellationToken);
-            var read = await RecordingJson.ReadAsync(path, TestContext.Current.CancellationToken);
+            await RecordingJson.WriteAsync(recording, path, CancellationToken.None);
+            var read = await RecordingJson.ReadAsync(path, CancellationToken.None);
             Assert.Equal(RecordingJson.SchemaVersion, read.Version);
-            Assert.Equal(recording, read);
-            Assert.Contains("\"schemaVersion\"", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            Assert.Equal(RecordingJson.Serialize(recording), RecordingJson.Serialize(read));
+            Assert.Equal(3, read.Frames.Count);
+            Assert.Equal(4, read.Frames[2].Scores[c.TeamIds[0]]);
+            Assert.Equal(teams.Count, read.Meta.Teams.Count);
+            Assert.Equal("terrain", read.Meta.Scenario);
+            Assert.Contains("\"schemaVersion\"", await File.ReadAllTextAsync(path, CancellationToken.None));
         }
         finally { File.Delete(path); }
     }
@@ -190,10 +200,39 @@ public class RecordingTests
         Assert.Contains("\"frames\"", json);
         Assert.DoesNotContain("\"Frames\"", json);
         Assert.Contains("\"polygons\"", json);            // the resolved zone rings, in the board block
-        Assert.Contains("\"scores\"", json);              // empty, but present: a frame is whole state
+        Assert.Contains("\"scores\"", json);              // present even with no points scored: a frame is whole state
         Assert.Contains("\"passed\"", json);
         Assert.DoesNotContain("roundCap", json);          // null, so omitted
         Assert.DoesNotContain("activeTeamId", json);      // no active team yet, so omitted
+    }
+
+    [Fact]
+    public void An_undone_event_is_tolerated_on_a_projector_that_saw_nothing_before()
+    {
+        var projector = new FrameProjector(Scenario());
+        var frame = projector.Add(new GameEvent(9, null, new Undone(5), null));
+        Assert.Equal("undone", frame.Kind);
+        Assert.Equal(18, frame.Models.Count);
+    }
+
+    [Fact]
+    public void An_earlier_frames_scores_and_passed_are_copies_that_later_events_do_not_change()
+    {
+        var c = Scenario();
+        var projector = new FrameProjector(c);
+        var team = c.TeamIds[0];
+        projector.Add(new GameEvent(1, null, new RoundStarted(1, c.TeamIds, []), null));
+        projector.Add(new GameEvent(2, null, new TurnStarted(team), null));
+        var before = projector.Add(new GameEvent(3, null, new ScoreSet(team, 3), null));
+        var passed = projector.Add(new GameEvent(4, null, new TurnEnded(team, true, []), null));
+        projector.Add(new GameEvent(5, null, new ScoreSet(team, 7), null));
+        projector.Add(new GameEvent(6, null, new RoundStarted(2, c.TeamIds, []), null));
+
+        Assert.Equal(3, before.Scores[team]);
+        Assert.Empty(before.Passed);
+        Assert.Equal(team, Assert.Single(passed.Passed));
+        Assert.Equal(3, passed.Scores[team]);
+        Assert.Equal(3, projector.Frames[2].Scores[team]);
     }
 }
 ```
@@ -203,7 +242,7 @@ Run: `dotnet test tests/Tabletop.Sim.Tests --filter RecordingTests`
 Expected: `CS0246: ... 'FrameProjector' could not be found`.
 
 ```csharp
-using Tabletop.Geometry;   // Point2 only: a zone's resolved rings are the one geometry type in the schema.
+using System.Text.Json.Serialization;
 
 namespace Tabletop.Sim.Recording;
 
@@ -214,7 +253,7 @@ namespace Tabletop.Sim.Recording;
 // wants what happened rather than what it looked like wants game.game_event, not this.
 
 /// <summary>One run. `schemaVersion` is RecordingJson.SchemaVersion; a reader that does not know it should refuse the file.</summary>
-public sealed record Recording(int Version, RecordingMeta Meta, RecordedBoard Board, IReadOnlyList<RecordedFrame> Frames);
+public sealed record Recording([property: JsonPropertyName("schemaVersion")] int Version, RecordingMeta Meta, RecordedBoard Board, IReadOnlyList<RecordedFrame> Frames);
 
 /// <param name="Outcome">
 /// `decided`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
@@ -273,7 +312,10 @@ public sealed record RecordedMarker(Guid Id, string Kind, double Diameter, strin
 /// so it cannot be recovered from the id and the size. It costs a handful of points once per zone.
 /// </param>
 public sealed record RecordedZone(
-    Guid Id, string Shape, int TeamOrdinal, IReadOnlyList<IReadOnlyList<Point2>> Polygons);
+    Guid Id, string Shape, int TeamOrdinal, IReadOnlyList<IReadOnlyList<RecordedPoint>> Polygons);
+
+/// <summary>A ring vertex in table inches. Sim-owned so the JSON is exactly {x, y}; Point2 also serialises its Length.</summary>
+public sealed record RecordedPoint(double X, double Y);
 
 /// <param name="BaseShape">`circle`, `oval` or `rect`.</param>
 /// <param name="BaseA">A circle's diameter, an oval's or rect's length — all in inches.</param>
@@ -390,7 +432,7 @@ public static class RecordingJson
 }
 ```
 
-`Recording.Version` serialises as `version`; the test asserts `schemaVersion` appears in the file, so `Recording` declares it as `[JsonPropertyName("schemaVersion")] int Version` — add that attribute to the record's first parameter (`[property: JsonPropertyName("schemaVersion")] int Version`). A reader checks it first and refuses anything it does not know.
+`Recording.Version` serialises as `schemaVersion`, because the record declares `[property: JsonPropertyName("schemaVersion")] int Version`, and the test asserts that name appears in the file. A reader checks it first and refuses anything it does not know.
 
 `RecordedFrame.Scores` is the schema's only dictionary and its keys are `Guid`s. `DictionaryKeyPolicy` is left unset, so `System.Text.Json` writes each key as the canonical hyphenated form and a team id in `scores` is spelled exactly as a team id anywhere else in the file. `PropertyNamingPolicy` does not touch dictionary keys.
 - [ ] **Step 4: Write `LogLines.cs`**
@@ -587,9 +629,18 @@ public sealed class FrameProjector(CompiledScenario scenario)
                 t.Position.X, t.Position.Y, t.Position.Z, t.Yaw.Degrees, t.Scale,
                 t.Volumes.Select(v => VolumeOf(v.Id, v.Volume)).ToList())).ToList(),
             table.Markers.Select(m => new RecordedMarker(m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label)).ToList(),
-            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal,
-                ZoneStyles.Resolve(z.Shape, table.Size).Select(g => g.Vertices).ToList())).ToList(),
+            table.Zones.Select(z => new RecordedZone(z.Id, z.Shape, z.TeamOrdinal, RingsOf(z.Shape, table.Size))).ToList(),
             models);
+    }
+
+    private static IReadOnlyList<IReadOnlyList<RecordedPoint>> RingsOf(string shape, TableSize size)
+    {
+        try
+        {
+            return ZoneStyles.Resolve(shape, size)
+                .Select(g => (IReadOnlyList<RecordedPoint>)g.Vertices.Select(v => new RecordedPoint(v.X, v.Y)).ToList()).ToList();
+        }
+        catch (ArgumentException) { return []; }
     }
 
     private static string VisualName(VisualRef visual) => visual.Builtin ?? visual.AssetId!.Value.ToString();
@@ -609,7 +660,7 @@ public sealed class FrameProjector(CompiledScenario scenario)
 
 The markers' positions live on `RecordedMarkerState` frame by frame like a model's, and so do the kind, the diameter and the label — a marker placed during play appears in the first frame after its `marker_placed` and is in no board block, so the frame has to be enough on its own. `RecordedBoard.Markers` stays as the *setup* markers, which is what the board block describes; where both name the same marker they agree, and the frame is what a viewer draws from.
 
-`ZoneStyles.Resolve` answers in the corner frame the recording already uses, so nothing converts. An unknown shape id resolves to no rings, so `polygons` is `[]` and a viewer draws no outline while still showing the id — the same fallback as a client that does not know the style (client design → *An unknown zone shape id*).
+`ZoneStyles.Resolve` answers in the corner frame the recording already uses, so nothing converts. It throws `ArgumentException` on an unknown or malformed shape id, and `RingsOf` catches it, so `polygons` is `[]` and a viewer draws no outline while still showing the id — the same fallback as a client that does not know the style (client design → *An unknown zone shape id*).
 
 - [ ] **Step 6: Run the tests; expect all green, then commit**
 

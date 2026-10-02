@@ -7,7 +7,7 @@
 
 **Interfaces:**
 - Consumes: `Projection`, `UnitInPlay`, `ModelInPlay`, `SchedulerPosition`, `Frame`, `OpenAsk`, `EventApplier`, `GameEvent`, `EventPayload` members, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, `AskQuestions`, `Board`, `GameInfo`, `Undo` (Protocol); `Replay` (game server skeleton); `Distance`, `TableSize` (Geometry); `IGameDriver`, `InProcessDriver` (Task 4); `CompiledScenario` (Task 1); `RunOutcome` (Task 6).
-- Produces: `static class ProjectionComparer` with `IReadOnlyList<string> Differences(Projection expected, Projection actual)`; `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `static class Invariants` with `IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)`, and one method per invariant — `InvariantResult ReplayReproducesTheProjection(...)`, `InvariantResult UndoAndRedoReproduceTheDice(...)`, `InvariantResult EveryAskAnsweredByAnAddressedTeam(...)`, `InvariantResult NoModelInTwoPlacesOrOffTheSlab(...)`, `InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(...)`; `static class MidRun` with `void Assert(Projection, IReadOnlyList<GameEvent>, CompiledScenario)` (throws `InvariantViolatedException` with every failure); `sealed class InvariantViolatedException(IReadOnlyList<InvariantResult>) : Exception`.
+- Produces: `static class ProjectionComparer` with `IReadOnlyList<string> Differences(Projection expected, Projection actual)`; `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `static class Invariants` (namespace `Tabletop.Sim.Invariants`, so callers outside it write `Invariants.Invariants.CheckAll`) with `IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)`, and one method per invariant — `InvariantResult ReplayReproducesTheProjection(...)`, `InvariantResult UndoAndRedoReproduceTheDice(...)`, `InvariantResult EveryAskAnsweredByAnAddressedTeam(...)`, `InvariantResult NoModelInTwoPlacesOrOffTheSlab(...)`, `InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(...)`; `static class MidRun` with `void Assert(Projection, IReadOnlyList<GameEvent>, CompiledScenario)` (throws `InvariantViolatedException` with every failure); `sealed class InvariantViolatedException(IReadOnlyList<InvariantResult>) : Exception`.
 
 Spec: spec → *What it asserts*, all five bullets verbatim:
 - Replaying the log from the initial state reproduces the final projection.
@@ -19,7 +19,7 @@ Spec: spec → *What it asserts*, all five bullets verbatim:
 **Each one, as this task computes it.**
 
 1. **Replay.** `Replay.To(board, info, log, log[^1].Seq)` against the driver's own projection, through `ProjectionComparer`. In process the same comparison also runs against `InProcessDriver.ServerProjectionAsync`, which is the stronger form: the server's live projection, the driver's incrementally-applied one, and a cold replay all three agree.
-2. **Undo and the dice.** `Undone(N)` shortens the effective log, and the dice are counter-based on `(GameState.RngSeed, cursor)` (interpreter plan Task 5) where `RngSeed` is the value stored on the game row and read at hydration, so the *k*th die of the game is a pure function of that seed and *k*. The check is therefore over the log alone and needs no second run: `EventApplier.EffectiveLog` after an appended `Undone(N)` must contain the same dice, in the same order, at the same cursor positions as the original log's first *N* sequences. Doing it for every `N` at which a `step_completed` carrying dice appears covers "an arbitrary sequence" exhaustively rather than by sampling. A *redo* that re-rolls is then guaranteed by the same arithmetic, and is checked once for real in `DriverAgreementTests` (Task 8) by submitting `Undo` to the driver and replaying the recorded answers.
+2. **Undo and the dice.** The check reads `EventApplier.EffectiveLog` and not the raw log: an `Undone` already in the log removes dice from the game, and the raw log reports a false failure when an `Undone` is followed by fresh dice. `Undone(N)` shortens the effective log, and the dice are counter-based on `(GameState.RngSeed, cursor)` (interpreter plan Task 5) where `RngSeed` is the value stored on the game row and read at hydration, so the *k*th die of the game is a pure function of that seed and *k*. The check is therefore over the log alone and needs no second run: the effective log after an appended `Undone(N)` must contain the same dice, in the same order, at the same cursor positions as the effective log's first *N* sequences. Doing it for every `N` at which a `step_completed` carrying dice appears covers "an arbitrary sequence" exhaustively rather than by sampling. The invariant therefore checks only the effective-log prefix, and its doc comment says so. The engine-level check is `DriverAgreementTests` (Task 8), which submits `Undo` to the socket driver and re-answers.
 3. **Addressed teams.** For each `AskAnswered`, the `AskOpened` with that id must have the answering team in `Ask.Teams`. An `AskClosed` with an empty answer list is a superseded scheduler Ask and is not an answer (scheduler design → *A superseded scheduler Ask closes with no answers*).
 4. **One place, on the slab.** Walk the log: for each `ModelRelocation`, `From` must equal the model's location before the event, so no move invents a location; and every `OnTable` position must satisfy `0 ≤ x ≤ width`, `0 ≤ y ≤ length` on the final projection and on every intermediate one.
 5. **The round boundary.** For every `RoundStarted` with `Round ≥ 2`, either the nearest preceding `AskClosed` closed an Ask whose question is `AskQuestions.EndRound`, or the `GameEvent.Actor` is non-null — which is the menu's `set_round`, an override that is "visible to opponents and recorded in the event log, never silent" (`architecture.md` → Rules enforcement). Rounds 0 and 1 are deployment's flip into round one and are exempt.
@@ -27,6 +27,7 @@ Spec: spec → *What it asserts*, all five bullets verbatim:
 - [ ] **Step 1: Write the failing tests**
 
 ```csharp
+using Tabletop.GameServer.Log;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
@@ -42,9 +43,9 @@ public class InvariantTests
     {
         var scenario = ScenarioCatalog.Get("skirmish").WithSeed(seed);
         var compiled = ScenarioCompiler.Compile(scenario);
-        var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed));
-        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+        var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
+        var report = await loop.RunAsync(CancellationToken.None);
         return (compiled, loop, report, driver);
     }
 
@@ -53,7 +54,7 @@ public class InvariantTests
     {
         var (scenario, loop, report, driver) = await Played();
         await using var _ = driver;
-        var results = Invariants.CheckAll(await driver.ProjectionAsync(TestContext.Current.CancellationToken), loop.Log, scenario);
+        var results = Invariants.Invariants.CheckAll(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);
         Assert.Equal(5, results.Count);
         Assert.All(results, r => Assert.True(r.Held, $"{r.Name}: {r.Detail}"));
         Assert.Empty(report.Failures);
@@ -66,7 +67,7 @@ public class InvariantTests
         await using var _ = driver;
         // A round that started with no boundary Ask and no actor: the round advanced on its own, which the scheduler forbids.
         var forged = loop.Log.Append(new GameEvent(loop.Log[^1].Seq + 1, null, new RoundStarted(9, scenario.TeamIds, []), null)).ToList();
-        var result = Invariants.TheRoundAdvancedOnlyThroughTheBoundaryAsk(forged);
+        var result = Invariants.Invariants.TheRoundAdvancedOnlyThroughTheBoundaryAsk(forged);
         Assert.False(result.Held);
         Assert.Contains("round 9", result.Detail);
     }
@@ -76,10 +77,10 @@ public class InvariantTests
     {
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
-        var mine = await driver.ProjectionAsync(TestContext.Current.CancellationToken);
+        var mine = await driver.ProjectionAsync(CancellationToken.None);
         var cold = Replay.To(scenario.Board, scenario.Info, loop.Log, loop.Log[^1].Seq);
         Assert.Empty(ProjectionComparer.Differences(cold, mine));
-        var server = await ((InProcessDriver)driver).ServerProjectionAsync(TestContext.Current.CancellationToken);
+        var server = await ((InProcessDriver)driver).ServerProjectionAsync(CancellationToken.None);
         Assert.Empty(ProjectionComparer.Differences(server, mine));
     }
 
@@ -88,7 +89,7 @@ public class InvariantTests
     {
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
-        var result = Invariants.UndoAndRedoReproduceTheDice(loop.Log, scenario);
+        var result = Invariants.Invariants.UndoAndRedoReproduceTheDice(loop.Log, scenario);
         Assert.True(result.Held, result.Detail);
     }
 
@@ -110,7 +111,7 @@ public class InvariantTests
     {
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
-        MidRun.Assert(await driver.ProjectionAsync(TestContext.Current.CancellationToken), loop.Log, scenario);   // does not throw
+        MidRun.Assert(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);   // does not throw
         var forged = loop.Log.Append(new GameEvent(loop.Log[^1].Seq + 1, null, new RoundStarted(9, scenario.TeamIds, []), null)).ToList();
         var thrown = Assert.Throws<InvariantViolatedException>(() =>
             MidRun.Assert(Replay.To(scenario.Board, scenario.Info, forged, forged[^1].Seq), forged, scenario));
@@ -227,12 +228,16 @@ public static class Invariants
     /// The dice are counter-based on (RngSeed, cursor), and RngSeed is the seed stored on the game row, so it
     /// never changes for a game: die k is a pure function of that seed and k, and Undone(N) shortens the
     /// effective log rather than rewriting it. Checked at every sequence that carries dice, which is
-    /// "an arbitrary sequence" exhaustively.
+    /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: the engine-level undo and
+    /// redo check, re-answering after a real Undo, is Task 8's socket test (DriverAgreementTests).
     /// </summary>
     public static InvariantResult UndoAndRedoReproduceTheDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {
-        var original = DiceOf(log);
-        foreach (var target in log.Where(e => e.Payload is StepCompleted { Rolls.Count: > 0 }).Select(e => e.Seq))
+        // The effective log: an undone range's dice are no longer the game's, so a log that already holds an
+        // Undone is measured as it stands, not as every event ever appended.
+        var live = EventApplier.EffectiveLog(log);
+        var original = DiceOf(live);
+        foreach (var target in live.Where(e => e.Payload is StepCompleted { Rolls.Count: > 0 }).Select(e => e.Seq))
         {
             var undone = log.Append(new GameEvent(log[^1].Seq + 1, null, new Undone(target), null)).ToList();
             var effective = EventApplier.EffectiveLog(undone);
@@ -338,18 +343,20 @@ public static class MidRun
 
 - [ ] **Step 4: Wire the invariants into `RunLoop.RunAsync`**
 
-Insert after the expectation check, before the `RunReport` is built:
+Insert after the expectation check, before the `RunReport` is built. A paused run skips the expectations and the invariants, because both describe a finished game:
 
 ```csharp
-        if (_settings.CheckInvariants)
+        if (_settings.CheckInvariants && outcome is not RunOutcome.Paused)   // a paused run is mid-game
+        {
             failures.AddRange(Invariants.Invariants.CheckAll(projection, _log, scenario)
                 .Where(r => !r.Held).Select(r => $"{r.Name}: {r.Detail}"));
 
-        if (driver is InProcessDriver inProcess)
-        {
-            var server = await inProcess.ServerProjectionAsync(ct);
-            failures.AddRange(ProjectionComparer.Differences(server, projection)
-                .Select(d => $"the driver's projection differs from the server's — {d}"));
+            if (driver is InProcessDriver inProcess)
+            {
+                var server = await inProcess.ServerProjectionAsync(ct);
+                failures.AddRange(ProjectionComparer.Differences(server, projection)
+                    .Select(d => $"the driver's projection differs from the server's — {d}"));
+            }
         }
 ```
 

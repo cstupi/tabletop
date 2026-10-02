@@ -155,7 +155,7 @@ A scenario is C#. `Scenario` is a record with a fluent `ScenarioBuilder`, and
 ```mermaid
 flowchart LR
     Builder["ScenarioBuilder: Army, Terrain, Marker, Zones, Shape, RoundCap, Scripted, Expect"]
-    Scenario["Scenario record: Seed, Shape, Enforcement, RoundCap, Table, Armies, Terrain, Markers, ZoneShapes, Script, ScriptOnly, Expectations"]
+    Scenario["Scenario record: Seed, Shape, Enforcement, RoundCap, Table, Armies, Terrain, Markers, ZoneShapes, Spells, Script, ScriptOnly, Expectations"]
     Compiler["ScenarioCompiler.Compile"]
     Compiled["CompiledScenario"]
     Info["GameInfo at Playing, RngSeed set"]
@@ -236,9 +236,11 @@ a frame id is not stable across a rewrite of the sequence. `ScriptBuilder.Then(q
 takes the next unused ordinal for that question. `At(question, ordinal, answer)` names one. A
 duplicate key throws at build time.
 
-A sealed Ask addressed to several teams is answered once per team, so `ComposedAnswers.Answer`
-is called once per (Ask, team) pair and the ordinal advances each time. A script writer counts
-one line per answer given, not one per Ask opened.
+The first Ask of every game is the roll-off `confirm` gate, addressed to both teams. An unsealed Ask
+addressed to several teams, the gate and `end_round` among them, is answered once, by the first listed
+team that has not answered, so `ComposedAnswers.Answer` is called once for it and `("confirm", 0)` is the
+gate. A sealed Ask is answered by every addressed team, so `Answer` is called once per (Ask, team) pair
+and the ordinal advances each time. A script writer counts one line per answer given, not one per Ask opened.
 
 ### The two prohibitions, and the uniform default
 
@@ -290,14 +292,14 @@ hole rather than a runtime one.
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
 | `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets`, then one pick per item |
 | `MoveRegion` | `Destinations` | see below |
-| `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in id order |
+| `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in the server's order |
 | `Confirmation` | `Confirmed` | always |
 
 A token spend draws per model rather than once against a total. Grimdark Future p.13 lets each
 model spend any number of the tokens it holds, so `TokenSpend` carries a maximum per model and
 the bound under test is that maximum. A single draw against the sum could never produce "one from
 the model holding four, none from the other", which is the answer a per-model bug shows up in.
-The entries are drawn in id order, so one seed answers one run identically.
+The entries are drawn in the order the server sent them. That order is the engine's deterministic insertion order and it survives the wire, whereas ids made in the same millisecond sort on random bits, so one seed answers one run identically only in the server's order.
 
 A `PieceSelection` whose `Eligible` list is model ids needs nothing from the policy: it picks ids
 out of the list it was given without asking what they name, which is what makes a Takedown choosing
@@ -423,6 +425,8 @@ flips to `setup`, and `EndSetupAsync(gameId, snapshot, snapshotsByParticipant)` 
 participant's `army_snapshot` and flips to `playing`. The scenario's own ids therefore survive.
 `CreateTeamAsync` would mint its own, and the driver's projection, its recording and its answers
 are all keyed on the `CompiledScenario`'s ids.
+
+The properties row is not part of the seeding. `sim/` never writes a `properties` row. `GameServerFactory` runs in the `Test` environment, where the game server seeds no embedded documents, so a socket-backed test seeds the core properties document into Postgres itself, through the game server's own `PostgresPropertiesStore`, before `SeedAsync`. `SeedAsync` throws `PropertiesMissingException` when the row is absent.
 
 **One session per participant.** A session JWT names one account,
 `FindParticipantAsync(gameId, accountId)` maps an account to one participant, and a newer socket
@@ -596,7 +600,7 @@ erDiagram
 ```
 
 **Every frame carries whole state, not a delta.** Nothing in a viewer has to accumulate, and a
-scrub to frame 300 needs frame 300 only. A 500-frame game of 40 models is roughly 1.5 MB of
+scrub to frame 300 needs frame 300 only. A recording of an 8-round game is 5 to 6 MB of
 JSON. `RecordedFrame.Scores` and `RecordedFrame.Passed` are copied rather than aliased, because
 the applier keeps mutating both and every frame is kept for the whole run.
 
@@ -687,7 +691,8 @@ first bad frame rather than at the end.
 ### The step-and-wait seam
 
 `DriverMode.StepAndWait` makes the loop stop at the first Ask it would have answered and report
-`RunOutcome.Paused(askId, question)`, having answered nothing. `RunLoop.ResumeAsync` continues
+`RunOutcome.Paused(askId, question)`, having answered nothing. The first pause is on the roll-off
+`confirm` gate. `RunLoop.ResumeAsync` continues
 under the current mode. `RunLoop.AnswerPausedAsync(teamId, answer, ct)` supplies one answer from
 outside the answer source and pauses again.
 
@@ -716,8 +721,10 @@ dotnet run --project sim -- <scenario> [options]
 
 Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
 `--driver socket` reads `TABLETOP_DB_CONNECTION` (the variable the servers read),
-`TABLETOP_SIM_WS` (default `ws://localhost:5200/ws`) and `TABLETOP_MANAGEMENT_URL` (default
-`http://localhost:5100`). There is no token variable, because the tokens are minted per run.
+`TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`) and `TABLETOP_SIM_MANAGEMENT` (default
+`http://127.0.0.1:5100`), each from the environment or the nearest `.env`, as the servers load theirs. `TABLETOP_MANAGEMENT_URL` in `.env` is management's bind address, so the client side has its own name. A scenario that declares its own spells cannot run on the socket driver, because
+those spells have no authored properties document the game server can load, so that combination is a usage
+error with exit code 2. There is no token variable, because the tokens are minted per run.
 
 A socket run leaves its rows and its log in Postgres. The game is then in the database to look
 at, and `sim/` is a developer tool. `SocketRowSeeder.DeleteAsync` exists for the tests, which
@@ -748,7 +755,7 @@ stored rather than derived, and the two runs are separate games that rolled the 
 | The driver's projection is its own `EventApplier` over the recorder's stream | the same applier a client runs, so the socket driver needs no second mechanism | reading the session's projection directly, which the socket cannot do | **(plan)** Task 4 |
 | The recorder is a `Participant` with a null `TeamId` | presence, the scheduler and the interpreter already treat that participant as a spectator who is never Asked | a new server-side spectator concept | whole-design review → ruling 5 |
 | The recording is a projection recording, one whole-state frame per event | keeps `EventApplier` a single implementation; a TypeScript applier would drift | shipping raw events and porting the applier | spec → The recording is the artifact |
-| Frames are whole state, not deltas | a scrub to frame 300 needs frame 300 only; nothing accumulates | deltas, at roughly 1.5 MB saved per 500-frame game | spec → The recording is the artifact |
+| Frames are whole state, not deltas | a scrub to frame 300 needs frame 300 only; nothing accumulates | deltas, to shrink a 5 to 6 MB recording | spec → The recording is the artifact |
 | `RecordedMarkerState` carries kind, diameter and label per frame | a marker placed during play is in no board block, and a frame must be whole | a growing board block, which the live feed cannot implement | **(plan)** applied from the viewer plan, item 2 |
 | `RecordedZone.Polygons` holds resolved rings | OPR's frontline is an absolute twelve-inch inset, so it cannot be derived from the id and the table size | porting `ZoneStyles` to TypeScript | **(plan)** applied from the viewer plan, item 1 |
 | `RecordedFrame` carries `Scores` and `Passed` | the applier maintains both and `ProjectionComparer` compares both | a frame from which a viewer could show neither | **(plan)** applied from the viewer plan, item 3 |
@@ -777,20 +784,20 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | --- | --- |
 | `sealed class Chooser(ulong seed)` | `int Next(int bound)`, `double Double()`, `bool Chance(double)`, `T Pick<T>(IRL<T>)`, `IRL<T> Shuffle<T>(IRL<T>)`, `IRL<T> Subset<T>(IRL<T>, int)`, `long Drawn` |
 | `sealed record SimOptions(string? Scenario, ulong FromSeed, ulong ToSeed, string Driver, string OutputDirectory, int? RoundCap, bool Recording, bool List)` | `static Parse(string[])`, `static string Usage`, `IEnumerable<ulong> Seeds`, `const InProcess = "in-process"`, `const Socket = "socket"`; `sealed class UsageException` |
-| `sealed record Summary(string Driver, int Runs, int Passed, int Failed, double TotalMs, IRL<RunReport> Reports)` | `static Of(string, IRL<RunReport>)`, `string Table()` |
-| `static class Program` | `Task<int> Main(string[])`, `Task<int> RunAsync(SimOptions, TextWriter, CancellationToken)` |
+| `sealed record Summary(string Driver, int Runs, int Passed, int Failed, double TotalMs, IRL<RunReport> Reports)` | `static Of(string, IRL<RunReport>)`, `string Table()`, `string ToJson()` |
+| `static class Program` | `Task<int> Main(string[])`, `Task<int> RunAsync(SimOptions, TextWriter, CancellationToken)`, `Task<int> RunScenarioAsync(Scenario, SimOptions, TextWriter, CancellationToken)` |
 
 ### Produced: `Tabletop.Sim.Scenarios`
 
 | Type | Members |
 | --- | --- |
-| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
+| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
 | `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats)` | |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
-| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Scripted`, `Expect`, `Build` |
+| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Expect`, `Build` |
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
-| `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties` |
+| `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties`, `PropertySet PropertiesFor(IRL<EntryDocument>)` |
 | `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` |
 | `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)` |
 | `static class Expectations` | `IRL<string> Check(IRL<Expectation>, Projection, IRL<GameEvent>, RunOutcome, CompiledScenario)`, `int ModelsOnTable(Projection, CompiledScenario, int teamOrdinal)`, `int ModelsOnTable(Projection, CompiledScenario, Guid teamId)` |
@@ -817,12 +824,12 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed record StepResult(IRL<GameEvent> Events, IRL<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }` | `Quiescent` is true when the server rested without emitting anything |
 | `sealed class RestTimeoutException(TimeSpan timeout, long lastSeq)` | `TimeSpan Timeout`, `long LastSeq`; thrown by `SocketDriver` when `AtRest` does not arrive inside `RestTimeout` |
 | `sealed class ScenarioRows(CompiledScenario) : IGameRows` | the six reads; the seven writes throw `NotSupportedException` |
-| `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed` |
+| `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed`, `WebSocketCloseStatus? CloseStatus`, `string? CloseReason` |
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
-| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_MANAGEMENT_URL"`, `const MintPath = "/v1/dev/sessions"`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static NameFor(CompiledScenario, int)`, `string For(int)`, `Guid AccountOf(int)` |
-| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
-| `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, NpgsqlDataSource, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
+| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static NameFor(CompiledScenario, int)`, `string For(int)`, `Guid AccountOf(int)` |
+| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)`, `Task DeleteAccountsAsync(SocketCredentials, CancellationToken)` |
+| `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
 ### Produced: `Tabletop.Sim.Run`
 
@@ -831,8 +838,8 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }` | |
 | `abstract record RunOutcome` | `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, `string Kind` |
 | `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` | `static AskFingerprint Of(Ask)` |
-| `static class HandPlacement` | `IRL<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)` |
-| `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true)` | |
+| `static class HandPlacement` | `IRL<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)`, `Chooser ChooserFor(ulong scenarioSeed)` |
+| `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)` | `Record: false` builds no frames, for a loop attached to a game already past its first event |
 | `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IRL<string> Failures, string? RecordingPath)` | `bool Passed` |
 | `sealed class RunLoop(IGameDriver, CompiledScenario, IAnswerSource, Chooser, RunSettings? = null)` | `Task<RunReport> RunAsync(CancellationToken)`, `Task<RunReport> ResumeAsync(CancellationToken)`, `Task<RunReport> AnswerPausedAsync(Guid teamId, AskAnswer, CancellationToken)`, `FrameProjector Projector`, `IRL<GameEvent> Log`, `IAnswerSource Answers`, `Recording BuildRecording(RunReport)`, `IRL<string> LastFrames(int)` |
 
@@ -857,7 +864,7 @@ The viewer's whole input.
 | `RecordedBoard(double Width, double Length, string Texture, IRL<RecordedTerrain> Terrain, IRL<RecordedMarker> Markers, IRL<RecordedZone> Zones, IRL<RecordedModel> Models)` | |
 | `RecordedTerrain(Guid Id, string Mesh, double X, double Y, double Z, double Yaw, double Scale, IRL<RecordedVolume> Volumes)` | |
 | `RecordedVolume(Guid Id, string Kind, string Footprint, double A, double B, double OffsetX, double OffsetY, double Yaw, double Bottom, double Top, IRL<string> Declarations, string? Notes)` | |
-| `RecordedMarker(Guid Id, string Kind, double Diameter, string? Label)`; `RecordedZone(Guid Id, string Shape, int TeamOrdinal, IRL<IRL<Point2>> Polygons)` | `polygons` is one ring per polygon, `{x, y}` in table inches |
+| `RecordedMarker(Guid Id, string Kind, double Diameter, string? Label)`; `RecordedZone(Guid Id, string Shape, int TeamOrdinal, IRL<IRL<RecordedPoint>> Polygons)`; `RecordedPoint(double X, double Y)` | `polygons` is one ring per polygon, `{x, y}` in table inches |
 | `RecordedModel(Guid Id, Guid UnitId, string UnitName, string Name, int Ordinal, Guid TeamId, int TeamOrdinal, string BaseShape, double BaseA, double BaseB, double Height)` | |
 | `RecordedFrame(int Index, long Seq, string Kind, Guid? Actor, string? Warning, int Round, string? Phase, Guid? ActiveTeamId, string Line, IRL<RecordedModelState> Models, IRL<RecordedUnitState> Units, IRL<RecordedMarkerState> Markers, IRL<RecordedAsk> OpenAsks, IRL<RecordedRoll> Rolls, IRD<Guid,int> Scores, IRL<Guid> Passed)` | sixteen members, all whole state |
 | `RecordedModelState(Guid Id, string Where, double? X, double? Y, double? Z, double? Yaw, Guid? ContainerId, int Wounds, int SpellTokens, IRL<string> Conditions)` | `Where` is `table`, `shelf` or `inside` |
@@ -887,7 +894,7 @@ The viewer's whole input.
 | Interpreter | `PropertiesSeeder.EmbeddedDocuments()` and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` public. `InMemoryPropertiesStore.Add(PropertySet)` returning `this`. `DiceSource()` parameterless. `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public. |
 | Scheduler | `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. |
 | Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. |
-| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and no polygons for an unknown id. `Settling.SurfaceHeightAt`. |
+| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Settling.SurfaceHeightAt`. |
 | Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. |
 | Viewer | consumes `Tabletop.Sim.Recording` verbatim as its input format and `RecordingJson.SchemaVersion` as the number to check. It generates its TypeScript types from these C# records. |
 
@@ -910,7 +917,7 @@ sequenceDiagram
     H-->>D: GameSession
     D->>S: StartAsync
     S->>E: Advance until it rests
-    E-->>S: roll-off, round_started(0), the first deploy Ask
+    E-->>S: the roll-off confirm gate, the first Ask, addressed to both teams
     D->>S: ConnectAsync(RecorderClient for the recorder participant)
     loop one per team
         D->>S: ConnectAsync(RecorderClient for the participant)
@@ -1036,7 +1043,7 @@ sequenceDiagram
     SR->>PG: rows
     T->>SK: RunLoop over seed 21
     SK-->>T: RunReport B
-    T->>T: Outcome, Rounds, LastSeq, Frames, AsksAnswered all equal
+    T->>T: Outcome kind, Rounds, LastSeq, Frames, AsksAnswered all equal
     T->>SK: dispose every socket
     T->>SK: StartAsync again: the session left memory, so this hydrates from the log
     T->>T: ProjectionComparer.Differences(played, rehydrated) is empty
@@ -1094,9 +1101,9 @@ whose model states do not match the final projection. `RecordingTests` pins that
 
 ### Recording size
 
-A 500-frame game of 40 models is roughly 1.5 MB of indented JSON. Every frame carries every
+A recording of an 8-round game is 5 to 6 MB of indented JSON. Every frame carries every
 model and every unit, so the file grows as frames times models. A soak run of 500 seeds at that
-size writes about 750 MB into `--out`. `--no-recording` exists for that case.
+size writes about 3 GB into `--out`. `--no-recording` exists for that case.
 
 ## Failure modes
 

@@ -1,14 +1,14 @@
 # Task 1: The project, the chooser, and the scenario
 
 **Files:**
-- Create: `sim/Tabletop.Sim.csproj`, `sim/Chooser.cs`, `sim/Scenarios/Scenario.cs`, `sim/Scenarios/ScenarioCompiler.cs`, `sim/Scenarios/ScenarioCatalog.cs`
+- Create: `sim/Tabletop.Sim.csproj`, `sim/Program.cs`, `sim/Chooser.cs`, `sim/Scenarios/Scenario.cs`, `sim/Scenarios/ScenarioBuilder.cs`, `sim/Scenarios/ScenarioCompiler.cs`, `sim/Scenarios/ScenarioCatalog.cs`, `sim/Scenarios/Expectation.cs`
 - Create: `tests/Tabletop.Sim.Tests/Tabletop.Sim.Tests.csproj`, `tests/Tabletop.Sim.Tests/PostgresCollection.cs`
 - Test: `tests/Tabletop.Sim.Tests/ChooserTests.cs`, `tests/Tabletop.Sim.Tests/ScenarioTests.cs`
 - Modify: `Tabletop.sln`
 
 **Interfaces:**
-- Consumes: `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `ArmySnapshot`, `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `MarkerKind`, `DeploymentZone`, `VisualRef` (Content); `Base`, `TableSize`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `Point2`, `TerrainDeclarations` (Geometry); `GameInfo` (including its `RngSeed` member — see *Interfaces needed* item 4), `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`, `Participant`, `Board`, `ArmyInPlay` (Protocol); `PropertiesSeeder.EmbeddedDocuments()`, `PropertiesJson.Hash`, `PropertiesJson.ToSet`, `PropertySet` (game server `Tabletop.GameServer.Properties`); `GrimdarkFutureRules.RulesId` (`Tabletop.GameServer.Rules.GrimdarkFuture`).
-- Produces: `sealed class Chooser(ulong seed)` with `int Next(int bound)`, `double Double()`, `bool Chance(double p)`, `T Pick<T>(IReadOnlyList<T> items)`, `IReadOnlyList<T> Shuffle<T>(IReadOnlyList<T>)`, `IReadOnlyList<T> Subset<T>(IReadOnlyList<T> items, int count)`, `long Drawn`; `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IReadOnlyList<ScenarioArmy> Armies, IReadOnlyList<ScenarioTerrain> Terrain, IReadOnlyList<ScenarioMarker> Markers, IReadOnlyList<string> ZoneShapes, AnswerScript Script, bool ScriptOnly, IReadOnlyList<Expectation> Expectations)` with `Scenario WithSeed(ulong)`; `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IReadOnlyList<ScenarioRule> UnitRules, IReadOnlyList<ScenarioRule> ModelRules, IReadOnlyList<ScenarioWeapon> Weapons, IReadOnlyDictionary<string,string> UnitStats)`; `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `sealed record ScenarioWeapon(string Name, IReadOnlyDictionary<string,string> Stats, IReadOnlyList<ScenarioRule> Rules)`; `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IReadOnlyList<Volume> Volumes)`; `sealed record ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)`; `sealed class ScenarioBuilder` (the fluent form, `Build()`); `sealed record CompiledScenario(Scenario Scenario, GameInfo Info, Board Board, PropertySet Properties, IReadOnlyList<Guid> TeamIds, IReadOnlyList<Guid> ParticipantIds, IReadOnlyDictionary<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` with `Guid ParticipantFor(Guid teamId)`; `static class ScenarioCompiler { CompiledScenario Compile(Scenario s); PropertySet CoreProperties { get; } }`; `static class ScenarioCatalog { IReadOnlyList<string> Names { get; } Scenario Get(string name); bool TryGet(string name, out Scenario) }`.
+- Consumes: `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `ArmySnapshot`, `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `MarkerKind`, `DeploymentZone`, `VisualRef` (Content); `Base`, `TableSize`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `Point2`, `TerrainDeclarations` (Geometry); `GameInfo` (including its `RngSeed` member — see *Interfaces needed* item 4), `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`, `Participant`, `Board`, `ArmyInPlay` (Protocol); `PropertiesSeeder.EmbeddedDocuments()`, `PropertiesJson.Hash`, `PropertiesJson.Parse`, `PropertiesJson.ToSet`, `PropertySet`, `PropertySetDocument`, `EntryDocument` (game server `Tabletop.GameServer.Properties`); `GrimdarkFutureRules.RulesId` (`Tabletop.GameServer.Rules.GrimdarkFuture`).
+- Produces: `sealed class Chooser(ulong seed)` with `int Next(int bound)`, `double Double()`, `bool Chance(double p)`, `T Pick<T>(IReadOnlyList<T> items)`, `IReadOnlyList<T> Shuffle<T>(IReadOnlyList<T>)`, `IReadOnlyList<T> Subset<T>(IReadOnlyList<T> items, int count)`, `long Drawn`; `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IReadOnlyList<ScenarioArmy> Armies, IReadOnlyList<ScenarioTerrain> Terrain, IReadOnlyList<ScenarioMarker> Markers, IReadOnlyList<string> ZoneShapes, IReadOnlyList<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IReadOnlyList<Expectation> Expectations)` with `Scenario WithSeed(ulong)`; `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IReadOnlyList<ScenarioRule> UnitRules, IReadOnlyList<ScenarioRule> ModelRules, IReadOnlyList<ScenarioWeapon> Weapons, IReadOnlyDictionary<string,string> UnitStats)`; `sealed record ScenarioRule(int Unit, string Name, int? Parameter = null)`; `sealed record ScenarioWeapon(string Name, IReadOnlyDictionary<string,string> Stats, IReadOnlyList<ScenarioRule> Rules)`; `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IReadOnlyList<Volume> Volumes)`; `sealed record ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)`; `sealed class ScenarioBuilder(string name, ulong seed)` (the fluent form: `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Spells(params EntryDocument[])`, `Army`, `Terrain`, `Marker`, `Scripted`, `Expect`, `Build()`); `sealed record CompiledScenario(Scenario Scenario, GameInfo Info, Board Board, PropertySet Properties, IReadOnlyList<Guid> TeamIds, IReadOnlyList<Guid> ParticipantIds, IReadOnlyDictionary<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` with `Guid ParticipantFor(Guid teamId)`; `static class ScenarioCompiler { CompiledScenario Compile(Scenario s); PropertySet CoreProperties { get; } PropertySet PropertiesFor(IReadOnlyList<EntryDocument> spells); }`; `static class ScenarioCatalog { IReadOnlyList<string> Names { get; } Scenario Get(string name); bool TryGet(string name, out Scenario) }`.
 
 Spec: spec → *Deliberately not decided* ("Whether a scenario is C# or a text format. C# costs nothing to start and keeps the assertions typed") — so a scenario is C#, a record with a fluent builder. Spec → *`sim/` is a fourth deliverable*. `ScenarioCompiler.CoreProperties` is the production path to the same content `TestProperties.Core` reads (File Structure above).
 
@@ -242,13 +242,14 @@ public class ScenarioTests
 }
 ```
 
-- [ ] **Step 7: Run; expect failure, then write `Scenario.cs`**
+- [ ] **Step 7: Run; expect failure, then write `Scenario.cs` and `ScenarioBuilder.cs`**
 
 Run: `dotnet test tests/Tabletop.Sim.Tests --filter ScenarioTests`
 Expected: `CS0246: ... 'ScenarioBuilder' could not be found`.
 
 ```csharp
 using Tabletop.Content;
+using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -297,8 +298,12 @@ public sealed record Scenario(
     public Scenario WithSeed(ulong seed) => this with { Seed = seed };
 }
 ```
+
+`ScenarioBuilder` is its own file, `sim/Scenarios/ScenarioBuilder.cs`.
+
 ```csharp
 using Tabletop.Content;
+using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -389,11 +394,12 @@ public sealed record CompiledScenario(
 /// </summary>
 public static class ScenarioCompiler
 {
-    /// <summary>The core Grimdark Future set, through the production path: the game server's embedded document.</summary>
-    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
-
+    // Declared first: static initializers run in textual order and CoreProperties reads it.
     static PropertySetDocument CoreDocument { get; } =
         PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId);
+
+    /// <summary>The core Grimdark Future set, through the production path: the game server's embedded document.</summary>
+    public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
 
     /// <summary>The core set plus a scenario's own spells, so the hash differs and the run is pinned to what it declared.
     /// No spells means CoreProperties itself, which keeps every other scenario on the production hash.</summary>
@@ -422,14 +428,17 @@ public static class ScenarioCompiler
 
         var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(i + 1, a))).ToList();
 
+        // The properties the engine is handed and the hash the game row names must be one set (hydration loads by hash).
+        var props = PropertiesFor(s.Spells);
+
         // RngSeed is positional and last among the scalars (contracts plan → GameInfo), so a game cannot
         // be built without a seed. This is the one value a scenario's seed fixes.
         var info = new GameInfo(
             Guid.CreateVersion7(), s.Name, GameStatus.Playing, participants[0].AccountId,
-            GrimdarkFutureRules.RulesId, CoreProperties.ContentHash, s.Shape, s.Enforcement,
+            GrimdarkFutureRules.RulesId, props.ContentHash, s.Shape, s.Enforcement,
             WaitsBetweenSteps: false, unchecked((long)s.Seed), teams, participants);
 
-        return new CompiledScenario(s, info, new Board(snapshot, armies), PropertiesFor(s.Spells),
+        return new CompiledScenario(s, info, new Board(snapshot, armies), props,
             teams.Select(t => t.Id).ToList(), participants.Where(p => p.TeamId is not null).Select(p => p.Id).ToList(),
             participants.Where(p => p.TeamId is not null).ToDictionary(p => p.Id, p => p.TeamId!.Value),
             snapshot, recorder.Id);
@@ -441,11 +450,12 @@ public static class ScenarioCompiler
         for (var u = 1; u <= a.Units; u++)
         {
             var modelRules = a.ModelRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList();
-            var weapons = a.Weapons.Select((w, k) => new Weapon(Guid.CreateVersion7(), w.Name,
-                w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList();
+            // Weapon ids are per model: the engine addresses weapons by id across the unit.
             var models = Enumerable.Range(1, a.ModelsPerUnit).Select(m => new ModelSlot(
                 Guid.CreateVersion7(), m, $"{a.Name} {u}.{m}",
-                new Dictionary<string, string>(), modelRules, Base.Circle(1.26), 1.5, null, weapons)).ToList();
+                new Dictionary<string, string>(), modelRules, Base.Circle(1.26), 1.5, null,
+                a.Weapons.Select(w => new Weapon(Guid.CreateVersion7(), w.Name,
+                    w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList())).ToList();
             units.Add(new Unit(Guid.CreateVersion7(), u, $"{a.Name} unit {u}", a.UnitStats,
                 a.UnitRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList(), models));
         }
@@ -456,9 +466,12 @@ public static class ScenarioCompiler
 
 `Base.Circle(1.26)` is a 32 mm base in inches and `1.5` its height — the same two numbers the scheduler plan's `TestArmies.Build` uses, so a scenario and a fixture describe the same model.
 
+`CoreDocument` is declared before `CoreProperties` because static initialisers run in textual order. Each model gets its own weapon ids, since the engine addresses weapons by id across a unit. `ScenarioRule`'s unit number is 1-based, matching `Unit.Ordinal`. `Compile` builds the `PropertySet` once through `PropertiesFor`, and `GameInfo.PropertiesHash` is that set's `ContentHash`, so a scenario with spells names the set it plays under.
+
 - [ ] **Step 9: Write `ScenarioCatalog.cs`**
 
 ```csharp
+using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -467,6 +480,18 @@ namespace Tabletop.Sim.Scenarios;
 /// <summary>The named scenarios the console runs. Regression scripts are added here beside the soak ones.</summary>
 public static class ScenarioCatalog
 {
+    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
+    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
+    static readonly EntryDocument Bolt = PropertiesJson.Parse(
+        """
+        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
+          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
+            "ruleText": "Target enemy unit within 24\" takes 3 hits with AP(1).",
+            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 24 },
+            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
+              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
+        """).Entries.Single();
+
     private static readonly Dictionary<string, Func<Scenario>> Factories = new(StringComparer.Ordinal)
     {
         ["skirmish"] = () => new ScenarioBuilder("skirmish", seed: 1)
@@ -477,11 +502,11 @@ public static class ScenarioCatalog
         ["terrain"] = () => new ScenarioBuilder("terrain", seed: 1)
             .Army("Red", 3, 3).Army("Blue", 3, 3)
             .Terrain("ruin", new Point3(36, 24, 0), volumes:
-                new Volume(VolumeKind.Solid, Footprint.Rect(6, 6), new Point2(0, 0), new Yaw(0), 0, 3,
-                    TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover, null))
+                [new Volume(VolumeKind.Solid, Footprint.Rect(6, 6), new Point2(0, 0), new Yaw(0), 0, 3,
+                    TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover, null)])
             .Terrain("forest", new Point3(18, 30, 0), volumes:
-                new Volume(VolumeKind.Area, Footprint.Circle(4), new Point2(0, 0), new Yaw(0), 0, 2,
-                    TerrainDeclarations.Difficult | TerrainDeclarations.Cover, null))
+                [new Volume(VolumeKind.Area, Footprint.Circle(4), new Point2(0, 0), new Yaw(0), 0, 2,
+                    TerrainDeclarations.Difficult | TerrainDeclarations.Cover, null)])
             .Build(),
 
         ["player-turn"] = () => new ScenarioBuilder("player-turn", seed: 1)
@@ -499,22 +524,10 @@ public static class ScenarioCatalog
         // spend map (p.13), and the caster spending its own leftover tokens on its own roll.
         ["casting"] = () => new ScenarioBuilder("casting", seed: 1)
             .Spells(Bolt)
-            .Army("Red", 2, 3, modelRules: [new ScenarioRule(0, "Caster", 2)])
-            .Army("Blue", 2, 3)
+            .Army("Red", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
+            .Army("Blue", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
             .Build(),
     };
-
-    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
-    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
-    static readonly EntryDocument Bolt = PropertiesJson.Parse(
-        """
-        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
-          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
-            "ruleText": "Target enemy unit within 12\" takes 3 hits with AP(1).",
-            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 12 },
-            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
-              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
-        """).Entries.Single();
 
     public static IReadOnlyList<string> Names { get; } = Factories.Keys.Order().ToList();
     public static Scenario Get(string name) =>
@@ -526,6 +539,8 @@ public static class ScenarioCatalog
     }
 }
 ```
+
+`Bolt` is declared above `Factories` so the dictionary initialiser reads it after it is assigned. Its range is 24 inches. `casting` fields a `Caster(2)` on both armies: at a shorter range or with one caster, no spell ever has a target and no spend window is addressed to two teams. The `terrain` volumes are passed as one collection expression to the `volumes:` parameter.
 
 The zone shape ids come from `Tabletop.Geometry.ZoneStyles.ShapesOf` (`frontline/1`, `free-for-all/1`, …), in team-ordinal order, which is exactly what `SetZoneStyle.Shapes` carries during setup. `sim/` stores the expansion rather than the style name, because that is what a `deployment_zone` row holds (setup phase design → *Zones*).
 
@@ -545,6 +560,15 @@ public abstract record Expectation
     public sealed record AskAsked(string Question, int AtLeast = 1) : Expectation;
     public sealed record Outcome(string Kind) : Expectation;
 }
+```
+
+- [ ] **Step 10b: Write the `sim/Program.cs` stub**
+
+`OutputType Exe` fails with CS5001 without an entry point, and the real one arrives in Task 10.
+
+```csharp
+// Console entry point; the runner arrives with a later task.
+return 0;
 ```
 
 - [ ] **Step 11: Add to the solution, run the tests**

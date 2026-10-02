@@ -6,7 +6,7 @@
 
 **Interfaces:**
 - Consumes: `IGameRows`, `OwnedArmy`, `ISessionClient`, `SessionServices`, `GameSession`, `Hydrator`, `InMemoryEventLog`, `GameServerOptions`, `Replay` (game server skeleton); `RulesEngineFactory`, `InMemoryPropertiesStore`, `DiceSource`, `IDiceSource` (interpreter plan); `SchedulerFactory` (scheduler plan); `SetConfiguration`, `SocketMessage` (`Welcome`, `BoardMessage`, `EventsMessage`, `CommandMessage`, `Refused`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `GameInfoMessage`, `AtRest`), `GameEvent`, `Command`, `AnswerAsk`, `AskAnswer`, `Projection`, `OpenAsk`, `EventApplier`, `RefusalReason`, `Board`, `GameInfo` (Protocol); `TableState`, `ArmySnapshot` (Content); `CompiledScenario`, `ScenarioCompiler` (Task 1); `PolicyView` (Task 2).
-- Produces: `abstract record SubmitResult` with `Accepted(string? Warning)` and `Rejected(RefusalReason Reason, string Detail)`; `sealed record StepResult(IReadOnlyList<GameEvent> Events, IReadOnlyList<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }`; `sealed class RestTimeoutException(TimeSpan timeout, long lastSeq) : Exception` with `TimeSpan Timeout` and `long LastSeq`; `interface IGameDriver : IAsyncDisposable` with `Guid GameId`, `GameInfo Info`, `Board Board`, `IReadOnlyList<Guid> TeamIds`, `Guid ParticipantFor(Guid teamId)`, `DriverMode Mode { get; set; }`, `string Name`, `Task StartAsync(CancellationToken ct)`, `Task<IReadOnlyList<OpenAsk>> OpenAsksAsync(CancellationToken ct)`, `Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)`, `Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)`, `Task<Projection> ProjectionAsync(CancellationToken ct)`, `Task<StepResult> StepAsync(CancellationToken ct)`, and the default method `Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer answer, CancellationToken ct)`; `sealed class ScenarioRows(CompiledScenario scenario) : IGameRows`; `sealed class RecorderClient(Guid participantId) : ISessionClient` with `IReadOnlyList<SocketMessage> Frames`, `IReadOnlyList<SocketMessage> TakeFrames()`, `bool Closed`; `sealed class InProcessDriver : IGameDriver` with `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IReadOnlyList<GameEvent> Log`.
+- Produces: `abstract record SubmitResult` with `Accepted(string? Warning)` and `Rejected(RefusalReason Reason, string Detail)`; `sealed record StepResult(IReadOnlyList<GameEvent> Events, IReadOnlyList<OpenAsk> OpenAsks, bool Quiescent)`; `enum DriverMode { Run, StepAndWait }`; `sealed class RestTimeoutException(TimeSpan timeout, long lastSeq, Exception? cause = null) : Exception` with `TimeSpan Timeout` and `long LastSeq`; `sealed class DriverFaultException(string message) : Exception`; `interface IGameDriver : IAsyncDisposable` with `Guid GameId`, `GameInfo Info`, `Board Board`, `IReadOnlyList<Guid> TeamIds`, `Guid ParticipantFor(Guid teamId)`, `DriverMode Mode { get; set; }`, `string Name`, `Task StartAsync(CancellationToken ct)`, `Task<IReadOnlyList<OpenAsk>> OpenAsksAsync(CancellationToken ct)`, `Task<SubmitResult> SubmitAsync(Guid participantId, Command command, CancellationToken ct)`, `Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)`, `Task<Projection> ProjectionAsync(CancellationToken ct)`, `Task<StepResult> StepAsync(CancellationToken ct)`, and the default method `Task<SubmitResult> AnswerAsync(Guid teamId, Guid askId, AskAnswer answer, CancellationToken ct)`; `sealed class ScenarioRows(CompiledScenario scenario) : IGameRows`; `sealed class RecorderClient(Guid participantId) : ISessionClient` with `IReadOnlyList<SocketMessage> Frames`, `IReadOnlyList<SocketMessage> TakeFrames()`, `bool Closed`, `WebSocketCloseStatus? CloseStatus`, `string? CloseReason`; `sealed class InProcessDriver : IGameDriver` with `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IReadOnlyList<GameEvent> Log`.
 
 Spec: spec → *Two drivers behind one interface* — "In process. The session, the engine and an in-memory log, constructed directly. No socket, no Postgres, no Docker. This is the default because a full game must cost milliseconds"; "A driver interface with one implementation would not have been worth the abstraction." `architecture.md` → Contracts to freeze ("nobody instantiates a game session: a client opens a socket naming a game, and if no session for that game is in memory the server hydrates it from the log") — which is why the in-process driver goes through `Hydrator` and `GameSession.ConnectAsync` rather than building a `GameState` by hand: the two drivers then differ in transport and nothing else.
 
@@ -35,50 +35,100 @@ public class InProcessDriverTests
     public async Task Starting_hydrates_a_playing_game_and_opens_the_first_ask()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
         Assert.Equal(c.Info.Id, driver.GameId);
         Assert.Equal(c.TeamIds, driver.TeamIds);
         Assert.Equal("in-process", driver.Name);
 
-        var asks = await driver.OpenAsksAsync(TestContext.Current.CancellationToken);
+        var asks = await driver.OpenAsksAsync(CancellationToken.None);
         var ask = Assert.Single(asks).Ask;
-        Assert.Equal(AskQuestions.Deploy, ask.Question);
-        Assert.Contains(ask.Teams.Single(), c.TeamIds);
+        Assert.Equal(AskQuestions.Confirm, ask.Question);                       // the roll-off gate comes first
+        Assert.Equal(2, ask.Teams.Count);
+        Assert.All(ask.Teams, t => Assert.Contains(t, c.TeamIds));
+        Assert.IsType<Confirmation>(ask.Legal);
     }
 
     [Fact]
     public async Task The_drivers_projection_holds_every_model_on_the_shelf_before_deployment()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
-        var projection = await driver.ProjectionAsync(TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        var projection = await driver.ProjectionAsync(CancellationToken.None);
         Assert.Equal(18, projection.Models.Count);                             // two armies of three units of three
         Assert.All(projection.Models.Values, m => Assert.IsType<OnShelf>(m.Location));
         Assert.Equal(0, projection.Scheduler.Round);
+    }
+
+    static async Task<Ask> RollOffGate(IGameDriver driver) =>
+        (await driver.OpenAsksAsync(CancellationToken.None)).Single().Ask;
+
+    static async Task<Ask> PastTheGateToDeploy(IGameDriver driver)
+    {
+        var gate = await RollOffGate(driver);
+        Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None));
+        await driver.StepAsync(CancellationToken.None);
+        var ask = (await driver.OpenAsksAsync(CancellationToken.None)).Single().Ask;
+        Assert.Equal(AskQuestions.Deploy, ask.Question);
+        return ask;
     }
 
     [Fact]
     public async Task An_answer_is_accepted_and_produces_events()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
-        var ask = (await driver.OpenAsksAsync(TestContext.Current.CancellationToken)).Single().Ask;
-        var team = ask.Teams.Single();
-        var eligible = Assert.IsType<PieceSelection>(ask.Legal).Eligible;
-        var result = await driver.AnswerAsync(team, ask.Id, new SelectedPieces([eligible[0]]), TestContext.Current.CancellationToken);
+        IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        await using var _ = driver;
+        var gate = await RollOffGate(driver);
+        var result = await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None);
         Assert.IsType<SubmitResult.Accepted>(result);
-        var step = await driver.StepAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(step.Events);
+        var step = await driver.StepAsync(CancellationToken.None);
+        Assert.NotEmpty(step.Events);                                   // the submit's events are handed out once, by the step
         Assert.Contains(step.Events, e => e.Payload is AskAnswered);
+        Assert.Equal(step.Events.Select(e => e.Seq).Order(), step.Events.Select(e => e.Seq));
+        Assert.Equal(AskQuestions.Deploy, step.OpenAsks.Single().Ask.Question);
+
+        var again = await driver.StepAsync(CancellationToken.None);
+        Assert.Empty(again.Events);
+        Assert.True(again.Quiescent);
+    }
+
+    [Fact]
+    public async Task Every_event_is_returned_exactly_once_across_submit_and_drain()
+    {
+        var c = Scenario();
+        IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        await using var _ = driver;
+        var gate = await RollOffGate(driver);
+        await driver.AnswerAsync(gate.Teams[0], gate.Id, new Confirmed(), CancellationToken.None);
+        var drained = await driver.DrainEventsAsync(CancellationToken.None);
+        var step = await driver.StepAsync(CancellationToken.None);
+        Assert.NotEmpty(drained);
+        Assert.Empty(step.Events);
+        var log = ((InProcessDriver)driver).Log;
+        Assert.Equal(log.Select(e => e.Seq), log.Select(e => e.Seq).Distinct());
+        Assert.Equal(log.Count, (await driver.ProjectionAsync(CancellationToken.None)).LastSeq);
+    }
+
+    [Fact]
+    public async Task Deployment_selects_a_unit_then_the_hand_places_it()
+    {
+        var c = Scenario();
+        IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        await using var _ = driver;
+        var ask = await PastTheGateToDeploy(driver);
+        var eligible = Assert.IsType<PieceSelection>(ask.Legal).Eligible;
+        var result = await driver.AnswerAsync(ask.Teams[0], ask.Id, new SelectedPieces([eligible[0]]), CancellationToken.None);
+        Assert.IsType<SubmitResult.Accepted>(result);
     }
 
     [Fact]
     public async Task An_answer_outside_the_legal_set_is_rejected_under_strict()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
-        var ask = (await driver.OpenAsksAsync(TestContext.Current.CancellationToken)).Single().Ask;
-        var result = await driver.AnswerAsync(ask.Teams.Single(), ask.Id, new SelectedPieces([Guid.CreateVersion7()]), TestContext.Current.CancellationToken);
+        IGameDriver driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        await using var _ = driver;
+        var ask = await PastTheGateToDeploy(driver);
+        var result = await driver.AnswerAsync(ask.Teams[0], ask.Id, new SelectedPieces([Guid.CreateVersion7()]), CancellationToken.None);
         var rejected = Assert.IsType<SubmitResult.Rejected>(result);
         Assert.Equal(RefusalReason.OutsideLegalSet, rejected.Reason);
     }
@@ -87,9 +137,9 @@ public class InProcessDriverTests
     public async Task The_drivers_projection_and_the_servers_agree_after_every_step()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
-        var mine = await driver.ProjectionAsync(TestContext.Current.CancellationToken);
-        var theirs = await driver.ServerProjectionAsync(TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        var mine = await driver.ProjectionAsync(CancellationToken.None);
+        var theirs = await driver.ServerProjectionAsync(CancellationToken.None);
         Assert.Equal(theirs.LastSeq, mine.LastSeq);
         Assert.Equal(theirs.Models.Count, mine.Models.Count);
         Assert.Equal(theirs.OpenAsks.Keys.Order(), mine.OpenAsks.Keys.Order());
@@ -99,16 +149,16 @@ public class InProcessDriverTests
     public async Task Draining_twice_does_not_return_the_same_event_twice()
     {
         var c = Scenario();
-        await using var driver = await InProcessDriver.StartAsync(c, TestContext.Current.CancellationToken);
-        var first = await driver.DrainEventsAsync(TestContext.Current.CancellationToken);
-        var second = await driver.DrainEventsAsync(TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(c, CancellationToken.None);
+        var first = await driver.DrainEventsAsync(CancellationToken.None);
+        var second = await driver.DrainEventsAsync(CancellationToken.None);
         Assert.Empty(second);
         Assert.Equal(first.Select(e => e.Seq).Order(), first.Select(e => e.Seq));
     }
 }
 ```
 
-`TestContext.Current.CancellationToken` is xUnit's; where the installed xUnit version does not have it, pass `CancellationToken.None`.
+The tests pass `CancellationToken.None`, because the project is on xunit 2.9.3 and `TestContext.Current` is xunit 3's. Tests type the driver as `IGameDriver` where they call `AnswerAsync`, because it is a default interface method and is not reachable through `InProcessDriver`. The first Ask of every game is the roll-off `confirm` gate, addressed to both teams, and `deploy` follows it.
 - [ ] **Step 2: Run; expect failure, then write `IGameDriver.cs`**
 
 Run: `dotnet test tests/Tabletop.Sim.Tests --filter InProcessDriverTests`
@@ -135,12 +185,16 @@ public enum DriverMode { Run, StepAndWait }
 /// The server did not say it was at rest inside the driver's timeout. A hung server or a dead
 /// connection, never a stuck game: RunLoop turns it into RunOutcome.Failed.
 /// </summary>
-public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq)
-    : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}")
+public sealed class RestTimeoutException(TimeSpan timeout, long lastSeq, Exception? cause = null)
+    : Exception($"the server did not reach rest within {timeout.TotalSeconds:0.#}s; last applied seq {lastSeq}"
+        + (cause is null ? "" : $" (the socket failed: {cause.GetType().Name}: {cause.Message})"), cause)
 {
     public TimeSpan Timeout { get; } = timeout;
     public long LastSeq { get; } = lastSeq;
 }
+
+/// <summary>A driver's own stream broke an invariant (a lost, reordered or duplicated frame). RunLoop turns it into RunOutcome.Failed.</summary>
+public sealed class DriverFaultException(string message) : Exception(message);
 
 /// <summary>
 /// One game, played from outside. Two implementations: in process and over the socket, and the same
@@ -238,11 +292,13 @@ namespace Tabletop.Sim.Drivers;
 public sealed class RecorderClient(Guid participantId) : ISessionClient
 {
     private readonly List<SocketMessage> _frames = [];
-    private readonly Lock _gate = new();
+    private readonly object _gate = new();
 
     public Guid ConnectionId { get; } = Guid.CreateVersion7();
     public Guid ParticipantId { get; } = participantId;
     public bool Closed { get; private set; }
+    public WebSocketCloseStatus? CloseStatus { get; private set; }
+    public string? CloseReason { get; private set; }
 
     public IReadOnlyList<SocketMessage> Frames { get { lock (_gate) return _frames.ToList(); } }
 
@@ -252,7 +308,7 @@ public sealed class RecorderClient(Guid participantId) : ISessionClient
     }
 
     public ValueTask SendAsync(SocketMessage message) { lock (_gate) _frames.Add(message); return ValueTask.CompletedTask; }
-    public ValueTask CloseAsync(WebSocketCloseStatus status, string reason) { Closed = true; return ValueTask.CompletedTask; }
+    public ValueTask CloseAsync(WebSocketCloseStatus status, string reason) { Closed = true; CloseStatus = status; CloseReason = reason; return ValueTask.CompletedTask; }
 }
 ```
 
@@ -285,7 +341,8 @@ public sealed class InProcessDriver : IGameDriver
     private readonly EventApplier _applier;
     private readonly List<RecorderClient> _players = [];
     private RecorderClient _recorder = null!;
-    private GameSession _session = null!;
+    private GameSession? _session;
+    private readonly List<GameEvent> _pending = [];              // applied, not yet handed to a caller
 
     private InProcessDriver(CompiledScenario scenario)
     {
@@ -307,7 +364,7 @@ public sealed class InProcessDriver : IGameDriver
     public IReadOnlyList<Guid> TeamIds => _scenario.TeamIds;
     public Guid ParticipantFor(Guid teamId) => _scenario.ParticipantFor(teamId);
     public DriverMode Mode { get; set; } = DriverMode.Run;
-    public GameSession Session => _session;
+    public GameSession Session => _session ?? throw new InvalidOperationException("the driver has not started");
     public IReadOnlyList<GameEvent> Log => _applier.Log;
 
     public async Task StartAsync(CancellationToken ct)
@@ -319,18 +376,18 @@ public sealed class InProcessDriver : IGameDriver
             new GameServerOptions { DbConnection = "", StytchProjectId = "sim", StytchJwksUrl = "unused" },
             NullLoggerFactory.Instance);
 
-        _session = await Hydrator.HydrateAsync(GameId, services, ct);
-        await _session.StartAsync();                                   // the engine catches up: roll-off, round 0, deployment
+        var session = _session = await Hydrator.HydrateAsync(GameId, services, ct);
+        await session.StartAsync();                                   // the engine catches up: roll-off, round 0, deployment
 
         _recorder = new RecorderClient(_scenario.RecorderParticipantId);
-        await _session.ConnectAsync(_recorder);
+        await session.ConnectAsync(_recorder);
         foreach (var participantId in _scenario.ParticipantIds)
         {
             var client = new RecorderClient(participantId);
             _players.Add(client);
-            await _session.ConnectAsync(client);
+            await session.ConnectAsync(client);
         }
-        Absorb(_recorder.TakeFrames());
+        Absorb();
     }
 
     public Task<IReadOnlyList<OpenAsk>> OpenAsksAsync(CancellationToken ct) =>
@@ -340,40 +397,67 @@ public sealed class InProcessDriver : IGameDriver
     {
         var client = _players.FirstOrDefault(c => c.ParticipantId == participantId)
             ?? throw new ArgumentException($"no connected client for participant {participantId}", nameof(participantId));
-        await _session.ReceiveAsync(client, new CommandMessage(Guid.CreateVersion7(), command));
+        await Session.ReceiveAsync(client, new CommandMessage(Guid.CreateVersion7(), command));
         var refused = client.TakeFrames().OfType<Refused>().LastOrDefault();
-        Absorb(_recorder.TakeFrames());
+        Absorb();
         return refused is null
             ? new SubmitResult.Accepted(null)
             : new SubmitResult.Rejected(refused.Reason, refused.Detail);
     }
 
-    public Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct) => Task.FromResult(Absorb(_recorder.TakeFrames()));
+    public Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct) => Task.FromResult(Handout());
 
     public Task<Projection> ProjectionAsync(CancellationToken ct) => Task.FromResult(_applier.Projection);
 
     /// <summary>The session's own projection, for the invariant that the two agree. In-process only.</summary>
     public Task<Projection> ServerProjectionAsync(CancellationToken ct) =>
-        _session.RunAsync(() => Task.FromResult(_session.Play!.Projection));
+        Session.RunAsync(() => Task.FromResult(Session.Play!.Projection));
 
     public async Task<StepResult> StepAsync(CancellationToken ct)
     {
         // The mailbox is FIFO, so a marker at the back means every queued turn — every Advance — has run.
-        await _session.RunAsync(() => Task.FromResult(0));
-        var events = Absorb(_recorder.TakeFrames());
+        await Session.RunAsync(() => Task.FromResult(0));
+        Absorb();
+        var events = Handout();
         return new StepResult(events, _applier.Projection.OpenAsks.Values.ToList(), events.Count == 0);
     }
 
-    private IReadOnlyList<GameEvent> Absorb(IReadOnlyList<SocketMessage> frames)
+    /// <summary>
+    /// Moves everything the recorder has received into the driver's projection and onto _pending. Each event is
+    /// applied once (the seq guard) and handed out once (Handout empties _pending). The players' own frames are
+    /// discarded so they do not pile up: the recorder sees the same broadcasts.
+    /// </summary>
+    private void Absorb()
     {
-        var events = frames.OfType<EventsMessage>().SelectMany(m => m.Events).OrderBy(e => e.Seq).ToList();
-        foreach (var e in events) if (e.Seq > _applier.Projection.LastSeq) _applier.Apply(e);
-        return events;
+        // The session closes every client when the engine faults and then drops every later frame, so a closed recorder is the cause.
+        if (_recorder.Closed)
+            throw new DriverFaultException($"the session closed the recorder: {_recorder.CloseStatus} {_recorder.CloseReason}");
+        foreach (var player in _players) player.TakeFrames();
+        var events = _recorder.TakeFrames().OfType<EventsMessage>().SelectMany(m => m.Events).OrderBy(e => e.Seq);
+        foreach (var e in events)
+        {
+            if (e.Seq <= _applier.Projection.LastSeq) continue;
+            _applier.Apply(e);
+            _pending.Add(e);
+        }
     }
 
-    public async ValueTask DisposeAsync() => await _session.DrainAsync("sim finished");
+    private IReadOnlyList<GameEvent> Handout()
+    {
+        Absorb();
+        var taken = _pending.ToList();
+        _pending.Clear();
+        return taken;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_session is not null) await _session.DrainAsync("sim finished");
+    }
 }
 ```
+
+`_pending` holds events that are applied and not yet handed to a caller. Submit absorption and the next step or drain put events on it, and each event leaves it once, so every event is returned exactly once. `DisposeAsync` is null-guarded, so a driver that failed to start disposes cleanly.
 
 `GameServerOptions` needs no real values here: nothing verifies a JWT, nothing opens a connection, and the presence timer is `SessionHost`'s, which is not running.
 

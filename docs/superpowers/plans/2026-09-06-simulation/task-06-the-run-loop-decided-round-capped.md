@@ -7,7 +7,7 @@
 
 **Interfaces:**
 - Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IAnswerSource`, `PolicyView`, `UnscriptedAskException`, `NoLegalAnswerException`, `AnsweredAsk` (Tasks 2–3); `FrameProjector`, `Recording`, `RecordingMeta`, `RecordedTeam` (Task 5); `Projection`, `OpenAsk`, `Ask`, `LegalSet`, `AskAnswer`, `AskQuestions`, `MoveModels`, `ModelRelocation`, `Location`, `OnTable`, `OnShelf`, `GameEvent`, `EventKinds`, `Command`, `WireJson` (Protocol — `Serialize<T>` on an enum, for the meta block's spelling only); `Placement`, `Point2`, `Point3`, `Yaw`, `Polygon`, `PlacedModel`, `ZoneStyles`, `Settling` (Geometry); `CompiledScenario`, `Scenario`, `Expectation` (Task 1).
-- Produces: `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }`; `abstract record RunOutcome` with `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason Reason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, and `string Kind` (`decided`, `round_limit`, `stuck`, `failed`, `paused`); `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` with `static AskFingerprint Of(Ask)`; `static class HandPlacement` with `IReadOnlyList<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)`; `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true)`; `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IReadOnlyList<string> Failures, string? RecordingPath)` with `bool Passed`; `sealed class RunLoop(IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)` with `Task<RunReport> RunAsync(CancellationToken ct)`, `FrameProjector Projector`, `Recording BuildRecording(RunReport)`, `IReadOnlyList<string> LastFrames(int n)`; `static class Expectations` with `IReadOnlyList<string> Check(IReadOnlyList<Expectation>, Projection, IReadOnlyList<GameEvent>, RunOutcome, CompiledScenario)`.
+- Produces: `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }`; `abstract record RunOutcome` with `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason Reason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, and `string Kind` (`decided`, `round_limit`, `stuck`, `failed`, `paused`); `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` with `static AskFingerprint Of(Ask)`; `static class HandPlacement` with `IReadOnlyList<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)` and `Chooser ChooserFor(ulong scenarioSeed)`; `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)`; `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IReadOnlyList<string> Failures, string? RecordingPath)` with `bool Passed`; `sealed class RunLoop(IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)` with `Task<RunReport> RunAsync(CancellationToken ct)`, `FrameProjector Projector`, `Recording.Recording BuildRecording(RunReport)`, `IReadOnlyList<string> LastFrames(int n)`; `static class Expectations` with `IReadOnlyList<string> Check(IReadOnlyList<Expectation>, Projection, IReadOnlyList<GameEvent>, RunOutcome, CompiledScenario)`.
 
 Spec: spec → *What a full game means* — the three-row table, "a run that reaches none of them is a bug the simulator exists to find"; "Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in production and a failed assertion here." Module prompt → "Detect stuck precisely: no open Ask and no events emitted, or an Ask answered that reopens unchanged. A stuck run is a failure with the last frames dumped."
 
@@ -15,11 +15,11 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 
 | End | Condition as this loop computes it |
 | --- | --- |
-| Decided | Exactly one team has a model whose `Location is OnTable`, and at least one other team has none. A team's models are its participants' armies' models. |
+| Decided | Exactly one team has a model in play (`Location is not OnShelf`, the engine's own `TeamUnits` test), and at least one other team has none. A team that is wholly embarked still has models in play. A team's models are its participants' armies' models. |
 | Round limit | `Projection.Scheduler.Round >= Scenario.RoundCap` and every open Ask is `AskQuestions.EndRound`. |
-| Stuck: `NoAskNoEvents` | A step produced no events and no Ask is open. |
-| Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. **This check is defeatable and is not the only guard:** a single non-Ask event since the last answer clears the suspicion, so an engine that emits one cosmetic event per turn of the loop re-Asks forever without ever tripping it, and is caught only by `RunSettings.MaxSteps` (20 000), which is the backstop. |
-| Stuck: `SubmitRefused` | An answer the driver refuses. Under `strict` that is a real bug in the policy or the engine, and the run stops rather than looping. |
+| Stuck: `NoAskNoEvents` | No Ask is open and no event of any kind was absorbed since the previous check, whether the step or an answer's drain returned it. |
+| Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. **This check is defeatable and is not the only guard:** a single non-Ask event absorbed since the last answer clears the suspicion, so an engine that emits one cosmetic event per turn of the loop re-Asks forever without ever tripping it, and is caught only by `RunSettings.MaxSteps` (20 000), which is the backstop. |
+| Stuck: `SubmitRefused` | An answer or a hand placement the driver refuses. Under `strict` that is a real bug in the policy or the engine, and the run stops rather than looping. |
 | Stuck: `NoLegalAnswer` | `NoLegalAnswerException`: a legal set with no answer and no pass. |
 | Failed | An `UnscriptedAskException`, a `RestTimeoutException` (the socket driver waited out `RestTimeout` for `AtRest`), a failed expectation, or a failed invariant. |
 
@@ -30,10 +30,10 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 - [ ] **Step 1: Write the failing tests**
 
 ```csharp
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
-using Tabletop.Sim.Recording;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
 
@@ -45,10 +45,10 @@ public class RunLoopTests
     {
         var scenario = ScenarioCatalog.Get(name).WithSeed(seed);
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed ^ 0xF00D));
-        return await loop.RunAsync(TestContext.Current.CancellationToken);
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
+        return await loop.RunAsync(CancellationToken.None);
     }
 
     [Fact]
@@ -67,13 +67,13 @@ public class RunLoopTests
     {
         var scenario = ScenarioCatalog.Get("skirmish");
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(1))), new Chooser(2));
-        await loop.RunAsync(TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(AnswerScript.Empty, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
+        await loop.RunAsync(CancellationToken.None);
         var placed = loop.Projector.Frames
             .First(f => f.Round >= 1 && f.Kind == EventKinds.Of(new RoundStarted(1, [], [])))
             .Models.Count(m => m.Where == "table");
-        Assert.True(placed >= 12, $"only {placed} of 18 models were on the table at round one");
+        Assert.Equal(18, placed);
     }
 
     // Reproducibility is same-dice and same-answers, not same-ids: the seed is stored on the game and
@@ -84,10 +84,10 @@ public class RunLoopTests
     {
         var scenario = ScenarioCatalog.Get(name).WithSeed(seed);
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), new Chooser(seed ^ 0xF00D));
-        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
+        var report = await loop.RunAsync(CancellationToken.None);
         var winner = report.Outcome is RunOutcome.Decided d
             ? compiled.Info.Teams.Single(t => t.Id == d.WinningTeamId).Ordinal
             : (int?)null;
@@ -147,10 +147,10 @@ public class RunLoopTests
     {
         var scenario = ScenarioCatalog.Get("stalemate").WithSeed(7) with { RoundCap = 2 };
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), new Chooser(7));
-        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), HandPlacement.ChooserFor(7));
+        var report = await loop.RunAsync(CancellationToken.None);
 
         Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
         Assert.DoesNotContain(loop.Projector.Frames, f => f.Round > 2);
@@ -167,9 +167,9 @@ public class RunLoopTests
         var scenario = new ScenarioBuilder("scripted", 1).Army("A", 1, 1).Army("B", 1, 1)
             .Scripted(AnswerScript.Empty, only: true).Build();
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, null), new Chooser(1));
-        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, null), HandPlacement.ChooserFor(1));
+        var report = await loop.RunAsync(CancellationToken.None);
         Assert.False(report.Passed);
         Assert.Equal("failed", report.Outcome.Kind);
         Assert.Contains("script-only", Assert.IsType<RunOutcome.Failed>(report.Outcome).Detail);
@@ -181,10 +181,10 @@ public class RunLoopTests
     {
         var scenario = ScenarioCatalog.Get("skirmish").WithSeed(3) with { RoundCap = 1 };
         var compiled = ScenarioCompiler.Compile(scenario);
-        await using var driver = await InProcessDriver.StartAsync(compiled, TestContext.Current.CancellationToken);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
         var loop = new RunLoop(driver, compiled,
-            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(3))), new Chooser(3));
-        var report = await loop.RunAsync(TestContext.Current.CancellationToken);
+            new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(3))), HandPlacement.ChooserFor(3));
+        var report = await loop.RunAsync(CancellationToken.None);
 
         var meta = loop.BuildRecording(report).Meta;
         Assert.Equal("alternating-activation", meta.SchedulerShape);
@@ -296,6 +296,7 @@ public sealed record AskFingerprint(string Question, string Teams, string Legal,
 - [ ] **Step 3: Write `HandPlacement.cs`**
 
 ```csharp
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
@@ -311,52 +312,64 @@ namespace Tabletop.Sim.Run;
 /// </summary>
 public static class HandPlacement
 {
-    private const double Spacing = 1.6;   // just over a 32 mm base, so a unit lands in a loose clump
     private const int Attempts = 40;
+    private const int MaxColumns = 5;
+
+    /// <summary>The chooser a run places its units with, derived from the scenario's seed: Program and every test that
+    /// reproduces a console run use this, so one seed names one game through every entry point.</summary>
+    public static Chooser ChooserFor(ulong scenarioSeed) => new(scenarioSeed ^ 0x5EED);
 
     public static IReadOnlyList<ModelRelocation> IntoZone(
         Projection projection, CompiledScenario scenario, Guid teamId, Guid unitId, Chooser chooser)
     {
         var unit = projection.Units[unitId];
-        var table = scenario.Board.Table;
+        var table = scenario.Board.Table.Size;
         var ordinal = scenario.Info.Teams.Single(t => t.Id == teamId).Ordinal;
-        var shape = table.Zones.FirstOrDefault(z => z.TeamOrdinal == ordinal)?.Shape;
-        var anchor = Anchor(shape, table.Size, chooser);
+        var shape = scenario.Board.Table.Zones.FirstOrDefault(z => z.TeamOrdinal == ordinal)?.Shape;
 
-        var moves = new List<ModelRelocation>();
         var shelved = unit.Definition.Models.Where(m => projection.Models[m.Id].Location is OnShelf).ToList();
-        for (var i = 0; i < shelved.Count; i++)
-        {
-            var point = Spread(anchor, i, shape, table.Size);
-            moves.Add(new ModelRelocation(shelved[i].Id, projection.Models[shelved[i].Id].Location,
-                new OnTable(new Placement(new Point3(point.X, point.Y, 0), new Yaw(0)))));
-        }
-        return moves;
+        if (shelved.Count == 0) return [];
+
+        // One grid for the whole unit: the column count and spacing come from the unit, not from a model's index,
+        // so no two cells coincide. The spacing is the widest base plus half an inch.
+        var cols = Math.Min(shelved.Count, MaxColumns);
+        var widest = shelved.Max(m => Math.Max(m.Base.A, m.Base.B));
+        var spacing = widest + 0.5;
+
+        var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
+        var anchor = ChooseAnchor(shelved, offsets, shape, table, chooser);
+
+        return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
+            new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
     }
 
-    private static Point2 Anchor(string? shape, TableSize table, Chooser chooser)
+    /// <summary>A random anchor at which every base of the grid is fully inside the zone; the zone-centre-ish fallback otherwise.</summary>
+    private static Point2 ChooseAnchor(
+        IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table, Chooser chooser)
     {
-        for (var i = 0; i < Attempts; i++)
+        // Candidates are drawn from the zone's bounding box, so a thin zone is not missed 39 times in 40.
+        var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table).SelectMany(p => p.Vertices).ToList();
+        var (minX, maxX) = vertices.Count == 0 ? (0, table.Width) : (vertices.Min(v => v.X), vertices.Max(v => v.X));
+        var (minY, maxY) = vertices.Count == 0 ? (0, table.Length) : (vertices.Min(v => v.Y), vertices.Max(v => v.Y));
+        for (var attempt = 0; attempt < Attempts; attempt++)
         {
-            var candidate = new Point2(chooser.Double() * table.Width, chooser.Double() * table.Length);
-            if (shape is null || ZoneStyles.Contains(shape, table, candidate)) return candidate;
+            var candidate = new Point2(minX + chooser.Double() * (maxX - minX), minY + chooser.Double() * (maxY - minY));
+            var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
+            if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
+            if (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm))) return candidate;
         }
-        return new Point2(table.Width / 2, table.Length / 2);
+        return new Point2((minX + maxX) / 2, (minY + maxY) / 2);
     }
 
-    /// <summary>A square-ish clump about the anchor, pulled back onto the zone when a member falls outside it.</summary>
-    private static Point2 Spread(Point2 anchor, int index, string? shape, TableSize table)
-    {
-        var side = (int)Math.Ceiling(Math.Sqrt(index + 1));
-        var candidate = new Point2(anchor.X + index % side * Spacing, anchor.Y + index / side * Spacing);
-        if (shape is null || ZoneStyles.Contains(shape, table, candidate)) return candidate;
-        var back = new Point2(anchor.X - index % side * Spacing, anchor.Y - index / side * Spacing);
-        return shape is null || ZoneStyles.Contains(shape, table, back) ? back : anchor;
-    }
+    private static PlacedModel Placed(ModelSlot slot, Point2 at) =>
+        new(new ModelBody(slot.Base, slot.Height), new Placement(new Point3(at.X, at.Y, 0), new Yaw(0)));
 }
 ```
 
 The `Z` is `0` and the server settles it: the interpreter plan's move step calls `Settling.SurfaceHeightAt`, and hand moves are "copied as sent, including the client's `Z`" (game server skeleton plan → Interfaces needed 3) — so a model deployed onto a hill sits at `0` until it next moves, which is a cosmetic wrong that the simulator does not exist to fix. Named here so nobody mistakes it for a bug in geometry.
+
+A unit's models are laid on one fixed-column grid, at most five columns wide and spaced by the widest base plus half an inch, so no two cells coincide. The anchor is drawn from the zone's bounding box until every base of the grid is fully inside the zone, with the zone's centre as the fallback. `HandPlacement.ChooserFor(scenarioSeed)` derives the placement chooser from the scenario's seed, and `Program` and every test that reproduces a console run use it.
+
 - [ ] **Step 4: Write `RunReport.cs` and the expectation evaluation**
 
 ```csharp
@@ -366,7 +379,12 @@ namespace Tabletop.Sim.Run;
 /// A hard stop, so a bug in this loop cannot spin forever — and the only guard against an engine that makes
 /// no real progress while emitting one non-Ask event per pass, which clears the AskReopenedUnchanged check.
 /// </param>
-public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true);
+/// <param name="Record">
+/// False builds no frames: a loop attached to a game already past its first event (the redo after an Undo) has
+/// no projector state for the events that refer back to the kept prefix. Pair it with CheckInvariants: false, since
+/// the invariants replay the loop's own log from its first event.
+/// </param>
+public sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true);
 
 /// <param name="RecordingPath">
 /// Where the recording was written, or null. <b><c>RunLoop</c> never sets this and always leaves it null.</b>
@@ -414,7 +432,7 @@ public static class Expectations
                     failures.Add($"expected round {round}, reached {projection.Scheduler.Round}");
                     break;
                 case Expectation.TeamWiped(var ordinal) when ModelsOnTable(projection, scenario, ordinal) > 0:
-                    failures.Add($"expected team {ordinal} wiped, it has {ModelsOnTable(projection, scenario, ordinal)} models on the table");
+                    failures.Add($"expected team {ordinal} wiped, it has {ModelsOnTable(projection, scenario, ordinal)} models in play");
                     break;
                 case Expectation.ModelsRemaining(var ordinal, var atLeast) when ModelsOnTable(projection, scenario, ordinal) < atLeast:
                     failures.Add($"expected team {ordinal} to keep {atLeast} models, it has {ModelsOnTable(projection, scenario, ordinal)}");
@@ -431,15 +449,14 @@ public static class Expectations
         return failures;
     }
 
-    public static int ModelsOnTable(Projection projection, CompiledScenario scenario, int teamOrdinal)
-    {
-        var teamId = scenario.Info.Teams.Single(t => t.Ordinal == teamOrdinal).Id;
-        return ModelsOnTable(projection, scenario, teamId);
-    }
+    /// <summary>Models in play: <c>Location is not OnShelf</c>, the engine's own test (Scheduler/TeamUnits.cs).
+    /// Casualties and set-aside units are on the shelf; a model inside a building or transport still counts.</summary>
+    public static int ModelsOnTable(Projection projection, CompiledScenario scenario, int teamOrdinal) =>
+        ModelsOnTable(projection, scenario, scenario.Info.Teams.Single(t => t.Ordinal == teamOrdinal).Id);
 
     public static int ModelsOnTable(Projection projection, CompiledScenario scenario, Guid teamId) =>
         projection.Models.Values.Count(m =>
-            m.Location is OnTable && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) == teamId);
+            m.Location is not OnShelf && scenario.TeamOfParticipant.GetValueOrDefault(projection.Units[m.UnitId].ParticipantId) == teamId);
 }
 ```
 
@@ -468,7 +485,8 @@ public sealed class RunLoop(
     private readonly RunSettings _settings = settings ?? new RunSettings();
     private readonly List<GameEvent> _log = [];
     private AskFingerprint? _lastAnswered;
-    private int _sinceLastAnswer;
+    private int _sinceLastAnswer;       // non-Ask events absorbed since the last accepted answer, wherever they were drained
+    private int _absorbedThisCycle;     // every event absorbed since the last step's check
 
     public FrameProjector Projector { get; } = new(scenario);
 
@@ -505,6 +523,8 @@ public sealed class RunLoop(
         {
             var result = await driver.StepAsync(ct);
             Absorb(result.Events);
+            var produced = _absorbedThisCycle;
+            _absorbedThisCycle = 0;
 
             var projection = await driver.ProjectionAsync(ct);
             if (Decided(projection) is { } winner) return new RunOutcome.Decided(winner);
@@ -512,7 +532,9 @@ public sealed class RunLoop(
             var open = result.OpenAsks.Where(a => a.Ask.Teams.Any(t => !a.Answers.ContainsKey(t))).ToList();
             if (open.Count == 0)
             {
-                if (result.Events.Count == 0)
+                // The events an answer produced were drained when it was submitted, so the step itself may
+                // return none; "nothing emitted" counts every event absorbed since the previous check.
+                if (produced == 0)
                     return new RunOutcome.Stuck(StuckReason.NoAskNoEvents, $"no ask is open and nothing was emitted at seq {projection.LastSeq}");
                 continue;
             }
@@ -525,14 +547,14 @@ public sealed class RunLoop(
 
             if (driver.Mode == DriverMode.StepAndWait) return new RunOutcome.Paused(open[0].Ask.Id, open[0].Ask.Question);
 
-            if (Reopened(open[0].Ask, result.Events) is { } stuck) return stuck;
+            if (Reopened(open[0].Ask) is { } stuck) return stuck;
 
-            var submitted = await AnswerAsync(open[0], projection, ct);
-            if (submitted is { } refusal) return refusal;
+            if (await AnswerAsync(open[0], projection, ct) is { } refusal) return refusal;
         }
         return new RunOutcome.Stuck(StuckReason.NoAskNoEvents, $"the loop ran {_settings.MaxSteps} steps without an end");
     }
 
+    /// <summary>An unsealed Ask is answered once, by the first listed team that has not answered; a sealed Ask by every addressed team.</summary>
     private async Task<RunOutcome?> AnswerAsync(OpenAsk open, Projection projection, CancellationToken ct)
     {
         // The whole state: an answer may read anything the engine exposes. AnswerPolicy, the
@@ -546,11 +568,12 @@ public sealed class RunLoop(
                 return new RunOutcome.Stuck(StuckReason.SubmitRefused,
                     $"'{open.Ask.Question}' answered with {answer.GetType().Name}: {rejected.Reason} {rejected.Detail}");
             _lastAnswered = AskFingerprint.Of(open.Ask);
-            _sinceLastAnswer = 0;
+            _sinceLastAnswer = 0;                   // reset before the drain: Absorb counts what the answer produced
             Absorb(await driver.DrainEventsAsync(ct));
 
             if (DeployQuestions.Contains(open.Ask.Question) && answer is SelectedPieces selected)
-                foreach (var unitId in selected.PieceIds) await PlaceAsync(teamId, unitId, ct);
+                foreach (var unitId in selected.PieceIds)
+                    if (await PlaceAsync(teamId, unitId, ct) is { } refusal) return refusal;
 
             if (open.Ask.Sealed) continue;      // a sealed Ask wants every addressed team's answer before it closes
             break;
@@ -558,14 +581,17 @@ public sealed class RunLoop(
         return null;
     }
 
-    private async Task PlaceAsync(Guid teamId, Guid unitId, CancellationToken ct)
+    private async Task<RunOutcome?> PlaceAsync(Guid teamId, Guid unitId, CancellationToken ct)
     {
         var projection = await driver.ProjectionAsync(ct);
-        if (!projection.Units.ContainsKey(unitId)) return;
+        if (!projection.Units.ContainsKey(unitId)) return null;
         var moves = HandPlacement.IntoZone(projection, scenario, teamId, unitId, chooser);
-        if (moves.Count == 0) return;
-        await driver.SubmitAsync(driver.ParticipantFor(teamId), new MoveModels(moves), ct);
+        if (moves.Count == 0) return null;
+        var result = await driver.SubmitAsync(driver.ParticipantFor(teamId), new MoveModels(moves), ct);
         Absorb(await driver.DrainEventsAsync(ct));
+        return result is SubmitResult.Rejected rejected
+            ? new RunOutcome.Stuck(StuckReason.SubmitRefused, $"hand placement of unit {unitId}: {rejected.Reason} {rejected.Detail}")
+            : null;
     }
 
     /// <summary>
@@ -574,32 +600,37 @@ public sealed class RunLoop(
     /// slower: an engine emitting one cosmetic event per pass re-Asks forever and is caught by
     /// RunSettings.MaxSteps instead, which is the backstop and not a formality.
     /// </summary>
-    private RunOutcome? Reopened(Ask ask, IReadOnlyList<GameEvent> since)
+    private RunOutcome? Reopened(Ask ask)
     {
-        _sinceLastAnswer += since.Count(e => e.Payload is not (AskOpened or AskAnswered or AskClosed));
         if (_lastAnswered is null || _sinceLastAnswer > 0) return null;
         return AskFingerprint.Of(ask) == _lastAnswered
             ? new RunOutcome.Stuck(StuckReason.AskReopenedUnchanged, $"'{ask.Question}' reopened unchanged after being answered")
             : null;
     }
 
-    /// <summary>One team with models on the table and at least one other with none (spec → What a full game means).</summary>
+    /// <summary>One team with models in play and at least one other with none (spec → What a full game means).</summary>
     private Guid? Decided(Projection projection)
     {
-        var standing = scenario.TeamIds.Where(t => Expectations.ModelsOnTable(projection, scenario, t) > 0).ToList();
         if (projection.Scheduler.Round < 1) return null;                       // deployment: the shelf is not a wipe
+        var standing = scenario.TeamIds.Where(t => Expectations.ModelsOnTable(projection, scenario, t) > 0).ToList();
         return standing.Count == 1 && scenario.TeamIds.Count > 1 ? standing[0] : null;
     }
 
     private void Absorb(IReadOnlyList<GameEvent> events)
     {
-        foreach (var e in events) { _log.Add(e); Projector.Add(e); }
+        foreach (var e in events)
+        {
+            _log.Add(e);
+            if (_settings.Record) Projector.Add(e);
+            _absorbedThisCycle++;
+            if (e.Payload is not (AskOpened or AskAnswered or AskClosed)) _sinceLastAnswer++;
+        }
     }
 
     public IReadOnlyList<string> LastFrames(int n) =>
         Projector.Frames.TakeLast(n).Select(f => $"  [{f.Index}] seq {f.Seq} {f.Kind}: {f.Line}").ToList();
 
-    public Recording BuildRecording(RunReport report) => Projector.Build(new RecordingMeta(
+    public Recording.Recording BuildRecording(RunReport report) => Projector.Build(new RecordingMeta(
         report.Scenario, report.Seed, report.Driver, scenario.Info.GameRules, scenario.Info.PropertiesHash,
         Wire(scenario.Info.SchedulerShape), Wire(scenario.Info.Enforcement),
         scenario.Scenario.RoundCap,

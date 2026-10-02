@@ -94,7 +94,7 @@ flowchart TD
 Four seams.
 
 **The recording schema.** `viewer/` consumes it and never redefines it. `schemaVersion` is the
-integer `1`, from `RecordingJson.SchemaVersion`. A file carrying any other value is refused. Every
+integer `1`, from `RecordingJson.SchemaVersion`. The C# type is `Tabletop.Sim.Recording.Recording`. A file carrying any other value is refused. Every
 field the viewer reads is declared by `recording.generated.ts`, so a schema change is a TypeScript
 error rather than a silent `undefined`. Three of the schema's fields exist for the viewer's sake.
 They are listed under *Interfaces*.
@@ -162,8 +162,12 @@ The live feed has no `RecordingMeta` to read, so it builds one from `GameInfo` o
 `scenario` is `info.name`, `driver` is `live`, `outcome` is `live`, `seed` is `0`, `rounds` and
 `lastSeq` come from the last frame, and `teams` is built from `info.teams` with the name
 `Team {ordinal}`. `outcome: 'live'` is a value `sim/` never writes; `RecordingMeta.Outcome`'s doc
-comment reserves it for a still-running feed (simulation plan → *Applied from the viewer plan*, item
-5). The field is a `string`, so no shape changes.
+comment reserves it for a still-running feed. The field is a `string`, so no shape changes.
+
+A finished recording's `outcome` is `decided`, `round_limit`, `stuck` or `failed`. `failed` marks
+a run whose script, driver, invariants or expectations failed, and it also marks a decided or
+round-capped run whose invariants or expectations failed. `outcomeDetail` is set for `stuck` and
+`failed`, and the viewer shows it beside the outcome.
 
 A null `meta` was rejected: the Ask panel resolves a team id to a name through `RecordingMeta.Teams`
 and would fall back to an eight-character id for every team in a live game.
@@ -211,7 +215,7 @@ the same with the kind declared in C# as without it. Wanting an idle indicator l
 in `PrunedUnions`, one entry in `HANDLED` and one `case`.
 
 Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
-so `Point2` is first in `recording.generated.ts`. Members within an interface follow
+so `RecordedAsk` is first in `recording.generated.ts`. Members within an interface follow
 `JsonTypeInfo.Properties` order, which is the C# record's positional order. A reordered record
 shows as a one-line golden-file diff. Nothing else would catch it, so `RecordedMarkerState`'s eight
 members are also pinned line for line in a test.
@@ -492,7 +496,7 @@ on the table.
 Fixtures are checked in and rewritten only under a flag. Ids are `Guid.CreateVersion7()` and differ
 between runs, so a fixture cannot be regenerated and diffed against its predecessor.
 `TABLETOP_WRITE_FIXTURES=1` rewrites them, every other run reads what is checked in, and both
-scenarios run under a two-round cap so the eight files stay a few hundred kilobytes.
+scenarios run under a two-round cap so the eight files stay a few megabytes. A recording is 5 to 6 MB for an eight-round game, so a two-round recording is about 1.5 MB.
 
 ### Layout
 
@@ -552,7 +556,7 @@ The score is not geometry. `Scene` is unchanged by it.
 
 | Module | Exports |
 | --- | --- |
-| `protocol/recording.generated.ts` | `SCHEMA_VERSION`, and one interface per recording type: `Point2`, `Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier` |
+| `protocol/recording.generated.ts` | `SCHEMA_VERSION`, and one interface per recording type: `Recording`, `RecordingMeta`, `RecordedTeam`, `RecordedBoard`, `RecordedTerrain`, `RecordedVolume`, `RecordedMarker`, `RecordedZone`, `RecordedPoint`, `RecordedModel`, `RecordedFrame`, `RecordedModelState`, `RecordedUnitState`, `RecordedMarkerState`, `RecordedAsk`, `RecordedAskOption`, `RecordedRoll`, `RecordedModifier` |
 | `protocol/wire.generated.ts` | `SocketMessage = Connect \| Welcome \| GameInfoMessage \| BoardMessage \| EventsMessage \| Refused \| Rejected`, seven of the wire's thirteen kinds, and the transitive closure: `GameInfo`, `Board`, `GameEvent`, `EventPayload`, `StateChange`, `Location`, `Ask`, `LegalSet`, `AskAnswer`, `Unit`, `ModelSlot`, `Marker`, `Grant`, `RollRecord`, `Die`, `TerrainPlacement`, `Volume`, `Footprint`, `Base`, `Point2`, `Point3`, `Yaw`, `Placement`, and the enums |
 | `recording/read.ts` | `class RecordingError`, `readRecording(unknown): Recording`, `parseRecording(string): Recording`, `teamOrdinals(Recording)`, `teamNames(Recording)` |
 | `recording/source.ts` | `type RecordingSource`, `fromFile(File)`, `fromUrl(string)`, `recordingUrlFrom(search): string \| null` |
@@ -589,9 +593,9 @@ The score is not geometry. `Scene` is unchanged by it.
 | --- | --- | --- |
 | `sim/` | `Recording`, `RecordingMeta`, `RecordedBoard`, `RecordedFrame`, and every other `Recorded*` record | the one input shape, emitted as TypeScript |
 | `sim/` | `RecordingJson.SchemaVersion`, `.Options`, `.Serialize`, `.Deserialize`, `.WriteAsync`, `.ReadAsync` | the schema gate and the fixture writer |
-| `sim/` | `RunLoop.BuildRecording(RunReport)`, `RunLoop.Log`, `RunSettings()`, `RunReport` | the fixture writer's run |
+| `sim/` | `RunLoop.BuildRecording(RunReport)`, `RunLoop.Log`, `RunSettings()` (members `MaxSteps`, `FrameDumpOnFailure`, `CheckInvariants`, `Record`), `RunReport` | the fixture writer's run |
 | `sim/` | `InProcessDriver.StartAsync`, `.Info`, `.Board`; `CompiledScenario.RecorderParticipantId`; `ScenarioCatalog.Get`; `ScenarioCompiler.Compile`; `Scenario` as a `record` supporting `with { RoundCap = 2 }` | the fixture writer's run |
-| `sim/` | `Chooser(ulong)`, `AnswerPolicy(Chooser, PolicyOptions?)`, `ComposedAnswers(AnswerScript, AnswerPolicy?)` | the fixture writer's answers |
+| `sim/` | `Chooser(ulong)`, `HandPlacement.ChooserFor(ulong)`, `AnswerPolicy(Chooser, PolicyOptions?)`, `ComposedAnswers(AnswerScript, AnswerPolicy?)` | the fixture writer's answers |
 | `libs/Tabletop.Protocol` | `WireJson.Options`, `SocketMessage`, `Connect`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `Refused`, `Rejected` | the emitted wire subset |
 | `libs/Tabletop.Protocol` | `EventApplier`, `ProjectionDesyncException`, `Projection`, `StateChange`, `EventPayload` | the C# original the TypeScript port copies, including the fault on an unknown id |
 | `libs/Tabletop.Protocol` | `GameEvent`, `MarkerMoved`, `MarkerRemoved`, `Point3`, `Yaw` | the one event both appliers are faulted on |
@@ -603,7 +607,7 @@ The score is not geometry. `Scene` is unchanged by it.
 
 | Of | What | State |
 | --- | --- | --- |
-| simulation plan | `RecordedZone.Polygons` as `IReadOnlyList<IReadOnlyList<Point2>>`, resolved by `ZoneStyles.Resolve` | in the schema; that plan's *Applied from the viewer plan*, item 1 |
+| simulation plan | `RecordedZone.Polygons` as `IReadOnlyList<IReadOnlyList<RecordedPoint>>`, resolved by `ZoneStyles.Resolve` | in the schema; that plan's *Applied from the viewer plan*, item 1 |
 | simulation plan | `RecordedMarkerState.Kind`, `.Diameter`, `.Label`, positionally before `X` | in the schema; that plan's *Applied from the viewer plan*, item 2 |
 | simulation plan | `RecordedFrame.Scores` and `.Passed`, whole rather than deltas | in the schema; that plan's *Applied from the viewer plan*, item 3 |
 | simulation plan | every name the fixture writer touches is `public`, and `sim/` references no test project | already true; stated in that plan's *Interfaces → Produces* |
@@ -833,9 +837,9 @@ the unsubscribe function in `attach` is the fix.
 
 **Cost per live frame.** `publish()` copies the whole frame array, builds a fresh `RecordingMeta`
 and notifies every subscriber, on every `EventsMessage`. `App.svelte` then recomputes `seqs` over
-every frame. A long unattended game pays quadratic work in the number of events. A recording of a
-500-frame game is about 1.5 MB, so the recording feed is unaffected and only a long-lived live
-socket is exposed.
+every frame. A long unattended game pays quadratic work in the number of events. A recording of an
+eight-round game is 5 to 6 MB of indented JSON, which the browser parses once on load. The
+recording feed publishes once, so it is unaffected and only a long-lived live socket is exposed.
 
 **No reconnect.** A dropped socket sets `closed` and the user reconnects by hand. The JWT is
 verified once at connect, so nothing refreshes it on an open socket. `refreshSession` exists for
@@ -889,7 +893,7 @@ The plan's five rulings ([closing the open questions](../../superpowers/specs/20
 | # | Ruling | Reason |
 | --- | --- | --- |
 | 1 | The rendering is checked by looking at it, not pinned by a headless browser test | spec → *Testing*; headless Chrome cannot launch in this WSL image (missing `libnspr4`). The cheapest pin would be a Node canvas shim, a PNG per fixture frame and a byte comparison, which adds a native dependency to `viewer/` |
-| 2 | Two checked-in fixtures, `skirmish` and `terrain`, at a two-round cap: eight files, a few hundred kilobytes | generating on demand would make the agreement test require a prior `dotnet test`, and `npm test` alone would stop being a complete check |
+| 2 | Two checked-in fixtures, `skirmish` and `terrain`, at a two-round cap: eight files, a few megabytes | generating on demand would make the agreement test require a prior `dotnet test`, and `npm test` alone would stop being a complete check |
 | 3 | The viewer does not fetch a recording from a server; `?recording=<url>` covers a static file server | a recording is a `sim/` artifact on the developer's filesystem, and neither server knows the concept; an endpoint would be another module's concern |
 | 4 | The viewer does not refuse an unknown `meta.gameRules` or `meta.propertiesHash`; only `schemaVersion` gates a file, and both values are shown in the meta panel | the viewer holds no ruleset and has no source for a list of known rulesets |
 | 5 | A tabbed side panel, with the source picker and the scoreboard exempt in the header | the log is in constant use and the other three panels are consulted at a specific frame; the score is wanted continuously. Stacking all four would make `App.svelte`'s right pane a scrolling column and move nothing else |
@@ -963,7 +967,7 @@ threshold for the same reason.
 
 No page of Grimdark Future v3.5.1 is read by this module. The one rules fact it depends on, that
 OPR's frontline zone is an absolute twelve-inch inset rather than a fraction of the table, reaches
-it as resolved `Point2` rings in `RecordedZone.Polygons`.
+it as resolved `RecordedPoint` rings in `RecordedZone.Polygons`.
 
 ### Sibling design documents
 

@@ -57,7 +57,7 @@ public class AnswerPolicyTests
     static Ask With(LegalSet legal, bool allowPass = false, bool sealedAsk = false) =>
         new(Guid.CreateVersion7(), "q", "p", [A], legal, allowPass, sealedAsk, null, null);
     static AnswerPolicy Policy(ulong seed = 1, PolicyOptions? o = null) => new(new Chooser(seed), o);
-    static PolicyView EmptyView() => new(Projection.Initial(new Board(Bare(), []), Info()), new Board(Bare(), []));
+    internal static PolicyView EmptyViewForOtherTests() => new(Projection.Initial(new Board(Bare(), []), Info()), new Board(Bare(), []));
     static TableState Bare() => new(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
     static GameInfo Info() => new(Guid.CreateVersion7(), "g", GameStatus.Playing, A, "grimdark-future", "sha256:x",
         SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 1, [new Team(A, 1)], []);
@@ -66,21 +66,21 @@ public class AnswerPolicyTests
     public void Options_picks_one_of_the_choices_by_id()
     {
         var ask = With(new Options([new AskOption("x", "X", []), new AskOption("y", "Y", [])]));
-        var chosen = Assert.IsType<Chosen>(Policy().Answer(ask, EmptyView()));
+        var chosen = Assert.IsType<Chosen>(Policy().Answer(ask, EmptyViewForOtherTests()));
         Assert.Contains(chosen.OptionId, (string[])["x", "y"]);
     }
 
     [Fact]
     public void An_empty_options_set_passes_when_it_may_and_throws_when_it_may_not()
     {
-        Assert.IsType<Passed>(Policy().Answer(With(new Options([]), allowPass: true), EmptyView()));
-        Assert.Throws<NoLegalAnswerException>(() => Policy().Answer(With(new Options([])), EmptyView()));
+        Assert.IsType<Passed>(Policy().Answer(With(new Options([]), allowPass: true), EmptyViewForOtherTests()));
+        Assert.Throws<NoLegalAnswerException>(() => Policy().Answer(With(new Options([])), EmptyViewForOtherTests()));
     }
 
     [Fact]
     public void Pieces_respects_min_and_max_and_picks_only_eligible_ones()
     {
-        var answer = Assert.IsType<SelectedPieces>(Policy().Answer(With(new PieceSelection([A, B, C], 2, 2)), EmptyView()));
+        var answer = Assert.IsType<SelectedPieces>(Policy().Answer(With(new PieceSelection([A, B, C], 2, 2)), EmptyViewForOtherTests()));
         Assert.Equal(2, answer.PieceIds.Count);
         Assert.All(answer.PieceIds, id => Assert.Contains(id, (Guid[])[A, B, C]));
         Assert.Equal(2, answer.PieceIds.Distinct().Count());
@@ -89,7 +89,7 @@ public class AnswerPolicyTests
     [Fact]
     public void Allocation_spends_the_whole_amount_over_the_targets()
     {
-        var answer = Assert.IsType<Allocated>(Policy().Answer(With(new Allocation([A, B], 5)), EmptyView()));
+        var answer = Assert.IsType<Allocated>(Policy().Answer(With(new Allocation([A, B], 5)), EmptyViewForOtherTests()));
         Assert.Equal(5, answer.Counts.Values.Sum());
         Assert.All(answer.Counts.Keys, k => Assert.Contains(k, (Guid[])[A, B]));
     }
@@ -98,7 +98,7 @@ public class AnswerPolicyTests
     public void Assignment_covers_every_item_within_the_distinct_target_cap()
     {
         var ask = With(new Assignment([new AskOption("g1", "", []), new AskOption("g2", "", []), new AskOption("g3", "", [])], [A, B, C], 2));
-        var answer = Assert.IsType<Assigned>(Policy().Answer(ask, EmptyView()));
+        var answer = Assert.IsType<Assigned>(Policy().Answer(ask, EmptyViewForOtherTests()));
         Assert.Equal(["g1", "g2", "g3"], answer.Targets.Keys.Order());
         Assert.True(answer.Targets.Values.Distinct().Count() <= 2);
     }
@@ -108,21 +108,21 @@ public class AnswerPolicyTests
     {
         // p.13: any number of tokens up to what each model holds, so the bound is per model and not a total.
         var spend = new TokenSpend(new Dictionary<Guid, int> { [A] = 1, [B] = 4 });
-        var answer = Assert.IsType<TokensSpent>(Policy().Answer(With(spend), EmptyView()));
+        var answer = Assert.IsType<TokensSpent>(Policy().Answer(With(spend), EmptyViewForOtherTests()));
         Assert.Equal(new HashSet<Guid> { A, B }, answer.Counts.Keys.ToHashSet());   // one entry per model the map named, whatever order Guid comparison puts them in
         Assert.InRange(answer.Counts[A], 0, 1);
         Assert.InRange(answer.Counts[B], 0, 4);
-        Assert.IsType<Confirmed>(Policy().Answer(With(new Confirmation()), EmptyView()));
+        Assert.IsType<Confirmed>(Policy().Answer(With(new Confirmation()), EmptyViewForOtherTests()));
     }
 
     [Fact]
     public void Pass_is_taken_only_when_the_ask_allows_it_and_the_probability_says_so()
     {
         var ask = With(new Options([new AskOption("x", "X", [])]), allowPass: true);
-        Assert.IsType<Passed>(Policy(1, new PolicyOptions(PassProbability: 1)).Answer(ask, EmptyView()));
-        Assert.IsType<Chosen>(Policy(1, new PolicyOptions(PassProbability: 0)).Answer(ask, EmptyView()));
+        Assert.IsType<Passed>(Policy(1, new PolicyOptions(PassProbability: 1)).Answer(ask, EmptyViewForOtherTests()));
+        Assert.IsType<Chosen>(Policy(1, new PolicyOptions(PassProbability: 0)).Answer(ask, EmptyViewForOtherTests()));
         Assert.IsType<Chosen>(Policy(1, new PolicyOptions(PassProbability: 1))
-            .Answer(With(new Options([new AskOption("x", "X", [])])), EmptyView()));
+            .Answer(With(new Options([new AskOption("x", "X", [])])), EmptyViewForOtherTests()));
     }
 
     [Fact]
@@ -130,7 +130,13 @@ public class AnswerPolicyTests
     {
         var asks = Enumerable.Range(0, 30).Select(i => With(new PieceSelection([A, B, C], 1, 3))).ToList();
         var one = Policy(77); var two = Policy(77);
-        foreach (var ask in asks) Assert.Equal(one.Answer(ask, EmptyView()), two.Answer(ask, EmptyView()));
+        foreach (var ask in asks)
+        {
+            // SelectedPieces holds a List, so record equality is by reference: compare the ids.
+            var a = Assert.IsType<SelectedPieces>(one.Answer(ask, EmptyViewForOtherTests()));
+            var b = Assert.IsType<SelectedPieces>(two.Answer(ask, EmptyViewForOtherTests()));
+            Assert.Equal(a.PieceIds, b.PieceIds);
+        }
     }
 
     [Fact]
@@ -147,10 +153,12 @@ public class AnswerPolicyTests
             new TokenSpend(new Dictionary<Guid, int> { [A] = 1 }),
             new Confirmation(),
         ];
-        foreach (var legal in all) Assert.NotNull(policy.Answer(With(legal), EmptyView()));
+        foreach (var legal in all) Assert.NotNull(policy.Answer(With(legal), EmptyViewForOtherTests()));
     }
 }
 ```
+
+`EmptyViewForOtherTests` is `internal static` because other test classes in the project build a bare view with it.
 
 - [ ] **Step 2: Write the failing move-region test** — the one shape that reads the view
 
@@ -224,6 +232,65 @@ public class MoveRegionPolicyTests
             new MoveRegion([model], 6, [], [], null, new MoveContainment([container], null, null)), false, false, null, Guid.CreateVersion7());
         var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(4), new PolicyOptions(EmbarkProbability: 1)).Answer(ask, view));
         Assert.Equal(new Inside(container), answer.Moves[0].To);
+    }
+
+    [Fact]
+    public void The_difficult_cap_does_not_shorten_the_reach_in_open_ground()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 12, [], [], 6), false, false, null, Guid.CreateVersion7());
+        var farthest = 0.0;
+        for (var seed = 0ul; seed < 40; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To);
+            var d = Movement.Check(view.PlacedOf(model)!.Value, to.Placement.Position.Horizontal, 12, [], [], null, view.Table).Distance;
+            Assert.True(d <= 12 + 1e-9);
+            farthest = Math.Max(farthest, d);
+        }
+        Assert.True(farthest > 6, $"farthest {farthest}");
+    }
+
+    [Fact]
+    public void No_sampled_destination_stands_still_or_passes_and_never_throws()
+    {
+        var (view, model) = Standing(new Point3(36, 24, 0));
+        var region = new MoveRegion([model], 6, [], [], null, null);
+        var none = new PolicyOptions(MoveSamples: 0);
+        var forced = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], region, false, false, null, Guid.CreateVersion7());
+        var moves = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(1), none).Answer(forced, view)).Moves;
+        Assert.Equal(moves[0].From, moves[0].To);   // OnTable at the same placement: standing still
+        var optional = forced with { AllowPass = true };
+        Assert.IsType<Passed>(new AnswerPolicy(new Chooser(1), none).Answer(optional, view));
+    }
+
+    [Fact]
+    public void Disembarking_places_the_models_on_the_table_within_the_exit_distance_of_the_container()
+    {
+        var wreck = Guid.CreateVersion7(); var rider = Guid.CreateVersion7();
+        ModelSlot Slot(Guid id) => new(id, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(wreck), Slot(rider)]);
+        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
+            SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
+            [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var applier = new EventApplier(board, info);
+        var at = new Point3(30, 20, 0);
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([
+            new ModelRelocation(wreck, new OnShelf(), new OnTable(new Placement(at, new Yaw(0)))),
+            new ModelRelocation(rider, new OnShelf(), new Inside(wreck))]), null));
+        var view = new PolicyView(applier.Projection, board);
+        var ask = new Ask(Guid.CreateVersion7(), "disembark", "Disembark", [Team],
+            new MoveRegion([rider], 6, [], [], null, new MoveContainment([], wreck, 6)), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var move = Assert.Single(answer.Moves);
+            Assert.Equal(new Inside(wreck), move.From);
+            var to = Assert.IsType<OnTable>(move.To);
+            Assert.True(to.Placement.Position.Horizontal.DistanceTo(at.Horizontal) <= 6 + 1e-9, $"seed {seed}");
+        }
     }
 }
 ```
@@ -374,14 +441,14 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
     /// p.13's spend: any number of tokens, per model, up to what that model holds. One draw per entry in the map, each
     /// uniform in [0, that model's maximum], which is what makes a model's own bound the thing under test — a single
     /// draw against the sum could never produce the answer "one from the model holding four and none from the other".
-    /// Entries are taken in id order so one seed answers one run identically. An empty map is nothing to spend.
+    /// Entries are taken in the order the server sent them. An empty map is nothing to spend.
     /// </summary>
     private AskAnswer AnswerSpend(Ask ask, TokenSpend t)
     {
         if (t.MaxByModel.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
         if (Pass(ask) is { } passed) return passed;
         var counts = new Dictionary<Guid, int>();
-        foreach (var (modelId, max) in t.MaxByModel.OrderBy(kv => kv.Key))
+        foreach (var (modelId, max) in t.MaxByModel)
             counts[modelId] = chooser.Next(Math.Max(max, 0) + 1);
         return new TokensSpent(counts);
     }
@@ -409,42 +476,71 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
         var impassable = view.VolumesById(m.ImpassableVolumeIds);
         var difficult = view.VolumesById(m.DifficultVolumeIds);
         var moves = new List<ModelRelocation>();
+        var sampled = false;
         foreach (var id in m.ModelIds)
         {
             var from = view.LocationOf(id);
             var start = view.PlacedOf(id);
-            if (start is null) { moves.Add(new ModelRelocation(id, from, from)); continue; }
-            var destination = Sample(start.Value, m, impassable, difficult, view);
+            var destination = start is { } placed
+                ? Sample(placed, m, impassable, difficult, view)
+                : SampleExit(m, view);
+            if (destination is null)
+            {
+                moves.Add(new ModelRelocation(id, from, from));   // stand still: always legal
+                continue;
+            }
+            sampled = true;
+            var yaw = start?.Placement.Yaw ?? new Yaw(0);
             moves.Add(new ModelRelocation(id, from, new OnTable(new Placement(
-                new Point3(destination.X, destination.Y, view.SurfaceAt(destination)), start.Value.Placement.Yaw))));
+                new Point3(destination.Value.X, destination.Value.Y, view.SurfaceAt(destination.Value)), yaw))));
         }
-        return new Destinations(moves);
+        // Nothing sampled for any model: pass when the Ask allows it, else the stand-still answer above.
+        return !sampled && ask.AllowPass ? new Passed() : new Destinations(moves);
     }
 
     /// <summary>
-    /// A uniform bearing and a uniform distance inside the allowance, retried until Movement.Check likes it.
-    /// Every parameter of the check comes from the legal set itself; standing still is the fallback and is
-    /// always legal, since it is where the model already is.
+    /// A disembark: the models are Inside, so there is no start to walk from. A point within the stated exit distance of
+    /// the container's placed position; the server checks the placement. Null when the container has no table position.
     /// </summary>
-    private Point2 Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
+    private Point2? SampleExit(MoveRegion m, PolicyView view)
+    {
+        if (m.Containment is not { ExitingId: { } exiting, ExitWithin: { } within }) return null;
+        if (_o.MoveSamples <= 0 || view.PlacedOf(exiting) is not { } container) return null;
+        var origin = container.Placement.Position.Horizontal;
+        var bearing = chooser.Double() * Math.Tau;
+        var distance = chooser.Double() * within;
+        return new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
+    }
+
+    /// <summary>
+    /// A uniform bearing and a uniform distance inside the allowance, retried until Movement.Check likes it. The reach is
+    /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
+    /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still.
+    /// </summary>
+    private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, PolicyView view)
     {
         var origin = start.Placement.Position.Horizontal;
         for (var i = 0; i < _o.MoveSamples; i++)
         {
             var bearing = chooser.Double() * Math.Tau;
-            var reach = m.DifficultCap is { } cap ? Math.Min(m.Allowance, Math.Max(cap, 0)) : m.Allowance;
-            var distance = chooser.Double() * reach;
+            var distance = chooser.Double() * m.Allowance;
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
             if (check is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return candidate;
         }
-        return origin;
+        return null;
     }
 }
 ```
 
+The reach of a move is the whole allowance the server stated. The policy does not apply `DifficultCap`, because the engine sends it for every unit and applying it would cap Rush and Charge at 6 inches. `Movement.Check`, given the server's cap, rejects a sample that enters difficult ground past it.
+
 The retry budget is per model, not per Ask: `Sample` is called once per model id in the region, so a unit of five gets five independent budgets and one model that cannot find a destination does not freeze the others.
+
+A model that is inside a container has no start to walk from. `SampleExit` draws one point within the stated exit distance of the container's table position, and the server checks the placement. Embarking, disembarking and moving on the table are all exercised.
+
+When no sample passes for any model, the answer is `Passed` if the Ask allows a pass, and otherwise the models stand still. The policy never throws for want of a destination.
 
 - [ ] **Step 5: Run the tests; expect all green**
 
