@@ -55,6 +55,8 @@ cd web && npm test           # Vitest: the API client, session, units, the mesh 
 ./scripts/client             # build, run scripts/check-client, launch the Godot client on Windows
 ./scripts/check-client       # no physics body in a scene, no rules type or Godot in client/src/Core
 dotnet test tests/Tabletop.Client.Tests   # the client's Godot-free core
+dotnet run --project sim -- --list                 # the scenarios
+dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
 ```
 
 Godot's import step wipes `client/.godot/mono/temp/bin/`, so build *after* an import, not
@@ -95,8 +97,11 @@ Three kinds of top-level directory:
   - `Scheduler/` — the generic turn machinery behind `Engine.IScheduler` (two shapes, the turn as an Ask, the roll-off read back from the ruleset's sequence); its Grimdark Future hooks are the `GfRules.Scheduling.cs`/`GfRules.Deployment.cs` partials in `Rules/GrimdarkFuture/`, beside the interpreter's sequences.
 - `server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO and the generated starter miniatures, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack.
 - `web/` — the Svelte SPA (SvelteKit 2 + Svelte 5, `adapter-static`, `ssr = false`). `src/lib/api/` is the typed client over management's `/v1`; `src/lib/mesh/` is the STL → GLB pipeline (`meshoptimizer`, `@gltf-transform/core`), headless under Vitest and in a Web Worker in the page; `src/lib/components/` holds the three.js preview, the upload dialog and the volume editor; `src/routes/` are the pages. Node 24 via mise; `npm`, exact versions (`.npmrc`).
-- `sim/` — `Tabletop.Sim`, a headless simulator that plays whole games with no client, over an
-  in-process driver or a real socket, and records a projection per event. Does not exist yet.
+- `sim/` — `Tabletop.Sim`, a library plus a console entry point that plays a whole game with no
+  Godot client: a scenario, a seeded answer policy over the server's legal sets, two drivers
+  (in process and over the socket), the invariant checks, and one recording file per run.
+  It reads game state freely but holds no second implementation of the rules: it answers from the
+  server's legal sets without narrowing them, and asserts invariants.
 - `viewer/` — a static developer web app that draws a `sim/` recording top-down, or attaches to a
   live game as a spectator. Does not exist yet.
 - `libs/` — `net10.0`, Godot-free, persistence-free. One child per library:
