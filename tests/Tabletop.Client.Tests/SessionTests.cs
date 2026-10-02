@@ -70,7 +70,7 @@ public class SessionTests : IDisposable
         var sock = await ConnectedAtPlaying();
         var connect = Assert.IsType<Connect>(sock.Sent[0]);
         Assert.Equal((Jwt1, Game.Id, ProtocolVersion.Current), (connect.SessionJwt, connect.GameId, connect.ClientVersion));
-        Assert.Equal(new Uri("ws://localhost:5200/ws"), sock.Url);
+        Assert.Equal(new Uri("ws://127.0.0.1:5200/ws"), sock.Url);
         Assert.Equal((SessionPhase.Connected, Samples.P1, Samples.Team1), (_s.Phase, _s.ParticipantId, _s.MyTeamId));
         Assert.Equal(2, _s.Projection!.Scores[Samples.Team1]);
         Assert.Equal(2, _s.Log.Count);

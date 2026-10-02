@@ -6,7 +6,9 @@ namespace Tabletop.Client.Core;
 /// <summary>Per-player, per-machine settings. Presentation and convenience only; nothing here reaches the server.</summary>
 public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)
 {
-    public static ClientSettings Default { get; } = new(true, new HashSet<string>(), false, "http://localhost:5100", "ws://localhost:5200/ws");
+    /// <summary>127.0.0.1, not localhost: Windows resolves localhost to ::1 first, WSL's loopback forwarding carries IPv4 only,
+    /// and .NET's connect waits out a 21 s timeout on ::1 before falling back.</summary>
+    public static ClientSettings Default { get; } = new(true, new HashSet<string>(), false, "http://127.0.0.1:5100", "ws://127.0.0.1:5200/ws");
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 

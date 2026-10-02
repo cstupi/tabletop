@@ -28,8 +28,9 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
   a shared one breaks restore, since it records absolute OS-specific paths.
 - Docker reaches WSL through Docker Desktop on the Windows host; if `docker` is not found, Docker Desktop is not
   running. Postgres and MinIO run in Docker inside WSL (`docker-compose.yml`, schema in `scripts/postgres/init/`);
-  the Windows client reaches them and the servers over forwarded `localhost`. Ports: 5432, 9000/9001,
-  management 5100, game server 5200.
+  the Windows client reaches them and the servers over mirrored loopback at `127.0.0.1`, never `localhost`: Windows
+  resolves `localhost` to `::1` first, which does not reach WSL, and .NET waits 21 s before falling back (browsers race
+  both, so the web app is unaffected). Ports: 5432, 9000/9001, management 5100, game server 5200.
 - The management API needs the Stytch test project (id in `.env.example`) to have
   `{TABLETOP_WEB_URL}/reset-password` (`http://localhost:5173/reset-password` locally) registered as a
   `RESET_PASSWORD` redirect URL in the Stytch dashboard, not in this repo, or password resets fail at Stytch.

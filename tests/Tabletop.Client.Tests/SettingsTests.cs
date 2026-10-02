@@ -13,7 +13,7 @@ public class SettingsTests : IDisposable
         var path = Path.Combine(_dir, "settings.json");
         var s = ClientSettings.Load(path);
         Assert.Equal(ClientSettings.Default, s);
-        Assert.Equal(("http://localhost:5100", "ws://localhost:5200/ws", true, false), (s.ManagementUrl, s.GameServerUrl, s.Animate, s.RememberMe));
+        Assert.Equal(("http://127.0.0.1:5100", "ws://127.0.0.1:5200/ws", true, false), (s.ManagementUrl, s.GameServerUrl, s.Animate, s.RememberMe));
         s = s.Mute("casting") with { Animate = false, RememberMe = true };
         s.Save(path);
         var back = ClientSettings.Load(path);
