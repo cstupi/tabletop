@@ -125,9 +125,9 @@ namespace Tabletop.GameServer.Effects;
 public static class StatReader
 {
     /// <summary>
-    /// p.4 lists Quality and Defense among a unit's stats but defines the test against "the model's Quality value". A ruleset may
-    /// therefore declare the same target number at model level as well, and a slot that carries its own value is a joined hero
-    /// (p.14). Pass the model to read that slot; the unit's text is the fallback for every slot that declares none, so an ordinary
+    /// A ruleset may list a target number among a unit's stats yet define the test against the model's own value, so it may
+    /// declare the same target number at model level as well, and a slot that carries its own value is a joined model.
+    /// Pass the model to read that slot; the unit's text is the fallback for every slot that declares none, so an ordinary
     /// squad reads the same number whichever ref is used. A model-level ref with no model has nothing to resolve against.
     /// </summary>
     public static int TargetNumber(LiveSet live, Side side, StatRef stat, Guid? modelId = null)
@@ -142,7 +142,7 @@ public static class StatReader
         };
         var value = StatValue.Read(StatKind.TargetNumber, text).TargetNumber;
         // A target number is one stat with a declaration at each level, and every catalog row names the unit-level ref, so the scan
-        // matches on the name across both. That is what puts Reliable's "attacks at Quality 2+" over a joined hero's own value.
+        // matches on the name across both. That is what puts a rule that sets the number over a joined model's own value.
         bool Acts(Effect e) => e.TargetStat is { Name: var n, Level: StatLevel.Unit or StatLevel.Model } && n == stat.Name;
         foreach (var (_, e) in live.Effects(side, EffectKind.ReplaceStat).Where(x => Acts(x.Effect))) value = StatValue.Read(StatKind.TargetNumber, e.Replacement!).TargetNumber;
         foreach (var (src, e) in live.Effects(side, EffectKind.ModifyStat).Where(x => Acts(x.Effect))) value += e.EffectiveAmount(src.Parameter);
@@ -210,7 +210,7 @@ public static class RollEffects
         return new RollPlan(roll, threshold, modifiers, convention, requiredRaw, reroll);
     }
 
-    /// <summary>What one die does beyond its success: extra hits (Furious, Relentless) and per-hit grants (Rending's AP(4)).</summary>
+    /// <summary>What one die does beyond its success: extra hits and per-hit grants of a rule.</summary>
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified);
@@ -235,7 +235,7 @@ public static class RollEffects
         return product;
     }
 
-    /// <summary>Kind-5 rolls a property owns (Regeneration, Fearless, Impact), selected by what their per-success child does.</summary>
+    /// <summary>Kind-5 rolls a property owns: the property supplies its own dice and threshold, and its child effect is applied once per success.</summary>
     public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter) =>
         live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
 }

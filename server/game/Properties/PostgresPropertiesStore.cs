@@ -86,7 +86,13 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
             foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
             return await cmd.ExecuteNonQueryAsync(ct);
         }
-        if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0) return false;
+        if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0)
+        {
+            // Already present: seeding it again makes it the set GET /v1/properties lists for its name.
+            await Run("update management.properties set seeded_at = now() where content_hash = $1", set.ContentHash);
+            await tx.CommitAsync(ct);
+            return false;
+        }
         // management's CatalogKinds reads one kind per name across a game_rules' sets; two kinds for a name would fail every import.
         var existing = new List<(string Name, string Kind)>();
         await using (var cmd = new NpgsqlCommand("select distinct ce.name, ce.kind from management.catalog_entry ce join management.properties p on p.content_hash = ce.properties_hash where p.game_rules = $1 and p.content_hash <> $2", conn, tx) { Parameters = { new() { Value = set.GameRules }, new() { Value = set.ContentHash } } })

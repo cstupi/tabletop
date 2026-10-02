@@ -7,7 +7,7 @@
 
 **Interfaces:**
 - Consumes: Task 8; `AskQuestions.React`, `AskQuestions.SpendTokens`, `TokenSpend`, `TokensSpent`, `Passed`, `Chosen` (Protocol); `Projection.Scheduler.Order`.
-- Produces: `static class Windows` with `IRL<Guid> ReactionOrder(GameState state, Guid? actorTeam, IRL<Guid> reactingTeams)` (**the one reaction-ordering policy**, shared with the scheduler plan's Task 8: `state.Rules.OrderReactions(state, actorTeam, reactingTeams)` when it returns non-null; otherwise the scheduler's order rotated to start after the actor's team — the actor's own team last, since OPR's casting window is offered to it — teams missing from the order following in `Info.Teams` order, restricted to `reactingTeams`, with teams in `Projection.Scheduler.Passed` dropped; scheduler → Windows), `StepOutcome? Run(StepContext ctx, string point)` (null when the window is done: nobody can react, or every eligible team has passed or its reaction finished; otherwise `OpenAsks` of the next team's react-or-pass Ask, or `Push` of the next chosen reaction), `StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam, string prompt)` (one sealed `TokenSpend` Ask to every team with an eligible model; null once it is closed), `IRD<Guid,IRD<Guid,int>> Spends(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam)` (each team's revealed `TokensSpent.Counts`, keys the team does not own dropped and each count cut to the Ask's own cap for that model, empty for a pass); `StepContext.SealedAsk(string question, string prompt, IRL<Guid> teams, LegalSet legal, string windowKind)`.
+- Produces: `static class Windows` with `IRL<Guid> ReactionOrder(GameState state, Guid? actorTeam, IRL<Guid> reactingTeams)` (**the one reaction-ordering policy**, shared with the scheduler plan's Task 8: `state.Rules.OrderReactions(state, actorTeam, reactingTeams)` when it returns non-null; otherwise the scheduler's order rotated to start after the actor's team — the actor's own team last, since OPR's casting window is offered to it — teams missing from the order following in `Info.Teams` order, restricted to `reactingTeams`, with teams in `Projection.Scheduler.Passed` dropped; scheduler → Windows), `StepOutcome? Run(StepContext ctx, string point)` (null when the window is done: nobody can react, or every eligible team has passed or its reaction finished; otherwise `OpenAsks` of the next team's react-or-pass Ask, or `Push` of the next chosen reaction; a chosen id the Ask did not offer counts as a pass, and a team's Ask still open returns an empty `OpenAsks`, which `Advance` never reaches because it returns before running a waiting step), `StepOutcome? SimultaneousSpend(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam, string prompt)` (one sealed `TokenSpend` Ask to every team with an eligible model; null once it is closed), `IRD<Guid,IRD<Guid,int>> Spends(StepContext ctx, string windowKind, IRD<Guid,IRD<Guid,int>> capsByTeam)` (each team's revealed `TokensSpent.Counts`, keys the team does not own dropped and each count cut to the Ask's own cap for that model, empty for a pass); `StepContext.SealedAsk(string question, string prompt, IRL<Guid> teams, LegalSet legal, string windowKind)`.
 - A window is one Ask per eligible team, `WindowKind = point`, `AllowPass = true`, `Options` = that team's reactions; teams are asked in `ReactionOrder`, one at a time, and a chosen reaction is pushed before the next team is asked, so reactions resolve in turn order after the actor (scheduler → Windows). The k-th chosen reaction is the k-th child in the step's history — that is how a re-run step knows which reactions have been pushed. Nothing is asked when `ReactionsAt` is empty (action sequences → Windows: "If nothing can react, no window opens").
 - The simultaneous token spend is one Ask addressed to every eligible team with `Sealed = true`; the dispatcher withholds answers until all have answered and closes with every answer (skeleton Task 5–6). Its legal set is `TokenSpend(MaxByModel)`, a cap per model rather than one number: p.13 lets a player choose which of its models pays, so the answer is `TokensSpent.Counts` keyed by model (ruling 14; contracts → the two kinds are maps). One map covers every addressed team, since an Ask has one legal set for all of its teams, and it hides nothing, because `ModelInPlay.SpellTokens` is in every client's projection. **There is no per-team maximum**, no `Windows.MaxFor` and no `Values["tokens_max_<team>"]`: a team's maximum is the sum of its own entries, so no clamp derives it and no Ask carries another team's total. Two checks remain the step's rather than `LegalSetMembership`'s, on the precedent that `MoveRegion` checks model ids and leaves distance to the move step: a key belongs to the answering team, and a count is within that key's recorded cap. Both are applied whatever the enforcement setting, because spending tokens a model does not hold would drive its counter below zero. The caps are read back off the Ask itself, which the log holds, rather than recomputed.
 
@@ -23,13 +23,14 @@ using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
+using Win = Tabletop.GameServer.Interpreter.Windows;   // a bare Windows binds to a global namespace of that name in this project
 
 namespace Tabletop.GameServer.Tests;
 
 public class WindowTests
 {
     static readonly Tabletop.Content.Unit A = Unit("A", "4+", "4+", [], 2, []), B = Unit("B", "4+", "4+", [], 2, []);
-    static Sequence Main() => new("main", [new LambdaStep("window", ctx => Windows.Run(ctx, "charge-declared") ?? new Complete([]))]);
+    static Sequence Main() => new("main", [new LambdaStep("window", ctx => Win.Run(ctx, "charge-declared") ?? new Complete([]))]);
     static Sequence Reaction() => new("overwatch", [new LambdaStep("shoot", _ => new Complete([new ScoreSet(Samples.Team2, 1)]))]);
     /// <summary>p.13's cap is each model's own token count, per team, which is what GfCasting.SpendCapacity answers (Task 17).</summary>
     static readonly Dictionary<Guid, IReadOnlyDictionary<Guid, int>> Caps = new()
@@ -39,13 +40,13 @@ public class WindowTests
     };
     static StepOutcome Spent(StepContext ctx)
     {
-        var spends = Windows.Spends(ctx, "casting", Caps);
+        var spends = Win.Spends(ctx, "casting", Caps);
         var values = spends.ToDictionary(t => t.Key.ToString("N"), t => t.Value.Values.Sum());
         foreach (var (_, counts) in spends) foreach (var (model, tokens) in counts) values[model.ToString("N")] = tokens;
         return new Complete([], values);
     }
     static Sequence Spending() => new("spending", [
-        new LambdaStep("spend-tokens", ctx => Windows.SimultaneousSpend(ctx, "casting", Caps, "Spend tokens") ?? Spent(ctx))]);
+        new LambdaStep("spend-tokens", ctx => Win.SimultaneousSpend(ctx, "casting", Caps, "Spend tokens") ?? Spent(ctx))]);
 
     static StubRules Rules(bool reactive) => new(Main(), Reaction(), Spending())
     {
@@ -88,8 +89,8 @@ public class WindowTests
         var j = new SequenceInterpreter(Rules(reactive: false), TestProperties.Core, new ScriptedDice(1));
         Append(quiet, j.Start(quiet, "main", new SequenceContext(A.Id, [], [], null)));
         Assert.Equal(["step_completed", "sequence_finished"], Run(quiet, j).Select(EventKinds.Of));
-        Assert.Equal([Samples.Team2, Samples.Team1], Windows.ReactionOrder(state, Samples.Team1, [Samples.Team1, Samples.Team2]));   // the actor's own team last
-        Assert.Equal([Samples.Team2], Windows.ReactionOrder(state, Samples.Team1, [Samples.Team2]));                                   // only the reacting teams
+        Assert.Equal([Samples.Team2, Samples.Team1], Win.ReactionOrder(state, Samples.Team1, [Samples.Team1, Samples.Team2]));   // the actor's own team last
+        Assert.Equal([Samples.Team2], Win.ReactionOrder(state, Samples.Team1, [Samples.Team2]));                                   // only the reacting teams
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public static class Windows
                 return new OpenAsks([ctx.Ask(AskQuestions.React, $"React at {point}?", team, new Options(mine.Select(r => new AskOption(r.OptionId, r.Label, [r.Context.ActorUnitId ?? Guid.Empty])).ToList()), allowPass: true, windowKind: point)]);
             if (!ask.Closed) return new OpenAsks([]);   // unreachable: Advance returns before running a waiting step
             if (ask.Single is not Chosen chosen) continue;   // passed, or an out-of-set answer accepted under warn/silent
-            var reaction = mine.FirstOrDefault(r => r.OptionId == chosen.OptionId) ?? mine[0];
+            if (mine.FirstOrDefault(r => r.OptionId == chosen.OptionId) is not { } reaction) continue;   // an option the Ask did not offer is a pass
             if (ctx.History.Children.Count <= pushed) return new Push(reaction.Sequence, reaction.Context);
             pushed++;   // its child exists and, since this frame is on top, has finished or was abandoned
         }

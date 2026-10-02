@@ -19,7 +19,10 @@ public sealed class GameRepository(Database db)
     public async Task<IReadOnlyList<PropertiesSummary>> ListProperties()
     {
         await using var c = await db.Open();
-        return (await c.QueryAsync<PropertiesSummary>("select content_hash as ContentHash, name as Name, game_rules as GameRules from properties order by game_rules, name")).ToList();
+        return (await c.QueryAsync<PropertiesSummary>("""
+            select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules
+            from properties order by game_rules, name, seeded_at desc
+            """)).ToList();
     }
 
     public async Task<GameInfo?> Create(Guid creator, CreateGameRequest r)

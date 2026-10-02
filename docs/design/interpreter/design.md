@@ -163,6 +163,7 @@ erDiagram
         text content_hash PK
         text name
         text game_rules
+        timestamptz seeded_at
     }
     ACTION {
         text name PK
@@ -298,7 +299,7 @@ not write to the shared database.
 
 **The game server seeds** (the plan's ruling 1). It is the only process
 that interprets the catalog, and the write is idempotent by content hash. Management is a second
-process over the same database, and its `GET /v1/properties` lists what has been seeded. The two
+process over the same database, and its `GET /v1/properties` lists the latest seeded set per ruleset and name. The two
 processes are one system, so the seeding write needs no endpoint to pass through.
 
 ### The roll primitive

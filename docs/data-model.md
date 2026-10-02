@@ -143,6 +143,7 @@ erDiagram
         hash content_hash
         string name
         id game_rules
+        timestamp seeded_at
     }
     ACTION {
         string name

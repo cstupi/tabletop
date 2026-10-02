@@ -14,8 +14,8 @@ skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), t
 each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 815 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
-Management 87. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+`dotnet test` passes 816 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
+Management 88. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
 skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
@@ -46,12 +46,22 @@ the set the running server seeds. It writes `transcript.log`; `transcript-last.l
 (the core properties hold no spell entries), Takedown, Transport, Scout and Ambush. It is the stand-in for
 `sim/`, which replaces it.
 
-**Open findings from the end-to-end runs, not fixed:**
-- `GET /v1/properties` lists two sets named "Grimdark Future v3.5.1 core" (an older hash a pre-existing game
-  uses, and the one the server seeds), so the client's create-game dialog shows two identical entries.
-- The game does not end after round 4. p.7 says *"After 4 rounds have been played the game ends"*; the
-  accounts spec has a game end only when a participant ends it. A rules-versus-spec decision for the owner.
-- Orc BOOM's army data has two units named "Specialists", so their activate labels are identical.
+**Settled by the owner on 2026-10-02:**
+- `GET /v1/properties` lists one set per `(game_rules, name)`, the most recently seeded (`properties.seeded_at`,
+  management migration `004_properties_seeded_at.sql`; the seeder refreshes it on every startup). An older set
+  stays for the games that pinned it.
+- Duplicate activate labels from two units the army names alike are the army author's; nothing to fix.
+- The round-4 end (p.7, *"After 4 rounds have been played the game ends"*) follows the game's enforcement
+  setting: `warn` warns that the final round has finished, `strict` ends the game, `silent` leaves it to the
+  players. It is to be built on **one generic enforcement engine** that any system raises a breach into, not
+  as a special case: today `Dispatch/EnforcementPolicy.Decide` maps only a command's `Legality`, and a
+  state-time breach raised from `Advance` with a strict consequence (ending the game) has no path. Ending under
+  `strict` also touches the rows-by-writer rule (the game server writes rows only in `lobby`/`setup`) and needs
+  a `GameInfoMessage` broadcast. **Deferred by the owner** until the other items are done; it needs a design
+  session (spec, then plan) first.
+- Built-in art is placeholder until the game is structurally sound: `client/content/builtin/terrain/*.glb`
+  are flat-coloured primitives (woods: trees on a disc; ruins: broken walls; the rest one shape each, authored
+  in the unit box), `textures/*.png` are solid colours, `grass` the slab's green.
 
 | Layer | Where | Role |
 | --- | --- | --- |
@@ -89,40 +99,34 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
 
 ## Next
 
-0. **Bring the interpreter plan up to the fix rounds (optional, docs only).** Both reports' section 6 is
-   applied. `plans/2026-09-05-interpreter-and-effects/` does not yet carry the hardening from the
-   interpreter's fix rounds 1 and 3, which section 6 did not list: `GfAnswers` and the out-of-set answer
-   handling, `FrameReader.Recorded`, the `declare_targets` offer check, the `Sim.Confirm` tests, the
-   kind-conflict refusal and `order by ctid` in `PostgresPropertiesStore`, Task 17's per-caster tried
-   spells and `Sight` in `EligibleSpenders`/`SpellTargets`, `GfShooting.Groups`'s `shootingFrame`
-   (Limited counts only spends before this shooting), and `Windows.Run`'s empty-`OpenAsks` guard
-   (task-09). The code on `main` is the reference.
 1. **Bring the stack up.** Docker Desktop must be running on the host; from WSL,
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
    Never `down -v`: the volume holds the schema every server test reads. The compose `tabletop` database
-   carries `public.schema_version` with 001 baselined and 002 and 003 applied, and two `properties` rows
-   (an older core-document hash and the current one). The servers are long-running: start them in the
+   carries `public.schema_version` with 001 baselined and 002 to 004 applied, and two `properties` rows
+   (an older core-document hash and the current one; the listing shows the current one). The servers are long-running: start them in the
    owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
    Claude Code background command is stopped after two hours.
-2. **Step 5, the simulator.** The owner wants client-free testing of the core game, which is what
+2. **The enforcement engine.** One mechanism behind `silent | warn | strict` that any system hands a breach to
+   (what was broken, the detail, and what `strict` does about it), with the round-4 end as its first state-time
+   client (*Settled by the owner on 2026-10-02*, above). Design session first: a spec, then a plan, propagated
+   to `architecture.md` → *Rules enforcement*, the scheduler spec's *There is no round limit*, the accounts
+   spec's *Ending is a flag* and the rows-by-writer table.
+3. **Step 5, the simulator.** The owner wants client-free testing of the core game, which is what
    `sim/` is. `docs/design/README.md` gates it on checkpoint 2; the end-to-end driver has played that
    checkpoint's server side, and the owner confirms the dispatch. Its spec is `docs/superpowers/specs/2026-09-06-simulation-design.md`, its design
    `docs/design/simulation/`, its plan `plans/2026-09-06-simulation.md`, 4 652 lines: split it into a
    directory before dispatching a tree on it. Read `.superpowers/e2e/` first: it already drives the live
    socket and settled the command sequence, the dev-session flow and move planning.
-3. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
+4. **Checkpoints by hand.** Checkpoint 1 (the table by hand) is section 5 of
    `.superpowers/reports/client-shell.md`, *Owner checks*. Checkpoint 2 is *Checkpoint 2: what a player
    should see* below; its server side is covered by the end-to-end driver, and what remains is the client's
    rendering and input. The client's setup panel is `client/src/Panels/SetupToolbar.cs`: table size and
    texture, the "{planet} planet" generators, built-in terrain added beside the table and dragged on, the
    selected placement's volumes, objectives and tokens, zone style and swap, layouts, End setup.
 
-**Owner actions outstanding.** Author the fifteen built-in art files (ten `.glb` under
-`client/content/builtin/terrain/`, five 1024² tileable `.png` under `client/content/builtin/textures/`),
-whose formats and budgets are in `.superpowers/sdd/client-shell/task-06-report.md`; until then every
-built-in piece draws its volume proxy. Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
-app's real-STL test. Decide whether the game ends after round 4 (open findings, above). Delete the two
+**Owner actions outstanding.** Drop real STLs into `web/tests/fixtures/real/` to un-skip the web
+app's real-STL test. Delete the two
 root-owned leftovers `.worktrees/contracts/scripts/postgres` and `.worktrees/game-server-skeleton/scripts/postgres`
 (`sudo rm -rf .worktrees`); nothing else is under `.worktrees/`.
 

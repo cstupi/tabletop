@@ -6,8 +6,8 @@
 - Test: `tests/Tabletop.GameServer.Tests/PropertiesStoreTests.cs`
 
 **Interfaces:**
-- Consumes: Tasks 1–3; the skeleton's `RowMapping.EnumText/EnumFrom`, `PostgresFixture`; `scripts/postgres/init/001_schema.sql` (the eight tables, `effect.target_stat_level`).
-- Produces: `interface IPropertiesStore { Task<PropertySet?> LoadAsync(string contentHash, CancellationToken ct); Task<bool> SeedAsync(PropertySetDocument document, CancellationToken ct); }` (`SeedAsync` returns false when the hash already exists and writes nothing); `sealed class InMemoryPropertiesStore : IPropertiesStore` (+ `Add(PropertySet)`); `sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesStore`; `sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log)` with `static IReadOnlyList<PropertySetDocument> EmbeddedDocuments()` and `Task<IReadOnlyList<string>> SeedEmbeddedAsync(CancellationToken ct)` (returns the hashes now present); `Program.cs` registers `IPropertiesStore` and runs `SeedEmbeddedAsync` once at startup, before the host serves.
+- Consumes: Tasks 1–3; the skeleton's `RowMapping.EnumText/EnumFrom`, `PostgresFixture`; `scripts/postgres/init/001_schema.sql` (the eight tables, `effect.target_stat_level`); management migration `004_properties_seeded_at.sql` (`properties.seeded_at`).
+- Produces: `interface IPropertiesStore { Task<PropertySet?> LoadAsync(string contentHash, CancellationToken ct); Task<bool> SeedAsync(PropertySetDocument document, CancellationToken ct); }` (`SeedAsync` returns false when the hash already exists, and then writes only `properties.seeded_at = now()` for it, so the set seeded last is the one management's `GET /v1/properties` lists per `(game_rules, name)`; `PostgresPropertiesStore.SeedAsync` throws `InvalidOperationException`, inside the seed transaction and so writing nothing, when an entry's name already has another `kind` in a stored set of the same `game_rules`, because management's `CatalogKinds` reads one kind per name across them; `InMemoryPropertiesStore` has no such check); `sealed class InMemoryPropertiesStore : IPropertiesStore` (+ `Add(PropertySet)`); `sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesStore`; `sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log)` with `static IReadOnlyList<PropertySetDocument> EmbeddedDocuments()` and `Task<IReadOnlyList<string>> SeedEmbeddedAsync(CancellationToken ct)` (returns the hashes now present); `Program.cs` registers `IPropertiesStore` and runs `SeedEmbeddedAsync` once at startup, before the host serves.
 - Row mapping: `roll_result` values and the other `condition_value` rows are written in list order with an `ordinal`-free primary key `(condition_id, value)`, so they are read back sorted by a stable rule: the loader orders `condition_value` by `value` **except** for `roll_result`, whose two values are the roll name and `raw|modified` and are re-ordered so the roll name comes first (a roll named `raw` or `modified` is refused by `Validate`; `schema.md` → A condition is a row, and its values are rows, names the shape). Effect children are rows whose `parent_effect_id` is the parent; the loader reads all effect rows of the set, then assembles the tree ordered by `ordinal` then `id`.
 - Who seeds: the game server, at startup, from its embedded documents — it is the only process that interprets the catalog, and the write is idempotent by hash. Management's `GET /v1/properties` then lists the set. One system, two processes, one database: the seeder writes these rows directly and passes through no endpoint. Ruling 1; `architecture.md` → Rules as data.
 
@@ -36,7 +36,9 @@ public class PropertiesStoreTests(PostgresFixture pg)
         var hash = PropertiesJson.Hash(doc);
         Assert.Null(await _store.LoadAsync(hash, CancellationToken.None));
         Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+        await pg.CountAsync("update management.properties set seeded_at = now() - interval '1 day' where content_hash = $1", hash);
         Assert.False(await _store.SeedAsync(doc, CancellationToken.None));
+        Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1 and seeded_at > now() - interval '1 hour'", hash));   // a re-seed marks the set current again
         var set = await _store.LoadAsync(hash, CancellationToken.None);
         Assert.NotNull(set);
         var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);
@@ -79,6 +81,27 @@ public class PropertiesStoreTests(PostgresFixture pg)
         var hashes = await new PropertiesSeeder(_store, Microsoft.Extensions.Logging.Abstractions.NullLogger<PropertiesSeeder>.Instance).SeedEmbeddedAsync(CancellationToken.None);
         Assert.Equal([PropertiesJson.Hash(docs[0])], hashes);
         Assert.NotNull(await _store.LoadAsync(hashes[0], CancellationToken.None));
+    }
+
+    static PropertySetDocument Tiny(string rules, string name, CatalogKind kind, string entry = "Alpha") =>
+        new(name, rules, [], [], [], [new EntryDocument(entry, kind, false, kind == CatalogKind.Model ? Aggregation.All : null, null, null, "text", null, [])]);
+
+    [Fact]
+    public async Task A_second_set_that_changes_a_catalog_entrys_kind_for_the_same_rules_is_refused_and_a_consistent_one_seeds()
+    {
+        var rules = "kinds-" + Guid.CreateVersion7().ToString("N")[24..32];
+        var first = Tiny(rules, "one", CatalogKind.Unit);
+        var consistent = Tiny(rules, "two", CatalogKind.Unit, "Beta");
+        var conflicting = Tiny(rules, "three", CatalogKind.Model);
+        try
+        {
+            Assert.True(await _store.SeedAsync(first, CancellationToken.None));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _store.SeedAsync(conflicting, CancellationToken.None));
+            Assert.Contains("Alpha", ex.Message); Assert.Contains("Unit", ex.Message); Assert.Contains("Model", ex.Message);
+            Assert.Null(await _store.LoadAsync(PropertiesJson.Hash(conflicting), CancellationToken.None));
+            Assert.True(await _store.SeedAsync(consistent, CancellationToken.None));
+        }
+        finally { foreach (var d in new[] { first, consistent, conflicting }) await pg.DeletePropertiesAsync(PropertiesJson.Hash(d)); }
     }
 }
 ```
@@ -204,7 +227,20 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
             foreach (var a in args) cmd.Parameters.AddWithValue(a ?? DBNull.Value);
             return await cmd.ExecuteNonQueryAsync(ct);
         }
-        if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0) return false;
+        if (await Run("insert into management.properties (content_hash, name, game_rules) values ($1, $2, $3) on conflict do nothing", set.ContentHash, set.Name, set.GameRules) == 0)
+        {
+            // Already present: seeding it again makes it the set GET /v1/properties lists for its name.
+            await Run("update management.properties set seeded_at = now() where content_hash = $1", set.ContentHash);
+            await tx.CommitAsync(ct);
+            return false;
+        }
+        // management's CatalogKinds reads one kind per name across a game_rules' sets; two kinds for a name would fail every import.
+        var existing = new List<(string Name, string Kind)>();
+        await using (var cmd = new NpgsqlCommand("select distinct ce.name, ce.kind from management.catalog_entry ce join management.properties p on p.content_hash = ce.properties_hash where p.game_rules = $1 and p.content_hash <> $2", conn, tx) { Parameters = { new() { Value = set.GameRules }, new() { Value = set.ContentHash } } })
+        await using (var r = await cmd.ExecuteReaderAsync(ct)) while (await r.ReadAsync(ct)) existing.Add((r.GetString(0), r.GetString(1)));
+        foreach (var e in set.Entries)
+            if (existing.FirstOrDefault(x => x.Name == e.Name && x.Kind != EnumText(e.Kind)) is { Name: not null } clash)
+                throw new InvalidOperationException($"Properties '{set.Name}' gives catalog entry '{e.Name}' kind {e.Kind}, but game rules '{set.GameRules}' already has it as {EnumFrom<CatalogKind>(clash.Kind)}.");
         foreach (var s in set.Stats) await Run("insert into management.stat_definition (properties_hash, level, name, kind) values ($1, $2, $3, $4)", set.ContentHash, EnumText(s.Level), s.Name, EnumText(s.Kind));
         foreach (var a in set.Actions) await Run("insert into management.action (properties_hash, name, distance) values ($1, $2, $3)", set.ContentHash, a.Name, a.Distance);
         foreach (var r in set.Rolls) await Run("insert into management.roll (properties_hash, name) values ($1, $2)", set.ContentHash, r.Name);
@@ -265,4 +301,4 @@ public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesS
 
 `Program.cs`: `builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>(); builder.Services.AddSingleton<PropertiesSeeder>();` and, after `var app = builder.Build();`: `if (!app.Environment.IsEnvironment("Test")) await app.Services.GetRequiredService<PropertiesSeeder>().SeedEmbeddedAsync(CancellationToken.None);` (the test factory seeds through the fixture). The `Test` guard keeps `WebApplicationFactory` tests off the shared database's write path.
 
-- [ ] **Step 5: Run `docker compose up -d && dotnet test tests/Tabletop.GameServer.Tests --filter PropertiesStoreTests`; expect 2 passed. Then `dotnet run --project server/game` once and check `psql -c "select name, content_hash from management.properties"` lists the core set. Commit: `Load and seed Properties through the eight tables`.**
+- [ ] **Step 5: Run `docker compose up -d && dotnet test tests/Tabletop.GameServer.Tests --filter PropertiesStoreTests`; expect 3 passed. Then `dotnet run --project server/game` once and check `psql -c "select name, content_hash from management.properties"` lists the core set. Commit: `Load and seed Properties through the eight tables`.**

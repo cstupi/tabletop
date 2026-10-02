@@ -19,7 +19,9 @@ public class PropertiesStoreTests(PostgresFixture pg)
         var hash = PropertiesJson.Hash(doc);
         Assert.Null(await _store.LoadAsync(hash, CancellationToken.None));
         Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+        await pg.CountAsync("update management.properties set seeded_at = now() - interval '1 day' where content_hash = $1", hash);
         Assert.False(await _store.SeedAsync(doc, CancellationToken.None));
+        Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1 and seeded_at > now() - interval '1 hour'", hash));   // a re-seed marks the set current again
         var set = await _store.LoadAsync(hash, CancellationToken.None);
         Assert.NotNull(set);
         var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);

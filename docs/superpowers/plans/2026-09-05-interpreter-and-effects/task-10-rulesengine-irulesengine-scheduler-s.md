@@ -8,7 +8,7 @@
 **Interfaces:**
 - Consumes: Tasks 4–9; the skeleton's `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`, `Emit`, `RefuseCommand`, `Legality`, `CommandDispatcher`, `RerollDice`, `SetDice`, `AddModifier`, `DiceRerolled`, `DiceEdited`, `ModifierAdded`, `RollModifier`, `RefusalReason`.
 - Produces (namespace `Tabletop.GameServer.Engine`): `interface IScheduler { IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter); }` (`ISequenceStarter` is Task 8's, in `Interpreter/Steps.cs`, implemented by `SequenceInterpreter`); `interface ISchedulerFactory { IScheduler Create(IGameRules rules, GameInfo game, PropertySet properties); }` (the set, because the scheduler reads the `action` rows' names for the turn Ask and passes the set to the three hooks); `sealed class NoScheduler : IScheduler` (returns `[]`) and `sealed class NoSchedulerFactory : ISchedulerFactory` — the registration until the scheduler plan replaces it; `sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler scheduler) : IRulesEngine` with `SequenceInterpreter Interpreter { get; }`; `sealed class RulesEngineFactory(IPropertiesStore store, IDiceSource dice, ISchedulerFactory schedulers) : IRulesEngineFactory` (loads the game's set by `game.PropertiesHash`, cached by hash; throws `PropertiesNotFoundException(string hash)`); test infrastructure `Sim` (below).
-- **The seam, stated for the scheduler plan.** `RulesEngine.Advance(state)`: (1) if any **framed** Ask is open (`OpenAsks` with `Ask.FrameId` non-null — every Ask the interpreter opens is framed) → `[]`; (2) if the resolution stack is non-empty → `Interpreter.Advance(state)`; (3) otherwise → `scheduler.Advance(state, Interpreter)`. Unframed Asks are the scheduler's (the turn Ask, the deploy Asks, a round-boundary Ask) and the scheduler is still called while one is open: it returns `[]` for an Ask of its own that is live, and it is what closes — with an empty answer list — an Ask of its own that a menu edit (`set_active_team`, `set_round`) superseded, the one `ask_closed` the engine ever writes. So the scheduler runs only between sequences: it opens the turn Ask (`Ask.FrameId = null`, question `AskQuestions.Activate`), reads its `ask_closed` from the log on a later call, emits its own `ActionRecorded` and — when `rules.ActionSequence(action)` is non-null — `starter.Start(state, sequence, new SequenceContext(unitId, [], [], action))`, sees `sequence_finished` for that frame on a later call, calls `rules.EndOfTurnSequences(state, properties, turn)` and starts what it returns, and when those have finished emits `turn_ended` with `rules.OnTurnEnded(state, properties, turn)`'s changes; `round_started` carries `rules.OnRoundStarted(state, properties, round)`'s changes. The roll-off is a ruleset sequence the scheduler starts by the name `FirstTeamDecision.RollOffNeeded(sequence)` gives it and reads back from the `step_completed` named `GfNames.RollOffOrderStep` (`place_1..place_n`, Task 11); it spans batches, because the boundary before that step is a confirm gate to every team (Task 8). `Judge`/`Execute` are the interpreter's alone (the scheduler has no commands; a pass is an Ask answer). `RulesEngine.Judge`: `RerollDice`/`SetDice` → `Legal` when the frame is on the stack and the roll is in one of its completed steps, `Illegal` otherwise; `AddModifier` → `Legal` when the frame is on the stack and `properties.HasRoll(roll)`; any other command → `Illegal`. `Execute`: `RerollDice` → one `DiceRerolled` with the named dice (all when empty) redrawn under the record's own threshold and modifiers at the log's cursor; `SetDice` → `DiceEdited` with each die re-judged from its new raw under the record's threshold and modifiers; `AddModifier` → `ModifierAdded(frame, roll, new RollModifier("player", amount))`; otherwise `RefuseCommand(Unknown, …)`.
+- **The seam, stated for the scheduler plan.** `RulesEngine.Advance(state)`: (1) if any **framed** Ask is open (`OpenAsks` with `Ask.FrameId` non-null — every Ask the interpreter opens is framed) → `[]`; (2) if the resolution stack is non-empty → `Interpreter.Advance(state)`; (3) otherwise → `scheduler.Advance(state, Interpreter)`. Unframed Asks are the scheduler's (the turn Ask, the deploy Asks, a round-boundary Ask) and the scheduler is still called while one is open: it returns `[]` for an Ask of its own that is live, and it is what closes — with an empty answer list — an Ask of its own that a menu edit (`set_active_team`, `set_round`) superseded, the one `ask_closed` the engine ever writes. So the scheduler runs only between sequences: it opens the turn Ask (`Ask.FrameId = null`, question `AskQuestions.Activate`), reads its `ask_closed` from the log on a later call, emits its own `ActionRecorded` and — when `rules.ActionSequence(action)` is non-null — `starter.Start(state, sequence, new SequenceContext(unitId, [], [], action))`, sees `sequence_finished` for that frame on a later call, calls `rules.EndOfTurnSequences(state, properties, turn)` and starts what it returns, and when those have finished emits `turn_ended` with `rules.OnTurnEnded(state, properties, turn)`'s changes; `round_started` carries `rules.OnRoundStarted(state, properties, round)`'s changes. The roll-off is a ruleset sequence the scheduler starts by the name `FirstTeamDecision.RollOffNeeded(sequence)` gives it and reads back from the `step_completed` named `GfNames.RollOffOrderStep` (`place_1..place_n`, Task 11); it spans batches, because the boundary before that step is a confirm gate to every team (Task 8). `Judge`/`Execute` are the interpreter's alone (the scheduler has no commands; a pass is an Ask answer). `RulesEngine.Judge`: one predicate, `DiceLegal`: `RerollDice`/`SetDice` → `Legal` when the frame is on the stack, the roll is in one of its completed steps, every index is a die of that record and none repeats, and (`SetDice`) every raw face is in `1..Convention.Sides` of the record's roll; `AddModifier` → `Legal` when the frame is on the stack and `properties.HasRoll(roll)`; any other command → `Illegal`. `Execute` asks `DiceLegal` again, because `warn` and `silent` run a command `Judge` called illegal, and refuses what it rejects. `Execute`: `RerollDice` → one `DiceRerolled` with the named dice (all when empty) redrawn under the record's own threshold and modifiers at the log's cursor; `SetDice` → `DiceEdited` with each die re-judged from its new raw under the record's threshold and modifiers; `AddModifier` → `ModifierAdded(frame, roll, new RollModifier("player", amount))`; otherwise `RefuseCommand(Unknown, …)`.
 - A reroll or edit does not re-run the step: later steps derive counts from the roll record as it now stands (Task 12–13 read `RollOutcome.Successes` and the step's settled `Values`), which is what "rerolls stay commands between steps" means with the wait setting on.
 
 Spec: skeleton Task 6 (the seam; `Advance` called after every appended batch until empty); scheduler → The line, The turn is an Ask, Events; action sequences → One roll primitive ("Rerolls and hand-added modifiers stay commands between steps"); resolution → Players roll their own dice ("A reroll records which dice it replaced. A manual reroll is that with the selection set to all"), Rerolling does not break undo (visible, logged with an actor).
@@ -16,11 +16,13 @@ Spec: skeleton Task 6 (the seam; `Advance` called after every appended batch unt
 - [ ] **Step 1: Write `Sim.cs`, the harness every sequence test uses**
 
 ```csharp
+using Refused = Tabletop.GameServer.Dispatch.Refused;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Engine;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests.Infrastructure;
@@ -77,7 +79,19 @@ public sealed class Sim
         return Run();
     }
 
-    public IEnumerable<StepCompleted> Steps(string name) => Emitted.OfType<StepCompleted>().Where(s => s.Step == name);
+    /// <summary>Answer every open step-boundary Confirm, whoever it is addressed to, until none is open; then the open Asks are the steps' own.</summary>
+    public void Confirm()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            if (State.Projection.OpenAsks.Values.FirstOrDefault(a => a.Ask.Question == AskQuestions.Confirm) is not { } open) return;
+            var team = open.Ask.Teams.First(t => !open.Answers.ContainsKey(t));
+            Answer(team, new Confirmed());
+        }
+        throw new InvalidOperationException("the step-boundary Confirms did not stop");
+    }
+
+    public IReadOnlyList<StepCompleted> Steps(string name) => Emitted.OfType<StepCompleted>().Where(s => s.Step == name).ToList();
     public UnitInPlay Unit(Guid id) => State.Projection.Units[id];
     public ModelInPlay Model(Guid id) => State.Projection.Models[id];
     public int Alive(Guid unitId) => State.Projection.Models.Values.Count(m => m.UnitId == unitId && m.Location is OnTable);
@@ -87,11 +101,14 @@ public sealed class Sim
 - [ ] **Step 2: Write the failing tests**
 
 ```csharp
+using Refused = Tabletop.GameServer.Dispatch.Refused;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Engine;
 using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
@@ -127,6 +144,27 @@ public class RulesEngineTests
     }
 
     [Fact]
+    public void Dice_commands_naming_a_missing_or_repeated_die_or_an_impossible_face_are_illegal()
+    {
+        var sim = Make();
+        sim.Start("roller", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        var roll = sim.Steps("roll").Single().Rolls.Single();
+        var clay = new Actor(Samples.P1, Samples.Team1);
+        Legality Judge(Command c) => sim.Engine.Judge(sim.State, c, clay);
+
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [roll.Dice.Count])));
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [-1])));
+        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [0, 0])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(roll.Dice.Count, 3)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(-1, 3)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 3), new DieValue(0, 4)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 0)])));
+        Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 7)])));
+        Assert.Equal(Legality.Legal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 6), new DieValue(1, 1)])));
+    }
+
+    [Fact]
     public void Reroll_set_dice_and_add_modifier_are_judged_and_executed_against_the_frame()
     {
         var sim = Make();
@@ -155,6 +193,18 @@ public class RulesEngineTests
         var mod = Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "hit", 2), Samples.P1, Samples.Team1));
         Assert.Equal(new RollModifier("player", 2), Assert.IsType<ModifierAdded>(mod.Events.Single()).Modifier);
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(sim.Dispatch(new RerollDice(frame, Guid.CreateVersion7(), []), Samples.P1, Samples.Team1)).Reason);
+    }
+
+    [Fact]
+    public void Execute_refuses_a_modifier_on_a_roll_the_pinned_set_does_not_define()
+    {
+        // Warn and silent execute what Judge called illegal, so Execute asks the same question again.
+        var sim = Make();
+        sim.Start("roller", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        var clay = new Actor(Samples.P1, Samples.Team1);
+        Assert.IsType<RefuseCommand>(sim.Engine.Execute(sim.State, new AddModifier(frame, "save", 1), clay));
+        Assert.IsType<Emit>(sim.Engine.Execute(sim.State, new AddModifier(frame, "defense", -1), clay));
     }
 
     [Fact]
@@ -213,30 +263,38 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
-        RerollDice r => Find(state, r.FrameId, r.RollId) is not null ? Legality.Legal : Legality.Illegal,
-        SetDice s => Find(state, s.FrameId, s.RollId) is not null ? Legality.Legal : Legality.Illegal,
-        AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll) ? Legality.Legal : Legality.Illegal,
+        RerollDice or SetDice or AddModifier => DiceLegal(state, command) ? Legality.Legal : Legality.Illegal,
         _ => Legality.Illegal,
+    };
+
+    /// <summary>The one predicate for a dice command: the roll exists on the frame, every index is a die of it and none repeats, and every set face is on the roll's convention; a modifier names a frame on the stack and a roll the pinned set defines. Judge asks it, and Execute asks it again because warn and silent run a command Judge called illegal.</summary>
+    bool DiceLegal(GameState state, Command command) => command switch
+    {
+        RerollDice r => Find(state, r.FrameId, r.RollId) is { } rec && DistinctInRange(r.DiceIndices, rec.Dice.Count),
+        SetDice s => Find(state, s.FrameId, s.RollId) is { } rec && DistinctInRange(s.Dice.Select(d => d.Index).ToList(), rec.Dice.Count)
+            && s.Dice.All(d => d.Raw >= 1 && d.Raw <= PlanOf(rec).Convention.Sides),
+        AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll),
+        _ => false,
     };
 
     public EngineResult Execute(GameState state, Command command, Actor actor)
     {
         switch (command)
         {
-            case RerollDice r when Find(state, r.FrameId, r.RollId) is { } record:
+            case RerollDice r when DiceLegal(state, r) && Find(state, r.FrameId, r.RollId) is { } record:
             {
                 var roller = new Roller(dice, state.RngSeed, DiceCursor.DrawnSoFar(state));
                 return new Emit([new DiceRerolled(r.FrameId, r.RollId, RollOutcome.Reroll(PlanOf(record), record, r.DiceIndices, roller))]);
             }
-            case SetDice s when Find(state, s.FrameId, s.RollId) is { } record:
+            case SetDice s when DiceLegal(state, s) && Find(state, s.FrameId, s.RollId) is { } record:
             {
                 var plan = PlanOf(record); var roller = new Roller(dice, state.RngSeed, 0);
                 return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], roller.Judge(plan, d.Raw))).ToList())]);
             }
-            case AddModifier m when state.Projection.Stack.Any(f => f.Id == m.FrameId):
+            case AddModifier m when DiceLegal(state, m):
                 return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount))]);
             default:
-                return new RefuseCommand(RefusalReason.Unknown, $"{command.GetType().Name}: no such frame or roll");
+                return new RefuseCommand(RefusalReason.Unknown, $"{command.GetType().Name}: no such frame, roll or die");
         }
     }
 
@@ -247,6 +305,8 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
         if (state.Projection.Stack.Count > 0) return Interpreter.Advance(state);
         return scheduler.Advance(state, Interpreter);
     }
+
+    static bool DistinctInRange(IReadOnlyList<int> indices, int count) => indices.All(i => i >= 0 && i < count) && indices.Distinct().Count() == indices.Count;
 
     static RollRecord? Find(GameState state, Guid frameId, Guid rollId) =>
         state.Projection.Stack.FirstOrDefault(f => f.Id == frameId)?.Steps.SelectMany(s => s.Rolls).FirstOrDefault(r => r.Id == rollId);
@@ -289,4 +349,4 @@ builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
 
 `Hydrator` (skeleton Task 7) calls `Engines.Create` after reading the log; the `ConnectionHandshake` catch above is what turns a `PropertiesNotFoundException` there into a `1011` close. `InertEngine`/`InertEngineFactory` stay in the tree for the skeleton's tests. The scheduler plan's Task 10 replaces the `NoSchedulerFactory` line with `SchedulerFactory` and nothing else here.
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect every earlier test green plus 3 here (the skeleton's `EndSetupTests` still uses `FixedAskEngineFactory` through `ConfigureTestServices`, so it is unaffected). Commit: `Add the rules engine: dice commands, and Advance split between interpreter and scheduler`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests`; expect every earlier test green plus 5 here (the skeleton's `EndSetupTests` still uses `FixedAskEngineFactory` through `ConfigureTestServices`, so it is unaffected). Commit: `Add the rules engine: dice commands, and Advance split between interpreter and scheduler`.**

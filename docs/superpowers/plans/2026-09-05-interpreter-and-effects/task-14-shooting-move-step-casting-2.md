@@ -104,7 +104,7 @@ public static class GfMoves
     {
         public string Name => "casting-window";
         public StepOutcome Run(StepContext ctx) =>
-            Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq));
+            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq));
     }
 
     /// <summary>
@@ -134,14 +134,14 @@ public static class GfMoves
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), Math.Max(0, allowance - used), impassable, difficult, strider ? null : GfNames.DifficultCap, containment), allowPass: true)]);
                 case 0:
                 {
-                    var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, ctx.History.LastClosed("move")!.Single as Destinations, terrain);
+                    var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!), terrain);
                     return new Complete(changes, new Dictionary<string, int>
                         { ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2 }, Repeat: true);
                 }
                 case 1 when ctx.History.Children.Count == 0: return new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], action));
                 case 1: return new Complete([], new Dictionary<string, int> { ["phase"] = 2 }, Repeat: true);
                 default:
-                    if (Windows.Run(ctx, GfNames.BeforeAttacking) is { } window) return window;
+                    if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } window) return window;
                     // p.13: a caster may try more than one spell in an activation, so a finished cast reopens the window — back to the
                     // move when budget remains, otherwise round again on the checkpoint. A pass leaves no casting child and the step ends.
                     var cast = ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq);
@@ -170,7 +170,7 @@ public static class GfMoves
         // so the record has one shape, and the client ignores them on a disembark (client shell -> MoveRuler).
 
         /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, and the dangerous-terrain dice the models that moved in or through a Dangerous volume owe (p.11).</summary>
-        static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) Apply(StepContext ctx, Guid unit, LiveSet live, double allowance, Destinations? d, IReadOnlyList<WorldVolume> terrain)
+        static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) Apply(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, IReadOnlyList<WorldVolume> terrain)
         {
             var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>();
             var impassable = Declared(terrain, TerrainDeclarations.Impassable);
@@ -178,19 +178,20 @@ public static class GfMoves
             var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
             var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");   // p.14: Strider ignores difficult terrain, Flying all terrain effects
             var flying = live.Has(Side.Attacker, "Flying");                                          // Strider does *not* skip a dangerous terrain test; only Flying does
-            foreach (var m in d?.Moves ?? [])
+            foreach (var m in proposed)
             {
                 // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
                 // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
                 if (m.To is Inside into)
                 {
-                    if (ctx.Projection.Models[into.ContainerId].Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
+                    if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
                     continue;
                 }
                 if (m.To is not OnTable to) continue;
                 // p.14: a disembarking model has no start position, so nothing is measured or swept; the radius is the whole constraint.
                 if (m.From is Inside from)
                 {
+                    if (!ctx.Projection.Models.ContainsKey(from.ContainerId)) continue;
                     if (ExitPlacement(ctx.State, m.ModelId, from.ContainerId, to.Placement, GfNames.ExitWithin) is { } exit)
                         moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit)));
                     continue;
@@ -217,7 +218,7 @@ public static class GfMoves
             if (ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return new Finish([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, false)]);
             if (ctx.History.Children.Count > 0) return ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned ? new Complete([]) : new OpenAsks([]);
             if (ctx.History.LastClosed() is { } closed) return closed.Single is Chosen { OptionId: "shoot" } ? new Push(GfNames.Shooting, ctx.Frame.Context) : new Complete([]);
-            var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
+            var canShoot = GfShooting.Groups(ctx.State, ctx.Properties, unit, null).Any(g => GfShooting.ValidTargets(ctx, unit, g).Count > 0);
             if (!canShoot) return new Complete([]);
             return new OpenAsks([ctx.Ask("shoot_or_not", "Shoot?", ctx.ActorTeam!.Value, new Options([new AskOption("shoot", "Shoot", [unit]), new AskOption("pass", "Don't shoot", [])]))]);
         }
@@ -243,4 +244,62 @@ public static class GfMoves
 
 `GfRules._sequences` gains `GfShooting.Shooting()`, `GfMoves.Hold()`, `GfMoves.Advance()`, `GfMoves.Rush()`, `GfMoves.DangerousTerrain()`. `Windows.Run` is unchanged: a repeating step's history is only its current segment, which is what both the checkpoint and the second spell need. `Takedown` resolves first, at the shooting model's own Quality (3.5.1's `Takedown` carries no *"Shoots at Quality 2+"*), and its group — one per takedown model, which is how `Groups` splits such a type — names the model its wounds land on in `attack-sequence`'s `pick-target-model` step (Task 13; ruling 7). `WeaponGroup.Takedown` and that step read one predicate, `GfAttack.IsTakedownGroup`, so a group cannot be ordered first without also being offered the pick.
 
-- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfShootingTests`; expect 12 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**
+- [ ] **Step 4: Write `tests/Tabletop.GameServer.Tests/GfForgedMoveTests.cs`**
+
+A move answer is read through `GfAnswers.Moves`, under `strict` as under `warn`: its `From` is the projection's, and an `Inside` the Ask did not list as enterable moves nobody.
+
+```csharp
+using Tabletop.Content;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
+using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
+using static Tabletop.GameServer.Tests.Infrastructure.Armies;
+
+namespace Tabletop.GameServer.Tests;
+
+/// <summary>A move answer's From is the projection's location and its Inside must be a container the Ask listed as enterable, under every enforcement level.</summary>
+public class GfForgedMoveTests
+{
+    static IEnumerable<ModelRelocation> Relocations(Sim sim) => sim.Emitted.OfType<StepCompleted>().SelectMany(s => s.Changes).OfType<ModelsMoved>().SelectMany(m => m.Moves);
+
+    static (Sim Sim, Tabletop.Content.Unit Squad, Tabletop.Content.Unit Bus) Advancing(Enforcement enforcement)
+    {
+        var squad = Unit("Squad", "4+", "4+", [], 1, []); var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var sim = Sim.Gf(State([squad], [bus], x1: -6, x2: 6, enforcement: enforcement), 6);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(squad.Id, [], [], GfNames.Advance));
+        return (sim, squad, bus);
+    }
+
+    [Theory]
+    [InlineData(Enforcement.Strict)] [InlineData(Enforcement.Warn)]
+    public void A_forged_From_does_not_skip_the_distance_measure(Enforcement enforcement)
+    {
+        var (sim, squad, _) = Advancing(enforcement);
+        var mine = squad.Models[0].Id;
+        var start = ((OnTable)sim.Model(mine).Location).Placement;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(mine, new Inside(Guid.CreateVersion7()),
+            new OnTable(new Placement(start.Position with { X = start.Position.X + 4 }, new Yaw(0))))]));
+        var moved = Assert.Single(Relocations(sim), r => r.ModelId == mine);
+        Assert.Equal(new OnTable(start), moved.From);
+        Assert.Equal(40, sim.Steps("move").First().Values!["distance_used_tenths"]);
+    }
+
+    [Theory]
+    [InlineData(Enforcement.Strict)] [InlineData(Enforcement.Warn)]
+    public void A_move_Inside_a_model_the_Ask_did_not_offer_moves_nobody(Enforcement enforcement)
+    {
+        var (sim, squad, bus) = Advancing(enforcement);
+        var mine = squad.Models[0].Id;
+        var ask = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.DoesNotContain(bus.Models[0].Id, ask.Containment?.Enterable ?? []);
+        var before = sim.Model(mine).Location;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(mine, before, new Inside(bus.Models[0].Id))]));
+        Assert.Equal(before, sim.Model(mine).Location);
+        Assert.DoesNotContain(Relocations(sim), r => r.To is Inside);
+    }
+}
+```
+
+- [ ] **Step 5: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "GfShootingTests|GfForgedMoveTests"`; expect 17 passed. Commit: `Add Hold, Advance and Rush, shooting with weapon groups, the casting checkpoint, dangerous terrain, and embarking and disembarking as part of a move`.**

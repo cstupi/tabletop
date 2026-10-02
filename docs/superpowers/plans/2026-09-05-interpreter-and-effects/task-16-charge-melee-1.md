@@ -3,12 +3,12 @@
 **Files:**
 - Create: `server/game/Rules/GrimdarkFuture/GfMelee.cs`
 - Modify: `server/game/Rules/GrimdarkFuture/GfRules.Sequences.cs`
-- Test: `tests/Tabletop.GameServer.Tests/GfMeleeTests.cs`
+- Test: `tests/Tabletop.GameServer.Tests/GfMeleeTests.cs`, `tests/Tabletop.GameServer.Tests/GfGroupsTests.cs`
 
 **Interfaces:**
 - Consumes: Tasks 11–15; `PieceSelection`, `SelectedPieces` (Protocol).
-- Produces: `GfMelee.Charge()` (`charge`: `activation-terrain` (`GfMoves.ActivationTerrainStep`, p.11's *activated in it*, Task 14), `charge-target`, `move` (`MoveStep(Charge, ignoreSeparation: true)`), `defender-closes`, `fight`), `GfMelee.Melee()` (`melee`: `melee-start`, `counter`, `impact`, `charger-attacks`, `strike-back`, `compare`, `consolidate`); `static IRL<Guid> MeleeWeapons(GameState, Guid unit, Func<Weapon,bool>? filter = null)`; `static int WoundsCaused(StepContext, Guid by, Guid to, string beforeKey, bool attacked)` (the target's `WoundsThisActivation` less the value recorded at `melee-start`, plus `Fear(X)` summed over the attacker's models when it attacked).
-- `charge-target`: `PieceSelection(min 1, max 1)` over enemy units with a model within charge distance (`StatReader.ActionDistance(Charge)`, `Fast`/`Slow` included) of a charger model whose straight path crosses no impassable volume (`Movement.Check(...).CrossesImpassable`); none → `Finish` (p.7: a charge needs a target in distance). **A charger inside a container measures from the container instead** — p.15 says *"Units may use Charge actions to disembark"*, and an occupant has no position of its own, so its reach is `GfNames.ExitWithin` from the container it is inside: an enemy within that is one it could be placed fully within 6" of and then be in contact with. The step's own `move` (`MoveStep(Charge, ignoreSeparation: true)`) is then the disembark, since `MoveStep.Containers` offers the exit on a Charge and never the enterable list (Task 14). The mirror also falls out: **a unit inside a container cannot be charged**, because the predicate measures to the target's *living* models and an occupant has none — which is p.15's no line of sight in. `defender-closes`: `MoveRegion(3")` to the defender's team for its models not in base contact (`Distance.EdgeToEdge > 0`) — `Passed` moves nobody. `fight`: no charger model in melee reach → `Finish` (p.7: "the unit may complete its move in any direction and ends its activation"); else `Push(melee, (charger, [target], charger's melee weapons, Charge))`.
+- Produces: `GfMelee.Charge()` (`charge`: `activation-terrain` (`GfMoves.ActivationTerrainStep`, p.11's *activated in it*, Task 14), `charge-target`, `move` (`MoveStep(Charge, ignoreSeparation: true)`), `defender-closes`, `fight`), `GfMelee.Melee()` (`melee`: `melee-start`, `counter`, `impact`, `charger-attacks`, `strike-back`, `compare`, `consolidate`); `static IRL<Guid> MeleeWeapons(GameState, Guid unit, Func<Weapon,bool>? filter = null)`; `static IRL<Guid> ChargeTargets(GameState, PropertySet, Guid unit)` (the enemy units `charge-target` offers; the scheduler's `ActionsFor` offers Charge only when it is non-empty, p.7 *"Units may only take a Charge action if at least one model is within charge distance of the target unit"*); `static int WoundsCaused(StepContext, Guid by, Guid to, string beforeKey, bool attacked)` (the target's `WoundsThisActivation` less the value recorded at `melee-start`, plus `Fear(X)` summed over the attacker's models when it attacked).
+- `charge-target`: `PieceSelection(min 1, max 1)` over `ChargeTargets`: enemy units with a model within charge distance (`StatReader.ActionDistance(Charge)`, `Fast`/`Slow` included) of a charger model whose straight path crosses no impassable volume (`Movement.Check(...).CrossesImpassable`); none → `Finish` (p.7: a charge needs a target in distance). An answer that names no unit the Ask offered (`GfAnswers.Pieces`) is no target: `Finish`. Later steps read the target through `GfAnswers.Pieces(state, frame, "charge-target", "charge_target")`, and `defender-closes` and `fight` `Finish` when it is empty. **A charger inside a container measures from the container instead** — p.15 says *"Units may use Charge actions to disembark"*, and an occupant has no position of its own, so its reach is `GfNames.ExitWithin` from the container it is inside: an enemy within that is one it could be placed fully within 6" of and then be in contact with. The step's own `move` (`MoveStep(Charge, ignoreSeparation: true)`) is then the disembark, since `MoveStep.Containers` offers the exit on a Charge and never the enterable list (Task 14). The mirror also falls out: **a unit inside a container cannot be charged**, because the predicate measures to the target's *living* models and an occupant has none — which is p.15's no line of sight in. `defender-closes`: `MoveRegion(3")` to the defender's team for its models not in base contact (edge-to-edge distance above `Touching = 1e-6`, float noise) — `Passed` moves nobody, and its moves and `consolidate`'s are read through `GfAnswers.Moves`. `fight`: no charger model in melee reach → `Finish` (p.7: "the unit may complete its move in any direction and ends its activation"); else `Push(melee, (charger, [target], charger's melee weapons, Charge))`.
 - `melee`: `melee-start` records both units' `WoundsThisActivation` (`charger_before`, `defender_before`). Every striking step (`counter`, `charger-attacks`, `strike-back`) is `Strike`, two phases as `fire-groups`: the first run records each melee weapon group's attacks per Quality value and the defending unit's living models (`attacks_<i>_q<n>`, `attacks_<i>`, `defender_models_<i>`) and repeats; the repeat pushes one `attack-sequence` per group in `GfGroups.Of`'s order, and `determine-attacks` reads the recorded counts. p.9 sums *"how many attacks the unit has in total for this melee"*, so a group that strikes after an earlier group's casualties is not shortened. A target with no model left ends the pushing. `counter` strikes the defender's `Counter` weapons before anything else (the 09-03 ruling; p.13 moves that weapon's strike earlier and does not add a second one) and records `Values["struck"]`; the defender is not fatigued here. `impact` — charger models with `Impact(X)`, unless fatigued: `Σ X − (defender models with a Counter weapon)` dice on the effect's threshold, recorded as roll `Impact`, `Values["hits"]`, then `Push(resolve-hits)` when hits > 0. `charger-attacks` strikes the charger's weapons and, when the last group has finished, sets `fatigued` on the charger. `strike-back` — a living defender with a non-`Counter` melee weapon is asked `Options([strike, pass])`, and a destroyed charger skips the Ask; `strike` strikes with the non-`Counter` weapons under a null `Action`, so the `Charge`-keyed rules (`Furious`, `Impact`, `Thrust`) apply only to the charger (p.9), and the defender's fatigue is set once, at the end of `strike-back`, when it struck at all, `counter` included, even if its strike destroyed the charger. `compare` — wounds caused each way (`Fear` counting for a unit that attacked, which includes a defender whose `Counter` weapon struck), a destroyed unit always loses, the loser pushes `morale-test` with `Action = "melee"`, a tie tests nobody; it completes twice when the loser tests, so a reader takes the first completion's values. `consolidate` — one unit destroyed or routed → the other's team gets `MoveRegion(3")`; otherwise the charger's team gets `MoveRegion(1")` to fall back (p.10). A Shaken defender may strike back, counting as fatigued (p.10, `GfRolls.Fatigued`).
 
 Spec: action sequences → Grimdark Future's sequences (Charge, melee's seven bullets), Rulings (`Counter` before `Impact`); rulebook p.7 (charge distance, path), p.9 (melee reach, striking back, fatigue), p.10 (who won, consolidation), p.13 `Counter`, `Fear`, p.14 `Impact`.
@@ -67,7 +67,7 @@ public class GfMeleeTests
         Assert.Equal(1.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);      // nobody destroyed: the charger falls back 1"
         sim.Answer(Samples.Team1, new Passed());
         Assert.Empty(sim.State.Projection.Stack);
-        Assert.True(GfHooks.FoughtMeleeThisActivation(sim.State, warriors.Id, dwarves.Id));         // anchored on the charge sequence, not on the last nested frame (R-N3)
+        Assert.True(GfHooks.FoughtMeleeThisActivation(sim.State, warriors.Id, dwarves.Id));         // anchored on the charge sequence, not on the last nested frame
         Assert.True(GfHooks.FoughtMeleeThisActivation(sim.State, warriors.Id, warriors.Id));
     }
 
@@ -87,7 +87,7 @@ public class GfMeleeTests
         var impact = sim.Steps("impact").First().Rolls.Single();                                     // the step completes again after pushing resolve-hits
         Assert.Equal(("Impact", 2, 3), (impact.Roll, impact.Threshold, impact.Dice.Count));         // 2 × Impact(2) = 4, −1 for the Counter model
         Assert.Equal(2, sim.Steps("impact").First().Values!["hits"]);                               // 1,5,3 → two at 2+
-        // Both hits wound (1,1) and the pike is the only model that can take them, so no Allocation Ask opens (R-N11): it dies.
+        // Both hits wound (1,1) and the pike is the only model that can take them, so no Allocation Ask opens: it dies.
         Assert.Equal(0, sim.Alive(pikes.Id));
         Assert.Equal(2, sim.Steps("compare").Single().Values!["loser"]);                            // a destroyed unit always loses; nobody left to test
         Assert.Equal(3.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);    // consolidate 3"
@@ -217,6 +217,34 @@ public class GfMeleeTests
     }
 
     [Fact]
+    public void A_charge_with_waits_between_steps_asks_for_the_target_and_then_the_move()
+    {
+        var warriors = Unit("Warriors", "4+", "4+", [], 1, [], Melee("CCW", 1));
+        var dwarves = Unit("Dwarves", "4+", "4+", [], 1, [], Melee("Hammer", 1));
+        var sim = Sim.Gf(State([warriors], [dwarves], x1: -8, x2: 0, waits: true), 1);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(warriors.Id, [], [], GfNames.Charge));
+        sim.Confirm();
+        Assert.Equal([dwarves.Id], Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal).Eligible);
+        sim.Answer(Samples.Team1, new SelectedPieces([dwarves.Id]));
+        sim.Confirm();
+        Assert.Equal(12.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+    }
+
+    [Fact]
+    public void A_melee_with_waits_between_steps_asks_for_the_consolidation_move()
+    {
+        var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
+        var target = Unit("Target", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], x1: -3, x2: 0, waits: true), 1, 1);              // both miss: 0-0
+        sim.Start(GfNames.Melee, MeleeOf(charger, target));
+        sim.Confirm();
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        sim.Confirm();
+        var move = sim.AskFor(Samples.Team1);
+        Assert.Equal(("move", 1.0), (move.Question, Assert.IsType<MoveRegion>(move.Legal).Allowance));   // p.10: the charger moves back 1"
+    }
+
+    [Fact]
     public void Fear_counts_for_the_defender_when_it_strikes_back()
     {
         var charger = Unit("Charger", "4+", "4+", [], 1, [], Melee("Claw", 1));
@@ -281,7 +309,6 @@ public class GfMeleeTests
         // Defender should still be fatigued because it struck via Counter
         Assert.Contains(GfNames.Fatigued, sim.Unit(defender.Id).Conditions);
     }
-
     [Fact]
     public void Melee_groups_strike_with_the_attacks_and_defender_count_the_melee_started_with()
     {

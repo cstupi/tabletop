@@ -216,15 +216,18 @@ public static class GfHooks
         var changes = new List<StateChange>();
         foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Fatigued)))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Fatigued, false));
+        // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
         foreach (var m in state.Projection.Models.Values)
             if (Lookup.ModelParameter(state, m.Id, GfNames.Caster) is { } x && x > 0) changes.Add(new SpellTokensSet(m.Id, Math.Min(GfNames.TokenCap, m.SpellTokens + x)));
         return changes;
     }
 
-    /// <summary>turn_ended: the wounds-this-activation counters clear (whole-design review → Gaps filled); an activation spent idle stops the unit being Shaken (p.10).</summary>
+    /// <summary>turn_ended: the wounds-this-activation counters and moved clear (whole-design review → Gaps filled); an activation spent idle stops the unit being Shaken (p.10).</summary>
     public static IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet props, Scheduler.TurnContext turn)
     {
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
+        // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
+        changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
         // p.13: an Aircraft "may only use Advance actions … (even if Shaken)" and "their mandatory move doesn't break the staying idle requirement
         // to stop being Shaken" — so a Shaken Aircraft's Advance counts as having idled.
@@ -285,4 +288,4 @@ public static class GfHooks
 }
 ```
 
-- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfRollsTests`; expect 15 passed. Commit: `Add Grimdark Future's roll specs, hooks, names and the battlefield reader`.**
+- [ ] **Step 6: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfRollsTests`; expect 16 passed. Commit: `Add Grimdark Future's roll specs, hooks, names and the battlefield reader`.**

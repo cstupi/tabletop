@@ -125,6 +125,17 @@ public class GfRollsTests
     }
 
     [Fact]
+    public void Turn_end_clears_moved_so_it_means_this_activation()
+    {
+        var grunts = Unit("Grunts", "4+", "4+", [], 3, []);
+        var state = State([grunts], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new ConditionSet(new Subject(SubjectKind.Unit, grunts.Id), GfNames.Moved, true), null));
+        // p.14 Indirect: "-1 to hit rolls when shooting after moving" — a move this activation, not one in an earlier round.
+        var turn = Gf.OnTurnEnded(state, Core, new TurnContext(Samples.Team1, new Activation(grunts.Id, GfNames.Advance, true, []), 0, 0));
+        Assert.Contains(turn, c => c is ConditionSet { Condition: GfNames.Moved, Present: false } cs && cs.Subject.Id == grunts.Id);
+    }
+
+    [Fact]
     public void A_shaken_aircrafts_mandatory_advance_still_stops_it_being_shaken()
     {
         var jet = Unit("Jet", "4+", "4+", [P("Aircraft")], 1, []);
@@ -279,11 +290,11 @@ public static class Battlefield
         new(new ModelBody(state.Projection.Models[modelId].Slot.Base, state.Projection.Models[modelId].Slot.Height), placement);
 
     /// <summary>
-    /// What containment settles about one unit reaching another, before anything is measured (p.15: "Units inside/outside of
-    /// Transports don't have line of sight to the outside/inside … but units inside can target other units inside, and the
-    /// Transport itself"). False: one is inside and the other cannot see in or out. True: both are inside the same container,
-    /// or the reaching unit is inside and the other owns the container — they are in the same box, so there is no distance and
-    /// no sight line to take. Null: neither is inside anything, so measure it the usual way.
+    /// What containment settles about one unit reaching another, before anything is measured (p.15: a unit inside a container and a
+    /// unit outside it cannot reach each other; occupants of one container reach each other and the container model itself).
+    /// False: one is inside and the other cannot see in or out. True: both are inside the same container, or the reaching unit is
+    /// inside and the other owns the container — they are in the same box, so there is no distance and no sight line to take.
+    /// Null: neither is inside anything, so measure it the usual way.
     /// </summary>
     public static bool? InsideReach(GameState state, Guid fromUnit, Guid toUnit)
     {
@@ -414,7 +425,7 @@ public static class GfNames
     public const string BeforeAttacking = "before-attacking";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
-    public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", RollOffSeq = "roll-off";
+    public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", SpellHitsSeq = "spell-hits", RollOffSeq = "roll-off";
     /// <summary>The roll-off's two step names. The scheduler reads the order off the step_completed named by the second.</summary>
     public const string RollOffRollStep = "roll-off", RollOffOrderStep = "order";
     public const string TransportDestroyedSeq = "transport-destroyed";                                                  // p.15: a wrecked container disgorges (Task 19)
@@ -471,6 +482,7 @@ public sealed partial class GrimdarkFutureRules
     public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, TurnContext turn) => GfHooks.EndOfTurnSequences(state, properties, turn.Activation?.UnitId);
     public IReadOnlyList<StateChange> OnRoundStarted(GameState state, PropertySet properties, int round) => round == 0 ? [] : GfHooks.OnRoundStarted(state, properties);
     public IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet properties, TurnContext turn) => GfHooks.OnTurnEnded(state, properties, turn);
+    public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams) => null;
 }
 ```
 

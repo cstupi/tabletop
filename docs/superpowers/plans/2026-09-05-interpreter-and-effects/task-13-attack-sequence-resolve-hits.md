@@ -429,6 +429,13 @@ Add to `GfAttack.cs`:
         }
     }
 
+    /// <summary>`granted_&lt;entry&gt;_&lt;amount&gt;`: the entry may hold underscores, the amount never does, so the split is at the last one.</summary>
+    public static (string Entry, int Amount) ParseGrantKey(string key)
+    {
+        var cut = key.LastIndexOf('_');
+        return (key["granted_".Length..cut], int.Parse(key[(cut + 1)..]));
+    }
+
     sealed class RollToBlockStep : IStep
     {
         public string Name => "roll-to-block";
@@ -451,8 +458,8 @@ Add to `GfAttack.cs`:
             var wounds = 0; var plain = hits;
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {
-                var parts = key.Split('_');   // granted_<entry>_<amount>
-                var granted = live.WithGranted(Side.Attacker, parts[1], int.Parse(parts[2]));
+                var (entry, amount) = ParseGrantKey(key);
+                var granted = live.WithGranted(Side.Attacker, entry, amount);
                 var group = count * multiplier; plain -= group;
                 wounds += Dice.RollOutcome.Failures(ctx.Roll(GfRolls.DefensePlan(ctx, granted, inCover, defenderModels), group));
             }

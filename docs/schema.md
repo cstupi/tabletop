@@ -263,6 +263,7 @@ erDiagram
         text content_hash PK
         text name
         text game_rules
+        timestamptz seeded_at
     }
     ACTION {
         text properties_hash PK
@@ -662,8 +663,8 @@ touching the game.
 `model/gltf-binary | image/png | image/jpeg | image/webp`. The row is written when `POST /v1/assets` hands out a
 presigned PUT and flipped by `/confirm`, so the gap between the two is visible rather than
 indistinguishable from a finished upload. These two columns arrive as management's
-`002_blob_uploaded.sql` rather than in `001_schema.sql`. Together with `account.starter_seeded_at` below,
-these are the places this document's tables and the init SQL differ on purpose.
+`002_blob_uploaded.sql` rather than in `001_schema.sql`. Together with `account.starter_seeded_at` and
+`properties.seeded_at` below, these are the places this document's tables and the init SQL differ on purpose.
 
 ### `account` records whether its starter meshes were seeded
 
@@ -671,6 +672,13 @@ these are the places this document's tables and the init SQL differ on purpose.
 account has not been given the starter miniature set; management's `Sessions.Complete` seeds it at login and
 sets the column. Nothing else reads it, and deleting a starter asset does not clear it
 ([starter meshes](superpowers/specs/2026-10-01-starter-meshes-design.md)).
+
+### `properties` records when it was last seeded
+
+`seeded_at timestamptz not null default now()`, arriving as management's `004_properties_seeded_at.sql`. The game
+server's seeder inserts a new set and, for one already present, sets `seeded_at = now()`, so the sets the running
+server ships are the newest. `GET /v1/properties` lists one set per `(game_rules, name)`, the latest by `seeded_at`;
+editing a document under the same name supersedes the listing entry, and a game that pinned the older hash keeps it.
 
 ### A deployment zone names a team ordinal, not a team
 

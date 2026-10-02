@@ -18,6 +18,7 @@ public class MigrationTests : IClassFixture<ManagementFactory>
         Assert.Contains("uploaded", cols);
         Assert.Contains("content_type", cols);
         Assert.Contains("starter_seeded_at", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='account'"));
+        Assert.Contains("seeded_at", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='properties'"));
     }
 
     [Fact]

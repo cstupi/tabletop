@@ -2,13 +2,14 @@
 
 **Files:**
 - Create: `server/game/Rules/GrimdarkFuture/GfAttack.cs` (deal-wounds; Task 13 adds resolve-hits and attack-sequence to the same file)
+- Create: `server/game/Rules/GrimdarkFuture/GfAnswers.cs` (every Grimdark Future step reads a closed Ask's answer through it; Tasks 14, 16, 17 and 19 use it)
 - Modify: `server/game/Rules/GrimdarkFuture/GfRules.Sequences.cs` (register `GfAttack.DealWounds()`)
 - Test: `tests/Tabletop.GameServer.Tests/GfDealWoundsTests.cs`
 - Modify: `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs` (`WithSequences`, the decorator that registers a parked parent frame's sequence)
 
 **Interfaces:**
 - Consumes: Tasks 6–11; `Allocation`, `Allocated`, `SelectedPieces`, `WoundsSet`, `ModelsMoved`, `WoundsThisActivationSet` (Protocol).
-- Produces: `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.15, in that order: heroes last even if already wounded; a Tough model that joined a unit without it is removed last, so while models without Tough remain they are the pool; among Tough models alone the most-wounded one until it dies; over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? TakedownModel(FrameView frame)` (the model a `Takedown` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
+- Produces: `static class GfAnswers` — `IRL<Guid> Pieces(AskAnswer?, Ask?)` (offered pieces, each once, at most `Max`), `IRL<Guid> Pieces(GameState, FrameView, string step, string question)` (an earlier step's answer against `FrameReader.Recorded`), `AskOption? Option(AskRecord)` (null for a pass, another type or an unoffered id), `Dictionary<Guid,int> Allocated(AskRecord, IReadOnlyCollection<Guid> alive, int owed)` (offered and alive models, counts ≥ 1, total ≤ owed), `IRL<ModelRelocation> Moves(GameState, AskRecord)` (models the `MoveRegion` listed and the projection holds, one each, `From` replaced by the projection's location, an `Inside` not in `Containment.Enterable` dropped). `static class GfAttack` with `Sequence DealWounds()` (name `deal-wounds`, one step `assign`; Task 19 adds `disgorge`); `static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IRL<Guid> weapons, AttackKind? kind, string? action)` (range from `Battlefield.UnitDistance`, terrain from `Battlefield.TerrainUnder(target)`); `static int WoundsToDeal(FrameView frame)` (failures of every `defense` roll in the parent frame's completed steps, or the parent's `Values["wounds"]` when it rolled none — dangerous terrain); `static IRL<Guid> EligibleForNextWound(GameState, PropertySet, Guid unit)` (p.15, in that order: heroes last even if already wounded; a Tough model that joined a unit without it is removed last, so while models without Tough remain they are the pool; among Tough models alone the most-wounded one until it dies; over `Lookup.AliveModels`, so a unit inside a container is wounded like any other); `static Guid? TakedownModel(FrameView frame)` (the model a `Takedown` group named, read off the nearest ancestor `attack-sequence` frame's closed `pick-target-model` answer; Task 13 adds the step that writes it).
 - **Task 19 comes back to this sequence.** `DealWounds()` gains a second step, `disgorge`, and `assign`'s casualty line gains one condition: a model at its capacity that is a container holding somebody is *not* shelved here, because p.15 places its occupants *"before removal"*. Nothing else in this task changes, and a container with nobody inside is an ordinary casualty.
 - Context of a `deal-wounds` frame: `ActorUnitId` = the attacker (null when terrain wounds), `TargetUnitIds = [target]`, `WeaponIds` = the attacking group's weapons (so `Deadly`, `Bane`'s and `Rending`'s suppression of `Regeneration` are live), `Action` = the attacker's action. `assign` is a repeat loop (`Complete(Repeat: true)` while wounds remain and a model can take them): the first segment takes its wounds from `WoundsToDeal`, each later one from the previous segment's `Values["wounds_left"]`, because p.8 and p.15 remove one model per wound and an ordinary wound past a killed model is assigned to the next one. `wounds_dealt` is cumulative across the segments. The Ask is `Allocation(Targets = eligible models, Amount = wounds)` to the target's team, and any member of that team may answer it; **with one eligible model there is no Ask**, the wounds go to it; the answer is applied as given (an out-of-set allocation accepted under `warn`/`silent` is applied too — nothing is an invariant). **A takedown wound opens no Ask**: when `TakedownModel` names a living model of the target, every wound of that group is assigned to that one model and the defender is not asked (p.14 `Takedown`; ruling 7). What that skips is exactly what building the prompt's targets decides — `EligibleForNextWound`, so p.15's wounded-`Tough`-model-first and heroes-last, and p.8's free choice of removal order. Everything after the assignment is unchanged: `Deadly` multiplies, `Regeneration` rolls, the capacity read shelves the model, and a Takedown or Deadly wound's excess past that capacity is lost. A name that is not a living model of the target — which only a menu edit can produce — is ignored and the ordinary Ask opens. Per assigned wound: multiplied by `WoundMultiplier` (`Deadly(X)`, first by ordinal 0; p.13 and p.14 discard what a multiplied or Takedown wound has past the model's capacity, and every other wound past it carries over); `Regeneration` live on the target unit, which 3.5.1 needs every model to carry → one die at 5+ per wound (a `RollRecord` named `Regeneration`), success ignores it; the model's `Wounds` rises; at `Tough(X)` (default 1) it goes to the shelf. `WoundsThisActivation` on the target rises by the wounds that landed in each segment.
 
@@ -42,6 +43,21 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public bool ActivationComplete(GameState state, Scheduler.Activation activation) => inner.ActivationComplete(state, activation);
     public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
 }
+```
+
+Appended to `RulesEngineTests` (Task 10), the decorator's own fact:
+
+```csharp
+    [Fact]
+    public void WithSequences_shadows_a_parked_parent_so_its_child_finishes_and_the_stack_empties()
+    {
+        var parent = Guid.CreateVersion7();
+        var rules = new WithSequences(new StubRules(Roller()), WithSequences.Parent("test-parent", "wounds"));
+        var sim = new Sim(State([A], [B]), rules, TestProperties.Core, new ScriptedDice(4));
+        sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(A.Id, [], [], null)), new StepCompleted(parent, "wounds", null, [], [])]);
+        Assert.Equal(["sequence_finished"], sim.Run().Select(EventKinds.Of));
+        Assert.Empty(sim.State.Projection.Stack);
+    }
 ```
 
 ```csharp
@@ -266,7 +282,67 @@ public class GfDealWoundsTests
 }
 ```
 
-- [ ] **Step 2: Run; expect compile errors. Write `GfAttack.cs` (deal-wounds part)**
+- [ ] **Step 2: Run; expect compile errors. Write `GfAnswers.cs`**
+
+Under `warn` and `silent` the dispatcher accepts an answer outside the Ask's legal set and logs it, and a throw inside `Advance` is replayed by every rehydrate. So no step casts `AskRecord.Single` or a `CompletedStep.Answer`: it reads the answer against the legal set of the Ask that recorded it (`AskRecord.Ask`, or `FrameReader.Recorded` for an earlier step's answer), and what the set did not offer is dropped. A wrong type is an empty answer.
+
+```csharp
+using Tabletop.GameServer.Interpreter;
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Rules.GrimdarkFuture;
+
+/// <summary>
+/// Answers read through the Ask that recorded them. Under warn and silent an answer outside the legal set is accepted, so a step
+/// never trusts its type or its ids: what is not in the recorded set is dropped, and an answer of the wrong type is an empty one.
+/// A throw inside Advance is replayed by every rehydrate, so nothing here may throw.
+/// </summary>
+public static class GfAnswers
+{
+    /// <summary>The pieces an answer named that the Ask offered, each once, at most the Ask's maximum.</summary>
+    public static IReadOnlyList<Guid> Pieces(AskAnswer? answer, Ask? ask) =>
+        answer is SelectedPieces picked && ask?.Legal is PieceSelection set ? picked.PieceIds.Distinct().Where(set.Eligible.Contains).Take(set.Max).ToList() : [];
+
+    /// <summary>An earlier step's piece answer, read against the Ask that frame recorded for it.</summary>
+    public static IReadOnlyList<Guid> Pieces(GameState state, FrameView frame, string step, string question) =>
+        Pieces(frame.Frame.Steps.LastOrDefault(s => s.Step == step)?.Answer, FrameReader.Recorded(state, frame.Id, question));
+
+    /// <summary>The option an answer chose, looked up among the Ask's own choices; null for a pass, another type or an id the Ask did not offer.</summary>
+    public static AskOption? Option(AskRecord closed) =>
+        closed.Single is Chosen chosen && closed.Ask.Legal is Options set ? set.Choices.FirstOrDefault(c => c.Id == chosen.OptionId) : null;
+
+    /// <summary>Wounds per model: only models the Ask offered and that are still in the unit, none below one, and no more in total than the wounds owed.</summary>
+    public static Dictionary<Guid, int> Allocated(AskRecord closed, IReadOnlyCollection<Guid> alive, int owed)
+    {
+        var result = new Dictionary<Guid, int>();
+        if (closed.Single is not Allocated answer || closed.Ask.Legal is not Allocation set) return result;
+        var left = owed;
+        foreach (var (model, count) in answer.Counts)
+        {
+            if (!set.Targets.Contains(model) || !alive.Contains(model) || count <= 0 || left <= 0) continue;
+            var take = Math.Min(count, left);
+            result[model] = take; left -= take;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The relocations of models the move Ask named and the projection holds, one per model. From is the projection's location, never the
+    /// answer's, so a forged From cannot skip the distance check; a move Inside a piece the Ask did not list as enterable is dropped.
+    /// </summary>
+    public static IReadOnlyList<ModelRelocation> Moves(GameState state, AskRecord closed)
+    {
+        if (closed.Single is not Destinations answer || closed.Ask.Legal is not MoveRegion region) return [];
+        var enterable = region.Containment?.Enterable ?? [];
+        return answer.Moves
+            .Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId) && (m.To is not Inside into || enterable.Contains(into.ContainerId)))
+            .DistinctBy(m => m.ModelId)
+            .Select(m => m with { From = state.Projection.Models[m.ModelId].Location }).ToList();
+    }
+}
+```
+
+- [ ] **Step 3: Write `GfAttack.cs` (deal-wounds part)**
 
 ```csharp
 using Tabletop.GameServer.Effects;
@@ -349,7 +425,7 @@ public static partial class GfAttack
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
             else if (eligible.Count == 1) allocation = new Dictionary<Guid, int> { [eligible[0]] = wounds };   // nothing to choose
-            else if (ctx.History.LastClosed() is { Single: Allocated closed }) allocation = closed.Counts.ToDictionary(kv => kv.Key, kv => kv.Value);
+            else if (ctx.History.LastClosed() is { Single: Allocated } closed) allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
 
             var actor = ctx.Frame.Context.ActorUnitId;
@@ -396,4 +472,4 @@ public static partial class GfAttack
 
 `GfRules._sequences` gains `GfAttack.DealWounds()`. A property's own roll is recorded under the entry's name (`Regeneration`) with the effect row's threshold, so nothing here knows the number 5 (effect grammar → `Roll` nests).
 
-- [ ] **Step 3: Run `dotnet test tests/Tabletop.GameServer.Tests --filter GfDealWoundsTests`; expect 12 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**
+- [ ] **Step 4: Run `dotnet test tests/Tabletop.GameServer.Tests --filter "GfDealWoundsTests|RulesEngineTests"`; expect 13 and 6 passed. Commit: `Deal wounds: the defender allocates, Tough and Deadly and Regeneration resolve, casualties shelve`.**

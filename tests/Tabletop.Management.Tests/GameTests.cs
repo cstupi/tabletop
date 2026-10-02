@@ -22,6 +22,23 @@ public class GameTests : IClassFixture<ManagementFactory>
     static CreateGameRequest Friday() => new("Friday", Hash, SchedulerShape.AlternatingActivation, Enforcement.Warn, false);
 
     [Fact]
+    public async Task Properties_lists_one_set_per_name_the_most_recently_seeded()
+    {
+        await using var db = new NpgsqlConnection(_f.Database.ConnectionString);
+        await db.ExecuteAsync("""
+            insert into management.properties (content_hash, name, game_rules, seeded_at) values
+                ('sha256:test-old', 'GF listing', 'grimdark-future', now() - interval '1 day'),
+                ('sha256:test-new', 'GF listing', 'grimdark-future', now())
+            on conflict do nothing
+            """);
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7(), "Clay");
+        var listed = (await c.GetJson<List<PropertiesSummary>>("/v1/properties")).Where(p => p.Name == "GF listing").ToList();
+        Assert.Equal([new PropertiesSummary("sha256:test-new", "GF listing", "grimdark-future")], listed);
+        var game = await c.PostJson<GameInfo>("/v1/games", Friday() with { PropertiesHash = "sha256:test-old" });    // an unlisted set still backs a game
+        Assert.Equal("sha256:test-old", game.PropertiesHash);
+    }
+
+    [Fact]
     public async Task Properties_lists_the_pinned_sets_and_create_copies_game_rules_from_the_chosen_one()
     {
         await Seed();

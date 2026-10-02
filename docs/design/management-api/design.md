@@ -60,7 +60,7 @@ server/management/Tabletop.Management.csproj      net10.0, LangVersion 12, RootN
   Configuration/                                  ManagementOptions, DotEnv
   Http/                                           ClientVersionMiddleware, Keyset, Page<T>, Problems, CurrentAccount
   Persistence/                                    Database, Migrator, Migrations/001_schema.sql, Migrations/002_blob_uploaded.sql,
-                                                  Migrations/003_account_starter.sql
+                                                  Migrations/003_account_starter.sql, Migrations/004_properties_seeded_at.sql
   Identity/                                       StytchJwks, StytchAuthentication, StytchClient, Sessions,
                                                   AccountRepository, AuthEndpoints, AccountEndpoints, AccountDeleter
   Content/VolumeRows.cs                           VolumeRow, shared by asset_volume and terrain_volume
@@ -459,6 +459,10 @@ arrived, and what they are*).
 
 Migration `003_account_starter.sql` adds `account.starter_seeded_at timestamptz null`
 (`docs/schema.md` → *`account` records whether its starter meshes were seeded*).
+
+Migration `004_properties_seeded_at.sql` adds `properties.seeded_at timestamptz not null default now()`; the game
+server's seeder sets it on every seed, and `GET /v1/properties` lists one set per `(game_rules, name)`, the latest
+(`docs/schema.md` → *`properties` records when it was last seeded*).
 
 ### 6. The asset library and the presigned protocol
 
@@ -1008,7 +1012,7 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 | `GET /v1/layouts` | → `LayoutSummary(Id, Name, Size, Terrain, Markers)[]` | owner |
 | `POST /v1/layouts` | `TableState` with `Name` → `201 TableState` | owner |
 | `GET`/`PATCH`/`DELETE /v1/layouts/{id}` | `PatchLayoutRequest(Name?, State?)` → `TableState` / `204` | owner |
-| `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules)[]` | bearer |
+| `GET /v1/properties` | → `PropertiesSummary(ContentHash, Name, GameRules)[]`, one per `(GameRules, Name)`, the latest seeded | bearer |
 | `GET /v1/games?limit&after` | → `Page<GameSummary>` | bearer, public |
 | `POST /v1/games` | `CreateGameRequest(Name, PropertiesHash, SchedulerShape, Enforcement, WaitsBetweenSteps)` → `201 Tabletop.Protocol.GameInfo` | bearer |
 | `GET /v1/games/{id}` | → `GameInfo` | bearer, public |
@@ -1364,6 +1368,7 @@ erDiagram
         text content_hash PK
         text name
         text game_rules
+        timestamptz seeded_at
     }
     TABLE_STATE {
         uuid id PK

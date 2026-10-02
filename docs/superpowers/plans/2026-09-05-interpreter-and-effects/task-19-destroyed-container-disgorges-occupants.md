@@ -173,7 +173,7 @@ public static class GfContainers
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), GfNames.ExitWithin,
                         Battlefield.Terrain(ctx.State).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
                         [], null, new MoveContainment([], container, GfNames.ExitWithin)), allowPass: false)]);
-            IReadOnlyList<ModelRelocation> proposed = (closed.Single as Destinations)?.Moves ?? [];
+            var proposed = GfAnswers.Moves(ctx.State, closed);
             var changes = new List<StateChange> { new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true) };
             var moves = new List<ModelRelocation>(); var destroyed = 0; var fatal = 0;
             foreach (var m in Lookup.AliveModels(ctx.State, unit))
@@ -230,11 +230,10 @@ and the new step goes beside it:
         public string Name => "disgorge";
         public StepOutcome Run(StepContext ctx)
         {
-            if (ctx.History.Children.Count > 0 && !(ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned)) return new OpenAsks([]);
-            // The occupants' own dangerous terrain test pushes a deal-wounds of its own; that one must not disgorge the wreck the
-            // frame above it is already emptying. The guard walks this frame's own ancestors, not the stack, so the outer disgorge
-            // is unaffected while its child runs. A container wrecked by that nested test is still caught: the outer disgorge
-            // re-reads Wrecks after every child and only shelves when no wreck holds anybody.
+            // The occupants' own dangerous terrain test pushes a deal-wounds of its own; that one must not disgorge the wreck the frame
+            // above it is already emptying. The guard walks this frame's ancestors, not the stack, so the outer disgorge is unaffected
+            // while its child runs. A container wrecked by that nested test is still caught: the outer disgorge re-reads Wrecks after every
+            // child and only shelves when no wreck holds anybody.
             for (var f = ctx.Frame.Parent; f is not null; f = f.Parent)
                 if (f.Frame.Sequence == GfNames.TransportDestroyedSeq) return new Complete([]);
             var wrecks = GfContainers.Wrecks(ctx.State);
