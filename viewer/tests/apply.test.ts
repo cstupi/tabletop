@@ -18,7 +18,7 @@ const R2 = '0198b7ac-0000-7000-8000-000000000072';
 
 const game = {
   id: '0198b7ac-0000-7000-8000-0000000000ff', name: 'Friday', status: 'playing', createdBy: P1,
-  gameRules: 'grimdark-future', propertiesHash: 'sha256:x', schedulerShape: 'alternating_activation',
+  gameRules: 'grimdark-future', propertiesHash: 'sha256:x', schedulerShape: 'alternating-activation',
   enforcement: 'strict', waitsBetweenSteps: false,
   teams: [{ id: T1, ordinal: 1 }, { id: T2, ordinal: 2 }],
   participants: [{ id: P1, accountId: P1, name: 'Clay', teamId: T1 }],
