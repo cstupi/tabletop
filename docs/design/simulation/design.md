@@ -22,7 +22,7 @@ the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliver
 
 | Not built here | Where it lives |
 | --- | --- |
-| `viewer/`, the developer web app that draws a recording | `docs/superpowers/plans/2026-09-06-viewer.md` |
+| `viewer/`, the developer web app that draws a recording | `docs/superpowers/plans/2026-09-06-viewer/README.md` |
 | A control channel, an HTTP endpoint or a browser over the step-and-wait seam | not built; Task 9 builds the seam only |
 | A state-reading answer policy, and an opponent that plays well | not built; a second `IAnswerSource`, named as such |
 | The rules, the scheduler, the interpreter, the applier | `server/game/`, `libs/Tabletop.Protocol` |

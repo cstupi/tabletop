@@ -504,7 +504,7 @@ activation, and free text covers the rest. `GameInfo` gains no `Actions` list. T
 | Interpreter and effects | `server/game/`, the rules | `2026-09-05-interpreter-and-effects/README.md` | `design/interpreter/` |
 | Scheduler | `server/game/`, turn order | `2026-09-05-scheduler/README.md` | `design/scheduler/` |
 | Simulator | `sim/`, a developer tool | `2026-09-06-simulation/README.md` | `design/simulation/` |
-| Viewer | `viewer/`, a developer tool | `2026-09-06-viewer.md` | `design/viewer/` |
+| Viewer | `viewer/`, a developer tool | `2026-09-06-viewer/README.md` | `design/viewer/` |
 
 The simulator plays whole games with no client, through either an in-process driver or a real socket,
 and records a projection per event. The viewer draws that recording top-down, or attaches to a live

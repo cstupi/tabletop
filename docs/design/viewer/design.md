@@ -929,7 +929,7 @@ threshold for the same reason.
 
 ### The plan
 
-- [`docs/superpowers/plans/2026-09-06-viewer.md`](../../superpowers/plans/2026-09-06-viewer.md):
+- [`docs/superpowers/plans/2026-09-06-viewer/README.md`](../../superpowers/plans/2026-09-06-viewer/README.md):
   twelve tasks, the file structure, the recording schema it consumes verbatim, the
   `Interfaces → Produces` tables, seven interfaces needed from other modules, five rulings.
 
