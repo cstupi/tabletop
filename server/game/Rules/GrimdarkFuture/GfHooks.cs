@@ -20,10 +20,12 @@ public static class GfHooks
         return changes;
     }
 
-    /// <summary>turn_ended: the wounds-this-activation counters clear (whole-design review → Gaps filled); an activation spent idle stops the unit being Shaken (p.10).</summary>
+    /// <summary>turn_ended: the wounds-this-activation counters and moved clear (whole-design review → Gaps filled); an activation spent idle stops the unit being Shaken (p.10).</summary>
     public static IReadOnlyList<StateChange> OnTurnEnded(GameState state, PropertySet props, Scheduler.TurnContext turn)
     {
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
+        // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
+        changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
         // p.13: an Aircraft "may only use Advance actions … (even if Shaken)" and "their mandatory move doesn't break the staying idle requirement
         // to stop being Shaken" — so a Shaken Aircraft's Advance counts as having idled.
@@ -69,7 +71,7 @@ public static class GfHooks
     }
 
     /// <summary>
-    /// The one core window: before attacking, the acting unit's own team may cast if a model in it has tokens (p.13). Task 17 supplies the sequence.
+    /// The one core window: before attacking, the acting unit's own team may cast if a model in it can afford a spell it has not tried (p.13). Task 17 supplies the sequence.
     /// A Shaken unit casts nothing: 3.5.1 p.10 spells out that being idle means it "can't take any actions, or use any active special
     /// rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".
     /// </summary>
@@ -77,8 +79,9 @@ public static class GfHooks
     {
         if (point != GfNames.BeforeAttacking || frame.Context.ActorUnitId is not { } unit) return [];
         if (state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return [];   // p.10: no active special rules while Shaken
-        var casters = Lookup.AliveModels(state, unit).Where(m => state.Projection.Models[m].SpellTokens > 0 && Lookup.ModelParameter(state, m, GfNames.Caster) is not null).ToList();   // p.15: a caster inside a container may still cast at what is inside with it
-        if (casters.Count == 0 || Teams.Of(state, unit) is not { } team) return [];
+        // p.13: casting is spending tokens on a spell, so the window opens only when some caster can afford a spell it has not tried.
+        // p.15: a caster inside a container may still cast at what is inside with it.
+        if (GfCasting.SpellOptions(state, props, unit).Count == 0 || Teams.Of(state, unit) is not { } team) return [];
         return [new Reaction(team, "cast", "Cast a spell", GfNames.CastingSeq, new SequenceContext(unit, [], [], null))];
     }
 }

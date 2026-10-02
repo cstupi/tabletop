@@ -540,8 +540,10 @@ log distinguishes them by the name of the previous completion.
 | Ask | `OpenAsks(IRL<Ask>)` | one `ask_opened` each | suspended until every Ask is closed |
 | Push | `Push(Sequence, Context)` | `sequence_started` for the child | suspended; the step runs again and sees a `ChildRecord` |
 
-`Finish` is what a charge with no target in reach does (p.7: *the unit may complete its move in
-any direction and ends its activation*) and what a `Shaken` unit's `shoot-or-not` does. `Repeat`
+`Finish` is what a charge whose targets have all gone out of reach does (p.7: *if being within charge
+distance becomes impossible (due to killed models, special rules, etc.), then the unit may complete
+its move in any direction and ends its activation*; a charge with no target in reach is never offered,
+because `GfMelee.ChargeTargets` gates it in `ActionsFor`) and what a `Shaken` unit's `shoot-or-not` does. `Repeat`
 is what a move step's next segment does after a mid-move cast. A step that repeats must advance
 its own state, or it loops forever emitting `step_completed`. `GfMoves.MoveStep` guards this with
 an explicit `Values["phase"]` machine. `GfContainers.WreckTestStep` guards it with

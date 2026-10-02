@@ -223,7 +223,8 @@ action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 map of integers. A `Passed` answer is a zero move.
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
-unit's `moved` condition. It does **not** enforce the 1-inch separation or coherency. The client
+unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
+Indirect's *"shooting after moving"* reads. It does **not** enforce the 1-inch separation or coherency. The client
 flags those, per `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
 prompt for a charge.
 
@@ -362,7 +363,8 @@ still takes its test.
 ## Casting
 
 `casting` is pushed by an **invoked** window at the `before-attacking` point, whenever
-`GfHooks.ReactionsAt` finds a caster with tokens. The two invokers are `hold`'s own
+`GfHooks.ReactionsAt` finds a caster that can afford a spell it has not tried this activation
+(`GfCasting.SpellOptions`, the same list `pick-spell` offers). The two invokers are `hold`'s own
 `casting-window` step and the move step's phase 2.
 
 | Step | Does |

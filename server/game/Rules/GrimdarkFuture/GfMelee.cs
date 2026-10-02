@@ -86,6 +86,29 @@ public static class GfMelee
         return wounds + fear;
     }
 
+    /// <summary>
+    /// The enemy units this unit could charge: p.7 "Units may only take a Charge action if at least one model is within charge distance of the
+    /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
+    /// </summary>
+    public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
+    {
+        var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
+        var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
+        var impassable = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
+        var team = Teams.Of(state, unit);
+        // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
+        // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
+        var inside = Lookup.ContainerOf(state, unit);
+        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team).Select(u => u.Id).Where(t => inside is { } container
+            ? Lookup.LivingModels(state, t).Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
+            : Lookup.LivingModels(state, unit).Any(m => Lookup.LivingModels(state, t).Any(e =>
+            {
+                if (Battlefield.Placed(state, m) is not { } from || Battlefield.Placed(state, e) is not { } to) return false;
+                var check = Movement.Check(from, to.Placement.Position.Horizontal, distance, impassable, [], null, state.Board.Table.Size);
+                return Battlefield.Distance(state, m, e) <= distance && !check.CrossesImpassable;
+            }))).ToList();
+    }
+
     sealed class ChargeTargetStep : IStep
     {
         public string Name => "charge-target";
@@ -93,22 +116,9 @@ public static class GfMelee
         {
             if (ctx.History.LastClosed() is { } answered) return GfAnswers.Pieces(answered.Single, answered.Ask).Count == 0 ? new Finish([]) : new Complete([]);   // an answer that names no offered unit is no target
             var unit = Charger(ctx);
-            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
-            var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
-            var terrain = Battlefield.Terrain(ctx.State);
-            var impassable = terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
             var team = ctx.ActorTeam;
-            // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
-            // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
-            var inside = Lookup.ContainerOf(ctx.State, unit);
-            var targets = ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team).Select(u => u.Id).Where(t => inside is { } container
-                ? Lookup.LivingModels(ctx.State, t).Any(e => Battlefield.Distance(ctx.State, container, e) <= GfNames.ExitWithin)
-                : Lookup.LivingModels(ctx.State, unit).Any(m => Lookup.LivingModels(ctx.State, t).Any(e =>
-                {
-                    var (from, to) = (Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, e)!.Value);
-                    var check = Movement.Check(from, to.Placement.Position.Horizontal, distance, impassable, [], null, ctx.State.Board.Table.Size);
-                    return Battlefield.Distance(ctx.State, m, e) <= distance && !check.CrossesImpassable;
-                }))).ToList();
+            var targets = ChargeTargets(ctx.State, ctx.Properties, unit);
+            // p.7: "if being within charge distance becomes impossible (due to killed models, special rules, etc.)" after the action was taken.
             if (targets.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("charge_target", "Charge which unit?", team!.Value, new PieceSelection(targets, 1, 1))]);
         }

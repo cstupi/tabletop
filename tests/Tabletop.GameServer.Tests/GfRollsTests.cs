@@ -107,6 +107,43 @@ public class GfRollsTests
     }
 
     [Fact]
+    public void Turn_end_clears_moved_so_it_means_this_activation()
+    {
+        var grunts = Unit("Grunts", "4+", "4+", [], 3, []);
+        var state = State([grunts], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new ConditionSet(new Subject(SubjectKind.Unit, grunts.Id), GfNames.Moved, true), null));
+        // p.14 Indirect: "-1 to hit rolls when shooting after moving" — a move this activation, not one in an earlier round.
+        var turn = Gf.OnTurnEnded(state, Core, new TurnContext(Samples.Team1, new Activation(grunts.Id, GfNames.Advance, true, []), 0, 0));
+        Assert.Contains(turn, c => c is ConditionSet { Condition: GfNames.Moved, Present: false } cs && cs.Subject.Id == grunts.Id);
+    }
+
+    [Fact]
+    public void Charge_is_offered_only_with_an_enemy_unit_within_charge_distance()
+    {
+        // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
+        string[] rows = ["Hold", "Advance", "Rush", "Charge"];
+        var far = State([Unit("A", "4+", "4+", [], 1, [])], [Unit("B", "4+", "4+", [], 1, [])], x1: -12, x2: 12);
+        Assert.Equal(["Hold", "Advance", "Rush"], GrimdarkFutureRules.ActionsFor(far, Core, far.Projection.Units.Values.First(u => u.Definition.Name == "A"), rows));
+        var near = State([Unit("A", "4+", "4+", [], 1, [])], [Unit("B", "4+", "4+", [], 1, [])], x1: -4, x2: 4);
+        Assert.Equal(rows, GrimdarkFutureRules.ActionsFor(near, Core, near.Projection.Units.Values.First(u => u.Definition.Name == "A"), rows));
+    }
+
+    [Fact]
+    public void Cast_is_offered_only_when_a_caster_can_afford_a_spell_it_has_not_tried()
+    {
+        var fireball = new EntryDocument("Fireball", CatalogKind.Spell, false, null, 2, "Test Book", "Target enemy unit within 12\" takes 3 hits.",
+            new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12), []);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        var frame = new FrameView(new Frame(Guid.CreateVersion7(), "x", new SequenceContext(wizard.Id, [], [], GfNames.Hold)), 0, new Dictionary<string, int>(), StepHistory.Empty, null);
+        state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Empty(GfHooks.ReactionsAt(state, Core, GfNames.BeforeAttacking, frame));                                      // tokens but no spell in the set
+        Assert.Single(GfHooks.ReactionsAt(state, TestProperties.WithSpells(fireball), GfNames.BeforeAttacking, frame));
+        state.Applier.Apply(new GameEvent(3, null, new SpellTokensSet(wizard.Models[0].Id, 1), null));
+        Assert.Empty(GfHooks.ReactionsAt(state, TestProperties.WithSpells(fireball), GfNames.BeforeAttacking, frame));       // one token, a two-token spell
+    }
+
+    [Fact]
     public void A_shaken_aircrafts_mandatory_advance_still_stops_it_being_shaken()
     {
         var jet = Unit("Jet", "4+", "4+", [P("Aircraft")], 1, []);

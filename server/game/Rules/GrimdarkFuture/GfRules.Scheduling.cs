@@ -42,13 +42,15 @@ public sealed partial class GrimdarkFutureRules
     /// Page 13: Aircraft "may only use Advance actions ... (even if Shaken)", and "their mandatory move doesn't break the staying idle
     /// requirement to stop being Shaken" — so Aircraft is read before Shaken, and a Shaken Aircraft is offered Advance, not Idle.
     /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and page 13: Artillery mean Hold only.
+    /// Page 7: Charge needs an enemy unit within charge distance.
     /// </summary>
     public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
     {
         if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
         if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
         if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
-        return actionRows;
+        // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
+        return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0 ? actionRows.Where(a => a != Charge).ToList() : actionRows;
     }
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch

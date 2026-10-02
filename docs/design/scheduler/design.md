@@ -363,7 +363,8 @@ one model on the table*, crossed with `ActionsFor`:
 if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
 if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
 if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
-return actionRows;
+// p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
+return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0 ? actionRows.Where(a => a != Charge).ToList() : actionRows;
 ```
 
 The order of those tests is a rulebook reading, not a preference. Page 13 gives `Aircraft`

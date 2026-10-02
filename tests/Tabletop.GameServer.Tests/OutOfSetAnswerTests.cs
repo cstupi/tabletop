@@ -242,7 +242,8 @@ public class OutOfSetAnswerTests
     public void A_reaction_that_is_not_an_option_is_a_pass()
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]); var grunts = Unit("Grunts", "4+", "5+", [], 3, []);
-        var sim = Sim.Gf(State([wizard], [grunts], x1: -4, x2: 4), 5);
+        var bolt = new EntryDocument("Bolt", CatalogKind.Spell, false, null, 1, "Test Book", "Target enemy unit within 12\" takes 1 hit.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12), []);
+        var sim = new Sim(State([wizard], [grunts], x1: -4, x2: 4), GrimdarkFutureRules.Instance, TestProperties.WithSpells(bolt), new ScriptedDice([5]));   // the window opens only with a spell to cast
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
         sim.Start(GfNames.HoldSeq, new SequenceContext(wizard.Id, [], [], GfNames.Hold));
         Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal);

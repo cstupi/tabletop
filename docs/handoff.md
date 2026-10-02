@@ -114,11 +114,11 @@ No Ask kind is new; each uses an existing `Legal` type, and the client renders t
   an activation turn.
 - **Activation.** "Activate a unit": options labelled `"{unit name}: {action}"`, pass allowed. A Shaken
   unit is offered only Idle. Immobile and Artillery units are offered only Hold. An Aircraft is offered
-  only Advance. Under the player-turn shape the same team is asked again until it passes or has nothing
+  only Advance. Charge is offered only when an enemy unit is within charge distance (p.7). Under the player-turn shape the same team is asked again until it passes or has nothing
   left.
 - **Casting.** At the before-attacking checkpoint of an activation (Hold's `casting-window` step, and after
-  each move segment of a moving action), the acting team only gets `react` "React at before-attacking?"
-  with one option, "Cast a spell" (id `cast`), and may pass. Choosing it opens `cast` "Cast which spell?",
+  each move segment of a moving action), when a caster in the acting unit can afford a spell it has not
+  tried, the acting team only gets `react` "React at before-attacking?" with one option, "Cast a spell" (id `cast`), and may pass. Choosing it opens `cast` "Cast which spell?",
   an `Options` of `"{spell} ({cost})"` per caster model and affordable, untried spell (id
   `"{spell}|{modelId}"`); the cost is deducted on pick. A sealed `spend_tokens` "Spend tokens for or
   against the casting roll" then goes to every team with a `TokenSpend` (max by model; casters within 18"
@@ -426,7 +426,8 @@ The parked and deferred findings, each with its ruling, are section 5 of
 - **Geometry consumers.** `Footprint.IsValid(scale)` and `Table.IsValid` are the outline validity checks;
   management's layouts and the web volume editor should call or mirror them (*What the geometry tree
   settled*).
-- **Content.** The spell list is not filtered by faction (p.13) until the army snapshot carries a faction.
+- **Content.** `grimdark-future-core.properties.json` holds no spell entries, so no casting window opens in play until
+  spells are authored. The spell list is not filtered by faction (p.13) until the army snapshot carries a faction.
 - **Wire.** Neither tree added a wire kind; `AskQuestions.EndRound` and `DeployAmbusher` predate them, and
   `ProtocolVersion` is unchanged. Army snapshots are still written before `GameInfo(Playing)` is broadcast
   (`GameSession.EndSetup.cs`).

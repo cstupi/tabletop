@@ -19,6 +19,17 @@ public static class GfCasting
             : Lookup.AliveModels(state, unit).Where(m => Lookup.ModelParameter(state, m, GfNames.Caster) is not null && state.Projection.Models[m].SpellTokens > 0).ToList();
 
     /// <summary>
+    /// p.13: a caster may "spend as many tokens as the spell's value to try casting one or more spells (only one try per spell)": one option per
+    /// caster model and spell it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
+    /// </summary>
+    public static IReadOnlyList<AskOption> SpellOptions(GameState state, PropertySet props, Guid unit)
+    {
+        var tried = TriedPicks(state, unit);
+        return Casters(state, unit).SelectMany(m => props.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
+            .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
+    }
+
+    /// <summary>
     /// Spells picked by a closed pick-spell since this unit's activation began (OneTryPerSpellScope = activation). The activation is
     /// the unit's last root action sequence, which only the scheduler starts (R-N3): nested frames inherit the action name.
     /// </summary>
@@ -119,9 +130,7 @@ public static class GfCasting
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
-            var tried = TriedPicks(ctx.State, unit);
-            var options = Casters(ctx.State, unit).SelectMany(m => ctx.Properties.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains((e.Name, m)) && e.Cost <= ctx.Projection.Models[m].SpellTokens)
-                .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
+            var options = SpellOptions(ctx.State, ctx.Properties, unit);
             return options.Count == 0 ? new Finish([]) : new OpenAsks([ctx.Ask("cast", "Cast which spell?", ctx.ActorTeam!.Value, new Options(options))]);
         }
     }
