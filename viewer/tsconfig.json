@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "strict": true, "noUncheckedIndexedAccess": true, "moduleResolution": "bundler",
+    "module": "esnext", "target": "es2022", "lib": ["es2022", "dom", "dom.iterable"],
+    "verbatimModuleSyntax": true, "isolatedModules": true, "esModuleInterop": true,
+    "skipLibCheck": true, "sourceMap": true, "noEmit": true,
+    "types": ["vite/client", "vitest/globals", "node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts", "vite.config.ts"]
+}
