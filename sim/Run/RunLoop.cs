@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
+using Tabletop.Sim.Invariants;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Scenarios;
 
@@ -24,6 +25,7 @@ public sealed partial class RunLoop(
     private int _absorbedThisCycle;     // every event absorbed since the last step's check
 
     public FrameProjector Projector { get; } = new(scenario);
+    public IReadOnlyList<GameEvent> Log => _log;
 
     public async Task<RunReport> RunAsync(CancellationToken ct)
     {
@@ -43,6 +45,21 @@ public sealed partial class RunLoop(
         // A paused run is mid-game: the expectations describe the end and would fail at every pause.
         if (outcome is not RunOutcome.Paused)
             failures.AddRange(Expectations.Check(scenario.Scenario.Expectations, projection, _log, outcome, scenario));
+        // The driver's projection is the recorder's: a team-less viewer's, with sealed answers withheld. The log it
+        // is replayed from is the recorder's too, so the cold replay sees the same view (ProjectionComparer compares
+        // open asks by id only).
+        if (_settings.CheckInvariants && outcome is not RunOutcome.Paused)   // R16: a paused run is mid-game
+        {
+            failures.AddRange(Invariants.Invariants.CheckAll(projection, _log, scenario)
+                .Where(r => !r.Held).Select(r => $"{r.Name}: {r.Detail}"));
+
+            if (driver is InProcessDriver inProcess)
+            {
+                var server = await inProcess.ServerProjectionAsync(ct);
+                failures.AddRange(ProjectionComparer.Differences(server, projection)
+                    .Select(d => $"the driver's projection differs from the server's — {d}"));
+            }
+        }
         if (outcome is RunOutcome.Stuck or RunOutcome.Failed)
             failures.Add($"{outcome.Kind}: {outcome}\nlast frames:\n{string.Join("\n", LastFrames(_settings.FrameDumpOnFailure))}");
 
