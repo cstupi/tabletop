@@ -32,8 +32,28 @@ public static class Conditions
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
             case ConditionKind.UsageCount: return c.Compare(Usage(ix, source));
+            // The side holds the entry under its own aggregation, a granted instance included; a suppression does not unhold (spell library spec).
+            case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.UnitHas(ix.State, ix.Properties, ix.Of(side).UnitId, c.Values[0]);
+            case ConditionKind.MostModels: return c.Values.Count == 1 && MostModels(ix, side, c);
             default: return false;
         }
+    }
+
+    /// <summary>"Most models have ...": more than half the side's living models meet the comparison. A model stat compares its target number, read off
+    /// the slot or the unit; a rule compares its parameter, and a model without the rule fails.</summary>
+    static bool MostModels(Interaction ix, Side side, EffectCondition c)
+    {
+        var state = ix.State; var unit = state.Projection.Units[ix.Of(side).UnitId]; var name = c.Values[0];
+        var models = Lookup.LivingModels(state, unit.Id);
+        if (models.Count == 0) return false;
+        var isStat = ix.Properties.Stat(StatLevel.Model, name) is not null || ix.Properties.Stat(StatLevel.Unit, name) is not null;
+        int? Value(Guid m)
+        {
+            if (!isStat) return Lookup.ModelParameter(state, m, name);
+            var text = state.Projection.Models[m].Slot.Stats.TryGetValue(name, out var own) ? own : unit.Definition.Stats.GetValueOrDefault(name);
+            return text is null ? null : Tabletop.Content.StatValue.Read(Tabletop.Content.StatKind.TargetNumber, text).TargetNumber;
+        }
+        return models.Count(m => Value(m) is { } v && c.Compare(v)) * 2 > models.Count;
     }
 
     static bool Membership(EffectCondition c, string actual) => c.Comparison == Comparison.Neq ? !c.Values.Contains(actual) : c.Values.Contains(actual);

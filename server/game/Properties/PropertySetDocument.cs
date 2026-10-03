@@ -118,6 +118,12 @@ public static class PropertiesJson
                 }
             }
         }
+        foreach (var c in f.Conditions.Where(c => c.Kind is ConditionKind.HoldsProperty or ConditionKind.MostModels))
+        {
+            if (c.Subject is null) problems.Add(At($"{c.Kind} needs a subject"));
+            if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
+            else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
+        }
         foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems);
     }
 

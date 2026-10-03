@@ -114,7 +114,13 @@ public static class GfMelee
         public string Name => "charge-target";
         public StepOutcome Run(StepContext ctx)
         {
-            if (ctx.History.LastClosed() is { } answered) return GfAnswers.Pieces(answered.Single, answered.Ask).Count == 0 ? new Finish([]) : new Complete([]);   // an answer that names no offered unit is no target
+            if (ctx.History.LastClosed() is { } answered)
+            {
+                var picked = GfAnswers.Pieces(answered.Single, answered.Ask);
+                if (picked.Count == 0) return new Finish([]);   // an answer that names no offered unit is no target
+                var range = Battlefield.UnitDistance(ctx.State, Charger(ctx), picked[0]) ?? 0;
+                return new Complete([], new Dictionary<string, int> { [GfNames.ChargeRangeKey] = (int)Math.Round(range * 100) });
+            }
             var unit = Charger(ctx);
             var team = ctx.ActorTeam;
             var targets = ChargeTargets(ctx.State, ctx.Properties, unit);

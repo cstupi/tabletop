@@ -9,6 +9,19 @@ public static class GfMorale
 {
     public static Sequence MoraleTest() => new(GfNames.MoraleTest, [new TestStep()]);
 
+    /// <summary>What caused a general morale test: the kind of the last attack at the unit in the effective log, a spell's hits being Spell.
+    /// Null when nothing attacked it.</summary>
+    public static AttackKind? CauseOf(GameState state, Guid unit)
+    {
+        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log).Reverse())
+            if (e.Payload is SequenceStarted s && s.Context.TargetUnitIds.Contains(unit))
+            {
+                if (s.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
+                if (s.Sequence == GfNames.AttackSequence && s.Context.WeaponIds.Count > 0) return GfAttack.KindOf(state, s.Context.WeaponIds);
+            }
+        return null;
+    }
+
     /// <summary>
     /// p.10: one Quality test; a Shaken unit "always fails", so no die is rolled for it. p.13 Fearless: "fails a morale test, roll one die.
     /// On a 4+ it counts as passed instead", which a Shaken unit's automatic failure also triggers. A failed test after a melee routs a unit at
@@ -22,7 +35,8 @@ public static class GfMorale
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             var living = Lookup.AliveModels(ctx.State, unit);                                     // in play, not positioned: a unit carried in a transport still takes its test
             if (living.Count == 0) return new Finish([]);
-            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit)));
+            var cause = ctx.Frame.Context.Action switch { "melee" => AttackKind.Melee, "spell" => AttackKind.Spell, _ => CauseOf(ctx.State, unit) };
+            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, cause, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit)));
             var passed = false;
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken))
                 passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.MoralePlan(ctx, live), 1)) == 1;
