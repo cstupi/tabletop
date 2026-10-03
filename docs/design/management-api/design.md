@@ -763,12 +763,12 @@ hydrate-from-the-log operation as recovering a crashed task.*
 
 The full split:
 
-| Table or column | Management writes | Game server writes (only while `lobby` or `setup`) |
+| Table or column | Management writes | Game server writes (while `lobby` or `setup`, and the end) |
 | --- | --- | --- |
 | `account`, `blob`, `asset`, `asset_volume`, `folder`, `asset_folder`, the ten army tables, `table_state` with `owner_id` and its children | always | never, reads only |
 | `properties` and the seven tables under it | never (loaded by the undesigned content import) | never, reads only |
 | `game` insert, `name`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`, `created_by`, `created_at` | on create | rewrites the configuration on `SetConfiguration` |
-| `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing` |
+| `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing`; `playing → ended` when its own log ends the game (guarded on `playing`) |
 | `team` | never | inserts on `CreateTeam`, while `lobby` or `setup` |
 | `participant` insert and delete, which is **joining the game** | create, join, leave | never |
 | `participant.team_id`, which is **taking a team** and is not joining | never, null on insert | writes on `PickTeam`, while `lobby` or `setup` |
@@ -778,7 +778,7 @@ The full split:
 
 These are two disjoint write sets over the same handful of tables, separated by convention. Nothing
 in the database enforces it: no trigger, no per-column grant, no status guard. The service does not
-read `game.status` before writing `'ended'`. The game server does not check whether management has
+read `game.status` before writing `'ended'`. The game server's `'ended'` is guarded on `status = 'playing'`, so it never overwrites management's. The game server does not check whether management has
 deleted the game under it.
 
 `participant` carries two columns this module's SQL depends on (`docs/schema.md` → *`participant`

@@ -880,7 +880,7 @@ management `5100`, game server `5200`, both binding `0.0.0.0`.
 - **Two Postgres schemas in one database**, `management` and `game`, a choice made for local
   development and recorded under `schema.md` → Still open. The reason is in `architecture.md`: the
   game server reads management's rows at hydration and writes a game's own rows while status is
-  `lobby` or `setup`, which is one connection when they share a database. The stated cost stands:
+  `lobby` or `setup` and `status = 'ended'` from `playing`, which is one connection when they share a database. The stated cost stands:
   *"the two services share a database, so a management migration can break the game server"*.
   Hosting may revisit it.
 - **Windows reaches WSL over forwarded localhost.** With WSL2's default `localhostForwarding=true`,
@@ -1401,7 +1401,7 @@ at a few thousand events, and neither call belongs in a loop.
 | --- | --- | --- | --- |
 | Accounts, assets, blobs, folders, armies, saved layouts | `management` schema | management API | forever, until the account is deleted |
 | `Properties` and its seven child tables | `management` schema | the content import (undesigned) | pinned by content hash, never mutated |
-| `game`, `team`, `participant` | `management` schema | management API at create/join, and **the game server while status is `lobby` or `setup`** | forever |
+| `game`, `team`, `participant` | `management` schema | management API at create/join, and **the game server while status is `lobby` or `setup`, and `game.status = 'ended'` from `playing`** | forever |
 | `participant.army_snapshot` | `management` schema, `jsonb` | the game server, once, at end-setup | forever, never updated |
 | The setup draft: `table_state` and its terrain, markers, zones | `management` schema | the game server on every setup edit | becomes the snapshot at the status flip, and off-slab terrain rows are deleted first |
 | The event log | `game.game_event` | the game server, append-only, before broadcast | forever |

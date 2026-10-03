@@ -216,7 +216,7 @@ need for an admin mode.
 Management owns everything *about* a game. The game server owns what *happened* in it. Ownership
 follows the game's status: while a game is in `lobby` or `setup` the game server writes the game's
 own rows, because setup edits are not events and need somewhere to live. From `playing` on it
-writes only events.
+writes events and one row: `ended`, when its own log ends the game.
 
 Both processes run against one database. Status therefore governs which rows are still editable,
 not which process may touch a schema. Hydration and the read-only-during-play rule are built on
@@ -376,7 +376,7 @@ Positions, wounds and whose activation it is are never rows. A table growing a c
 column means the event spine has been broken.
 
 One system, two processes, one database. The game server reads the `management` schema at
-hydration, writes a game's own rows while it is in `lobby` or `setup`, and seeds the `Properties`
+hydration, writes a game's own rows while it is in `lobby` or `setup` and `ended` from `playing` when its own log ends the game, and seeds the `Properties`
 tables at startup. A management migration can therefore break a running game server. That risk is
 recorded and unmitigated.
 

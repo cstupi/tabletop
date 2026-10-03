@@ -98,7 +98,7 @@ stats are keyed and typed is the content session's question.
 scheduler had both written a refusing mode under the "dial" name, and the review kept it.
 **`GAME.enforcement` is `silent | warn | strict`**, replacing `warns`. `strict` refuses an
 out-of-set Ask answer or an illegal command; the menu's edits are accepted under every setting,
-because they are the override path. The argument below stands for `silent` and `warn`.*
+because they are the override path. It also ends the game when a state-time breach's consequence is the end ([the enforcement engine](2026-10-02-enforcement-engine-design.md)). The argument below stands for `silent` and `warn`.*
 
 Not a dial. **The server warns, or it says nothing.**
 

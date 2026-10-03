@@ -139,11 +139,9 @@ expiry that could lapse mid-game.
 
 ## Ending is a flag, not a state
 
-Nothing in the rules ends a game — there are no victory conditions, because players count
-their own points.
+A game ends when someone ends it explicitly, when the last participant leaves, or, under `strict`, when its ruleset's final round has been played (the game server marks it ended; [the enforcement engine](2026-10-02-enforcement-engine-design.md)).
 
-A game ends when someone ends it explicitly, or when the last participant leaves. Leaving
-is deliberate. **Disconnecting is not leaving**: a disconnected player is still in the
+Leaving is deliberate. **Disconnecting is not leaving**: a disconnected player is still in the
 game, and reconnecting rehydrates from the log — into the team slot on their own `participant`
 row, unchanged (ruled by the owner 09-06).
 

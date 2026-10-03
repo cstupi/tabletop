@@ -715,7 +715,7 @@ dedup a property of the schema rather than a rule in code.
   [the management API](superpowers/specs/2026-08-29-management-api-design.md): the client
   opens its socket with a Stytch session JWT and a game id, and the game server **reads the
   game's row directly** — and, since 09-04, writes the game's own rows while its status is
-  `lobby` or `setup` ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)). The
+  `lobby` or `setup`, and `game.status = 'ended'` from `playing` when its own log ends the game ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md)). The
   two services share a database, so a management migration can break the game server.
 - ~~Whether the two schemas are two Postgres schemas in one database or two databases.~~
   **Settled** for local development by the contracts plan: two Postgres schemas in one database,

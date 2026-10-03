@@ -5,7 +5,7 @@ Design session, 2026-09-06. How a full game is played and watched without the Go
 The design phase closed on 2026-09-04 and the eight implementation plans followed. This is a
 ninth module, added because the existing test harnesses are per-sequence fixtures: the
 interpreter's `Sim` drives one sequence, the scheduler's `SchedulerHarness` drives a few turns.
-Nothing plays deployment through to a decided game, and nothing shows what happened except a
+Nothing plays deployment through to an ended game, and nothing shows what happened except a
 log of event names.
 
 Two deliverables. `sim/` plays games. `viewer/` draws them.
@@ -153,10 +153,10 @@ reaches none of them is a bug the simulator exists to find.
 
 | End | Condition |
 | --- | --- |
-| Decided | One team has models and the others do not. Read on the table, and only from round one: before deployment every model is on the shelf, so every team has none and the condition would fire on the first frame of every game |
-| Round limit | A configured round cap, since OPR has no round limit and a stalemate must still terminate. A cap of *n* means *n* whole rounds: the run ends on round *n*'s boundary Ask rather than part-way through round *n* + 1 |
+| Ended | The game logged `game_ended`; a wipe-out is not a win (p.6) |
+| Round limit | A configured round cap, since a run under `warn` or `silent` plays past the final round and a stalemate must still terminate. A cap of *n* means *n* whole rounds: the run ends on round *n*'s boundary Ask rather than part-way through round *n* + 1 |
 | Stuck | No Ask is open and the engine emits nothing, or an Ask is answered and reopens unchanged |
-| Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending. A failed invariant or expectation shows as `failed` in the recording only for an otherwise decided or round-capped run, with the first failure as the detail. Stuck and Failed runs keep their own kind in the recording. `RunReport.Passed` decides the console's exit code, which is non-zero for a run with any failure |
+| Failed | An Ask the script does not cover in a script-only run, a failed scenario expectation, or a failed invariant. This is an assertion breach rather than a game ending. A failed invariant or expectation shows as `failed` in the recording only for an otherwise ended or round-capped run, with the first failure as the detail. Stuck and Failed runs keep their own kind in the recording. `RunReport.Passed` decides the console's exit code, which is non-zero for a run with any failure |
 | Paused | The step-and-wait seam: the loop stopped with an Ask open and answered nothing, waiting for a person or a test to answer it. A paused run is not a failure and is resumed rather than ended |
 
 Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in
@@ -241,7 +241,7 @@ is checked by looking at it.
   alone would make a viewer that cannot show why a unit died, which is the first thing a person
   debugging the engine wants to see, and the cost is a few hundred integers per game.
 - ~~Whether the round cap belongs in the scenario or in `GameRules`.~~ **Settled 2026-09-06 by the
-  simulation plan: the scenario.** OPR has no round limit and `GameRules` must not invent one; the
+  simulation plan: the scenario.** the cap is not the ruleset's final round, which the enforcement engine reads; the
   cap is a property of a *run*, not of a ruleset, and putting it in `GameRules` would put a testing
   concern inside the rules. `Scenario.RoundCap`, overridable from the console with `--rounds`.
 - ~~Whether generating TypeScript types from the C# records is worth a build step, or whether a

@@ -387,8 +387,8 @@ for the same reason the texture's is.
 **Two schemas, one shared id.** Everything above except `GAMEEVENT` is management's.
 `GAMEEVENT` is the whole of the game server's, and there are no joins across the boundary. The
 game server does **write** a game's own management rows while the game is in `lobby` or `setup`
-— status, teams, participants' team and snapshot, the `TABLESTATE` draft — and is read-only from
-`playing` on ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md), 09-04).
+— status, teams, participants' team and snapshot, the `TABLESTATE` draft — and from `playing` on
+writes only events and one row: `game.status = 'ended'` when its own log ends the game ([the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md), 09-04).
 
 ## Where these came from
 

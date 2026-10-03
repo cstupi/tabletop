@@ -167,7 +167,7 @@ asks every team that has a participant whether to end it. The next round starts 
 answer. The player does have to declare it, and that is deliberate: ruled by the owner
 2026-09-06 to avoid an accidental auto-advance. Which teams may answer is not a turn-order
 question, and any player on any team may end the round. See
-[the scheduler](2026-09-04-scheduler-design.md) → *There is no round limit*.
+[the scheduler](2026-09-04-scheduler-design.md) → *The final round is the ruleset's, and its end follows the enforcement setting*.
 
 **Phase structure stays ruleset C#**, per `docs/architecture.md` — pipeline step order,
 scheduler policy, and dice conventions are the three things that stay code until a
@@ -258,7 +258,7 @@ the table — all ordinary edits, logged with an actor like anything else.
 
 Automation and the menu write **the same fields through the same path**. There is no
 separate override mechanism and no second write path to keep consistent. What the
-engine sets, a player can set.
+engine sets, a player can set. A `strict` end is no exception: undo takes it back and the menu's set round plays on.
 
 This is the same instinct as the table model's "anyone can move anything, and the record
 says who." Accountability comes from a visible log, not from a gate in the way of play.

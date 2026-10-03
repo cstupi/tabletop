@@ -206,8 +206,7 @@ At `round_started`, after the order is set and before the first turn, the schedu
   `turn_started`/`turn_ended` is written, and a pass there stands for the boundary only, so it
   cannot mark the team as passed for the round.
 
-**There is no round limit.** Rounds count up. Missions say four; players read their book, and
-ending is a flag they set.
+**The final round is the ruleset's, and its end follows the enforcement setting.** Rounds count up. Grimdark Future's final round is 4 (p.7): when a player ends it, `silent` starts round 5, `warn` starts it with a warning, and `strict` ends the game ([the enforcement engine](2026-10-02-enforcement-engine-design.md)).
 
 **Rounds count up only when a player says so.** *Ruled by the owner 2026-09-06, to avoid an
 accidental auto-advance; the earlier reading, that the scheduler idles and the menu moves the
