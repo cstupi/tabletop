@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Dice;
+using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
@@ -77,6 +78,9 @@ public class SpellLibraryTests
         Assert.Equal("3.5.3", core.Books["1wj1ysgxpuuz9bc7"].Version);
     }
 
+    static readonly HashSet<string> HookRules = ["Hit & Run Fighter", "Hit & Run Shooter", "Harassing", "Harassing Boost", "Quick Shot", "Grounded Reinforcement", "Teleport",
+        "Rapid Blink", "Rapid Blink Boost", "Unpredictable Fighter", "Unpredictable Shooter", "Primal", "Primal Boost", "Clan Warrior", "Clan Warrior Boost"];
+
     public static TheoryData<string, string> EverySpell()
     {
         var data = new TheoryData<string, string>();
@@ -130,6 +134,15 @@ public class SpellLibraryTests
                 default:
                     Assert.Equal(EffectDuration.Once, row.Duration);
                     Assert.Contains(sim.Unit(targetUnit).Grants, g => g.EffectId == row.Id && g.EntryName == name);
+                    // The fifteen army-rule hooks (army-rule hooks spec): a granted rule is live on the side its row names.
+                    if (row.Kind == EffectKind.GrantProperty && HookRules.Contains(row.TargetEntry!))
+                    {
+                        var other = targetUnit == wizard.Id ? enemy.Id : wizard.Id;
+                        var (attacker, defender) = row.Subject == EffectSubject.Self ? (targetUnit, other) : (other, targetUnit);
+                        var live = LiveProperties.Settle(new Interaction(sim.State, props, Party.Whole(sim.State, attacker), Party.Whole(sim.State, defender),
+                            row.Conditions.Any(c => c.Kind == ConditionKind.AttackKind && c.Values.Contains("melee")) ? AttackKind.Melee : AttackKind.Shooting, GfNames.Advance, 12, []));
+                        Assert.True(live.Has(Side.Attacker, row.TargetEntry!), $"{name}: {row.TargetEntry} is not live on the side its grant names");
+                    }
                     break;
             }
         }

@@ -77,6 +77,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     [InlineData("skirmish", 21UL)]
     [InlineData("skirmish", 24UL)]
     [InlineData("casting", 3UL)]
+    [InlineData("army-rules", 5UL)]
     public async Task The_same_scenario_plays_the_same_game_on_both_drivers(string name, ulong seed)
     {
         var scenario = ScenarioCatalog.Get(name).WithSeed(seed);

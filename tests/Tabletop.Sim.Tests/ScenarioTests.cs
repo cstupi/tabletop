@@ -79,4 +79,12 @@ public class ScenarioTests
         var report = await loop.RunAsync(CancellationToken.None);
         Assert.True(report.Passed, string.Join("\n", report.Failures));
     }
+
+    [Fact]
+    public void The_army_rules_scenario_fields_every_hook_rule()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("army-rules"));
+        var rules = c.Board.Armies.SelectMany(a => a.Snapshot.Units).SelectMany(u => u.Models).SelectMany(m => m.Properties).Select(p => p.Name).ToHashSet();
+        Assert.Superset(new HashSet<string>(["Hit & Run Fighter", "Hit & Run Shooter", "Teleport", "Rapid Blink", "Quick Shot", "Unpredictable Fighter", "Primal", "Grounded Reinforcement"]), rules);
+    }
 }
