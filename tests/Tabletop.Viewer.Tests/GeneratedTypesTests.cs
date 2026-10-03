@@ -82,6 +82,7 @@ public class GeneratedTypesTests
               readonly y: number;
               readonly z: number;
               readonly yaw: number;
+              readonly controlledBy?: string;
             }
             """.ReplaceLineEndings("\n"),
             ts.Replace("\r\n", "\n"));

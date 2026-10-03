@@ -254,7 +254,7 @@ describe('the ported board projection', () => {
     const opening = projector.add(ev(1, { kind: 'round_started', round: 1, order: [T1, T2], changes: [] }));
     expect(opening.scores).toEqual({ [T1]: 0, [T2]: 0 });   // canonical Guid keys, no key policy set
     expect(opening.passed).toEqual([]);
-    expect(opening.markers).toEqual([]);                    // the board's setup markers are not frame state
+    expect(opening.markers.map((m) => m.id)).toEqual([K1]);  // the board's setup markers lead every frame
 
     projector.add(ev(2, { kind: 'score_set', teamId: T2, score: 4 }));
     const dropped = projector.add(ev(3, { kind: 'step_completed', frameId: F1, step: 'drop', rolls: [], changes: [
@@ -262,7 +262,10 @@ describe('the ported board projection', () => {
         yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } },
     ] }));
     // The definition rides along per frame, so the viewer needs no join against the board block.
-    expect(dropped.markers).toEqual([{ id: K9, kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 }]);
+    expect(dropped.markers).toEqual([
+      { id: K1, kind: 'objective', diameter: 2, label: 'A', x: 36, y: 24, z: 0, yaw: 0 },
+      { id: K9, kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 },
+    ]);
     expect(dropped.scores).toEqual({ [T1]: 0, [T2]: 4 });
 
     const passed = projector.add(ev(4, { kind: 'turn_ended', teamId: T1, passed: true, changes: [] }));
@@ -290,5 +293,16 @@ describe('the ported board projection', () => {
       expect(line({ kind: 'objective_control_set', markerId: K1, teamId: T1 })).toBe('A to Team 1');   // the board's setup marker, labelled A
       expect(line({ kind: 'objective_control_set', markerId: K9 })).toBe(`${K9.slice(0, 8)} neutral`);
     });
+  });
+});
+
+describe('the frame projector lists markers', () => {
+  it('setup first, then play, each with its controller', () => {
+    const projector = new FrameProjector(board, game);
+    projector.add(ev(1, { kind: 'marker_placed', marker: { id: K9, kind: 'token', position: { x: 4, y: 4, z: 0 }, yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } }));
+    const frame = projector.add(ev(2, { kind: 'objective_control_set', markerId: K1, teamId: T2 }));
+    expect(frame.markers.map((m) => m.id)).toEqual([K1, K9]);
+    expect(frame.markers[0]!.controlledBy).toBe(T2);
+    expect('controlledBy' in frame.markers[1]!).toBe(false);
   });
 });

@@ -117,3 +117,11 @@ describe('sceneOf', () => {
     expect(markers[1]).toEqual({ id: 'k9', kind: 'token', label: 'k9', centre: { x: 4, y: 4 }, radius: 0.5 });
   });
 });
+
+describe('a controlled objective', () => {
+  it('takes its team ordinal from the board models, and a neutral one has none', () => {
+    const held = { ...frame, markers: [{ id: 'k1', kind: 'objective', diameter: 2, label: 'A', x: 36, y: 24, z: 0, yaw: 0, controlledBy: 't2' }] } as RecordedFrame;
+    expect(sceneOf(board, held).markers[0]!.teamOrdinal).toBe(2);
+    expect(sceneOf(board, frame).markers[0]!.teamOrdinal).toBeUndefined();
+  });
+});

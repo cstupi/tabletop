@@ -30,7 +30,8 @@ public sealed class FrameProjector(CompiledScenario scenario)
             LogLines.Of(e, p, _ordinals),
             p.Models.Values.Select(ModelState).ToList(),
             p.Units.Values.Select(UnitState).ToList(),
-            p.Markers.Values.Select(MarkerState).ToList(),
+            // Setup markers first (a setup objective is in no play store), then those placed in play; the play entry wins a shared id.
+            p.Board.Table.Markers.Where(m => !p.Markers.ContainsKey(m.Id)).Concat(p.Markers.Values).Select(m => MarkerState(m, p.Control)).ToList(),
             p.OpenAsks.Values.Select(AskOf).ToList(),
             rolls,
             // Copied, not aliased: the applier keeps mutating these and every frame is kept for the run.
@@ -53,9 +54,10 @@ public sealed class FrameProjector(CompiledScenario scenario)
     };
 
     // Kind, diameter and label ride along per frame, because a marker placed during play is in no board block.
-    private static RecordedMarkerState MarkerState(Marker m) => new(
+    private static RecordedMarkerState MarkerState(Marker m, IReadOnlyDictionary<Guid, Guid> control) => new(
         m.Id, m.Kind.ToString().ToLowerInvariant(), m.Diameter, m.Label,
-        m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees);
+        m.Position.X, m.Position.Y, m.Position.Z, m.Yaw.Degrees,
+        control.TryGetValue(m.Id, out var team) ? team : null);
 
     private static RecordedUnitState UnitState(UnitInPlay u) => new(
         u.Id, u.Actions.Order().ToList(), u.Conditions.Order().ToList(),

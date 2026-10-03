@@ -206,4 +206,15 @@ public class InvariantTests
         var undone = Invariants.Invariants.NothingAdvancesAfterTheEnd([E(1, new ScoreSet(team, 0), player), E(2, new GameEnded("over", [])), E(3, new Undone(1), player), E(4, new TurnStarted(team))]);
         Assert.True(undone.Held, undone.Detail);                                                 // an undone end ends nothing
     }
+
+    [Fact]
+    public void The_comparer_sees_a_difference_in_control()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var held = new EventApplier(c.Board, c.Info);
+        held.Apply(new GameEvent(1, null, new ObjectiveControlSet(Guid.CreateVersion7(), c.TeamIds[0]), null));
+        var none = new EventApplier(c.Board, c.Info);
+        none.Apply(new GameEvent(1, null, new ScoreSet(c.TeamIds[0], 0), null));
+        Assert.Contains(ProjectionComparer.Differences(held.Projection, none.Projection), d => d.StartsWith("Control"));
+    }
 }

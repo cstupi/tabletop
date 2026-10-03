@@ -153,9 +153,11 @@ export class FrameProjector {
       line: lineOf(event, p, this.#ordinals),
       models: [...p.models.values()].map(modelState),
       units: [...p.units.values()].map(unitState),
-      markers: [...p.markers.values()].map((m) => ({
+      // Setup markers first (a setup objective is in no play store), then those placed in play; the play entry wins a shared id.
+      markers: [...p.board.table.markers.filter((m) => !p.markers.has(m.id)), ...p.markers.values()].map((m) => ({
         id: m.id, kind: m.kind, diameter: m.diameter, ...(m.label === undefined ? {} : { label: m.label }),
         x: m.position.x, y: m.position.y, z: m.position.z, yaw: m.yaw.degrees,
+        ...(p.control.has(m.id) ? { controlledBy: p.control.get(m.id)! } : {}),
       })),
       openAsks: [...p.openAsks.values()].map(askOf),
       rolls: event.payload.kind === 'step_completed' ? event.payload.rolls.map(rollOf) : [],
