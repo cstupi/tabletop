@@ -35,9 +35,9 @@ The first owner session against the real stack (2026-10-01) produced these commi
 | `03df02d` | Charge is offered only with an enemy unit within charge distance (p.7, `GfMelee.ChargeTargets` in `ActionsFor`); the cast window opens only when a caster can afford an untried spell (`GfCasting.SpellOptions`); `moved` clears at `turn_ended` |
 
 **The simulator** is `sim/` (`Tabletop.Sim`), with `tests/Tabletop.Sim.Tests`. It plays a scenario from a
-catalog of six (`skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting`), answers every Ask
+catalog of ten (`skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting`, `final-round`, `final-round-warn`, `final-round-silent`, `objectives`), answers every Ask
 from its legal set with a uniform seeded policy or a script, drives the session in process or over a real
-socket, checks five invariants, and writes one recording per run (5 to 6 MB for a game played to the end of round 4 under strict). The
+socket, checks seven invariants, and writes one recording per run (5 to 6 MB for a game played to the end of round 4 under strict). The
 first Ask of every game is the roll-off `confirm` gate addressed to both teams, answered once. A socket run
 mints its sessions from `POST /v1/dev/sessions`, so it needs management in Development and the game server;
 socket-backed tests seed the core properties document themselves. Coverage: uniform play almost never
@@ -527,9 +527,11 @@ Groups (Sergeant, Musician, Banner), Grimdark Future has `Aircraft` and `Transpo
 Fantasy runs a 75% points scale. Both import; **no Age of Fantasy content set exists**, so such a
 list imports before there is anything to play it with. The catalogue holds 33 core rules.
 
-**Not built, by design.** Objectives and scoring: *seized* is distinct from *control*, a dropped
-marker is placed within 1" by the opponent, side-missions count *"5+ models"*. The repo places
-markers and scores nothing; missions are content in a book. Page 13's same-time rules-priority
+**Not built, by design.** Missions beyond the core one: a dropped marker is placed within 1" by the
+opponent, side-missions count *"5+ models"*, and missions are content in a book. The engine scores the
+core mission (*seized* is distinct from *control*): objectives are seized at each round's end and the
+round-4 end names the winner, which answers the owner's open question on automating objective seizing.
+The `objectives` scenario runs at seed 1 and ends with winner team ordinal 2. Page 13's same-time rules-priority
 tie-break is not implemented, because `ordinal` gives replay a deterministic order.
 
 **Known limits inside closed rulings.** `Takedown`'s *"resolved as if it was a unit of [1]"* is not

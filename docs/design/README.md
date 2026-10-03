@@ -8,8 +8,8 @@ server adjudicates. Players import army lists and their own miniature meshes. A 
 hours, survives disconnection, and can be rewound to any point.
 
 It is a simulator, not a referee. Every recorded value is editable by any player through the
-same write path automation uses, and enforcement is a per-game dial. Players count their own
-points; there are no victory conditions.
+same write path automation uses, and enforcement is a per-game dial. The engine scores Grimdark Future's core mission; players keep their own
+counters.
 
 ## Scope of this document
 

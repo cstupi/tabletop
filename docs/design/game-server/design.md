@@ -28,7 +28,7 @@ management's rows plus the event log.
 
 - **Any rule.** No dice, no turn order, no legality beyond membership of an Ask's
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
-  `Id`. `InertEngine` judges nothing and advances nothing.
+  `Id`; the later plans add `JudgeAdvance` and `OnRoundEnded`, both default members returning none. `InertEngine` judges nothing and advances nothing.
 - **Geometry adjudication.** `MoveRegion` answers are checked for model ids only. Distance,
   containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
@@ -441,7 +441,7 @@ reads it:
 
 `MenuTranslation.Translate` maps each override command to the one event that states its change
 in full: `SetWounds` to `WoundsSet`, `SetActiveTeam` to `TurnStarted`, `SetRound` to
-`RoundStarted`. It checks **only references**. The event must name a unit, model, team or marker
+`RoundStarted`, `SetObjectiveControl` to `ObjectiveControlSet`. It checks **only references**. The event must name a unit, model, team or marker
 the projection has, because applying an event that names nothing would throw inside the applier.
 It checks nothing else. A dead model may be put back on the table, a unit may be marked moved
 twice, and the active team may be set to a team whose turn it is not. That is game flow's
@@ -708,7 +708,7 @@ Decisions this module settles itself:
 
 | Type | Members |
 | --- | --- |
-| `interface IGameRules` | `string Id { get; }` (extend with hooks, do not replace) |
+| `interface IGameRules` | `string Id { get; }`, `GameEndingBreach? JudgeAdvance(GameState, PropertySet, IReadOnlyList<EventPayload>)`, `IReadOnlyList<StateChange> OnRoundEnded(GameState, PropertySet, int round)` (the last two default to none; extend with hooks, do not replace) |
 | `sealed partial class GrimdarkFutureRules : IGameRules` | `const string RulesId = "grimdark-future"`, `static GrimdarkFutureRules Instance`, `Id`; namespace `Tabletop.GameServer.Rules.GrimdarkFuture`, file `Rules/GrimdarkFuture/GfRules.cs` |
 | `static class GameRulesRegistry` | `IGameRules Resolve(string id)`, throws `UnknownGameRulesException(string id)` |
 | `sealed record Actor(Guid ParticipantId, Guid? TeamId)` | |

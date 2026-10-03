@@ -92,7 +92,7 @@ Each task is its own file, in build order.
 4. [`IGameDriver`, and the in-process driver](task-04-igamedriver-and-the-in-process-driver.md)
 5. [The recording — the schema, the writer, and one frame per event](task-05-the-recording-the-schema-the-writer.md)
 6. [The run loop — ended, round-capped, stuck, or failed](task-06-the-run-loop-decided-round-capped.md)
-7. [The five invariants](task-07-the-five-invariants.md)
+7. [The invariants](task-07-the-five-invariants.md)
 8. [The socket driver, and the two drivers agree](task-08-the-socket-driver-and-the-two.md)
 9. [The step-and-wait seam](task-09-the-step-and-wait-seam.md)
 10. [The console entry point](task-10-the-console-entry-point.md)

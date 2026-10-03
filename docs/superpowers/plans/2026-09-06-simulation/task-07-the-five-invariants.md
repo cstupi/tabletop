@@ -1,4 +1,4 @@
-# Task 7: The five invariants
+# Task 7: The invariants
 
 **Files:**
 - Create: `sim/Invariants/ProjectionComparer.cs`, `sim/Invariants/Invariants.cs`

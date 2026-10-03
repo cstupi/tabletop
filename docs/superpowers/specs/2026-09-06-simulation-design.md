@@ -189,6 +189,8 @@ Beyond a scenario's own expectations, every run checks the invariants that hold 
 - Every Ask is answered by a team that Ask addressed.
 - No model is in two places, and no model on the table is outside the slab.
 - The round only advances through the boundary Ask, per the ruling of 2026-09-06.
+- Nothing the engine writes follows `game_ended` until a round is started by hand.
+- Every objective control change names a marker the game holds and a team it has.
 
 ## Testing
 

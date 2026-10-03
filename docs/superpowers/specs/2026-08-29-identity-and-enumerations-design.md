@@ -197,7 +197,7 @@ across versions is not a scenario worth engineering for.
 The exposure is narrower than it first looks. Undo within a session is unaffected, because the
 engine cannot change while a session is live. The only case is **restarting an ended game after
 a `GameRules` deploy**, which is possible because ended is a flag rather than a terminal state.
-That game may replay differently. It is a friendly-play tabletop with no victory conditions,
+That game may replay differently. It is a friendly-play tabletop,
 and nothing rides on it.
 
 The alternative — pinning a build version and refusing to replay across it — would turn every

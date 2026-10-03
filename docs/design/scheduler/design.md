@@ -280,14 +280,16 @@ flowchart TD
     Round0 -- yes --> Phase["next phase before rounds, else BeginRound(1)"]
     Round0 -- no --> Gate{"has a player answered the end_round Ask?"}
     Gate -- no --> Ask["return [ask_opened(end_round to every team with a participant)]"]
-    Gate -- yes --> BeginN["BeginRound(round + 1)"]
+    Gate -- yes --> Ended{"round >= 1, no round_ended since round_started, and OnRoundEnded returns changes?"}
+    Ended -- yes --> End["return [round_ended(round, changes)]"]
+    Ended -- no --> BeginN["BeginRound(round + 1)"]
 ```
 
 Stale Asks are closed before anything else. A menu edit may have left one hanging, and the
 dispatcher only closes Asks that carry a `FrameId`. An open Ask is the universal wait: one branch
 covers the turn Ask, the deploy Asks, a boundary hook's Ambusher Ask and the `end_round` Ask. The
 round-boundary hook runs after `round_started` and before the first `turn_started` of the round,
-where the spec puts it. The round-0 branch never reaches the gate: deployment's phases and its
+where the spec puts it. After the gate, the scheduler asks the ruleset for the round's end changes (`IGameRules.OnRoundEnded`) and returns them as one `round_ended` event when there are any; the next `Advance` then finds it in the log and proposes `BeginRound`. Grimdark Future seizes objectives there. The round-0 branch never reaches the gate: deployment's phases and its
 flip into round one need no player's confirmation.
 
 ### State rebuilding and its cost
@@ -619,7 +621,7 @@ rule, and it is one rule for the ordinary boundary and the degenerate one:
 > `AskQuestions.EndRound`, the legal set is a `Confirmation`, and `AllowPass` is false. The first
 > answer to it is what emits the next round's `round_started`.
 
-`SchedulerBase.EndRoundAsk(teams)` builds it. The private `RoundEnded` reads it entirely from the
+`SchedulerBase.EndRoundAsk(teams)` builds it. The private `PlayerEndedRound` reads it entirely from the
 log since `round_started`. An `end_round` Ask closed with a non-empty answer list means the round
 is ended, so a round that already advanced is never re-asked, and undo-by-replay reaches the same
 answer as a rehydrated server. The Ask is unsealed, so any player on any team may end the round.
@@ -641,7 +643,7 @@ Four consequences:
   asks for a ruleset to advance rounds by itself, and if one ever did it would be a hook rather
   than a branch.
 
-Nobody to ask is the one silent case. When no team has a participant, `RoundEnded` returns false
+Nobody to ask is the one silent case. When no team has a participant, `PlayerEndedRound` returns false
 with nothing to emit, and the scheduler rests as an empty legal set rests.
 
 The whole lifecycle, both shapes:
@@ -978,7 +980,7 @@ sequenceDiagram
 
     Note over Sc: last activation of round 1 finished: turn_ended
     Sc->>Sc: NextTeam null (every team finished)
-    Sc->>Sc: RoundEnded? no end_round ask since round_started
+    Sc->>Sc: PlayerEndedRound? no end_round ask since round_started
     Sc-->>D: ask_opened(end_round, Confirmation, AllowPass false, teams [A, B])
     Note over Sc: the engine rests - the round does not count up
     B->>D: AnswerAsk(Confirmed)
@@ -1001,7 +1003,7 @@ hook changes and the Ambusher loop all land in the new round.
 The answer is a logged fact, so `Undo` across the boundary un-ends the round and re-opens the
 boundary Ask, taking round two's record clearing with it. Any player on any team may answer,
 including a team that never had a turn. That is intended, and it will look wrong to anyone
-expecting turn-order authority. `RoundEnded` reads the *last* `end_round` Ask in the round's slice
+expecting turn-order authority. `PlayerEndedRound` reads the *last* `end_round` Ask in the round's slice
 and requires a non-empty answer list, so a superseded-and-closed one does not count as an answer.
 
 ### A menu edit superseding a live scheduler Ask

@@ -142,6 +142,8 @@ overlap, terrain intersection, and broken coherency flagged rather than prevente
 
 **One policy behind the three positions.** Any system hands it a breach: what was broken, the sentence players read, and what `strict` does about it. The dispatcher hands it a command's legality; the engine hands it what Grimdark Future's judge finds in the engine's own proposal. Under `warn` the warning rides on the event; under `strict` a command breach is refused and a state-time breach ends the game. The first state-time breach is the end of round 4 (GF p.7): `silent` lets round 5 start, `warn` marks it, `strict` logs `game_ended` and the game server marks the row ended ([the enforcement engine](superpowers/specs/2026-10-02-enforcement-engine-design.md)).
 
+Grimdark Future's core mission is scored by the engine: objectives are seized at each round's end, and the round-4 end names the winner ([objectives](superpowers/specs/2026-10-02-objectives-design.md)).
+
 The legality API is **enumeration, not validation** — `EnumerateLegalCommands()` rather than
 only `IsLegal(command)`. Validation falls out of enumeration but not the reverse, and
 enumeration is what the client needs anyway to render affordances. An AI opponent later gets
@@ -330,7 +332,7 @@ these as data.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
   placements, deployment zones. Physical only, no rules.
 - **Mission** — **not a record.** Missions are published content in OPR and Warhammer, players
-  read them out of a book, and the model has no victory conditions.
+  read them out of a book, and the model holds only the core mission's objectives.
 
 A deployment zone names a **built-in style**, which resolves to a *set* of polygons. Six of the
 seven styles anchor their measurements to table features; Side Battle scales its two legs with
@@ -551,7 +553,7 @@ Because the client does not hold the full rules state, the server *can* send **p
 filtered event streams** if hidden information ever matters. The mechanism falls out of the thin
 client rather than needing to be designed in later.
 
-There are no victory conditions, so secret objectives do not exist, and hidden deployment is
+The core mission has no secret objectives, and hidden deployment is
 `Ambush`, a `GameRules` hook. One thing does use filtering: casting's simultaneous token spend,
 where every eligible team answers concurrently and the answers are withheld until the window
 closes ([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)).

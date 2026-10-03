@@ -1162,7 +1162,7 @@ a *current* column means the event spine has been broken.
   read by nothing. Game flow rules it explicitly.
 - **The 1-inch separation and unit coherency are never enforced.** The client flags them.
   `MoveStep`'s `ignoreSeparation` changes only the Ask's prompt.
-- **Scoring, victory conditions and missions do not exist here.** Players count their own points.
+- **Missions beyond the core one do not exist here.** Objective seizing and the round-4 winner are the ruleset's `OnRoundEnded` and `JudgeAdvance`, not interpreter steps; players keep their own counters.
 
 ### Concurrency
 
