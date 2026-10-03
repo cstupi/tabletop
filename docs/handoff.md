@@ -1,9 +1,9 @@
-# Handoff — 2026-10-02, steps 1 to 6 and the enforcement engine merged; the spell library is building
+# Handoff — 2026-10-03, the enforcement engine merged; the spell library paused after Task 12 of 15
 
 Where the project stands, and what to pick up next. **Steps 1 to 6 are built and merged: contracts,
 geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler, the
-simulator and the viewer, then the enforcement engine and the scored core mission. One tree is open: `spells`
-(the spell library, then the army-rule hooks). `sim/` plays whole games in process or over the socket with no
+simulator and the viewer, then the enforcement engine and the scored core mission. One tree is open and paused: `spells`
+(the spell library, then the army-rule hooks), stopped cleanly after library Task 12. `sim/` plays whole games in process or over the socket with no
 client; `viewer/` draws a recording or a live game top-down. A Grimdark Future game under `strict` ends after
 round 4 with the team holding most objective markers as the winner. The owner has
 logged in, imported armies and started a game in the client, and signed off checkpoint 3.**
@@ -98,16 +98,43 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    `(nohup "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe" >/dev/null 2>&1 &)` starts it, and
    `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
    Never `down -v`: the volume holds the schema every server test reads. The compose `tabletop` database
-   carries `public.schema_version` with 001 baselined and 002 to 004 applied, and two `properties` rows
+   carries `public.schema_version` with 001 baselined and 002 to 005 applied (005, the spell library's tables and
+   columns, was applied by the paused `spells` tree's tests; it only adds), and two `properties` rows
    (an older core-document hash and the current one; the listing shows the current one). The servers are long-running: start them in the
    owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
    Claude Code background command is stopped after two hours.
-2. **The spell library and the army-rule hooks** are building on the `spells` tree (`.worktrees/spells`, brief
-   `.superpowers/briefs/spells.md`): [the spell library plan](superpowers/plans/2026-10-02-spell-library/README.md),
-   then [the army-rule hooks plan](superpowers/plans/2026-10-02-army-rule-hooks/README.md). Its Task 14 replays its
-   commits onto `main` with `git rebase --onto main 4e95f11 spells`, because `4e95f11` is `5cc4efd` after the
-   pull. Owner checks from the enforcement tree: the Godot client's display of objective control (seized markers on
-   the table and the team panels, the menu override).
+2. **Resume the `spells` tree.** It paused after library Task 12 of 15 on 2026-10-03: worktree
+   `.worktrees/spells`, branch `spells`, head `709d8cf`, clean; `dotnet build` 0 errors and 0 warnings; `dotnet test`
+   1008 passed (Geometry 157, Content 17, ArmyBooks 24, Viewer 9, Protocol 37, Client 64, GameServer 508,
+   Management 90, Sim 102), checked by the manager. Plans: [the spell library](superpowers/plans/2026-10-02-spell-library/README.md),
+   then [the army-rule hooks](superpowers/plans/2026-10-02-army-rule-hooks/README.md) (8 tasks, not started).
+   Dispatch a fresh `opus` controller with the brief `.superpowers/briefs/spells.md` and the ledger
+   `.superpowers/ledgers/spells.md`: its `complete` lines (Tasks 1 to 12) say what not to redo, its rulings
+   (preflight P1 to P23 and later) and deferred minors carry over, and `.superpowers/sdd/spells/` holds the task
+   reports and review packages. What the next controller must know:
+   - **Task 13** generates the 48 `server/game/Content/army-books/*.book.json` with `./scripts/army-books generate`
+     (48 books, 190 distinct spells; the dump is `.superpowers/armyforge/`, and a live `fetch` on 2026-10-03
+     generated identical output). Its reviewer checks two shapes in the generated spells: a once Range or Quality
+     row beside another once row (the other is spent early), and `add_hit` beside `take_test` (no morale test is
+     pushed).
+   - **Task 14** starts with `git rebase --onto main 4e95f11 spells` on a clean tree, never `git merge main`:
+     the owner's `git pull` rebased `main`, so `4e95f11` is `5cc4efd` there with the same tree. The rebase
+     linearises the `spells-gen` merge commit `47131fd`, which shares the lineage. Then regenerate
+     `wire.generated.ts` with `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests`, record the
+     rebase as a ruling with old and new heads, and read `.superpowers/reports/enforcement.md` section 7 first:
+     the `objectives` scenario's seed-1 win depends on dice draws and is re-picked by running it if it breaks.
+     Migration `005_spell_library.sql` needs no renumbering (enforcement added none).
+   - **Final review minors carried:** CS0219 (unused `rolled`) at `GfAttack.cs:128`; `SelfWoundsStep` placed
+     between `RollToHitStep`'s doc comment and its class; a once-granted rule read only through `Has`/`Parameter`
+     (Tough, Strider, Flying) is never spent; `BookWriter.Write` leaves stale book files; a rule granted in pass
+     one has its own effects never evaluated (pre-existing).
+   - The tree's socket validation (`casting` and `army-rules` over `--driver socket`) runs at the end of the hooks
+     plan, then the manager verifies, merges into `main` and applies the report's section 6.
+
+   **Owner checks outstanding** from the enforcement tree: the Godot client's display of objective control (seized
+   markers on the table and the team panels, the menu override). From management, found during validation: a login
+   blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment that starter
+   content never blocks a login; unfixed.
 3. **The viewer by hand.** `cd viewer && npm install && npm run dev` serves it on `http://localhost:5174`.
    Recordings come from `dotnet run --project sim -- skirmish --seeds 1..3` (written to `./recordings`). What no
    headless test covers: the board's drawing and pointer picking, panning versus picking; loading a recording by
