@@ -18,12 +18,9 @@ public static partial class GfAttack
             Faces: FacesFor(ctx.Frame, a, target));
     }
 
-    /// <summary>The attack-start interactions of a unit: one per known opponent (so a grant against that opponent is live), or the unit alone when none is known.</summary>
+    /// <summary>The attack-start interactions of a unit: one per opponent it attacks (so a grant against that opponent is live). An attack with no opponent has no attack-start.</summary>
     static IEnumerable<Interaction> AttackStartInteractions(StepContext ctx, Guid unit, IReadOnlyList<Guid> opponents, AttackKind kind, bool withFaces) =>
-        opponents.Count == 0
-            ? [new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, kind, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit), GfNames.AttackStart,
-                withFaces ? FacesFor(ctx.Frame, unit, unit) : null)]
-            : opponents.Select(o => AttackInteraction(ctx, unit, o, [], kind, ctx.Frame.Context.Action) with { Point = GfNames.AttackStart, Faces = withFaces ? FacesFor(ctx.Frame, unit, o) : null });
+        opponents.Select(o => AttackInteraction(ctx, unit, o, [], kind, ctx.Frame.Context.Action) with { Point = GfNames.AttackStart, Faces = withFaces ? FacesFor(ctx.Frame, unit, o) : null });
 
     /// <summary>Each live roll row of the unit asked at attack-start (its other conditions holding for this attack kind, against each known opponent) rolls
     /// its row's dice once, as a RollRecord named for its entry, and its first die is recorded as face_&lt;unit&gt;_&lt;entry&gt;.</summary>
@@ -63,10 +60,9 @@ public static partial class GfAttack
         public StepOutcome Run(StepContext ctx)
         {
             var values = new Dictionary<string, int>();
-            // Only a target the Ask offered, for a group it listed (what fire-groups fires at): an answer outside the legal set names no opponent.
-            var offer = FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal as Assignment;
-            var targets = offer is not null && ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is Assigned a
-                ? a.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).Select(kv => kv.Value).Distinct().ToList() : [];
+            // Nothing fires without a declared target the Ask offered, so nothing is rolled for.
+            var targets = GfShooting.Declared(ctx)?.Targets.Values.Distinct().ToList() ?? [];
+            if (targets.Count == 0) return new Complete([]);
             RollAttackStart(ctx, ctx.Frame.Context.ActorUnitId!.Value, targets, AttackKind.Shooting, values);
             return new Complete([], values);
         }

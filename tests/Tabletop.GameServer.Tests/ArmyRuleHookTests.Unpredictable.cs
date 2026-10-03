@@ -111,4 +111,54 @@ public partial class ArmyRuleHookTests
         Assert.Equal(sim.Steps("roll-to-block").SelectMany(s => s.Rolls).Select(r => r.Dice.Select(d => d.Raw).ToArray()).ToArray(),
             resumed.Steps("roll-to-block").SelectMany(s => s.Rolls).Select(r => r.Dice.Select(d => d.Raw).ToArray()).ToArray());
     }
+
+    [Fact]
+    public void With_no_declared_target_nothing_is_rolled_at_attack_start()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Unpredictable Shooter")], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: -4, x2: 4), GrimdarkFutureRules.Instance, Core, new ScriptedDice(3, 5, 5));
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid>()));
+        Assert.Empty(sim.Emitted.OfType<StepCompleted>().SelectMany(s => s.Rolls));
+        Assert.DoesNotContain(sim.Steps("attack-start"), s => s.Values?.ContainsKey(Face("Unpredictable Shooter", a.Id)) == true);
+    }
+
+    [Fact]
+    public void In_melee_each_sides_face_applies_to_its_own_strikes_only()
+    {
+        var c = Unit("C", "4+", "4+", [], 1, [P("Unpredictable Fighter")], Melee("Claws", 1)); var d = Unit("D", "4+", "4+", [], 1, [P("Unpredictable Fighter")], Melee("Spear", 1));
+        var sim = new Sim(State([c], [d], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([2, 5, .. Enumerable.Repeat(6, 20)]));
+        sim.Start(GfNames.Melee, new SequenceContext(c.Id, [d.Id], GfMelee.MeleeWeapons(sim.State, c.Id), GfNames.Charge));
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        bool Has(StepCompleted s, string source) => s.Rolls.SelectMany(r => r.Modifiers).Any(m => m.Source == source);
+        var hits = sim.Steps("roll-to-hit"); var blocks = sim.Steps("roll-to-block");
+        Assert.Equal([false, true], hits.Take(2).Select(s => Has(s, "Unpredictable Fighter")));   // the charger rolled 2 (AP), the defender 5 (+1 to hit)
+        Assert.Equal([true, false], blocks.Take(2).Select(s => Has(s, "AP")));
+    }
+
+    [Fact]
+    public void An_against_granted_unpredictable_is_spent_by_the_shooting_at_the_marked_unit()
+    {
+        var props = TestProperties.WithSpells(MarkSpell("Unpredictable Shooter", EffectSubject.Opponent));
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var marked = Unit("M", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [marked], x1: -6, x2: 6), GrimdarkFutureRules.Instance, props, new ScriptedDice([3, .. Enumerable.Repeat(5, 10)]));
+        Mark(sim, props, "Unpredictable Shooter", marked.Id, a.Id);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        Assert.Single(sim.Unit(marked.Id).Grants);
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = marked.Id }));
+        Assert.Empty(sim.Unit(marked.Id).Grants);
+    }
+
+    [Fact]
+    public void A_once_granted_unpredictable_fighter_is_spent_by_the_melee()
+    {
+        var props = TestProperties.WithSpells(MarkSpell("Unpredictable Fighter", EffectSubject.Self));
+        var c = Unit("C", "4+", "4+", [], 1, [], Melee("Claws", 1)); var d = Unit("D", "4+", "4+", [], 1, [], Melee("Spear", 1));
+        var sim = new Sim(State([c], [d], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, props, new ScriptedDice([2, .. Enumerable.Repeat(1, 20)]));
+        Mark(sim, props, "Unpredictable Fighter", c.Id, c.Id);
+        sim.Start(GfNames.Melee, new SequenceContext(c.Id, [d.Id], GfMelee.MeleeWeapons(sim.State, c.Id), GfNames.Charge));
+        Assert.Single(sim.Unit(c.Id).Grants);
+        sim.Answer(Samples.Team2, new Chosen("strike"));
+        Assert.Empty(sim.Unit(c.Id).Grants);
+    }
 }
