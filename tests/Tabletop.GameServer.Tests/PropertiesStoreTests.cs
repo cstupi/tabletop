@@ -26,7 +26,7 @@ public class PropertiesStoreTests(PostgresFixture pg)
         Assert.NotNull(set);
         var expected = PropertiesJson.ToSet(doc, Guid.CreateVersion7);
         Assert.Equal(Shape(expected), Shape(set));
-        Assert.Equal(33, set.Entries.Count);
+        Assert.Equal(expected.Entries.Count, set.Entries.Count);
         Assert.Equal(1, await pg.CountAsync("select count(*) from management.properties where content_hash = $1", hash));
         Assert.Equal(expected.AllEffects().Count(), await pg.CountAsync("select count(*) from management.effect where properties_hash = $1", hash));
         var again = await _store.LoadAsync(hash, CancellationToken.None);

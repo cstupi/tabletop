@@ -18,5 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Content/*.properties.json" LogicalName="Tabletop.GameServer.Content.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Content/*.part.json" LogicalName="Tabletop.GameServer.Content.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Content/army-books/*.book.json" LogicalName="Tabletop.GameServer.Content.army-books.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

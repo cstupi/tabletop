@@ -10,6 +10,8 @@ public sealed record PropertySetDocument(string Name, string GameRules, IReadOnl
     IReadOnlyList<string> Rolls, IReadOnlyList<EntryDocument> Entries, IReadOnlyList<BookRecord>? Books = null);
 /// <summary>An army book: its Army Forge uid, name and version, and the spell entries it lists, in its own order (spell library spec).</summary>
 public sealed record BookRecord(string Uid, string Name, string? Version, IReadOnlyList<string> Spells);
+/// <summary>A generated army-book file (`Content/army-books/&lt;uid&gt;.book.json`): the book's identity and its spells as entries.</summary>
+public sealed record BookDocument(string Uid, string Name, string? Version, string GameRules, IReadOnlyList<EntryDocument> Spells);
 public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesParameter, Aggregation? Aggregation, int? Cost, string? Faction, string RuleText,
     SpellTargeting? Targeting, IReadOnlyList<EffectDocument> Effects);
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
@@ -19,7 +21,7 @@ public sealed record ConditionDocument(ConditionKind Kind, EffectSubject? Subjec
 
 public static class PropertiesJson
 {
-    static readonly JsonSerializerOptions Options = ContentJson.Configure(new JsonSerializerOptions { ReadCommentHandling = JsonCommentHandling.Skip });
+    public static readonly JsonSerializerOptions Options = ContentJson.Configure(new JsonSerializerOptions { ReadCommentHandling = JsonCommentHandling.Skip });
 
     public static PropertySetDocument Parse(string json)
     {
@@ -34,6 +36,16 @@ public static class PropertiesJson
         static IReadOnlyList<EffectDocument> Fix(IReadOnlyList<EffectDocument>? effects) =>
             (effects ?? []).Select(f => f with { Conditions = (f.Conditions ?? []).Select(c => c with { Values = c.Values ?? [] }).ToList(), Children = Fix(f.Children) }).ToList();
     }
+
+    public static BookDocument ParseBook(string json)
+    {
+        var book = JsonSerializer.Deserialize<BookDocument>(json, Options) ?? throw new JsonException("empty book");
+        var asDocument = Parse(JsonSerializer.Serialize(new PropertySetDocument(book.Name, book.GameRules, [], [], [], book.Spells ?? []), Options));
+        return book with { Spells = asDocument.Entries };   // the same defaults Parse applies to an entry's effects and conditions
+    }
+
+    /// <summary>An entry's canonical form: what composition compares two same-named entries by.</summary>
+    public static string EntryCanonical(EntryDocument e) => JsonSerializer.Serialize(e, Options);
 
     /// <summary>Sorted where order carries no meaning (stats, actions, rolls, entries); effect and condition order is the author's and is kept.</summary>
     public static string Canonical(PropertySetDocument d) => JsonSerializer.Serialize(d with
