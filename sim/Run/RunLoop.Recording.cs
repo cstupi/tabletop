@@ -16,7 +16,7 @@ public sealed partial class RunLoop
     {
         { Failures.Count: > 0, Outcome: RunOutcome.Ended or RunOutcome.RoundLimit } => ("failed", report.Failures[0]),
         { Outcome: RunOutcome.Ended { Winners.Count: > 1 } e } => (report.Outcome.Kind,
-            $"tied between {string.Join(", ", e.Winners.Select(w => $"Team {scenario.Info.Teams.Single(t => t.Id == w).Ordinal}"))}"),
+            $"tied between {string.Join(", ", e.Winners.Select(w => scenario.Info.Teams.FirstOrDefault(t => t.Id == w) is { } t ? $"Team {t.Ordinal}" : w.ToString("N")[..8]))}"),
         _ => (report.Outcome.Kind, report.Outcome switch { RunOutcome.Stuck s => s.Detail, RunOutcome.Failed f => f.Detail, _ => null }),
     };
 

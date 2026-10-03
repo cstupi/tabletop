@@ -69,7 +69,8 @@ public class ScenarioTests
     [InlineData("final-round")]
     [InlineData("final-round-warn")]
     [InlineData("final-round-silent")]
-    public async Task The_final_round_scenarios_meet_their_expectations(string name)
+    [InlineData("objectives")]
+    public async Task The_end_of_game_scenarios_meet_their_expectations(string name)
     {
         var scenario = ScenarioCatalog.Get(name);
         var compiled = ScenarioCompiler.Compile(scenario);

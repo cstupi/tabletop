@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -70,6 +71,17 @@ public static class ScenarioCatalog
             .Spells(Bolt)
             .Army("Red", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
             .Army("Blue", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
+            .Build(),
+
+        // The core mission scored (p.6): three markers across the middle, one deep in Red's frontline zone. Ends after round 4 under strict
+        // with the team holding most markers named on game_ended.
+        ["objectives"] = () => new ScenarioBuilder("objectives", seed: 1)
+            .Army("Red", 3, 3).Army("Blue", 3, 3)
+            .Marker(MarkerKind.Objective, new Point3(18, 24, 0), label: "West")
+            .Marker(MarkerKind.Objective, new Point3(36, 24, 0), label: "Centre")
+            .Marker(MarkerKind.Objective, new Point3(54, 24, 0), label: "East")
+            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Red home")
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("round_ended"), new Expectation.Won(2))
             .Build(),
     };
 

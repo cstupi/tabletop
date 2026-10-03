@@ -15,6 +15,9 @@ public abstract record Expectation
 
     /// <summary>Exactly Count effective-log events of Kind carry a warning.</summary>
     public sealed record Warnings(string Kind, int Count) : Expectation;
+
+    /// <summary>The live game_ended names exactly this team as the winner (p.6: most markers after round 4).</summary>
+    public sealed record Won(int TeamOrdinal) : Expectation;
 }
 
 /// <summary>Evaluation of a scenario's own assertions, checked at the end of a run beside the universal invariants.</summary>
@@ -52,6 +55,12 @@ public static class Expectations
                 case Expectation.Warnings(var kind, var expected):
                     var warned = EventApplier.EffectiveLog(log).Count(e => EventKinds.Of(e.Payload) == kind && e.Warning is not null);
                     if (warned != expected) failures.Add($"expected {expected} warned '{kind}' events, saw {warned}");
+                    break;
+                case Expectation.Won(var ordinal):
+                    var team = scenario.Info.Teams.Single(t => t.Ordinal == ordinal).Id;
+                    var end = EventApplier.EffectiveLog(log).LastOrDefault(e => e.Payload is GameEnded)?.Payload as GameEnded;
+                    if (end is null || end.Winners.Count != 1 || end.Winners[0] != team)
+                        failures.Add($"expected team {ordinal} to win, got {(end is null ? "no game_ended" : $"winners [{string.Join(", ", end.Winners.Select(w => scenario.Info.Teams.FirstOrDefault(t => t.Id == w)?.Ordinal.ToString() ?? w.ToString("N")[..8]))}]")}");
                     break;
                 case Expectation.Outcome(var kind) when outcome.Kind != kind:
                     failures.Add($"expected outcome '{kind}', got '{outcome.Kind}': {outcome}");

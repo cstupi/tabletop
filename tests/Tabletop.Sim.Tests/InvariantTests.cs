@@ -45,7 +45,7 @@ public class InvariantTests
         var (scenario, loop, report, driver) = await Played();
         await using var _ = driver;
         var results = Invariants.Invariants.CheckAll(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);
-        Assert.Equal(6, results.Count);
+        Assert.Equal(7, results.Count);
         Assert.All(results, r => Assert.True(r.Held, $"{r.Name}: {r.Detail}"));
         Assert.Empty(report.Failures);
     }
@@ -216,5 +216,23 @@ public class InvariantTests
         var none = new EventApplier(c.Board, c.Info);
         none.Apply(new GameEvent(1, null, new ScoreSet(c.TeamIds[0], 0), null));
         Assert.Contains(ProjectionComparer.Differences(held.Projection, none.Projection), d => d.StartsWith("Control"));
+    }
+
+    [Fact]
+    public void Control_names_only_a_marker_the_game_holds_and_a_team_it_has()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("objectives"));
+        var setup = c.Board.Table.Markers[0].Id;
+        var placed = c.Board.Table.Markers[0] with { Id = Guid.CreateVersion7() };
+        Assert.True(Invariants.Invariants.ControlFollowsTheMarkers([
+            E(1, new RoundEnded(1, [new ObjectiveControlSet(setup, c.TeamIds[0])])),
+            E(2, new MarkerPlaced(placed)), E(3, new ObjectiveControlSet(placed.Id, null), Guid.CreateVersion7())], c).Held);
+
+        var gone = Invariants.Invariants.ControlFollowsTheMarkers([E(1, new MarkerPlaced(placed)), E(2, new MarkerRemoved(placed.Id)),
+            E(3, new RoundEnded(1, [new ObjectiveControlSet(placed.Id, c.TeamIds[0])]))], c);
+        Assert.False(gone.Held);
+        Assert.Contains("seq 3", gone.Detail);
+
+        Assert.False(Invariants.Invariants.ControlFollowsTheMarkers([E(1, new ObjectiveControlSet(setup, Guid.CreateVersion7()))], c).Held);
     }
 }
