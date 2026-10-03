@@ -1,3 +1,5 @@
+using Tabletop.Content;
+using Tabletop.Geometry;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
@@ -163,6 +165,52 @@ public class GrantRowTests
         var live = Attack(state, a.Id, b.Id, AttackKind.Shooting);
         Assert.Empty(live.GrantsRead);
         Assert.Empty(RollEffects.Consume(live));
+    }
+
+    static readonly EntryDocument NoCover = Spell("Clear Sight", TargetSide.Friendly, Row(EffectKind.SuppressModifiers, EffectSubject.Self) with { TargetModifier = TargetModifier.Cover });
+    static readonly EntryDocument NoRegen = Spell("Wither", TargetSide.Enemy, Row(EffectKind.SuppressProperty, EffectSubject.Self, "Regeneration"));
+    static readonly PropertySet PassOneProps = TestProperties.WithSpells(NoCover, NoRegen, RelentlessAgainst);
+
+    static void GrantIn(PropertySet props, Sim sim, Guid unit, string spell, Guid caster) =>
+        sim.Append([new GrantAdded(unit, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry(spell)!.Effects[0].Id, spell, caster, 1))]);
+
+    [Fact]
+    public void A_granted_cover_suppression_still_removes_cover_at_roll_to_block_and_is_spent_there()
+    {
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var t = Unit("T", "4+", "6+", [], 1, []);
+        var wood = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wood"), new Point3(5, -17.75, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(3, 3), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.Cover, null))]);
+        var sim = new Sim(State([shooter], [t], x1: -5, x2: 5, terrain: [wood]), GrimdarkFutureRules.Instance, PassOneProps, new ScriptedDice(5, 2));
+        GrantIn(PassOneProps, sim, shooter.Id, "Clear Sight", shooter.Id);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = t.Id }));
+        Assert.Equal(1, sim.Steps("determine-attacks").Single().Values!["in_cover"]);
+        Assert.Empty(sim.Steps("roll-to-block").Single().Rolls.Single().Modifiers.Where(m => m.Source == "cover"));
+        Assert.Empty(sim.Unit(shooter.Id).Grants);
+    }
+
+    [Fact]
+    public void A_granted_regeneration_suppression_still_applies_at_assign_and_is_spent_there()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var troll = Unit("Troll", "4+", "6+", [], 1, [P("Regeneration"), P("Tough", 6)]);
+        var sim = new Sim(State([a], [troll], x1: -6, x2: 6), GrimdarkFutureRules.Instance, PassOneProps, new ScriptedDice(5, 2));
+        GrantIn(PassOneProps, sim, troll.Id, "Wither", a.Id);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = troll.Id }));
+        Assert.Equal(1, sim.Model(troll.Models[0].Id).Wounds);               // no regeneration roll was taken
+        Assert.Empty(sim.Steps("assign").Single().Rolls);
+        Assert.Empty(sim.Unit(troll.Id).Grants);
+    }
+
+    [Fact]
+    public void An_opponent_subject_grant_on_the_target_is_spent_by_the_attack_that_uses_it()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, PassOneProps, new ScriptedDice(2, 2));
+        GrantIn(PassOneProps, sim, b.Id, "Marked", a.Id);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.Empty(sim.Unit(b.Id).Grants);
     }
 }
 

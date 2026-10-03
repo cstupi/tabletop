@@ -41,7 +41,7 @@ public static class StatReader
         foreach (var (src, e) in live.Effects(side, EffectKind.ModifyStat).Where(x => x.Effect.TargetStat == rangeRef))
         {
             var amount = e.EffectiveAmount(src.Parameter);
-            if (amount < 0 && live.SuppressedModifiers.Contains(TargetModifier.RangePenalties)) continue;
+            if (amount < 0 && live.SuppressedModifiers.Contains(TargetModifier.RangePenalties)) { live.ReadSuppressedModifier(TargetModifier.RangePenalties); continue; }
             range += amount;
             live.Read(src);
         }

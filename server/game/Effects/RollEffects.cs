@@ -17,8 +17,9 @@ public static class RollEffects
             modifiers.Add(new RollModifier(src.Entry.Name, e.EffectiveAmount(src.Parameter)));
             live.Read(src);
         }
-        if (live.SuppressedModifiers.Contains(TargetModifier.Cover)) modifiers.RemoveAll(m => m.Source == "cover");
-        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties)) modifiers.RemoveAll(m => m.Amount < 0);
+        live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
+        if (live.SuppressedModifiers.Contains(TargetModifier.Cover) && modifiers.RemoveAll(m => m.Source == "cover") > 0) live.ReadSuppressedModifier(TargetModifier.Cover);
+        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties) && modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
         // ForceReroll: its roll_result condition names the face; every other condition must hold now.
         var reroll = new HashSet<int>();
         foreach (var p in live.Live)
@@ -46,6 +47,7 @@ public static class RollEffects
     static int Multiplier(LiveSet live, Side side, TargetQuantity quantity, int defenderModels)
     {
         var product = 1;
+        live.ReadRemoved(side, EffectKind.Multiply, e => e.TargetQuantity == quantity);
         foreach (var (src, e) in live.Effects(side, EffectKind.Multiply).Where(x => x.Effect.TargetQuantity == quantity))
         {
             var x = Math.Max(1, e.EffectiveAmount(src.Parameter));
@@ -59,6 +61,7 @@ public static class RollEffects
     /// <summary>Kind-5 rolls a property owns: the property supplies its own dice and threshold, and its child effect is applied once per success.</summary>
     public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter)
     {
+        live.ReadRemoved(side, EffectKind.Roll, e => e.Children.Any(childFilter));
         var result = live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
         foreach (var x in result) live.Read(x.Source);
         return result;
