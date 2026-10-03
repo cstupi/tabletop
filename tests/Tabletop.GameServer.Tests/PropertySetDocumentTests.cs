@@ -1,5 +1,6 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Tests.Infrastructure;
 
 namespace Tabletop.GameServer.Tests;
 
@@ -130,5 +131,25 @@ public class PropertySetDocumentTests
         var withModifiedRoll = doc with { Rolls = [.. doc.Rolls, "modified"] };
         var modifiedProblems = PropertiesJson.Validate(withModifiedRoll);
         Assert.Contains(modifiedProblems, p => p.Contains("modified") && p.Contains("reserved"));
+    }
+
+    [Fact]
+    public void A_book_must_list_spell_entries_and_book_uids_are_unique()
+    {
+        var spell = new EntryDocument("Zap", CatalogKind.Spell, false, null, 1, null, "Zap.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+        var doc = TestProperties.CoreDocument with { Entries = [.. TestProperties.CoreDocument.Entries, spell] };
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Nope"])] }), p => p.Contains("book b lists 'Nope', which is no spell entry"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["AP"])] }), p => p.Contains("book b lists 'AP', which is no spell entry"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"]), new BookRecord("b", "B2", null, [])] }), p => p.Contains("book uids must be unique"));
+        Assert.Empty(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"])] }));
+    }
+
+    [Fact]
+    public void Books_sort_by_uid_in_the_canonical_form_and_keep_their_spell_order()
+    {
+        var doc = TestProperties.CoreDocument with { Books = [new BookRecord("z", "Z", null, []), new BookRecord("a", "A", null, [])] };
+        var swapped = doc with { Books = [doc.Books![1], doc.Books[0]] };
+        Assert.Equal(PropertiesJson.Hash(doc), PropertiesJson.Hash(swapped));
     }
 }

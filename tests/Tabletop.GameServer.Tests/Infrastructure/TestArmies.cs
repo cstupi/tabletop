@@ -20,7 +20,7 @@ public static class TestArmies
         {
             var mr = (modelRules ?? []).Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Rule, r.Parameter)).ToList();
             var models = Enumerable.Range(1, modelsPerUnit).Select(m => new ModelSlot(Guid.CreateVersion7(), m, $"{name} {u}.{m}",
-                new Dictionary<string, string>(), mr, Base.Circle(1.26), 1.5, null, [])).ToList();
+                new Dictionary<string, string>(), mr, Base.Circle(1.26), 1.5, null, [], TestProperties.TestBook)).ToList();
             list.Add(new Unit(Guid.CreateVersion7(), u, $"{name} unit {u}", new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" },
                 (unitRules ?? []).Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Rule, r.Parameter)).ToList(), models));
         }

@@ -20,12 +20,14 @@ public static class GfCasting
 
     /// <summary>
     /// p.13: a caster may "spend as many tokens as the spell's value to try casting one or more spells (only one try per spell)": one option per
-    /// caster model and spell it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
+    /// caster model and spell of that model's own army book
+    /// (ModelSlot.ArmyBook; "the Caster's spells must be picked from their own faction") it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
     /// </summary>
     public static IReadOnlyList<AskOption> SpellOptions(GameState state, PropertySet props, Guid unit)
     {
         var tried = TriedPicks(state, unit);
-        return Casters(state, unit).SelectMany(m => props.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
+        return Casters(state, unit).SelectMany(m => props.SpellsOf(state.Projection.Models[m].Slot.ArmyBook)
+                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
             .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
     }
 

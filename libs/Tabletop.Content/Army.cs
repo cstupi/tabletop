@@ -8,12 +8,13 @@ public sealed record PropertyInstance(string Name, int? Parameter);
 /// <summary>Lives on the model slot. A melee weapon has no Range stat at all.</summary>
 public sealed record Weapon(Guid Id, string Name, IReadOnlyDictionary<string, string> Stats, IReadOnlyList<PropertyInstance> Properties);
 
-/// <summary>One model. Base and Height are the hitbox; AssetId is appearance and a soft reference.</summary>
+/// <summary>One model. Base and Height are the hitbox; AssetId is appearance and a soft reference. ArmyBook is the Army Forge book uid
+/// of the entry the slot was imported from (`armyId` in the TTS export); p.13 picks a caster's spells from it. Null when unknown.</summary>
 public sealed record ModelSlot(
     Guid Id, int Ordinal, string Name,
     IReadOnlyDictionary<string, string> Stats, IReadOnlyList<PropertyInstance> Properties,
     Base Base, double Height, Guid? AssetId,
-    IReadOnlyList<Weapon> Weapons);
+    IReadOnlyList<Weapon> Weapons, string? ArmyBook = null);
 
 public sealed record Unit(
     Guid Id, int Ordinal, string Name,

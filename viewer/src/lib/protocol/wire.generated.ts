@@ -294,6 +294,7 @@ export interface ModelSlot {
   readonly height: number;
   readonly assetId?: string;
   readonly weapons: readonly Weapon[];
+  readonly armyBook?: string;
 }
 
 export interface ModelsMoved {

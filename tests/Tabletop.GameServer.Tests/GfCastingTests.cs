@@ -272,4 +272,33 @@ public class GfCastingTests
         Assert.Empty(sim.State.Projection.Stack);
         Assert.Equal(["Ward|Bolt"], GfCasting.TriedThisActivation(sim.State, wizard.Id));
     }
+
+    [Fact]
+    public void A_caster_is_offered_only_its_own_books_spells()
+    {
+        var other = Fireball with { Name = "Other Fireball" };
+        var props = PropertiesJson.ToSet(TestProperties.CoreDocument with
+        {
+            Name = "two books",
+            Entries = [.. TestProperties.CoreDocument.Entries, Fireball, other],
+            Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Fireball"]), new BookRecord("book-b", "Book B", "1", ["Other Fireball"])],
+        }, Guid.CreateVersion7);
+        var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
+    }
+
+    [Fact]
+    public void A_caster_with_no_book_or_an_unknown_book_is_offered_nothing()
+    {
+        foreach (var book in new string?[] { null, "a-book-this-set-does-not-list" })
+        {
+            var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+            wizard = wizard with { Models = wizard.Models.Select(m => m with { ArmyBook = book }).ToList() };
+            var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+            state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+            Assert.Empty(GfCasting.SpellOptions(state, Book, wizard.Id));
+        }
+    }
 }

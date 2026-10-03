@@ -7,7 +7,9 @@ namespace Tabletop.GameServer.Properties;
 
 // The authored form: the eight tables without ids or the hash. Field names are the tables' columns in camelCase.
 public sealed record PropertySetDocument(string Name, string GameRules, IReadOnlyList<StatDefinition> Stats, IReadOnlyList<ActionDefinition> Actions,
-    IReadOnlyList<string> Rolls, IReadOnlyList<EntryDocument> Entries);
+    IReadOnlyList<string> Rolls, IReadOnlyList<EntryDocument> Entries, IReadOnlyList<BookRecord>? Books = null);
+/// <summary>An army book: its Army Forge uid, name and version, and the spell entries it lists, in its own order (spell library spec).</summary>
+public sealed record BookRecord(string Uid, string Name, string? Version, IReadOnlyList<string> Spells);
 public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesParameter, Aggregation? Aggregation, int? Cost, string? Faction, string RuleText,
     SpellTargeting? Targeting, IReadOnlyList<EffectDocument> Effects);
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
@@ -27,6 +29,7 @@ public static class PropertiesJson
         {
             Stats = doc.Stats ?? [], Actions = doc.Actions ?? [], Rolls = doc.Rolls ?? [],
             Entries = (doc.Entries ?? []).Select(e => e with { Effects = Fix(e.Effects) }).ToList(),
+            Books = (doc.Books ?? []).Select(b => b with { Spells = b.Spells ?? [] }).ToList(),
         };
         static IReadOnlyList<EffectDocument> Fix(IReadOnlyList<EffectDocument>? effects) =>
             (effects ?? []).Select(f => f with { Conditions = (f.Conditions ?? []).Select(c => c with { Values = c.Values ?? [] }).ToList(), Children = Fix(f.Children) }).ToList();
@@ -39,6 +42,7 @@ public static class PropertiesJson
         Actions = d.Actions.OrderBy(a => a.Name, StringComparer.Ordinal).ToList(),
         Rolls = d.Rolls.OrderBy(r => r, StringComparer.Ordinal).ToList(),
         Entries = d.Entries.OrderBy(e => e.Name, StringComparer.Ordinal).ToList(),
+        Books = (d.Books ?? []).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList(),
     }, Options);
 
     public static string Hash(PropertySetDocument d) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(d))));
@@ -61,6 +65,12 @@ public static class PropertiesJson
                 problems.Add($"{e.Name}: a spell's effect is add_hit or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
+        var books = d.Books ?? [];
+        if (books.Select(b => b.Uid).Distinct().Count() != books.Count) problems.Add("book uids must be unique");
+        var spells = d.Entries.Where(e => e.Kind == CatalogKind.Spell).Select(e => e.Name).ToHashSet();
+        foreach (var b in books)
+            foreach (var s in b.Spells.Where(s => !spells.Contains(s)))
+                problems.Add($"book {b.Uid} lists '{s}', which is no spell entry");
         return problems;
     }
 
@@ -100,6 +110,7 @@ public static class PropertiesJson
             f.TargetModifier, f.Amount, f.AmountFromParameter, f.Threshold, f.CapKind, f.Replacement, f.Duration,
             f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList());
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
-            d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList())).ToList());
+            d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList())).ToList(),
+            d.Books ?? []);
     }
 }
