@@ -91,8 +91,8 @@ public class GfMeleeTests
     {
         var u = Unit("U", "4+", "4+", [], 1, [], Melee("Fist", 1));
         var sim = Sim.Gf(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -20, x2: 20), 1);
-        // activation-terrain (no dangerous terrain), then charge-target with nothing in range: Finish.
-        Assert.Equal(["step_completed", "step_completed", "sequence_finished"], sim.Start(GfNames.ChargeSeq, new SequenceContext(u.Id, [], [], GfNames.Charge)).Select(EventKinds.Of));
+        // activation-terrain and activation-start (no dangerous terrain, no point rule), then charge-target with nothing in range: Finish.
+        Assert.Equal(["step_completed", "step_completed", "step_completed", "sequence_finished"], sim.Start(GfNames.ChargeSeq, new SequenceContext(u.Id, [], [], GfNames.Charge)).Select(EventKinds.Of));
     }
 
     [Fact]

@@ -218,4 +218,102 @@ public partial class ArmyRuleHookTests
         sim.Answer(Samples.Team2, new Passed());                                  // declined at the move
         Assert.Single(sim.Unit(defender.Id).Grants);
     }
+
+    static void Shift(Sim sim, Guid team, IEnumerable<Guid> models, double dx) =>
+        sim.Answer(team, new Destinations(models.Select(m => { var at = ((OnTable)sim.Model(m).Location).Placement; return new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + dx } })); }).ToList()));
+
+    [Fact]
+    public void Teleport_is_offered_before_attacking_at_three_inches_after_advance_six_after_rush_and_not_on_hold()
+    {
+        foreach (var (seq, action, inches) in new[] { (GfNames.AdvanceSeq, GfNames.Advance, 3.0), (GfNames.RushSeq, GfNames.Rush, 6.0) })
+        {
+            var a = Unit("A", "4+", "4+", [], 1, [P("Teleport")]);
+            var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(4));
+            sim.Start(seq, new SequenceContext(a.Id, [], [], action));
+            sim.Answer(Samples.Team1, new Passed());                                                    // no move
+            var react = Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal);
+            sim.Answer(Samples.Team1, new Chosen(react.Choices.Single(c => c.Id.StartsWith("Teleport|")).Id));
+            Assert.Equal(inches, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+            Shift(sim, Samples.Team1, a.Models.Select(m => m.Id), inches - 0.5);
+            // once per activation: the actual next Ask is the move Ask of the reopened step, and once it is passed no Teleport is offered and no second reposition starts
+            Assert.Equal("move", sim.AskFor(Samples.Team1).Question);
+            sim.Answer(Samples.Team1, new Passed());
+            if (sim.AskForOrNull(Samples.Team1) is { Legal: Options next }) Assert.DoesNotContain(next.Choices, c => c.Id.StartsWith("Teleport|"));
+            Assert.Equal(1, sim.Emitted.OfType<SequenceStarted>().Count(x => x.Sequence == GfNames.RepositionSeq));
+        }
+        var h = Unit("H", "4+", "4+", [], 1, [P("Teleport")]);
+        var hold = new Sim(State([h], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(4));
+        hold.Start(GfNames.HoldSeq, new SequenceContext(h.Id, [], [], GfNames.Hold));
+        Assert.Null(hold.AskForOrNull(Samples.Team1));
+    }
+
+    [Fact]
+    public void A_placement_crosses_impassable_terrain_but_may_not_land_in_it()
+    {
+        var wall = new Tabletop.Content.TerrainPlacement(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("wall"), new Tabletop.Geometry.Point3(-9, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
+            [new Tabletop.Content.TerrainVolume(Guid.CreateVersion7(), new Tabletop.Geometry.Volume(Tabletop.Geometry.VolumeKind.Solid, Tabletop.Geometry.Footprint.Rect(1, 6), new Tabletop.Geometry.Point2(0, 0), new Tabletop.Geometry.Yaw(0), 0, 4, Tabletop.Geometry.TerrainDeclarations.Impassable, null))]);
+        foreach (var (dx, lands) in new[] { (3.0, true), (2.0, false) })
+        {
+            var a = Unit("A", "4+", "4+", [], 1, [P("Teleport")]);
+            var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -11, x2: 20, terrain: [wall]), GrimdarkFutureRules.Instance, Core, new ScriptedDice(4));
+            sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+            sim.Answer(Samples.Team1, new Passed());
+            sim.Answer(Samples.Team1, new Chosen($"Teleport|{a.Id:N}"));
+            var before = ((OnTable)sim.Model(a.Models[0].Id).Location).Placement.Position.X;
+            Shift(sim, Samples.Team1, [a.Models[0].Id], dx);
+            Assert.Equal(lands ? before + dx : before, ((OnTable)sim.Model(a.Models[0].Id).Location).Placement.Position.X, 3);
+        }
+    }
+
+    [Fact]
+    public void Rapid_blink_rolls_a_d3_only_when_chosen_and_offers_only_its_holders_and_declining_rolls_no_die()
+    {
+        var a = Unit("A", "4+", "4+", [], 3, []);
+        a = a with { Models = [a.Models[0] with { Properties = [P("Rapid Blink")] }, a.Models[1], a.Models[2]] };
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(5));
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen($"Rapid Blink|{a.Id:N}"));
+        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal(3.0, region.Allowance);
+        Assert.Equal([a.Models[0].Id], region.ModelIds);                   // a 5 halved and rounded up
+        var declined = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(5));
+        declined.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        declined.Answer(Samples.Team1, new Passed());
+        Assert.DoesNotContain(declined.Emitted.OfType<StepCompleted>(), s => s.Rolls.Count > 0);
+        Assert.DoesNotContain(declined.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.RepositionSeq);
+    }
+
+    [Fact]
+    public void Rapid_blink_boost_rolls_two_dice()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Rapid Blink"), P("Rapid Blink Boost")]);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(5, 2));
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen($"Rapid Blink Boost|{a.Id:N}"));
+        Assert.Equal(4.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);       // 3 + 1
+    }
+
+    [Fact]
+    public void A_shaken_unit_idling_is_offered_no_rapid_blink()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Rapid Blink")]);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(5));
+        sim.Append([new ConditionSet(new Subject(SubjectKind.Unit, a.Id), GfNames.Shaken, true)]);
+        sim.Start(GfNames.IdleSeq, new SequenceContext(a.Id, [], [], "Idle"));
+        Assert.Null(sim.AskForOrNull(Samples.Team1));
+    }
+
+    [Fact]
+    public void A_declined_or_refused_granted_placement_is_not_spent()
+    {
+        var blink = new EntryDocument("Blink It", CatalogKind.Spell, false, null, 1, null, "Grants Rapid Blink.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Rapid Blink")]);
+        var props = TestProperties.WithSpells(blink);
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, props, new ScriptedDice(Enumerable.Repeat(5, 10).ToArray()));
+        sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Blink It")!.Effects[0].Id, "Blink It", a.Id, 1))]);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen($"Rapid Blink|{a.Id:N}"));
+        sim.Answer(Samples.Team1, new Passed());                                                          // declined at the placement
+        Assert.Single(sim.Unit(a.Id).Grants);
+    }
 }

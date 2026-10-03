@@ -87,12 +87,14 @@ public static class GfHooks
         {
             if (Shaken(state, unit) || Lookup.LivingModels(state, unit).Count == 0 || Teams.Of(state, unit) is not { } team) continue;
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
-            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move).DistinctBy(x => x.Source.Entry.Name))
+            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place).DistinctBy(x => x.Source.Entry.Name))
                 reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row), GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
         }
         return reactions;
     }
 
     static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
-    static string Label(string entry, Effect row) => $"{entry}: move up to {row.Amount}\"";
+    static string Label(string entry, Effect row) => row.Kind == EffectKind.Place
+        ? $"{entry}: place within {(row.AmountDice is null ? row.Amount?.ToString() : (row.Amount == 1 ? "" : row.Amount?.ToString()) + "D3")}\""
+        : $"{entry}: move up to {row.Amount}\"";
 }

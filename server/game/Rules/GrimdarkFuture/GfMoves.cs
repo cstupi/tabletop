@@ -8,11 +8,11 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfMoves
 {
-    public static Sequence Hold() => new(GfNames.HoldSeq, [new ActivationTerrainStep(), new CastingWindowStep(), new ShootOrNotStep()]);
-    public static Sequence Advance() => new(GfNames.AdvanceSeq, [new ActivationTerrainStep(), new MoveStep(GfNames.Advance, false), new ShootOrNotStep()]);
-    public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new MoveStep(GfNames.Rush, false)]);
+    public static Sequence Hold() => new(GfNames.HoldSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new CastingWindowStep(), new ShootOrNotStep()]);
+    public static Sequence Advance() => new(GfNames.AdvanceSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Advance, false), new ShootOrNotStep()]);
+    public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start"), new MoveStep(GfNames.Rush, false)]);
     /// <summary>p.10's idle activation is an activation (p.11 "or is activated in it"): a Shaken unit idling in dangerous terrain, or counting as in it, still tests.</summary>
-    public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep()]);
+    public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start")]);
     public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null))]);
 
     static LiveSet Lone(StepContext ctx, Guid unit, string? action) => LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
@@ -112,7 +112,7 @@ public static class GfMoves
     {
         public string Name => "casting-window";
         public StepOutcome Run(StepContext ctx) =>
-            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq));
+            Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) ?? new Complete([], null, Repeat: ctx.History.Children.Count > 0);
     }
 
     /// <summary>
@@ -155,8 +155,8 @@ public static class GfMoves
                     if (Interpreter.Windows.Run(ctx, GfNames.BeforeAttacking) is { } window) return window;
                     // p.13: a caster may try more than one spell in an activation, so a finished cast reopens the window — back to the
                     // move when budget remains, otherwise round again on the checkpoint. A pass leaves no casting child and the step ends.
-                    var cast = ctx.History.Children.Any(c => c.Sequence == GfNames.CastingSeq);
-                    return new Complete([], new Dictionary<string, int> { ["phase"] = allowance - used > 0 ? 0 : 2 }, Repeat: cast);
+                    var reacted = ctx.History.Children.Count > 0;
+                    return new Complete([], new Dictionary<string, int> { ["phase"] = allowance - used > 0 ? 0 : 2 }, Repeat: reacted);
             }
         }
 
@@ -278,6 +278,7 @@ public static class GfMoves
             if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], entry)) : new Complete([]);
             var live = Lone(ctx, unit, ActionOf(ctx.Frame));
             if (Offered(live, entry) is not var (source, row)) return new Finish([]);
+            if (row.Kind == EffectKind.Place) return Place(ctx, unit, entry, live, source, row);
             var allowance = row.EffectiveAmount(null);
             if (ctx.History.LastClosed("move") is not { } closed)
             {
@@ -293,10 +294,32 @@ public static class GfMoves
             return new Complete(changes, new Dictionary<string, int> { ["dangerous_dice"] = dice }, Repeat: dice > 0);
         }
 
-        /// <summary>The first move row of the rule whose conditions other than at_point and usage_count hold.</summary>
+        /// <summary>Phase 0: roll the distance when the row has dice (p.4's D3: a D6 halved, rounded up), recorded in tenths on the frame; then ask; then apply.
+        /// A declined offer or a landing refused everywhere consumes nothing: a grant is spent only by the placement it makes (the dice are rolled once chosen, never at the offer).</summary>
+        static StepOutcome Place(StepContext ctx, Guid unit, string entry, LiveSet live, LiveProperty source, Effect row)
+        {
+            if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0)
+            {
+                var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
+                return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = record.Dice.Sum(d => (d.Raw + 1) / 2) * 10 }, Repeat: true);
+            }
+            var distance = row.AmountDice is null ? row.EffectiveAmount(null) : ctx.Frame.Value("distance_tenths") / 10.0;
+            var holders = Lookup.AliveModels(ctx.State, unit).Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == entry)).ToList();
+            var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
+            if (ctx.History.LastClosed("move") is not { } placed)
+                return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
+                    new MoveRegion(models, distance, [], [], null), allowPass: true)]);
+            var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
+            if (changes.Count == 0) return new Complete([]);
+            live.Read(source);
+            changes.AddRange(RollEffects.Consume(live));
+            return new Complete(changes);
+        }
+
+        /// <summary>The first move or place row of the rule whose conditions other than at_point and usage_count hold.</summary>
         internal static (LiveProperty Source, Effect Row)? Offered(LiveSet live, string entry) =>
             live.On(Side.Attacker).Where(p => p.Entry.Name == entry)
-                .SelectMany(p => p.Effects.Where(e => e.Kind is EffectKind.Move).Select(e => (p, e)))
+                .SelectMany(p => p.Effects.Where(e => e.Kind is EffectKind.Move or EffectKind.Place).Select(e => (p, e)))
                 .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null)))
                 .Select(x => ((LiveProperty, Effect)?)(x.p, x.e)).FirstOrDefault();
 
@@ -307,6 +330,26 @@ public static class GfMoves
                 if (f.Frame.Sequence is GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq or GfNames.IdleSeq) return f.Frame.Context.Action;
             return null;
         }
+    }
+
+    /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
+    /// stood and its centre is outside every impassable volume. Nothing between is swept. A landing that fails stays where it was. The table edge
+    /// and p.7's 1" are client-flagged, as for every move (MoveStep reports Movement.Check's LeavesTable and does not refuse it).</summary>
+    public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
+    {
+        var impassable = Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);
+        var moves = new List<ModelRelocation>();
+        foreach (var m in proposed.Where(m => models.Contains(m.ModelId) && m.To is OnTable && ctx.Projection.Models[m.ModelId].Location is OnTable))
+        {
+            var from = ((OnTable)ctx.Projection.Models[m.ModelId].Location).Placement.Position;
+            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
+            var to = settled.Position;
+            var displaced = Math.Sqrt((to.X - from.X) * (to.X - from.X) + (to.Y - from.Y) * (to.Y - from.Y));
+            if (displaced > distance + 1e-6) continue;
+            if (Containment.VolumesContaining(Battlefield.At(ctx.State, m.ModelId, settled), impassable).Count > 0) continue;
+            moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
+        }
+        return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
     }
 
     /// <summary>A move another team makes for this unit (a spell's move kind): the same settling, impassable and difficult checks as an action's
