@@ -20,6 +20,7 @@ public class ArmyTests : IClassFixture<ManagementFactory>
         var imported = await c.PostJson<Army>("/v1/armies/import", new ImportRequest(Share));
         Assert.Equal(5, imported.Units.Count); Assert.Equal(Share, imported.Source);
         var fetched = await c.GetJson<Army>($"/v1/armies/{imported.Id}");
+        Assert.All(fetched.Units.SelectMany(u => u.Models), m => Assert.Equal("prsajf5ot936qznk", m.ArmyBook));
         Assert.Equal(ContentJson.Serialize(imported), ContentJson.Serialize(fetched));
         var page = await c.GetJson<Page<ArmySummary>>("/v1/armies");
         Assert.Equal([(imported.Id, 5, 33)], page.Items.Select(a => (a.Id, a.Units, a.Models)));

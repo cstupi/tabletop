@@ -132,4 +132,23 @@ public class ArmyForgeImportTests
         Assert.Equal("c2-6YsWRH3py", ArmyForgeClient.ListId("c2-6YsWRH3py"));
         Assert.Null(ArmyForgeClient.ListId("https://example.com/nothing"));
     }
+
+    [Fact]
+    public void Every_slot_carries_the_army_book_its_entry_came_from()
+    {
+        var army = ArmyForgeImport.ToArmy(Fixture(), "c2-6YsWRH3py", Catalog);
+        Assert.All(army.Units.SelectMany(u => u.Models), m => Assert.Equal("prsajf5ot936qznk", m.ArmyBook));
+    }
+
+    [Fact]
+    public void A_joined_entry_keeps_its_own_army_book()
+    {
+        var list = Fixture();
+        var host = list.Units.First(u => !u.Combined && u.JoinToUnit is null);
+        var hero = host with { SelectionId = "hero", Name = "Visiting Hero", Size = 1, JoinToUnit = host.SelectionId, ArmyId = "another-book" };
+        var army = ArmyForgeImport.ToArmy(list with { Units = [.. list.Units, hero] }, "c2-6YsWRH3py", Catalog);
+        var unit = army.Units.Single(u => u.Models.Any(m => m.Name == "Visiting Hero 1"));
+        Assert.Equal("another-book", unit.Models.Single(m => m.Name == "Visiting Hero 1").ArmyBook);
+        Assert.All(unit.Models.Where(m => m.Name != "Visiting Hero 1"), m => Assert.Equal("prsajf5ot936qznk", m.ArmyBook));
+    }
 }
