@@ -196,6 +196,25 @@ describe('the ported log lines', () => {
   });
 });
 
+describe('game_ended', () => {
+  it('sets ended, and a round start clears it', () => {
+    const a = new Applier(board, game);
+    a.apply(ev(1, { kind: 'game_ended', reason: 'over', winners: [T1] }));
+    expect(a.projection.ended).toEqual({ kind: 'game_ended', reason: 'over', winners: [T1] });
+    a.apply(ev(2, { kind: 'round_started', round: 5, order: [T1, T2], changes: [] }));
+    expect(a.projection.ended).toBeUndefined();
+  });
+
+  it('reads as the recording reads it', () => {
+    const p = initialProjection(board, game);
+    const ordinals = new Map([[T1, 1], [T2, 2]]);
+    const line = (winners: string[]) => lineOf(ev(9, { kind: 'game_ended', reason: 'over', winners }), p, ordinals);
+    expect(line([T1])).toBe('Game ended: over; Team 1 won');
+    expect(line([T1, T2])).toBe('Game ended: over; tied between Team 1, Team 2');
+    expect(line([])).toBe('Game ended: over');
+  });
+});
+
 describe('the ported board projection', () => {
   it('splits the flags wire form into the recording order', () => {
     expect(declarationsOf('impassable, blocks_line_of_sight')).toEqual(['impassable', 'blocks_line_of_sight']);

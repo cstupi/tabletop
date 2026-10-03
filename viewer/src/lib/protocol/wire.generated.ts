@@ -170,7 +170,7 @@ export interface DieReplacement {
 
 export type Enforcement = 'silent' | 'warn' | 'strict';
 
-export type EventPayload = RoundStarted | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | ModifierAdded | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved;
+export type EventPayload = RoundStarted | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | ModifierAdded | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved;
 
 export interface EventsMessage {
   readonly kind: 'events';
@@ -184,6 +184,12 @@ export interface Footprint {
 }
 
 export type FootprintKind = 'circle' | 'rect';
+
+export interface GameEnded {
+  readonly kind: 'game_ended';
+  readonly reason: string;
+  readonly winners: readonly string[];
+}
 
 export interface GameEvent {
   readonly seq: number;

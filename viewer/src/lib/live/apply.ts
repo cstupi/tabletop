@@ -2,7 +2,7 @@
 // A port of Tabletop.Protocol.EventApplier (contracts plan Task 14), branch for branch.
 // It copies. It never decides legality, never derives a location, never clears a store on its own.
 import type {
-  Board, GameEvent, GameInfo, Grant, Location, Marker, ModelSlot, StateChange, Unit,
+  Board, GameEvent, GameEnded, GameInfo, Grant, Location, Marker, ModelSlot, StateChange, Unit,
 } from '../protocol/wire.generated';
 import type { Ask, AskAnswer } from '../protocol/wire.generated';
 
@@ -42,6 +42,7 @@ export type Projection = {
   readonly scheduler: SchedulerPosition;
   readonly openAsks: Map<string, OpenAsk>;
   lastSeq: number;
+  ended: GameEnded | undefined;
 };
 
 export function initialProjection(board: Board, game: GameInfo): Projection {
@@ -49,7 +50,7 @@ export function initialProjection(board: Board, game: GameInfo): Projection {
     board,
     units: new Map(), models: new Map(), markers: new Map(), scores: new Map(),
     scheduler: { round: 0, order: [], activeTeamId: undefined, phase: undefined, passed: new Set() },
-    openAsks: new Map(), lastSeq: 0,
+    openAsks: new Map(), lastSeq: 0, ended: undefined,
   };
   for (const team of game.teams) p.scores.set(team.id, 0);
   // Insertion order matters: it is the order every frame lists models and units in, and C#'s
@@ -144,12 +145,14 @@ export function applyTo(p: Projection, event: GameEvent): void {
   if (isStateChange(payload)) applyChange(p, payload);
   else switch (payload.kind) {
     case 'round_started':
+      p.ended = undefined;
       p.scheduler.round = payload.round;
       p.scheduler.order = [...payload.order];
       p.scheduler.activeTeamId = undefined;
       p.scheduler.passed.clear();
       for (const change of payload.changes) applyChange(p, change);
       break;
+    case 'game_ended': p.ended = payload; break;
     case 'turn_started': p.scheduler.activeTeamId = payload.teamId; break;
     case 'turn_ended':
       if (payload.passed) p.scheduler.passed.add(payload.teamId);

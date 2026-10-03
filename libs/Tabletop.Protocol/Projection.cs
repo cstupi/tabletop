@@ -23,6 +23,8 @@ public sealed class Projection
     public IReadOnlyList<Frame> Stack => StackMut;
     public IReadOnlyDictionary<Guid, OpenAsk> OpenAsks => OpenAsksMut;
     public long LastSeq { get; internal set; }
+    /// <summary>The live game_ended, or null. A round_started after it clears it: a round started from the menu reopens play.</summary>
+    public GameEnded? Ended { get; internal set; }
 
     public static Projection Initial(Board board, GameInfo game)
     {

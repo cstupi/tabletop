@@ -217,4 +217,16 @@ public class RecordingTests
         Assert.Equal(3, passed.Scores[team]);
         Assert.Equal(3, projector.Frames[2].Scores[team]);
     }
+
+    [Fact]
+    public void Game_ended_reads_the_same_in_the_recording_as_in_the_viewer()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var ordinals = c.Info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
+        var after = Projection.Initial(c.Board, c.Info);
+        string Line(params Guid[] winners) => Recording.LogLines.Of(new GameEvent(9, null, new GameEnded("over", winners), null), after, ordinals);
+        Assert.Equal("Game ended: over; Team 1 won", Line(c.TeamIds[0]));
+        Assert.Equal("Game ended: over; tied between Team 1, Team 2", Line(c.TeamIds[0], c.TeamIds[1]));
+        Assert.Equal("Game ended: over", Line());
+    }
 }

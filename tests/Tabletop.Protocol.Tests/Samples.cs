@@ -57,6 +57,7 @@ public static class Samples
         new ActionRecorded(Unit, "Advance"), new ActionRecordCleared(Unit), new GrantAdded(Unit, Grant), new GrantRemoved(Unit, Grant.Id),
         new SpellTokensSet(Model, 3), new WoundsThisActivationSet(Unit, 2), new ScoreSet(Team1, 4),
         new MarkerPlaced(Token), new MarkerMoved(Token.Id, new Point3(2, 2, 0), new Yaw(90)), new MarkerRemoved(Token.Id),
+        new GameEnded("over", [Team1]),
     ];
     public static readonly Command[] Commands =
     [

@@ -39,6 +39,7 @@ public static class LogLines
         MarkerPlaced m => $"marker placed{(m.Marker.Label is { } l ? $": {l}" : "")}",
         MarkerMoved => "marker moved",
         MarkerRemoved => "marker removed",
+        GameEnded g => $"Game ended: {g.Reason}{Result(ordinals, g.Winners)}",
         _ => EventKinds.Of(e.Payload),
     };
 
@@ -77,5 +78,12 @@ public static class LogLines
         Confirmed => "yes",
         Passed => "a pass",
         _ => answer.GetType().Name,
+    };
+
+    private static string Result(IReadOnlyDictionary<Guid, int> ordinals, IReadOnlyList<Guid> winners) => winners.Count switch
+    {
+        0 => "",
+        1 => $"; {Team(ordinals, winners[0])} won",
+        _ => $"; tied between {string.Join(", ", winners.Select(w => Team(ordinals, w)))}",
     };
 }

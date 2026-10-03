@@ -48,10 +48,19 @@ public static class LogText
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
+            GameEnded g => $"ended the game: {g.Reason}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };
         return $"{who} {text}" + (e.Warning is null ? "" : $" — {e.Warning}");
     }
+
+    /// <summary>One winner, a tie, or nothing when the ruleset recorded no result.</summary>
+    static string Result(IReadOnlyList<Guid> winners, Names n) => winners.Count switch
+    {
+        0 => "",
+        1 => $"; {n.Team(winners[0])} won",
+        _ => $"; tied between {string.Join(", ", winners.Select(n.Team))}",
+    };
 
     static string Moved(ModelsMoved m, Names n)
     {

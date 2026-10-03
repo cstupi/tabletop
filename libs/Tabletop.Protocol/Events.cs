@@ -6,6 +6,7 @@ namespace Tabletop.Protocol;
 /// <summary>Everything the log holds. Replay applies these and never re-derives them.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(RoundStarted), "round_started")]
+[JsonDerivedType(typeof(GameEnded), "game_ended")]
 [JsonDerivedType(typeof(TurnStarted), "turn_started")]
 [JsonDerivedType(typeof(TurnEnded), "turn_ended")]
 [JsonDerivedType(typeof(PhaseStarted), "phase_started")]
@@ -42,6 +43,9 @@ public sealed record TurnStarted(Guid TeamId) : EventPayload;
 /// <summary>Passed is the logged pass that stops a team being re-asked this round. Changes: the end-of-turn hook's effects.</summary>
 public sealed record TurnEnded(Guid TeamId, bool Passed, IReadOnlyList<StateChange> Changes) : EventPayload;
 public sealed record PhaseStarted(string Phase) : EventPayload;
+/// <summary>The game is over (enforcement spec → The game_ended event). Reason is the sentence players read. Winners: one team is the
+/// winner, several are a tie between them, none is no result. Actor is null when the engine ended it.</summary>
+public sealed record GameEnded(string Reason, IReadOnlyList<Guid> Winners) : EventPayload;
 
 // Resolution stack
 public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context) : EventPayload;

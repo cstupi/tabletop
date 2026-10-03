@@ -145,4 +145,24 @@ public class EventApplierTests
         Assert.Equal("sequence_finished", ex.Kind);
         Assert.Equal(Frame, ex.UnknownId);
     }
+
+    [Fact]
+    public void Game_ended_sets_ended_and_a_round_start_clears_it()
+    {
+        var a = Fresh();
+        var end = new GameEnded("4 rounds have been played", [Samples.Team1]);
+        a.Apply(Ev(1, end));
+        Assert.Equal(end, a.Projection.Ended);
+        a.Apply(Ev(2, new RoundStarted(5, [Samples.Team1, Samples.Team2], [])));
+        Assert.Null(a.Projection.Ended);
+    }
+
+    [Fact]
+    public void Undoing_past_game_ended_clears_it()
+    {
+        var a = Fresh();
+        a.ApplyAll([Ev(1, new ScoreSet(Samples.Team1, 1)), Ev(2, new GameEnded("over", [])), Ev(3, new Undone(1))]);
+        Assert.Null(a.Projection.Ended);
+        Assert.Null(a.ProjectTo(1).Ended);
+    }
 }

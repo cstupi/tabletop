@@ -227,4 +227,14 @@ public class ViewModelTests
         Assert.Single(q.Take(animate: true)); Assert.Equal(1, q.Count);
         Assert.Single(q.Take(animate: false)); Assert.Equal(0, q.Count);
     }
+
+    [Fact]
+    public void Game_ended_names_the_winner_or_the_tie()
+    {
+        var names = new Names(Game, Applier().Projection);
+        string Line(params Guid[] winners) => LogText.Describe(new GameEvent(9, null, new GameEnded("4 rounds have been played", winners), null), names);
+        Assert.Equal("the game ended the game: 4 rounds have been played; Team 1 won", Line(Samples.Team1));
+        Assert.Equal("the game ended the game: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
+        Assert.Equal("the game ended the game: 4 rounds have been played", Line());
+    }
 }
