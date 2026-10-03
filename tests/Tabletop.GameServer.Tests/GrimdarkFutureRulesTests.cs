@@ -69,7 +69,7 @@ public class GrimdarkFutureRulesTests
         Assert.Equal((b[1], "Hold", true), (act.UnitId, act.Action, act.RunsSequence));
         Assert.Equal(new ActionRecorded(b[1], "Hold"), act.Changes.Single());
         var idle = Rules.ReadAnswer(g.State, g.Teams[1], new Chosen(ActivationOption.Id(b[0], ActivationOption.Idle)))!;
-        Assert.False(idle.RunsSequence); Assert.True(Rules.ActivationComplete(g.State, idle));
+        Assert.True(idle.RunsSequence); Assert.Equal(GfNames.IdleSeq, Rules.ActionSequence(ActivationOption.Idle)); Assert.True(Rules.ActivationComplete(g.State, idle));
         Assert.Null(Rules.ReadAnswer(g.State, g.Teams[1], new Chosen("garbage")));
     }
 

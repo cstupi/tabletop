@@ -1,6 +1,7 @@
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -8,6 +9,9 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfCasting
 {
     public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new TargetsStep(), new EffectsStep()]);
+    /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
+    public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
+        [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
     public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
 
     /// <summary>
@@ -201,6 +205,8 @@ public static class GfCasting
             var holding = Holding(ctx, casterUnit, targetUnit, spell);
             var hits = holding.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
             if (hits.Count > 0 && ctx.History.Children.Count == 0) return new Push(GfNames.SpellHitsSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
+            if (holding.Any(e => e.Kind == EffectKind.TakeTest) && ctx.History.Children.Count == 0)
+                return new Push(GfNames.SpellTestSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
             // p.13: "Effects from multiple instances of the same special rule or spell don't stack": a target already holding this spell's grants gets none.
             var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == spell.Name);
             // A once-row's conditions say when the grant applies ("Shred when shooting"), not whether it is written: every once-row is granted.
@@ -262,6 +268,39 @@ public static class GfCasting
             values["wounds"] = values.GetValueOrDefault("self_wounds");
             var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
             return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
+        }
+    }
+
+    sealed class ConsequenceStep : IStep
+    {
+        public string Name => "consequence";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var target = ctx.Frame.Context.TargetUnitIds[0];
+            if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
+            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
+            var changes = children.Where(c => c.Kind == EffectKind.SetCondition)
+                .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
+            if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
+            if (ctx.History.LastClosed("move") is { } moved)
+                return new Complete([.. changes, .. GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved))]);
+            var terrain = Battlefield.Terrain(ctx.State);
+            return new OpenAsks([ctx.Ask("move", $"Move up to {move.EffectiveAmount(null)}\" in a straight line", ctx.ActorTeam!.Value,
+                new MoveRegion(Lookup.AliveModels(ctx.State, target), move.EffectiveAmount(null),
+                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
+                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+        }
+
+        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0, or it finished with no model to test.</summary>
+        static bool Failed(GameState state, Guid frameId)
+        {
+            var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
+            var mine = log.FindIndex(p => p is SequenceStarted s && s.FrameId == frameId);
+            var child = log.Skip(mine + 1).OfType<SequenceStarted>().FirstOrDefault(s => s.Sequence == GfNames.MoraleTest);
+            if (child is null) return false;
+            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "test");
+            return done?.Values is { } v && v.GetValueOrDefault("passed", 1) == 0;
         }
     }
 }

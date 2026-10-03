@@ -1,5 +1,6 @@
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -10,9 +11,19 @@ public static class GfMoves
     public static Sequence Hold() => new(GfNames.HoldSeq, [new ActivationTerrainStep(), new CastingWindowStep(), new ShootOrNotStep()]);
     public static Sequence Advance() => new(GfNames.AdvanceSeq, [new ActivationTerrainStep(), new MoveStep(GfNames.Advance, false), new ShootOrNotStep()]);
     public static Sequence Rush() => new(GfNames.RushSeq, [new ActivationTerrainStep(), new MoveStep(GfNames.Rush, false)]);
+    /// <summary>p.10's idle activation is an activation (p.11 "or is activated in it"): a Shaken unit idling in dangerous terrain, or counting as in it, still tests.</summary>
+    public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep()]);
     public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null))]);
 
     static LiveSet Lone(StepContext ctx, Guid unit, string? action) => LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
+
+    /// <summary>A count_as_terrain row of this type live on the holder (spell library, kind 13), recorded as read so the step that acts spends it.</summary>
+    static bool CountsAsIn(LiveSet live, TargetTerrain terrain)
+    {
+        var rows = live.Effects(Side.Attacker, EffectKind.CountAsTerrain).Where(x => x.Effect.TargetTerrain == terrain).ToList();
+        foreach (var x in rows) live.Read(x.Source);
+        return rows.Count > 0;
+    }
 
     static IReadOnlyList<WorldVolume> Declared(IReadOnlyList<WorldVolume> terrain, TerrainDeclarations flag) => terrain.Where(v => v.Volume.Declarations.HasFlag(flag)).ToList();
 
@@ -85,12 +96,14 @@ public static class GfMoves
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             if (Lone(ctx, unit, ctx.Frame.Context.Action).Has(Side.Attacker, "Flying")) return new Complete([]);   // p.13: ignores terrain effects
-            var standing = StandingInDangerous(ctx.State, unit);
-            if (standing.Count == 0) return new Complete([]);
             // Write the dice count first, then push: the child reads dangerous_dice off this frame, so it must be settled before the push.
-            return ctx.Frame.Value("dangerous_dice") > 0
-                ? new Push(GfNames.DangerousTerrain, ctx.Frame.Context)
-                : new Complete([], new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) }, Repeat: true);
+            // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
+            if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(GfNames.DangerousTerrain, ctx.Frame.Context);
+            var live = Lone(ctx, unit, ctx.Frame.Context.Action);
+            // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
+            var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit);
+            if (standing.Count == 0) return new Complete([]);
+            return new Complete(RollEffects.Consume(live), new Dictionary<string, int> { ["dangerous_dice"] = DangerousDice(ctx.State, standing) }, Repeat: true);
         }
     }
 
@@ -114,6 +127,9 @@ public static class GfMoves
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             var live = Lone(ctx, unit, action);
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action);
+            // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
+            var striderOrFlying = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
+            if (!striderOrFlying && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             var terrain = Battlefield.Terrain(ctx.State);
             switch (ctx.Frame.Value("phase"))
@@ -234,5 +250,22 @@ public static class GfMoves
             var wounds = Dice.RollOutcome.Failures(record);
             return wounds == 0 ? new Finish([], new Dictionary<string, int> { ["wounds"] = 0 }) : new Complete([], new Dictionary<string, int> { ["wounds"] = wounds });
         }
+    }
+
+    /// <summary>A move another team makes for this unit (a spell's move kind): the same settling, impassable and difficult checks as an action's
+    /// move, measured against the allowance (leaving the table is client-flagged, as it is for an action's move); dangerous terrain crossed is not tested, since no rule asks it of a forced move.</summary>
+    public static IReadOnlyList<StateChange> ApplyForcedMove(StepContext ctx, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed)
+    {
+        var terrain = Battlefield.Terrain(ctx.State);
+        var impassable = Declared(terrain, TerrainDeclarations.Impassable); var difficult = Declared(terrain, TerrainDeclarations.Difficult);
+        var moves = new List<ModelRelocation>();
+        foreach (var m in proposed.Where(m => m.To is OnTable && ctx.Projection.Models.TryGetValue(m.ModelId, out var mm) && mm.UnitId == unit))
+        {
+            if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
+            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
+            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size);
+            if (check.WithinAllowance && !check.CrossesImpassable) moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
+        }
+        return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
     }
 }

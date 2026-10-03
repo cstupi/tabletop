@@ -75,4 +75,100 @@ public class GrammarAdditionTests
             Assert.Equal(expected, roll.Modifiers.Any(x => x.Source == "Steady"));
         }
     }
+
+    static EffectDocument Kind(EffectKind kind, EffectSubject subject, EffectDuration duration, int? amount = null, TargetTerrain? terrain = null, string? condition = null, string? roll = null, params EffectDocument[] children) =>
+        new(subject, 10, kind, roll, null, null, null, null, null, null, amount, false, null, null, null, duration, [], children, terrain, condition);
+    static EntryDocument EnemySpell(string name, params EffectDocument[] rows) => new(name, CatalogKind.Spell, false, null, 1, null, $"{name}.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 24), rows);
+    static readonly PropertySet Kinds = TestProperties.WithSpells(
+        EnemySpell("Mire", Kind(EffectKind.CountAsTerrain, EffectSubject.Self, EffectDuration.Once, terrain: TargetTerrain.Difficult)),
+        EnemySpell("Spikes", Kind(EffectKind.CountAsTerrain, EffectSubject.Self, EffectDuration.Once, terrain: TargetTerrain.Dangerous)),
+        EnemySpell("Fury", Kind(EffectKind.TakeTest, EffectSubject.Self, EffectDuration.Interaction, roll: "morale",
+            children: [Kind(EffectKind.SetCondition, EffectSubject.Self, EffectDuration.Interaction, condition: "fatigued")])),
+        EnemySpell("Hypnosis", Kind(EffectKind.TakeTest, EffectSubject.Self, EffectDuration.Interaction, roll: "morale",
+            children: [Kind(EffectKind.Move, EffectSubject.Self, EffectDuration.Interaction, amount: 6)])));
+
+    static void GrantOn(GameState s, Guid unit, string spell, Guid caster) =>
+        s.Applier.Apply(new GameEvent(s.Projection.LastSeq + 1, null, new GrantAdded(unit, new Grant(Guid.CreateVersion7(), Kinds.Entry(spell)!.Effects[0].Id, spell, caster, 1)), null));
+
+    [Fact]
+    public void Counting_as_in_difficult_terrain_caps_the_next_move_at_six_and_is_spent_by_it()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Kinds, new ScriptedDice(4));
+        GrantOn(sim.State, a.Id, "Mire", a.Id);
+        sim.Start(GfNames.RushSeq, new SequenceContext(a.Id, [], [], GfNames.Rush));
+        Assert.Equal(6, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+        var m = a.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 5 } }))]));
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void Counting_as_in_dangerous_terrain_tests_every_model_at_the_next_activation()
+    {
+        var a = Unit("A", "4+", "4+", [], 3, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Kinds, new ScriptedDice(1, 6, 6));
+        GrantOn(sim.State, a.Id, "Spikes", a.Id);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        Assert.Equal(3, sim.Steps("test").Single().Rolls.Single().Dice.Count);
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void A_unit_holding_a_once_dangerous_terrain_grant_takes_its_test_at_an_idle_activation()
+    {
+        var a = Unit("A", "4+", "4+", [], 2, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Kinds, new ScriptedDice(6, 6));
+        GrantOn(sim.State, a.Id, "Spikes", a.Id);
+        sim.Start(GfNames.IdleSeq, new SequenceContext(a.Id, [], [], "Idle"));
+        Assert.Equal(2, sim.Steps("test").Single().Rolls.Single().Dice.Count);
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void A_failed_forced_test_leaves_the_target_shaken_and_fatigued_and_a_passed_one_neither()
+    {
+        foreach (var (die, failed) in new[] { (1, true), (6, false) })
+        {
+            var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); var t = Unit("T", "4+", "4+", [], 2, []);
+            var sim = new Sim(State([wizard], [t], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Kinds, new ScriptedDice(6, die));
+            sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
+            sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+            sim.Answer(Samples.Team1, new Chosen($"Fury|{wizard.Models[0].Id}"));
+            sim.Answer(Samples.Team1, new Passed());
+            sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+            Assert.Equal((failed, failed), (sim.Unit(t.Id).Conditions.Contains(GfNames.Shaken), sim.Unit(t.Id).Conditions.Contains(GfNames.Fatigued)));
+        }
+    }
+
+    [Fact]
+    public void A_forced_test_at_a_shaken_unit_fails_without_a_roll_and_its_children_apply()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); var t = Unit("T", "4+", "4+", [], 2, []);
+        var sim = new Sim(State([wizard], [t], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Kinds, new ScriptedDice(6));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6), new ConditionSet(new Subject(SubjectKind.Unit, t.Id), GfNames.Shaken, true)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Fury|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        Assert.Contains(GfNames.Fatigued, sim.Unit(t.Id).Conditions);
+    }
+
+    [Fact]
+    public void A_failed_hypnosis_lets_the_casters_team_move_the_target_up_to_six_inches()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); var t = Unit("T", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([wizard], [t], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Kinds, new ScriptedDice(6, 1));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Hypnosis|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal(6.0, region.Allowance);
+        Assert.Equal([t.Models[0].Id], region.ModelIds);
+        var m = t.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 5 } }))]));
+        Assert.Equal(at.Position.X + 5, ((OnTable)sim.Model(m).Location).Placement.Position.X, 3);
+    }
 }
