@@ -1,0 +1,335 @@
+{
+ "uid": "dnthspt7c0klhmt8",
+ "name": "Infected Colonies",
+ "versionString": "3.5.3",
+ "spells": [
+  {
+   "id": "9kPTj",
+   "name": "Violent Onslaught",
+   "threshold": 1,
+   "effect": "Pick one friendly unit within 12\", which gets Infected Boost once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "JQmfgK02rJLK",
+        "name": "Infected Boost"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "7VYGG",
+   "name": "Bio-Horror",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 12\", which takes 2 hits with AP(1) and Surge. Roll as many dice as hits to see if \"on rolls of 6\" effects trigger.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 1,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "5v6oaGfrdf29",
+        "name": "Surge"
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": "Roll as many dice as hits to see if \"on rolls of 6\" effects trigger."
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "XIFoj",
+   "name": "Brain Infestation",
+   "threshold": 2,
+   "effect": "Pick up to two enemy units within 18\", which get -1 to hit rolls when attacking once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "gqflE2vy38aQ",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "rollModifier",
+       "value": "-1"
+      },
+      {
+       "name": "attackType",
+       "value": "when attacking"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "9xEir",
+   "name": "Spread Plague",
+   "threshold": 2,
+   "effect": "Pick one enemy unit within 18\", which takes 2 hits with Blast(3) and Lacerate.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "w_vX0mi58KKt",
+        "name": "Blast",
+        "rating": 3,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": ""
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "WcOMD7QgPYXZ",
+        "name": "Lacerate"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "POEyK",
+   "name": "Rapid Mutation",
+   "threshold": 3,
+   "effect": "Pick up to three friendly units within 12\", which get Regeneration once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "8KujvrTG8k9p",
+        "name": "Regeneration"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "Vg3yZ",
+   "name": "Volatile Infection",
+   "threshold": 3,
+   "effect": "Pick one enemy unit within 6\", which takes 3 hits with AP(2) and Deadly(3).",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 2,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "_mrPya5SXSqW",
+        "name": "Deadly",
+        "rating": 3,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 6\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}
