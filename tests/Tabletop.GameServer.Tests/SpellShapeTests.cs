@@ -136,4 +136,33 @@ public class SpellShapeTests
         sim.Start(GfNames.AttackSequence, new SequenceContext(a.Id, [t.Id], a.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Hold));
         Assert.Equal(1, sim.Steps("roll-to-block").Single().Rolls.Sum(r => r.Dice.Count));
     }
+
+    static ConditionDocument Raw(string roll, int face) => new(ConditionKind.RollResult, null, Comparison.Eq, face, [roll, "raw"]);
+    static readonly EntryDocument TestShred = new("Test Shred", CatalogKind.Weapon, false, null, null, null, "Defense 1s take an extra wound.", null,
+        [new EffectDocument(EffectSubject.Opponent, 10, EffectKind.AddHit, null, null, null, null, TargetQuantity.Wounds, null, null, 1, false, null, null, null, EffectDuration.Interaction, [Raw("defense", 1)], [])]);
+    static readonly EntryDocument TestHazard = new("Test Hazard", CatalogKind.Weapon, false, null, null, null, "Hit 1s wound this unit.", null,
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, TargetQuantity.Wounds, null, null, 1, false, null, null, null, EffectDuration.Interaction, [Raw("hit", 1)], [])]);
+    static readonly PropertySet Weapons = TestProperties.WithSpells(TestShred, TestHazard);
+
+    [Fact]
+    public void A_defense_one_against_a_shred_weapon_is_one_more_wound()
+    {
+        var a = Unit("A", "2+", "4+", [], 1, [], Gun("Rifle", "24\"", 2, P("Test Shred"))); var b = Unit("B", "4+", "4+", [], 5, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Weapons, new ScriptedDice(5, 5, 1, 6));
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.Equal(2, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);               // one failed block, plus one for its 1
+    }
+
+    [Fact]
+    public void A_hit_one_with_a_hazardous_weapon_wounds_the_attackers_own_unit()
+    {
+        var a = Unit("A", "4+", "4+", [], 2, [], Gun("Pistol", "12\"", 1, P("Test Hazard"))); var b = Unit("B", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Weapons, new ScriptedDice(1, 5, 6));
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Pistol"] = b.Id }));
+        Assert.Equal(1, sim.Steps("roll-to-hit").Single().Values!["self_wounds"]);
+        var removed = a.Models.Count(m => sim.Model(m.Id).Location is OnShelf);
+        Assert.Equal(1, removed + (sim.AskForOrNull(Samples.Team1) is { Legal: Allocation } ? 1 : 0));   // removed, or awaiting its own allocation
+    }
 }

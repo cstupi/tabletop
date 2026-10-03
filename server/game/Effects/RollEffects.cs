@@ -4,7 +4,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Effects;
 
-public sealed record DieEffects(int ExtraHits, IReadOnlyList<(string Entry, int? Parameter)> Grants);
+/// <summary>What one die does beyond its success, for the side that rolled it: extra hits it scores, extra wounds that side's unit takes, per-hit grants.</summary>
+public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants);
 
 public static class RollEffects
 {
@@ -35,10 +36,13 @@ public static class RollEffects
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified);
-        var extra = live.Effects(roller, EffectKind.AddHit, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        var adds = live.Effects(roller, EffectKind.AddHit, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).ToList();
+        var extra = adds.Where(x => x.Effect.TargetQuantity is null or TargetQuantity.Hits).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        var wounds = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        foreach (var x in adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds)) live.Read(x.Source);
         var grants = live.Effects(roller, EffectKind.GrantProperty, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList();
-        return new DieEffects(extra, grants);
+        return new DieEffects(extra, wounds, grants);
     }
 
     public static int HitMultiplier(LiveSet live, Side attacker, int defenderModels) => Multiplier(live, attacker, TargetQuantity.Hits, defenderModels);

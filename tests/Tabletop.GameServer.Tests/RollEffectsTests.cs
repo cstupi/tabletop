@@ -68,6 +68,13 @@ public class RollEffectsTests
     }
 
     [Fact]
+    public void Per_die_wounds_are_counted_apart_from_extra_hits()
+    {
+        var effects = new DieEffects(1, 2, []);
+        Assert.Equal((1, 2), (effects.ExtraHits, effects.ExtraWounds));
+    }
+
+    [Fact]
     public void Per_die_effects_add_hits_and_grant_on_unmodified_sixes_and_blast_multiplies_with_a_cap()
     {
         var charger = Unit("C", "4+", "4+", [], 3, [P("Furious")], Melee("Blade", 1, P("Rending")));

@@ -8,7 +8,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfCasting
 {
     public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new TargetsStep(), new EffectsStep()]);
-    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits)]);
+    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
@@ -247,13 +247,19 @@ public static class GfCasting
                     var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
                     total += Dice.RollOutcome.Successes(record);
                     RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
-                    foreach (var die in record.Dice) values["extra_hits"] += RollEffects.PerDie(granted, Side.Attacker, die, GfNames.Hit).ExtraHits;
+                    foreach (var die in record.Dice)
+                    {
+                        var effects = RollEffects.PerDie(granted, Side.Attacker, die, GfNames.Hit);
+                        values["extra_hits"] += effects.ExtraHits;
+                        values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
+                    }
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
                 multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(granted, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
                 foreach (var g in rules) { var key = $"granted_{g.TargetEntry}_{g.Amount ?? 0}"; values[key] = values.GetValueOrDefault(key) + n; }
             }
             values["hit_multiplier"] = multiplier;
+            values["wounds"] = values.GetValueOrDefault("self_wounds");
             var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
             return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
         }

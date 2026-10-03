@@ -22,7 +22,7 @@ public static partial class GfAttack
     {
         var parent = frame.Parent ?? throw new InvalidOperationException("deal-wounds needs a parent frame");
         var defense = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.DefenseRoll).ToList();
-        return defense.Count > 0 ? defense.Sum(Dice.RollOutcome.Failures) : parent.Value("wounds");
+        return defense.Count > 0 ? defense.Sum(Dice.RollOutcome.Failures) + parent.Value("extra_wounds") : parent.Value("wounds");
     }
 
     /// <summary>
@@ -176,7 +176,7 @@ public static partial class GfAttack
     /// <summary>The grants this step used (spell library → consumption): every granted source it read, with the rest of its spell's grants on that unit.</summary>
     static IReadOnlyList<StateChange> Consumed(LiveSet live) => RollEffects.Consume(live);
 
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
+    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
@@ -374,6 +374,19 @@ public static partial class GfAttack
     /// with. `extra_hits` and every `granted_&lt;entry&gt;_&lt;amount&gt;` sum across all of the pools, because they belong to the group's hits
     /// rather than to one pool, and `GfAttack.HitsFrom` already sums the successes of every `hit` roll on the frame.
     /// </summary>
+    /// <summary>Wounds the attacking unit dealt itself (Hazardous: "this model's unit takes one wound on unmodified rolls of 1 to hit"), after
+    /// its hits resolved: a deal-wounds with no attacker, at its own unit, reading `wounds` off this frame.</summary>
+    public sealed class SelfWoundsStep : IStep
+    {
+        public string Name => "self-wounds";
+        public StepOutcome Run(StepContext ctx)
+        {
+            if (ctx.Frame.Value("self_wounds") <= 0 || ctx.Frame.Context.ActorUnitId is not { } self) return new Complete([]);
+            if (ctx.History.Children.Any(c => c.Finished || c.Abandoned)) return new Complete([]);
+            return new Push(GfNames.DealWounds, new SequenceContext(null, [self], [], null));
+        }
+    }
+
     sealed class RollToHitStep : IStep
     {
         public string Name => "roll-to-hit";
@@ -388,14 +401,17 @@ public static partial class GfAttack
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                foreach (var die in ctx.Roll(plan, attacks).Dice.Where(d => d.Success))
+                foreach (var die in ctx.Roll(plan, attacks).Dice)
                 {
                     var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
+                    values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
+                    if (!die.Success) continue;
                     values["extra_hits"] += effects.ExtraHits;
                     foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount ?? 0}"] = values.GetValueOrDefault($"granted_{entry}_{amount ?? 0}") + 1;
                 }
             }
             RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
+            values["wounds"] = values.GetValueOrDefault("self_wounds");
             return new Complete(Consumed(live), values);
         }
     }
@@ -426,7 +442,7 @@ public static partial class GfAttack
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
             var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
-            var wounds = 0; var plain = hits;
+            var wounds = 0; var extraWounds = 0; var plain = hits;
             RollEffects.ReadPerDie(live, Side.Defender, GfNames.DefenseRoll);
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {
@@ -434,14 +450,18 @@ public static partial class GfAttack
                 var granted = live.WithGranted(Side.Attacker, entry, amount);
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
-                wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, group));
+                var record = ctx.Roll(plan, group);
+                wounds += Dice.RollOutcome.Failures(record);
+                extraWounds += record.Dice.Sum(d => RollEffects.PerDie(granted, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
             if (plain > 0)
             {
                 var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels);
-                wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, plain));
+                var record = ctx.Roll(plan, plain);
+                wounds += Dice.RollOutcome.Failures(record);
+                extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
-            return new Complete(Consumed(live), new Dictionary<string, int> { ["wounds"] = wounds });
+            return new Complete(Consumed(live), new Dictionary<string, int> { ["wounds"] = wounds, ["extra_wounds"] = extraWounds });
         }
     }
 }
