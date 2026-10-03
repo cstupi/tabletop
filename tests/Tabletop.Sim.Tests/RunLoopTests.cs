@@ -24,7 +24,7 @@ public class RunLoopTests
     {
         var report = await Run("skirmish");
         Assert.True(report.Passed, string.Join("\n", report.Failures));
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.True(report.Rounds >= 1, $"only reached round {report.Rounds}");
         Assert.True(report.Frames > 20, $"only {report.Frames} frames");
         Assert.True(report.AsksAnswered > 10);
@@ -46,7 +46,7 @@ public class RunLoopTests
 
     // Reproducibility is same-dice and same-answers, not same-ids: the seed is stored on the game and
     // the ids are ordinary v7 GUIDs, so nothing here may compare an id across two runs (Global
-    // Constraints → Reproducibility). RunOutcome.Decided carries a team *id*, so the comparison is on
+    // Constraints → Reproducibility). RunOutcome.Ended carries team *ids*, so the comparison is on
     // Kind plus the winner's ordinal.
     static async Task<(RunReport Report, int? WinnerOrdinal, IReadOnlyList<int> Dice)> RunTwice(string name, ulong seed)
     {
@@ -56,8 +56,8 @@ public class RunLoopTests
         var loop = new RunLoop(driver, compiled,
             new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         var report = await loop.RunAsync(CancellationToken.None);
-        var winner = report.Outcome is RunOutcome.Decided d
-            ? compiled.Info.Teams.Single(t => t.Id == d.WinningTeamId).Ordinal
+        var winner = report.Outcome is RunOutcome.Ended { Winners.Count: 1 } e
+            ? compiled.Info.Teams.Single(t => t.Id == e.Winners[0]).Ordinal
             : (int?)null;
         var dice = driver.Log
             .Select(e => e.Payload).OfType<StepCompleted>()
@@ -104,7 +104,7 @@ public class RunLoopTests
     public async Task A_round_cap_terminates_a_stalemate()
     {
         var report = await Run("stalemate");
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.True(report.Rounds <= 3, $"the cap of 3 was exceeded: {report.Rounds}");
         if (report.Outcome is RunOutcome.RoundLimit limit) Assert.Equal(3, limit.Rounds);
     }
@@ -122,7 +122,7 @@ public class RunLoopTests
             new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), HandPlacement.ChooserFor(7));
         var report = await loop.RunAsync(CancellationToken.None);
 
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.DoesNotContain(loop.Projector.Frames, f => f.Round > 2);
         if (report.Outcome is RunOutcome.RoundLimit limit)
         {
@@ -160,7 +160,7 @@ public class RunLoopTests
         Assert.Equal("alternating-activation", meta.SchedulerShape);
         Assert.Equal("strict", meta.Enforcement);
         Assert.Equal(1, meta.RoundCap);
-        Assert.Contains(meta.Outcome, (string[])["decided", "round_limit"]);
+        Assert.Contains(meta.Outcome, (string[])["ended", "round_limit"]);
     }
 
     [Fact]
@@ -190,5 +190,19 @@ public class RunLoopTests
             Assert.True(ZoneStyles.Contains(shape, compiled.Board.Table.Size, to.Placement.Position.Horizontal),
                 $"{to.Placement.Position} is outside {shape}");
         }
+    }
+
+    [Fact]
+    public async Task A_default_strict_skirmish_ends_after_four_rounds()
+    {
+        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(1);
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
+        var report = await loop.RunAsync(CancellationToken.None);
+        Assert.True(report.Passed, string.Join("\n", report.Failures));
+        Assert.Equal((4, "ended"), (report.Rounds, report.Outcome.Kind));
+        Assert.Equal(1, loop.Log.Count(e => e.Payload is GameEnded));
+        Assert.Equal(GameStatus.Ended, await driver.Session.RunAsync(() => Task.FromResult(driver.Session.Info.Status)));   // ScenarioRows took the row write
     }
 }

@@ -9,7 +9,7 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Run;
 
 /// <summary>
-/// Drive a game to one of the three ends spec → What a full game means lists, and fail loudly on the two
+/// Drive a game to one of the three ends spec → What a full game means lists (ended, round-capped, stuck), and fail loudly on the two
 /// further things that can happen: no progress at all, and an assertion that does not hold. Paused is the
 /// fifth and is not an end. Every answer comes from the answer source; nothing here reads a rule.
 /// </summary>
@@ -114,7 +114,7 @@ public sealed partial class RunLoop(
             _absorbedThisCycle = 0;
 
             var projection = await driver.ProjectionAsync(ct);
-            if (Decided(projection) is { } winner) return new RunOutcome.Decided(winner);
+            if (projection.Ended is { } end) return new RunOutcome.Ended(projection.Scheduler.Round, end.Winners);
 
             var open = result.OpenAsks.Where(a => a.Ask.Teams.Any(t => !a.Answers.ContainsKey(t))).ToList();
             if (open.Count == 0)
@@ -193,14 +193,6 @@ public sealed partial class RunLoop(
         return AskFingerprint.Of(ask) == _lastAnswered
             ? new RunOutcome.Stuck(StuckReason.AskReopenedUnchanged, $"'{ask.Question}' reopened unchanged after being answered")
             : null;
-    }
-
-    /// <summary>One team with models in play and at least one other with none (spec → What a full game means).</summary>
-    private Guid? Decided(Projection projection)
-    {
-        if (projection.Scheduler.Round < 1) return null;                       // deployment: the shelf is not a wipe
-        var standing = scenario.TeamIds.Where(t => Expectations.ModelsOnTable(projection, scenario, t) > 0).ToList();
-        return standing.Count == 1 && scenario.TeamIds.Count > 1 ? standing[0] : null;
     }
 
     private void Absorb(IReadOnlyList<GameEvent> events)

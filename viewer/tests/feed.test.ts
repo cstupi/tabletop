@@ -8,7 +8,7 @@ const recording = {
   schemaVersion: SCHEMA_VERSION,
   meta: { scenario: 'skirmish', seed: 3, driver: 'in-process', gameRules: 'grimdark-future',
     propertiesHash: 'sha256:x', schedulerShape: 'alternating-activation', enforcement: 'strict',
-    teams: [], outcome: 'decided', rounds: 2, lastSeq: 2, startedAt: '1970-01-01T00:00:00+00:00', durationMs: 4 },
+    teams: [], outcome: 'ended', rounds: 2, lastSeq: 2, startedAt: '1970-01-01T00:00:00+00:00', durationMs: 4 },
   board: { width: 72, length: 48, texture: 'grass', terrain: [], markers: [], zones: [], models: [] },
   frames: [
     { index: 0, seq: 1, kind: 'phase_started', round: 0, line: 'Phase: deployment', models: [], units: [], markers: [], openAsks: [], rolls: [] },

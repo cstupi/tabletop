@@ -28,6 +28,8 @@ public static class ProjectionComparer
         Check("Markers", string.Join(",", expected.Markers.Keys.Order()), string.Join(",", actual.Markers.Keys.Order()));
         Check("Scores", string.Join(",", expected.Scores.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key:N}={kv.Value}")),
                         string.Join(",", actual.Scores.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key:N}={kv.Value}")));
+        static string? EndOf(Projection p) => p.Ended is { } e ? $"{e.Reason}|{string.Join(",", e.Winners)}" : null;
+        Check("Ended", EndOf(expected), EndOf(actual));
 
         foreach (var id in expected.Models.Keys.Union(actual.Models.Keys).Order())
         {

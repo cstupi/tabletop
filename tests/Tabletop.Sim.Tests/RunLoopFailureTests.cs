@@ -100,22 +100,35 @@ public class RunLoopFailureTests
     }
 
     [Fact]
-    public async Task One_team_left_with_models_after_round_one_is_decided()
+    public async Task A_game_ended_event_is_the_run_ending_with_its_winners()
+    {
+        var driver = new ScriptedDriver(Compiled, d =>
+        {
+            var e = d.Emit(new GameEnded("4 rounds have been played", [d.FirstTeam]));
+            return Task.FromResult(new StepResult([e], [], false));
+        });
+        var report = await Play(driver);
+        Assert.True(report.Passed, string.Join("\n", report.Failures));
+        var ended = Assert.IsType<RunOutcome.Ended>(report.Outcome);
+        Assert.Equal([driver.FirstTeam], ended.Winners);
+        Assert.Equal("ended", ended.Kind);
+    }
+
+    [Fact]
+    public async Task One_team_left_with_models_is_not_an_end()
     {
         var driver = new ScriptedDriver(Compiled, async d =>
         {
             var projection = await d.ProjectionAsync(Ct);
-            var winner = d.FirstTeam;
             var moves = projection.Models.Values
-                .Where(m => Compiled.TeamOfParticipant[projection.Units[m.UnitId].ParticipantId] == winner)
+                .Where(m => Compiled.TeamOfParticipant[projection.Units[m.UnitId].ParticipantId] == d.FirstTeam)
                 .Select(m => new ModelRelocation(m.Id, new OnShelf(), new OnTable(new Placement(new Point3(10, 10, 0), new Yaw(0)))))
                 .ToList();
             var e = d.Emit(new RoundStarted(1, [], [new ModelsMoved(moves)]));
             return new StepResult([e], [], false);
         });
         var report = await Play(driver);
-        Assert.True(report.Passed, string.Join("\n", report.Failures));
-        Assert.Equal(driver.FirstTeam, Assert.IsType<RunOutcome.Decided>(report.Outcome).WinningTeamId);
+        Assert.IsType<RunOutcome.Stuck>(report.Outcome);           // past the script nothing happens: the wipe decided nothing
     }
 
     [Fact]

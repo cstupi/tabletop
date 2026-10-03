@@ -22,5 +22,5 @@ public sealed record RunReport(
     int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs,
     IReadOnlyList<string> Failures, string? RecordingPath)
 {
-    public bool Passed => Failures.Count == 0 && Outcome is RunOutcome.Decided or RunOutcome.RoundLimit or RunOutcome.Paused;
+    public bool Passed => Failures.Count == 0 && Outcome is RunOutcome.Ended or RunOutcome.RoundLimit or RunOutcome.Paused;
 }

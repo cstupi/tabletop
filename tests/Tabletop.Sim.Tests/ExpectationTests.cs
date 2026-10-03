@@ -58,7 +58,7 @@ public class ExpectationTests
             new Expectation.TeamWiped(survivor),
             new Expectation.ModelsRemaining(survivor, red + 1),
             new Expectation.AskAsked(AskQuestions.EndRound, 99),
-            new Expectation.Outcome(outcome.Kind == "decided" ? "round_limit" : "decided"));
+            new Expectation.Outcome(outcome.Kind == "ended" ? "round_limit" : "ended"));
         Assert.Equal(7, failures.Count);
         Assert.Contains(failures, f => f.Contains("expected outcome"));
     }

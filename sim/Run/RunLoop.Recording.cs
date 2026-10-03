@@ -12,9 +12,11 @@ public sealed partial class RunLoop
     /// A run that ended normally but failed an invariant or an expectation is recorded as <c>failed</c>, with the first failure
     /// as the detail (spec → What a full game means, the Failed row). Stuck and failed runs keep their own kind and detail.
     /// </summary>
-    private static (string Kind, string? Detail) OutcomeOf(RunReport report) => report switch
+    private (string Kind, string? Detail) OutcomeOf(RunReport report) => report switch
     {
-        { Failures.Count: > 0, Outcome: RunOutcome.Decided or RunOutcome.RoundLimit } => ("failed", report.Failures[0]),
+        { Failures.Count: > 0, Outcome: RunOutcome.Ended or RunOutcome.RoundLimit } => ("failed", report.Failures[0]),
+        { Outcome: RunOutcome.Ended { Winners.Count: > 1 } e } => (report.Outcome.Kind,
+            $"tied between {string.Join(", ", e.Winners.Select(w => $"Team {scenario.Info.Teams.Single(t => t.Id == w).Ordinal}"))}"),
         _ => (report.Outcome.Kind, report.Outcome switch { RunOutcome.Stuck s => s.Detail, RunOutcome.Failed f => f.Detail, _ => null }),
     };
 
@@ -28,7 +30,7 @@ public sealed partial class RunLoop
             scenario.Scenario.Armies.ElementAtOrDefault(t.Ordinal - 1)?.Name ?? $"Team {t.Ordinal}",
             scenario.Info.Participants.Where(p => p.TeamId == t.Id).Select(p => p.Name).ToList())).ToList(),
         outcome.Kind, outcome.Detail,
-        report.Outcome is RunOutcome.Decided d ? d.WinningTeamId : null,
+        report.Outcome is RunOutcome.Ended { Winners.Count: 1 } e ? e.Winners[0] : null,
         report.Rounds, report.LastSeq, DateTimeOffset.UtcNow, report.DurationMs));
 
     /// <summary>The Protocol's own spelling of an enum, so the meta block carries one convention and not two.</summary>

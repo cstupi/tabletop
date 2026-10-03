@@ -26,12 +26,12 @@ public sealed record Summary(string Driver, int Runs, int Passed, int Failed, do
 
     /// <summary>The whole outcome, detail included: serialised through the abstract RunOutcome only its kind would be written.</summary>
     private sealed record OutcomeJson(
-        string Kind, Guid? WinningTeamId = null, int? Rounds = null, string? Reason = null,
+        string Kind, IReadOnlyList<Guid>? Winners = null, int? Rounds = null, string? Reason = null,
         string? Detail = null, Guid? AskId = null, string? Question = null)
     {
         public static OutcomeJson Of(RunOutcome outcome) => outcome switch
         {
-            RunOutcome.Decided d => new(outcome.Kind, WinningTeamId: d.WinningTeamId),
+            RunOutcome.Ended e => new(outcome.Kind, Rounds: e.Round, Winners: e.Winners),
             RunOutcome.RoundLimit r => new(outcome.Kind, Rounds: r.Rounds),
             RunOutcome.Stuck s => new(outcome.Kind, Reason: s.Reason.ToString(), Detail: s.Detail),
             RunOutcome.Failed f => new(outcome.Kind, Detail: f.Detail),
