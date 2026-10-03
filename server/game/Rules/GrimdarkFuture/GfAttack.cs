@@ -120,7 +120,7 @@ public static partial class GfAttack
                 if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
-            if (rolled && regen.Source?.GrantId is { } grantId) changes.Add(new GrantRemoved(target, grantId));   // a granted instance is spent when it rolls
+            changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
@@ -155,14 +155,8 @@ public static partial class GfAttack
         }
     }
 
-    /// <summary>
-    /// A once-grant is spent by the first roll it modifies (R-N7): every plan the step rolled is checked, on both sides, since a
-    /// granted rule may sit on either unit and modify the other's roll, and the same instance contributes to every pool, so its
-    /// removal is written once.
-    /// </summary>
-    static IReadOnlyList<StateChange> Consumed(LiveSet live, IEnumerable<Dice.RollPlan> plans) =>
-        plans.SelectMany(plan => new[] { Side.Attacker, Side.Defender }.SelectMany(side => RollEffects.ConsumeGrants(live, side, plan)))
-            .Cast<GrantRemoved>().DistinctBy(c => c.GrantId).Cast<StateChange>().ToList();
+    /// <summary>The grants this step used (spell library → consumption): every granted source it read, with the rest of its spell's grants on that unit.</summary>
+    static IReadOnlyList<StateChange> Consumed(LiveSet live) => RollEffects.Consume(live);
 
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits)]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
@@ -302,7 +296,7 @@ public static partial class GfAttack
                 ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && GfRolls.InCover(ctx.State, ix.Defender.UnitId, eligible, live.Has(Side.Attacker, GfNames.Indirect)) ? 1 : 0),
             };
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
-            return values["attacks"] == 0 ? new Finish([], values) : new Complete([], values);
+            return values["attacks"] == 0 ? new Finish(Consumed(live), values) : new Complete(Consumed(live), values);
         }
 
     }
@@ -363,11 +357,9 @@ public static partial class GfAttack
             // count that determine-attacks carried down from the pushing frame.
             var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
-            var plans = new List<Dice.RollPlan>();
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                plans.Add(plan);
                 foreach (var die in ctx.Roll(plan, attacks).Dice.Where(d => d.Success))
                 {
                     var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
@@ -375,7 +367,8 @@ public static partial class GfAttack
                     foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount}"] = values.GetValueOrDefault($"granted_{entry}_{amount}") + 1;
                 }
             }
-            return new Complete(Consumed(live, plans), values);
+            RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
+            return new Complete(Consumed(live), values);
         }
     }
 
@@ -405,23 +398,22 @@ public static partial class GfAttack
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
             var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
-            var wounds = 0; var plain = hits; var plans = new List<Dice.RollPlan>();
+            var wounds = 0; var plain = hits;
+            RollEffects.ReadPerDie(live, Side.Defender, GfNames.DefenseRoll);
             foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
             {
                 var (entry, amount) = ParseGrantKey(key);
                 var granted = live.WithGranted(Side.Attacker, entry, amount);
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
-                plans.Add(plan);
                 wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, group));
             }
             if (plain > 0)
             {
                 var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels);
-                plans.Add(plan);
                 wounds += Dice.RollOutcome.Failures(ctx.Roll(plan, plain));
             }
-            return new Complete(Consumed(live, plans), new Dictionary<string, int> { ["wounds"] = wounds });
+            return new Complete(Consumed(live), new Dictionary<string, int> { ["wounds"] = wounds });
         }
     }
 }

@@ -30,13 +30,13 @@ public static class GfMorale
                 foreach (var (source, roll) in RollEffects.OwnRolls(live, Side.Attacker, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.MoraleTest }))
                     passed |= Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Morale).Convention, null, new HashSet<int>()), roll.EffectiveAmount(source.Parameter))) > 0;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0, ["routed"] = 0 };
-            if (passed) return new Complete([], values);
+            if (passed) return new Complete(RollEffects.Consume(live), values);
             if (ctx.Frame.Context.Action == "melee" && GfHooks.AtHalfOrLess(ctx.State, ctx.Properties, unit))
             {
                 values["routed"] = 1;
-                return new Complete([new ModelsMoved(living.Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())], values);
+                return new Complete([.. RollEffects.Consume(live), new ModelsMoved(living.Select(m => new ModelRelocation(m, ctx.Projection.Models[m].Location, new OnShelf())).ToList())], values);
             }
-            return new Complete([new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true)], values);
+            return new Complete([.. RollEffects.Consume(live), new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true)], values);
         }
     }
 }

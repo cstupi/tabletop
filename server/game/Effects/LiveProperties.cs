@@ -11,8 +11,13 @@ public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Paramete
 }
 
 /// <summary>Pass one's result: the properties that are live, the modifier classes suppressed, and what was applied to get there.</summary>
-public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty> live, IReadOnlySet<TargetModifier> suppressedModifiers, IReadOnlyList<(LiveProperty Source, Effect Effect)> applied)
+public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty> live, IReadOnlySet<TargetModifier> suppressedModifiers,
+    IReadOnlyList<(LiveProperty Source, Effect Effect)> applied, HashSet<(Guid UnitId, Guid GrantId)>? read = null)
 {
+    private readonly HashSet<(Guid UnitId, Guid GrantId)> _read = read ?? [];
+    /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set emits RollEffects.Consume.</summary>
+    public IReadOnlyCollection<(Guid UnitId, Guid GrantId)> GrantsRead => _read;
+    public void Read(LiveProperty source) { if (source.GrantId is { } g) _read.Add((Interaction.Of(source.Holder).UnitId, g)); }
     public Interaction Interaction { get; } = interaction;
     public IReadOnlyList<LiveProperty> Live { get; } = live;
     public IReadOnlySet<TargetModifier> SuppressedModifiers { get; } = suppressedModifiers;
@@ -32,7 +37,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
             .OrderBy(x => x.e.Ordinal).Select(x => (x.p, x.e));
 
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
-        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied) : this;
+        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied, _read) : this;
 }
 
 public static class LiveProperties
@@ -45,6 +50,8 @@ public static class LiveProperties
         if (ix.Defender is not null) live.AddRange(Gather(ix, Side.Defender));
         var suppressed = new HashSet<TargetModifier>();
         var applied = new List<(LiveProperty, Effect)>();
+        var read = new HashSet<(Guid UnitId, Guid GrantId)>();
+        void Mark(LiveProperty s) { if (s.GrantId is { } g) read.Add((ix.Of(s.Holder).UnitId, g)); }
         // Every pass-one effect whose conditions hold now, across both sides, in ordinal order. Per-die grants (a roll_result condition) wait for pass two.
         var candidates = live.SelectMany(p => p.Effects.Where(e => PassOne.Contains(e.Kind) && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).ToList();
@@ -56,16 +63,16 @@ public static class LiveProperties
             {
                 case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } granted:
                     live.Add(new LiveProperty(side, granted, effect.Amount, source.ModelId, source.WeaponId, source.GrantId)); break;
-                case EffectKind.SuppressProperty: live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
+                case EffectKind.SuppressProperty: if (live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry) > 0) Mark(source); break;
                 case EffectKind.ModifyParameter:
                     for (var i = 0; i < live.Count; i++)
-                        if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) live[i] = live[i] with { Parameter = (live[i].Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
+                        if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) { live[i] = live[i] with { Parameter = (live[i].Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) }; Mark(source); }
                     break;
-                case EffectKind.SuppressModifiers: suppressed.Add(effect.TargetModifier!.Value); break;
+                case EffectKind.SuppressModifiers: suppressed.Add(effect.TargetModifier!.Value); if (ix.Defender is not null) Mark(source); break;
             }
             applied.Add((source, effect));
         }
-        return new LiveSet(ix, live, suppressed, applied);
+        return new LiveSet(ix, live, suppressed, applied, read);
     }
 
     /// <summary>Unit properties and grants, unit-kind properties on the unit's slots, model properties under aggregation, weapon properties;

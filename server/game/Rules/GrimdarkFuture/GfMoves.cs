@@ -130,6 +130,7 @@ public static class GfMoves
                 case 0:
                 {
                     var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!), terrain);
+                    if (segment > 0) changes.AddRange(RollEffects.Consume(live));
                     return new Complete(changes, new Dictionary<string, int>
                         { ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2 }, Repeat: true);
                 }

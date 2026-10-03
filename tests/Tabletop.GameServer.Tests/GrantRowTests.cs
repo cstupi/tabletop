@@ -92,5 +92,77 @@ public class GrantRowTests
         Assert.Equal(3, sim.Unit(wizard.Id).Grants.Count);
         Assert.All(sim.Unit(wizard.Id).Grants, g => Assert.Equal("Shock Speed", g.EntryName));
     }
+
+    static readonly EntryDocument Deadly3 = Spell("Deadly Touch", TargetSide.Friendly,
+        Row(EffectKind.Multiply, EffectSubject.Self, amount: 3) with { TargetQuantity = TargetQuantity.Wounds });
+    static readonly PropertySet DeadlyProps = TestProperties.WithSpells(Deadly3);
+
+    [Fact]
+    public void A_speed_grant_is_consumed_by_the_next_move_and_its_three_rows_go_together()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Props, new ScriptedDice(4));
+        Grant(sim.State, a.Id, "Shock Speed", a.Id);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+        Assert.Equal(8, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+        var m = a.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 7 } }))]));
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void Offering_charge_reads_a_speed_grant_without_consuming_it()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []); var b = Unit("B", "4+", "4+", [], 1, []);
+        var state = State([a], [b], x1: 0, x2: 15);                        // 15" apart: out of a 12" charge, inside 16"
+        Grant(state, a.Id, "Shock Speed", a.Id);
+        Assert.Contains(b.Id, GfMelee.ChargeTargets(state, Props, a.Id));
+        Assert.Equal(3, state.Projection.Units[a.Id].Grants.Count);
+    }
+
+    [Fact]
+    public void A_per_die_grant_is_consumed_by_the_next_attack_whatever_the_dice()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "6+", [], 3, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Props, new ScriptedDice(2, 2, 2));
+        Grant(sim.State, a.Id, "Rending Shots", a.Id);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.Empty(sim.Unit(a.Id).Grants);                               // a miss still spends "next time the effect would apply"
+    }
+
+    [Fact]
+    public void A_grant_whose_conditions_never_hold_is_never_consumed()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Melee("Sword", 1)); var b = Unit("B", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Props, new ScriptedDice(5, 5, 5, 5));
+        Grant(sim.State, a.Id, "Rending Shots", a.Id);                     // shooting only
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        Assert.Single(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void A_granted_wound_multiplier_is_spent_when_the_wounds_are_applied()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, DeadlyProps, new ScriptedDice(5, 2));
+        sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), DeadlyProps.Entry("Deadly Touch")!.Effects[0].Id, "Deadly Touch", a.Id, 1))]);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void Consuming_a_grant_on_a_unit_with_no_alive_models_neither_throws_nor_reads_it()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []); var b = Unit("B", "4+", "4+", [], 1, []);
+        var state = State([a], [b]);
+        Grant(state, a.Id, "Rending Shots", a.Id);
+        var shelf = a.Models.Select(m => new ModelRelocation(m.Id, state.Projection.Models[m.Id].Location, new OnShelf())).ToList();
+        state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new ModelsMoved(shelf), null));
+        var live = Attack(state, a.Id, b.Id, AttackKind.Shooting);
+        Assert.Empty(live.GrantsRead);
+        Assert.Empty(RollEffects.Consume(live));
+    }
 }
 
