@@ -122,11 +122,11 @@ public sealed partial class GameSession
         if (Play is null || Engine is null || Faulted) return;
         for (var i = 0; i < 10_000; i++)
         {
-            IReadOnlyList<EventPayload> events;
-            try { events = Engine.Advance(Play); }
+            Emit emit;
+            try { emit = Engine.Advance(Play); }
             catch (Exception ex) { await FaultAsync($"the engine threw in Advance: {ex.Message}"); return; }
-            if (events.Count == 0) return;
-            await AppendAsync(events, null, null);
+            if (emit.Events.Count == 0) return;
+            await AppendAsync(emit.Events, null, emit.Warning);
             if (Faulted) return;
         }
         _log.LogError("Game {GameId}: the engine advanced 10000 times without resting; stopping.", GameId);

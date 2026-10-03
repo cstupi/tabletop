@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Interpreter;
@@ -49,13 +50,29 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
         }
     }
 
-    /// <summary>A framed Ask blocks everything; an unframed one is the scheduler's to wait on or close.</summary>
-    public IReadOnlyList<EventPayload> Advance(GameState state)
+    /// <summary>
+    /// Nothing while the game has ended. A framed Ask blocks everything; an unframed one is the scheduler's to wait on or close.
+    /// The proposal — the interpreter's while frames exist, the scheduler's otherwise — is judged by the ruleset and decided by the
+    /// game's enforcement: through as it is, through with a warning, or replaced by game_ended.
+    /// </summary>
+    public Emit Advance(GameState state)
     {
-        if (state.Projection.OpenAsks.Values.Any(a => a.Ask.FrameId is not null)) return [];
-        if (state.Projection.Stack.Count > 0) return Interpreter.Advance(state);
-        return scheduler.Advance(state, Interpreter);
+        if (state.Projection.Ended is not null) return Emit.None;
+        if (state.Projection.OpenAsks.Values.Any(a => a.Ask.FrameId is not null)) return Emit.None;
+        var proposed = state.Projection.Stack.Count > 0 ? Interpreter.Advance(state) : scheduler.Advance(state, Interpreter);
+        if (proposed.Count == 0) return Emit.None;
+        var found = rules.JudgeAdvance(state, properties, proposed);
+        var breach = found is null ? null : new Breach(found.Rule, found.Detail, new StrictEndsGame(found.Winners));
+        return EnforcementPolicy.Decide(state.Info.Enforcement, breach) switch
+        {
+            Accept a => new Emit(proposed, a.Warning),
+            EndGame e => new Emit(EnforcementPolicy.EndGamePayloads(state.Projection, e.Reason, e.Winners)),
+            Refuse r => throw new InvalidOperationException($"a breach in the engine's own proposal cannot refuse it: {r.Detail}"),
+            var v => throw new UnreachableException(v.GetType().Name),
+        };
     }
+
+    public IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round) => scheduler.RoundStartChanges(state, round);
 
     static bool DistinctInRange(IReadOnlyList<int> indices, int count) => indices.All(i => i >= 0 && i < count) && indices.Distinct().Count() == indices.Count;
 

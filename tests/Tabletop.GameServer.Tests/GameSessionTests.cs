@@ -245,7 +245,7 @@ public sealed class DesyncingEngine : IRulesEngine
 {
     public Tabletop.GameServer.Dispatch.Legality Judge(GameState state, Command command, Actor actor) => Tabletop.GameServer.Dispatch.Legality.Legal;
     public EngineResult Execute(GameState state, Command command, Actor actor) => new RefuseCommand(RefusalReason.Unknown, "test engine");
-    public IReadOnlyList<EventPayload> Advance(GameState state) => state.Applier.Log.Count == 1 ? [new WoundsSet(Guid.CreateVersion7(), 1)] : [];
+    public Emit Advance(GameState state) => state.Applier.Log.Count == 1 ? new Emit([new WoundsSet(Guid.CreateVersion7(), 1)]) : Emit.None;
 }
 
 public sealed class DesyncingEngineFactory : IRulesEngineFactory
@@ -258,7 +258,7 @@ public sealed class ThrowingEngine(bool always) : IRulesEngine
 {
     public Tabletop.GameServer.Dispatch.Legality Judge(GameState state, Command command, Actor actor) => Tabletop.GameServer.Dispatch.Legality.Legal;
     public EngineResult Execute(GameState state, Command command, Actor actor) => new RefuseCommand(RefusalReason.Unknown, "test engine");
-    public IReadOnlyList<EventPayload> Advance(GameState state) => always || state.Applier.Log.Count > 0 ? throw new InvalidOperationException("the engine broke") : [];
+    public Emit Advance(GameState state) => always || state.Applier.Log.Count > 0 ? throw new InvalidOperationException("the engine broke") : Emit.None;
 }
 
 public sealed class ThrowingEngineFactory(bool always = false) : IRulesEngineFactory

@@ -30,6 +30,8 @@ public sealed class StubRules(params Sequence[] sequences) : IGameRules
     public Scheduler.Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => null;
     public bool ActivationComplete(GameState state, Scheduler.Activation activation) => true;
     public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => new Scheduler.HookDone();
+    public Func<IReadOnlyList<EventPayload>, GameEndingBreach?>? Judge { get; init; }
+    public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => Judge?.Invoke(proposed);
 }
 
 public sealed class LambdaStep(string name, Func<StepContext, StepOutcome> run) : IStep
@@ -60,4 +62,5 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public Scheduler.Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => inner.ReadAnswer(state, teamId, answer);
     public bool ActivationComplete(GameState state, Scheduler.Activation activation) => inner.ActivationComplete(state, activation);
     public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
+    public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => inner.JudgeAdvance(state, properties, proposed);
 }

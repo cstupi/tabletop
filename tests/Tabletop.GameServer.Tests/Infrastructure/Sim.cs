@@ -26,16 +26,26 @@ public sealed class Sim
 
     public static Sim Gf(GameState state, params int[] dice) => new(state, GrimdarkFutureRules.Instance, TestProperties.Core, new ScriptedDice(dice.Length == 0 ? [4] : dice));
 
-    public void Append(IEnumerable<EventPayload> events, Guid? actor = null)
+    public void Append(IEnumerable<EventPayload> events, Guid? actor = null, string? warning = null)
     {
-        foreach (var e in events) { State.Applier.Apply(new GameEvent(State.Projection.LastSeq + 1, actor, e, null)); Emitted.Add(e); }
+        var first = true;
+        foreach (var e in events)
+        {
+            State.Applier.Apply(new GameEvent(State.Projection.LastSeq + 1, actor, e, first ? warning : null));
+            Emitted.Add(e); first = false;
+        }
     }
 
     /// <summary>Advance until the engine returns nothing (the session's AdvanceAsync loop).</summary>
     public IReadOnlyList<EventPayload> Run()
     {
         var from = Emitted.Count;
-        for (var i = 0; i < 1000; i++) { var events = Engine.Advance(State); if (events.Count == 0) return Emitted.Skip(from).ToList(); Append(events); }
+        for (var i = 0; i < 1000; i++)
+        {
+            var emit = Engine.Advance(State);
+            if (emit.Events.Count == 0) return Emitted.Skip(from).ToList();
+            Append(emit.Events, warning: emit.Warning);
+        }
         throw new InvalidOperationException("the engine did not rest in 1000 steps");
     }
 
@@ -48,7 +58,7 @@ public sealed class Sim
     public DispatchOutcome Dispatch(Command command, Guid participant, Guid? team)
     {
         var outcome = Dispatcher.Dispatch(State, command, new Actor(participant, team));
-        if (outcome is Applied a) Append(a.Events, participant);
+        if (outcome is Applied a) Append(a.Events, participant, a.Warning);
         return outcome;
     }
 
