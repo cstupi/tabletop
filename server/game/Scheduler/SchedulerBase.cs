@@ -89,6 +89,14 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
             .Select(e => (EventPayload)new AskClosed(((AskOpened)e.Payload).Ask.Id, [])).ToList();
     }
 
+    /// <summary>What a round start carries: the shape's changes, then the ruleset's (scheduler → Round start). BeginRound writes them, and so does a menu set_round.</summary>
+    public IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round)
+    {
+        var changes = new List<StateChange>(ShapeRoundStartChanges(state, round));
+        changes.AddRange(state.Rules.OnRoundStarted(state, Properties, round));
+        return changes;
+    }
+
     /// <summary>The order from the first-team policy — a roll-off started through the interpreter and read back once finished (Task 3) — then round_started with the shape's and the ruleset's changes.</summary>
     private IReadOnlyList<EventPayload> BeginRound(GameState state, SchedulerLog log, IReadOnlyList<Guid> teams, int round, ISequenceStarter starter)
     {
@@ -107,9 +115,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
                 break;
             default: throw new NotSupportedException();
         }
-        var changes = new List<StateChange>(ShapeRoundStartChanges(state, round));
-        changes.AddRange(state.Rules.OnRoundStarted(state, Properties, round));
-        var events = new List<EventPayload> { new RoundStarted(round, order, changes) };
+        var events = new List<EventPayload> { new RoundStarted(round, order, RoundStartChanges(state, round)) };
         if (round == 0) events.Add(new PhaseStarted(state.Rules.PhasesBeforeRounds[0]));
         else if (round == 1) events.Add(new PhaseStarted(RoundsPhase));
         return events;

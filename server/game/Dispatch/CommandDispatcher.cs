@@ -27,13 +27,22 @@ public sealed class CommandDispatcher(IRulesEngine engine)
 
     public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => Classify(command) switch
     {
-        CommandClass.Override => MenuTranslation.Translate(state, command, out var missing) is { } e ? new Applied([e], null) : new Refused(RefusalReason.Unknown, missing ?? "unknown command"),
+        CommandClass.Override => Override(state, command),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
             ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not a live event"),
         CommandClass.Abandon => Abandon(state, ((AbandonSequence)command).FrameId),
         CommandClass.Answer => Answer(state, (AnswerAsk)command, actor),
         _ => Engine(state, command, actor),
     };
+
+    /// <summary>The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round (enforcement spec → A menu round start).</summary>
+    private DispatchOutcome Override(GameState state, Command command)
+    {
+        if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
+            return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
+        if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };
+        return new Applied([payload], null);
+    }
 
     private static DispatchOutcome Abandon(GameState state, Guid frameId)
     {

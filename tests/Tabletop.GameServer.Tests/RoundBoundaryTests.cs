@@ -132,4 +132,26 @@ public class RoundBoundaryTests
         }
         Assert.Equal([h.Teams[0], h.Teams[1], h.Teams[0]], asked);                                          // p.13: A, then B, then A again; a first-eligible pick would ask A twice running
     }
+
+    [Fact]
+    public void A_menu_round_start_carries_the_changes_the_scheduler_would()
+    {
+        var h = new SchedulerHarness([TestArmies.Build("A", 1, 1, modelRules: [(1, Caster, 2)]), TestArmies.Build("B", 1, 1)]);
+        h.Dice.Enqueue(6); h.Dice.Enqueue(1); h.SkipDeployment();
+        var a = h.Units(0); var b = h.Units(1); var caster = h.P.Units[a[0]].Definition.Models[0].Id;
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(b[0]), Fatigued, true));
+        h.Answer(0, new Chosen(TestGames.Activate(a[0])));
+        Assert.Equal(2, h.P.Models[caster].SpellTokens);
+
+        var seq = h.P.LastSeq;
+        h.Dispatch(new SetRound(2), team: 0);
+        var started = h.Log.First(e => e.Seq > seq && e.Payload is RoundStarted);
+        var round = (RoundStarted)started.Payload;
+        Assert.NotNull(started.Actor);                                                                  // still the menu's override, with an actor
+        Assert.Contains(round.Changes, c => c is ActionRecordCleared x && x.UnitId == a[0]);           // the shape's record clear
+        Assert.Contains(round.Changes, c => c is ConditionSet { Condition: Fatigued, Present: false }); // the ruleset's fatigue
+        Assert.Contains(round.Changes, c => c is SpellTokensSet s && s.ModelId == caster);             // and its tokens
+        Assert.Equal(4, h.P.Models[caster].SpellTokens);
+        Assert.Empty(h.P.Units[a[0]].Actions);
+    }
 }
