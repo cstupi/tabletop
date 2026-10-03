@@ -8,16 +8,16 @@ public static class Windows
 {
     /// <summary>
     /// Who reacts first (scheduler → Windows): GameRules.OrderReactions when it answers; else turn order starting after the actor's team
-    /// (the actor's own team last), teams the order does not list following in Info.Teams order, only the reacting teams, passed teams dropped.
+    /// (the actor's own team last), teams the order does not list following in Info.Teams order, only the reacting teams, passed teams dropped unless keepPassed (a point window offers a rule's holder its move whether or not its team has passed its turn).
     /// </summary>
-    public static IReadOnlyList<Guid> ReactionOrder(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams)
+    public static IReadOnlyList<Guid> ReactionOrder(GameState state, Guid? actorTeam, IReadOnlyList<Guid> reactingTeams, bool keepPassed = false)
     {
         if (state.Rules.OrderReactions(state, actorTeam, reactingTeams) is { } replaced) return replaced;
         var s = state.Projection.Scheduler;
         var order = s.Order.Count > 0 ? s.Order.ToList() : state.Info.Teams.Select(t => t.Id).ToList();
         var start = actorTeam is { } a && order.Contains(a) ? order.IndexOf(a) + 1 : 0;
         var rotated = order.Skip(start).Concat(order.Take(start)).Concat(state.Info.Teams.Select(t => t.Id).Where(t => !order.Contains(t))).ToList();
-        return rotated.Where(t => reactingTeams.Contains(t) && !s.Passed.Contains(t)).ToList();
+        return rotated.Where(t => reactingTeams.Contains(t) && (keepPassed || !s.Passed.Contains(t))).ToList();
     }
 
     public static StepOutcome? Run(StepContext ctx, string point)
@@ -26,7 +26,7 @@ public static class Windows
         if (reactions.Count == 0) return null;
         var asks = ctx.History.Asks.Where(a => a.Ask.WindowKind == point && a.Ask.Question == AskQuestions.React).ToList();
         var pushed = 0;
-        foreach (var team in ReactionOrder(ctx.State, ctx.ActorTeam, reactions.Select(r => r.TeamId).Distinct().ToList()))
+        foreach (var team in ReactionOrder(ctx.State, ctx.ActorTeam, reactions.Select(r => r.TeamId).Distinct().ToList(), keepPassed: true))
         {
             var mine = reactions.Where(r => r.TeamId == team).ToList();
             if (mine.Count == 0) continue;

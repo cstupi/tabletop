@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfShooting
 {
-    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new FireGroupsStep()]);
+    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new FireGroupsStep(), new GfMoves.PointWindowStep(GfNames.AfterShooting, "after-shooting")]);
 
     /// <summary>
     /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon already fired is left out
@@ -66,7 +66,7 @@ public static class GfShooting
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             // Only a group the Ask listed, aimed at a unit the Ask offered: what else was assigned is dropped.
-            if (ctx.Frame.Frame.Steps[0].Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return new Complete([]);
+            if (ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return new Complete([]);
             var assigned = answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
             var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
             if (groups.Count == 0) return new Complete([]);                                   // nothing was assigned a target: also the guard that bounds the recording phase

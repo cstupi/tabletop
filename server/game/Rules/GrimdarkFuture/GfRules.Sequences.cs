@@ -23,6 +23,7 @@ public sealed partial class GrimdarkFutureRules
         GfMoves.Rush(),
         GfMoves.DangerousTerrain(),
         GfMoves.Idle(),
+        GfMoves.Reposition(),
         GfMorale.MoraleTest(),
         GfMelee.Charge(),
         GfMelee.Melee(),

@@ -71,17 +71,28 @@ public static class GfHooks
     }
 
     /// <summary>
-    /// The one core window: before attacking, the acting unit's own team may cast if a model in it can afford a spell it has not tried (p.13). Task 17 supplies the sequence.
-    /// A Shaken unit casts nothing: 3.5.1 p.10 spells out that being idle means it "can't take any actions, or use any active special
-    /// rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".
+    /// Who may react at a point. At before-attacking the acting unit's team may cast if a caster can afford an untried spell (p.13). At every point,
+    /// each unit the point concerns (the actor; at after-melee the charger and then the defender) offers its live move rows at that point
+    /// (army-rule hooks spec), one reaction per entry, pushing `reposition`. A Shaken unit offers nothing: 3.5.1 p.10 says being idle means it "can't
+    /// take any actions, or use any active special rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".
     /// </summary>
     public static IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet props, string point, FrameView frame)
     {
-        if (point != GfNames.BeforeAttacking || frame.Context.ActorUnitId is not { } unit) return [];
-        if (state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) return [];   // p.10: no active special rules while Shaken
-        // p.13: casting is spending tokens on a spell, so the window opens only when some caster can afford a spell it has not tried.
-        // p.15: a caster inside a container may still cast at what is inside with it.
-        if (GfCasting.SpellOptions(state, props, unit).Count == 0 || Teams.Of(state, unit) is not { } team) return [];
-        return [new Reaction(team, "cast", "Cast a spell", GfNames.CastingSeq, new SequenceContext(unit, [], [], null))];
+        if (frame.Context.ActorUnitId is not { } actor) return [];
+        var reactions = new List<Reaction>();
+        if (point == GfNames.BeforeAttacking && !Shaken(state, actor) && GfCasting.SpellOptions(state, props, actor).Count > 0 && Teams.Of(state, actor) is { } own)
+            reactions.Add(new Reaction(own, "cast", "Cast a spell", GfNames.CastingSeq, new SequenceContext(actor, [], [], null)));
+        IEnumerable<Guid> units = point == GfNames.AfterMelee ? [actor, .. frame.Context.TargetUnitIds.Take(1)] : [actor];
+        foreach (var unit in units)
+        {
+            if (Shaken(state, unit) || Lookup.LivingModels(state, unit).Count == 0 || Teams.Of(state, unit) is not { } team) continue;
+            var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
+            foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move).DistinctBy(x => x.Source.Entry.Name))
+                reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row), GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));
+        }
+        return reactions;
     }
+
+    static bool Shaken(GameState state, Guid unit) => state.Projection.Units[unit].Conditions.Contains(GfNames.Shaken);
+    static string Label(string entry, Effect row) => $"{entry}: move up to {row.Amount}\"";
 }

@@ -144,7 +144,7 @@ public static class GfMoves
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), Math.Max(0, allowance - used), impassable, difficult, strider ? null : GfNames.DifficultCap, containment), allowPass: true)]);
                 case 0:
                 {
-                    var (changes, segment, dangerousDice) = Apply(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!), terrain);
+                    var (changes, segment, dangerousDice) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!));
                     if (segment > 0) changes.AddRange(RollEffects.Consume(live));
                     return new Complete(changes, new Dictionary<string, int>
                         { ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2 }, Repeat: true);
@@ -180,43 +180,46 @@ public static class GfMoves
         // region is the container's base grown by ExitWithin. The three are still populated from the action
         // so the record has one shape, and the client ignores them on a disembark (client shell -> MoveRuler).
 
-        /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, and the dangerous-terrain dice the models that moved in or through a Dangerous volume owe (p.11).</summary>
-        static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) Apply(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed, IReadOnlyList<WorldVolume> terrain)
+    }
+
+
+    /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, and the dangerous-terrain dice the models that moved in or through a Dangerous volume owe (p.11).</summary>
+    public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed)
+    {
+        var terrain = Battlefield.Terrain(ctx.State);
+        var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>();
+        var impassable = Declared(terrain, TerrainDeclarations.Impassable);
+        var difficult = Declared(terrain, TerrainDeclarations.Difficult);
+        var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
+        var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");   // p.14: Strider ignores difficult terrain, Flying all terrain effects
+        var flying = live.Has(Side.Attacker, "Flying");                                          // Strider does *not* skip a dangerous terrain test; only Flying does
+        foreach (var m in proposed)
         {
-            var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>();
-            var impassable = Declared(terrain, TerrainDeclarations.Impassable);
-            var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-            var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
-            var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");   // p.14: Strider ignores difficult terrain, Flying all terrain effects
-            var flying = live.Has(Side.Attacker, "Flying");                                          // Strider does *not* skip a dangerous terrain test; only Flying does
-            foreach (var m in proposed)
+            // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
+            // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
+            if (m.To is Inside into)
             {
-                // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
-                // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
-                if (m.To is Inside into)
-                {
-                    if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
-                    continue;
-                }
-                if (m.To is not OnTable to) continue;
-                // p.14: a disembarking model has no start position, so nothing is measured or swept; the radius is the whole constraint.
-                if (m.From is Inside from)
-                {
-                    if (!ctx.Projection.Models.ContainsKey(from.ContainerId)) continue;
-                    if (ExitPlacement(ctx.State, m.ModelId, from.ContainerId, to.Placement, GfNames.ExitWithin) is { } exit)
-                        moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit)));
-                    continue;
-                }
-                if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
-                var settled = Battlefield.Settle(ctx.State, to.Placement);
-                used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
-                // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
-                if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
-                moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
+                if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
+                continue;
             }
-            if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
-            return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
+            if (m.To is not OnTable to) continue;
+            // p.14: a disembarking model has no start position, so nothing is measured or swept; the radius is the whole constraint.
+            if (m.From is Inside from)
+            {
+                if (!ctx.Projection.Models.ContainsKey(from.ContainerId)) continue;
+                if (ExitPlacement(ctx.State, m.ModelId, from.ContainerId, to.Placement, GfNames.ExitWithin) is { } exit)
+                    moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit)));
+                continue;
+            }
+            if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
+            var settled = Battlefield.Settle(ctx.State, to.Placement);
+            used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
+            // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
+            if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
+            moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
+        if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
+        return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
     }
 
     /// <summary>p.7–8: Hold and Advance may shoot. p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
@@ -248,6 +251,61 @@ public static class GfMoves
             var record = ctx.Roll(new Dice.RollPlan(GfNames.DangerousTerrain, 2, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice);
             var wounds = Dice.RollOutcome.Failures(record);
             return wounds == 0 ? new Finish([], new Dictionary<string, int> { ["wounds"] = 0 }) : new Complete([], new Dictionary<string, int> { ["wounds"] = wounds });
+        }
+    }
+
+    /// <summary>A reaction window at a named point (army-rule hooks → Hook points): `after-shooting`, `after-melee`.</summary>
+    public sealed class PointWindowStep(string point, string name) : IStep
+    {
+        public string Name => name;
+        public StepOutcome Run(StepContext ctx) => Interpreter.Windows.Run(ctx, point) ?? new Complete([]);
+    }
+
+    public static Sequence Reposition() => new(GfNames.RepositionSeq, [new RepositionStep()]);
+
+    /// <summary>
+    /// A move a rule offered at a point (army-rule hooks spec). The context names the unit and, as its Action, the rule — which is how usage_count counts
+    /// this use. The row is re-read from the live set with every condition but at_point and usage_count judged, since this frame's own start is now a use.
+    /// Phases: ask (answered Passed ends the step and consumes nothing), apply and consume a grant (Repeat), then the dangerous terrain test (Push).
+    /// The dice are checked before the row is re-read: the apply spent a granted instance, so nothing is offered on the repeat.
+    /// </summary>
+    public sealed class RepositionStep : IStep
+    {
+        public string Name => "reposition";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var unit = ctx.Frame.Context.ActorUnitId!.Value; var entry = ctx.Frame.Context.Action!;
+            if (ctx.Frame.Value("dangerous_dice") > 0) return ctx.History.Children.Count == 0 ? new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], entry)) : new Complete([]);
+            var live = Lone(ctx, unit, ActionOf(ctx.Frame));
+            if (Offered(live, entry) is not var (source, row)) return new Finish([]);
+            var allowance = row.EffectiveAmount(null);
+            if (ctx.History.LastClosed("move") is not { } closed)
+            {
+                var terrain = Battlefield.Terrain(ctx.State);
+                return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, Declared(terrain, TerrainDeclarations.Impassable).Select(v => v.Id).ToList(),
+                        Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+            }
+            var (changes, _, dice) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
+            if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
+            live.Read(source);
+            changes.AddRange(RollEffects.Consume(live));
+            return new Complete(changes, new Dictionary<string, int> { ["dangerous_dice"] = dice }, Repeat: dice > 0);
+        }
+
+        /// <summary>The first move row of the rule whose conditions other than at_point and usage_count hold.</summary>
+        internal static (LiveProperty Source, Effect Row)? Offered(LiveSet live, string entry) =>
+            live.On(Side.Attacker).Where(p => p.Entry.Name == entry)
+                .SelectMany(p => p.Effects.Where(e => e.Kind is EffectKind.Move).Select(e => (p, e)))
+                .Where(x => x.e.Conditions.Where(c => c.Kind is not ConditionKind.AtPoint and not ConditionKind.UsageCount).All(c => Conditions.Holds(live.Interaction, x.p.Holder, c, x.p, null)))
+                .Select(x => ((LiveProperty, Effect)?)(x.p, x.e)).FirstOrDefault();
+
+        /// <summary>The action of the activation this frame is inside: its nearest ancestor action sequence's context.</summary>
+        static string? ActionOf(FrameView frame)
+        {
+            for (var f = frame.Parent; f is not null; f = f.Parent)
+                if (f.Frame.Sequence is GfNames.HoldSeq or GfNames.AdvanceSeq or GfNames.RushSeq or GfNames.ChargeSeq or GfNames.IdleSeq) return f.Frame.Context.Action;
+            return null;
         }
     }
 
