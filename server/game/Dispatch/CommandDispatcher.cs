@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Scheduler;
@@ -60,7 +61,11 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
         var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
         var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
-        if (verdict is Refuse r) return new Refused(r.Reason, r.Detail);
+        switch (verdict)
+        {
+            case Refuse r: return new Refused(r.Reason, r.Detail);
+            case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
+        }
         var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable) };
         var answered = new Dictionary<Guid, AskAnswer>(open.Answers.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value!)) { [team] = command.Answer };
         if (!ask.Sealed || ask.Teams.All(answered.ContainsKey))
@@ -71,7 +76,11 @@ public sealed class CommandDispatcher(IRulesEngine engine)
     private DispatchOutcome Engine(GameState state, Command command, Actor actor)
     {
         var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, engine.Judge(state, command, actor), $"{command.GetType().Name} is illegal here");
-        if (verdict is Refuse r) return new Refused(r.Reason, r.Detail);
+        switch (verdict)
+        {
+            case Refuse r: return new Refused(r.Reason, r.Detail);
+            case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
+        }
         return engine.Execute(state, command, actor) switch
         {
             Emit e => new Applied(e.Events, ((Accept)verdict).Warning),
