@@ -4,7 +4,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Effects;
 
-public enum AttackKind { Shooting, Melee }
+public enum AttackKind { Shooting, Melee, Spell }
 public enum Side { Attacker, Defender }
 
 /// <summary>One side of an interaction: the unit, the models taking part, the weapons in use.</summary>

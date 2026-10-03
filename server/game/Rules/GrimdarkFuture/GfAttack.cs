@@ -32,9 +32,26 @@ public static partial class GfAttack
     public static Guid? TakedownModel(FrameView frame)
     {
         for (var f = frame; f is not null; f = f.Parent)
+        {
             if (f.Frame.Sequence == GfNames.AttackSequence)
                 return f.Frame.Steps.FirstOrDefault(s => s.Step == "pick-target-model")?.Answer is SelectedPieces { PieceIds.Count: 1 } p ? p.PieceIds[0] : null;
+            // A model-grain spell is "resolved as if the target was a unit of [1]" (p.14's Takedown wording): its current target, by the
+            // effects step's target_index. A unit id here is not one of the target's models, and the assign step's check discards it.
+            if (f.Frame.Sequence == GfNames.CastingSeq)
+                return f.Frame.Steps.FirstOrDefault(s => s.Step == "targets" && s.Answer is SelectedPieces)?.Answer is SelectedPieces t && f.Value("target_index") < t.PieceIds.Count
+                    ? t.PieceIds[f.Value("target_index")] : null;
+        }
         return null;
+    }
+
+    /// <summary>The `granted_&lt;entry&gt;_&lt;amount&gt;` keys of the nearest attack-sequence or spell-hits frame above this one: the rules the group's
+    /// hits carry (a weapon's per-die grants, a spell's weapon rules), with how many hits carry each.</summary>
+    public static IReadOnlyList<(string Entry, int Amount, int Count)> GrantedOf(FrameView frame)
+    {
+        for (var f = frame.Parent; f is not null; f = f.Parent)
+            if (f.Frame.Sequence is GfNames.AttackSequence or GfNames.SpellHitsSeq)
+                return f.Values.Where(kv => kv.Key.StartsWith("granted_")).Select(kv => { var (e, a) = ParseGrantKey(kv.Key); return (e, a, kv.Value); }).ToList();
+        return [];
     }
 
     /// <summary>Wounds have reached the model's Tough (1 without it). A dead model is removed at once, so on the table this is only a destroyed container held for disgorge (Task 19).</summary>
@@ -88,10 +105,11 @@ public static partial class GfAttack
             else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
 
             var actor = ctx.Frame.Context.ActorUnitId;
-            var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, null, ctx.Frame.Context.Action);
+            var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
             var live = LiveProperties.Settle(ix);
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
-            var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(live, Side.Attacker);
+            var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
+            var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
             // Regeneration is aggregation all (3.5.1: "a unit where all models have this rule"), so LiveProperties.Gather settles it
             // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
@@ -164,6 +182,16 @@ public static partial class GfAttack
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
     public static bool IsTakedownGroup(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Takedown));
+
+    /// <summary>The attack kind of the frame's group: a weapon-less group under a spell-hits frame is a spell's hits (spell library → `spell`); a
+    /// weapon-less group elsewhere is Impact's, which is melee; otherwise the weapons decide.</summary>
+    public static AttackKind KindOf(StepContext ctx)
+    {
+        if (ctx.Frame.Context.WeaponIds.Count == 0)
+            for (var f = ctx.Frame; f is not null; f = f.Parent)
+                if (f.Frame.Sequence == GfNames.SpellHitsSeq) return AttackKind.Spell;
+        return KindOf(ctx.State, ctx.Frame.Context.WeaponIds);
+    }
 
     public static AttackKind KindOf(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => weapons.Contains(w.Id))?.Stats.ContainsKey(GfNames.Range) == true ? AttackKind.Shooting : AttackKind.Melee;
@@ -244,14 +272,14 @@ public static partial class GfAttack
     public static int HitsFrom(FrameView parent)
     {
         var hitRolls = parent.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
-        if (hitRolls.Count == 0) return parent.Value("hits");
+        if (hitRolls.Count == 0) return parent.Value("hits") * Math.Max(1, parent.Value("hit_multiplier", 1));
         return (hitRolls.Sum(Dice.RollOutcome.Successes) + parent.Value("extra_hits")) * Math.Max(1, parent.Value("hit_multiplier", 1));
     }
 
     static (Interaction Ix, LiveSet Live, AttackKind Kind) Settle(StepContext ctx)
     {
         var c = ctx.Frame.Context;
-        var kind = KindOf(ctx.State, c.WeaponIds);
+        var kind = KindOf(ctx);
         var ix = AttackInteraction(ctx, c.ActorUnitId, c.TargetUnitIds[0], c.WeaponIds, kind, c.Action);
         return (ix, LiveProperties.Settle(ix), kind);
     }

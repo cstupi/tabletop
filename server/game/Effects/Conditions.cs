@@ -17,7 +17,7 @@ public static class Conditions
         switch (c.Kind)
         {
             case ConditionKind.ActionTaken: return ix.ActionTaken is { } a && Membership(c, a);
-            case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k == AttackKind.Shooting ? "shooting" : "melee");
+            case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k switch { AttackKind.Shooting => "shooting", AttackKind.Melee => "melee", _ => "spell" });
             case ConditionKind.Range: return ix.RangeInches is { } r && c.Compare((int)Math.Floor(r));
             case ConditionKind.RollResult:
                 if (die is null || c.Values.Count != 2 || die.Roll != c.Values[0]) return false;

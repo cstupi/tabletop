@@ -114,8 +114,8 @@ public static class GfRolls
     }
 
     /// <summary>p.13: one die on 4+, ±1 per token spent for or against.</summary>
-    public static RollPlan CastingPlan(StepContext ctx, int netTokens) =>
-        new(GfNames.Casting, 4, netTokens == 0 ? [] : [new RollModifier("tokens", netTokens)], D6, null, new HashSet<int>());
+    public static RollPlan CastingPlan(StepContext ctx, LiveSet live, int netTokens) =>
+        ctx.Plan(live, Side.Attacker, GfNames.Casting, netTokens == 0 ? [] : [new RollModifier("tokens", netTokens)], threshold: 4);
 
     /// <summary>
     /// The roll-off the scheduler starts (scheduler → Deployment; p.6, p.50). Two steps, because the boundary between them is the confirm

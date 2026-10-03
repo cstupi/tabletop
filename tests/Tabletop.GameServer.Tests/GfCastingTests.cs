@@ -33,7 +33,7 @@ public class GfCastingTests
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var enemyCaster = Unit("Warlock", "4+", "4+", [], 1, [P("Caster", 1)]); var grunts = Unit("Grunts", "4+", "5+", [], 3, []);
-        var sim = Casting(wizard, [], [grunts, enemyCaster], 5, 6, 1, 1, 2, 3, 4);
+        var sim = Casting(wizard, [], [grunts, enemyCaster], 5, 2, 3, 4);
         sim.Append([new SpellTokensSet(enemyCaster.Models[0].Id, 2)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         var pick = Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal);
@@ -53,7 +53,7 @@ public class GfCastingTests
         Assert.Equal((1, 1), (targets.Min, targets.Max)); Assert.Contains(grunts.Id, targets.Eligible);
         sim.Answer(Samples.Team1, new SelectedPieces([grunts.Id]));
         var hit = sim.Steps("hit").Single();
-        Assert.Equal((GfNames.Hit, 1, 3, 3), (hit.Rolls[0].Roll, hit.Rolls[0].Threshold, hit.Rolls[0].Dice.Count, hit.Rolls[0].Dice.Count(d => d.Success)));
+        Assert.Empty(hit.Rolls); Assert.Equal(3, hit.Values!["hits"]);
         Assert.Equal(3, hit.Values!["granted_AP_1"]);
         var block = sim.Steps("roll-to-block").Single().Rolls.Single();
         Assert.Contains(block.Modifiers, m => m.Source == "AP" && m.Amount == -1);
@@ -166,13 +166,13 @@ public class GfCastingTests
             [Fx(EffectKind.AddHit, amount: 1), Fx(EffectKind.AddHit, amount: 2) with { Conditions = [new ConditionDocument(ConditionKind.RoundNumber, null, Comparison.Eq, 99, [])] }]);
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]); var target = Unit("T", "4+", "4+", [], 2, []);
         var state = State([wizard], [target], x1: -4, x2: 4);
-        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4, 4, 4));
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Spark|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
         sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
-        Assert.Single(sim.Steps("hit").Single().Rolls.Single().Dice);
+        Assert.Empty(sim.Steps("hit").Single().Rolls); Assert.Equal(1, sim.Steps("hit").Single().Values!["hits"]);   // the second hit effect's own condition fails
     }
 
     [Fact]

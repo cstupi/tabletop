@@ -160,9 +160,13 @@ public static class GfCasting
         public string Name => "roll";
         public StepOutcome Run(StepContext ctx)
         {
-            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, ctx.Frame.Value("net_tokens")), 1)) == 1;
+            var (_, caster) = Picked(ctx.Frame);
+            var casterUnit = ctx.Projection.Models[caster].UnitId;
+            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
+            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1)) == 1;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0 };
-            return passed ? new Complete([], values) : new Finish([], values);
+            var spent = RollEffects.Consume(live);
+            return passed ? new Complete(spent, values) : new Finish(spent, values);
         }
     }
 
@@ -225,16 +229,30 @@ public static class GfCasting
         public StepOutcome Run(StepContext ctx)
         {
             var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1 };
-            var total = 0;
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
-            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, ctx.Frame.Context.TargetUnitIds[0], spell).Where(e => e.Kind == EffectKind.AddHit))
+            var target = ctx.Frame.Context.TargetUnitIds[0];
+            var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
+            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
+            var total = 0; var multiplier = 1;
+            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
-                var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
-                total += Dice.RollOutcome.Successes(record);
-                foreach (var grant in hit.Children.Where(c => c.Kind == EffectKind.GrantProperty)) { var key = $"granted_{grant.TargetEntry}_{grant.Amount}"; values[key] = values.GetValueOrDefault(key) + n; }
+                var rules = hit.Children.Where(c => c.Kind == EffectKind.GrantProperty).ToList();
+                var granted = rules.Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.TargetEntry!, g.Amount));
+                if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
+                else
+                {
+                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
+                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
+                    total += Dice.RollOutcome.Successes(record);
+                    foreach (var die in record.Dice) values["extra_hits"] += RollEffects.PerDie(granted, Side.Attacker, die, GfNames.Hit).ExtraHits;
+                }
+                // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
+                multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(granted, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
+                foreach (var g in rules) { var key = $"granted_{g.TargetEntry}_{g.Amount ?? 0}"; values[key] = values.GetValueOrDefault(key) + n; }
             }
+            values["hit_multiplier"] = multiplier;
             return total == 0 ? new Finish([], values) : new Complete([], values);
         }
     }
