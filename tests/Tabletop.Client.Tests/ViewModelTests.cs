@@ -247,7 +247,7 @@ public class ViewModelTests
         Assert.Equal("the game ended round 4: Team 1 took smoke", Line(new RoundEnded(4, [new ObjectiveControlSet(Samples.Token.Id, Samples.Team1)])));
         Assert.Equal("the game ended round 4", Line(new RoundEnded(4, [])));
         Assert.Equal("the game smoke became neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
-        var setup = Samples.Board.Table.Markers[0].Id;
+        var setup = a.Projection.Board.Table.Markers[0].Id;
         Assert.Equal($"the game Team 2 took {Names.Short(setup)}", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
     }
 }
