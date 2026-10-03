@@ -1,9 +1,9 @@
-# Handoff — 2026-10-03, the enforcement engine merged; the spell library paused after Task 12 of 15
+# Handoff — 2026-10-03, the spells tree built and reviewed; its final-review fixes are next
 
 Where the project stands, and what to pick up next. **Steps 1 to 6 are built and merged: contracts,
 geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler, the
 simulator and the viewer, then the enforcement engine and the scored core mission. One tree is open and paused: `spells`
-(the spell library, then the army-rule hooks), stopped cleanly after library Task 12. `sim/` plays whole games in process or over the socket with no
+(the spell library and the army-rule hooks), every task built and reviewed, stopped after its final review. `sim/` plays whole games in process or over the socket with no
 client; `viewer/` draws a recording or a live game top-down. A Grimdark Future game under `strict` ends after
 round 4 with the team holding most objective markers as the winner. The owner has
 logged in, imported armies and started a game in the client, and signed off checkpoint 3.**
@@ -99,37 +99,44 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    `docker compose up -d` follows from the repo root. `.env` exists and carries the Stytch project id.
    Never `down -v`: the volume holds the schema every server test reads. The compose `tabletop` database
    carries `public.schema_version` with 001 baselined and 002 to 005 applied (005, the spell library's tables and
-   columns, was applied by the paused `spells` tree's tests; it only adds), and two `properties` rows
+   columns, and 006, the army-rule hooks', were applied by the paused `spells` tree's tests; both only add), and two `properties` rows
    (an older core-document hash and the current one; the listing shows the current one). The servers are long-running: start them in the
    owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
    Claude Code background command is stopped after two hours.
-2. **Resume the `spells` tree.** It paused after library Task 12 of 15 on 2026-10-03: worktree
-   `.worktrees/spells`, branch `spells`, head `709d8cf`, clean; `dotnet build` 0 errors and 0 warnings; `dotnet test`
-   1008 passed (Geometry 157, Content 17, ArmyBooks 24, Viewer 9, Protocol 37, Client 64, GameServer 508,
-   Management 90, Sim 102), checked by the manager. Plans: [the spell library](superpowers/plans/2026-10-02-spell-library/README.md),
-   then [the army-rule hooks](superpowers/plans/2026-10-02-army-rule-hooks/README.md) (8 tasks, not started).
+2. **Finish the `spells` tree.** Every task of [the spell library](superpowers/plans/2026-10-02-spell-library/README.md)
+   (15) and [the army-rule hooks](superpowers/plans/2026-10-02-army-rule-hooks/README.md) (8) is committed and
+   reviewed. The tree paused on 2026-10-03 after its final whole-branch review: worktree `.worktrees/spells`, branch
+   `spells`, head `7e9225f`, clean, already rebased onto `main` (`3ca77a9`); `dotnet build` 0 errors; `dotnet test`
+   1313 passed (Geometry 157, Content 17, ArmyBooks 24, Protocol 40, Viewer 9, Client 67, GameServer 782,
+   Management 90, Sim 127), checked by the manager. The 48 books generate 190 spells, byte-identical on a rerun,
+   and the every-spell theory casts all 190; `army-rules` seeds 1 to 20 end at round 4. A backup branch
+   `spells-pre-rebase-backup` (`7b63ce7`) holds the pre-rebase head.
+
    Dispatch a fresh `opus` controller with the brief `.superpowers/briefs/spells.md` and the ledger
-   `.superpowers/ledgers/spells.md`: its `complete` lines (Tasks 1 to 12) say what not to redo, its rulings
-   (preflight P1 to P23 and later) and deferred minors carry over, and `.superpowers/sdd/spells/` holds the task
-   reports and review packages. What the next controller must know:
-   - **Task 13** generates the 48 `server/game/Content/army-books/*.book.json` with `./scripts/army-books generate`
-     (48 books, 190 distinct spells; the dump is `.superpowers/armyforge/`, and a live `fetch` on 2026-10-03
-     generated identical output). Its reviewer checks two shapes in the generated spells: a once Range or Quality
-     row beside another once row (the other is spent early), and `add_hit` beside `take_test` (no morale test is
-     pushed).
-   - **Task 14** starts with `git rebase --onto main 4e95f11 spells` on a clean tree, never `git merge main`:
-     the owner's `git pull` rebased `main`, so `4e95f11` is `5cc4efd` there with the same tree. The rebase
-     linearises the `spells-gen` merge commit `47131fd`, which shares the lineage. Then regenerate
-     `wire.generated.ts` with `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests`, record the
-     rebase as a ruling with old and new heads, and read `.superpowers/reports/enforcement.md` section 7 first:
-     the `objectives` scenario's seed-1 win depends on dice draws and is re-picked by running it if it breaks.
-     Migration `005_spell_library.sql` needs no renumbering (enforcement added none).
-   - **Final review minors carried:** CS0219 (unused `rolled`) at `GfAttack.cs:128`; `SelfWoundsStep` placed
-     between `RollToHitStep`'s doc comment and its class; a once-granted rule read only through `Has`/`Parameter`
-     (Tough, Strider, Flying) is never spent; `BookWriter.Write` leaves stale book files; a rule granted in pass
-     one has its own effects never evaluated (pre-existing).
-   - The tree's socket validation (`casting` and `army-rules` over `--driver socket`) runs at the end of the hooks
-     plan, then the manager verifies, merges into `main` and applies the report's section 6.
+   `.superpowers/ledgers/spells.md`; the ledger's `PAUSED AFTER FINAL REVIEW` line and the findings above it are the
+   starting point. What remains, in order: the fix wave, one scoped re-review, the whole-tree check, the socket
+   validation (`casting` and `army-rules` with `--driver socket`, management and the game server started from the
+   worktree), and the seven-section report. Then the manager verifies, merges into `main`, applies the report's
+   section 6 and deletes the backup branch.
+
+   The final review was ready after fixes, with these to fix (full text and file/line in the ledger):
+   - **C1:** a spell carrying two weapon rules rolls its block dice once per rule (`GfCasting.cs:265` writes one
+     `granted_<rule>` key per rule; `GfAttack.cs:525-529` treats each key as a hit group). 38 of 98 damage spells;
+     Electric Tempest's 2 hits roll 4 block dice.
+   - **I1:** a spell's weapon rules lose their pass-one rows and per-die grants, so Shatter, Tear, Bane, Hazardous's
+     AP, Crack and Destructive do nothing on about 27 spells. One fix with C1: settle the spell's rules before pass one.
+   - **I2:** once-granted rules read only by name are never spent, so the grant is permanent (Counter-Attack,
+     Unwieldy, Flying, Indirect's cover and sight half).
+   - **I3:** `RollEffects.ReadPerDie:79` selects rows by holder, not acted-on side, so a granted Shred or a
+     Warbound/Infected Boost lasts until a matching die.
+   - **I4:** army-rules model rules with no attack-kind condition apply to the caster's spell hits (Warbound,
+     Infected, Mischievous, Scrapper, Devout, Ferocious, Primal, Clan Warrior and their Boosts).
+   - **I5:** CS0219, unused `rolled` at `GfAttack.cs:191`.
+   - Minors to fix with them: the every-spell theory asserts block dice equal hits times the multiplier; a
+     self-wounds test; split `GfAttack.cs` (545 lines) and restore `RollToHitStep`'s doc comment; M3, M5, M6, M8.
+     Parked: M2, M4, M7 (no shipped content reaches them).
+   - **For the owner to confirm (M9):** choosing an innate Hit & Run or Teleport and then moving nothing spends that
+     round's or activation's use.
 
    **Owner checks outstanding** from the enforcement tree: the Godot client's display of objective control (seized
    markers on the table and the team panels, the menu override). From management, found during validation: a login
