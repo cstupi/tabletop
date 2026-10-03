@@ -5,7 +5,18 @@ var repo = new DirectoryInfo(AppContext.BaseDirectory);
 while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "Tabletop.sln"))) repo = repo.Parent;
 if (repo is null) { Console.Error.WriteLine("run from inside the repository"); return 2; }
 string Arg(string name, string fallback) => args.SkipWhile(a => a != name).Skip(1).FirstOrDefault() ?? fallback;
-var dump = Path.GetFullPath(Arg(args.FirstOrDefault() == "fetch" ? "--to" : "--from", Path.Combine(repo.FullName, ".superpowers", "armyforge")));
+// The dump lives in the main checkout's .superpowers, which a git worktree does not have: find it from the working directory, as DotEnv finds .env.
+static string? FindDump()
+{
+    for (var d = new DirectoryInfo(Directory.GetCurrentDirectory()); d is not null; d = d.Parent)
+        if (Directory.Exists(Path.Combine(d.FullName, ".superpowers", "armyforge"))) return Path.Combine(d.FullName, ".superpowers", "armyforge");
+    return null;
+}
+var isFetch = args.FirstOrDefault() == "fetch";
+var dumpArg = Arg(isFetch ? "--to" : "--from", "");
+var dumpDir = dumpArg != "" ? dumpArg : FindDump() ?? (isFetch ? Path.Combine(repo.FullName, ".superpowers", "armyforge") : null);
+if (dumpDir is null) { Console.Error.WriteLine("no .superpowers/armyforge found above the working directory; run `army-books fetch` or pass --from DIR"); return 2; }
+var dump = Path.GetFullPath(dumpDir);
 
 switch (args.FirstOrDefault())
 {
@@ -23,8 +34,17 @@ switch (args.FirstOrDefault())
     }
     case "generate":
     {
-        var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dump, "index.json")));
-        var books = index.Select(e => ArmyForgeJson.ReadBook(File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json"))) with { Name = e.Name, VersionString = e.VersionString }).ToList();
+        List<AfBook> books;
+        try
+        {
+            var index = ArmyForgeJson.ReadIndex(File.ReadAllText(Path.Combine(dump, "index.json")));
+            books = index.Select(e => ArmyForgeJson.ReadBook(File.ReadAllText(Path.Combine(dump, "books", e.Uid + ".json"))) with { Name = e.Name, VersionString = e.VersionString }).ToList();
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            Console.Error.WriteLine($"dump file missing under {dump}: {ex.Message}");
+            return 2;
+        }
         var problems = books.SelectMany(b => b.Spells.SelectMany(s =>
         {
             try { return TextCheck.Problems(s, SpellTranslator.Translate(b, s)).Select(p => $"{b.Name}: {p}"); }

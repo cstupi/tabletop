@@ -95,4 +95,28 @@ public class SpellTranslatorTests
         var bad = s with { Effect = s.Effect.Replace("9 hits", "8 hits") };
         Assert.Contains(TextCheck.Problems(bad, SpellTranslator.Translate(b, bad)), p => p.Contains("9 hits"));
     }
+
+    [Fact]
+    public void Speed_rows_and_weapon_rule_children_get_distinct_ordinals()
+    {
+        var spells = SpellTranslatorTests.AllTranslated().ToList();
+        var speed = spells.Where(s => s.Effects.Count == 3 && s.Effects.All(r => r.Kind == EffectKind.ModifyStat && r.TargetAction is not null)).ToList();
+        Assert.NotEmpty(speed);
+        Assert.All(speed, s => Assert.Equal([10, 20, 30], s.Effects.Select(r => r.Ordinal).ToList()));
+        var twoRules = spells.Where(s => s.Effects.Any(r => r.Children.Count == 2 && r.Kind == EffectKind.AddHit)).ToList();
+        Assert.NotEmpty(twoRules);
+        Assert.All(twoRules, s => Assert.Equal([20, 30], s.Effects.Single().Children.Select(c => c.Ordinal).ToList()));
+    }
+
+    [Fact]
+    public void When_attacking_lists_its_values_in_ordinal_order()
+    {
+        var attacking = AllTranslated().SelectMany(s => s.Effects).SelectMany(r => r.Conditions).Where(c => c.Values.Count == 2).ToList();
+        Assert.NotEmpty(attacking);
+        Assert.All(attacking, c => Assert.Equal(["melee", "shooting"], c.Values));
+    }
+
+    public static IEnumerable<EntryDocument> AllTranslated() =>
+        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "books")).Order(StringComparer.Ordinal)
+            .Select(f => ArmyForgeJson.ReadBook(File.ReadAllText(f))).SelectMany(b => b.Spells.Select(s => SpellTranslator.Translate(b, s)));
 }

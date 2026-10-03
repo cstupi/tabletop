@@ -40,4 +40,31 @@ public class BookWriterTests
         var problems = BookWriter.Check(BookWriter.Build(All()), core, new PropertySetDocument("part", "grimdark-future", [], [], [], []));
         Assert.Contains(problems, p => p.Contains("names no rule 'Bane'"));
     }
+
+    [Fact]
+    public void Serialize_uses_line_feeds_only()
+    {
+        foreach (var b in BookWriter.Build(All()).Where(b => b.Spells.Count > 0).Take(3))
+        {
+            var text = BookWriter.Serialize(b);
+            Assert.DoesNotContain('\r', text);
+            Assert.EndsWith("\n", text);
+        }
+    }
+
+    [Fact]
+    public void Sibling_effects_have_distinct_ascending_ordinals_and_multi_value_conditions_are_sorted()
+    {
+        static IEnumerable<IReadOnlyList<EffectDocument>> Groups(IReadOnlyList<EffectDocument> rows) =>
+            new[] { rows }.Concat(rows.SelectMany(r => Groups(r.Children)));
+        static IEnumerable<EffectDocument> Flat(IReadOnlyList<EffectDocument> rows) => rows.SelectMany(r => new[] { r }.Concat(Flat(r.Children)));
+        var spells = BookWriter.Build(All()).SelectMany(b => b.Spells).ToList();
+        foreach (var s in spells)
+        {
+            foreach (var g in Groups(s.Effects))
+                Assert.Equal(g.Select(r => r.Ordinal).Distinct().Order().ToList(), g.Select(r => r.Ordinal).ToList());
+            foreach (var c in Flat(s.Effects).SelectMany(r => r.Conditions))
+                Assert.Equal(c.Values.Order(StringComparer.Ordinal).ToList(), c.Values.ToList());
+        }
+    }
 }

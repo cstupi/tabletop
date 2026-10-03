@@ -35,7 +35,7 @@ public static partial class SpellTranslator
             "nxIQS1UnUBL_" => [RollMod("morale", Int(e.Text("rollModifier"), where), EffectSubject.Self, [])],
             "gqflE2vy38aQ" => [RollMod("hit", Int(e.Text("rollModifier"), where), EffectSubject.Self, Attack(e.Text("attackType"), where))],
             "YbOvC9oIIli9" => [RollMod("hit", Int(e.Text("rollModifier"), where), EffectSubject.Opponent, Attack(e.Text("attackType"), where))],
-            "rz0b1dShgnvg" => [Speed("Advance", Int(e.Text("advanceSpeed"), where)), Speed("Rush", Int(e.Text("rushSpeed"), where)), Speed("Charge", Int(e.Text("rushSpeed"), where))],
+            "rz0b1dShgnvg" => [Speed("Advance", Int(e.Text("advanceSpeed"), where), 10), Speed("Rush", Int(e.Text("rushSpeed"), where), 20), Speed("Charge", Int(e.Text("rushSpeed"), where), 30)],
             "7w-FrWUjKqqG" => [Range(Int(e.Text("rangeModifier"), where), EffectSubject.Self)],
             "LixCCuyRq4-_" => [Range(Int(e.Text("rangeModifier"), where), EffectSubject.Opponent)],
             "_m0wja4blbg8" => [Row(EffectKind.CountAsTerrain, EffectSubject.Self, EffectDuration.Once) with { TargetTerrain = e.Text("terrainType") switch
@@ -57,7 +57,7 @@ public static partial class SpellTranslator
     {
         if (e.Text("hits-wounds") != "hits") throw Bad(where, $"hits-wounds '{e.Text("hits-wounds")}'");
         var children = new[] { e.Rule("weaponRule1"), e.Rule("weaponRule2") }.OfType<(string Name, int? Rating)>()
-            .Select(r => Row(EffectKind.GrantProperty, EffectSubject.Self, EffectDuration.Interaction, 20) with { TargetEntry = r.Name, Amount = r.Rating }).ToList();
+            .Select((r, i) => Row(EffectKind.GrantProperty, EffectSubject.Self, EffectDuration.Interaction, 20 + 10 * i) with { TargetEntry = r.Name, Amount = r.Rating }).ToList();
         return Row(EffectKind.AddHit, EffectSubject.Self, EffectDuration.Interaction) with
         {
             Amount = Int(e.Text("numberDigit"), where) * spell.Threshold,
@@ -75,7 +75,7 @@ public static partial class SpellTranslator
     static EffectDocument RollMod(string roll, int amount, EffectSubject subject, IReadOnlyList<ConditionDocument> when) =>
         Row(EffectKind.ModifyRoll, subject, EffectDuration.Once) with { TargetRoll = roll, Amount = amount, Conditions = when };
 
-    static EffectDocument Speed(string action, int amount) => Row(EffectKind.ModifyStat, EffectSubject.Self, EffectDuration.Once) with { TargetAction = action, Amount = amount };
+    static EffectDocument Speed(string action, int amount, int ordinal) => Row(EffectKind.ModifyStat, EffectSubject.Self, EffectDuration.Once, ordinal) with { TargetAction = action, Amount = amount };
 
     static EffectDocument Range(int amount, EffectSubject subject) => Row(EffectKind.ModifyStat, subject, EffectDuration.Once) with
         { TargetStat = new StatRef(StatLevel.Weapon, "Range"), Amount = amount, Conditions = [new ConditionDocument(ConditionKind.AttackKind, null, Comparison.Eq, null, ["shooting"])] };
@@ -84,9 +84,12 @@ public static partial class SpellTranslator
     {
         "when shooting" => [new ConditionDocument(ConditionKind.AttackKind, null, Comparison.Eq, null, ["shooting"])],
         "in melee" => [new ConditionDocument(ConditionKind.AttackKind, null, Comparison.Eq, null, ["melee"])],
-        "when attacking" => [new ConditionDocument(ConditionKind.AttackKind, null, Comparison.Eq, null, ["shooting", "melee"])],
+        "when attacking" => [new ConditionDocument(ConditionKind.AttackKind, null, Comparison.Eq, null, Sorted("shooting", "melee"))],
         _ => throw Bad(where, $"attack type '{phrase}'"),
     };
+
+    /// <summary>The store reads a condition's values `order by value`, so a multi-value list is written in ordinal order.</summary>
+    static IReadOnlyList<string> Sorted(params string[] values) => values.Order(StringComparer.Ordinal).ToList();
 
     static int Int(string? text, string where) =>
         text is not null && Number().Match(text) is { Success: true } m ? int.Parse(m.Value.Replace("+", ""), CultureInfo.InvariantCulture) : throw Bad(where, $"no number in '{text}'");

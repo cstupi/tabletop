@@ -6,7 +6,7 @@ namespace Tabletop.ArmyBooks;
 /// <summary>Translated books, with each spell name made unique across the corpus, checked against the core document and the part, and written.</summary>
 public static class BookWriter
 {
-    static readonly JsonSerializerOptions Indented = new(PropertiesJson.Options) { WriteIndented = true };
+    static readonly JsonSerializerOptions Indented = new(PropertiesJson.Options) { WriteIndented = true, NewLine = "\n" };
 
     public static IReadOnlyList<BookDocument> Build(IReadOnlyList<AfBook> books)
     {
