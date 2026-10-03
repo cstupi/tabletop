@@ -189,7 +189,7 @@ public class GfCastingTests
         var targets = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((1, 2), (targets.Min, targets.Max)); Assert.Equal(new HashSet<Guid> { wizard.Id, a.Id, b.Id }, targets.Eligible.ToHashSet());
         sim.Answer(Samples.Team1, new SelectedPieces([a.Id, b.Id]));
-        Assert.All(new[] { a.Id, b.Id }, u => Assert.Equal(("Regeneration", 1, wizard.Id), (sim.Unit(u).Grants.Single().EntryName, sim.Unit(u).Grants.Single().RemainingUses, sim.Unit(u).Grants.Single().CasterUnitId)));
+        Assert.All(new[] { a.Id, b.Id }, u => Assert.Equal(("Ward", 1, wizard.Id), (sim.Unit(u).Grants.Single().EntryName, sim.Unit(u).Grants.Single().RemainingUses, sim.Unit(u).Grants.Single().CasterUnitId)));
         Assert.True(Lookup.UnitHas(sim.State, Book, a.Id, "Regeneration"));
         // A wound on A: the granted Regeneration rolls (6: ignored) and is consumed.
         var shooter = sim.State.Board.Armies[1].Snapshot.Units[0];
@@ -249,7 +249,7 @@ public class GfCastingTests
         var target = Unit("T", "4+", "2+", [], 1, []);
         var sim = new Sim(State([shooter], [target], x1: -4, x2: 4), GrimdarkFutureRules.Instance, book, new ScriptedDice(6, 4, 6, 6));
         var grantId = Guid.CreateVersion7();
-        sim.Append([new GrantAdded(shooter.Id, new Grant(grantId, book.Entry("Sharpen")!.Effects[0].Id, "AP", shooter.Id, 1))]);
+        sim.Append([new GrantAdded(shooter.Id, new Grant(grantId, book.Entry("Sharpen")!.Effects[0].Id, "Sharpen", shooter.Id, 1))]);
         sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
         var block = sim.Steps("roll-to-block").Single();
         Assert.Equal(2, block.Rolls.Count);                                                                // the Rending group and the plain hit: two pools, both AP(1)-modified

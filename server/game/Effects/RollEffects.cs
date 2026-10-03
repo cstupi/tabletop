@@ -19,7 +19,7 @@ public static class RollEffects
         // ForceReroll: its roll_result condition names the face; every other condition must hold now.
         var reroll = new HashSet<int>();
         foreach (var p in live.Live)
-            foreach (var e in p.Entry.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
+            foreach (var e in p.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
             {
                 var face = e.Conditions.FirstOrDefault(c => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == roll && c.Values[1] == "raw");
                 if (face?.Number is { } n && e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))) reroll.Add(n);

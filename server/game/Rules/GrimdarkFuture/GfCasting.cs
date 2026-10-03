@@ -197,8 +197,11 @@ public static class GfCasting
             var holding = Holding(ctx, casterUnit, targetUnit, spell);
             var hits = holding.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
             if (hits.Count > 0 && ctx.History.Children.Count == 0) return new Push(GfNames.SpellHitsSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
-            var changes = holding.Where(e => e.Duration == EffectDuration.Once)
-                .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, e.TargetEntry ?? spell.Name, casterUnit, 1))).ToList();
+            // p.13: "Effects from multiple instances of the same special rule or spell don't stack": a target already holding this spell's grants gets none.
+            var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == spell.Name);
+            // A once-row's conditions say when the grant applies ("Shred when shooting"), not whether it is written: every once-row is granted.
+            var changes = already ? [] : spell.Effects.Where(e => e.Duration == EffectDuration.Once)
+                .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, spell.Name, casterUnit, 1))).ToList();
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
         }
 

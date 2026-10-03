@@ -2,9 +2,11 @@ using Tabletop.GameServer.Properties;
 
 namespace Tabletop.GameServer.Effects;
 
-/// <summary>One instance of a catalog entry in play: who holds it and where it came from.</summary>
-public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId)
+/// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
+/// effect row) exposes only the row its grant holds, and that row's children; every other instance exposes its entry's effects.</summary>
+public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null)
 {
+    public IReadOnlyList<Effect> Effects => GrantRow is { } row ? [row] : Entry.Effects;
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
@@ -26,7 +28,7 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 
     /// <summary>Effects of one kind acting on a side, in ordinal order, whose conditions hold now (a per-die condition is judged with the die).</summary>
     public IEnumerable<(LiveProperty Source, Effect Effect)> Effects(Side actedOn, EffectKind kind, DieContext? die = null) =>
-        Live.SelectMany(p => p.Entry.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die)).Select(e => (p, e)))
+        Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).Select(x => (x.p, x.e));
 
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
@@ -44,7 +46,7 @@ public static class LiveProperties
         var suppressed = new HashSet<TargetModifier>();
         var applied = new List<(LiveProperty, Effect)>();
         // Every pass-one effect whose conditions hold now, across both sides, in ordinal order. Per-die grants (a roll_result condition) wait for pass two.
-        var candidates = live.SelectMany(p => p.Entry.Effects.Where(e => PassOne.Contains(e.Kind) && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).Select(e => (p, e)))
+        var candidates = live.SelectMany(p => p.Effects.Where(e => PassOne.Contains(e.Kind) && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).ToList();
         foreach (var (source, effect) in candidates)
         {
@@ -53,7 +55,7 @@ public static class LiveProperties
             switch (effect.Kind)
             {
                 case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } granted:
-                    live.Add(new LiveProperty(side, granted, effect.Amount, source.ModelId, source.WeaponId, null)); break;
+                    live.Add(new LiveProperty(side, granted, effect.Amount, source.ModelId, source.WeaponId, source.GrantId)); break;
                 case EffectKind.SuppressProperty: live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
                 case EffectKind.ModifyParameter:
                     for (var i = 0; i < live.Count; i++)
@@ -75,8 +77,15 @@ public static class LiveProperties
         var unit = state.Projection.Units[party.UnitId];
         var result = new List<LiveProperty>();
         foreach (var p in unit.Definition.Properties) if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
-        foreach (var g in unit.Grants) if (ix.Properties.Entry(g.EntryName) is { } e)
-            result.Add(new LiveProperty(side, e, ix.Properties.AllEffects().FirstOrDefault(x => x.Id == g.EffectId)?.Amount, null, null, g.Id));
+        // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
+        // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant.
+        foreach (var g in unit.Grants)
+        {
+            if (ix.Properties.Entry(g.EntryName) is not { } spell || ix.Properties.AllEffects().FirstOrDefault(x => x.Id == g.EffectId) is not { } row) continue;
+            if (row.Subject == EffectSubject.Opponent && ix.Defender is not null
+                && Interpreter.Teams.Of(state, ix.Of(Interaction.Other(side)).UnitId) != Interpreter.Teams.Of(state, g.CasterUnitId)) continue;
+            result.Add(new LiveProperty(side, spell, null, null, null, g.Id, row));
+        }
         // A unit-kind entry on a model slot is the unit's rule, not a per-model one, and aggregation is not declared for the kind. Import produces the
         // shape two ways — a rule whose count is smaller than the unit, and a joined leader, whose rules all land on its slot whatever their kind — so it
         // is read off the definition, holder-less, and Lookup.UnitHas reads it the same way. Its effects therefore act on the whole unit.
