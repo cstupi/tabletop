@@ -25,6 +25,11 @@ public class SpellShapeTests
         Spell("Lance", TargetGrain.Model, Hits(2, null, Grant("AP", 4))),
         Spell("Boom", TargetGrain.Unit, Hits(2, null, Grant("Blast", 3))),
         Spell("Pin Boom", TargetGrain.Model, Hits(2, null, Grant("Blast", 3))),
+        Spell("Amp", TargetGrain.Unit, Grant("Blast", 3) with { Duration = EffectDuration.Once }),
+        Spell("Smite", TargetGrain.Unit, Hits(1, null, Grant("Deadly", 3))),
+        new EntryDocument("Burst", CatalogKind.Weapon, false, null, null, null, "Burst.", null,
+            [new EffectDocument(EffectSubject.Self, 30, EffectKind.GrantProperty, null, null, "Surge", null, null, null, null, null, false, null, null, null, EffectDuration.Interaction,
+                [new ConditionDocument(ConditionKind.RollResult, null, Comparison.Eq, 6, [GfNames.Hit, "raw"])], [])]),
         new EntryDocument("Hex", CatalogKind.Spell, false, null, 1, null, "Hex.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 24), [CastingMinus3]));
 
     static (Sim Sim, Tabletop.Content.Unit Wizard, Tabletop.Content.Unit Target) Cast(string spell, Tabletop.Content.Unit target, params int[] dice)
@@ -97,5 +102,38 @@ public class SpellShapeTests
         Assert.Contains(roll.Modifiers, m => m.Source == "Hex" && m.Amount == -3);
         Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);                                   // 6 − 3 = 3, short of 4
         Assert.Empty(sim.Unit(wizard.Id).Grants);
+    }
+
+    [Fact]
+    public void A_granted_hit_multiplier_on_the_caster_applies_to_the_next_spells_hits_and_is_spent()
+    {
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]);
+        var t = Unit("T", "4+", "6+", [], 5, []);
+        var sim = new Sim(State([wizard], [t], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice([5, .. Enumerable.Repeat(6, 9)]));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6), new GrantAdded(wizard.Id, new Grant(Guid.CreateVersion7(), Props.Entry("Amp")!.Effects[0].Id, "Amp", wizard.Id, 1))]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"Quiet Bolt|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        Assert.Equal(9, sim.Steps("roll-to-block").Single().Rolls.Sum(r => r.Dice.Count));                 // 3 hits x Blast(3)
+        Assert.Empty(sim.Unit(wizard.Id).Grants);
+    }
+
+    [Fact]
+    public void A_spell_that_grants_Deadly_multiplies_the_wounds_it_deals()
+    {
+        var (sim, _, t) = Cast("Smite", Unit("T", "4+", "6+", [], 1, [P("Tough", 3)]), 5, 1);
+        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        Assert.Equal(3, sim.Model(t.Models[0].Id).Wounds);                                                 // one failed block, x3
+    }
+
+    [Fact]
+    public void A_per_die_grant_of_a_rule_with_no_amount_does_not_throw_on_a_weapon_attack()
+    {
+        var gun = Gun("Rifle", "24\"", 1, P("Burst"));
+        var a = Unit("A", "4+", "4+", [], 1, [], gun); var t = Unit("T", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [t], x1: -4, x2: 4), GrimdarkFutureRules.Instance, Props, new ScriptedDice(6, 1));
+        sim.Start(GfNames.AttackSequence, new SequenceContext(a.Id, [t.Id], a.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Hold));
+        Assert.Equal(1, sim.Steps("roll-to-block").Single().Rolls.Sum(r => r.Dice.Count));
     }
 }

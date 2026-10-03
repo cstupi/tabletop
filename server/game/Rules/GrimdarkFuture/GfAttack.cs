@@ -392,7 +392,7 @@ public static partial class GfAttack
                 {
                     var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
                     values["extra_hits"] += effects.ExtraHits;
-                    foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount}"] = values.GetValueOrDefault($"granted_{entry}_{amount}") + 1;
+                    foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount ?? 0}"] = values.GetValueOrDefault($"granted_{entry}_{amount ?? 0}") + 1;
                 }
             }
             RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
@@ -404,7 +404,7 @@ public static partial class GfAttack
     public static (string Entry, int Amount) ParseGrantKey(string key)
     {
         var cut = key.LastIndexOf('_');
-        return (key["granted_".Length..cut], int.Parse(key[(cut + 1)..]));
+        return (key["granted_".Length..cut], int.TryParse(key[(cut + 1)..], out var amount) ? amount : 0);
     }
 
     sealed class RollToBlockStep : IStep

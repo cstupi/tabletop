@@ -246,6 +246,7 @@ public static class GfCasting
                     // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
                     var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
                     total += Dice.RollOutcome.Successes(record);
+                    RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
                     foreach (var die in record.Dice) values["extra_hits"] += RollEffects.PerDie(granted, Side.Attacker, die, GfNames.Hit).ExtraHits;
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
@@ -253,7 +254,8 @@ public static class GfCasting
                 foreach (var g in rules) { var key = $"granted_{g.TargetEntry}_{g.Amount ?? 0}"; values[key] = values.GetValueOrDefault(key) + n; }
             }
             values["hit_multiplier"] = multiplier;
-            return total == 0 ? new Finish([], values) : new Complete([], values);
+            var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
+            return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
         }
     }
 }
