@@ -18,6 +18,7 @@ public static class MenuTranslation
         bool HasUnit(Guid id) => p.Units.ContainsKey(id) || Missing(ref miss, $"no unit {id}");
         bool HasTeam(Guid id) => state.Info.Teams.Any(t => t.Id == id) || Missing(ref miss, $"no team {id}");
         bool HasMarker(Guid id) => p.Markers.ContainsKey(id) || Missing(ref miss, $"no marker {id}");
+        bool HasObjective(Guid id) => p.Markers.ContainsKey(id) || state.Board.Table.Markers.Any(m => m.Id == id) || Missing(ref miss, $"no marker {id}");
         bool SubjectExists(Subject s) => s.Kind == SubjectKind.Unit ? HasUnit(s.Id) : HasModel(s.Id);
 
         EventPayload? payload = command switch
@@ -37,6 +38,7 @@ public static class MenuTranslation
             SetScore s when HasTeam(s.TeamId) => new ScoreSet(s.TeamId, s.Score),
             SetActiveTeam t when HasTeam(t.TeamId) => new TurnStarted(t.TeamId),
             SetRound r => new RoundStarted(r.Round, p.Scheduler.Order.ToList(), []),
+            SetObjectiveControl o when HasObjective(o.MarkerId) && (o.TeamId is not { } team || HasTeam(team)) => new ObjectiveControlSet(o.MarkerId, o.TeamId),
             _ => null,
         };
         missing = miss;
