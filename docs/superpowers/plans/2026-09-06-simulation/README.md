@@ -56,10 +56,10 @@ sim/Drivers/InProcessDriver.cs           GameSession + InMemoryEventLog + InMemo
 sim/Drivers/SocketDriver.cs              ClientWebSocket (or an injected connector) to a real server
 sim/Drivers/IWebSocketConnector.cs       ClientWebSocketConnector
 sim/Drivers/SocketRowSeeder.cs           the three management rows in raw SQL, then IGameRows writes
-sim/Run/RunOutcome.cs                    Ended | RoundLimit | Stuck | Failed | Paused, and StuckReason
+sim/Run/RunOutcome.cs                    Decided | RoundLimit | Stuck | Failed | Paused, and StuckReason
 sim/Run/AskFingerprint.cs                what "reopens unchanged" means
 sim/Run/HandPlacement.cs                 deployment's models into the team's zone, by MoveModels
-sim/Run/RunLoop.cs                       drive until ended, capped, stuck or failed
+sim/Run/RunLoop.cs                       drive until decided, capped, stuck or failed
 sim/Run/RunReport.cs                     one run's result, for the summary and the exit code
 sim/Invariants/ProjectionComparer.cs     structural difference between two projections
 sim/Invariants/Invariants.cs             the five checks; Check(all) and the mid-run entry points
