@@ -1,4 +1,5 @@
 using Tabletop.Client.Core;
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
@@ -249,5 +250,14 @@ public class ViewModelTests
         Assert.Equal("the game smoke became neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
         var setup = a.Projection.Board.Table.Markers[0].Id;
         Assert.Equal($"the game Team 2 took {Names.Short(setup)}", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
+
+        // A labelled setup marker verifies the setup marker lookup works (would fail if Names.Marker's board lookup were deleted)
+        var labelledMarker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(30, 20, 0), new Yaw(0), 3, "centre", VisualRef.OfBuiltin("objective-ring"));
+        var labelledTable = new TableState(Guid.CreateVersion7(), "Labelled", new TableSize(72, 48), VisualRef.OfBuiltin("grass"),
+            [], [labelledMarker], []);
+        var labelledBoard = new Board(labelledTable, [new ArmyInPlay(Samples.P1, ArmySnapshot.Of(Samples.Army, Guid.CreateVersion7()))]);
+        var b = new EventApplier(labelledBoard, Game);
+        var namesb = new Names(Game, b.Projection);
+        Assert.Equal("the game Team 2 took centre", LogText.Describe(new GameEvent(9, null, new ObjectiveControlSet(labelledMarker.Id, Samples.Team2), null), namesb));
     }
 }
