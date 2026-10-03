@@ -65,6 +65,8 @@ public interface IGameRules
     // Added by the enforcement plan.
     /// <summary>Judges what the interpreter or scheduler proposes before RulesEngine returns it. Null: nothing broken. Wrapping rulesets must forward it.</summary>
     GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => null;
+    /// <summary>Changes written as one round_ended event when a player has ended <paramref name="round"/>, before the next round_started (OPR: objectives seized). Empty: no event.</summary>
+    IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
 }
 
 public sealed class UnknownGameRulesException(string id) : Exception($"No GameRules named '{id}' ships with this build.");

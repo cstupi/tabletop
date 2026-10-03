@@ -33,6 +33,7 @@ public sealed class FakeRules : IGameRules
     public Func<GameState, PropertySet, int, IReadOnlyList<Guid>, HookResult>? RoundBoundaryHook { get; set; }
     public Func<GameState, Guid?, IReadOnlyList<Guid>, IReadOnlyList<Guid>?>? OrderReactionsHook { get; set; }
     public Func<GameState, PropertySet, IReadOnlyList<EventPayload>, GameEndingBreach?>? JudgeAdvanceHook { get; set; }
+    public Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }
 
     public FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => FirstTeamHook?.Invoke(state, round, teams) ?? new OrderedTeams(teams);
     public TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => LegalTurnHook is { } h ? h(state, properties, teamId) : _inner.LegalTurn(state, properties, teamId);
@@ -41,6 +42,7 @@ public sealed class FakeRules : IGameRules
     public HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => RoundBoundaryHook?.Invoke(state, properties, round, order) ?? new HookDone();
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams) => OrderReactionsHook?.Invoke(state, actorTeamId, reactingTeams);
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => JudgeAdvanceHook?.Invoke(state, properties, proposed);
+    public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }
