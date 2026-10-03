@@ -110,4 +110,18 @@ public class PropertiesStoreTests(PostgresFixture pg)
         Assert.Equal(PropertiesJson.Hash(doc), set.ContentHash);
         await pg.DeletePropertiesAsync(hash);
     }
+
+    [Fact]
+    public async Task A_place_row_its_dice_and_its_point_round_trip()
+    {
+        var blink = new EntryDocument("Blink", CatalogKind.Model, false, Aggregation.None, null, null, "Blink.", null,
+            [new EffectDocument(EffectSubject.Self, 10, EffectKind.Place, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction,
+                [new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["activation-start"])], [], AmountDice: "d3")]);
+        var doc = TestProperties.RulebookDocument with { Name = "Hooks " + Guid.CreateVersion7().ToString("N")[24..32], Entries = [.. TestProperties.RulebookDocument.Entries, blink] };
+        var hash = PropertiesJson.Hash(doc);
+        Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+        var row = (await _store.LoadAsync(hash, CancellationToken.None))!.Entry("Blink")!.Effects.Single();
+        Assert.Equal(("d3", EffectKind.Place, ConditionKind.AtPoint), (row.AmountDice, row.Kind, row.Conditions.Single().Kind));
+        await pg.DeletePropertiesAsync(hash);
+    }
 }

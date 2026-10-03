@@ -23,10 +23,10 @@ public sealed record CatalogEntry(string Name, CatalogKind Kind, bool TakesParam
 
 public enum EffectSubject { Self, Opponent }
 public enum EffectKind { ModifyRoll, ModifyStat, ReplaceStat, ForceReroll, Roll, AddHit, Multiply, OverrideResult, GrantProperty, SuppressProperty, ModifyParameter, SuppressModifiers,
-    CountAsTerrain, TakeTest, SetCondition, Move }
+    CountAsTerrain, TakeTest, SetCondition, Move, Place }
 /// <summary>p.11's terrain types a holder can count as being in (count_as_terrain).</summary>
 public enum TargetTerrain { Difficult, Dangerous }
-public enum TargetQuantity { Hits, Wounds }
+public enum TargetQuantity { Hits, Wounds, Attacks }
 public enum TargetResult { Wound, MoraleTest }
 public enum TargetModifier { Cover, ToHitPenalties, RangePenalties }
 public enum CapKind { ModelsInTargetUnit }
@@ -39,13 +39,13 @@ public sealed record Effect(
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier,
     int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind, string? Replacement, EffectDuration Duration,
     IReadOnlyList<EffectCondition> Conditions, IReadOnlyList<Effect> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null)
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null)
 {
     /// <summary>The signed amount: when it comes from the parameter, Amount is the sign (schema.md → amount is signed).</summary>
     public int EffectiveAmount(int? parameter) => AmountFromParameter ? Math.Sign(Amount ?? 1) * (parameter ?? 0) : Amount ?? 1;
 }
 
-public enum ConditionKind { ActionTaken, AttackKind, Range, RollResult, ActorState, PositionTerrain, RoundNumber, UsageCount, HoldsProperty, MostModels }
+public enum ConditionKind { ActionTaken, AttackKind, Range, RollResult, ActorState, PositionTerrain, RoundNumber, UsageCount, HoldsProperty, MostModels, AtPoint }
 public enum Comparison { Eq, Neq, Gte, Lte, Gt, Lt }
 
 /// <summary>A predicate. Relational kinds take no subject; Values is a set (membership, not or).</summary>

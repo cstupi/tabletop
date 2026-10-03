@@ -17,7 +17,7 @@ public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesPara
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier, int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind,
     string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null);
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null);
 public sealed record ConditionDocument(ConditionKind Kind, EffectSubject? Subject, Comparison Comparison, int? Number, IReadOnlyList<string> Values);
 
 public static class PropertiesJson
@@ -89,7 +89,9 @@ public static class PropertiesJson
         return problems;
     }
 
-    static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems)
+    static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start"];
+
+    static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
     {
         string At(string what) => $"{entry}: {what}";
         if (f.TargetRoll is not null && !d.Rolls.Contains(f.TargetRoll)) problems.Add(At($"no roll '{f.TargetRoll}'"));
@@ -107,7 +109,7 @@ public static class PropertiesJson
         if (f.Kind == EffectKind.SetCondition && f.TargetCondition is null) problems.Add(At("set_condition needs target_condition"));
         if (f.Kind == EffectKind.Roll && f.Children.Count == 0) problems.Add(At("a roll needs a per-success child"));
         foreach (var c in f.Conditions)
-            if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
+            if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount or ConditionKind.AtPoint && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
         foreach (var c in f.Conditions)
         {
             if (c.Kind == ConditionKind.RollResult)
@@ -115,7 +117,7 @@ public static class PropertiesJson
                 if (c.Values.Count != 2) problems.Add(At($"roll_result condition has {c.Values.Count} values, need exactly 2"));
                 else
                 {
-                    if (!d.Rolls.Contains(c.Values[0])) problems.Add(At($"roll_result roll '{c.Values[0]}' is not declared"));
+                    if (!d.Rolls.Contains(c.Values[0]) && c.Values[0] != ownRoll) problems.Add(At($"roll_result roll '{c.Values[0]}' is not declared"));
                     if (c.Values[1] is not "raw" and not "modified") problems.Add(At($"roll_result modifier is '{c.Values[1]}', need 'raw' or 'modified'"));
                 }
             }
@@ -126,7 +128,16 @@ public static class PropertiesJson
             if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
             else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
         }
-        foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems);
+        if (f.AmountDice is not null && f.Kind != EffectKind.Place) problems.Add(At("amount_dice is place only"));
+        if (f.AmountDice is not null and not "d3") problems.Add(At($"amount_dice is 'd3', not '{f.AmountDice}'"));
+        if (f.Kind == EffectKind.AddHit && f.TargetQuantity == TargetQuantity.Attacks && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
+            problems.Add(At("add_hit attacks is per die: it needs a roll_result condition"));
+        foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.AtPoint))
+            foreach (var v in c.Values.Where(v => !Points.Contains(v))) problems.Add(At($"no point '{v}'"));
+        foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.UsageCount && c.Values.Count > 0))
+            if (c.Values[0] is not "round" and not "activation") problems.Add(At($"usage_count scope is round or activation, not '{c.Values[0]}'"));
+        // A roll's children may read the roll they are children of: a property's own roll is a RollRecord named for the entry.
+        foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems, f.Kind == EffectKind.Roll ? entry : null);
     }
 
     public static PropertySet ToSet(PropertySetDocument d, Func<Guid> newId)
@@ -136,7 +147,7 @@ public static class PropertiesJson
         Effect Build(EffectDocument f) => new(newId(), f.Subject, f.Ordinal, f.Kind, f.TargetRoll, f.TargetStat, f.TargetEntry, f.TargetAction, f.TargetQuantity, f.TargetResult,
             f.TargetModifier, f.Amount, f.AmountFromParameter, f.Threshold, f.CapKind, f.Replacement, f.Duration,
             f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList(),
-            f.TargetTerrain, f.TargetCondition);
+            f.TargetTerrain, f.TargetCondition, f.AmountDice);
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
             d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList())).ToList(),
             d.Books ?? []);

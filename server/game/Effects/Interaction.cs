@@ -15,7 +15,8 @@ public sealed record Party(Guid UnitId, IReadOnlyList<Guid> ModelIds, IReadOnlyL
 }
 
 /// <summary>What the two passes evaluate against. Defender is null for a lone roll (a resolve check, a spell attempt, a hazard test).</summary>
-public sealed record Interaction(GameState State, PropertySet Properties, Party Attacker, Party? Defender, AttackKind? Attack, string? ActionTaken, double? RangeInches, IReadOnlyList<string> DefenderTerrain)
+public sealed record Interaction(GameState State, PropertySet Properties, Party Attacker, Party? Defender, AttackKind? Attack, string? ActionTaken, double? RangeInches, IReadOnlyList<string> DefenderTerrain,
+    string? Point = null, IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? Faces = null)
 {
     public Party Of(Side side) => side == Side.Attacker ? Attacker : Defender ?? throw new InvalidOperationException("no defender in this interaction");
     public static Side Other(Side side) => side == Side.Attacker ? Side.Defender : Side.Attacker;

@@ -58,6 +58,12 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
         Live.SelectMany(p => p.Effects.Where(e => e.Kind == kind && p.ActedOn(e) == actedOn && Conditions.Hold(Interaction, p.Holder, e, p, die)).Select(e => (p, e)))
             .OrderBy(x => x.e.Ordinal).Select(x => (x.p, x.e));
 
+    /// <summary>The rows acting on a side that are offered at a point: an at_point row naming it, whose other conditions hold now. The live set's
+    /// interaction must carry that Point, or no at_point condition holds.</summary>
+    public IEnumerable<(LiveProperty Source, Effect Effect)> AtPoint(Side side, string point) =>
+        Live.SelectMany(p => p.Effects.Where(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains(point))
+                && Conditions.Hold(Interaction, p.Holder, e, p, null)).Select(e => (p, e)));
+
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
         Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied, _read, _acts) : this;
 }
@@ -83,30 +89,42 @@ public static class LiveProperties
         var applied = new List<(LiveProperty, Effect)>();
         var acts = new PassOneActs();
         // Every pass-one effect whose conditions hold now, across both sides, in ordinal order. Per-die grants (a roll_result condition) wait for pass two.
-        var candidates = live.SelectMany(p => p.Effects.Where(e => PassOne.Contains(e.Kind) && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).Select(e => (p, e)))
-            .OrderBy(x => x.e.Ordinal).ToList();
-        foreach (var (source, effect) in candidates)
+        // Pass one runs to a fixed point: an instance a grant adds has its own pass-one rows read in the next round (a granted Boost suppresses its base).
+        // Each instance is scanned once, and a grant row adds once per holder instance, so a rule that grants itself stops.
+        var scanned = new HashSet<LiveProperty>(ReferenceEqualityComparer.Instance);
+        var granted = new HashSet<(Guid, (Side, string, Guid?, Guid?, Guid?))>();
+        while (true)
         {
-            if (!live.Contains(source) || !Conditions.Hold(ix, source.Holder, effect, source, null)) continue;   // suppressed earlier this pass, or conditions fail
-            var side = source.ActedOn(effect);
-            switch (effect.Kind)
+            var candidates = live.Where(p => !scanned.Contains(p)).ToList();
+            if (candidates.Count == 0) break;
+            foreach (var p in candidates) scanned.Add(p);
+            var ordered = candidates.SelectMany(p => p.Effects.Where(e => PassOne.Contains(e.Kind) && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).Select(e => (p, e)))
+                .OrderBy(x => x.e.Ordinal).ToList();
+            foreach (var (source, effect) in ordered)
             {
-                case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } granted:
-                    live.Add(new LiveProperty(side, granted, effect.Amount, source.ModelId, source.WeaponId, source.GrantId)); break;
-                case EffectKind.SuppressProperty:
-                    foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
-                    live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
-                case EffectKind.ModifyParameter:
-                    for (var i = 0; i < live.Count; i++)
-                        if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) {
-                            live[i] = live[i] with { Parameter = (live[i].Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
-                            if (!acts.Modified.TryGetValue(PassOneActs.Key(live[i]), out var by)) acts.Modified[PassOneActs.Key(live[i])] = by = [];
-                            by.Add(source);
-                        }
-                    break;
-                case EffectKind.SuppressModifiers: suppressed.Add(effect.TargetModifier!.Value); acts.SuppressedModifiers.Add((source, effect.TargetModifier!.Value)); break;
+                if (!live.Contains(source) || !Conditions.Hold(ix, source.Holder, effect, source, null)) continue;   // suppressed earlier this pass, or conditions fail
+                var side = source.ActedOn(effect);
+                switch (effect.Kind)
+                {
+                    case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } grantedEntry && granted.Add((effect.Id, PassOneActs.Key(source))):
+                        live.Add(new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId)); break;
+                    case EffectKind.SuppressProperty:
+                        foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
+                        live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
+                    case EffectKind.ModifyParameter:
+                        for (var i = 0; i < live.Count; i++)
+                            if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry) {
+                                var was = live[i];
+                                live[i] = was with { Parameter = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
+                                if (scanned.Contains(was)) scanned.Add(live[i]);   // the same instance with a new parameter, not a new one
+                                if (!acts.Modified.TryGetValue(PassOneActs.Key(live[i]), out var by)) acts.Modified[PassOneActs.Key(live[i])] = by = [];
+                                by.Add(source);
+                            }
+                        break;
+                    case EffectKind.SuppressModifiers: suppressed.Add(effect.TargetModifier!.Value); acts.SuppressedModifiers.Add((source, effect.TargetModifier!.Value)); break;
+                }
+                applied.Add((source, effect));
             }
-            applied.Add((source, effect));
         }
         return new LiveSet(ix, live, suppressed, applied, null, acts);
     }
