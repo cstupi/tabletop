@@ -47,7 +47,7 @@ public sealed partial class GameSession
     /// <summary>
     /// Starts the loop, then decides from the log, not the row (enforcement spec → Hydration): an ended log over a playing row is a crash
     /// between the append and the row write, so the row is written and nothing advances; an ended log over an ended row is left; a log
-    /// with no live end catches up, whatever the row says — ended is a flag, and an undone strict end is still listed as ended.
+    /// with no live end catches up, whatever the row says — ended is a flag, and an undone strict end is still listed as ended — except a non-playing row over an empty log, a game ended in setup and never played.
     /// </summary>
     public Task StartAsync()
     {
@@ -56,6 +56,7 @@ public sealed partial class GameSession
         {
             if (Play is null) return 0;
             if (Play.Projection.Ended is not null) { if (Info.Status == GameStatus.Playing) await MarkEndedAsync(); return 0; }
+            if (Info.Status != GameStatus.Playing && Play.Projection.LastSeq == 0) return 0;   // ended during setup: never played, nothing to advance
             await AdvanceAsync();
             return 0;
         });

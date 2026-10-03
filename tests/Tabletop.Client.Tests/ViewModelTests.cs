@@ -233,8 +233,8 @@ public class ViewModelTests
     {
         var names = new Names(Game, Applier().Projection);
         string Line(params Guid[] winners) => LogText.Describe(new GameEvent(9, null, new GameEnded("4 rounds have been played", winners), null), names);
-        Assert.Equal("the game ended the game: 4 rounds have been played; Team 1 won", Line(Samples.Team1));
-        Assert.Equal("the game ended the game: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
-        Assert.Equal("the game ended the game: 4 rounds have been played", Line());
+        Assert.Equal("Game ended: 4 rounds have been played; Team 1 won", Line(Samples.Team1));
+        Assert.Equal("Game ended: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
+        Assert.Equal("Game ended: 4 rounds have been played", Line());
     }
 }

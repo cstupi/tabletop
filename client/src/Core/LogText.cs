@@ -48,10 +48,11 @@ public static class LogText
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
-            GameEnded g => $"ended the game: {g.Reason}{Result(g.Winners, n)}",
+            GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };
-        return $"{who} {text}" + (e.Warning is null ? "" : $" — {e.Warning}");
+        var line = e.Payload is GameEnded ? text : $"{who} {text}";   // the end has no actor; the sim and viewer lines read "Game ended: …"
+        return line + (e.Warning is null ? "" : $" — {e.Warning}");
     }
 
     /// <summary>One winner, a tie, or nothing when the ruleset recorded no result.</summary>
