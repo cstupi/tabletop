@@ -173,12 +173,22 @@ public class GameSessionTests
     }
 
     [Fact]
-    public async Task An_ended_game_with_a_draft_hydrates_without_the_engine_appending_anything()
+    public async Task An_ended_row_over_a_log_with_no_end_catches_up_on_hydration()
     {
         var log = new InMemoryEventLog();
         var session = await Hydrate(Info with { Status = GameStatus.Ended }, log, Services(log, new FixedAskEngineFactory(SimultaneousSpend)));
         Assert.False(session.Faulted);
-        Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
+        Assert.IsType<AskOpened>(Assert.Single(await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Payload);   // ended is a flag; the log decides
+    }
+
+    [Fact]
+    public async Task An_ended_row_over_an_ended_log_hydrates_without_the_engine_appending_anything()
+    {
+        var log = new InMemoryEventLog();
+        await log.AppendAsync(Info.Id, [new GameEvent(1, null, new GameEnded("over", []), null)], CancellationToken.None);
+        var session = await Hydrate(Info with { Status = GameStatus.Ended }, log, Services(log, new FixedAskEngineFactory(SimultaneousSpend)));
+        Assert.False(session.Faulted);
+        Assert.Single(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
     }
 
     [Fact]

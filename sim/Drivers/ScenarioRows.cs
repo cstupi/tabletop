@@ -15,8 +15,16 @@ namespace Tabletop.Sim.Drivers;
 /// </summary>
 public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRows
 {
+    private GameInfo _info = scenario.Info;
+
     public Task<GameInfo?> ReadGameAsync(Guid gameId, CancellationToken ct) =>
-        Task.FromResult(gameId == scenario.Info.Id ? scenario.Info : null);
+        Task.FromResult(gameId == _info.Id ? _info : null);
+
+    public Task EndGameAsync(Guid gameId, CancellationToken ct)
+    {
+        if (gameId == _info.Id && _info.Status == GameStatus.Playing) _info = _info with { Status = GameStatus.Ended };
+        return Task.CompletedTask;
+    }
 
     public Task<Guid?> FindParticipantAsync(Guid gameId, Guid accountId, CancellationToken ct) =>
         Task.FromResult(scenario.Info.Participants.FirstOrDefault(p => p.AccountId == accountId)?.Id);
