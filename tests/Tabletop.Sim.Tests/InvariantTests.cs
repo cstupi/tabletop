@@ -45,9 +45,22 @@ public class InvariantTests
         var (scenario, loop, report, driver) = await Played();
         await using var _ = driver;
         var results = Invariants.Invariants.CheckAll(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);
-        Assert.Equal(7, results.Count);
+        Assert.Equal(8, results.Count);
         Assert.All(results, r => Assert.True(r.Held, $"{r.Name}: {r.Detail}"));
         Assert.Empty(report.Failures);
+    }
+
+    [Fact]
+    public async Task A_spell_picked_from_another_book_breaks_invariant_eight()
+    {
+        var scenario = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
+        var caster = scenario.Board.Armies[0].Snapshot.Units.SelectMany(u => u.Models).First(m => m.Properties.Any(p => p.Name == "Caster"));
+        var foreign = scenario.Properties.SpellsOf("1wj1ysgxpuuz9bc7")[0].Name;                       // an Orc Marauders spell
+        var forged = new List<GameEvent> { new(1, null, new StepCompleted(Guid.CreateVersion7(), "pick-spell", new Chosen($"{foreign}|{caster.Id}"), [], []), null) };
+        var result = Invariants.Invariants.SpellsComeFromTheCastersBook(forged, scenario);
+        Assert.False(result.Held);
+        Assert.Contains(foreign, result.Detail);
+        await Task.CompletedTask;
     }
 
     [Fact]

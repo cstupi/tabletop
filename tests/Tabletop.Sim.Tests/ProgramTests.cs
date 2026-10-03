@@ -1,3 +1,4 @@
+using Tabletop.Sim.Scenarios;
 using System.Text.Json;
 using Tabletop.Sim;
 
@@ -90,12 +91,14 @@ public class ProgramTests
     }
 
     [Fact]
-    public async Task The_socket_driver_rejects_a_scenario_that_declares_its_own_spells()
+    public void The_casting_scenario_fields_a_real_books_casters_and_pins_the_production_set()
     {
-        var output = new StringWriter();
-        Assert.Equal(2, await Program.RunAsync(SimOptions.Parse(["casting", "--driver", "socket"]), output, Ct));
-        Assert.Contains("spells", output.ToString());
-        Assert.Contains("--driver socket", output.ToString());
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
+        Assert.Equal(ScenarioCompiler.CoreProperties.ContentHash, c.Info.PropertiesHash);
+        var casters = c.Board.Armies.SelectMany(a => a.Snapshot.Units).SelectMany(u => u.Models).Where(m => m.Properties.Any(p => p.Name == "Caster")).ToList();
+        Assert.NotEmpty(casters);
+        Assert.All(casters, m => Assert.Equal("z65fgu0l29i4lnlu", m.ArmyBook));
+        Assert.Equal(6, c.Properties.SpellsOf("z65fgu0l29i4lnlu").Count);
     }
 
     [Fact]

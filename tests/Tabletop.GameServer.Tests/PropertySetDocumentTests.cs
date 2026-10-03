@@ -64,9 +64,18 @@ public class PropertySetDocumentTests
     }
 
     [Fact]
+    public void A_spell_no_book_lists_is_refused()
+    {
+        var orphan = new EntryDocument("Orphan", CatalogKind.Spell, false, null, 1, null, "Orphan.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+        Assert.Contains(PropertiesJson.Validate(TestProperties.CoreDocument with { Entries = [.. TestProperties.CoreDocument.Entries, orphan] }),
+            p => p.Contains("Orphan: no book lists this spell"));
+    }
+
+    [Fact]
     public void A_spells_effect_is_hits_or_a_once_grant_and_nothing_else()
     {
-        var doc = PropertiesJson.Parse(ApJson);
+        var doc = PropertiesJson.Parse(ApJson) with { Books = [new BookRecord("b", "B", null, ["Bolt"])] };
         EntryDocument Spell(EffectKind kind, EffectDuration duration) => new("Bolt", CatalogKind.Spell, false, null, 2, "Book", "x",
             new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
             [new EffectDocument(EffectSubject.Self, 10, kind, null, null, kind == EffectKind.GrantProperty ? "Regeneration" : null, null, null, null, null, 3, false, null, null, null, duration, [], [])]);
@@ -139,10 +148,11 @@ public class PropertySetDocumentTests
         var spell = new EntryDocument("Zap", CatalogKind.Spell, false, null, 1, null, "Zap.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
             [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
         var doc = TestProperties.CoreDocument with { Entries = [.. TestProperties.CoreDocument.Entries, spell] };
+        var shipped = TestProperties.CoreDocument.Books ?? [];
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Nope"])] }), p => p.Contains("book b lists 'Nope', which is no spell entry"));
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["AP"])] }), p => p.Contains("book b lists 'AP', which is no spell entry"));
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"]), new BookRecord("b", "B2", null, [])] }), p => p.Contains("book uids must be unique"));
-        Assert.Empty(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"])] }));
+        Assert.Empty(PropertiesJson.Validate(doc with { Books = [.. shipped, new BookRecord("b", "B", null, ["Zap"])] }));
     }
 
     [Fact]

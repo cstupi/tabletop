@@ -74,11 +74,12 @@ public class DriverAgreementTests(PostgresFixture pg)
         loop.Answers.History.Select(a => $"{a.Question}#{a.Ordinal}:{a.Answer.GetType().Name}");
 
     [Theory]
-    [InlineData(21UL)]
-    [InlineData(24UL)]
-    public async Task The_same_scenario_plays_the_same_game_on_both_drivers(ulong seed)
+    [InlineData("skirmish", 21UL)]
+    [InlineData("skirmish", 24UL)]
+    [InlineData("casting", 3UL)]
+    public async Task The_same_scenario_plays_the_same_game_on_both_drivers(string name, ulong seed)
     {
-        var scenario = ScenarioCatalog.Get("skirmish").WithSeed(seed);
+        var scenario = ScenarioCatalog.Get(name).WithSeed(seed);
         var inProcessScenario = ScenarioCompiler.Compile(scenario);
 
         RunReport inProcess;

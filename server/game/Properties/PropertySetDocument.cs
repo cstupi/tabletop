@@ -84,6 +84,8 @@ public static class PropertiesJson
         foreach (var b in books)
             foreach (var s in b.Spells.Where(s => !spells.Contains(s)))
                 problems.Add($"book {b.Uid} lists '{s}', which is no spell entry");
+        var listed = books.SelectMany(b => b.Spells).ToHashSet();
+        foreach (var e in d.Entries.Where(e => e.Kind == CatalogKind.Spell && !listed.Contains(e.Name))) problems.Add($"{e.Name}: no book lists this spell");
         return problems;
     }
 

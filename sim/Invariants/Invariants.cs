@@ -29,7 +29,32 @@ public static class Invariants
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
         NothingAdvancesAfterTheEnd(log),
         ControlFollowsTheMarkers(log, scenario),
+        SpellsComeFromTheCastersBook(log, scenario),
     ];
+
+    /// <summary>
+    /// Invariant 8 (spell library spec → Testing). p.13: "the Caster's spells must be picked from their own faction": every closed
+    /// pick-spell names a spell the caster model's own army book lists in the pinned set, and every grant a step wrote carries the name
+    /// of a spell some caster's book in the scenario lists. Grants are checked by name, not effect id: over the socket the server
+    /// seeds Postgres with its own ids. Reads the log, the board and the pinned set; names no rule.
+    /// </summary>
+    public static InvariantResult SpellsComeFromTheCastersBook(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
+    {
+        var slots = scenario.Board.Armies.SelectMany(a => a.Snapshot.Units).SelectMany(u => u.Models).ToDictionary(m => m.Id);
+        var inBooks = slots.Values.Select(m => m.ArmyBook).Distinct()
+            .SelectMany(b => scenario.Properties.SpellsOf(b)).Select(s => s.Name).ToHashSet();
+        foreach (var e in EventApplier.EffectiveLog(log))
+        {
+            if (e.Payload is not StepCompleted step) continue;
+            if (step.Step == "pick-spell" && step.Answer is Chosen { OptionId: var id } && id.LastIndexOf('|') is var cut and > 0
+                && Guid.TryParse(id[(cut + 1)..], out var caster) && slots.TryGetValue(caster, out var slot)
+                && scenario.Properties.SpellsOf(slot.ArmyBook).All(s => s.Name != id[..cut]))
+                return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: caster {caster:N} of book {slot.ArmyBook ?? "none"} picked '{id[..cut]}'");
+            foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)))
+                return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: grant {g.Grant.Id:N} is '{g.Grant.EntryName}', which no caster's book lists");
+        }
+        return new InvariantResult(nameof(SpellsComeFromTheCastersBook), true, null);
+    }
 
     /// <summary>
     /// Every objective_control_set, alone or inside another event's changes, names a marker the game holds at that point — a setup

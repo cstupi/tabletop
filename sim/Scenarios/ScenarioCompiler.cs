@@ -26,14 +26,8 @@ public static class ScenarioCompiler
     static PropertySetDocument CoreDocument { get; } =
         PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId);
 
-    /// <summary>The core Grimdark Future set, through the production path: the game server's embedded document.</summary>
+    /// <summary>The shipped Grimdark Future set, through the production path: the game server's composed embedded document, every army book included.</summary>
     public static PropertySet CoreProperties { get; } = PropertiesJson.ToSet(CoreDocument, Guid.CreateVersion7);
-
-    /// <summary>The core set plus a scenario's own spells, so the hash differs and the run is pinned to what it declared.
-    /// No spells means CoreProperties itself, which keeps every other scenario on the production hash.</summary>
-    public static PropertySet PropertiesFor(IReadOnlyList<EntryDocument> spells) =>
-        spells.Count == 0 ? CoreProperties
-            : PropertiesJson.ToSet(CoreDocument with { Name = $"{CoreDocument.Name} + scenario spells", Entries = [.. CoreDocument.Entries, .. spells] }, Guid.CreateVersion7);
 
     public static CompiledScenario Compile(Scenario s)
     {
@@ -57,7 +51,7 @@ public static class ScenarioCompiler
         var armies = s.Armies.Select((a, i) => new ArmyInPlay(participants[i].Id, BuildArmy(i + 1, a))).ToList();
 
         // The properties the engine is handed and the hash the game row names must be one set (hydration loads by hash).
-        var props = PropertiesFor(s.Spells);
+        var props = CoreProperties;
 
         // RngSeed is positional and last among the scalars (contracts plan → GameInfo), so a game cannot
         // be built without a seed. This is the one value a scenario's seed fixes.
@@ -83,7 +77,7 @@ public static class ScenarioCompiler
                 Guid.CreateVersion7(), m, $"{a.Name} {u}.{m}",
                 new Dictionary<string, string>(), modelRules, Base.Circle(1.26), 1.5, null,
                 a.Weapons.Select(w => new Weapon(Guid.CreateVersion7(), w.Name,
-                    w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList())).ToList();
+                    w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList(), a.ArmyBook)).ToList();
             units.Add(new Unit(Guid.CreateVersion7(), u, $"{a.Name} unit {u}", a.UnitStats,
                 a.UnitRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList(), models));
         }
