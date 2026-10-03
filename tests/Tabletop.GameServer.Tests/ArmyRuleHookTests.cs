@@ -464,4 +464,30 @@ public partial class ArmyRuleHookTests
             Assert.Equal(expected, sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
         }
     }
+
+    [Fact]
+    public void An_added_attacks_die_is_read_for_its_other_per_die_effects_but_adds_no_attack()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Primal")], Melee("Claws", 2, P("Rending"))); var b = Unit("B", "4+", "2+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(2, 20)]));
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        var hit = sim.Steps("roll-to-hit").First();
+        Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));                                   // the added six adds no third attack
+        Assert.Equal(2, hit.Rolls.Sum(r => r.Dice.Count(d => d.Success)));                           // the first six and the added die's six
+        Assert.Equal(2, hit.Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
+    }
+
+    static readonly EntryDocument Frenzy = new("Test Frenzy", CatalogKind.Spell, false, null, 1, null, "Grants Primal.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Primal")]);
+
+    [Fact]
+    public void A_once_granted_primal_adds_an_attack_on_a_six_and_is_gone_after_the_roll_to_hit()
+    {
+        var props = TestProperties.WithSpells(Frenzy);
+        var a = Unit("A", "4+", "4+", [], 1, [], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, props, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(2, 20)]));
+        sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Frenzy")!.Effects[0].Id, "Test Frenzy", a.Id, 1))]);
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        Assert.Equal([2, 1], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
 }
