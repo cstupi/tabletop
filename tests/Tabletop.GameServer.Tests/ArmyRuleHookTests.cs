@@ -359,4 +359,63 @@ public partial class ArmyRuleHookTests
         Shift(sim, Samples.Team1, a.Models.Select(m => m.Id), 3);                                      // D3 rolled 1: beyond the distance
         Assert.Single(sim.Unit(a.Id).Grants);
     }
+
+    static Sim Rush(Tabletop.Content.Unit a, IReadOnlyList<Tabletop.Content.Unit> enemies, PropertySet props)
+    {
+        var sim = new Sim(State([a], enemies, x1: -6, x2: 6), GrimdarkFutureRules.Instance, props, new ScriptedDice(Enumerable.Repeat(2, 20).ToArray()));
+        sim.Start(GfNames.RushSeq, new SequenceContext(a.Id, [], [], GfNames.Rush));
+        sim.Answer(Samples.Team1, new Passed());                                                         // no move
+        return sim;
+    }
+
+    [Fact]
+    public void Without_quick_shot_a_rush_does_not_shoot_and_with_it_every_target_is_offered()
+    {
+        var b = Unit("B", "4+", "4+", [], 1, []);
+        Assert.Null(Rush(Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), [b], Core).AskForOrNull(Samples.Team1));
+        var quick = Rush(Unit("Q", "4+", "4+", [], 1, [P("Quick Shot")], Gun("Rifle", "24\"", 1)), [b], Core);
+        Assert.Equal("shoot_or_not", quick.AskFor(Samples.Team1).Question);
+    }
+
+    static EntryDocument QuickShotSpell(EffectSubject subject) => new("Test Ecstasy", CatalogKind.Spell, false, null, 1, null, "Quick Shot.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 18),
+        [new EffectDocument(subject, 10, EffectKind.GrantProperty, null, null, "Quick Shot", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);
+
+    [Fact]
+    public void An_against_grant_of_quick_shot_opens_only_the_marked_unit_and_is_spent_by_that_shooting()
+    {
+        var props = TestProperties.WithSpells(QuickShotSpell(EffectSubject.Opponent));
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var marked = Unit("M", "4+", "4+", [], 1, []); var other = Unit("O", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [marked, other], x1: -6, x2: 6), GrimdarkFutureRules.Instance, props, new ScriptedDice(Enumerable.Repeat(2, 20).ToArray()));
+        sim.Append([new GrantAdded(marked.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Ecstasy")!.Effects[0].Id, "Test Ecstasy", a.Id, 1))]);
+        sim.Start(GfNames.RushSeq, new SequenceContext(a.Id, [], [], GfNames.Rush));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new Chosen("shoot"));
+        var assignment = Assert.IsType<Assignment>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal([marked.Id], assignment.Targets);
+        Assert.Single(sim.Unit(marked.Id).Grants);                                                       // offering reads nothing
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = marked.Id }));
+        Assert.Empty(sim.Unit(marked.Id).Grants);
+    }
+
+    [Fact]
+    public void A_once_granted_quick_shot_is_spent_by_the_rush_shooting_and_an_innate_one_is_not()
+    {
+        var props = TestProperties.WithSpells(QuickShotSpell(EffectSubject.Self));
+        var b = Unit("B", "4+", "4+", [], 1, []);
+        var granted = Unit("G", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));
+        var sim = new Sim(State([granted], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, props, new ScriptedDice(Enumerable.Repeat(2, 20).ToArray()));
+        sim.Append([new GrantAdded(granted.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Ecstasy")!.Effects[0].Id, "Test Ecstasy", granted.Id, 1))]);
+        sim.Start(GfNames.RushSeq, new SequenceContext(granted.Id, [], [], GfNames.Rush));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new Chosen("shoot"));
+        Assert.Single(sim.Unit(granted.Id).Grants);
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.Empty(sim.Unit(granted.Id).Grants);
+
+        var innate = Unit("Q", "4+", "4+", [], 1, [P("Quick Shot")], Gun("Rifle", "24\"", 1));
+        var rush = Rush(innate, [b], props);
+        rush.Answer(Samples.Team1, new Chosen("shoot"));
+        rush.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.DoesNotContain(rush.Emitted, e => e is GrantRemoved);
+    }
 }
