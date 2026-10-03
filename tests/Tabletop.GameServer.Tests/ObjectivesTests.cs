@@ -173,4 +173,38 @@ public class ObjectivesTests
         Assert.NotEmpty(new WithSequences(GrimdarkFutureRules.Instance).OnRoundEnded(h.State, TestProperties.Core, 1));
         Assert.Empty(GrimdarkFutureRules.Instance.OnRoundEnded(h.State, TestProperties.Core, 0));   // the phases before round one are not a round
     }
+
+    [Fact]
+    public void Under_strict_round_fours_seizures_land_before_the_end_and_decide_the_winner()
+    {
+        var h = Seizing(Enforcement.Strict, judge: true);
+        for (var r = 0; r < 3; r++) { PlayTurns(h); h.EndRound(); }
+        OntoTheObjective(h);                                                             // seized only at the end of round 4
+        PlayTurns(h);
+        var seq = h.P.LastSeq; h.EndRound();
+        Assert.Equal(["ask_answered", "ask_closed", "round_ended", "game_ended"], h.Kinds(seq));
+        var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
+        Assert.Equal([h.Teams[0]], end.Winners);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", end.Reason);
+    }
+
+    [Fact]
+    public void Under_strict_an_empty_table_is_a_tie_between_every_team()
+    {
+        var h = Seizing(Enforcement.Strict, judge: true);
+        for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
+        Assert.Equal(h.Teams, Assert.IsType<GameEnded>(h.Log[^1].Payload).Winners);
+    }
+
+    [Fact]
+    public void Under_warn_the_warning_names_the_standing_and_the_game_plays_on()
+    {
+        var h = Seizing(Enforcement.Warn, judge: true);
+        OntoTheObjective(h);
+        for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
+        var fifth = h.Log.Last(e => e.Payload is RoundStarted);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", fifth.Warning);
+        Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
+        Assert.Equal(h.Teams[0], Assert.Single(h.P.Control).Value);
+    }
 }

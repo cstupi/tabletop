@@ -35,8 +35,7 @@ public class MissionLengthTests
         Assert.Null(h.P.Ended);
         PlayRound(h);
         var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
-        Assert.Equal(GrimdarkFutureRules.MissionLengthDetail(4), end.Reason);
-        Assert.Equal("4 rounds have been played: the game ends after 4 (p.7)", end.Reason);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(4), end.Reason);
         Assert.Null(h.Log[^1].Actor);
         Assert.Equal(4, h.P.Scheduler.Round);
         Assert.Same(end, h.P.Ended);
@@ -52,11 +51,11 @@ public class MissionLengthTests
         for (var r = 0; r < 4; r++) PlayRound(h);
         var fifth = LastOf<RoundStarted>(h);
         Assert.Equal(5, ((RoundStarted)fifth.Payload).Round);
-        Assert.Equal(GrimdarkFutureRules.MissionLengthDetail(4), fifth.Warning);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(4), fifth.Warning);
         Assert.Null(h.P.Ended);
         Assert.Equal(1, h.Log.Count(e => e.Warning is not null));      // once, not on every Advance
         PlayRound(h);
-        Assert.Equal(GrimdarkFutureRules.MissionLengthDetail(5), LastOf<RoundStarted>(h).Warning);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(5), LastOf<RoundStarted>(h).Warning);
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
     }
 
@@ -79,7 +78,7 @@ public class MissionLengthTests
         Assert.Null(h.P.Ended);
         Assert.Equal((5, AskQuestions.Activate), (h.P.Scheduler.Round, h.Open.Question));
         PlayRound(h);
-        Assert.Equal(GrimdarkFutureRules.MissionLengthDetail(5), Assert.IsType<GameEnded>(h.Log[^1].Payload).Reason);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(5), Assert.IsType<GameEnded>(h.Log[^1].Payload).Reason);
         Assert.Equal(5, h.P.Scheduler.Round);
     }
 
@@ -103,7 +102,8 @@ public class MissionLengthTests
         Assert.Null(gf.JudgeAdvance(h.State, TestProperties.Core, [new RoundStarted(4, [], [])]));
         Assert.Null(gf.JudgeAdvance(h.State, TestProperties.Core, [new TurnStarted(h.Teams[0])]));
         var breach = gf.JudgeAdvance(h.State, TestProperties.Core, [new RoundStarted(5, [], [])]);
-        Assert.Equal((GrimdarkFutureRules.MissionLength, GrimdarkFutureRules.MissionLengthDetail(4)), (breach!.Rule, breach.Detail));
+        Assert.Equal(GrimdarkFutureRules.MissionLength, breach!.Rule);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(4), breach.Detail);
         Assert.NotNull(new WithSequences(gf).JudgeAdvance(h.State, TestProperties.Core, [new RoundStarted(5, [], [])]));
     }
 }
