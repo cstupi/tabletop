@@ -473,14 +473,26 @@ public static partial class GfAttack
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
+                var added = 0;
                 foreach (var die in ctx.Roll(plan, attacks).Dice)
                 {
                     var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
                     values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
                     if (!die.Success) continue;
+                    added += effects.ExtraAttacks;
                     values["extra_hits"] += effects.ExtraHits;
                     foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount ?? 0}"] = values.GetValueOrDefault($"granted_{entry}_{amount ?? 0}") + 1;
                 }
+                // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
+                if (added > 0)
+                    foreach (var die in ctx.Roll(plan, added).Dice)
+                    {
+                        var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
+                        values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
+                        if (!die.Success) continue;
+                        values["extra_hits"] += effects.ExtraHits;
+                        foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount ?? 0}"] = values.GetValueOrDefault($"granted_{entry}_{amount ?? 0}") + 1;
+                    }
             }
             RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
             values["wounds"] = values.GetValueOrDefault("self_wounds");

@@ -433,4 +433,35 @@ public partial class ArmyRuleHookTests
             Assert.Equal(expected, sim.Steps("roll-to-block").Single().Rolls.Single().Modifiers.Any(m => m.Source == "Grounded Reinforcement"));
         }
     }
+
+    [Fact]
+    public void Each_six_to_hit_adds_an_attack_whose_own_six_adds_none()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Primal")], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([6, 3, 6, .. Enumerable.Repeat(6, 10)]));
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        var hit = sim.Steps("roll-to-hit").First();
+        Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));   // two attacks, one 6, one added attack (whose 6 adds nothing)
+    }
+
+    [Fact]
+    public void The_boost_adds_an_attack_on_a_five_too()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Primal"), P("Primal Boost")], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([5, 6, 2, 2, .. Enumerable.Repeat(6, 10)]));
+        sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+        Assert.Equal([2, 2], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+    }
+
+    [Fact]
+    public void Clan_warrior_adds_on_a_six_and_its_boost_on_a_five()
+    {
+        foreach (var (rules, dice, expected) in new[] { (new[] { "Clan Warrior" }, new[] { 5, 6, 2 }, new[] { 2, 1 }), (new[] { "Clan Warrior", "Clan Warrior Boost" }, new[] { 5, 6, 2, 2 }, new[] { 2, 2 }) })
+        {
+            var a = Unit("A", "4+", "4+", [], 1, rules.Select(r => P(r)).ToArray(), Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
+            var sim = new Sim(State([a], [b], x1: 0, x2: 1.3), GrimdarkFutureRules.Instance, Core, new ScriptedDice([.. dice, .. Enumerable.Repeat(2, 10)]));
+            sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
+            Assert.Equal(expected, sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+        }
+    }
 }

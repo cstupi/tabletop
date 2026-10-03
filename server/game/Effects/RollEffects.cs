@@ -5,7 +5,7 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>What one die does beyond its success, for the side that rolled it: extra hits it scores, extra wounds that side's unit takes, per-hit grants.</summary>
-public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants);
+public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants, int ExtraAttacks = 0);
 
 public static class RollEffects
 {
@@ -42,7 +42,8 @@ public static class RollEffects
         foreach (var x in adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds)) live.Read(x.Source);
         var grants = live.Effects(roller, EffectKind.GrantProperty, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList();
-        return new DieEffects(extra, wounds, grants);
+        var attacks = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        return new DieEffects(extra, wounds, grants, attacks);
     }
 
     public static int HitMultiplier(LiveSet live, Side attacker, int defenderModels) => Multiplier(live, attacker, TargetQuantity.Hits, defenderModels);

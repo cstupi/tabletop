@@ -13,8 +13,7 @@ namespace Tabletop.GameServer.Tests;
 public class ArmyRulesContentTests
 {
     static readonly PropertySet Core = TestProperties.Core;
-    static readonly string[] NamesOnly = ["Quick Shot",
-        "Primal", "Primal Boost", "Clan Warrior", "Clan Warrior Boost"];
+    static readonly string[] NamesOnly = ["Quick Shot"];
 
     [Fact]
     public void The_part_holds_seventy_three_rules_and_composes_valid()
