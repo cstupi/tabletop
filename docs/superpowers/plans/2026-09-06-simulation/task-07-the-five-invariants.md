@@ -14,7 +14,7 @@ Spec: spec → *What it asserts*, all five bullets verbatim:
 - Undoing to an arbitrary sequence and redoing reproduces the same dice, because the seed is stored on the game and never changes.
 - Every Ask is answered by a team that Ask addressed.
 - No model is in two places, and no model on the table is outside the slab.
-- The round only advances through the boundary Ask (scheduler design → *There is no round limit*).
+- The round only advances through the boundary Ask (scheduler design → *The final round is the ruleset's*).
 
 **Each one, as this task computes it.**
 
@@ -311,7 +311,7 @@ public static class Invariants
         _ => [],
     };
 
-    /// <summary>The round does not advance on its own: the next round's RoundStarted follows the first answer to the end_round Ask, or carries the actor of a menu override (scheduler design → There is no round limit).</summary>
+    /// <summary>The round does not advance on its own: the next round's RoundStarted follows the first answer to the end_round Ask, or carries the actor of a menu override (scheduler design → The final round is the ruleset's).</summary>
     public static InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(IReadOnlyList<GameEvent> log)
     {
         var effective = EventApplier.EffectiveLog(log);

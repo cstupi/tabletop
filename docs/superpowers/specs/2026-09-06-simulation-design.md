@@ -241,7 +241,7 @@ is checked by looking at it.
   alone would make a viewer that cannot show why a unit died, which is the first thing a person
   debugging the engine wants to see, and the cost is a few hundred integers per game.
 - ~~Whether the round cap belongs in the scenario or in `GameRules`.~~ **Settled 2026-09-06 by the
-  simulation plan: the scenario.** the cap is not the ruleset's final round, which the enforcement engine reads; the
+  simulation plan: the scenario.** The cap is not the ruleset's final round, which the enforcement engine reads; the
   cap is a property of a *run*, not of a ruleset, and putting it in `GameRules` would put a testing
   concern inside the rules. `Scenario.RoundCap`, overridable from the console with `--rounds`.
 - ~~Whether generating TypeScript types from the C# records is worth a build step, or whether a

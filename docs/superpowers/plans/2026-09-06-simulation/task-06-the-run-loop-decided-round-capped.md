@@ -1,4 +1,4 @@
-# Task 6: The run loop — decided, round-capped, stuck, or failed
+# Task 6: The run loop — ended, round-capped, stuck, or failed
 
 **Files:**
 - Create: `sim/Run/RunOutcome.cs`, `sim/Run/AskFingerprint.cs`, `sim/Run/HandPlacement.cs`, `sim/Run/RunLoop.cs`, `sim/Run/RunReport.cs`
@@ -7,7 +7,7 @@
 
 **Interfaces:**
 - Consumes: `IGameDriver`, `SubmitResult`, `StepResult`, `DriverMode` (Task 4); `IAnswerSource`, `PolicyView`, `UnscriptedAskException`, `NoLegalAnswerException`, `AnsweredAsk` (Tasks 2–3); `FrameProjector`, `Recording`, `RecordingMeta`, `RecordedTeam` (Task 5); `Projection`, `OpenAsk`, `Ask`, `LegalSet`, `AskAnswer`, `AskQuestions`, `MoveModels`, `ModelRelocation`, `Location`, `OnTable`, `OnShelf`, `GameEvent`, `EventKinds`, `Command`, `WireJson` (Protocol — `Serialize<T>` on an enum, for the meta block's spelling only); `Placement`, `Point2`, `Point3`, `Yaw`, `Polygon`, `PlacedModel`, `ZoneStyles`, `Settling` (Geometry); `CompiledScenario`, `Scenario`, `Expectation` (Task 1).
-- Produces: `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }`; `abstract record RunOutcome` with `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason Reason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, and `string Kind` (`decided`, `round_limit`, `stuck`, `failed`, `paused`); `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` with `static AskFingerprint Of(Ask)`; `static class HandPlacement` with `IReadOnlyList<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)` and `Chooser ChooserFor(ulong scenarioSeed)`; `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)`; `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IReadOnlyList<string> Failures, string? RecordingPath)` with `bool Passed`; `sealed class RunLoop(IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)` with `Task<RunReport> RunAsync(CancellationToken ct)`, `FrameProjector Projector`, `Recording.Recording BuildRecording(RunReport)`, `IReadOnlyList<string> LastFrames(int n)`; `static class Expectations` with `IReadOnlyList<string> Check(IReadOnlyList<Expectation>, Projection, IReadOnlyList<GameEvent>, RunOutcome, CompiledScenario)`.
+- Produces: `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }`; `abstract record RunOutcome` with `Ended(int Round, IReadOnlyList<Guid> Winners)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason Reason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, and `string Kind` (`ended`, `round_limit`, `stuck`, `failed`, `paused`); `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` with `static AskFingerprint Of(Ask)`; `static class HandPlacement` with `IReadOnlyList<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)` and `Chooser ChooserFor(ulong scenarioSeed)`; `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)`; `sealed record RunReport(string Scenario, ulong Seed, string Driver, RunOutcome Outcome, int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs, IReadOnlyList<string> Failures, string? RecordingPath)` with `bool Passed`; `sealed class RunLoop(IGameDriver driver, CompiledScenario scenario, IAnswerSource answers, Chooser chooser, RunSettings? settings = null)` with `Task<RunReport> RunAsync(CancellationToken ct)`, `FrameProjector Projector`, `Recording.Recording BuildRecording(RunReport)`, `IReadOnlyList<string> LastFrames(int n)`; `static class Expectations` with `IReadOnlyList<string> Check(IReadOnlyList<Expectation>, Projection, IReadOnlyList<GameEvent>, RunOutcome, CompiledScenario)`.
 
 Spec: spec → *What a full game means* — the three-row table, "a run that reaches none of them is a bug the simulator exists to find"; "Stuck is the interesting one. A scheduler or interpreter that cannot make progress is a hang in production and a failed assertion here." Module prompt → "Detect stuck precisely: no open Ask and no events emitted, or an Ask answered that reopens unchanged. A stuck run is a failure with the last frames dumped."
 
@@ -15,7 +15,7 @@ Spec: spec → *What a full game means* — the three-row table, "a run that rea
 
 | End | Condition as this loop computes it |
 | --- | --- |
-| Decided | Exactly one team has a model in play (`Location is not OnShelf`, the engine's own `TeamUnits` test), and at least one other team has none. A team that is wholly embarked still has models in play. A team's models are its participants' armies' models. |
+| Ended | The game logged `game_ended`, with its winners. A wipe-out is not a win (p.6). |
 | Round limit | `Projection.Scheduler.Round >= Scenario.RoundCap` and every open Ask is `AskQuestions.EndRound`. |
 | Stuck: `NoAskNoEvents` | No Ask is open and no event of any kind was absorbed since the previous check, whether the step or an answer's drain returned it. |
 | Stuck: `AskReopenedUnchanged` | The Ask answered at step *n* is closed and an Ask with the same `AskFingerprint` opens, with no event other than the three Ask events in between. **This check is defeatable and is not the only guard:** a single non-Ask event absorbed since the last answer clears the suspicion, so an engine that emits one cosmetic event per turn of the loop re-Asks forever without ever tripping it, and is caught only by `RunSettings.MaxSteps` (20 000), which is the backstop. |
@@ -56,7 +56,7 @@ public class RunLoopTests
     {
         var report = await Run("skirmish");
         Assert.True(report.Passed, string.Join("\n", report.Failures));
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.True(report.Rounds >= 1, $"only reached round {report.Rounds}");
         Assert.True(report.Frames > 20, $"only {report.Frames} frames");
         Assert.True(report.AsksAnswered > 10);
@@ -78,7 +78,7 @@ public class RunLoopTests
 
     // Reproducibility is same-dice and same-answers, not same-ids: the seed is stored on the game and
     // the ids are ordinary v7 GUIDs, so nothing here may compare an id across two runs (Global
-    // Constraints → Reproducibility). RunOutcome.Decided carries a team *id*, so the comparison is on
+    // Constraints → Reproducibility). RunOutcome.Ended carries a team *id*, so the comparison is on
     // Kind plus the winner's ordinal.
     static async Task<(RunReport Report, int? WinnerOrdinal, IReadOnlyList<int> Dice)> RunTwice(string name, ulong seed)
     {
@@ -88,7 +88,7 @@ public class RunLoopTests
         var loop = new RunLoop(driver, compiled,
             new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
         var report = await loop.RunAsync(CancellationToken.None);
-        var winner = report.Outcome is RunOutcome.Decided d
+        var winner = report.Outcome is RunOutcome.Ended d
             ? compiled.Info.Teams.Single(t => t.Id == d.WinningTeamId).Ordinal
             : (int?)null;
         var dice = driver.Log
@@ -134,7 +134,7 @@ public class RunLoopTests
     public async Task A_round_cap_terminates_a_stalemate()
     {
         var report = await Run("stalemate");
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.True(report.Rounds <= 3, $"the cap of 3 was exceeded: {report.Rounds}");
         if (report.Outcome is RunOutcome.RoundLimit limit) Assert.Equal(3, limit.Rounds);
     }
@@ -152,7 +152,7 @@ public class RunLoopTests
             new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(7))), HandPlacement.ChooserFor(7));
         var report = await loop.RunAsync(CancellationToken.None);
 
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.DoesNotContain(loop.Projector.Frames, f => f.Round > 2);
         if (report.Outcome is RunOutcome.RoundLimit limit)
         {
@@ -190,7 +190,7 @@ public class RunLoopTests
         Assert.Equal("alternating-activation", meta.SchedulerShape);
         Assert.Equal("strict", meta.Enforcement);
         Assert.Equal(1, meta.RoundCap);
-        Assert.Contains(meta.Outcome, (string[])["decided", "round_limit"]);
+        Assert.Contains(meta.Outcome, (string[])["ended", "round_limit"]);
     }
 
     [Fact]
@@ -237,13 +237,13 @@ namespace Tabletop.Sim.Run;
 public enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }
 
 /// <summary>
-/// Five ends, as spec → What a full game means tabulates. Decided, RoundLimit and Stuck are the game
+/// Five ends, as spec → What a full game means tabulates. Ended, RoundLimit and Stuck are the game
 /// ending; Failed is an assertion breach — an unscripted Ask in a script-only run, a failed expectation or a
 /// failed invariant — and Paused is the step-and-wait seam of Task 9.
 /// </summary>
 public abstract record RunOutcome
 {
-    public sealed record Decided(Guid WinningTeamId) : RunOutcome;
+    public sealed record Ended(int Round, IReadOnlyList<Guid> Winners) : RunOutcome;
     public sealed record RoundLimit(int Rounds) : RunOutcome;
     public sealed record Stuck(StuckReason Reason, string Detail) : RunOutcome;
     public sealed record Failed(string Detail) : RunOutcome;
@@ -252,7 +252,7 @@ public abstract record RunOutcome
 
     public string Kind => this switch
     {
-        Decided => "decided",
+        Ended => "ended",
         RoundLimit => "round_limit",
         Stuck => "stuck",
         Paused => "paused",
@@ -399,7 +399,7 @@ public sealed record RunReport(
     int Rounds, long LastSeq, int Frames, int AsksAnswered, double DurationMs,
     IReadOnlyList<string> Failures, string? RecordingPath)
 {
-    public bool Passed => Failures.Count == 0 && Outcome is RunOutcome.Decided or RunOutcome.RoundLimit or RunOutcome.Paused;
+    public bool Passed => Failures.Count == 0 && Outcome is RunOutcome.Ended or RunOutcome.RoundLimit or RunOutcome.Paused;
 }
 ```
 
@@ -527,7 +527,7 @@ public sealed class RunLoop(
             _absorbedThisCycle = 0;
 
             var projection = await driver.ProjectionAsync(ct);
-            if (Decided(projection) is { } winner) return new RunOutcome.Decided(winner);
+            if (Ended(projection) is { } winner) return new RunOutcome.Ended(winner);
 
             var open = result.OpenAsks.Where(a => a.Ask.Teams.Any(t => !a.Answers.ContainsKey(t))).ToList();
             if (open.Count == 0)
@@ -609,7 +609,7 @@ public sealed class RunLoop(
     }
 
     /// <summary>One team with models in play and at least one other with none (spec → What a full game means).</summary>
-    private Guid? Decided(Projection projection)
+    private Guid? Ended(Projection projection)
     {
         if (projection.Scheduler.Round < 1) return null;                       // deployment: the shelf is not a wipe
         var standing = scenario.TeamIds.Where(t => Expectations.ModelsOnTable(projection, scenario, t) > 0).ToList();
@@ -639,7 +639,7 @@ public sealed class RunLoop(
             scenario.Info.Participants.Where(p => p.TeamId == t.Id).Select(p => p.Name).ToList())).ToList(),
         report.Outcome.Kind,
         report.Outcome switch { RunOutcome.Stuck s => s.Detail, RunOutcome.Failed f => f.Detail, _ => null },
-        report.Outcome is RunOutcome.Decided d ? d.WinningTeamId : null,
+        report.Outcome is RunOutcome.Ended d ? d.WinningTeamId : null,
         report.Rounds, report.LastSeq, DateTimeOffset.UtcNow, report.DurationMs));
 
     /// <summary>The Protocol's own spelling of an enum, so the meta block carries one convention and not two.</summary>
@@ -656,5 +656,5 @@ The rest of the recording's enums were checked against the contracts plan and ar
 ```bash
 dotnet test tests/Tabletop.Sim.Tests --filter RunLoopTests
 git add sim/Run sim/Scenarios tests/Tabletop.Sim.Tests
-git commit -m "Drive a game to decided, capped or stuck, and dump the last frames on a failure"
+git commit -m "Drive a game to ended, capped or stuck, and dump the last frames on a failure"
 ```

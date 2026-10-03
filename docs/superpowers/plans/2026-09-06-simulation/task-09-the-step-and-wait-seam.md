@@ -61,7 +61,7 @@ public class StepAndWaitTests
         await loop.RunAsync(Ct);
         driver.Mode = DriverMode.Run;
         var report = await loop.ResumeAsync(Ct);
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
         Assert.True(report.AsksAnswered > 10);
     }
 
@@ -101,7 +101,7 @@ public class StepAndWaitTests
             var view = new PolicyView(await driver.ProjectionAsync(Ct), driver.Board, null, driver.Info, compiled.Properties);
             report = await loop.AnswerPausedAsync(team, new AnswerPolicy(new Chooser((ulong)steps)).Answer(ask.Ask, view), Ct);
         }
-        Assert.Contains(report.Outcome.Kind, (string[])["decided", "round_limit"]);
+        Assert.Contains(report.Outcome.Kind, (string[])["ended", "round_limit"]);
     }
 
     [Fact]

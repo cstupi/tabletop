@@ -612,7 +612,7 @@ The round does not advance on its own: a player ends it, because advancing autom
 unspent units remain risks an accidental advance. The final round is the ruleset's, and its end
 follows the enforcement setting: Grimdark Future's is round 4, after which `silent` starts round 5,
 `warn` starts it with a warning, and `strict` ends the game. Game flow → Flow and the scheduler spec →
-The final round is the ruleset's both state the rule, and it is one rule for the ordinary boundary and
+The final round is the ruleset's state the rule, and it is one rule for the ordinary boundary and
 the degenerate one:
 
 > When no team can take another turn, the scheduler stops at the boundary, opens one unframed Ask
@@ -755,7 +755,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Finished = passed this round **or** empty legal set; the pass is `turn_ended.Passed` | a team that passed with units left must not be re-asked at once | a held finished flag, or "finished is only an empty legal set" | whole-design review → The scheduler's pass |
 | The turn ends when the declared action's sequence finishes | no end-turn command; an abandoned sequence still counts | an `EndActivation` command | scheduler → The turn is an Ask; whole-design review → Architecture's examples |
 | The action record is written when the sequence *starts* | abandonment must still spend the activation | writing it on completion | scheduler → The turn is an Ask |
-| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case with no cap | automatic advance when no unspent units remain | scheduler → The final round is the ruleset's; game flow → Flow; the plan's ruling 4 |
+| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case by waiting at the Ask | automatic advance when no unspent units remain | scheduler → The final round is the ruleset's; game flow → Flow; the plan's ruling 4 |
 | A team with an empty legal set is skipped: no Ask, no turn events | handles unequal unit counts, a team with no army, and a spectator with one rule | a turn that opens and immediately ends | scheduler → The turn is an Ask |
 | A participant with no team is never addressed, which is what a spectator is | no second identity, no filtering | presence's "joins a third team" | whole-design review → ruling 5; presence → There is no spectator |
 | Deployment is a phase list from `GameRules`, alternating one unit a turn under **both** shapes | the spec describes the phase once, not per shape; p.6 alternates units regardless | a per-shape deployment | scheduler → Deployment; the plan's ruling 1 |

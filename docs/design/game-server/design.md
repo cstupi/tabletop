@@ -388,7 +388,7 @@ as a batch of events, and cost the structural lock on terrain, because anything 
 moved by the log. Keeping the draft out of the log and *in a row* makes "nobody nudges a ruin
 while reaching across the board" free of a flag and a check. Edits exist only during `lobby` and
 `setup`. From `playing` on the server refuses both edit kinds with `RefusalReason.WrongStatus`,
-which is "read-only from `playing` on".
+which locks the draft from `playing` on.
 
 The draft **is** the row, not a copy of one. `table_state` with `game_id` set is the live draft.
 `DraftEditor.Apply` produces the next value, the session broadcasts it, then `WriteDraftAsync`
