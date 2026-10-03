@@ -8,6 +8,13 @@ namespace Tabletop.GameServer.Persistence;
 
 public sealed partial class PostgresGameRows
 {
+    public async Task EndGameAsync(Guid gameId, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand("update management.game set status = 'ended' where id = $1 and status = 'playing'");
+        cmd.Parameters.AddWithValue(gameId);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct)
     {
         var id = Guid.CreateVersion7();

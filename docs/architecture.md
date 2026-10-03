@@ -140,6 +140,10 @@ accepted under every setting** — they are the override path, visible to oppone
 in the event log, never silent. Model placement follows the same rule: free placement, with base
 overlap, terrain intersection, and broken coherency flagged rather than prevented.
 
+**One policy behind the three positions.** Any system hands it a breach: what was broken, the sentence players read, and what `strict` does about it. The dispatcher hands it a command's legality; the engine hands it what Grimdark Future's judge finds in the engine's own proposal. Under `warn` the warning rides on the event; under `strict` a command breach is refused and a state-time breach ends the game. The first state-time breach is the end of round 4 (GF p.7): `silent` lets round 5 start, `warn` marks it, `strict` logs `game_ended` and the game server marks the row ended ([the enforcement engine](superpowers/specs/2026-10-02-enforcement-engine-design.md)).
+
+Grimdark Future's core mission is scored by the engine: objectives are seized at each round's end, and the round-4 end names the winner ([objectives](superpowers/specs/2026-10-02-objectives-design.md)).
+
 The legality API is **enumeration, not validation** — `EnumerateLegalCommands()` rather than
 only `IsLegal(command)`. Validation falls out of enumeration but not the reverse, and
 enumeration is what the client needs anyway to render affordances. An AI opponent later gets
@@ -328,7 +332,7 @@ these as data.
 - **Layout** — a saved setup snapshot: board size and texture, terrain placements, marker
   placements, deployment zones. Physical only, no rules.
 - **Mission** — **not a record.** Missions are published content in OPR and Warhammer, players
-  read them out of a book, and the model has no victory conditions.
+  read them out of a book, and the model holds only the core mission's objectives.
 
 A deployment zone names a **built-in style**, which resolves to a *set* of polygons. Six of the
 seven styles anchor their measurements to table features; Side Battle scales its two legs with
@@ -482,6 +486,8 @@ ends and node-tree replication, which is the wrong model for discrete board stat
 Turn-based play means no prediction of authoritative state and no rollback netcode. The
 client's geometry is a cosmetic prediction, overwritten by the event, per Geometry above.
 
+**`ProtocolVersion` is 1 and moves only for an installed client.** Additive wire kinds (`at_rest`, `game_ended`) do not move it, because every client is built from the same commit as the servers. That holds before release; the first release moves the version on the next addition an older client cannot read.
+
 ## Deployment
 
 **Hosting is deferred.** Local development is the only environment; Docker is introduced only for
@@ -547,7 +553,7 @@ Because the client does not hold the full rules state, the server *can* send **p
 filtered event streams** if hidden information ever matters. The mechanism falls out of the thin
 client rather than needing to be designed in later.
 
-There are no victory conditions, so secret objectives do not exist, and hidden deployment is
+The core mission has no secret objectives, and hidden deployment is
 `Ambush`, a `GameRules` hook. One thing does use filtering: casting's simultaneous token spend,
 where every eligible team answers concurrently and the answers are withheld until the window
 closes ([action sequences](superpowers/specs/2026-09-03-action-sequences-design.md)).
@@ -625,8 +631,9 @@ design session and how they relate.
 Everything in it is in the management schema except one entity. The game schema holds exactly
 one thing: `GameEvent (game_id, seq, kind, payload)`. The game server nonetheless **writes**
 management's rows for a game while its status is `lobby` or `setup` — status, teams, each
-participant's team and army snapshot, and the `table_state` draft — and is read-only from
-`playing` on ([the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)).
+participant's team and army snapshot, and the `table_state` draft — and from `playing` on
+writes only events and one row: `game.status = 'ended'` when its own log ends the game
+([the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)).
 
 `Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
 account deletes every game it was in.
@@ -637,8 +644,8 @@ for who is playing. **Ended is a flag, not a terminal state** — restarting an 
 same hydrate-from-the-log operation as recovering a crashed task.
 
 **The game server's interface is commands and events.** It exposes no HTTP resources. From
-`playing` on it reads a game's rows at hydration and writes only events; before that it writes
-the game's own rows, as above.
+`playing` on it reads a game's rows at hydration and writes events and one row, `ended`, when its
+own log ends the game; before that it writes the game's own rows, as above.
 
 Management is restartable at will because it **holds no live state**; deploy risk is confined to
 the game server because it **holds live WebSocket sessions**. Neither follows from which service

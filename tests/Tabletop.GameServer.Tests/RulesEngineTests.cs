@@ -124,4 +124,58 @@ public class RulesEngineTests
         Assert.Equal(["sequence_finished"], sim.Run().Select(EventKinds.Of));
         Assert.Empty(sim.State.Projection.Stack);
     }
+
+    /// <summary>A scheduler that proposes one given event until the log holds it.</summary>
+    sealed class Proposes(EventPayload payload) : IScheduler
+    {
+        public IReadOnlyList<EventPayload> Advance(GameState state, ISequenceStarter starter) =>
+            state.Applier.Log.Any(e => ReferenceEquals(e.Payload, payload)) ? [] : [payload];
+    }
+
+    static readonly RoundStarted Fifth = new(5, [Samples.Team1, Samples.Team2], []);
+
+    static Sim Judged(Enforcement enforcement, bool judge = true) => new(State([A], [B], enforcement: enforcement),
+        new StubRules(Roller()) { Judge = judge ? p => p.OfType<RoundStarted>().Any() ? new GameEndingBreach("test_rule", "past the end", [Samples.Team1]) : null : null },
+        TestProperties.Core, new ScriptedDice(1), new Proposes(Fifth));
+
+    [Fact]
+    public void An_unjudged_proposal_passes_through_with_no_warning()
+    {
+        var sim = Judged(Enforcement.Strict, judge: false);
+        var emit = sim.Engine.Advance(sim.State);
+        Assert.Equal([Fifth], emit.Events);
+        Assert.Null(emit.Warning);
+    }
+
+    [Fact]
+    public void Silent_lets_the_breach_through_and_warn_marks_it()
+    {
+        var silent = Judged(Enforcement.Silent);
+        var quiet = silent.Engine.Advance(silent.State);
+        Assert.Equal([Fifth], quiet.Events);
+        Assert.Null(quiet.Warning);
+
+        var warn = Judged(Enforcement.Warn);
+        var marked = warn.Engine.Advance(warn.State);
+        Assert.Equal([Fifth], marked.Events);
+        Assert.Equal("past the end", marked.Warning);
+        warn.Append(marked.Events, warning: marked.Warning);
+        Assert.Equal("past the end", warn.State.Applier.Log[^1].Warning);
+        Assert.Empty(warn.Engine.Advance(warn.State).Events);                 // the act is in the log: no second warning
+    }
+
+    [Fact]
+    public void Strict_ends_the_game_in_place_of_the_proposal_and_the_engine_falls_silent()
+    {
+        var sim = Judged(Enforcement.Strict);
+        var emit = sim.Engine.Advance(sim.State);
+        var end = Assert.IsType<GameEnded>(Assert.Single(emit.Events));
+        Assert.Equal("past the end", end.Reason);
+        Assert.Equal([Samples.Team1], end.Winners);
+        Assert.Null(emit.Warning);
+        sim.Append(emit.Events);
+        Assert.Same(end, sim.State.Projection.Ended);
+        Assert.Empty(sim.Engine.Advance(sim.State).Events);                  // still proposing round 5, but ended: nothing
+        Assert.DoesNotContain(sim.State.Applier.Log, e => e.Payload is RoundStarted);
+    }
 }

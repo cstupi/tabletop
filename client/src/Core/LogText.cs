@@ -48,10 +48,31 @@ public static class LogText
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
+            RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => Change(c, n)))}")}",
+            ObjectiveControlSet { TeamId: { } team } o => $"gave {n.Marker(o.MarkerId)} to {n.Team(team)}",   // a menu edit; inside round_ended the same change reads "took"
+            ObjectiveControlSet o => $"made {n.Marker(o.MarkerId)} neutral",
+            GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };
-        return $"{who} {text}" + (e.Warning is null ? "" : $" — {e.Warning}");
+        var line = e.Payload is GameEnded ? text : $"{who} {text}";   // the end has no actor; the sim and viewer lines read "Game ended: …"
+        return line + (e.Warning is null ? "" : $" — {e.Warning}");
     }
+
+    /// <summary>One winner, a tie, or nothing when the ruleset recorded no result.</summary>
+    static string Result(IReadOnlyList<Guid> winners, Names n) => winners.Count switch
+    {
+        0 => "",
+        1 => $"; {n.Team(winners[0])} won",
+        _ => $"; tied between {string.Join(", ", winners.Select(n.Team))}",
+    };
+
+    /// <summary>A round end's change in words. Only objective control is written there today; anything else reads by its kind.</summary>
+    static string Change(StateChange c, Names n) => c switch
+    {
+        ObjectiveControlSet { TeamId: { } team } o => $"{n.Team(team)} took {n.Marker(o.MarkerId)}",
+        ObjectiveControlSet o => $"{n.Marker(o.MarkerId)} became neutral",
+        _ => EventKinds.Of(c),
+    };
 
     static string Moved(ModelsMoved m, Names n)
     {

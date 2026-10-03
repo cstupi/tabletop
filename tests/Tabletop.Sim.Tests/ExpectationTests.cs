@@ -58,7 +58,7 @@ public class ExpectationTests
             new Expectation.TeamWiped(survivor),
             new Expectation.ModelsRemaining(survivor, red + 1),
             new Expectation.AskAsked(AskQuestions.EndRound, 99),
-            new Expectation.Outcome(outcome.Kind == "decided" ? "round_limit" : "decided"));
+            new Expectation.Outcome(outcome.Kind == "ended" ? "round_limit" : "ended"));
         Assert.Equal(7, failures.Count);
         Assert.Contains(failures, f => f.Contains("expected outcome"));
     }
@@ -90,5 +90,45 @@ public class ExpectationTests
         Assert.Equal("failed", meta.Outcome);
         Assert.Equal(report.Failures[0], meta.OutcomeDetail);
         Assert.Contains("expected round 99", meta.OutcomeDetail);
+    }
+
+    [Fact]
+    public async Task Warnings_counts_warned_events_of_a_kind()
+    {
+        var failures = await Check(new Expectation.Warnings("round_started", 1));
+        Assert.Contains(failures, f => f.Contains("expected 1 warned 'round_started' events, saw 0"));
+        Assert.Empty(await Check(new Expectation.Warnings("round_started", 0)));
+    }
+
+    [Fact]
+    public async Task Won_needs_a_game_ended_naming_exactly_that_team()
+    {
+        var failures = await Check(new Expectation.Won(1));                              // the known run is a capped stalemate: no game_ended
+        Assert.Contains(failures, f => f.Contains("expected team 1 to win"));
+    }
+
+    [Fact]
+    public async Task A_tie_is_recorded_without_a_winner_and_a_win_names_the_team()
+    {
+        var scenario = ScenarioCatalog.Get("stalemate");
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
+        var report = await loop.RunAsync(Ct) with { Failures = [] };
+        var (one, two) = (compiled.TeamIds[0], compiled.TeamIds[1]);
+
+        var tie = loop.BuildRecording(report with { Outcome = new RunOutcome.Ended(4, [one, two]) }).Meta;
+        Assert.Equal("tied between Team 1, Team 2", tie.OutcomeDetail);
+        Assert.Null(tie.WinningTeamId);
+        var win = loop.BuildRecording(report with { Outcome = new RunOutcome.Ended(4, [two]) }).Meta;
+        Assert.Equal(two, win.WinningTeamId);
+        var stray = Guid.CreateVersion7();
+        Assert.Contains(stray.ToString("N")[..8], loop.BuildRecording(report with { Outcome = new RunOutcome.Ended(4, [one, stray]) }).Meta.OutcomeDetail);
+
+        var json = System.Text.Json.JsonDocument.Parse(Summary.Of("in-process", [report with { Outcome = new RunOutcome.Ended(4, [one, two]) }]).ToJson());
+        var ended = json.RootElement.GetProperty("reports")[0].GetProperty("outcome");
+        Assert.Equal("ended", ended.GetProperty("kind").GetString());
+        Assert.Equal(4, ended.GetProperty("rounds").GetInt32());
+        Assert.Equal(2, ended.GetProperty("winners").GetArrayLength());
     }
 }

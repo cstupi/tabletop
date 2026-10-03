@@ -20,8 +20,11 @@ public sealed class GameState(GameInfo info, Board board, EventApplier applier, 
 }
 
 public abstract record EngineResult;
-/// <summary>Events to append, in order. Empty is a valid answer (the command changed nothing).</summary>
-public sealed record Emit(IReadOnlyList<EventPayload> Events) : EngineResult;
+/// <summary>Events to append, in order, and the warning the first of them carries (enforcement spec → How a warning is recorded). Empty is a valid answer.</summary>
+public sealed record Emit(IReadOnlyList<EventPayload> Events, string? Warning = null) : EngineResult
+{
+    public static Emit None { get; } = new([]);
+}
 /// <summary>Not a legality refusal — the command cannot be carried out (no such frame, no interpreter). Independent of enforcement.</summary>
 public sealed record RefuseCommand(RefusalReason Reason, string Detail) : EngineResult;
 
@@ -35,7 +38,9 @@ public interface IRulesEngine
 {
     Legality Judge(GameState state, Command command, Actor actor);
     EngineResult Execute(GameState state, Command command, Actor actor);
-    IReadOnlyList<EventPayload> Advance(GameState state);
+    Emit Advance(GameState state);
+    /// <summary>The changes a round start carries for this game's scheduler and ruleset; what a menu set_round writes (enforcement spec → A menu round start).</summary>
+    IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round) => [];
 }
 
 public interface IRulesEngineFactory

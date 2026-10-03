@@ -15,7 +15,7 @@ public sealed class SessionDrainedException() : InvalidOperationException("sessi
 
 /// <summary>
 /// One game in memory. Every mutation runs on the mailbox loop, so there is no lock: connections post frames, the loop handles
-/// them one at a time. The log is appended before anything is broadcast; the row is written after the broadcast (setup only).
+/// them one at a time. The log is appended before anything is broadcast; a row is written after the broadcast (setup's rows, and the end of the game).
 /// </summary>
 public sealed partial class GameSession
 {
@@ -44,11 +44,33 @@ public sealed partial class GameSession
     public IReadOnlyList<ISessionClient> Clients => _clients;
     public bool Faulted { get; private set; }
 
-    /// <summary>Starts the loop, then catches the engine up (Advance) if the game is Playing (an Ended game hydrates inert) — crash recovery between append and advance.</summary>
+    /// <summary>
+    /// Starts the loop, then decides from the log, not the row (enforcement spec → Hydration): an ended log over a playing row is a crash
+    /// between the append and the row write, so the row is written and nothing advances; an ended log over an ended row is left; a log
+    /// with no live end catches up, whatever the row says — ended is a flag, and an undone strict end is still listed as ended — except a non-playing row over an empty log, a game ended in setup and never played.
+    /// </summary>
     public Task StartAsync()
     {
         _loop ??= Task.Run(async () => { await foreach (var work in _mailbox.Reader.ReadAllAsync()) await work(); });
-        return RunAsync(async () => { if (Play is not null && Info.Status == GameStatus.Playing) await AdvanceAsync(); return 0; });
+        return RunAsync(async () =>
+        {
+            if (Play is null) return 0;
+            if (Play.Projection.Ended is not null) { if (Info.Status == GameStatus.Playing) await MarkEndedAsync(); return 0; }
+            if (Info.Status != GameStatus.Playing && Play.Projection.LastSeq == 0) return 0;   // ended during setup: never played, nothing to advance
+            await AdvanceAsync();
+            return 0;
+        });
+    }
+
+    /// <summary>
+    /// The one row this server writes from playing on (enforcement spec → The row and the broadcast). A failed write is logged and left:
+    /// the log already holds the end, and the next hydration writes the row (StartAsync).
+    /// </summary>
+    private async Task MarkEndedAsync()
+    {
+        try { await _services.Rows.EndGameAsync(GameId, CancellationToken.None); }
+        catch (Exception ex) { _log.LogError(ex, "Game {GameId}: the log ended the game but the row write failed; the next hydration retries.", GameId); return; }
+        await ReloadInfoAsync();
     }
 
     public Task<T> RunAsync<T>(Func<Task<T>> work)
@@ -101,6 +123,7 @@ public sealed partial class GameSession
     {
         if (payloads.Count == 0 || Play is null) return;
         var sealedBefore = EventFilter.SealedOpenAsks(Play.Projection);
+        var endedBefore = Play.Projection.Ended is not null;
         var next = Play.Projection.LastSeq;
         var batch = payloads.Select((p, i) => new GameEvent(next + i + 1, actor, p, i == 0 ? warning : null)).ToList();
         try { await _services.Log.AppendAsync(GameId, batch, CancellationToken.None); }
@@ -111,6 +134,7 @@ public sealed partial class GameSession
         try { Play.Applier.ApplyAll(batch); }
         catch (ProjectionDesyncException ex) { await FaultAsync($"this server's own event does not apply to its own projection: {ex.Message}"); return; }
         foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
+        if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
     }
 
     /// <summary>The rest frame for the log as it stands: nothing further is coming right now, and the log ends at Seq (0 before it opens).</summary>
@@ -122,11 +146,11 @@ public sealed partial class GameSession
         if (Play is null || Engine is null || Faulted) return;
         for (var i = 0; i < 10_000; i++)
         {
-            IReadOnlyList<EventPayload> events;
-            try { events = Engine.Advance(Play); }
+            Emit emit;
+            try { emit = Engine.Advance(Play); }
             catch (Exception ex) { await FaultAsync($"the engine threw in Advance: {ex.Message}"); return; }
-            if (events.Count == 0) return;
-            await AppendAsync(events, null, null);
+            if (emit.Events.Count == 0) return;
+            await AppendAsync(emit.Events, null, emit.Warning);
             if (Faulted) return;
         }
         _log.LogError("Game {GameId}: the engine advanced 10000 times without resting; stopping.", GameId);

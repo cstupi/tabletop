@@ -28,7 +28,7 @@ management's rows plus the event log.
 
 - **Any rule.** No dice, no turn order, no legality beyond membership of an Ask's
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
-  `Id`. `InertEngine` judges nothing and advances nothing.
+  `Id`; the later plans add `JudgeAdvance` and `OnRoundEnded`, both default members returning none. `InertEngine` judges nothing and advances nothing.
 - **Geometry adjudication.** `MoveRegion` answers are checked for model ids only. Distance,
   containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
@@ -388,7 +388,7 @@ as a batch of events, and cost the structural lock on terrain, because anything 
 moved by the log. Keeping the draft out of the log and *in a row* makes "nobody nudges a ruin
 while reaching across the board" free of a flag and a check. Edits exist only during `lobby` and
 `setup`. From `playing` on the server refuses both edit kinds with `RefusalReason.WrongStatus`,
-which is "read-only from `playing` on".
+which locks the draft from `playing` on.
 
 The draft **is** the row, not a copy of one. `table_state` with `game_id` set is the live draft.
 `DraftEditor.Apply` produces the next value, the session broadcasts it, then `WriteDraftAsync`
@@ -428,9 +428,20 @@ sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting
 the dispatch path never constructs it. The invariant "the override path is unconditional" is
 therefore enforced by a `switch` arm rather than by a value flowing through the policy.
 
+A breach has a second form, raised by a system rather than a command. `Decide(Enforcement, Breach?)`
+reads it:
+
+| Breach | `silent` | `warn` | `strict` |
+| --- | --- | --- | --- |
+| none | `Accept(null)` | `Accept(null)` | `Accept(null)` |
+| `StrictRefuses(r)` | `Accept(null)` | `Accept(Detail)` | `Refuse(r, Detail)` |
+| `StrictEndsGame(w)` | `Accept(null)` | `Accept(Detail)` | `EndGame(Detail, w)` |
+
+`RulesEngine.Advance` judges its own proposal through `IGameRules.JudgeAdvance`; under strict a breach there ends the game.
+
 `MenuTranslation.Translate` maps each override command to the one event that states its change
 in full: `SetWounds` to `WoundsSet`, `SetActiveTeam` to `TurnStarted`, `SetRound` to
-`RoundStarted`. It checks **only references**. The event must name a unit, model, team or marker
+`RoundStarted`, `SetObjectiveControl` to `ObjectiveControlSet`. It checks **only references**. The event must name a unit, model, team or marker
 the projection has, because applying an event that names nothing would throw inside the applier.
 It checks nothing else. A dead model may be put back on the table, a unit may be marked moved
 twice, and the active team may be set to a team whose turn it is not. That is game flow's
@@ -529,12 +540,12 @@ be tested end to end with no rules in the tree.
 
 ### Row reads and writes
 
-The game server writes management's rows while the game is `lobby` or `setup`
-(`architecture.md` → Game management data model), and the list is closed:
+The game server writes management's rows while the game is `lobby` or `setup`, and
+`game.status` once more when its own log ends the game (`architecture.md` → Game management data model), and the list is closed:
 
 | While `lobby` or `setup` | From `playing` on |
 | --- | --- |
-| `game.status` (the two creator transitions) | nothing |
+| `game.status` (the two creator transitions) | `game.status = 'ended'`, once, when a `game_ended` it appended becomes live (`IGameRows.EndGameAsync`) |
 | `game.name`, `properties_hash`, `game_rules`, `scheduler_shape`, `enforcement`, `waits_between_steps` | nothing |
 | `team` (insert, ordinal `max + 1`) | nothing |
 | `participant.team_id`, `participant.army_id` | nothing |
@@ -660,9 +671,9 @@ nothing to flush.
 | --- | --- | --- | --- |
 | Enforcement is three positions, `silent \| warn \| strict` | Action sequences and the scheduler both need a refusing mode | A boolean (warn or say nothing), on the grounds that blocking contradicts a virtual tabletop | Whole-design review ruling 1 |
 | Menu edits are accepted under **every** setting | They are the override path, visible to opponents and logged with an actor, never silent | A separate admin mode or a confirmation gate; a second write path for overrides | Review ruling 1; game flow, *Nothing is an invariant* |
-| The game server **writes** the game's own rows while `lobby` or `setup` | Setup has it writing the draft, flipping the status and taking team and army picks over the socket | Read-only throughout, with management endpoints for team, army, configuration and the draft | Review ruling 4 |
+| The game server **writes** the game's own rows while `lobby` or `setup`, and `ended` from `playing` | Setup has it writing the draft, flipping the status and taking team and army picks over the socket | Read-only throughout, with management endpoints for team, army, configuration and the draft | Review ruling 4 |
 | A participant has no team until they pick one, and that *is* a spectator | `join` assigns no team | Presence's "someone who wants to watch joins a third team" | Review ruling 5 |
-| The team list is locked at the flip to `playing`, and a participant reconnecting during play is returned to their slot | A team is a slot on the `participant` row, so it survives the socket; letting teams change mid-game would also need a score entry for a team created after `Projection.Initial` | Teams created and picked at any status, which contradicts the server being read-only from `playing` on; treating a reconnecting player as a late joiner, which would make every dropped connection cost a seat | The plan's ruling 1; game flow → Teams are frozen at the flip, and a team is a slot |
+| The team list is locked at the flip to `playing`, and a participant reconnecting during play is returned to their slot | A team is a slot on the `participant` row, so it survives the socket; letting teams change mid-game would also need a score entry for a team created after `Projection.Initial` | Teams created and picked at any status, which contradicts the server writing only events and the end from `playing` on; treating a reconnecting player as a late joiner, which would make every dropped connection cost a seat | The plan's ruling 1; game flow → Teams are frozen at the flip, and a team is a slot |
 | The setup phase is not logged; only the result is | Setup needs a settled result, not replay, and keeping terrain out of the log locks it structurally, with no flag and no check | Placement as a stream of ordinary commands, so a predefined map is a batch of events and undo-during-placement is free | Setup content, *The setup phase is snapshotted, not logged*; setup phase |
 | Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | Computed locally and never sent anywhere | Presence, *What this corrects in architecture.md* |
 | No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts; management API, *We issue no tokens of our own* |
@@ -697,7 +708,7 @@ Decisions this module settles itself:
 
 | Type | Members |
 | --- | --- |
-| `interface IGameRules` | `string Id { get; }` (extend with hooks, do not replace) |
+| `interface IGameRules` | `string Id { get; }`, `GameEndingBreach? JudgeAdvance(GameState, PropertySet, IReadOnlyList<EventPayload>)`, `IReadOnlyList<StateChange> OnRoundEnded(GameState, PropertySet, int round)` (the last two default to none; extend with hooks, do not replace) |
 | `sealed partial class GrimdarkFutureRules : IGameRules` | `const string RulesId = "grimdark-future"`, `static GrimdarkFutureRules Instance`, `Id`; namespace `Tabletop.GameServer.Rules.GrimdarkFuture`, file `Rules/GrimdarkFuture/GfRules.cs` |
 | `static class GameRulesRegistry` | `IGameRules Resolve(string id)`, throws `UnknownGameRulesException(string id)` |
 | `sealed record Actor(Guid ParticipantId, Guid? TeamId)` | |

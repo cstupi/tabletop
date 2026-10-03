@@ -174,12 +174,12 @@ Conventions: JSON per `ContentJson.Configure` (camelCase, snake_case enums, null
 
 ### Rows by writer
 
-| Table / column | Management | Game server (`lobby`/`setup` only) |
+| Table / column | Management | Game server (`lobby`/`setup`, and the end) |
 | --- | --- | --- |
 | `account`, `blob`, `asset`, `asset_volume`, `folder`, `asset_folder`, the ten army tables, `table_state` with `owner_id` and its children, `properties` and the seven tables under it (read here; loaded by the content import) | writes | reads |
 | `game` insert; `game.name/game_rules/properties_hash/scheduler_shape/enforcement/waits_between_steps/created_by/created_at` | writes on create | rewrites configuration on `set_configuration` |
 | `game.rng_seed` | writes once on create (`Random.Shared.NextInt64()`); no endpoint updates it | never — reads it at hydration into `GameInfo.RngSeed` |
-| `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing` |
+| `game.status` | `'lobby'` on create; `'ended'` on `/end` and on the last leave | `lobby → setup → playing`; `playing → ended` when its own log ends the game (guarded on `playing`) |
 | `team` | never | inserts (`create_team`), while `lobby` or `setup` only |
 | `participant` insert / delete — **joining the game**, which is a row with no team | create, join / leave | never |
 | `participant.team_id` — **taking a team**, which is not joining | never | writes (`pick_team`), while `lobby` or `setup` only |

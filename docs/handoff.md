@@ -14,15 +14,15 @@ skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), t
 each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 927 tests: Geometry 157, Content 17, Protocol 37, Client 64, GameServer 453,
-Management 88, Sim 102, Viewer 9. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+`dotnet test` passes 962 tests: Geometry 157, Content 17, Protocol 39, Client 65, GameServer 473,
+Management 88, Sim 114, Viewer 9. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
 skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`. In `viewer/`, `npm test`
-passes 83, `svelte-check` reports 0 errors and 0 warnings, and `npm run build` writes `dist/index.html`.
+passes 85, `svelte-check` reports 0 errors and 0 warnings, and `npm run build` writes `dist/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
 reaches `playing` runs the Grimdark Future roll-off, deployment, activations, rounds, shooting, melee,
-morale, casting and transports through Asks. No wire kind was added after the contracts plan, so
-`ProtocolVersion` is unchanged.
+morale, casting and transports through Asks. `game_ended` is the only wire kind added after the contracts plan, and
+`ProtocolVersion` stays 1 (`architecture.md` → Transport).
 
 The first owner session against the real stack (2026-10-01) produced these commits on `main`:
 
@@ -35,9 +35,9 @@ The first owner session against the real stack (2026-10-01) produced these commi
 | `03df02d` | Charge is offered only with an enemy unit within charge distance (p.7, `GfMelee.ChargeTargets` in `ActionsFor`); the cast window opens only when a caster can afford an untried spell (`GfCasting.SpellOptions`); `moved` clears at `turn_ended` |
 
 **The simulator** is `sim/` (`Tabletop.Sim`), with `tests/Tabletop.Sim.Tests`. It plays a scenario from a
-catalog of six (`skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting`), answers every Ask
+catalog of ten (`skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `casting`, `final-round`, `final-round-warn`, `final-round-silent`, `objectives`), answers every Ask
 from its legal set with a uniform seeded policy or a script, drives the session in process or over a real
-socket, checks five invariants, and writes one recording per run (5 to 6 MB for an eight-round game). The
+socket, checks seven invariants, and writes one recording per run (5 to 6 MB for a game played to the end of round 4 under strict). The
 first Ask of every game is the roll-off `confirm` gate addressed to both teams, answered once. A socket run
 mints its sessions from `POST /v1/dev/sessions`, so it needs management in Development and the game server;
 socket-backed tests seed the core properties document themselves. Coverage: uniform play almost never
@@ -51,14 +51,6 @@ scripted driver that preceded it, is superseded.
   management migration `004_properties_seeded_at.sql`; the seeder refreshes it on every startup). An older set
   stays for the games that pinned it.
 - Duplicate activate labels from two units the army names alike are the army author's; nothing to fix.
-- The round-4 end (p.7, *"After 4 rounds have been played the game ends"*) follows the game's enforcement
-  setting: `warn` warns that the final round has finished, `strict` ends the game, `silent` leaves it to the
-  players. It is to be built on **one generic enforcement engine** that any system raises a breach into, not
-  as a special case: today `Dispatch/EnforcementPolicy.Decide` maps only a command's `Legality`, and a
-  state-time breach raised from `Advance` with a strict consequence (ending the game) has no path. Ending under
-  `strict` also touches the rows-by-writer rule (the game server writes rows only in `lobby`/`setup`) and needs
-  a `GameInfoMessage` broadcast. **Deferred by the owner** until the other items are done; it needs a design
-  session (spec, then plan) first.
 - Built-in art is placeholder until the game is structurally sound: `client/content/builtin/terrain/*.glb`
   are flat-coloured primitives (woods: trees on a disc; ruins: broken walls; the rest one shape each, authored
   in the unit box), `textures/*.png` are solid colours, `grass` the slab's green.
@@ -107,13 +99,7 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    (an older core-document hash and the current one; the listing shows the current one). The servers are long-running: start them in the
    owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
    Claude Code background command is stopped after two hours.
-2. **The enforcement engine.** One mechanism behind `silent | warn | strict` that any system hands a breach to
-   (what was broken, the detail, and what `strict` does about it), with the round-4 end as its first state-time
-   client (*Settled by the owner on 2026-10-02*, above). Design session first: a spec, then a plan, propagated
-   to `architecture.md` → *Rules enforcement*, the scheduler spec's *There is no round limit*, the accounts
-   spec's *Ending is a flag* and the rows-by-writer table.
-   `sim/` scenarios run under `strict`, and `SubmitResult.Accepted.Warning` is never populated: a `warn`
-   breach is visible only on its event.
+2. **The enforcement engine and objectives** are built by the `enforcement` tree: [the enforcement engine plan](superpowers/plans/2026-10-02-enforcement-engine/README.md) and [the objectives plan](superpowers/plans/2026-10-02-objectives/README.md).
 3. **The viewer by hand.** `cd viewer && npm install && npm run dev` serves it on `http://localhost:5174`.
    Recordings come from `dotnet run --project sim -- skirmish --seeds 1..3` (written to `./recordings`). What no
    headless test covers: the board's drawing and pointer picking, panning versus picking; loading a recording by
@@ -399,7 +385,7 @@ compose-init test and the two JWT negative tests it names.
   `SendEditAsync` throw `InvalidOperationException` and `SendPresenceAsync` and `SendPingAsync` drop. A new send
   path goes through the same gate. The client half-closes cleanly; a `Rejected` goes Home or to the update
   screen, and any other close, 1011 included, reconnects at 1, 2, 5, 10 s. An unknown message `kind` throws in
-  `WireJson` and loops reconnects, so a tree that adds a kind bumps `ProtocolVersion`.
+  `WireJson` and loops reconnects, so a client built before a new kind loops reconnects, and `ProtocolVersion` moves only for an installed client (`architecture.md` → Transport).
 - **Game-server plans.** The server keeps writing army snapshots before it broadcasts `GameInfo(Playing)`: the
   client refetches the asset manifest on that transition and expects every army's assets in it. The mesh
   fallback for an asset missing from the manifest is owner-only (`GetDownload`), so another player's asset
@@ -541,9 +527,11 @@ Groups (Sergeant, Musician, Banner), Grimdark Future has `Aircraft` and `Transpo
 Fantasy runs a 75% points scale. Both import; **no Age of Fantasy content set exists**, so such a
 list imports before there is anything to play it with. The catalogue holds 33 core rules.
 
-**Not built, by design.** Objectives and scoring: *seized* is distinct from *control*, a dropped
-marker is placed within 1" by the opponent, side-missions count *"5+ models"*. The repo places
-markers and scores nothing; missions are content in a book. Page 13's same-time rules-priority
+**Not built, by design.** Missions beyond the core one: a dropped marker is placed within 1" by the
+opponent, side-missions count *"5+ models"*, and missions are content in a book. The engine scores the
+core mission (*seized* is distinct from *control*): objectives are seized at each round's end and the
+round-4 end names the winner.
+The `objectives` scenario runs at seed 1 and ends with winner team ordinal 2. Page 13's same-time rules-priority
 tie-break is not implemented, because `ordinal` gives replay a deterministic order.
 
 **Known limits inside closed rulings.** `Takedown`'s *"resolved as if it was a unit of [1]"* is not

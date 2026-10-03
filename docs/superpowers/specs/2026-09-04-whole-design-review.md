@@ -20,7 +20,7 @@ Findings that reversed an earlier decision or added a column went to the user.
    (09-04) then wrote "at strict enforcement an out-of-set answer is refused" without noticing.
    The review put the contradiction to the user, who **kept the refusing position**.
    `game.enforcement` is `silent | warn | strict`, replacing `warns`. `strict` refuses an
-   out-of-set Ask answer or an illegal command. **The menu's edits are accepted under every
+   out-of-set Ask answer or an illegal command. It also ends the game when a state-time breach's consequence is the end ([the enforcement engine](2026-10-02-enforcement-engine-design.md)). **The menu's edits are accepted under every
    setting**, because they are the override path and are logged with an actor. Corrected in
    identity and enumerations, architecture, game flow, action sequences, the scheduler, the
    client shell, schema and data model.
@@ -34,8 +34,8 @@ Findings that reversed an earlier decision or added a column went to the user.
    management's schema read-only and wrote only events; the setup phase had it writing the
    `table_state` draft, flipping `game.status`, and taking team and army picks over the socket.
    Ruled: it writes `game.status`, `team`, `participant.team_id` and `army_snapshot`, and the
-   game's `table_state` tree while status is `lobby` or `setup`, and is read-only from `playing`
-   on. **Layouts stay management's**: the client saves one by `POST /v1/layouts` from its own
+   game's `table_state` tree while status is `lobby` or `setup`, and from `playing` on writes
+   only events and one row, `game.status = 'ended'`, when its own log ends the game. **Layouts stay management's**: the client saves one by `POST /v1/layouts` from its own
    copy of the draft and loads one by `GET /v1/layouts/{id}` plus a replace-draft edit. Lobby
    picks — create a team, pick a team, pick an army, change configuration — are socket commands
    of the setup-edit kind: written, broadcast, never logged. Corrected in architecture, the
@@ -51,7 +51,7 @@ Findings that reversed an earlier decision or added a column went to the user.
    *Corrected 2026-09-06, ruled by the owner.* This ruling first read "teams are created by
    lobby commands at any status", and closed with ~~a team created after `playing` has no zone
    and nothing to deploy~~. Both are struck: they contradicted ruling 4 above, since a server
-   that is read-only from `playing` on cannot write a `team` row then, and no team is created
+   that writes only events and the end from `playing` on cannot write a `team` row then, and no team is created
    after `playing` for the zone case to arise. **The team list is frozen at the flip to
    `playing`**, and a returning player **rejoins the slot recorded on their own `participant`
    row** — same team, no re-pick, not a spectator. Ruling 4 and this ruling now agree: both stop

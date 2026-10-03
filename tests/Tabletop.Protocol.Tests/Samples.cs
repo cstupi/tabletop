@@ -57,6 +57,8 @@ public static class Samples
         new ActionRecorded(Unit, "Advance"), new ActionRecordCleared(Unit), new GrantAdded(Unit, Grant), new GrantRemoved(Unit, Grant.Id),
         new SpellTokensSet(Model, 3), new WoundsThisActivationSet(Unit, 2), new ScoreSet(Team1, 4),
         new MarkerPlaced(Token), new MarkerMoved(Token.Id, new Point3(2, 2, 0), new Yaw(90)), new MarkerRemoved(Token.Id),
+        new GameEnded("over", [Team1]),
+        new RoundEnded(4, [new ObjectiveControlSet(Token.Id, Team1)]), new ObjectiveControlSet(Token.Id, null),
     ];
     public static readonly Command[] Commands =
     [
@@ -65,6 +67,7 @@ public static class Samples
         new RecordAction(Unit, "Hold"), new ClearActionRecord(Unit), new AddGrant(Unit, Grant), new RemoveGrant(Unit, Grant.Id),
         new SetSpellTokens(Model, 6), new SetWoundsThisActivation(Unit, 0), new SetScore(Team2, 1), new SetActiveTeam(Team2), new SetRound(2),
         new Undo(3), new AbandonSequence(Frame), new RerollDice(Frame, Roll, []), new SetDice(Frame, Roll, [new DieValue(0, 6)]), new AddModifier(Frame, "hit", -1),
+        new SetObjectiveControl(Token.Id, Team1),
     ];
     public static readonly Edit[] Edits =
     [

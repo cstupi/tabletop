@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A fourth deliverable, `sim/`, that plays a Grimdark Future game from deployment to a decided end without the Godot client — scripted, seeded, or both — against either an in-process session or a real socket, asserting the invariants that hold for any game and writing one recording file per run.
+**Goal:** A fourth deliverable, `sim/`, that plays a Grimdark Future game from deployment to the end of the game without the Godot client — scripted, seeded, or both — against either an in-process session or a real socket, asserting the invariants that hold for any game and writing one recording file per run.
 
-**Architecture:** One `IGameDriver` interface over two backends: `InProcessDriver` hydrates a `GameSession` over `InMemoryEventLog` and `InMemoryPropertiesStore` with an `ISessionClient` that records frames, and `SocketDriver` opens a real WebSocket to a running game server with a session JWT and a Postgres log. Above the driver sit an answer source (a script keyed by question and ordinal, falling through to a seeded policy that chooses uniformly from the whole legal set), a run loop that terminates on decided / round cap / stuck, the five invariant checks, and a recording writer that emits a **projection recording** — one frame per event, full state per frame.
+**Architecture:** One `IGameDriver` interface over two backends: `InProcessDriver` hydrates a `GameSession` over `InMemoryEventLog` and `InMemoryPropertiesStore` with an `ISessionClient` that records frames, and `SocketDriver` opens a real WebSocket to a running game server with a session JWT and a Postgres log. Above the driver sit an answer source (a script keyed by question and ordinal, falling through to a seeded policy that chooses uniformly from the whole legal set), a run loop that terminates on ended / round cap / stuck, the five invariant checks, and a recording writer that emits a **projection recording** — one frame per event, full state per frame.
 
 **Tech Stack:** `net10.0`, C# 12, xUnit, `System.Text.Json`, Npgsql (through the game server's own types), `System.Net.WebSockets.ClientWebSocket`.
 
@@ -91,8 +91,8 @@ Each task is its own file, in build order.
 3. [The script, and the composition that makes a mixed run](task-03-the-script-and-the-composition-that.md)
 4. [`IGameDriver`, and the in-process driver](task-04-igamedriver-and-the-in-process-driver.md)
 5. [The recording — the schema, the writer, and one frame per event](task-05-the-recording-the-schema-the-writer.md)
-6. [The run loop — decided, round-capped, stuck, or failed](task-06-the-run-loop-decided-round-capped.md)
-7. [The five invariants](task-07-the-five-invariants.md)
+6. [The run loop — ended, round-capped, stuck, or failed](task-06-the-run-loop-decided-round-capped.md)
+7. [The invariants](task-07-the-five-invariants.md)
 8. [The socket driver, and the two drivers agree](task-08-the-socket-driver-and-the-two.md)
 9. [The step-and-wait seam](task-09-the-step-and-wait-seam.md)
 10. [The console entry point](task-10-the-console-entry-point.md)
@@ -161,7 +161,7 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 | Type | Members |
 | --- | --- |
 | `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }` | |
-| `abstract record RunOutcome` | `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, `string Kind` |
+| `abstract record RunOutcome` | `Ended(int Round, IReadOnlyList<Guid> Winners)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, `string Kind` |
 | `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` | `static Of(Ask)` — the id is excluded, the legal set included |
 | `static class HandPlacement` | `IRL<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)`, `Chooser ChooserFor(ulong scenarioSeed)` |
 | `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)` | `Record = false` builds no frames and is paired with `CheckInvariants: false` |
@@ -211,7 +211,7 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 
 4. **The public surface `tests/Tabletop.Viewer.Tests` needs** (item 4). Every name on that list is `public`: `RunLoop.BuildRecording` (Task 6) and `RunLoop.Log` (Task 7), `InProcessDriver.Info` and `.Board` (Task 4), `CompiledScenario.RecorderParticipantId`, `ScenarioCatalog.Get`, `ScenarioCompiler.Compile`, `Scenario` — a `record`, so `with { RoundCap = 2 }` works — and `Chooser(ulong)` (Task 1), `AnswerPolicy(Chooser, PolicyOptions?)` (Task 2), `ComposedAnswers(AnswerScript, AnswerPolicy?)` (Task 3), `RunSettings()` (Task 6, every parameter defaulted), all six `RecordingJson` members and every `Recorded*` record (Task 5). *Interfaces → Produces* states it at the top, together with the fact that **`sim/` references no test project**, so a test project referencing `sim/` is not a cycle (spec → *Testing*).
 
-5. **`RecordingMeta`'s `Outcome` doc comment** (the viewer plan asks it of this file rather than of a spec). It reads that `decided`, `round_limit`, `stuck` and `failed` are what a finished run writes, and that `live` is what `viewer/`'s live feed sets when it manufactures a meta from `GameInfo`; `sim/` writes only the first four. The field is a `string`, and the alternative — a null `meta` on a live feed — would strip the team names the Ask panel needs to say who an Ask addresses.
+5. **`RecordingMeta`'s `Outcome` doc comment** (the viewer plan asks it of this file rather than of a spec). It reads that `ended`, `round_limit`, `stuck` and `failed` are what a finished run writes, and that `live` is what `viewer/`'s live feed sets when it manufactures a meta from `GameInfo`; `sim/` writes only the first four. The field is a `string`, and the alternative — a null `meta` on a live feed — would strip the team names the Ask panel needs to say who an Ask addresses.
 
 ---
 ## Interfaces needed from other modules
@@ -254,4 +254,4 @@ Everything below is consumed by its exact name; nothing here is a request to ren
 
 **Termination is stated once.** The *Termination, exactly* table and `RunLoop.DriveAsync` give the round limit the same way — `Round >= RoundCap` with every open Ask the boundary Ask — which is also what `docs/design/simulation/design.md` records. `A_cap_of_two_stops_at_the_end_of_the_second_round` pins the boundary. Where a check is weaker than it looks it says so: `AskReopenedUnchanged` names `RunSettings.MaxSteps` as its backstop in the table, in the `Reopened` doc comment and in `RunSettings`' own.
 
-**Type consistency.** `SubmitResult.Accepted`/`Rejected`, `RunOutcome.Decided`/`RoundLimit`/`Stuck`/`Failed`/`Paused`, `RecordedFrame`'s sixteen members, `PolicyView`'s five-parameter constructor (two positional, three optional) and `LogLines.Of`'s three-argument signature are used the same way in every task that touches them. `CompiledScenario` has `RecorderParticipantId` from Task 1 and is consumed with it in Tasks 4, 5, 6 and 8. `RunLoop` has `Log` from Task 7 and `Answers` from Task 8, both named where they are added.
+**Type consistency.** `SubmitResult.Accepted`/`Rejected`, `RunOutcome.Ended`/`RoundLimit`/`Stuck`/`Failed`/`Paused`, `RecordedFrame`'s sixteen members, `PolicyView`'s five-parameter constructor (two positional, three optional) and `LogLines.Of`'s three-argument signature are used the same way in every task that touches them. `CompiledScenario` has `RecorderParticipantId` from Task 1 and is consumed with it in Tasks 4, 5, 6 and 8. `RunLoop` has `Log` from Task 7 and `Answers` from Task 8, both named where they are added.

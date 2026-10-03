@@ -98,7 +98,7 @@ stats are keyed and typed is the content session's question.
 scheduler had both written a refusing mode under the "dial" name, and the review kept it.
 **`GAME.enforcement` is `silent | warn | strict`**, replacing `warns`. `strict` refuses an
 out-of-set Ask answer or an illegal command; the menu's edits are accepted under every setting,
-because they are the override path. The argument below stands for `silent` and `warn`.*
+because they are the override path. It also ends the game when a state-time breach's consequence is the end ([the enforcement engine](2026-10-02-enforcement-engine-design.md)). The argument below stands for `silent` and `warn`.*
 
 Not a dial. **The server warns, or it says nothing.**
 
@@ -197,7 +197,7 @@ across versions is not a scenario worth engineering for.
 The exposure is narrower than it first looks. Undo within a session is unaffected, because the
 engine cannot change while a session is live. The only case is **restarting an ended game after
 a `GameRules` deploy**, which is possible because ended is a flag rather than a terminal state.
-That game may replay differently. It is a friendly-play tabletop with no victory conditions,
+That game may replay differently. It is a friendly-play tabletop,
 and nothing rides on it.
 
 The alternative — pinning a build version and refusing to replay across it — would turn every

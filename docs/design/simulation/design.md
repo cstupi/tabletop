@@ -1,20 +1,20 @@
 # Simulation
 
-`sim/` plays a Grimdark Future game from deployment to a decided end without the Godot client.
+`sim/` plays a Grimdark Future game from deployment to the end of the game without the Godot client.
 It is a fourth deliverable, a console executable and a library at `sim/Tabletop.Sim.csproj`,
 root namespace `Tabletop.Sim`. A game is a `Scenario`. A decision is answered by a script, by a
 seeded policy, or by both in one run. The game runs against an in-process `GameSession` or a
-real WebSocket, behind one `IGameDriver`. A run ends `decided`, `round_limit`, `stuck` or
-`failed`, checks five invariants, and writes one recording file. `sim/` contains no second
+real WebSocket, behind one `IGameDriver`. A run ends `ended`, `round_limit`, `stuck` or
+`failed`, checks seven invariants, and writes one recording file. `sim/` contains no second
 implementation of the rules: it may read anything the engine exposes, but it may never narrow a
 legal set and never compute a rules outcome the engine should compute.
 
 ## Scope
 
-**In scope.** The `Chooser`, the scenario record and its compiler, the six catalog scenarios;
+**In scope.** The `Chooser`, the scenario record and its compiler, the ten catalog scenarios;
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
 `IGameDriver` interface and both implementations; the run loop, its four outcomes and its
-hand-placement of deployed models; the five invariants and the projection comparer; the
+hand-placement of deployed models; the seven invariants and the projection comparer; the
 recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; and
 the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliverable.
 
@@ -67,7 +67,7 @@ flowchart TD
         Scen["Scenarios: Scenario, ScenarioCompiler, ScenarioCatalog"]
         Ans["Answers: AnswerScript, AnswerPolicy, ComposedAnswers"]
         Loop["Run: RunLoop, RunOutcome, HandPlacement"]
-        Inv["Invariants: the five checks"]
+        Inv["Invariants: the seven checks"]
         Rec["Recording: FrameProjector, RecordingJson"]
         Drv["Drivers: IGameDriver"]
     end
@@ -149,7 +149,7 @@ seed fails to compile rather than silently getting `0`.
 ### The scenario and its compilation
 
 A scenario is C#. `Scenario` is a record with a fluent `ScenarioBuilder`, and
-`ScenarioCatalog` holds six of them by name. A text format was rejected in the spec's
+`ScenarioCatalog` holds ten of them by name. A text format was rejected in the spec's
 *Deliberately not decided*: C# costs nothing to start and keeps the assertions typed.
 
 ```mermaid
@@ -185,7 +185,7 @@ Zone shape ids come from `ZoneStyles.ShapesOf` (`frontline/1`, `free-for-all/1`)
 order, which is what `SetZoneStyle.Shapes` carries during setup. `sim/` stores the expansion
 rather than the style name, because that is what a `deployment_zone` row holds.
 
-The six catalog scenarios and what each exists to exercise:
+The ten catalog scenarios and what each exists to exercise:
 
 | Name | Shape | Contents |
 | --- | --- | --- |
@@ -195,6 +195,10 @@ The six catalog scenarios and what each exists to exercise:
 | `free-for-all` | alternating activation | three teams, `ZoneStyles.FreeForAll` zones |
 | `stalemate` | alternating activation | one model a side and `RoundCap(3)`, so the run must hit the cap |
 | `casting` | alternating activation | a `Caster(2)` and one scenario-declared spell, so casting's two player decisions open in a whole-game run |
+| `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
+| `final-round-warn` | alternating activation | the same under `warn`: round 5 starts with a warning and the run stops at the cap |
+| `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
+| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with a scored winner (seed 1, winner team ordinal 2) |
 
 `Scenario.Enforcement` defaults to `Enforcement.Strict`, which is the opposite of every
 fixture's default. An answer outside the legal set must be refused loudly rather than logged and
@@ -458,7 +462,7 @@ participant. The in-process driver reaches nothing, and neither does `DriverAgre
 ```mermaid
 stateDiagram-v2
     [*] --> Stepping: "RunLoop.RunAsync, drain the backlog"
-    Stepping --> Decided: "one team on the table, another with none, round >= 1"
+    Stepping --> Ended: "game_ended is in the log"
     Stepping --> RoundLimit: "round >= RoundCap and every open ask is end_round"
     Stepping --> Stuck: "NoAskNoEvents: no ask open, nothing emitted"
     Stepping --> Paused: "Mode == StepAndWait, an ask is open"
@@ -469,7 +473,7 @@ stateDiagram-v2
     Placing --> Stepping: "MoveModels into the team's zone"
     Answering --> Stepping
     Paused --> Stepping: "ResumeAsync or AnswerPausedAsync"
-    Decided --> [*]
+    Ended --> [*]
     RoundLimit --> [*]
     Stuck --> [*]
     Failed --> [*]
@@ -479,16 +483,13 @@ stateDiagram-v2
 
 | End | Condition as the loop computes it |
 | --- | --- |
-| `Decided` | Exactly one team has a model whose `Location is OnTable`, and at least one other has none. Read only from round one. |
+| `Ended` | `Projection.Ended` is set: the game logged `game_ended`, with its winners. A wipe-out is not a win (p.6). |
 | `RoundLimit` | `Projection.Scheduler.Round >= Scenario.RoundCap` and every open Ask is `AskQuestions.EndRound`. |
 | `Stuck(NoAskNoEvents)` | A step produced no events and no Ask is open. Also the `MaxSteps` (20 000) exhaustion. |
 | `Stuck(AskReopenedUnchanged)` | The Ask answered at step *n* closed and an Ask with the same `AskFingerprint` opened, with no event between them but the three Ask events. |
 | `Stuck(SubmitRefused)` | The driver refused an answer. Under `strict` that is a real bug in the policy or the engine, and the run stops rather than looping. |
 | `Stuck(NoLegalAnswer)` | `NoLegalAnswerException`: a legal set with no answer and no pass. |
 | `Failed` | An `UnscriptedAskException`, a `RestTimeoutException`, a failed expectation, or a failed invariant. |
-
-`Decided` is read from the table and only from round one. Before deployment every model is on
-the shelf, so every team has none and the condition would fire on the first frame of every game.
 
 Stuck is what the harness exists to find. A scheduler or interpreter that cannot make progress
 is a hang in production and a failed assertion here. `RunReport.Passed` is false for `stuck` and
@@ -652,7 +653,7 @@ one line per event kind. It takes the ordinals as a third argument because `Proj
 team-ordinal lookup. The ordinals live on `GameInfo.Teams`, and `FrameProjector` builds the
 dictionary once.
 
-### The five invariants
+### The seven invariants
 
 Beyond a scenario's own `Expectation` list, every run checks what holds for any game whatever
 the ruleset. Each is a statement about the log, the projection and the slab. None recomputes an
@@ -665,6 +666,8 @@ outcome the engine produced.
 | `EveryAskAnsweredByAnAddressedTeam` | For each `AskAnswered`, the `AskOpened` with that id must exist and must list the answering team in `Ask.Teams`. |
 | `NoModelInTwoPlacesOrOffTheSlab` | Walk the effective log: each `ModelRelocation.From` must equal the model's location before the event, and every `OnTable` position must satisfy `0 <= x <= width` and `0 <= y <= length`. |
 | `TheRoundAdvancedOnlyThroughTheBoundaryAsk` | For every `RoundStarted` with `Round >= 2`, the nearest preceding `AskClosed` must have closed an Ask whose question is `AskQuestions.EndRound`, or `GameEvent.Actor` must be non-null. |
+| `NothingAdvancesAfterTheEnd` | Nothing the engine writes follows `game_ended` until a round is started by hand. |
+| `ControlFollowsTheMarkers` | Every `objective_control_set`, alone or inside another event's changes, names a marker the game holds at that point and, when it names a team, a team of the game. |
 
 Invariant 2 needs no second run. The dice are counter-based on `(RngSeed, cursor)` and `RngSeed`
 is the stored seed, so die *k* is a pure function of that seed and *k*, and `Undone(N)` shortens
@@ -762,8 +765,8 @@ stored rather than derived, and the two runs are separate games that rolled the 
 | The recording carries the dice, not only the result | the first thing a person debugging the engine wants is why a unit died | the result alone, at a few hundred integers saved | **(plan)** Task 5 |
 | The schema carries `schemaVersion`, one integer | a viewer can refuse a file it does not understand rather than mis-draw it | no version, since the recording is derived | spec → Deliberately not decided |
 | `RecordingJson` owns its options rather than reusing `WireJson.Options` | the recording is not a wire format | one shared serializer | **(plan)** Global Constraints |
-| The round cap lives on `Scenario`, overridable with `--rounds` | a cap is a property of a run, not of a ruleset; OPR has no round limit | `GameRules`, which would put a testing concern inside the rules | spec → What a full game means |
-| `Decided` is read from the table and only from round one | before deployment every model is on the shelf, so the condition would fire on the first frame of every game | reading it from round zero | spec → What a full game means |
+| The round cap lives on `Scenario`, overridable with `--rounds` | a cap is a property of a run, not of a ruleset; the cap is not the ruleset's final round, which the enforcement engine reads | `GameRules`, which would put a testing concern inside the rules | spec → What a full game means |
+| `Ended` is read from the log: the game logged `game_ended` | a wipe-out is not a win (p.6) | reading it from the table | spec → What a full game means |
 | A scenario is C# with a fluent builder | costs nothing to start and keeps the assertions typed | a text format | spec → Deliberately not decided |
 | `Enforcement.Strict` is a scenario's default | an out-of-set answer must be refused loudly rather than logged and accepted | matching the fixtures' `warn` default | **(plan)** Global Constraints |
 | The script is keyed by `(question, ordinal)`, counted per question over the run | that is the number a person writing a script can count | keying by `Ask.Id`, which is server-minted, or by frame id, which is not stable | **(plan)** Task 3 |
@@ -836,7 +839,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | Type | Members |
 | --- | --- |
 | `enum StuckReason { NoAskNoEvents, AskReopenedUnchanged, SubmitRefused, NoLegalAnswer }` | |
-| `abstract record RunOutcome` | `Decided(Guid WinningTeamId)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, `string Kind` |
+| `abstract record RunOutcome` | `Ended(int Round, IReadOnlyList<Guid> Winners)`, `RoundLimit(int Rounds)`, `Stuck(StuckReason, string Detail)`, `Failed(string Detail)`, `Paused(Guid AskId, string Question)`, `string Kind` |
 | `sealed record AskFingerprint(string Question, string Teams, string Legal, bool AllowPass, string? WindowKind)` | `static AskFingerprint Of(Ask)` |
 | `static class HandPlacement` | `IRL<ModelRelocation> IntoZone(Projection, CompiledScenario, Guid teamId, Guid unitId, Chooser)`, `Chooser ChooserFor(ulong scenarioSeed)` |
 | `sealed record RunSettings(int MaxSteps = 20_000, int FrameDumpOnFailure = 12, bool CheckInvariants = true, bool Record = true)` | `Record: false` builds no frames, for a loop attached to a game already past its first event |
@@ -859,7 +862,7 @@ The viewer's whole input.
 | Type | Members |
 | --- | --- |
 | `sealed record Recording(int Version, RecordingMeta Meta, RecordedBoard Board, IRL<RecordedFrame> Frames)` | `Version` serialises as `schemaVersion` |
-| `sealed record RecordingMeta(string Scenario, ulong Seed, string Driver, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, int? RoundCap, IRL<RecordedTeam> Teams, string Outcome, string? OutcomeDetail, Guid? WinningTeamId, int Rounds, long LastSeq, DateTimeOffset StartedAt, double DurationMs)` | `Outcome` is `decided`, `round_limit`, `stuck` or `failed` from `sim/`; `live` is what the viewer's live feed sets |
+| `sealed record RecordingMeta(string Scenario, ulong Seed, string Driver, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, int? RoundCap, IRL<RecordedTeam> Teams, string Outcome, string? OutcomeDetail, Guid? WinningTeamId, int Rounds, long LastSeq, DateTimeOffset StartedAt, double DurationMs)` | `Outcome` is `ended`, `round_limit`, `stuck` or `failed` from `sim/`; `live` is what the viewer's live feed sets |
 | `RecordedTeam(Guid Id, int Ordinal, string Name, IRL<string> Participants)` | |
 | `RecordedBoard(double Width, double Length, string Texture, IRL<RecordedTerrain> Terrain, IRL<RecordedMarker> Markers, IRL<RecordedZone> Zones, IRL<RecordedModel> Models)` | |
 | `RecordedTerrain(Guid Id, string Mesh, double X, double Y, double Z, double Yaw, double Scale, IRL<RecordedVolume> Volumes)` | |
@@ -869,7 +872,7 @@ The viewer's whole input.
 | `RecordedFrame(int Index, long Seq, string Kind, Guid? Actor, string? Warning, int Round, string? Phase, Guid? ActiveTeamId, string Line, IRL<RecordedModelState> Models, IRL<RecordedUnitState> Units, IRL<RecordedMarkerState> Markers, IRL<RecordedAsk> OpenAsks, IRL<RecordedRoll> Rolls, IRD<Guid,int> Scores, IRL<Guid> Passed)` | sixteen members, all whole state |
 | `RecordedModelState(Guid Id, string Where, double? X, double? Y, double? Z, double? Yaw, Guid? ContainerId, int Wounds, int SpellTokens, IRL<string> Conditions)` | `Where` is `table`, `shelf` or `inside` |
 | `RecordedUnitState(Guid Id, IRL<string> Actions, IRL<string> Conditions, IRL<string> Grants, int WoundsThisActivation)` | |
-| `RecordedMarkerState(Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw)` | |
+| `RecordedMarkerState(Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw, Guid? ControlledBy)` | |
 | `RecordedAsk(Guid Id, string Question, string Prompt, IRL<Guid> Teams, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId, string LegalKind, IRL<Guid> Answered, IRL<RecordedAskOption> Options, IRL<Guid> Pieces, double? Allowance)`; `RecordedAskOption(string Id, string Label, IRL<Guid> Pieces)` | |
 | `RecordedRoll(Guid Id, string Roll, int? Threshold, int Net, IRL<int> Raw, IRL<int> Modified, IRL<bool> Success, IRL<RecordedModifier> Modifiers)`; `RecordedModifier(string Source, int Amount)` | |
 | `static class RecordingJson` | `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `WriteAsync`, `ReadAsync`, `Serialize`, `Deserialize` |
@@ -949,7 +952,7 @@ sequenceDiagram
     L->>D: StepAsync
     D-->>L: StepResult(events, openAsks, quiescent)
     L->>P: Add each event
-    L->>L: Decided? RoundLimit? Reopened unchanged?
+    L->>L: Ended? RoundLimit? Reopened unchanged?
     L->>Src: Answer(ask, PolicyView)
     Src-->>L: AskAnswer from the script, else from the policy
     L->>D: AnswerAsync(teamId, askId, answer)
@@ -1236,10 +1239,10 @@ any game hangs. The frames are dumped either way.
 repo root, spanning every project"* (`CLAUDE.md`), so `dotnet build` at the root builds it and
 `dotnet test` runs its tests.
 
-**4. The catalog ships six scenarios.** `casting` joins `skirmish`, `terrain`, `player-turn`,
-`free-for-all` and `stalemate`. Casting is not a mode — a spell is cast inside an ordinary
+**4. The catalog ships ten scenarios.** `casting` is one of them, beside `skirmish`, `terrain`, `player-turn`,
+`free-for-all`, `stalemate`, the three `final-round` presets and `objectives`. Casting is not a mode — a spell is cast inside an ordinary
 activation — so the preset differs from `skirmish` only in fielding a `Caster(2)` and declaring
-a spell. It exists because none of the other five opens casting's two player decisions, the
+a spell. It exists because none of the other nine opens casting's two player decisions, the
 per-model token spend map (p.13) and the caster spending its own leftover tokens on its own
 roll. The spell is the
 scenario's own: `ScenarioBuilder.Spells` folds it into the pinned `PropertySet`, so the hash
@@ -1283,7 +1286,7 @@ compares the two drivers run for run, and a socket step costs what the server ta
 
 `docs/superpowers/plans/2026-09-06-simulation/README.md`, eleven tasks. Task 1 the project, chooser and
 scenario; Task 2 the answer policy; Task 3 the script and composition; Task 4 `IGameDriver` and
-the in-process driver; Task 5 the recording; Task 6 the run loop; Task 7 the five invariants;
+the in-process driver; Task 5 the recording; Task 6 the run loop; Task 7 the invariants;
 Task 8 the socket driver; Task 9 the step-and-wait seam; Task 10 the console; Task 11 the two
 documentation edits.
 

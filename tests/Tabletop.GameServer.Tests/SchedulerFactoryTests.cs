@@ -21,7 +21,7 @@ public class SchedulerFactoryTests
         var store = new InMemoryPropertiesStore().Add(TestProperties.Core);
         var engines = new RulesEngineFactory(store, new ScriptedDice(6, 1), factory);
         var engine = Assert.IsType<RulesEngine>(engines.Create(GrimdarkFutureRules.Instance, alternating.Info with { PropertiesHash = TestProperties.Core.ContentHash }));
-        var first = engine.Advance(alternating.State);
+        var first = engine.Advance(alternating.State).Events;
         Assert.IsType<SequenceStarted>(Assert.Single(first));                                            // the scheduler spoke through the engine: the roll-off begins
         Assert.Equal(GfNames.RollOffSeq, ((SequenceStarted)first[0]).Sequence);
     }

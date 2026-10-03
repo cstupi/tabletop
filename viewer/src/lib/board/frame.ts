@@ -24,7 +24,7 @@ export type TerrainShape = {
 };
 export type MarkerShape = {
   readonly id: string; readonly kind: string; readonly label: string;
-  readonly centre: Point; readonly radius: number;
+  readonly centre: Point; readonly radius: number; readonly teamOrdinal?: number;
 };
 export type ZoneShape = {
   readonly id: string; readonly shape: string; readonly teamOrdinal: number; readonly polygons: readonly Shape[];
@@ -123,10 +123,15 @@ export function sceneOf(board: RecordedBoard, frame: RecordedFrame): Scene {
 
   // A marker state carries its own definition, so board.markers is never consulted here: a marker
   // dropped during play is in no board block, and where both name one they agree.
-  const markers: MarkerShape[] = frame.markers.map((state) => ({
-    id: state.id, kind: state.kind, label: state.label ?? state.id,
-    centre: { x: state.x, y: state.y }, radius: state.diameter / 2,
-  }));
+  const ordinalOfTeam = new Map(board.models.map((m) => [m.teamId, m.teamOrdinal]));
+  const markers: MarkerShape[] = frame.markers.map((state) => {
+    const ordinal = state.controlledBy === undefined ? undefined : ordinalOfTeam.get(state.controlledBy);
+    return {
+      id: state.id, kind: state.kind, label: state.label ?? state.id,
+      centre: { x: state.x, y: state.y }, radius: state.diameter / 2,
+      ...(ordinal === undefined ? {} : { teamOrdinal: ordinal }),
+    };
+  });
 
   // Rings are already resolved and already in the corner frame; an empty list draws no outline.
   const zones: ZoneShape[] = board.zones.map((zone) => ({

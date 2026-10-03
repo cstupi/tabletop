@@ -70,6 +70,7 @@ export interface RecordedMarkerState {
   readonly y: number;
   readonly z: number;
   readonly yaw: number;
+  readonly controlledBy?: string;
 }
 
 export interface RecordedModel {

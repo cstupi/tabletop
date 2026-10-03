@@ -64,7 +64,7 @@ public partial class GameScreen
             var known = MenuModel.KnownActionNames(p, _session.Log);
             return shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p)).ToList();
         }
-        return p.Markers.ContainsKey(id) ? MenuModel.ForMarker(id) : [];
+        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id) : [];
     }
 
     static MenuItem Token(Vector3 at) => new("Drop a token here", MenuInput.Text,

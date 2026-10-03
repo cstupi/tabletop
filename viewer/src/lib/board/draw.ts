@@ -67,8 +67,8 @@ export function draw(
 
   for (const marker of scene.markers) {
     const p = at(marker.centre.x, marker.centre.y);
-    ctx.strokeStyle = markerColour(marker.kind);
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = marker.teamOrdinal === undefined ? markerColour(marker.kind) : teamColour(marker.teamOrdinal);
+    ctx.lineWidth = marker.teamOrdinal === undefined ? 1.5 : 3;
     ctx.beginPath();
     ctx.arc(p.x, p.y, Math.max(3, marker.radius * view.scale), 0, 2 * Math.PI);
     ctx.stroke();

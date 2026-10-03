@@ -14,6 +14,8 @@ const unit = (p: Projection, id: string): string => p.units.get(id)?.definition.
 const model = (p: Projection, id: string): string => p.models.get(id)?.slot.name ?? shortId(id);
 const subject = (p: Projection, s: Subject): string => (s.kind === 'unit' ? unit(p, s.id) : model(p, s.id));
 const actor = (p: Projection, id: string | undefined): string => (id === undefined ? '' : ` for ${unit(p, id)}`);
+const marker = (p: Projection, id: string): string =>
+  (p.markers.get(id) ?? p.board.table.markers.find((m) => m.id === id))?.label ?? shortId(id);
 /** C#'s "+#;-#;0" custom numeric format. */
 const signed = (n: number): string => (n > 0 ? `+${n}` : n < 0 ? `${n}` : '0');
 
@@ -78,6 +80,16 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'marker_placed': return `marker placed${e.marker.label === undefined ? '' : `: ${e.marker.label}`}`;
     case 'marker_moved': return 'marker moved';
     case 'marker_removed': return 'marker removed';
+    case 'round_ended': return `Round ${e.round} ended`;
+    case 'objective_control_set':
+      return e.teamId === undefined ? `${marker(after, e.markerId)} neutral` : `${marker(after, e.markerId)} to ${team(ordinals, e.teamId)}`;
+    case 'game_ended': return `Game ended: ${e.reason}${result(ordinals, e.winners)}`;
     default: { const unreachable: never = e; return (unreachable as { kind: string }).kind; }
   }
+}
+
+function result(ordinals: ReadonlyMap<string, number>, winners: readonly string[]): string {
+  if (winners.length === 0) return '';
+  if (winners.length === 1) return `; ${team(ordinals, winners[0]!)} won`;
+  return `; tied between ${winners.map((w) => team(ordinals, w)).join(', ')}`;
 }

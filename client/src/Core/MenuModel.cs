@@ -1,4 +1,5 @@
 using System.Globalization;
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -72,7 +73,21 @@ public static class MenuModel
         new("Set the round", MenuInput.Integer, s => Int(s) is { } n ? new SetRound(n) : null),
     ];
 
-    public static IReadOnlyList<MenuItem> ForMarker(Guid markerId) => [new("Remove", MenuInput.None, _ => new RemoveMarker(markerId))];
+    /// <summary>
+    /// Remove a marker placed in play (a setup row is not removable from here, as today). Any objective, from setup or play, can be given to a
+    /// team or made neutral: the override of who controls it (objectives spec → The menu).
+    /// </summary>
+    public static IReadOnlyList<MenuItem> ForMarker(GameInfo game, Projection p, Guid markerId)
+    {
+        var items = new List<MenuItem>();
+        if (p.Markers.ContainsKey(markerId)) items.Add(new("Remove", MenuInput.None, _ => new RemoveMarker(markerId)));
+        var marker = p.Markers.GetValueOrDefault(markerId) ?? p.Board.Table.Markers.FirstOrDefault(m => m.Id == markerId);
+        if (marker?.Kind != MarkerKind.Objective) return items;
+        foreach (var team in game.Teams.OrderBy(t => t.Ordinal))
+            items.Add(new($"Give to Team {team.Ordinal}", MenuInput.None, _ => new SetObjectiveControl(markerId, team.Id)));
+        items.Add(new("Make neutral", MenuInput.None, _ => new SetObjectiveControl(markerId, null)));
+        return items;
+    }
 
     /// <summary>Abandon the top frame: pops it and everything above; applied effects stay applied.</summary>
     public static IReadOnlyList<MenuItem> ForFrame(Projection p) =>

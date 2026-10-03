@@ -167,7 +167,7 @@ asks every team that has a participant whether to end it. The next round starts 
 answer. The player does have to declare it, and that is deliberate: ruled by the owner
 2026-09-06 to avoid an accidental auto-advance. Which teams may answer is not a turn-order
 question, and any player on any team may end the round. See
-[the scheduler](2026-09-04-scheduler-design.md) → *There is no round limit*.
+[the scheduler](2026-09-04-scheduler-design.md) → *The final round is the ruleset's, and its end follows the enforcement setting*.
 
 **Phase structure stays ruleset C#**, per `docs/architecture.md` — pipeline step order,
 scheduler policy, and dice conventions are the three things that stay code until a
@@ -234,13 +234,7 @@ setup phases "happen inside a loaded game as ordinary commands"; setup edits are
 
 ## Scoring
 
-**Players count their own points.** Each team gets one counter it can increment and
-decrement.
-
-There are no victory conditions in the model, no scoring triggers, and no mission
-logic evaluating the board. Scoring is the part of a wargame players are most reliably
-able to do themselves and least willing to have argued with, and automating it would
-mean encoding every mission in every ruleset before anyone can play a game.
+**The engine scores the core mission; players keep their own counters.** At the end of each round a unit within 3" of an objective marker while no enemy is seizes it; control persists when the unit leaves; units of more than one team make it neutral; Shaken units, Aircraft and units that arrived by Ambush that round neither seize nor contest (GF p.6, p.10, p.13). After round 4 the team controlling most markers wins: under `strict` `game_ended` names it, or the tied teams; under `warn` the warning names the standing ([objectives](2026-10-02-objectives-design.md)). Each team still has one counter it can increment and decrement, and nothing the engine scores writes it. Missions beyond the core one are not modelled.
 
 ## Nothing is an invariant
 
@@ -258,7 +252,7 @@ the table — all ordinary edits, logged with an actor like anything else.
 
 Automation and the menu write **the same fields through the same path**. There is no
 separate override mechanism and no second write path to keep consistent. What the
-engine sets, a player can set.
+engine sets, a player can set. A `strict` end is no exception: undo takes it back and the menu's set round plays on.
 
 This is the same instinct as the table model's "anyone can move anything, and the record
 says who." Accountability comes from a visible log, not from a gate in the way of play.

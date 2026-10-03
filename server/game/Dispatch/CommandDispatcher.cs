@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tabletop.GameServer.Log;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Scheduler;
@@ -20,19 +21,28 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         AbandonSequence => CommandClass.Abandon,
         AnswerAsk => CommandClass.Answer,
         MoveModels or PlaceMarker or MoveMarker or RemoveMarker or SetWounds or SetCondition or RecordAction or ClearActionRecord
-            or AddGrant or RemoveGrant or SetSpellTokens or SetWoundsThisActivation or SetScore or SetActiveTeam or SetRound => CommandClass.Override,
+            or AddGrant or RemoveGrant or SetSpellTokens or SetWoundsThisActivation or SetScore or SetActiveTeam or SetRound or SetObjectiveControl => CommandClass.Override,
         _ => CommandClass.Engine,
     };
 
     public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => Classify(command) switch
     {
-        CommandClass.Override => MenuTranslation.Translate(state, command, out var missing) is { } e ? new Applied([e], null) : new Refused(RefusalReason.Unknown, missing ?? "unknown command"),
+        CommandClass.Override => Override(state, command),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
             ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not a live event"),
         CommandClass.Abandon => Abandon(state, ((AbandonSequence)command).FrameId),
         CommandClass.Answer => Answer(state, (AnswerAsk)command, actor),
         _ => Engine(state, command, actor),
     };
+
+    /// <summary>The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round (enforcement spec → A menu round start).</summary>
+    private DispatchOutcome Override(GameState state, Command command)
+    {
+        if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
+            return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
+        if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };
+        return new Applied([payload], null);
+    }
 
     private static DispatchOutcome Abandon(GameState state, Guid frameId)
     {
@@ -60,7 +70,11 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
         var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
         var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
-        if (verdict is Refuse r) return new Refused(r.Reason, r.Detail);
+        switch (verdict)
+        {
+            case Refuse r: return new Refused(r.Reason, r.Detail);
+            case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
+        }
         var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable) };
         var answered = new Dictionary<Guid, AskAnswer>(open.Answers.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value!)) { [team] = command.Answer };
         if (!ask.Sealed || ask.Teams.All(answered.ContainsKey))
@@ -71,7 +85,11 @@ public sealed class CommandDispatcher(IRulesEngine engine)
     private DispatchOutcome Engine(GameState state, Command command, Actor actor)
     {
         var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, engine.Judge(state, command, actor), $"{command.GetType().Name} is illegal here");
-        if (verdict is Refuse r) return new Refused(r.Reason, r.Detail);
+        switch (verdict)
+        {
+            case Refuse r: return new Refused(r.Reason, r.Detail);
+            case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
+        }
         return engine.Execute(state, command, actor) switch
         {
             Emit e => new Applied(e.Events, ((Accept)verdict).Warning),

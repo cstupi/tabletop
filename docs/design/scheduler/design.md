@@ -280,14 +280,16 @@ flowchart TD
     Round0 -- yes --> Phase["next phase before rounds, else BeginRound(1)"]
     Round0 -- no --> Gate{"has a player answered the end_round Ask?"}
     Gate -- no --> Ask["return [ask_opened(end_round to every team with a participant)]"]
-    Gate -- yes --> BeginN["BeginRound(round + 1)"]
+    Gate -- yes --> Ended{"round >= 1, no round_ended since round_started, and OnRoundEnded returns changes?"}
+    Ended -- yes --> End["return [round_ended(round, changes)]"]
+    Ended -- no --> BeginN["BeginRound(round + 1)"]
 ```
 
 Stale Asks are closed before anything else. A menu edit may have left one hanging, and the
 dispatcher only closes Asks that carry a `FrameId`. An open Ask is the universal wait: one branch
 covers the turn Ask, the deploy Asks, a boundary hook's Ambusher Ask and the `end_round` Ask. The
 round-boundary hook runs after `round_started` and before the first `turn_started` of the round,
-where the spec puts it. The round-0 branch never reaches the gate: deployment's phases and its
+where the spec puts it. After the gate, the scheduler asks the ruleset for the round's end changes (`IGameRules.OnRoundEnded`) and returns them as one `round_ended` event when there are any; the next `Advance` then finds it in the log and proposes `BeginRound`. Grimdark Future seizes objectives there. The round-0 branch never reaches the gate: deployment's phases and its
 flip into round one need no player's confirmation.
 
 ### State rebuilding and its cost
@@ -608,18 +610,18 @@ player may have edited at the gate.
 
 ### The round boundary
 
-The round does not advance on its own: a player ends it. Advancing automatically when no unspent
-units remain risks an accidental auto-advance, and *rounds count up* with no cap would let a table
-where every model is dead count rounds up without bound. Game flow → Flow and the scheduler spec →
-There is no round limit both state the rule, and it is one rule for the ordinary boundary and the
-degenerate one:
+The round does not advance on its own: a player ends it, because advancing automatically when no
+unspent units remain risks an accidental advance. The final round is the ruleset's, and its end
+follows the enforcement setting: Grimdark Future's is round 4, after which `silent` starts round 5,
+`warn` starts it with a warning, and `strict` ends the game. Game flow → *Flow* and the scheduler spec → *The final round is the ruleset's* both state the
+rule, and it is one rule for the ordinary boundary and the degenerate one:
 
 > When no team can take another turn, the scheduler stops at the boundary, opens one unframed Ask
 > addressed to **every team that has a participant**, and waits. The question is
 > `AskQuestions.EndRound`, the legal set is a `Confirmation`, and `AllowPass` is false. The first
 > answer to it is what emits the next round's `round_started`.
 
-`SchedulerBase.EndRoundAsk(teams)` builds it. The private `RoundEnded` reads it entirely from the
+`SchedulerBase.EndRoundAsk(teams)` builds it. The private `PlayerEndedRound` reads it entirely from the
 log since `round_started`. An `end_round` Ask closed with a non-empty answer list means the round
 is ended, so a round that already advanced is never re-asked, and undo-by-replay reaches the same
 answer as a rehydrated server. The Ask is unsealed, so any player on any team may end the round.
@@ -641,7 +643,7 @@ Four consequences:
   asks for a ruleset to advance rounds by itself, and if one ever did it would be a hook rather
   than a branch.
 
-Nobody to ask is the one silent case. When no team has a participant, `RoundEnded` returns false
+Nobody to ask is the one silent case. When no team has a participant, `PlayerEndedRound` returns false
 with nothing to emit, and the scheduler rests as an empty legal set rests.
 
 The whole lifecycle, both shapes:
@@ -754,7 +756,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Finished = passed this round **or** empty legal set; the pass is `turn_ended.Passed` | a team that passed with units left must not be re-asked at once | a held finished flag, or "finished is only an empty legal set" | whole-design review → The scheduler's pass |
 | The turn ends when the declared action's sequence finishes | no end-turn command; an abandoned sequence still counts | an `EndActivation` command | scheduler → The turn is an Ask; whole-design review → Architecture's examples |
 | The action record is written when the sequence *starts* | abandonment must still spend the activation | writing it on completion | scheduler → The turn is an Ask |
-| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case with no cap | automatic advance when no unspent units remain | scheduler → There is no round limit; game flow → Flow; the plan's ruling 4 |
+| A player ends the round: an unframed `end_round` confirmation Ask to every team with a participant, first answer wins | avoids an accidental auto-advance; removes the unbounded-round degenerate case by waiting at the Ask | automatic advance when no unspent units remain | scheduler → The final round is the ruleset's; game flow → Flow; the plan's ruling 4 |
 | A team with an empty legal set is skipped: no Ask, no turn events | handles unequal unit counts, a team with no army, and a spectator with one rule | a turn that opens and immediately ends | scheduler → The turn is an Ask |
 | A participant with no team is never addressed, which is what a spectator is | no second identity, no filtering | presence's "joins a third team" | whole-design review → ruling 5; presence → There is no spectator |
 | Deployment is a phase list from `GameRules`, alternating one unit a turn under **both** shapes | the spec describes the phase once, not per shape; p.6 alternates units regardless | a per-shape deployment | scheduler → Deployment; the plan's ruling 1 |
@@ -978,7 +980,7 @@ sequenceDiagram
 
     Note over Sc: last activation of round 1 finished: turn_ended
     Sc->>Sc: NextTeam null (every team finished)
-    Sc->>Sc: RoundEnded? no end_round ask since round_started
+    Sc->>Sc: PlayerEndedRound? no end_round ask since round_started
     Sc-->>D: ask_opened(end_round, Confirmation, AllowPass false, teams [A, B])
     Note over Sc: the engine rests - the round does not count up
     B->>D: AnswerAsk(Confirmed)
@@ -1001,7 +1003,7 @@ hook changes and the Ambusher loop all land in the new round.
 The answer is a logged fact, so `Undo` across the boundary un-ends the round and re-opens the
 boundary Ask, taking round two's record clearing with it. Any player on any team may answer,
 including a team that never had a turn. That is intended, and it will look wrong to anyone
-expecting turn-order authority. `RoundEnded` reads the *last* `end_round` Ask in the round's slice
+expecting turn-order authority. `PlayerEndedRound` reads the *last* `end_round` Ask in the round's slice
 and requires a non-empty answer list, so a superseded-and-closed one does not count as an answer.
 
 ### A menu edit superseding a live scheduler Ask
@@ -1243,7 +1245,6 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
 | Action boosting's *Random* playstyle (p.31), which would hang off `turn_started` | scheduler → Deliberately not decided |
 | 40k's `GameRules` | scheduler → Deliberately not decided; the interface is falsified against it and no more |
 | Army terrain placed during deployment *"as if it were a regular unit"* (p.20) | setup phase → What the rulebook has that stays social; needs terrain as event-driven state |
-| A round limit or mission round count | scheduler → There is no round limit; players read their book, and ending is a flag they set |
 
 ## References
 

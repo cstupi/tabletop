@@ -259,7 +259,7 @@ geometry is computed. `Scene` has six members: `table`, `terrain`, `zones`, `mar
 | `RecordedModel` + `RecordedModelState` where `where === 'table'` | `ModelShape` | `baseOutline` for the base, plus a facing tick of `baseA / 2` along the yaw |
 | `RecordedModelState` where `where` is `shelf` or `inside` | `OffTable` | no position is invented; `containerLabel` names the container model |
 | `RecordedTerrain` x `RecordedVolume` | one `TerrainShape` per volume | `volumeOutline`; `bottom` and `top` scaled by the piece's `scale` |
-| `RecordedMarkerState` | `MarkerShape` | read from the frame alone; `board.markers` is never consulted |
+| `RecordedMarkerState` | `MarkerShape` | read from the frame alone; `board.markers` is never consulted. A frame's markers are the setup markers then the play markers; `controlledBy` names the controlling team |
 | `RecordedZone` | `ZoneShape` | each `polygons` ring wrapped as a `Shape`; nothing resolved |
 
 `baseOutline` is `Tabletop.Geometry.Bodies.BaseOutline` ported line for line, including

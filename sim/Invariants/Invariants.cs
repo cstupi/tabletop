@@ -27,7 +27,61 @@ public static class Invariants
         EveryAskAnsweredByAnAddressedTeam(log),
         NoModelInTwoPlacesOrOffTheSlab(log, scenario),
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
+        NothingAdvancesAfterTheEnd(log),
+        ControlFollowsTheMarkers(log, scenario),
     ];
+
+    /// <summary>
+    /// Every objective_control_set, alone or inside another event's changes, names a marker the game holds at that point — a setup
+    /// marker, or one placed and not removed — and, when it names a team, a team of the game (objectives spec → sim).
+    /// </summary>
+    public static InvariantResult ControlFollowsTheMarkers(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
+    {
+        var markers = scenario.Board.Table.Markers.Select(m => m.Id).ToHashSet();
+        var teams = scenario.Info.Teams.Select(t => t.Id).ToHashSet();
+        foreach (var e in EventApplier.EffectiveLog(log))
+            foreach (var change in ChangesOf(e.Payload))
+            {
+                switch (change)
+                {
+                    case MarkerPlaced m: markers.Add(m.Marker.Id); break;
+                    case MarkerRemoved m: markers.Remove(m.MarkerId); break;
+                    case ObjectiveControlSet o when !markers.Contains(o.MarkerId):
+                        return new InvariantResult(nameof(ControlFollowsTheMarkers), false, $"seq {e.Seq} gives marker {o.MarkerId:N}, which the game does not hold");
+                    case ObjectiveControlSet { TeamId: { } team } when !teams.Contains(team):
+                        return new InvariantResult(nameof(ControlFollowsTheMarkers), false, $"seq {e.Seq} gives a marker to {team:N}, which is not a team of this game");
+                }
+            }
+        return new InvariantResult(nameof(ControlFollowsTheMarkers), true, null);
+    }
+
+    private static IEnumerable<StateChange> ChangesOf(EventPayload payload) => payload switch
+    {
+        StateChange c => [c],
+        RoundStarted r => r.Changes,
+        RoundEnded r => r.Changes,
+        TurnEnded t => t.Changes,
+        StepCompleted s => s.Changes,
+        _ => [],
+    };
+
+    /// <summary>
+    /// After game_ended the engine is silent until a round is started by hand (enforcement spec → The game_ended event): every event
+    /// between a live game_ended and the next round_started has an actor. Read from the effective log, so an undone end ends nothing.
+    /// </summary>
+    public static InvariantResult NothingAdvancesAfterTheEnd(IReadOnlyList<GameEvent> log)
+    {
+        GameEvent? end = null;
+        foreach (var e in EventApplier.EffectiveLog(log))
+        {
+            if (end is not null && e.Actor is null)
+                return new InvariantResult(nameof(NothingAdvancesAfterTheEnd), false,
+                    $"seq {e.Seq} ({EventKinds.Of(e.Payload)}) has no actor, after the game ended at seq {end.Seq}");
+            if (e.Payload is GameEnded) end = e;
+            else if (e.Payload is RoundStarted) end = null;
+        }
+        return new InvariantResult(nameof(NothingAdvancesAfterTheEnd), true, null);
+    }
 
     public static InvariantResult ReplayReproducesTheProjection(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {

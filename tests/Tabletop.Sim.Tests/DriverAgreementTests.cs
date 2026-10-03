@@ -114,7 +114,7 @@ public class DriverAgreementTests(PostgresFixture pg)
 
             // The run reached a legitimate end and did real work, so the equalities above are not two
             // runs agreeing on having gone nowhere.
-            Assert.Contains(overSocket.Outcome.Kind, (string[])["decided", "round_limit"]);
+            Assert.Contains(overSocket.Outcome.Kind, (string[])["ended", "round_limit"]);
             Assert.True(overSocket.Rounds >= 1, $"the socket run only reached round {overSocket.Rounds}");
             Assert.True(overSocket.AsksAnswered > 10);
             Assert.NotEmpty(Dice(socketLoop.Log));
@@ -242,7 +242,7 @@ public class DriverAgreementTests(PostgresFixture pg)
             // game now at `target`, so each question's ordinals shift by the answers already in the kept prefix.
             var replay = LoopFor(driver, c, seed, Shifted(loop, target), new RunSettings(CheckInvariants: false, Record: false));
             var report = await replay.RunAsync(Ct);
-            Assert.True(report.Outcome is RunOutcome.Decided or RunOutcome.RoundLimit, report.Outcome.ToString());
+            Assert.True(report.Outcome is RunOutcome.Ended or RunOutcome.RoundLimit, report.Outcome.ToString());
 
             var original = Dice(before).ToList();
             Assert.NotEmpty(original);

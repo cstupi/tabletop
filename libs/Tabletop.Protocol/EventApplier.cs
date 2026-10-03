@@ -64,10 +64,13 @@ public sealed class EventApplier(Board board, GameInfo game)
         {
             case StateChange c: ApplyChange(p, c); break;
             case RoundStarted r:
+                p.Ended = null;
                 p.Scheduler.Round = r.Round; var order = r.Order.ToList(); p.Scheduler.OrderMut.Clear(); p.Scheduler.OrderMut.AddRange(order);
                 p.Scheduler.ActiveTeamId = null; p.Scheduler.PassedMut.Clear();
                 foreach (var c in r.Changes) ApplyChange(p, c);
                 break;
+            case RoundEnded r: foreach (var c in r.Changes) ApplyChange(p, c); break;
+            case GameEnded g: p.Ended = g; break;
             case TurnStarted t: p.Scheduler.ActiveTeamId = t.TeamId; break;
             case TurnEnded t:
                 if (t.Passed) p.Scheduler.PassedMut.Add(t.TeamId);
@@ -127,7 +130,8 @@ public sealed class EventApplier(Board board, GameInfo game)
             case ScoreSet s: p.ScoresMut[s.TeamId] = s.Score; break;                       // an assignment cannot miss
             case MarkerPlaced m: p.MarkersMut[m.Marker.Id] = m.Marker; break;
             case MarkerMoved m: p.MarkersMut[m.MarkerId] = Need(p.MarkersMut, m.MarkerId, m) with { Position = m.Position, Yaw = m.Yaw }; break;
-            case MarkerRemoved m: p.MarkersMut.Remove(m.MarkerId); break;
+            case MarkerRemoved m: p.MarkersMut.Remove(m.MarkerId); p.ControlMut.Remove(m.MarkerId); break;
+            case ObjectiveControlSet o: if (o.TeamId is { } team) p.ControlMut[o.MarkerId] = team; else p.ControlMut.Remove(o.MarkerId); break;   // an assignment cannot miss
             default: throw new NotSupportedException($"Unknown state change {change.GetType().Name}");
         }
     }

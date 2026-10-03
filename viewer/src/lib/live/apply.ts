@@ -2,7 +2,7 @@
 // A port of Tabletop.Protocol.EventApplier (contracts plan Task 14), branch for branch.
 // It copies. It never decides legality, never derives a location, never clears a store on its own.
 import type {
-  Board, GameEvent, GameInfo, Grant, Location, Marker, ModelSlot, StateChange, Unit,
+  Board, GameEvent, GameEnded, GameInfo, Grant, Location, Marker, ModelSlot, StateChange, Unit,
 } from '../protocol/wire.generated';
 import type { Ask, AskAnswer } from '../protocol/wire.generated';
 
@@ -39,17 +39,19 @@ export type Projection = {
   readonly models: Map<string, ModelInPlay>;
   readonly markers: Map<string, Marker>;
   readonly scores: Map<string, number>;
+  readonly control: Map<string, string>;
   readonly scheduler: SchedulerPosition;
   readonly openAsks: Map<string, OpenAsk>;
   lastSeq: number;
+  ended: GameEnded | undefined;
 };
 
 export function initialProjection(board: Board, game: GameInfo): Projection {
   const p: Projection = {
     board,
-    units: new Map(), models: new Map(), markers: new Map(), scores: new Map(),
+    units: new Map(), models: new Map(), markers: new Map(), scores: new Map(), control: new Map(),
     scheduler: { round: 0, order: [], activeTeamId: undefined, phase: undefined, passed: new Set() },
-    openAsks: new Map(), lastSeq: 0,
+    openAsks: new Map(), lastSeq: 0, ended: undefined,
   };
   for (const team of game.teams) p.scores.set(team.id, 0);
   // Insertion order matters: it is the order every frame lists models and units in, and C#'s
@@ -121,7 +123,10 @@ export function applyChange(p: Projection, change: StateChange): void {
       p.markers.set(change.markerId, { ...marker, position: change.position, yaw: change.yaw });
       return;
     }
-    case 'marker_removed': p.markers.delete(change.markerId); return;
+    case 'marker_removed': p.markers.delete(change.markerId); p.control.delete(change.markerId); return;
+    case 'objective_control_set':
+      if (change.teamId === undefined) p.control.delete(change.markerId); else p.control.set(change.markerId, change.teamId);
+      return;
     default: {
       // A kind added to the generated union fails `npm run check` here.
       const unreachable: never = change;
@@ -134,7 +139,7 @@ export function applyChange(p: Projection, change: StateChange): void {
 const STATE_CHANGE_KINDS: Record<StateChange['kind'], true> = {
   models_moved: true, wounds_set: true, condition_set: true, action_recorded: true, action_record_cleared: true,
   grant_added: true, grant_removed: true, spell_tokens_set: true, wounds_this_activation_set: true,
-  score_set: true, marker_placed: true, marker_moved: true, marker_removed: true,
+  score_set: true, marker_placed: true, marker_moved: true, marker_removed: true, objective_control_set: true,
 };
 const isStateChange = (payload: { kind: string }): payload is StateChange =>
   Object.hasOwn(STATE_CHANGE_KINDS, payload.kind);
@@ -144,12 +149,15 @@ export function applyTo(p: Projection, event: GameEvent): void {
   if (isStateChange(payload)) applyChange(p, payload);
   else switch (payload.kind) {
     case 'round_started':
+      p.ended = undefined;
       p.scheduler.round = payload.round;
       p.scheduler.order = [...payload.order];
       p.scheduler.activeTeamId = undefined;
       p.scheduler.passed.clear();
       for (const change of payload.changes) applyChange(p, change);
       break;
+    case 'round_ended': for (const change of payload.changes) applyChange(p, change); break;
+    case 'game_ended': p.ended = payload; break;
     case 'turn_started': p.scheduler.activeTeamId = payload.teamId; break;
     case 'turn_ended':
       if (payload.passed) p.scheduler.passed.add(payload.teamId);

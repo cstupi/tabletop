@@ -79,7 +79,7 @@ public static class AskViewModel
 
     /// <summary>
     /// What the one button of a Confirm Ask says. A step gate says Continue; the round boundary's end_round Ask (unframed, addressed to
-    /// every team that has a participant) says what it does, because the round advances only when a player answers it (scheduler → There is no round limit).
+    /// every team that has a participant) says what it does, because the round advances only when a player answers it (scheduler → The final round is the ruleset's).
     /// </summary>
     public static string ConfirmLabel(Ask ask) => ask.Question == AskQuestions.EndRound ? "End the round" : "Continue";
 

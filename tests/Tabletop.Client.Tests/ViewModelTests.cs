@@ -1,4 +1,5 @@
 using Tabletop.Client.Core;
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
@@ -134,7 +135,8 @@ public class ViewModelTests
         Assert.Equal(2, ((SetScore)team.Single(i => i.Label == "Set score").Build("2")!).Score);
         Assert.IsType<SetActiveTeam>(team.Single(i => i.Label == "Make this the active team").Build(null));
         Assert.IsType<SetRound>(team.Single(i => i.Label == "Set the round").Build("3"));
-        Assert.IsType<RemoveMarker>(MenuModel.ForMarker(Samples.Token.Id).Single(i => i.Label == "Remove").Build(null));
+        var placed = Applier(new MarkerPlaced(Samples.Token)).Projection;
+        Assert.IsType<RemoveMarker>(MenuModel.ForMarker(Game, placed, Samples.Token.Id).Single(i => i.Label == "Remove").Build(null));
         var frame = MenuModel.ForFrame(Applier(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))).Projection);
         Assert.Equal(Samples.Frame, ((AbandonSequence)frame.Single().Build(null)!).FrameId);
         Assert.Empty(MenuModel.ForFrame(p));
@@ -226,5 +228,50 @@ public class ViewModelTests
         q.Enqueue([new GameEvent(1, null, new ScoreSet(Samples.Team1, 1), null), new GameEvent(2, null, new ScoreSet(Samples.Team1, 2), null)]);
         Assert.Single(q.Take(animate: true)); Assert.Equal(1, q.Count);
         Assert.Single(q.Take(animate: false)); Assert.Equal(0, q.Count);
+    }
+
+    [Fact]
+    public void Game_ended_names_the_winner_or_the_tie()
+    {
+        var names = new Names(Game, Applier().Projection);
+        string Line(params Guid[] winners) => LogText.Describe(new GameEvent(9, null, new GameEnded("4 rounds have been played", winners), null), names);
+        Assert.Equal("Game ended: 4 rounds have been played; Team 1 won", Line(Samples.Team1));
+        Assert.Equal("Game ended: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
+        Assert.Equal("Game ended: 4 rounds have been played", Line());
+    }
+
+    [Fact]
+    public void Control_reads_as_taking_a_marker_or_making_it_neutral()
+    {
+        var a = Applier(new MarkerPlaced(Samples.Token));
+        var names = new Names(Game, a.Projection);
+        string Line(EventPayload p) => LogText.Describe(new GameEvent(9, null, p, null), names);
+        Assert.Equal("the game ended round 4: Team 1 took smoke", Line(new RoundEnded(4, [new ObjectiveControlSet(Samples.Token.Id, Samples.Team1)])));
+        Assert.Equal("the game ended round 4", Line(new RoundEnded(4, [])));
+        Assert.Equal("the game made smoke neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
+        var setup = a.Projection.Board.Table.Markers[0].Id;
+        Assert.Equal($"the game gave {Names.Short(setup)} to Team 2", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
+
+        // A labelled setup marker verifies the setup marker lookup works (would fail if Names.Marker's board lookup were deleted)
+        var labelledMarker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(30, 20, 0), new Yaw(0), 3, "centre", VisualRef.OfBuiltin("objective-ring"));
+        var labelledTable = new TableState(Guid.CreateVersion7(), "Labelled", new TableSize(72, 48), VisualRef.OfBuiltin("grass"),
+            [], [labelledMarker], []);
+        var labelledBoard = new Board(labelledTable, [new ArmyInPlay(Samples.P1, ArmySnapshot.Of(Samples.Army, Guid.CreateVersion7()))]);
+        var b = new EventApplier(labelledBoard, Game);
+        var namesb = new Names(Game, b.Projection);
+        Assert.Equal("the game gave centre to Team 2", LogText.Describe(new GameEvent(9, null, new ObjectiveControlSet(labelledMarker.Id, Samples.Team2), null), namesb));
+    }
+
+    [Fact]
+    public void An_objective_from_setup_or_play_can_be_given_to_a_team_or_made_neutral_and_a_token_cannot()
+    {
+        var p = Applier(new MarkerPlaced(Samples.Token)).Projection;
+        var setup = p.Board.Table.Markers.Single(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
+        var items = MenuModel.ForMarker(Game, p, setup);
+        Assert.Equal(["Give to Team 1", "Give to Team 2", "Make neutral"], items.Select(i => i.Label));    // no Remove: a setup row is not a play marker
+        Assert.Equal(new SetObjectiveControl(setup, Samples.Team2), items[1].Build(null));
+        Assert.Equal(new SetObjectiveControl(setup, null), items[2].Build(null));
+        Assert.Equal(["Remove"], MenuModel.ForMarker(Game, p, Samples.Token.Id).Select(i => i.Label));      // a token holds nothing
+        Assert.Empty(MenuModel.ForMarker(Game, p, Guid.CreateVersion7()));
     }
 }

@@ -12,10 +12,11 @@ namespace Tabletop.Sim.Recording;
 public sealed record Recording([property: JsonPropertyName("schemaVersion")] int Version, RecordingMeta Meta, RecordedBoard Board, IReadOnlyList<RecordedFrame> Frames);
 
 /// <param name="Outcome">
-/// `decided`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
+/// `ended`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
 /// running, which viewer/'s live feed sets when it manufactures a RecordingMeta from GameInfo.
 /// sim/ writes only the first four.
 /// </param>
+/// <param name="WinningTeamId">The sole winner of an `ended` run; null for a tie, no result, or any other outcome.</param>
 public sealed record RecordingMeta(
     string Scenario,
     ulong Seed,
@@ -118,8 +119,9 @@ public sealed record RecordedUnitState(
 /// <param name="Diameter">Inches. Carried per frame, not looked up in Board.Markers: a marker placed during
 /// play is in no board block, and a frame a reader has to join against something that may not be there is
 /// not whole state.</param>
+/// <param name="ControlledBy">The team that controls this objective marker (Projection.Control); null when neutral or not an objective.</param>
 public sealed record RecordedMarkerState(
-    Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw);
+    Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw, Guid? ControlledBy = null);
 
 /// <param name="LegalKind">The legal set's wire kind: options, pieces, allocation, assignment, move_region, token_spend, confirmation.</param>
 /// <param name="Answered">The teams that have already answered — a sealed Ask's answers stay hidden until it closes.</param>

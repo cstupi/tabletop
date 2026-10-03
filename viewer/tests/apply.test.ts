@@ -196,6 +196,25 @@ describe('the ported log lines', () => {
   });
 });
 
+describe('game_ended', () => {
+  it('sets ended, and a round start clears it', () => {
+    const a = new Applier(board, game);
+    a.apply(ev(1, { kind: 'game_ended', reason: 'over', winners: [T1] }));
+    expect(a.projection.ended).toEqual({ kind: 'game_ended', reason: 'over', winners: [T1] });
+    a.apply(ev(2, { kind: 'round_started', round: 5, order: [T1, T2], changes: [] }));
+    expect(a.projection.ended).toBeUndefined();
+  });
+
+  it('reads as the recording reads it', () => {
+    const p = initialProjection(board, game);
+    const ordinals = new Map([[T1, 1], [T2, 2]]);
+    const line = (winners: string[]) => lineOf(ev(9, { kind: 'game_ended', reason: 'over', winners }), p, ordinals);
+    expect(line([T1])).toBe('Game ended: over; Team 1 won');
+    expect(line([T1, T2])).toBe('Game ended: over; tied between Team 1, Team 2');
+    expect(line([])).toBe('Game ended: over');
+  });
+});
+
 describe('the ported board projection', () => {
   it('splits the flags wire form into the recording order', () => {
     expect(declarationsOf('impassable, blocks_line_of_sight')).toEqual(['impassable', 'blocks_line_of_sight']);
@@ -235,7 +254,7 @@ describe('the ported board projection', () => {
     const opening = projector.add(ev(1, { kind: 'round_started', round: 1, order: [T1, T2], changes: [] }));
     expect(opening.scores).toEqual({ [T1]: 0, [T2]: 0 });   // canonical Guid keys, no key policy set
     expect(opening.passed).toEqual([]);
-    expect(opening.markers).toEqual([]);                    // the board's setup markers are not frame state
+    expect(opening.markers.map((m) => m.id)).toEqual([K1]);  // the board's setup markers lead every frame
 
     projector.add(ev(2, { kind: 'score_set', teamId: T2, score: 4 }));
     const dropped = projector.add(ev(3, { kind: 'step_completed', frameId: F1, step: 'drop', rolls: [], changes: [
@@ -243,11 +262,47 @@ describe('the ported board projection', () => {
         yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } },
     ] }));
     // The definition rides along per frame, so the viewer needs no join against the board block.
-    expect(dropped.markers).toEqual([{ id: K9, kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 }]);
+    expect(dropped.markers).toEqual([
+      { id: K1, kind: 'objective', diameter: 2, label: 'A', x: 36, y: 24, z: 0, yaw: 0 },
+      { id: K9, kind: 'token', diameter: 1, x: 4, y: 4, z: 0, yaw: 0 },
+    ]);
     expect(dropped.scores).toEqual({ [T1]: 0, [T2]: 4 });
 
     const passed = projector.add(ev(4, { kind: 'turn_ended', teamId: T1, passed: true, changes: [] }));
     expect(passed.passed).toEqual([T1]);
     expect(passed.scores).toEqual({ [T1]: 0, [T2]: 4 });    // whole state, not a delta
+  });
+
+  describe('objective control', () => {
+    it('follows its changes, alone or inside a round end, and leaves with the marker', () => {
+      const a = new Applier(board, game);
+      a.apply(ev(1, { kind: 'round_ended', round: 1, changes: [{ kind: 'objective_control_set', markerId: K1, teamId: T1 }] }));
+      expect(a.projection.control.get(K1)).toBe(T1);
+      a.apply(ev(2, { kind: 'objective_control_set', markerId: K1 }));
+      expect(a.projection.control.has(K1)).toBe(false);
+      a.apply(ev(3, { kind: 'objective_control_set', markerId: K9, teamId: T2 }));
+      a.apply(ev(4, { kind: 'marker_removed', markerId: K9 }));
+      expect(a.projection.control.size).toBe(0);
+    });
+
+    it('reads as the recording reads it', () => {
+      const p = initialProjection(board, game);
+      const ordinals = new Map([[T1, 1], [T2, 2]]);
+      const line = (payload: unknown) => lineOf(ev(9, payload), p, ordinals);
+      expect(line({ kind: 'round_ended', round: 4, changes: [] })).toBe('Round 4 ended');
+      expect(line({ kind: 'objective_control_set', markerId: K1, teamId: T1 })).toBe('A to Team 1');   // the board's setup marker, labelled A
+      expect(line({ kind: 'objective_control_set', markerId: K9 })).toBe(`${K9.slice(0, 8)} neutral`);
+    });
+  });
+});
+
+describe('the frame projector lists markers', () => {
+  it('setup first, then play, each with its controller', () => {
+    const projector = new FrameProjector(board, game);
+    projector.add(ev(1, { kind: 'marker_placed', marker: { id: K9, kind: 'token', position: { x: 4, y: 4, z: 0 }, yaw: { degrees: 0 }, diameter: 1, visual: { builtin: 'chip' } } }));
+    const frame = projector.add(ev(2, { kind: 'objective_control_set', markerId: K1, teamId: T2 }));
+    expect(frame.markers.map((m) => m.id)).toEqual([K1, K9]);
+    expect(frame.markers[0]!.controlledBy).toBe(T2);
+    expect('controlledBy' in frame.markers[1]!).toBe(false);
   });
 });

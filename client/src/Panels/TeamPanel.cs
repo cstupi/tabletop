@@ -16,8 +16,9 @@ public partial class TeamPanel : PanelContainer
     {
         var members = s.Game?.Participants.Where(p => p.TeamId == Team.Id).Select(p => p.Name + (p.ArmyId is null ? "" : " ⚔")) ?? [];
         var score = s.Projection?.Scores.GetValueOrDefault(Team.Id);
+        var held = s.Projection?.Control.Count(kv => kv.Value == Team.Id) ?? 0;
         var active = s.Projection?.Scheduler.ActiveTeamId == Team.Id ? "  ◀ active" : "";
-        _text.Text = $"Team {Team.Ordinal}{(score is null ? "" : $"  score {score}")}{active}\n{string.Join(", ", members)}";
+        _text.Text = $"Team {Team.Ordinal}{(score is null ? "" : $"  score {score}")}{(held == 0 ? "" : $"  held {held}")}{active}\n{string.Join(", ", members)}";
     }
 
     public override void _GuiInput(InputEvent e) { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) RightClicked?.Invoke(b.GlobalPosition); }

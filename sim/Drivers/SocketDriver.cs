@@ -141,6 +141,7 @@ public sealed class SocketDriver : IGameDriver
         // the connect and from other participants' batches; every one of those is at or below the head.
         // Refusals come before that command's AtRest, so after a Refused the next AtRest is the one.
         Refused? refusal = null;
+        string? warning = null;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(RestTimeout);
         long restSeq;
@@ -148,6 +149,7 @@ public sealed class SocketDriver : IGameDriver
         {
             var frame = await ReadAsync(peer, deadline.Token, ct);
             if (frame is Refused r && r.MessageId == commandId) refusal = r;
+            else if (frame is EventsMessage batch) warning ??= batch.Events.FirstOrDefault(e => e.Seq > head && e.Actor == participantId)?.Warning;
             else if (frame is AtRest rest && (refusal is not null || rest.Seq > head)) { restSeq = rest.Seq; break; }
         }
 
@@ -155,7 +157,7 @@ public sealed class SocketDriver : IGameDriver
         _knownHead = Math.Max(_knownHead, restSeq);
         if (refusal is null) _restExpected = Math.Max(_restExpected, restSeq);
         Absorb();
-        return refusal is null ? new SubmitResult.Accepted(null) : new SubmitResult.Rejected(refusal.Reason, refusal.Detail);
+        return refusal is null ? new SubmitResult.Accepted(warning) : new SubmitResult.Rejected(refusal.Reason, refusal.Detail);
     }
 
     public Task<IReadOnlyList<GameEvent>> DrainEventsAsync(CancellationToken ct)

@@ -25,13 +25,27 @@ public class InvariantTests
     static GameEvent Next(IReadOnlyList<GameEvent> log, EventPayload payload, Guid? actor = null) =>
         new(log[^1].Seq + 1, actor, payload, null);
 
+    /// <summary>
+    /// The played game's log without its last Ask. A strict game now ends on the answer to the round-4 end_round Ask, so appending to
+    /// the whole log would put the forged RoundStarted straight after a closed boundary Ask, which is the legal case.
+    /// </summary>
+    static List<GameEvent> BeforeTheLastAsk(IReadOnlyList<GameEvent> log) =>
+        log.Take(log.ToList().FindLastIndex(e => e.Payload is AskOpened)).ToList();
+
+    static List<GameEvent> Forge(IReadOnlyList<GameEvent> log, EventPayload payload, Guid? actor = null)
+    {
+        var before = BeforeTheLastAsk(log);
+        before.Add(Next(before, payload, actor));
+        return before;
+    }
+
     [Fact]
     public async Task Every_invariant_holds_over_a_whole_game()
     {
         var (scenario, loop, report, driver) = await Played();
         await using var _ = driver;
         var results = Invariants.Invariants.CheckAll(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);
-        Assert.Equal(5, results.Count);
+        Assert.Equal(7, results.Count);
         Assert.All(results, r => Assert.True(r.Held, $"{r.Name}: {r.Detail}"));
         Assert.Empty(report.Failures);
     }
@@ -42,12 +56,12 @@ public class InvariantTests
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
         // A round that started with no boundary Ask and no actor: the round advanced on its own, which the scheduler forbids.
-        var forged = loop.Log.Append(Next(loop.Log, new RoundStarted(9, scenario.TeamIds, []))).ToList();
+        var forged = Forge(loop.Log, new RoundStarted(9, scenario.TeamIds, []));
         var result = Invariants.Invariants.TheRoundAdvancedOnlyThroughTheBoundaryAsk(forged);
         Assert.False(result.Held);
         Assert.Contains("round 9", result.Detail);
         // The same event with an actor is the menu's set_round override, which is logged and so allowed.
-        var overridden = loop.Log.Append(Next(loop.Log, new RoundStarted(9, scenario.TeamIds, []), Guid.NewGuid())).ToList();
+        var overridden = Forge(loop.Log, new RoundStarted(9, scenario.TeamIds, []), Guid.NewGuid());
         Assert.True(Invariants.Invariants.TheRoundAdvancedOnlyThroughTheBoundaryAsk(overridden).Held);
     }
 
@@ -157,9 +171,68 @@ public class InvariantTests
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
         MidRun.Assert(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);   // does not throw
-        var forged = loop.Log.Append(Next(loop.Log, new RoundStarted(9, scenario.TeamIds, []))).ToList();
+        var forged = Forge(loop.Log, new RoundStarted(9, scenario.TeamIds, []));
         var thrown = Assert.Throws<InvariantViolatedException>(() =>
             MidRun.Assert(Replay.To(scenario.Board, scenario.Info, forged, forged[^1].Seq), forged, scenario));
         Assert.Contains("round", thrown.Message);
+    }
+
+    [Fact]
+    public void The_comparer_sees_a_difference_in_the_end()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var ended = new EventApplier(c.Board, c.Info);
+        ended.Apply(new GameEvent(1, null, new GameEnded("over", [c.TeamIds[0]]), null));
+        var open = new EventApplier(c.Board, c.Info);
+        open.Apply(new GameEvent(1, null, new ScoreSet(c.TeamIds[0], 0), null));
+        Assert.Contains(ProjectionComparer.Differences(ended.Projection, open.Projection), d => d.StartsWith("Ended"));
+    }
+
+    static GameEvent E(long seq, EventPayload p, Guid? actor = null) => new(seq, actor, p, null);
+
+    [Fact]
+    public void Nothing_the_engine_writes_follows_the_end_until_a_round_is_started_by_hand()
+    {
+        var team = Guid.CreateVersion7(); var player = Guid.CreateVersion7();
+        var held = Invariants.Invariants.NothingAdvancesAfterTheEnd([
+            E(1, new GameEnded("over", [team])), E(2, new ScoreSet(team, 3), player),
+            E(3, new RoundStarted(5, [team], []), player), E(4, new TurnStarted(team))]);
+        Assert.True(held.Held, held.Detail);
+
+        var broken = Invariants.Invariants.NothingAdvancesAfterTheEnd([E(1, new GameEnded("over", [team])), E(2, new TurnStarted(team))]);
+        Assert.False(broken.Held);
+        Assert.Contains("seq 2", broken.Detail);
+
+        var undone = Invariants.Invariants.NothingAdvancesAfterTheEnd([E(1, new ScoreSet(team, 0), player), E(2, new GameEnded("over", [])), E(3, new Undone(1), player), E(4, new TurnStarted(team))]);
+        Assert.True(undone.Held, undone.Detail);                                                 // an undone end ends nothing
+    }
+
+    [Fact]
+    public void The_comparer_sees_a_difference_in_control()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var held = new EventApplier(c.Board, c.Info);
+        held.Apply(new GameEvent(1, null, new ObjectiveControlSet(Guid.CreateVersion7(), c.TeamIds[0]), null));
+        var none = new EventApplier(c.Board, c.Info);
+        none.Apply(new GameEvent(1, null, new ScoreSet(c.TeamIds[0], 0), null));
+        Assert.Contains(ProjectionComparer.Differences(held.Projection, none.Projection), d => d.StartsWith("Control"));
+    }
+
+    [Fact]
+    public void Control_names_only_a_marker_the_game_holds_and_a_team_it_has()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("objectives"));
+        var setup = c.Board.Table.Markers[0].Id;
+        var placed = c.Board.Table.Markers[0] with { Id = Guid.CreateVersion7() };
+        Assert.True(Invariants.Invariants.ControlFollowsTheMarkers([
+            E(1, new RoundEnded(1, [new ObjectiveControlSet(setup, c.TeamIds[0])])),
+            E(2, new MarkerPlaced(placed)), E(3, new ObjectiveControlSet(placed.Id, null), Guid.CreateVersion7())], c).Held);
+
+        var gone = Invariants.Invariants.ControlFollowsTheMarkers([E(1, new MarkerPlaced(placed)), E(2, new MarkerRemoved(placed.Id)),
+            E(3, new RoundEnded(1, [new ObjectiveControlSet(placed.Id, c.TeamIds[0])]))], c);
+        Assert.False(gone.Held);
+        Assert.Contains("seq 3", gone.Detail);
+
+        Assert.False(Invariants.Invariants.ControlFollowsTheMarkers([E(1, new ObjectiveControlSet(setup, Guid.CreateVersion7()))], c).Held);
     }
 }

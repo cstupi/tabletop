@@ -11,6 +11,9 @@ namespace Tabletop.GameServer.Rules;
 public sealed record RollSpec(string Roll, RollConvention Convention, Func<LiveSet, Side, int?> Threshold);
 public sealed record Reaction(Guid TeamId, string OptionId, string Label, string Sequence, SequenceContext Context);
 public sealed record SequenceStart(string Sequence, SequenceContext Context);
+
+/// <summary>A breach found in the engine's own proposal (enforcement spec → Who raises a breach). Under strict it always ends the game, with these winners.</summary>
+public sealed record GameEndingBreach(string Rule, string Detail, IReadOnlyList<Guid> Winners);
 public sealed class UnknownSequenceException(string name) : Exception($"No sequence named '{name}'.");
 
 /// <summary>
@@ -58,6 +61,12 @@ public interface IGameRules
     bool ActivationComplete(GameState state, Activation activation);
     /// <summary>The interactive round-boundary step, called each Advance after round_started until HookDone (OPR: Ambushers).</summary>
     HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order);
+
+    // Added by the enforcement plan.
+    /// <summary>Judges what the interpreter or scheduler proposes before RulesEngine returns it. Null: nothing broken. Wrapping rulesets must forward it.</summary>
+    GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => null;
+    /// <summary>Changes written as one round_ended event when a player has ended <paramref name="round"/>, before the next round_started (OPR: objectives seized). Empty: no event.</summary>
+    IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
 }
 
 public sealed class UnknownGameRulesException(string id) : Exception($"No GameRules named '{id}' ships with this build.");

@@ -217,4 +217,45 @@ public class RecordingTests
         Assert.Equal(3, passed.Scores[team]);
         Assert.Equal(3, projector.Frames[2].Scores[team]);
     }
+
+    [Fact]
+    public void Game_ended_reads_the_same_in_the_recording_as_in_the_viewer()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var ordinals = c.Info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
+        var after = Projection.Initial(c.Board, c.Info);
+        string Line(params Guid[] winners) => Recording.LogLines.Of(new GameEvent(9, null, new GameEnded("over", winners), null), after, ordinals);
+        Assert.Equal("Game ended: over; Team 1 won", Line(c.TeamIds[0]));
+        Assert.Equal("Game ended: over; tied between Team 1, Team 2", Line(c.TeamIds[0], c.TeamIds[1]));
+        Assert.Equal("Game ended: over", Line());
+    }
+
+    [Fact]
+    public void Control_reads_the_same_in_the_recording_as_in_the_viewer()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var ordinals = c.Info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
+        var after = Projection.Initial(c.Board, c.Info);
+        var marker = Guid.Parse("0198b7ac-0000-7000-8000-000000000041");
+        string Line(EventPayload p) => Recording.LogLines.Of(new GameEvent(9, null, p, null), after, ordinals);
+        Assert.Equal("Round 4 ended", Line(new RoundEnded(4, [new ObjectiveControlSet(marker, c.TeamIds[0])])));
+        Assert.Equal("0198b7ac to Team 1", Line(new ObjectiveControlSet(marker, c.TeamIds[0])));
+        Assert.Equal("0198b7ac neutral", Line(new ObjectiveControlSet(marker, null)));
+    }
+
+    [Fact]
+    public void A_frame_lists_setup_markers_then_play_markers_each_with_its_controller()
+    {
+        var scenario = ScenarioCatalog.Get("stalemate") with { Markers = [new ScenarioMarker(Tabletop.Content.MarkerKind.Objective, new Tabletop.Geometry.Point3(36, 24, 0), 2, "A")] };
+        var c = ScenarioCompiler.Compile(scenario);
+        var projector = new FrameProjector(c);
+        var setup = c.Board.Table.Markers.Single().Id;
+        var placed = new Tabletop.Content.Marker(Guid.CreateVersion7(), Tabletop.Content.MarkerKind.Token, new Tabletop.Geometry.Point3(4, 4, 0), new Tabletop.Geometry.Yaw(0), 1, "smoke", Tabletop.Content.VisualRef.OfBuiltin("chip"));
+        projector.Add(new GameEvent(1, null, new MarkerPlaced(placed), null));
+        var frame = projector.Add(new GameEvent(2, null, new ObjectiveControlSet(setup, c.TeamIds[1]), null));
+        Assert.Equal([setup, placed.Id], frame.Markers.Select(m => m.Id));
+        Assert.Equal((Guid?)c.TeamIds[1], frame.Markers[0].ControlledBy);
+        Assert.Null(frame.Markers[1].ControlledBy);
+        Assert.DoesNotContain("controlledBy", System.Text.Json.JsonSerializer.Serialize(projector.Frames[0], RecordingJson.Options));   // null is not written
+    }
 }

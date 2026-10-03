@@ -145,4 +145,38 @@ public class EventApplierTests
         Assert.Equal("sequence_finished", ex.Kind);
         Assert.Equal(Frame, ex.UnknownId);
     }
+
+    [Fact]
+    public void Game_ended_sets_ended_and_a_round_start_clears_it()
+    {
+        var a = Fresh();
+        var end = new GameEnded("4 rounds have been played", [Samples.Team1]);
+        a.Apply(Ev(1, end));
+        Assert.Equal(end, a.Projection.Ended);
+        a.Apply(Ev(2, new RoundStarted(5, [Samples.Team1, Samples.Team2], [])));
+        Assert.Null(a.Projection.Ended);
+    }
+
+    [Fact]
+    public void Undoing_past_game_ended_clears_it()
+    {
+        var a = Fresh();
+        a.ApplyAll([Ev(1, new ScoreSet(Samples.Team1, 1)), Ev(2, new GameEnded("over", [])), Ev(3, new Undone(1))]);
+        Assert.Null(a.Projection.Ended);
+        Assert.Null(a.ProjectTo(1).Ended);
+    }
+
+    [Fact]
+    public void Control_follows_its_changes_alone_or_inside_a_round_end_and_leaves_with_the_marker()
+    {
+        var a = Fresh();
+        var objective = Samples.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
+        a.Apply(Ev(1, new RoundEnded(1, [new ObjectiveControlSet(objective, Samples.Team1), new ObjectiveControlSet(Samples.Token.Id, Samples.Team2)])));
+        Assert.Equal(Samples.Team1, a.Projection.Control[objective]);
+        a.Apply(Ev(2, new ObjectiveControlSet(objective, null)));
+        Assert.False(a.Projection.Control.ContainsKey(objective));
+        a.Apply(Ev(3, new MarkerPlaced(Samples.Token)));
+        a.Apply(Ev(4, new MarkerRemoved(Samples.Token.Id)));
+        Assert.Empty(a.Projection.Control);
+    }
 }

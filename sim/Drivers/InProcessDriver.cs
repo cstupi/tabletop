@@ -78,11 +78,12 @@ public sealed class InProcessDriver : IGameDriver
     {
         var client = _players.FirstOrDefault(c => c.ParticipantId == participantId)
             ?? throw new ArgumentException($"no connected client for participant {participantId}", nameof(participantId));
+        var head = _applier.Projection.LastSeq;
         await Session.ReceiveAsync(client, new CommandMessage(Guid.CreateVersion7(), command));
         var refused = client.TakeFrames().OfType<Refused>().LastOrDefault();
         Absorb();
         return refused is null
-            ? new SubmitResult.Accepted(null)
+            ? new SubmitResult.Accepted(_applier.Log.FirstOrDefault(e => e.Seq > head && e.Actor == participantId)?.Warning)
             : new SubmitResult.Rejected(refused.Reason, refused.Detail);
     }
 

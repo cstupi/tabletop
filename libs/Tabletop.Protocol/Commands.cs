@@ -20,6 +20,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(SetSpellTokens), "set_spell_tokens")]
 [JsonDerivedType(typeof(SetWoundsThisActivation), "set_wounds_this_activation")]
 [JsonDerivedType(typeof(SetScore), "set_score")]
+[JsonDerivedType(typeof(SetObjectiveControl), "set_objective_control")]
 [JsonDerivedType(typeof(SetActiveTeam), "set_active_team")]
 [JsonDerivedType(typeof(SetRound), "set_round")]
 [JsonDerivedType(typeof(Undo), "undo")]
@@ -47,6 +48,8 @@ public sealed record RemoveGrant(Guid UnitId, Guid GrantId) : Command;
 public sealed record SetSpellTokens(Guid ModelId, int Tokens) : Command;
 public sealed record SetWoundsThisActivation(Guid UnitId, int Wounds) : Command;
 public sealed record SetScore(Guid TeamId, int Score) : Command;
+/// <summary>The menu's override of who controls an objective marker; TeamId null makes it neutral.</summary>
+public sealed record SetObjectiveControl(Guid MarkerId, Guid? TeamId) : Command;
 /// <summary>Logs a turn_started.</summary>
 public sealed record SetActiveTeam(Guid TeamId) : Command;
 /// <summary>Logs a round_started with the current order.</summary>

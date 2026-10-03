@@ -9,7 +9,7 @@ namespace Tabletop.GameServer.Scheduler;
 /// <summary>
 /// The shared shape of both schedulers: the phases before round one (alternating one unit a turn), the round boundary (a player's
 /// end_round answer, then the first-team policy, the roll-off, round_started with the hooks' changes, and the interactive boundary
-/// hook), the rotation over teams, and one activation cycle per open turn. Shapes decide what a completed or passed cycle does from
+/// hook), the round's end (the ruleset's changes, written as round_ended when there are any), the rotation over teams, and one activation cycle per open turn. Shapes decide what a completed or passed cycle does from
 /// round one on, and what they clear.
 /// Implements the interpreter plan's Engine.IScheduler: called with no framed Ask open and an empty stack; starts sequences only
 /// through the starter it is handed; holds the game's pinned set for the action rows and the three IGameRules hooks.
@@ -54,7 +54,10 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
             return index + 1 < phases.Count ? [new PhaseStarted(phases[index + 1])] : BeginRound(state, log, teams, 1, starter);
         }
         // Round one on: the round is over, and it does not advance on its own — a player ends it.
-        if (!RoundEnded(state, log, teams, out var gate)) return gate;
+        if (!PlayerEndedRound(state, log, teams, out var gate)) return gate;
+        // Then the round's end, once (objectives spec → Where the seize runs): written only when the ruleset changes something.
+        if (log.SinceRound.All(e => e.Payload is not RoundEnded) && state.Rules.OnRoundEnded(state, Properties, s.Round) is { Count: > 0 } changes)
+            return [new RoundEnded(s.Round, changes)];
         return BeginRound(state, log, teams, s.Round + 1, starter);
     }
 
@@ -67,7 +70,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
     /// open (or nothing to emit, when no team has a participant to ask). Read from the log since round_started, so undo-by-replay and
     /// a rehydrated server reach the same answer, and a round that already advanced is never re-asked.
     /// </summary>
-    private bool RoundEnded(GameState state, SchedulerLog log, IReadOnlyList<Guid> teams, out IReadOnlyList<EventPayload> gate)
+    private bool PlayerEndedRound(GameState state, SchedulerLog log, IReadOnlyList<Guid> teams, out IReadOnlyList<EventPayload> gate)
     {
         var opened = log.SinceRound.LastOrDefault(e => e.Payload is AskOpened o && o.Ask.Question == AskQuestions.EndRound);
         if (opened is { } o && log.SinceRound.Any(e => e.Seq > o.Seq && e.Payload is AskClosed c
@@ -89,6 +92,14 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
             .Select(e => (EventPayload)new AskClosed(((AskOpened)e.Payload).Ask.Id, [])).ToList();
     }
 
+    /// <summary>What a round start carries: the shape's changes, then the ruleset's (scheduler → Round start). BeginRound writes them, and so does a menu set_round.</summary>
+    public IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round)
+    {
+        var changes = new List<StateChange>(ShapeRoundStartChanges(state, round));
+        changes.AddRange(state.Rules.OnRoundStarted(state, Properties, round));
+        return changes;
+    }
+
     /// <summary>The order from the first-team policy — a roll-off started through the interpreter and read back once finished (Task 3) — then round_started with the shape's and the ruleset's changes.</summary>
     private IReadOnlyList<EventPayload> BeginRound(GameState state, SchedulerLog log, IReadOnlyList<Guid> teams, int round, ISequenceStarter starter)
     {
@@ -107,9 +118,7 @@ public abstract class SchedulerBase(PropertySet properties) : IScheduler
                 break;
             default: throw new NotSupportedException();
         }
-        var changes = new List<StateChange>(ShapeRoundStartChanges(state, round));
-        changes.AddRange(state.Rules.OnRoundStarted(state, Properties, round));
-        var events = new List<EventPayload> { new RoundStarted(round, order, changes) };
+        var events = new List<EventPayload> { new RoundStarted(round, order, RoundStartChanges(state, round)) };
         if (round == 0) events.Add(new PhaseStarted(state.Rules.PhasesBeforeRounds[0]));
         else if (round == 1) events.Add(new PhaseStarted(RoundsPhase));
         return events;

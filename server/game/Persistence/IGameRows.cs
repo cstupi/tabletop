@@ -6,8 +6,8 @@ namespace Tabletop.GameServer.Persistence;
 public sealed record OwnedArmy(Army Army, Guid OwnerId);
 
 /// <summary>
-/// Management's rows as this server sees them. Reads at hydration and end-setup; writes only while the game is lobby or setup
-/// (whole-design review ruling 4). Nothing here is a join across the schema boundary: the log is IEventLog.
+/// Management's rows as this server sees them. Reads at hydration and end-setup; writes only while the game is lobby or setup, and `game.status` once more: `playing → ended`
+/// when this server's own log ends the game (enforcement spec → The row and the broadcast). Nothing here is a join across the schema boundary: the log is IEventLog.
 /// </summary>
 public interface IGameRows
 {
@@ -17,6 +17,9 @@ public interface IGameRows
     Task<IReadOnlyList<ArmyInPlay>> ReadSnapshotsAsync(Guid gameId, CancellationToken ct);
     Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct);
     Task<bool> PropertiesExistAsync(string hash, CancellationToken ct);
+
+    /// <summary>playing → ended, guarded on playing, so management's own end and a second call change nothing.</summary>
+    Task EndGameAsync(Guid gameId, CancellationToken ct);
 
     Task<Team> CreateTeamAsync(Guid gameId, CancellationToken ct);
     Task SetParticipantTeamAsync(Guid participantId, Guid? teamId, CancellationToken ct);

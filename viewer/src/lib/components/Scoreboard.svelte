@@ -8,6 +8,7 @@
 
   const ordered = $derived([...teams].sort((a, b) => a.ordinal - b.ordinal));
   const passed = $derived(new Set(frame?.passed ?? []));
+  const held = (teamId: string): number => (frame?.markers ?? []).filter((m) => m.controlledBy === teamId).length;
 </script>
 
 {#if frame !== null && ordered.length > 0}
@@ -18,6 +19,7 @@
         <span class="swatch"></span>
         {team.name}
         <strong>{frame.scores[team.id] ?? 0}</strong>
+        {#if held(team.id) > 0}<span class="tag">{held(team.id)} held</span>{/if}
         {#if passed.has(team.id)}<span class="tag">passed</span>
         {:else if frame.activeTeamId === team.id}<span class="tag">active</span>{/if}
       </span>
