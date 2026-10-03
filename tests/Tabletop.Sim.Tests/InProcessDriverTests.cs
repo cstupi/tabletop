@@ -132,4 +132,27 @@ public class InProcessDriverTests
         Assert.Empty(second);
         Assert.Equal(first.Select(e => e.Seq).Order(), first.Select(e => e.Seq));
     }
+
+    [Theory]
+    [InlineData(Enforcement.Warn, true)]
+    [InlineData(Enforcement.Silent, false)]
+    public async Task An_answer_outside_the_legal_set_comes_back_with_the_events_warning(Enforcement enforcement, bool warned)
+    {
+        var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = enforcement };
+        await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
+        var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];                 // the roll-off's confirm gate
+        var result = Assert.IsType<SubmitResult.Accepted>(await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Chosen("not-an-option")), CancellationToken.None));
+        var answered = (await driver.DrainEventsAsync(CancellationToken.None)).First(e => e.Payload is AskAnswered);
+        Assert.Equal(warned, result.Warning is not null);
+        Assert.Equal(answered.Warning, result.Warning);
+    }
+
+    [Fact]
+    public async Task A_legal_answer_carries_no_warning()
+    {
+        var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = Enforcement.Warn };
+        await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
+        var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];
+        Assert.Equal(new SubmitResult.Accepted(null), await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Confirmed()), CancellationToken.None));
+    }
 }

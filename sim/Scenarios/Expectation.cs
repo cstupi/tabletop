@@ -12,6 +12,9 @@ public abstract record Expectation
     public sealed record ModelsRemaining(int TeamOrdinal, int AtLeast) : Expectation;
     public sealed record AskAsked(string Question, int AtLeast = 1) : Expectation;
     public sealed record Outcome(string Kind) : Expectation;
+
+    /// <summary>Exactly Count effective-log events of Kind carry a warning.</summary>
+    public sealed record Warnings(string Kind, int Count) : Expectation;
 }
 
 /// <summary>Evaluation of a scenario's own assertions, checked at the end of a run beside the universal invariants.</summary>
@@ -45,6 +48,10 @@ public static class Expectations
                 case Expectation.AskAsked(var question, var atLeast):
                     var asked = log.Count(e => e.Payload is AskOpened o && o.Ask.Question == question);
                     if (asked < atLeast) failures.Add($"expected at least {atLeast} '{question}' asks, saw {asked}");
+                    break;
+                case Expectation.Warnings(var kind, var expected):
+                    var warned = EventApplier.EffectiveLog(log).Count(e => EventKinds.Of(e.Payload) == kind && e.Warning is not null);
+                    if (warned != expected) failures.Add($"expected {expected} warned '{kind}' events, saw {warned}");
                     break;
                 case Expectation.Outcome(var kind) when outcome.Kind != kind:
                     failures.Add($"expected outcome '{kind}', got '{outcome.Kind}': {outcome}");

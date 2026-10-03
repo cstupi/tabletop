@@ -91,4 +91,12 @@ public class ExpectationTests
         Assert.Equal(report.Failures[0], meta.OutcomeDetail);
         Assert.Contains("expected round 99", meta.OutcomeDetail);
     }
+
+    [Fact]
+    public async Task Warnings_counts_warned_events_of_a_kind()
+    {
+        var failures = await Check(new Expectation.Warnings("round_started", 1));
+        Assert.Contains(failures, f => f.Contains("expected 1 warned 'round_started' events, saw 0"));
+        Assert.Empty(await Check(new Expectation.Warnings("round_started", 0)));
+    }
 }

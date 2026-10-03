@@ -46,6 +46,23 @@ public static class ScenarioCatalog
         ["stalemate"] = () => new ScenarioBuilder("stalemate", seed: 1)
             .RoundCap(3).Army("Red", 1, 1).Army("Blue", 1, 1).Build(),
 
+        // The round-4 end (GF p.7) under each setting. One unit a side keeps six rounds cheap; a wipe-out no longer ends a run (p.6),
+        // so the outcome does not depend on the seed.
+        ["final-round"] = () => new ScenarioBuilder("final-round", seed: 1)
+            .RoundCap(6).Army("Red", 1, 1).Army("Blue", 1, 1)
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("game_ended"))
+            .Build(),
+
+        ["final-round-warn"] = () => new ScenarioBuilder("final-round-warn", seed: 1)
+            .Enforcing(Enforcement.Warn).RoundCap(6).Army("Red", 1, 1).Army("Blue", 1, 1)
+            .Expect(new Expectation.Outcome("round_limit"), new Expectation.NoEventOfKind("game_ended"), new Expectation.Warnings("round_started", 2))
+            .Build(),
+
+        ["final-round-silent"] = () => new ScenarioBuilder("final-round-silent", seed: 1)
+            .Enforcing(Enforcement.Silent).RoundCap(6).Army("Red", 1, 1).Army("Blue", 1, 1)
+            .Expect(new Expectation.Outcome("round_limit"), new Expectation.NoEventOfKind("game_ended"), new Expectation.Warnings("round_started", 0))
+            .Build(),
+
         // Casting is not a mode: a spell is cast inside an ordinary activation. This preset exists only because none of the
         // other five fields a caster, so nothing else opens casting's two player decisions in a whole-game run — the token
         // spend map (p.13), and the caster spending its own leftover tokens on its own roll.

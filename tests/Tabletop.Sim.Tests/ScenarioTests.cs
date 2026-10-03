@@ -1,3 +1,6 @@
+using Tabletop.Sim.Answers;
+using Tabletop.Sim.Drivers;
+using Tabletop.Sim.Run;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
 
@@ -61,4 +64,18 @@ public class ScenarioTests
     [Fact]
     public void A_scenario_defaults_to_strict_so_an_out_of_set_answer_is_refused() =>
         Assert.Equal(Enforcement.Strict, new ScenarioBuilder("d", 1).Army("A", 1, 1).Army("B", 1, 1).Build().Enforcement);
+
+    [Theory]
+    [InlineData("final-round")]
+    [InlineData("final-round-warn")]
+    [InlineData("final-round-silent")]
+    public async Task The_final_round_scenarios_meet_their_expectations(string name)
+    {
+        var scenario = ScenarioCatalog.Get(name);
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(scenario.Seed))), HandPlacement.ChooserFor(scenario.Seed));
+        var report = await loop.RunAsync(CancellationToken.None);
+        Assert.True(report.Passed, string.Join("\n", report.Failures));
+    }
 }

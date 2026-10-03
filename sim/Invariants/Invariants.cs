@@ -27,7 +27,26 @@ public static class Invariants
         EveryAskAnsweredByAnAddressedTeam(log),
         NoModelInTwoPlacesOrOffTheSlab(log, scenario),
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
+        NothingAdvancesAfterTheEnd(log),
     ];
+
+    /// <summary>
+    /// After game_ended the engine is silent until a round is started by hand (enforcement spec → The game_ended event): every event
+    /// between a live game_ended and the next round_started has an actor. Read from the effective log, so an undone end ends nothing.
+    /// </summary>
+    public static InvariantResult NothingAdvancesAfterTheEnd(IReadOnlyList<GameEvent> log)
+    {
+        GameEvent? end = null;
+        foreach (var e in EventApplier.EffectiveLog(log))
+        {
+            if (end is not null && e.Actor is null)
+                return new InvariantResult(nameof(NothingAdvancesAfterTheEnd), false,
+                    $"seq {e.Seq} ({EventKinds.Of(e.Payload)}) has no actor, after the game ended at seq {end.Seq}");
+            if (e.Payload is GameEnded) end = e;
+            else if (e.Payload is RoundStarted) end = null;
+        }
+        return new InvariantResult(nameof(NothingAdvancesAfterTheEnd), true, null);
+    }
 
     public static InvariantResult ReplayReproducesTheProjection(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {

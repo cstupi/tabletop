@@ -45,7 +45,7 @@ public class InvariantTests
         var (scenario, loop, report, driver) = await Played();
         await using var _ = driver;
         var results = Invariants.Invariants.CheckAll(await driver.ProjectionAsync(CancellationToken.None), loop.Log, scenario);
-        Assert.Equal(5, results.Count);
+        Assert.Equal(6, results.Count);
         Assert.All(results, r => Assert.True(r.Held, $"{r.Name}: {r.Detail}"));
         Assert.Empty(report.Failures);
     }
@@ -186,5 +186,24 @@ public class InvariantTests
         var open = new EventApplier(c.Board, c.Info);
         open.Apply(new GameEvent(1, null, new ScoreSet(c.TeamIds[0], 0), null));
         Assert.Contains(ProjectionComparer.Differences(ended.Projection, open.Projection), d => d.StartsWith("Ended"));
+    }
+
+    static GameEvent E(long seq, EventPayload p, Guid? actor = null) => new(seq, actor, p, null);
+
+    [Fact]
+    public void Nothing_the_engine_writes_follows_the_end_until_a_round_is_started_by_hand()
+    {
+        var team = Guid.CreateVersion7(); var player = Guid.CreateVersion7();
+        var held = Invariants.Invariants.NothingAdvancesAfterTheEnd([
+            E(1, new GameEnded("over", [team])), E(2, new ScoreSet(team, 3), player),
+            E(3, new RoundStarted(5, [team], []), player), E(4, new TurnStarted(team))]);
+        Assert.True(held.Held, held.Detail);
+
+        var broken = Invariants.Invariants.NothingAdvancesAfterTheEnd([E(1, new GameEnded("over", [team])), E(2, new TurnStarted(team))]);
+        Assert.False(broken.Held);
+        Assert.Contains("seq 2", broken.Detail);
+
+        var undone = Invariants.Invariants.NothingAdvancesAfterTheEnd([E(1, new ScoreSet(team, 0), player), E(2, new GameEnded("over", [])), E(3, new Undone(1), player), E(4, new TurnStarted(team))]);
+        Assert.True(undone.Held, undone.Detail);                                                 // an undone end ends nothing
     }
 }
