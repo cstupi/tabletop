@@ -16,7 +16,8 @@ public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesPara
     SpellTargeting? Targeting, IReadOnlyList<EffectDocument> Effects);
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier, int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind,
-    string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children);
+    string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children,
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null);
 public sealed record ConditionDocument(ConditionKind Kind, EffectSubject? Subject, Comparison Comparison, int? Number, IReadOnlyList<string> Values);
 
 public static class PropertiesJson
@@ -73,8 +74,8 @@ public static class PropertiesJson
             if (spell && e.TakesParameter) problems.Add($"{e.Name}: a spell takes no parameter");
             // Spell effects (09-04) read forty-eight real spells as N hits or a grant that is "always with one duration: once".
             // Anything else on a spell would be applied nowhere, so it is an authoring error rather than a silent no-op.
-            if (spell) foreach (var f in e.Effects.Where(f => f.Kind != EffectKind.AddHit && f.Duration != EffectDuration.Once))
-                problems.Add($"{e.Name}: a spell's effect is add_hit or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
+            if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest && f.Duration != EffectDuration.Once))
+                problems.Add($"{e.Name}: a spell's effect is add_hit, take_test or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
         var books = d.Books ?? [];
@@ -96,6 +97,10 @@ public static class PropertiesJson
         if (f.Threshold is not null && f.Kind != EffectKind.Roll) problems.Add(At("threshold is roll only"));
         if (f.CapKind is not null && f.Kind != EffectKind.Multiply) problems.Add(At("cap_kind is multiply only"));
         if (f.Replacement is not null && f.Kind != EffectKind.ReplaceStat) problems.Add(At("replacement is replace_stat only"));
+        if (f.TargetTerrain is not null && f.Kind != EffectKind.CountAsTerrain) problems.Add(At("target_terrain is count_as_terrain only"));
+        if (f.Kind == EffectKind.CountAsTerrain && f.TargetTerrain is null) problems.Add(At("count_as_terrain needs target_terrain"));
+        if (f.TargetCondition is not null && f.Kind != EffectKind.SetCondition) problems.Add(At("target_condition is set_condition only"));
+        if (f.Kind == EffectKind.SetCondition && f.TargetCondition is null) problems.Add(At("set_condition needs target_condition"));
         if (f.Kind == EffectKind.Roll && f.Children.Count == 0) problems.Add(At("a roll needs a per-success child"));
         foreach (var c in f.Conditions)
             if (c.Kind is ConditionKind.Range or ConditionKind.RoundNumber or ConditionKind.UsageCount && c.Subject is not null) problems.Add(At($"{c.Kind} takes no subject"));
@@ -120,7 +125,8 @@ public static class PropertiesJson
         if (problems.Count > 0) throw new InvalidDataException(string.Join("; ", problems));
         Effect Build(EffectDocument f) => new(newId(), f.Subject, f.Ordinal, f.Kind, f.TargetRoll, f.TargetStat, f.TargetEntry, f.TargetAction, f.TargetQuantity, f.TargetResult,
             f.TargetModifier, f.Amount, f.AmountFromParameter, f.Threshold, f.CapKind, f.Replacement, f.Duration,
-            f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList());
+            f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList(),
+            f.TargetTerrain, f.TargetCondition);
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
             d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList())).ToList(),
             d.Books ?? []);

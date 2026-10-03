@@ -86,4 +86,28 @@ public class PropertiesStoreTests(PostgresFixture pg)
         }
         finally { foreach (var d in new[] { first, consistent, conflicting }) await pg.DeletePropertiesAsync(PropertiesJson.Hash(d)); }
     }
+
+    [Fact]
+    public async Task Books_and_the_new_effect_columns_round_trip()
+    {
+        var test = new EffectDocument(EffectSubject.Opponent, 10, EffectKind.TakeTest, "morale", null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction, [],
+            [new EffectDocument(EffectSubject.Opponent, 20, EffectKind.SetCondition, null, null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Interaction, [], [], TargetCondition: "fatigued")]);
+        var stride = new EffectDocument(EffectSubject.Self, 10, EffectKind.CountAsTerrain, null, null, null, null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [], TargetTerrain: TargetTerrain.Dangerous);
+        EntryDocument Spell(string n, EffectDocument f) => new(n, CatalogKind.Spell, false, null, 1, null, $"{n}.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 18), [f]);
+        var doc = TestProperties.RulebookDocument with
+        {
+            Name = "Books " + Guid.CreateVersion7().ToString("N")[24..32],
+            Entries = [.. TestProperties.RulebookDocument.Entries, Spell("Terrifying Fury", test), Spell("Cursed Stride", stride)],
+            Books = [new BookRecord("b-one", "Book One", "3.5.3", ["Terrifying Fury", "Cursed Stride"]), new BookRecord("b-two", "Book Two", null, ["Cursed Stride"])],
+        };
+        var hash = PropertiesJson.Hash(doc);
+        Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+        var set = (await _store.LoadAsync(hash, CancellationToken.None))!;
+        Assert.Equal(["Terrifying Fury", "Cursed Stride"], set.Books["b-one"].Spells);
+        Assert.Equal(("Book Two", (string?)null), (set.Books["b-two"].Name, set.Books["b-two"].Version));
+        Assert.Equal("fatigued", set.Entry("Terrifying Fury")!.Effects[0].Children[0].TargetCondition);
+        Assert.Equal(TargetTerrain.Dangerous, set.Entry("Cursed Stride")!.Effects[0].TargetTerrain);
+        Assert.Equal(PropertiesJson.Hash(doc), set.ContentHash);
+        await pg.DeletePropertiesAsync(hash);
+    }
 }
