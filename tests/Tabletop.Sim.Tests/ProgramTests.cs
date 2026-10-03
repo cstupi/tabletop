@@ -1,6 +1,6 @@
-using Tabletop.Sim.Scenarios;
 using System.Text.Json;
 using Tabletop.Sim;
+using Tabletop.Sim.Scenarios;
 
 namespace Tabletop.Sim.Tests;
 

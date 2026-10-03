@@ -51,7 +51,7 @@ public class InvariantTests
     }
 
     [Fact]
-    public async Task A_spell_picked_from_another_book_breaks_invariant_eight()
+    public void A_spell_picked_from_another_book_breaks_invariant_eight()
     {
         var scenario = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
         var caster = scenario.Board.Armies[0].Snapshot.Units.SelectMany(u => u.Models).First(m => m.Properties.Any(p => p.Name == "Caster"));
@@ -60,7 +60,30 @@ public class InvariantTests
         var result = Invariants.Invariants.SpellsComeFromTheCastersBook(forged, scenario);
         Assert.False(result.Held);
         Assert.Contains(foreign, result.Detail);
-        await Task.CompletedTask;
+    }
+
+    static GameEvent StepWith(string step, AskAnswer? answer, params StateChange[] changes) =>
+        new(1, null, new StepCompleted(Guid.CreateVersion7(), step, answer, [], changes), null);
+
+    [Fact]
+    public void A_pick_naming_no_caster_on_the_board_breaks_invariant_eight()
+    {
+        var scenario = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
+        Assert.False(Invariants.Invariants.SpellsComeFromTheCastersBook([StepWith("pick-spell", new Chosen("Bolt|not-a-guid"))], scenario).Held);
+        Assert.False(Invariants.Invariants.SpellsComeFromTheCastersBook([StepWith("pick-spell", new Chosen($"Bolt|{Guid.CreateVersion7()}"))], scenario).Held);
+    }
+
+    [Fact]
+    public void A_grant_naming_no_spell_of_any_casters_book_breaks_invariant_eight_and_a_real_one_holds()
+    {
+        var scenario = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
+        var unit = scenario.Board.Armies[0].Snapshot.Units[0].Id;
+        GameEvent Grant(string name) => StepWith("hit", null, new GrantAdded(unit, new Grant(Guid.CreateVersion7(), Guid.CreateVersion7(), name, unit, 1)));
+        var bad = Invariants.Invariants.SpellsComeFromTheCastersBook([Grant("NotInAnyBook")], scenario);
+        Assert.False(bad.Held);
+        Assert.Contains("NotInAnyBook", bad.Detail);
+        var real = scenario.Properties.SpellsOf("z65fgu0l29i4lnlu")[0].Name;
+        Assert.True(Invariants.Invariants.SpellsComeFromTheCastersBook([Grant(real)], scenario).Held);
     }
 
     [Fact]

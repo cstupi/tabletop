@@ -46,10 +46,14 @@ public static class Invariants
         foreach (var e in EventApplier.EffectiveLog(log))
         {
             if (e.Payload is not StepCompleted step) continue;
-            if (step.Step == "pick-spell" && step.Answer is Chosen { OptionId: var id } && id.LastIndexOf('|') is var cut and > 0
-                && Guid.TryParse(id[(cut + 1)..], out var caster) && slots.TryGetValue(caster, out var slot)
-                && scenario.Properties.SpellsOf(slot.ArmyBook).All(s => s.Name != id[..cut]))
-                return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: caster {caster:N} of book {slot.ArmyBook ?? "none"} picked '{id[..cut]}'");
+            if (step.Step == "pick-spell" && step.Answer is Chosen { OptionId: var id })
+            {
+                var cut = id.LastIndexOf('|');
+                if (cut <= 0 || !Guid.TryParse(id[(cut + 1)..], out var caster) || !slots.TryGetValue(caster, out var slot))
+                    return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: pick '{id}' names no caster model on the board");
+                if (scenario.Properties.SpellsOf(slot.ArmyBook).All(s => s.Name != id[..cut]))
+                    return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: caster {caster:N} of book {slot.ArmyBook ?? "none"} picked '{id[..cut]}'");
+            }
             foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)))
                 return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: grant {g.Grant.Id:N} is '{g.Grant.EntryName}', which no caster's book lists");
         }
