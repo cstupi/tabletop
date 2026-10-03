@@ -4,6 +4,7 @@ using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
 using static Tabletop.GameServer.Tests.Infrastructure.Armies;
@@ -154,21 +155,46 @@ public class GrammarAdditionTests
         Assert.Contains(GfNames.Fatigued, sim.Unit(t.Id).Conditions);
     }
 
-    [Fact]
-    public void A_failed_hypnosis_lets_the_casters_team_move_the_target_up_to_six_inches()
+    static Sim Hypnotised(out Guid unit, out Guid model)
     {
-        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); var t = Unit("T", "4+", "4+", [], 1, []);
-        var sim = new Sim(State([wizard], [t], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Kinds, new ScriptedDice(6, 1));
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]); var target = Unit("T", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([wizard], [target], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Kinds, new ScriptedDice(6, 1));
+        foreach (var (u, x) in new[] { (wizard, 20.0), (target, 28.0) })      // onto the 72x48 table, where a forced move may be judged against its edge
+        {
+            var m = u.Models[0].Id;
+            sim.Append([new ModelsMoved([new ModelRelocation(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(x, 20, 0), new Yaw(0))))])]);
+        }
+        unit = target.Id; model = target.Models[0].Id;
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Hypnosis|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
-        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        return sim;
+    }
+
+    [Fact]
+    public void A_failed_hypnosis_lets_the_casters_team_move_the_target_up_to_six_inches()
+    {
+        var sim = Hypnotised(out _, out var m);
         var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal(6.0, region.Allowance);
-        Assert.Equal([t.Models[0].Id], region.ModelIds);
-        var m = t.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        Assert.Equal([m], region.ModelIds);
+        var at = ((OnTable)sim.Model(m).Location).Placement;
         sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 5 } }))]));
         Assert.Equal(at.Position.X + 5, ((OnTable)sim.Model(m).Location).Placement.Position.X, 3);
+    }
+
+    [Theory]
+    [InlineData(8.0)]      // over the 6" allowance
+    [InlineData(-40.0)]    // off the table
+    public void A_forced_move_over_the_allowance_or_off_the_table_is_rejected_and_moves_nothing(double dx)
+    {
+        var sim = Hypnotised(out _, out var m);
+        var at = ((OnTable)sim.Model(m).Location).Placement;
+        var before = sim.State.Applier.Log.Count(e => e.Payload is ModelsMoved);
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + dx } }))]));
+        Assert.Equal(at.Position.X, ((OnTable)sim.Model(m).Location).Placement.Position.X, 3);
+        Assert.Equal(before, sim.State.Applier.Log.Count(e => e.Payload is ModelsMoved));
     }
 }

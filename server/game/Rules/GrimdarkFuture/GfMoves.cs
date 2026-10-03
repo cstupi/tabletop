@@ -128,8 +128,8 @@ public static class GfMoves
             var live = Lone(ctx, unit, action);
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
-            var striderOrFlying = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
-            if (!striderOrFlying && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
+            var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
+            if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             var terrain = Battlefield.Terrain(ctx.State);
             switch (ctx.Frame.Value("phase"))
@@ -137,7 +137,6 @@ public static class GfMoves
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
                     var impassable = terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList();
                     var difficult = terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
-                    var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
                     var containment = Containers(ctx, unit, action, Math.Max(0, allowance - used), Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : $"Move up to {allowance - used:0.#}\"";
@@ -253,7 +252,7 @@ public static class GfMoves
     }
 
     /// <summary>A move another team makes for this unit (a spell's move kind): the same settling, impassable and difficult checks as an action's
-    /// move, measured against the allowance (leaving the table is client-flagged, as it is for an action's move); dangerous terrain crossed is not tested, since no rule asks it of a forced move.</summary>
+    /// move, measured against the allowance; one chosen by the opponent may not carry a model off the table; dangerous terrain crossed is not tested, since no rule asks it of a forced move.</summary>
     public static IReadOnlyList<StateChange> ApplyForcedMove(StepContext ctx, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed)
     {
         var terrain = Battlefield.Terrain(ctx.State);
@@ -264,7 +263,7 @@ public static class GfMoves
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
             var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size);
-            if (check.WithinAllowance && !check.CrossesImpassable) moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
+            if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable) moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
     }
