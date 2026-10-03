@@ -11,13 +11,14 @@ public partial class MarkerNode : Node3D, IHasId
     public Guid Id => MarkerId;
     MeshInstance3D? _disc; Label3D? _label;
 
-    public void Set(Marker m)
+    /// <summary>A controlled objective takes its team's colour; a neutral one keeps the objective gold.</summary>
+    public void Set(Marker m, Color? team = null)
     {
         Position = WorldFrame.ToGodot(m.Position); Rotation = new Vector3(0, WorldFrame.Radians(m.Yaw), 0);
         _disc?.QueueFree(); _label?.QueueFree();
         var r = (float)m.Diameter / 2;
         _disc = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = r, BottomRadius = r, Height = 0.1f }, Position = new Vector3(0, 0.05f, 0),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = m.Kind == MarkerKind.Objective ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.9f, 0.9f, 0.9f) } };
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = team ?? (m.Kind == MarkerKind.Objective ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.9f, 0.9f, 0.9f)) } };
         AddChild(_disc);
         if (m.Label is { } text) { _label = new Label3D { Text = text, Position = new Vector3(0, 0.6f, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled }; AddChild(_label); }
     }

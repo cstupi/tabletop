@@ -135,7 +135,8 @@ public class ViewModelTests
         Assert.Equal(2, ((SetScore)team.Single(i => i.Label == "Set score").Build("2")!).Score);
         Assert.IsType<SetActiveTeam>(team.Single(i => i.Label == "Make this the active team").Build(null));
         Assert.IsType<SetRound>(team.Single(i => i.Label == "Set the round").Build("3"));
-        Assert.IsType<RemoveMarker>(MenuModel.ForMarker(Samples.Token.Id).Single(i => i.Label == "Remove").Build(null));
+        var placed = Applier(new MarkerPlaced(Samples.Token)).Projection;
+        Assert.IsType<RemoveMarker>(MenuModel.ForMarker(Game, placed, Samples.Token.Id).Single(i => i.Label == "Remove").Build(null));
         var frame = MenuModel.ForFrame(Applier(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))).Projection);
         Assert.Equal(Samples.Frame, ((AbandonSequence)frame.Single().Build(null)!).FrameId);
         Assert.Empty(MenuModel.ForFrame(p));
@@ -259,5 +260,18 @@ public class ViewModelTests
         var b = new EventApplier(labelledBoard, Game);
         var namesb = new Names(Game, b.Projection);
         Assert.Equal("the game Team 2 took centre", LogText.Describe(new GameEvent(9, null, new ObjectiveControlSet(labelledMarker.Id, Samples.Team2), null), namesb));
+    }
+
+    [Fact]
+    public void An_objective_from_setup_or_play_can_be_given_to_a_team_or_made_neutral_and_a_token_cannot()
+    {
+        var p = Applier(new MarkerPlaced(Samples.Token)).Projection;
+        var setup = p.Board.Table.Markers.Single(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
+        var items = MenuModel.ForMarker(Game, p, setup);
+        Assert.Equal(["Give to Team 1", "Give to Team 2", "Make neutral"], items.Select(i => i.Label));    // no Remove: a setup row is not a play marker
+        Assert.Equal(new SetObjectiveControl(setup, Samples.Team2), items[1].Build(null));
+        Assert.Equal(new SetObjectiveControl(setup, null), items[2].Build(null));
+        Assert.Equal(["Remove"], MenuModel.ForMarker(Game, p, Samples.Token.Id).Select(i => i.Label));      // a token holds nothing
+        Assert.Empty(MenuModel.ForMarker(Game, p, Guid.CreateVersion7()));
     }
 }
