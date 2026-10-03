@@ -9,6 +9,7 @@ public sealed class Projection
     internal readonly Dictionary<Guid, ModelInPlay> ModelsMut = new();
     internal readonly Dictionary<Guid, Marker> MarkersMut = new();
     internal readonly Dictionary<Guid, int> ScoresMut = new();
+    internal readonly Dictionary<Guid, Guid> ControlMut = new();
     internal readonly List<Frame> StackMut = new();
     internal readonly Dictionary<Guid, OpenAsk> OpenAsksMut = new();
 
@@ -19,6 +20,8 @@ public sealed class Projection
     public IReadOnlyDictionary<Guid, ModelInPlay> Models => ModelsMut;
     public IReadOnlyDictionary<Guid, Marker> Markers => MarkersMut;
     public IReadOnlyDictionary<Guid, int> Scores => ScoresMut;
+    /// <summary>Objective marker id to the team that controls it; a neutral marker is absent.</summary>
+    public IReadOnlyDictionary<Guid, Guid> Control => ControlMut;
     public SchedulerPosition Scheduler { get; } = new();
     public IReadOnlyList<Frame> Stack => StackMut;
     public IReadOnlyDictionary<Guid, OpenAsk> OpenAsks => OpenAsksMut;

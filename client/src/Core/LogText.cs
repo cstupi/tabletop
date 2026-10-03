@@ -48,6 +48,8 @@ public static class LogText
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
+            RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => Change(c, n)))}")}",
+            ObjectiveControlSet o => Change(o, n),
             GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };
@@ -61,6 +63,14 @@ public static class LogText
         0 => "",
         1 => $"; {n.Team(winners[0])} won",
         _ => $"; tied between {string.Join(", ", winners.Select(n.Team))}",
+    };
+
+    /// <summary>A round end's change in words. Only objective control is written there today; anything else reads by its kind.</summary>
+    static string Change(StateChange c, Names n) => c switch
+    {
+        ObjectiveControlSet { TeamId: { } team } o => $"{n.Team(team)} took {n.Marker(o.MarkerId)}",
+        ObjectiveControlSet o => $"{n.Marker(o.MarkerId)} became neutral",
+        _ => EventKinds.Of(c),
     };
 
     static string Moved(ModelsMoved m, Names n)

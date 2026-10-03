@@ -229,4 +229,17 @@ public class RecordingTests
         Assert.Equal("Game ended: over; tied between Team 1, Team 2", Line(c.TeamIds[0], c.TeamIds[1]));
         Assert.Equal("Game ended: over", Line());
     }
+
+    [Fact]
+    public void Control_reads_the_same_in_the_recording_as_in_the_viewer()
+    {
+        var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("stalemate"));
+        var ordinals = c.Info.Teams.ToDictionary(t => t.Id, t => t.Ordinal);
+        var after = Projection.Initial(c.Board, c.Info);
+        var marker = Guid.Parse("0198b7ac-0000-7000-8000-000000000041");
+        string Line(EventPayload p) => Recording.LogLines.Of(new GameEvent(9, null, p, null), after, ordinals);
+        Assert.Equal("Round 4 ended", Line(new RoundEnded(4, [new ObjectiveControlSet(marker, c.TeamIds[0])])));
+        Assert.Equal("0198b7ac to Team 1", Line(new ObjectiveControlSet(marker, c.TeamIds[0])));
+        Assert.Equal("0198b7ac neutral", Line(new ObjectiveControlSet(marker, null)));
+    }
 }

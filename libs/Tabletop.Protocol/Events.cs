@@ -6,6 +6,7 @@ namespace Tabletop.Protocol;
 /// <summary>Everything the log holds. Replay applies these and never re-derives them.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(RoundStarted), "round_started")]
+[JsonDerivedType(typeof(RoundEnded), "round_ended")]
 [JsonDerivedType(typeof(GameEnded), "game_ended")]
 [JsonDerivedType(typeof(TurnStarted), "turn_started")]
 [JsonDerivedType(typeof(TurnEnded), "turn_ended")]
@@ -34,11 +35,14 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(MarkerPlaced), "marker_placed")]
 [JsonDerivedType(typeof(MarkerMoved), "marker_moved")]
 [JsonDerivedType(typeof(MarkerRemoved), "marker_removed")]
+[JsonDerivedType(typeof(ObjectiveControlSet), "objective_control_set")]
 public abstract record EventPayload;
 
 // Scheduler
 /// <summary>Order is the order over teams this round. Changes are the round-boundary hooks' effects (record clears, tokens, fatigue).</summary>
 public sealed record RoundStarted(int Round, IReadOnlyList<Guid> Order, IReadOnlyList<StateChange> Changes) : EventPayload;
+/// <summary>The end of a round, after a player ended it and before the next round starts: the ruleset's changes at that moment (OPR p.6: objectives seized, contested, kept). Written only when there are changes.</summary>
+public sealed record RoundEnded(int Round, IReadOnlyList<StateChange> Changes) : EventPayload;
 public sealed record TurnStarted(Guid TeamId) : EventPayload;
 /// <summary>Passed is the logged pass that stops a team being re-asked this round. Changes: the end-of-turn hook's effects.</summary>
 public sealed record TurnEnded(Guid TeamId, bool Passed, IReadOnlyList<StateChange> Changes) : EventPayload;

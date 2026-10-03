@@ -170,7 +170,7 @@ export interface DieReplacement {
 
 export type Enforcement = 'silent' | 'warn' | 'strict';
 
-export type EventPayload = RoundStarted | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | ModifierAdded | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved;
+export type EventPayload = RoundStarted | RoundEnded | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | ModifierAdded | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
 
 export interface EventsMessage {
   readonly kind: 'events';
@@ -324,6 +324,12 @@ export interface MoveRegion {
   readonly containment?: MoveContainment;
 }
 
+export interface ObjectiveControlSet {
+  readonly kind: 'objective_control_set';
+  readonly markerId: string;
+  readonly teamId?: string;
+}
+
 export interface OnShelf {
   readonly kind: 'shelf';
 }
@@ -413,6 +419,12 @@ export interface RollRecord {
   readonly dice: readonly Die[];
 }
 
+export interface RoundEnded {
+  readonly kind: 'round_ended';
+  readonly round: number;
+  readonly changes: readonly StateChange[];
+}
+
 export interface RoundStarted {
   readonly kind: 'round_started';
   readonly round: number;
@@ -465,7 +477,7 @@ export interface SpellTokensSet {
   readonly tokens: number;
 }
 
-export type StateChange = ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved;
+export type StateChange = ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
 
 export interface StepCompleted {
   readonly kind: 'step_completed';

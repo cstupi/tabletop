@@ -15,5 +15,7 @@ public sealed class Names(GameInfo game, Projection? projection)
     public Guid? UnitOfModel(Guid modelId) => projection?.Models.GetValueOrDefault(modelId)?.UnitId;
     public string Piece(Guid id) => projection is null ? Short(id)
         : projection.Units.ContainsKey(id) ? Unit(id) : projection.Models.ContainsKey(id) ? Model(id) : projection.Markers.GetValueOrDefault(id)?.Label ?? Short(id);
+    /// <summary>A marker by its label: placed in play, or else from setup.</summary>
+    public string Marker(Guid id) => (projection?.Markers.GetValueOrDefault(id) ?? projection?.Board.Table.Markers.FirstOrDefault(m => m.Id == id))?.Label ?? Short(id);
     public static string Short(Guid id) => id.ToString("N")[..8];
 }

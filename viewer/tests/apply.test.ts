@@ -269,4 +269,26 @@ describe('the ported board projection', () => {
     expect(passed.passed).toEqual([T1]);
     expect(passed.scores).toEqual({ [T1]: 0, [T2]: 4 });    // whole state, not a delta
   });
+
+  describe('objective control', () => {
+    it('follows its changes, alone or inside a round end, and leaves with the marker', () => {
+      const a = new Applier(board, game);
+      a.apply(ev(1, { kind: 'round_ended', round: 1, changes: [{ kind: 'objective_control_set', markerId: K1, teamId: T1 }] }));
+      expect(a.projection.control.get(K1)).toBe(T1);
+      a.apply(ev(2, { kind: 'objective_control_set', markerId: K1 }));
+      expect(a.projection.control.has(K1)).toBe(false);
+      a.apply(ev(3, { kind: 'objective_control_set', markerId: K9, teamId: T2 }));
+      a.apply(ev(4, { kind: 'marker_removed', markerId: K9 }));
+      expect(a.projection.control.size).toBe(0);
+    });
+
+    it('reads as the recording reads it', () => {
+      const p = initialProjection(board, game);
+      const ordinals = new Map([[T1, 1], [T2, 2]]);
+      const line = (payload: unknown) => lineOf(ev(9, payload), p, ordinals);
+      expect(line({ kind: 'round_ended', round: 4, changes: [] })).toBe('Round 4 ended');
+      expect(line({ kind: 'objective_control_set', markerId: K1, teamId: T1 })).toBe('A to Team 1');   // the board's setup marker, labelled A
+      expect(line({ kind: 'objective_control_set', markerId: K9 })).toBe(`${K9.slice(0, 8)} neutral`);
+    });
+  });
 });

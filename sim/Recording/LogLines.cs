@@ -39,6 +39,9 @@ public static class LogLines
         MarkerPlaced m => $"marker placed{(m.Marker.Label is { } l ? $": {l}" : "")}",
         MarkerMoved => "marker moved",
         MarkerRemoved => "marker removed",
+        RoundEnded r => $"Round {r.Round} ended",
+        ObjectiveControlSet { TeamId: { } team } o => $"{Marker(after, o.MarkerId)} to {Team(ordinals, team)}",
+        ObjectiveControlSet o => $"{Marker(after, o.MarkerId)} neutral",
         GameEnded g => $"Game ended: {g.Reason}{Result(ordinals, g.Winners)}",
         _ => EventKinds.Of(e.Payload),
     };
@@ -54,6 +57,9 @@ public static class LogLines
 
     private static string Subject(Projection p, Subject s) =>
         s.Kind == SubjectKind.Unit ? Unit(p, s.Id) : Model(p, s.Id);
+
+    private static string Marker(Projection p, Guid id) =>
+        (p.Markers.GetValueOrDefault(id) ?? p.Board.Table.Markers.FirstOrDefault(m => m.Id == id))?.Label ?? id.ToString("N")[..8];
 
     private static string Actor(Projection p, Guid? unitId) => unitId is { } id ? $" for {Unit(p, id)}" : "";
 

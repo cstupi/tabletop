@@ -22,6 +22,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(MarkerPlaced), "marker_placed")]
 [JsonDerivedType(typeof(MarkerMoved), "marker_moved")]
 [JsonDerivedType(typeof(MarkerRemoved), "marker_removed")]
+[JsonDerivedType(typeof(ObjectiveControlSet), "objective_control_set")]
 public abstract record StateChange : EventPayload;
 
 /// <summary>Start and stop for each model. Deployment, hand moves, casualties, embarking: all this one kind.</summary>
@@ -39,3 +40,5 @@ public sealed record ScoreSet(Guid TeamId, int Score) : StateChange;
 public sealed record MarkerPlaced(Marker Marker) : StateChange;
 public sealed record MarkerMoved(Guid MarkerId, Point3 Position, Yaw Yaw) : StateChange;
 public sealed record MarkerRemoved(Guid MarkerId) : StateChange;
+/// <summary>Who controls an objective marker (GF p.6); TeamId null is neutral. Written by the round-end step and by the menu.</summary>
+public sealed record ObjectiveControlSet(Guid MarkerId, Guid? TeamId) : StateChange;

@@ -237,4 +237,17 @@ public class ViewModelTests
         Assert.Equal("Game ended: 4 rounds have been played; tied between Team 1, Team 2", Line(Samples.Team1, Samples.Team2));
         Assert.Equal("Game ended: 4 rounds have been played", Line());
     }
+
+    [Fact]
+    public void Control_reads_as_taking_a_marker_or_making_it_neutral()
+    {
+        var a = Applier(new MarkerPlaced(Samples.Token));
+        var names = new Names(Game, a.Projection);
+        string Line(EventPayload p) => LogText.Describe(new GameEvent(9, null, p, null), names);
+        Assert.Equal("the game ended round 4: Team 1 took smoke", Line(new RoundEnded(4, [new ObjectiveControlSet(Samples.Token.Id, Samples.Team1)])));
+        Assert.Equal("the game ended round 4", Line(new RoundEnded(4, [])));
+        Assert.Equal("the game smoke became neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
+        var setup = Samples.Board.Table.Markers[0].Id;
+        Assert.Equal($"the game Team 2 took {Names.Short(setup)}", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
+    }
 }

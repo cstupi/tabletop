@@ -165,4 +165,18 @@ public class EventApplierTests
         Assert.Null(a.Projection.Ended);
         Assert.Null(a.ProjectTo(1).Ended);
     }
+
+    [Fact]
+    public void Control_follows_its_changes_alone_or_inside_a_round_end_and_leaves_with_the_marker()
+    {
+        var a = Fresh();
+        var objective = Samples.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
+        a.Apply(Ev(1, new RoundEnded(1, [new ObjectiveControlSet(objective, Samples.Team1), new ObjectiveControlSet(Samples.Token.Id, Samples.Team2)])));
+        Assert.Equal(Samples.Team1, a.Projection.Control[objective]);
+        a.Apply(Ev(2, new ObjectiveControlSet(objective, null)));
+        Assert.False(a.Projection.Control.ContainsKey(objective));
+        a.Apply(Ev(3, new MarkerPlaced(Samples.Token)));
+        a.Apply(Ev(4, new MarkerRemoved(Samples.Token.Id)));
+        Assert.Empty(a.Projection.Control);
+    }
 }
