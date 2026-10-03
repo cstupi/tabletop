@@ -54,6 +54,8 @@ cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once 
 cd web && npm test           # Vitest: the API client, session, units, the mesh pipeline against tests/fixtures
 ./scripts/client             # build, run scripts/check-client, launch the Godot client on Windows
 ./scripts/check-client       # no physics body in a scene, no rules type or Godot in client/src/Core
+./scripts/army-books fetch   # download the official army books from Army Forge into .superpowers/armyforge/ (the only command that calls it)
+./scripts/army-books generate   # regenerate server/game/Content/army-books/ from that copy; fails on any untranslatable spell
 dotnet test tests/Tabletop.Client.Tests   # the client's Godot-free core
 dotnet run --project sim -- --list                 # the scenarios
 dotnet run --project sim -- skirmish --seeds 1..20 # twenty games, recordings in ./recordings
@@ -75,7 +77,7 @@ Three kinds of top-level directory:
 - **Shared code** — `libs/`. Consumed by the deliverables, never shipped alone.
 - **Repo-level support** — `docs/`, `scripts/`, `tests/`. Neither shipped nor consumed. Dev tooling
   stays out of `client/`, because everything under the Godot project root is project
-  content that the editor scans and lists.
+  content that the editor scans and lists. `scripts/` holds the launch scripts, the Postgres init schema and `ArmyBooks/` (`Tabletop.ArmyBooks`, the army-book generator).
 
 - `client/` — the Godot game client, and the only project with a Godot dependency.
   - `src/Core/` — Godot-free: `Session`, `ManagementClient`, `ClientGameSocket`, `AssetCache`, `BuiltinContent`,
@@ -95,6 +97,7 @@ Three kinds of top-level directory:
     (frames from the log, steps, windows, the battlefield reader), `Engine/` (`RulesEngine`, the one `IRulesEngine`, and
     the scheduler seam `IScheduler`/`ISchedulerFactory`), `Scheduler/SchedulerTypes.cs` and `ActivationOption.cs` (the
     seam records the scheduler plan reads).
+    `Content/` holds the core document (`grimdark-future-core.properties.json`), the hand-written army-rules part (`grimdark-future-army-rules.part.json`) and the 48 generated army books (`army-books/<uid>.book.json`), composed into one set by `PropertiesSeeder`.
   - `Rules/GrimdarkFuture/` — OPR's sequences, rolls, hooks and names: the only place a rule is named.
   - `Scheduler/` — the generic turn machinery behind `Engine.IScheduler` (two shapes, the turn as an Ask, the roll-off read back from the ruleset's sequence); its Grimdark Future hooks are the `GfRules.Scheduling.cs`/`GfRules.Deployment.cs` partials in `Rules/GrimdarkFuture/`, beside the interpreter's sequences.
 - `server/management/` — `Tabletop.Management`, ASP.NET Core minimal APIs: `Identity/` (Stytch login, JWT verification, the account), `Content/` (assets over MinIO and the generated starter miniatures, folders, armies from Army Forge, layouts), `Games/`, `Http/` (version check, keyset paging), `Persistence/` (Npgsql + Dapper, DbUp migrations in `Persistence/Migrations/`). Tested in `tests/Tabletop.Management.Tests` against the Docker stack.
@@ -142,7 +145,7 @@ Each module is designed before it is built.
 - Schema changes are new `NNN_*.sql` files under `server/management/Persistence/Migrations/`; `001_schema.sql` there is a copy of `scripts/postgres/init/001_schema.sql` and neither is edited after the fact. The game server writes a game's rows only while it is in `lobby` or `setup`, and `game.status` once more, `playing → ended`, when its own log ends the game; management writes them at creation and at end/leave/delete (management plan → Rows by writer).
 - The web app speaks inches to the API; millimetres exist only in its UI (`src/lib/units/`). It never calls `/v1/games*`, `/v1/properties` or `/v1/layouts`.
 - The table frame's origin is the table's corner (`0 ≤ x ≤ width`, `0 ≤ y ≤ length`, Z up) on the wire and in `Tabletop.Geometry` alike; nothing converts. Godot: x = X, y = Z, z = −Y, `rotation.y` = yaw (`WorldFrame`). No Godot physics; picking is ray-versus-AABB.
-- The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json`, seeded by hash at startup; editing one makes a new set with a new hash — old games keep theirs.
+- The engine never appends or broadcasts and holds no state between calls: a step reads its position, values and history from the log and returns one outcome. Dice are a function of the game's stored `rng_seed` and the count of dice drawn in the effective log. Authored `Properties` are `server/game/Content/*.properties.json` with every `*.part.json` and `army-books/*.book.json` composed in, seeded by hash at startup; editing any of them makes a new set with a new hash, and old games keep theirs. A book file is never edited by hand: fix the generator and regenerate.
 - `viewer/`'s TypeScript protocol types are **generated, not written**:
   `viewer/src/lib/protocol/{recording,wire}.generated.ts` come from the C# JSON contracts and are
   checked in. Regenerate with `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests`;
