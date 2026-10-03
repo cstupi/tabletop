@@ -13,6 +13,7 @@ public static class GfNames
     public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", SpellHitsSeq = "spell-hits", RollOffSeq = "roll-off";
     /// <summary>The roll-off's two step names. The scheduler reads the order off the step_completed named by the second.</summary>
     public const string RollOffRollStep = "roll-off", RollOffOrderStep = "order";
+    public const string CounterAttack = "Counter-Attack", Unwieldy = "Unwieldy";
     public const string ChargeRangeKey = "charge_range";   // hundredths of an inch, on the charge frame's charge-target step
     public const string IdleSeq = "idle", SpellTestSeq = "spell-test";                                                // p.10 idle activation; spell library take_test
     public const string TransportDestroyedSeq = "transport-destroyed";                                                  // p.15: a wrecked container disgorges (Task 19)
