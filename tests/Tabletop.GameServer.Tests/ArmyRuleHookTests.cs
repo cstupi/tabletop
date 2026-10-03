@@ -316,4 +316,47 @@ public partial class ArmyRuleHookTests
         sim.Answer(Samples.Team1, new Passed());                                                          // declined at the placement
         Assert.Single(sim.Unit(a.Id).Grants);
     }
+
+    [Fact]
+    public void A_placement_beyond_its_distance_is_refused_and_the_model_stays()
+    {
+        // Teleport (3") shifted 3.5", and Rapid Blink rolling a 1 (D3 = 1") shifted 3".
+        foreach (var (rule, dice, shift) in new[] { ("Teleport", 4, 3.5), ("Rapid Blink", 1, 3.0) })
+        {
+            var a = Unit("A", "4+", "4+", [], 1, [P(rule)]);
+            var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, Core, new ScriptedDice(dice));
+            if (rule == "Teleport") { sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance)); sim.Answer(Samples.Team1, new Passed()); }
+            else sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+            sim.Answer(Samples.Team1, new Chosen($"{rule}|{a.Id:N}"));
+            var before = ((OnTable)sim.Model(a.Models[0].Id).Location).Placement.Position.X;
+            Shift(sim, Samples.Team1, [a.Models[0].Id], shift);
+            Assert.Equal(before, ((OnTable)sim.Model(a.Models[0].Id).Location).Placement.Position.X, 3);
+        }
+    }
+
+    [Fact]
+    public void Teleport_after_a_charge_is_three_inches()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Teleport")], Melee("Fist", 1)); var t = Unit("T", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var sim = new Sim(State([a], [t], x1: -8, x2: 0), GrimdarkFutureRules.Instance, Core, new ScriptedDice(Enumerable.Repeat(2, 20).ToArray()));
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(a.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        sim.Answer(Samples.Team1, new Passed());                                                      // the charge move itself
+        sim.Answer(Samples.Team1, new Chosen($"Teleport|{a.Id:N}"));
+        Assert.Equal(3.0, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Allowance);
+    }
+
+    [Fact]
+    public void A_granted_placement_whose_landing_is_refused_is_not_spent()
+    {
+        var blink = new EntryDocument("Blink It", CatalogKind.Spell, false, null, 1, null, "Grants Rapid Blink.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Rapid Blink")]);
+        var props = TestProperties.WithSpells(blink);
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, props, new ScriptedDice(1));
+        sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Blink It")!.Effects[0].Id, "Blink It", a.Id, 1))]);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen($"Rapid Blink|{a.Id:N}"));
+        Shift(sim, Samples.Team1, a.Models.Select(m => m.Id), 3);                                      // D3 rolled 1: beyond the distance
+        Assert.Single(sim.Unit(a.Id).Grants);
+    }
 }

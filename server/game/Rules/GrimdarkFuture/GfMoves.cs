@@ -300,6 +300,7 @@ public static class GfMoves
         {
             if (row.AmountDice is not null && ctx.Frame.Value("distance_tenths") == 0)
             {
+                // RollPlan wants a roll name's convention; a bare D6 pool has none of its own, so it borrows the hit roll's (a plain d6, no threshold).
                 var record = ctx.Roll(new Dice.RollPlan(entry, null, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), row.EffectiveAmount(null));
                 return new Complete([], new Dictionary<string, int> { ["distance_tenths"] = record.Dice.Sum(d => (d.Raw + 1) / 2) * 10 }, Repeat: true);
             }
