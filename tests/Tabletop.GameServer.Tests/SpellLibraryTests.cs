@@ -1,4 +1,9 @@
+using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.Protocol;
+using Tabletop.Protocol.Tests;
+using static Tabletop.GameServer.Tests.Infrastructure.Armies;
 using Tabletop.GameServer.Tests.Infrastructure;
 
 namespace Tabletop.GameServer.Tests;
@@ -58,5 +63,75 @@ public class SpellLibraryTests
         var c = PropertiesJson.Hash(PropertiesSeeder.Compose(TestProperties.RulebookDocument, [], [books[0] with { Version = "2" }]));
         Assert.Equal(a, b);
         Assert.NotEqual(a, c);
+    }
+
+    [Fact]
+    public void The_shipped_set_holds_every_official_book_and_its_spells()
+    {
+        var core = TestProperties.Core;
+        Assert.Equal(48, core.Books.Count);
+        Assert.Equal(190, core.Entries.Count(e => e.Kind == CatalogKind.Spell));
+        Assert.All(core.Books.Values.Where(b => b.Uid != "i4ZEAmqeFSfAcw3f"), b => Assert.Equal(6, core.SpellsOf(b.Uid).Count));
+        Assert.Equal([1, 1, 2, 2, 3, 3], core.SpellsOf("z65fgu0l29i4lnlu").Select(s => s.Cost!.Value).Order());
+        Assert.All(core.Entries.Where(e => e.Kind == CatalogKind.Spell), e => Assert.Null(e.Faction));
+        Assert.Equal("3.5.3", core.Books["1wj1ysgxpuuz9bc7"].Version);
+    }
+
+    public static TheoryData<string, string> EverySpell()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var spell in TestProperties.Core.Entries.Where(e => e.Kind == CatalogKind.Spell).OrderBy(e => e.Name, StringComparer.Ordinal))
+            data.Add(TestProperties.Core.Books.Values.OrderBy(b => b.Uid, StringComparer.Ordinal).First(b => b.Spells.Contains(spell.Name)).Uid, spell.Name);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(EverySpell))]
+    public void Every_spell_is_cast_and_does_what_its_family_promises(string book, string name)
+    {
+        var props = TestProperties.Core; var spell = props.Entry(name)!;
+        var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]), book);
+        var friend = Unit("Friend", "4+", "4+", [], 3, []);
+        var enemy = Unit("Enemy", "4+", "4+", [], 5, [P("Tough", 3)]);
+        var state = State([wizard, friend], [enemy], x1: -2, x2: 2);
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), props, new ScriptedDice([6, .. Enumerable.Repeat(4, 300)]));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen($"{name}|{wizard.Models[0].Id}"));
+        sim.Answer(Samples.Team1, new Passed());                                                         // the spend window: no tokens for or against
+        var targets = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
+        var target = spell.Targeting!.Side == TargetSide.Friendly ? wizard.Id : targets.Eligible[0];
+        sim.Answer(Samples.Team1, new SelectedPieces([target]));
+        for (var i = 0; i < 50 && sim.State.Projection.OpenAsks.Count > 0; i++)
+        {
+            var open = sim.State.Projection.OpenAsks.Values.First();
+            var team = open.Ask.Teams.First(t => !open.Answers.ContainsKey(t));
+            sim.Answer(team, open.Ask.Legal switch
+            {
+                Allocation a => new Allocated(new Dictionary<Guid, int> { [a.Targets[0]] = a.Amount }),
+                _ => new Passed(),
+            });
+        }
+        Assert.Empty(sim.State.Projection.OpenAsks);
+        Assert.Empty(sim.State.Projection.Stack);
+        var targetUnit = sim.State.Projection.Units.ContainsKey(target) ? target : sim.Model(target).UnitId;
+        foreach (var row in spell.Effects)
+        {
+            switch (row.Kind)
+            {
+                case EffectKind.AddHit:
+                    var hit = sim.Steps("hit").Single();
+                    if (row.TargetRoll is null) { Assert.Empty(hit.Rolls); Assert.Equal(row.Amount, hit.Values!["hits"]); }
+                    else Assert.Equal(row.Amount, hit.Rolls.Single().Dice.Count);
+                    break;
+                case EffectKind.TakeTest:
+                    Assert.Contains(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.MoraleTest && s.Context.ActorUnitId == targetUnit);
+                    break;
+                default:
+                    Assert.Equal(EffectDuration.Once, row.Duration);
+                    Assert.Contains(sim.Unit(targetUnit).Grants, g => g.EffectId == row.Id && g.EntryName == name);
+                    break;
+            }
+        }
     }
 }
