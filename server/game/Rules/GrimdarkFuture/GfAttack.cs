@@ -14,7 +14,74 @@ public static partial class GfAttack
         var state = ctx.State;
         if (actor is not { } a) return new Interaction(state, ctx.Properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
         var models = weapons.Count > 0 ? state.Projection.Models.Values.Where(m => m.Slot.Weapons.Any(w => weapons.Contains(w.Id))).Select(m => m.Id).ToList() : Lookup.LivingModels(state, a);
-        return new Interaction(state, ctx.Properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(ctx.Frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target));
+        return new Interaction(state, ctx.Properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(ctx.Frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
+            Faces: FacesFor(ctx.Frame, a, target));
+    }
+
+    /// <summary>The attack-start interactions of a unit: one per known opponent (so a grant against that opponent is live), or the unit alone when none is known.</summary>
+    static IEnumerable<Interaction> AttackStartInteractions(StepContext ctx, Guid unit, IReadOnlyList<Guid> opponents, AttackKind kind, bool withFaces) =>
+        opponents.Count == 0
+            ? [new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, kind, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit), GfNames.AttackStart,
+                withFaces ? FacesFor(ctx.Frame, unit, unit) : null)]
+            : opponents.Select(o => AttackInteraction(ctx, unit, o, [], kind, ctx.Frame.Context.Action) with { Point = GfNames.AttackStart, Faces = withFaces ? FacesFor(ctx.Frame, unit, o) : null });
+
+    /// <summary>Each live roll row of the unit asked at attack-start (its other conditions holding for this attack kind, against each known opponent) rolls
+    /// its row's dice once, as a RollRecord named for its entry, and its first die is recorded as face_&lt;unit&gt;_&lt;entry&gt;.</summary>
+    public static void RollAttackStart(StepContext ctx, Guid unit, IReadOnlyList<Guid> opponents, AttackKind kind, Dictionary<string, int> values)
+    {
+        if (Lookup.LivingModels(ctx.State, unit).Count == 0) return;
+        var rolled = new HashSet<string>();
+        foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: false))
+        {
+            var live = LiveProperties.Settle(ix);
+            foreach (var (source, row) in live.AtPoint(Side.Attacker, GfNames.AttackStart).Where(x => x.Effect.Kind == EffectKind.Roll))
+            {
+                if (!rolled.Add(source.Entry.Name)) continue;
+                var record = ctx.Roll(new Dice.RollPlan(source.Entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), Math.Max(1, row.Amount ?? 1));
+                values[$"face_{unit:N}_{source.Entry.Name}"] = record.Dice[0].Raw;
+            }
+        }
+    }
+
+    /// <summary>A rule rolled at attack-start is applied by the attack that follows, so a granted instance of it is read and spent where that attack ends.</summary>
+    public static IReadOnlyList<StateChange> SpendAttackStart(StepContext ctx, Guid unit, IReadOnlyList<Guid> opponents, AttackKind kind)
+    {
+        var spent = new List<StateChange>();
+        foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: true))
+        {
+            if (ix.Faces is null || !ix.Faces.TryGetValue(Side.Attacker, out var faces) || faces.Count == 0) continue;
+            var live = LiveProperties.Settle(ix with { Point = null });
+            foreach (var p in live.On(Side.Attacker).Where(p => p.GrantId is not null && faces.ContainsKey(p.Entry.Name))) live.Read(p);
+            spent.AddRange(RollEffects.Consume(live));
+        }
+        return spent.Distinct().ToList();
+    }
+
+    public sealed class AttackStartStep : IStep
+    {
+        public string Name => "attack-start";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var values = new Dictionary<string, int>();
+            // Only a target the Ask offered, for a group it listed (what fire-groups fires at): an answer outside the legal set names no opponent.
+            var offer = FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal as Assignment;
+            var targets = offer is not null && ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is Assigned a
+                ? a.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).Select(kv => kv.Value).Distinct().ToList() : [];
+            RollAttackStart(ctx, ctx.Frame.Context.ActorUnitId!.Value, targets, AttackKind.Shooting, values);
+            return new Complete([], values);
+        }
+    }
+
+    /// <summary>The faces the nearest shooting or melee frame recorded, by side of this interaction.</summary>
+    static IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? FacesFor(FrameView frame, Guid attacker, Guid target)
+    {
+        for (var f = frame; f is not null; f = f.Parent)
+            if (f.Frame.Sequence is GfNames.Shooting or GfNames.Melee)
+            {
+                IReadOnlyDictionary<string, int> Of(Guid unit) => f.Values.Where(kv => kv.Key.StartsWith($"face_{unit:N}_")).ToDictionary(kv => kv.Key[$"face_{unit:N}_".Length..], kv => kv.Value);
+                return new Dictionary<Side, IReadOnlyDictionary<string, int>> { [Side.Attacker] = Of(attacker), [Side.Defender] = Of(target) };
+            }
+        return null;
     }
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded

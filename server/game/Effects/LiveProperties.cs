@@ -4,9 +4,9 @@ namespace Tabletop.GameServer.Effects;
 
 /// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
 /// effect row) exposes only the row its grant holds, and that row's children; every other instance exposes its entry's effects.</summary>
-public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null)
+public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null)
 {
-    public IReadOnlyList<Effect> Effects => GrantRow is { } row ? [row] : Entry.Effects;
+    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Effects);
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
@@ -107,7 +107,7 @@ public static class LiveProperties
                 switch (effect.Kind)
                 {
                     case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } grantedEntry && granted.Add((effect.Id, PassOneActs.Key(source))):
-                        live.Add(new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId)); break;
+                        live.Add(WithFace(ix, new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId))); break;
                     case EffectKind.SuppressProperty:
                         foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
                         live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
@@ -167,6 +167,21 @@ public static class LiveProperties
         // instance per model; a weapon rule is one rule per weapon *type*, so three of the same weapon's AP(1) are one AP(1), not three summed.
         string WeaponName(Guid? id) => id is { } w ? state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(x => x.Id == w).Name : "";
         return result.GroupBy(p => (p.Entry.Name, p.Entry.Aggregation == Aggregation.None ? p.ModelId ?? Guid.Empty : Guid.Empty, p.WeaponId is null ? "" : WeaponName(p.WeaponId), p.GrantId ?? Guid.Empty))
-            .Select(g => g.First());
+            .Select(g => WithFace(ix, g.First()));
+    }
+
+    /// <summary>
+    /// A property whose roll row is asked at the attack-start point and whose face this attack recorded (Interaction.Faces) exposes, instead of its
+    /// rows, that roll's children whose roll_result on its own roll holds against the face, with that condition dropped (army-rule hooks → A die
+    /// at the start of the attack). Any other property is returned as it is.
+    /// </summary>
+    static LiveProperty WithFace(Interaction ix, LiveProperty p)
+    {
+        if (ix.Faces is null || !ix.Faces.TryGetValue(p.Holder, out var faces) || !faces.TryGetValue(p.Entry.Name, out var raw)) return p;
+        bool Own(EffectCondition c) => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == p.Entry.Name;
+        var rolls = p.Effects.Where(e => e.Kind == EffectKind.Roll && e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains("attack-start"))).ToList();
+        if (rolls.Count == 0) return p;
+        return p with { Chosen = rolls.SelectMany(r => r.Children).Where(ch => ch.Conditions.Where(Own).All(c => c.Compare(raw)))
+            .Select(ch => ch with { Conditions = ch.Conditions.Where(c => !Own(c)).ToList() }).ToList() };
     }
 }

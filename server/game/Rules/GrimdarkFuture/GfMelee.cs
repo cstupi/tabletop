@@ -164,8 +164,14 @@ public static class GfMelee
     sealed class MeleeStartStep : IStep
     {
         public string Name => "melee-start";
-        public StepOutcome Run(StepContext ctx) => new Complete([], new Dictionary<string, int>
-            { ["charger_before"] = ctx.Projection.Units[Charger(ctx)].WoundsThisActivation, ["defender_before"] = ctx.Projection.Units[Defender(ctx)].WoundsThisActivation });
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (charger, defender) = (Charger(ctx), Defender(ctx));
+            var values = new Dictionary<string, int> { ["charger_before"] = ctx.Projection.Units[charger].WoundsThisActivation, ["defender_before"] = ctx.Projection.Units[defender].WoundsThisActivation };
+            GfAttack.RollAttackStart(ctx, charger, [defender], AttackKind.Melee, values);
+            GfAttack.RollAttackStart(ctx, defender, [charger], AttackKind.Melee, values);
+            return new Complete([], values);
+        }
     }
 
     const string StruckKey = "struck";
@@ -272,7 +278,8 @@ public static class GfMelee
             var loser = defenderDead ? 2 : chargerDead ? 1 : chargerWounds > defenderWounds ? 2 : defenderWounds > chargerWounds ? 1 : 0;
             var values = new Dictionary<string, int> { ["charger_wounds"] = chargerWounds, ["defender_wounds"] = defenderWounds, ["loser"] = loser, ["compared"] = 1 };
             var testing = loser == 1 ? charger : loser == 2 ? defender : (Guid?)null;
-            return new Complete([], values, Repeat: testing is not null && Lookup.LivingModels(ctx.State, testing.Value).Count > 0);
+            var spent = GfAttack.SpendAttackStart(ctx, charger, [defender], AttackKind.Melee).Concat(GfAttack.SpendAttackStart(ctx, defender, [charger], AttackKind.Melee)).Distinct().ToList();
+            return new Complete(spent, values, Repeat: testing is not null && Lookup.LivingModels(ctx.State, testing.Value).Count > 0);
         }
     }
 
