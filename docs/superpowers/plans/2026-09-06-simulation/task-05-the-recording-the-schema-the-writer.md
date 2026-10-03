@@ -256,7 +256,7 @@ namespace Tabletop.Sim.Recording;
 public sealed record Recording([property: JsonPropertyName("schemaVersion")] int Version, RecordingMeta Meta, RecordedBoard Board, IReadOnlyList<RecordedFrame> Frames);
 
 /// <param name="Outcome">
-/// `decided`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
+/// `ended`, `round_limit`, `stuck` or `failed` for a finished run; `live` for a feed that is still
 /// running, which viewer/'s live feed sets when it manufactures a RecordingMeta from GameInfo.
 /// sim/ writes only the first four.
 /// </param>

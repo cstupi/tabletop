@@ -164,8 +164,8 @@ The live feed has no `RecordingMeta` to read, so it builds one from `GameInfo` o
 `Team {ordinal}`. `outcome: 'live'` is a value `sim/` never writes; `RecordingMeta.Outcome`'s doc
 comment reserves it for a still-running feed. The field is a `string`, so no shape changes.
 
-A finished recording's `outcome` is `decided`, `round_limit`, `stuck` or `failed`. `failed` marks
-a run whose script, driver, invariants or expectations failed, and it also marks a decided or
+A finished recording's `outcome` is `ended`, `round_limit`, `stuck` or `failed`. `failed` marks
+a run whose script, driver, invariants or expectations failed, and it also marks an ended or
 round-capped run whose invariants or expectations failed. `outcomeDetail` is set for `stuck` and
 `failed`, and the viewer shows it beside the outcome.
 
@@ -229,7 +229,7 @@ in `PrunedUnions`, one entry in `HANDLED` and one `case`.
 Output is deterministic in two ways that the golden file records. Declarations are sorted by name,
 so `RecordedAsk` is first in `recording.generated.ts`. Members within an interface follow
 `JsonTypeInfo.Properties` order, which is the C# record's positional order. A reordered record
-shows as a one-line golden-file diff. Nothing else would catch it, so `RecordedMarkerState`'s eight
+shows as a one-line golden-file diff. Nothing else would catch it, so `RecordedMarkerState`'s nine
 members are also pinned line for line in a test.
 
 `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests` rewrites both modules. Any

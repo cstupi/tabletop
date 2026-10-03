@@ -23,7 +23,7 @@ Append to `tests/Tabletop.Sim.Tests/InProcessDriverTests.cs`, inside the class (
         var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = enforcement };
         await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
         var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];                 // the roll-off's confirm gate
-        var result = Assert.IsType<SubmitResult.Accepted>(await driver.AnswerAsync(open.Ask.Teams[0], open.Ask.Id, new Chosen("not-an-option"), CancellationToken.None));
+        var result = Assert.IsType<SubmitResult.Accepted>(await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Chosen("not-an-option")), CancellationToken.None));
         var answered = (await driver.DrainEventsAsync(CancellationToken.None)).First(e => e.Payload is AskAnswered);
         Assert.Equal(warned, result.Warning is not null);
         Assert.Equal(answered.Warning, result.Warning);
@@ -35,7 +35,7 @@ Append to `tests/Tabletop.Sim.Tests/InProcessDriverTests.cs`, inside the class (
         var scenario = ScenarioCatalog.Get("stalemate") with { Enforcement = Enforcement.Warn };
         await using var driver = await InProcessDriver.StartAsync(ScenarioCompiler.Compile(scenario), CancellationToken.None);
         var open = (await driver.StepAsync(CancellationToken.None)).OpenAsks[0];
-        Assert.Equal(new SubmitResult.Accepted(null), await driver.AnswerAsync(open.Ask.Teams[0], open.Ask.Id, new Confirmed(), CancellationToken.None));
+        Assert.Equal(new SubmitResult.Accepted(null), await driver.SubmitAsync(driver.ParticipantFor(open.Ask.Teams[0]), new AnswerAsk(open.Ask.Id, new Confirmed()), CancellationToken.None));
     }
 ```
 

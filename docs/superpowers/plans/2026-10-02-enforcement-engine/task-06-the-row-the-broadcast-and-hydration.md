@@ -239,8 +239,8 @@ In `server/game/Session/GameSession.cs`:
 
 - [ ] **Step 6: Run the tests**
 
-Run: `dotnet test tests/Tabletop.GameServer.Tests && dotnet test tests/Tabletop.Sim.Tests`
-Expected: PASS. `GameSessionTests`' other tests pass `null!` rows and never end a game, so `MarkEndedAsync` is never reached there.
+Run: `dotnet test tests/Tabletop.GameServer.Tests`
+Expected: PASS. `tests/Tabletop.Sim.Tests` stays red until Task 7, because a strict default run ends at round 4 before `sim/` knows `Ended`. `GameSessionTests`' other tests pass `null!` rows and never end a game, so `MarkEndedAsync` is never reached there.
 
 - [ ] **Step 7: Commit**
 

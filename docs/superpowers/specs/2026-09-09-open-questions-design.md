@@ -157,7 +157,7 @@ extension list and its test.
 
 Miniature and terrain are unaffected; GLB remains the only mesh format uploaded.
 
-## The simulator ships six scenarios, and can declare its own spells
+## The simulator ships ten scenarios, and can declare its own spells
 
 `casting` joins `skirmish`, `terrain`, `player-turn`, `free-for-all` and `stalemate`. Simulator
 question 4.

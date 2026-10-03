@@ -625,6 +625,8 @@ identity and enumerations' boolean and kept the refusing position two later desi
 `waits_between_steps` is resolution's second setting, which had no column; its first, animate, is
 a per-player client setting and not here.
 
+The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
+
 ### The catalog's per-kind check
 
 `cost`, `target_side`, `target_grain`, `target_count` and `target_range` are non-null only when

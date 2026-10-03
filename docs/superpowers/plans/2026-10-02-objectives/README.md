@@ -49,7 +49,7 @@ server/game/Scheduler/SchedulerBase.cs           the round-end step
 server/game/Rules/GrimdarkFuture/GfObjectives.cs        Markers, Seize, Winners, Standing   (new)
 server/game/Rules/GrimdarkFuture/GfRules.Objectives.cs  OnRoundEnded                         (new)
 server/game/Rules/GrimdarkFuture/GfRules.MissionLength.cs   winners and standing
-client/src/Core/LogText.cs, Core/MenuModel.cs, Screens/GameScreen.Play.cs
+client/src/Core/Names.cs, Core/LogText.cs, Core/MenuModel.cs, Screens/GameScreen.Play.cs
 client/src/Table/MarkerNode.cs, Table/TableView.cs, Panels/TeamPanel.cs
 sim/Recording/Recording.cs, FrameProjector.cs, LogLines.cs
 sim/Invariants/Invariants.cs, ProjectionComparer.cs

@@ -219,7 +219,7 @@ own rows, because setup edits are not events and need somewhere to live. From `p
 writes events and one row: `ended`, when its own log ends the game.
 
 Both processes run against one database. Status therefore governs which rows are still editable,
-not which process may touch a schema. Hydration and the read-only-during-play rule are built on
+not which process may touch a schema. Hydration and the rule that the game server writes a game's rows only in `lobby` and `setup`, plus `ended` from `playing`, are built on
 exactly that. The game server also seeds the `Properties` tables at startup, once per content
 hash; that is ruleset content rather than a game's state, so no status governs it.
 
@@ -460,7 +460,7 @@ next step is not dispatched until the owner has.
    the table and setup, not play.
 2. **First turns.** After the scheduler merges. Two clients roll off, deploy, activate, shoot, charge and
    fight in melee, through the real engine.
-3. **Whole games.** After simulation Task 6, the run loop: in-process games run to `decided` or the round
+3. **Whole games.** After simulation Task 6, the run loop: in-process games run to `ended` or the round
    cap, before simulation Tasks 7–11 and the viewer.
 
 Headless before rendered. The libraries, both servers and the rules engine are Godot-free and

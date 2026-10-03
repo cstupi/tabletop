@@ -1,26 +1,18 @@
 # Task 4: The round-end step
 
 **Files:**
-- Create: `server/game/Rules/GrimdarkFuture/GfRules.Objectives.cs`
-- Modify: `server/game/Rules/IGameRules.cs`, `server/game/Scheduler/SchedulerBase.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/FakeRules.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs` (`WithSequences`)
+- Modify: `server/game/Scheduler/SchedulerBase.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs` (`WithSequences`)
 - Test: `tests/Tabletop.GameServer.Tests/ObjectivesTests.cs`
 
 **Interfaces:**
-- Consumes: `RoundEnded`, `ObjectiveControlSet`, `Projection.Control` (Task 1); `GfObjectives.Seize` (Task 3); `SchedulerHarness`, `TestArmies`, `FakeRules.Gf()`.
-- Produces: `IGameRules` default member `IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];`; `GrimdarkFutureRules.OnRoundEnded` → `GfObjectives.Seize(state, properties)` for round ≥ 1; `SchedulerBase` proposes `round_ended` once per round, after the `end_round` answer and before `BeginRound`, only when the hook returns changes; `FakeRules.RoundEndedHook : Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>?`; `WithSequences.OnRoundEnded` forwards.
+- Consumes: `RoundEnded`, `ObjectiveControlSet`, `Projection.Control` (Task 1); `GfObjectives.Seize`, `IGameRules.OnRoundEnded`, `GrimdarkFutureRules.OnRoundEnded` and `FakeRules.RoundEndedHook` (Task 3); `SchedulerHarness`, `TestArmies`, `FakeRules.Gf()`.
+- Produces: `SchedulerBase` proposes `round_ended` once per round, after the `end_round` answer and before `BeginRound`, only when the hook returns changes; `WithSequences.OnRoundEnded` forwards.
 
-Spec: objectives spec → *Where the seize runs*. The private `SchedulerBase.RoundEnded(...)` method is renamed `PlayerEndedRound(...)`, because the class now pattern-matches on the Protocol type `RoundEnded` and a method of the same name hides the type (CS0119).
+Spec: objectives spec → *Where the seize runs*. The private `SchedulerBase.RoundEnded(...)` method is renamed `PlayerEndedRound(...)`, so the name does not collide with the Protocol type `RoundEnded`.
 
-- [ ] **Step 1: Give `FakeRules` the hook**
+- [ ] **Step 1: Leave `FakeRules.Gf()` without the hook**
 
-In `tests/Tabletop.GameServer.Tests/Infrastructure/FakeRules.cs`, with the scheduler plan's members:
-
-```csharp
-    public Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }
-    public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
-```
-
-`FakeRules.Gf()` leaves it unset: the scheduler tests' boundaries stay exactly as they are.
+`FakeRules.Gf()` leaves `RoundEndedHook` unset (Task 3): the scheduler tests' boundaries stay exactly as they are.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -96,33 +88,9 @@ Add `using Tabletop.GameServer.Scheduler;` to the file if `SchedulerHarness`'s n
 - [ ] **Step 3: Run them to see them fail**
 
 Run: `dotnet test tests/Tabletop.GameServer.Tests --filter ObjectivesTests`
-Expected: compile errors: `OnRoundEnded` is not a member of `GrimdarkFutureRules` or `WithSequences`.
+Expected: compile errors: `OnRoundEnded` is not a member of `WithSequences`.
 
-- [ ] **Step 4: The hook, Grimdark Future's answer and the forward**
-
-`server/game/Rules/IGameRules.cs`, at the end of the interface body, after the enforcement plan's `JudgeAdvance`:
-
-```csharp
-    // Added by the objectives plan.
-    /// <summary>The ruleset's changes at the end of a round (round 1 on), after a player ended it and before the next round starts. Wrapping rulesets must forward it.</summary>
-    IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
-```
-
-Create `server/game/Rules/GrimdarkFuture/GfRules.Objectives.cs`:
-
-```csharp
-using Tabletop.GameServer.Properties;
-using Tabletop.Protocol;
-
-namespace Tabletop.GameServer.Rules.GrimdarkFuture;
-
-/// <summary>p.6: "At the end of each round" objectives are seized, contested and kept (GfObjectives).</summary>
-public sealed partial class GrimdarkFutureRules
-{
-    public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) =>
-        round < 1 ? [] : GfObjectives.Seize(state, properties);
-}
-```
+- [ ] **Step 4: The forward**
 
 `tests/Tabletop.GameServer.Tests/Infrastructure/StubRules.cs`, inside `WithSequences`:
 

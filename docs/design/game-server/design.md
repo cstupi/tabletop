@@ -679,7 +679,7 @@ nothing to flush.
 | No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts; management API, *We issue no tokens of our own* |
 | Nobody instantiates a session | Starting, reconnecting, moving a game and crash recovery become one path | Management creating a session over M2M, which would also make management learn which task holds which game | `architecture.md`, *Contracts to freeze*; accounts, *A game is a lobby* |
 | Undo is replay from the setup snapshot | RNG is game state, so replay reproduces the same dice and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
-| `ended` is a flag; commands are accepted at `ended` | Restarting an ended game is the identical hydrate-from-the-log operation as recovery, and there is no un-end endpoint | Refusing commands until something un-ends the game | Accounts, *Ending is a flag*; identity and enumerations |
+| `ended` is a flag; commands are accepted at `ended`, whether management ended the game or a strict `game_ended` did | Restarting an ended game is the identical hydrate-from-the-log operation as recovery, and there is no un-end endpoint. A strict round-4 end appends `game_ended` and sets the row to `ended` from `playing`; the flag does not stop commands | Refusing commands until something un-ends the game | Accounts, *Ending is a flag*; identity and enumerations |
 | Legality is `EnumerateLegalCommands`, not `IsLegal` | Validation falls out of enumeration and not the reverse; the client needs the set anyway to render affordances | An `IsLegal(command)` predicate | `architecture.md`, *Rules enforcement* |
 
 Decisions this module settles itself:
@@ -1072,7 +1072,7 @@ stateDiagram-v2
     setup --> playing : EndSetup, creator only, off-slab dropped, snapshots written, teams locked, log opens
     lobby --> ended : POST /end, or the last leave
     setup --> ended : POST /end, or the last leave
-    playing --> ended : POST /end, or the last leave
+    playing --> ended : POST /end, the last leave, or a strict game_ended
     ended --> ended : commands accepted, ended is a flag
     note right of lobby
         Rows writable. No board.
@@ -1093,7 +1093,8 @@ stateDiagram-v2
 ```
 
 There is no arrow from `playing` back to `setup`. `ended` is not terminal: nothing hydrates
-differently for it, and commands are accepted there.
+differently for it, and commands are accepted there. The arrow from `playing` is also taken by the
+game server, when a strict round-4 end appends `game_ended`.
 
 What freezes at the flip is the scheduler shape, the team list, the armies and the layout.
 Freezing the team list means `CreateTeam` and `PickTeam` are refused with `WrongStatus` from

@@ -1,7 +1,8 @@
 # Task 3: Seizing, in Grimdark Future
 
 **Files:**
-- Create: `server/game/Rules/GrimdarkFuture/GfObjectives.cs`
+- Create: `server/game/Rules/GrimdarkFuture/GfObjectives.cs`, `server/game/Rules/GrimdarkFuture/GfRules.Objectives.cs`
+- Modify: `server/game/Rules/IGameRules.cs`, `tests/Tabletop.GameServer.Tests/Infrastructure/FakeRules.cs`
 - Test: `tests/Tabletop.GameServer.Tests/ObjectivesTests.cs` (new)
 
 **Interfaces:**
@@ -238,6 +239,39 @@ public static class GfObjectives
 }
 ```
 
+`server/game/Rules/IGameRules.cs`, at the end of the interface body, after the enforcement plan's `JudgeAdvance`:
+
+```csharp
+    // Added by the objectives plan.
+    /// <summary>The ruleset's changes at the end of a round (round 1 on), after a player ended it and before the next round starts. Wrapping rulesets must forward it.</summary>
+    IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
+```
+
+Create `server/game/Rules/GrimdarkFuture/GfRules.Objectives.cs`:
+
+```csharp
+using Tabletop.GameServer.Properties;
+using Tabletop.Protocol;
+
+namespace Tabletop.GameServer.Rules.GrimdarkFuture;
+
+/// <summary>p.6: "At the end of each round" objectives are seized, contested and kept (GfObjectives).</summary>
+public sealed partial class GrimdarkFutureRules
+{
+    public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) =>
+        round < 1 ? [] : GfObjectives.Seize(state, properties);
+}
+```
+
+In `tests/Tabletop.GameServer.Tests/Infrastructure/FakeRules.cs`, with the scheduler plan's members:
+
+```csharp
+    public Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }
+    public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
+```
+
+`FakeRules.Gf()` leaves the hook unset: the scheduler tests' boundaries stay exactly as they are.
+
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test tests/Tabletop.GameServer.Tests --filter ObjectivesTests`
@@ -246,6 +280,6 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add server/game/Rules/GrimdarkFuture/GfObjectives.cs tests/Tabletop.GameServer.Tests/ObjectivesTests.cs
+git add server/game/Rules tests/Tabletop.GameServer.Tests
 git commit -m "Seize, contest and keep Grimdark Future objective markers, and count who holds most"
 ```

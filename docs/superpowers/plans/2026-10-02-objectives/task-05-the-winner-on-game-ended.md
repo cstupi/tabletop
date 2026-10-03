@@ -26,7 +26,7 @@ Append to `tests/Tabletop.GameServer.Tests/ObjectivesTests.cs`, inside the class
         Assert.Equal(["ask_answered", "ask_closed", "round_ended", "game_ended"], h.Kinds(seq));
         var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
         Assert.Equal([h.Teams[0]], end.Winners);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", end.Reason);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", end.Reason);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ Append to `tests/Tabletop.GameServer.Tests/ObjectivesTests.cs`, inside the class
         OntoTheObjective(h);
         for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
         var fifth = h.Log.Last(e => e.Payload is RoundStarted);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", fifth.Warning);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", fifth.Warning);
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
         Assert.Equal(h.Teams[0], Assert.Single(h.P.Control).Value);
     }

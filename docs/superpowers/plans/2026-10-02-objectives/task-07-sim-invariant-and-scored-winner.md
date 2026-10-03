@@ -147,7 +147,7 @@ for path in sorted(glob.glob('/tmp/objectives-runs/objectives-*.json'), key=lamb
 PY
 ```
 
-Expected: twenty passing rows, each `ended` at round 4. Take the lowest seed whose winner ordinal is not `None`: set the scenario's `seed:` to it and append `new Expectation.Won(<that ordinal>)` to its `.Expect(...)`. If no seed of the twenty has a sole winner, run `--seeds 21..100` the same way; the "Red home" marker makes a Red win common.
+Expected: seeds 3, 4, 7, 8, 10, 13, 19 and 20 never seize and fail `EventOfKind("round_ended")`; the other twelve end at round 4. Take the lowest seed whose winner ordinal is not `None`: that is seed 1, winner ordinal 2. Set the scenario's `seed:` to it and append `new Expectation.Won(2)` to its `.Expect(...)`. The scenario is pinned to that seed and is not swept across seeds.
 
 - [ ] **Step 7: Run the sim suite**
 

@@ -1,27 +1,30 @@
-# Handoff — 2026-10-02, steps 1 to 6 merged; every planned module is built
+# Handoff — 2026-10-02, steps 1 to 6 and the enforcement engine merged; the spell library is building
 
 Where the project stands, and what to pick up next. **Steps 1 to 6 are built and merged: contracts,
 geometry, management, the game-server skeleton, the web app, the client, the interpreter, the scheduler, the
-simulator and the viewer. No tree is open and no module has a plan left to build. `sim/` plays whole games in
-process or over the socket with no client; `viewer/` draws a recording or a live game top-down. The owner has
+simulator and the viewer, then the enforcement engine and the scored core mission. One tree is open: `spells`
+(the spell library, then the army-rule hooks). `sim/` plays whole games in process or over the socket with no
+client; `viewer/` draws a recording or a live game top-down. A Grimdark Future game under `strict` ends after
+round 4 with the team holding most objective markers as the winner. The owner has
 logged in, imported armies and started a game in the client, and signed off checkpoint 3.**
 
 ## State
 
-Merged into `main`, in order: the contracts plan (`bd10e5f`), the geometry plan (`ee62d19`), the game-server
-skeleton (`862072a`), the management API (`f0d0223`), the web app (`588b848`), the client shell
-(`ba53db1`), the interpreter and effects (`c8ae306`), the scheduler (`2f7a168`), the simulator (`0e49d3f`) and the viewer (`9049683`); each branch is kept and
-each worktree removed. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
+Merged into `main`, in order: contracts, geometry, the game-server skeleton, the management API, the web app,
+the client shell, the interpreter and effects, the scheduler, the simulator, the viewer, and the enforcement tree
+(`17e0974`). Each branch is kept and each worktree removed. A `git pull` on 2026-10-02 rebased `main` onto
+`5243234`, so every commit before the enforcement merge has a new hash and the earlier merge commits are flattened;
+the kept branches still carry the old hashes. On `main`, `dotnet build --no-incremental` has 0 errors and 4 analyzer warnings, all
 in test files (xUnit2029 at `GfDealWoundsTests.cs:217` and `LivePropertiesTests.cs:90`, xUnit2031 at
 `LivePropertiesTests.cs:56`, CS0028 at `WindowTests.cs:15`); `./scripts/check-client` prints nothing; and
-`dotnet test` passes 962 tests: Geometry 157, Content 17, Protocol 39, Client 65, GameServer 473,
-Management 88, Sim 114, Viewer 9. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
+`dotnet test` passes 991 tests: Geometry 157, Content 17, Protocol 40, Client 67, GameServer 492,
+Management 88, Sim 121, Viewer 9. The two server suites need the compose stack up. In `web/`, `npm test` passes 62 with 1
 skipped, `svelte-check` reports 0 errors and `npm run build` writes `build/index.html`. In `viewer/`, `npm test`
-passes 85, `svelte-check` reports 0 errors and 0 warnings, and `npm run build` writes `dist/index.html`.
+passes 89, `svelte-check` reports 0 errors and 0 warnings, and `npm run build` writes `dist/index.html`.
 
 The game server registers `RulesEngine` through `RulesEngineFactory` with `SchedulerFactory`: a game that
 reaches `playing` runs the Grimdark Future roll-off, deployment, activations, rounds, shooting, melee,
-morale, casting and transports through Asks. `game_ended` is the only wire kind added after the contracts plan, and
+morale, casting and transports through Asks. `game_ended` and `round_ended` are the wire kinds added after the contracts plan, and
 `ProtocolVersion` stays 1 (`architecture.md` → Transport).
 
 The first owner session against the real stack (2026-10-01) produced these commits on `main`:
@@ -99,7 +102,12 @@ rest, newest last: `2026-09-04-whole-design-review.md`, `2026-09-06-simulation-d
    (an older core-document hash and the current one; the listing shows the current one). The servers are long-running: start them in the
    owner's terminals (`./scripts/management`, `dotnet run --project server/game`, `./scripts/web`); a
    Claude Code background command is stopped after two hours.
-2. **The enforcement engine and objectives** are built by the `enforcement` tree: [the enforcement engine plan](superpowers/plans/2026-10-02-enforcement-engine/README.md) and [the objectives plan](superpowers/plans/2026-10-02-objectives/README.md).
+2. **The spell library and the army-rule hooks** are building on the `spells` tree (`.worktrees/spells`, brief
+   `.superpowers/briefs/spells.md`): [the spell library plan](superpowers/plans/2026-10-02-spell-library/README.md),
+   then [the army-rule hooks plan](superpowers/plans/2026-10-02-army-rule-hooks/README.md). Its Task 14 replays its
+   commits onto `main` with `git rebase --onto main 4e95f11 spells`, because `4e95f11` is `5cc4efd` after the
+   pull. Owner checks from the enforcement tree: the Godot client's display of objective control (seized markers on
+   the table and the team panels, the menu override).
 3. **The viewer by hand.** `cd viewer && npm install && npm run dev` serves it on `http://localhost:5174`.
    Recordings come from `dotnet run --project sim -- skirmish --seeds 1..3` (written to `./recordings`). What no
    headless test covers: the board's drawing and pointer picking, panning versus picking; loading a recording by

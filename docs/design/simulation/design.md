@@ -13,7 +13,7 @@ legal set and never compute a rules outcome the engine should compute.
 
 **In scope.** The `Chooser`, the scenario record and its compiler, the ten catalog scenarios;
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
-`IGameDriver` interface and both implementations; the run loop, its four outcomes and its
+`IGameDriver` interface and both implementations; the run loop, its outcomes and its
 hand-placement of deployed models; the seven invariants and the projection comparer; the
 recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; and
 the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliverable.
@@ -457,7 +457,7 @@ handshake.
 The cost is network access. A console socket run reaches Stytch's test project once per
 participant. The in-process driver reaches nothing, and neither does `DriverAgreementTests`.
 
-### The run loop and the four outcomes
+### The run loop and its outcomes
 
 ```mermaid
 stateDiagram-v2
@@ -613,8 +613,8 @@ viewer has to join against a block which may not hold the row is not whole state
 alternative, having `BuildBoard` include every marker any frame mentions, was rejected on three
 counts: the live feed receives the board frame before any event and cannot know it; it would
 make the board depend on how far the run got; and it would leave the frame not whole. Per frame
-is nearly free, because `Projection.Markers` holds `Marker` values that already carry all three
-fields and a game has single-digit markers.
+is nearly free, because `Projection.Board.Table.Markers` and `Projection.Markers` hold `Marker` values that already carry all three
+fields and a game has single-digit markers. A frame's markers are the setup markers then the play markers, and a play entry wins over a setup marker with the same id.
 
 **Zones carry resolved polygons.** `RecordedZone.Polygons` is `ZoneStyles.Resolve(shape,
 table.Size)` flattened to each `Polygon.Vertices`, one ring per polygon of `{x, y}` in table
@@ -872,7 +872,7 @@ The viewer's whole input.
 | `RecordedFrame(int Index, long Seq, string Kind, Guid? Actor, string? Warning, int Round, string? Phase, Guid? ActiveTeamId, string Line, IRL<RecordedModelState> Models, IRL<RecordedUnitState> Units, IRL<RecordedMarkerState> Markers, IRL<RecordedAsk> OpenAsks, IRL<RecordedRoll> Rolls, IRD<Guid,int> Scores, IRL<Guid> Passed)` | sixteen members, all whole state |
 | `RecordedModelState(Guid Id, string Where, double? X, double? Y, double? Z, double? Yaw, Guid? ContainerId, int Wounds, int SpellTokens, IRL<string> Conditions)` | `Where` is `table`, `shelf` or `inside` |
 | `RecordedUnitState(Guid Id, IRL<string> Actions, IRL<string> Conditions, IRL<string> Grants, int WoundsThisActivation)` | |
-| `RecordedMarkerState(Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw, Guid? ControlledBy)` | |
+| `RecordedMarkerState(Guid Id, string Kind, double Diameter, string? Label, double X, double Y, double Z, double Yaw, Guid? ControlledBy)` | `ControlledBy` is the team id that controls an objective marker, or null |
 | `RecordedAsk(Guid Id, string Question, string Prompt, IRL<Guid> Teams, bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId, string LegalKind, IRL<Guid> Answered, IRL<RecordedAskOption> Options, IRL<Guid> Pieces, double? Allowance)`; `RecordedAskOption(string Id, string Label, IRL<Guid> Pieces)` | |
 | `RecordedRoll(Guid Id, string Roll, int? Threshold, int Net, IRL<int> Raw, IRL<int> Modified, IRL<bool> Success, IRL<RecordedModifier> Modifiers)`; `RecordedModifier(string Source, int Amount)` | |
 | `static class RecordingJson` | `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `WriteAsync`, `ReadAsync`, `Serialize`, `Deserialize` |

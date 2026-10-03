@@ -80,7 +80,7 @@ docs/...                                         Task 9
 8. [`sim/`: warnings, invariant 6 and the final-round scenarios](task-08-sim-warnings-invariant-scenarios.md)
 9. [The documents](task-09-the-documents.md)
 
-Tasks 1 and 2 are independent of each other; every later task needs both. Task 6 needs Task 3. Tasks 7 and 8 need Tasks 5 and 6.
+Task 2 needs Task 1, which adds `GameEnded`; every later task needs both. Task 6 needs Task 3. Tasks 7 and 8 need Tasks 5 and 6.
 
 ---
 

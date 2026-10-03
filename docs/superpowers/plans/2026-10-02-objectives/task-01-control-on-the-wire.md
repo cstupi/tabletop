@@ -4,7 +4,7 @@
 - Modify: `libs/Tabletop.Protocol/Events.cs`, `StateChanges.cs`, `Commands.cs`, `Projection.cs`, `EventApplier.cs`
 - Modify: `client/src/Core/Names.cs`, `client/src/Core/LogText.cs`, `sim/Recording/LogLines.cs`
 - Modify: `viewer/src/lib/protocol/wire.generated.ts` (regenerated), `viewer/src/lib/live/apply.ts`, `viewer/src/lib/live/logLines.ts`
-- Test: `tests/Tabletop.Protocol.Tests/EventApplierTests.cs`, `tests/Tabletop.Client.Tests/ViewModelTests.cs`, `tests/Tabletop.Sim.Tests/RecordingTests.cs`, `viewer/tests/apply.test.ts`
+- Test: `tests/Tabletop.Protocol.Tests/Samples.cs`, `tests/Tabletop.Protocol.Tests/EventApplierTests.cs`, `tests/Tabletop.Client.Tests/ViewModelTests.cs`, `tests/Tabletop.Sim.Tests/RecordingTests.cs`, `viewer/tests/apply.test.ts`
 
 **Interfaces:**
 - Consumes: `EventApplier.ApplyTo`/`ApplyChange`, `MarkerRemoved`, `Names`, `LogLines.Of`, `lineOf`.
@@ -40,6 +40,8 @@ Append to `tests/Tabletop.Protocol.Tests/EventApplierTests.cs`, inside the class
 ```
 
 `Samples.Board`'s table is `TableStateTests.Sample()`, which carries one objective. An `ObjectiveControlSet` names a marker the applier does not look up (an assignment cannot miss, as `score_set`), so naming a marker not yet placed applies.
+
+Append `new RoundEnded(4, [new ObjectiveControlSet(Token.Id, Team1)]), new ObjectiveControlSet(Token.Id, null),` to `Samples.Events` and `new SetObjectiveControl(Token.Id, Team1)` to the command samples in `tests/Tabletop.Protocol.Tests/Samples.cs`.
 
 - [ ] **Step 2: Run it to see it fail**
 

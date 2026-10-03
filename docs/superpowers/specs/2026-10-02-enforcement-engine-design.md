@@ -174,12 +174,12 @@ public const string MissionLength = "mission_length"; // the heading p.59 gives 
 
 public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) =>
     proposed.OfType<RoundStarted>().FirstOrDefault(r => r.Round > FinalRound) is { } next
-        ? new GameEndingBreach(MissionLength, MissionLengthDetail(state, next.Round - 1), GfObjectives.Winners(state))
+        ? new GameEndingBreach(MissionLength, $"{MissionLengthDetail(next.Round - 1)}. {GfObjectives.Standing(state)}", GfObjectives.Winners(state))
         : null;
 ```
 
-`MissionLengthDetail` reads "4 rounds have been played: the game ends after 4 (p.7)" followed by the
-standing the objectives spec defines. `GfObjectives.Winners` is the objectives spec's; the enforcement
+`MissionLengthDetail(int roundsPlayed)` reads "4 rounds have been played: the game ends after 4 (p.7)".
+`JudgeAdvance` appends a period and `GfObjectives.Standing(state)`, the standing the objectives spec defines. `GfObjectives.Winners` is the objectives spec's; the enforcement
 plan lands the judge with an empty list and the objectives plan fills it.
 
 The breach is raised when the round after the final one would start, which is the moment the final
@@ -274,7 +274,8 @@ calls `EndGameAsync` and `ReloadInfoAsync`, which re-reads the row and broadcast
 - `Projection.Ended` set and the row `playing`: the crash fell between the append and the row write.
   It writes the row, reloads, and does not advance.
 - `Projection.Ended` set and the row `ended`: nothing to do.
-- `Projection.Ended` unset: it advances, whatever the row says. A `strict` game whose end was undone
+- `Projection.Ended` unset: it advances, whatever the row says, unless the row is not `playing` and the log is
+  empty. A game ended in setup never played, so it does not start round 0. A `strict` game whose end was undone
   is listed as ended and still has to catch up after a restart. A game management ended with `/end`
   catches up the same way, which is what its next command would do anyway.
 
@@ -381,7 +382,7 @@ and the boundary question still reaches every team with a participant.
 - **`SubmitResult.Accepted.Warning`** is populated by both drivers: the `Warning` of the first event of
   the submitted command's own batch (actor the submitting participant, seq above the head at submit).
   `InProcessDriver.SubmitAsync` reads it from the events it absorbs; `SocketDriver.SubmitAsync` from the
-  recorder's events up to the command's `at_rest`. It is null when the command appended nothing.
+  submitting player's own stream up to that player's `at_rest`. It is null when the command appended nothing.
 - **Invariant 6, `NothingAdvancesAfterTheEnd`.** In the effective log, every event between a
   `game_ended` and the next `round_started` has an actor. It reads the log only and names no rule.
 - **Three catalog scenarios**, two one-unit armies (as `stalemate`) and a round cap of 6:
