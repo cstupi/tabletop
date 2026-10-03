@@ -13,7 +13,7 @@ namespace Tabletop.GameServer.Tests;
 public class ArmyRulesContentTests
 {
     static readonly PropertySet Core = TestProperties.Core;
-    static readonly string[] NamesOnly = ["Quick Shot", "Grounded Reinforcement",
+    static readonly string[] NamesOnly = ["Quick Shot",
         "Unpredictable Fighter", "Unpredictable Shooter", "Primal", "Primal Boost", "Clan Warrior", "Clan Warrior Boost"];
 
     [Fact]

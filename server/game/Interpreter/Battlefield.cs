@@ -74,12 +74,20 @@ public static class Battlefield
         return living.Where(id => fromModels.All(o => sight.Look(o, id) is not { Clear: true, Screened: false })).ToList();
     }
 
+    const double NearDistance = 1 + 1e-6;
+
     public static IReadOnlyList<string> TerrainUnder(GameState state, Guid unitId)
     {
         var terrain = Terrain(state);
-        var flags = Effects.Lookup.LivingModels(state, unitId).SelectMany(id => Containment.VolumesContaining(Placed(state, id)!.Value, terrain)).Distinct()
+        var living = Effects.Lookup.LivingModels(state, unitId);
+        var flags = living.SelectMany(id => Containment.VolumesContaining(Placed(state, id)!.Value, terrain)).Distinct()
             .Select(id => terrain.First(v => v.Id == id).Volume.Declarations).Aggregate(TerrainDeclarations.None, (acc, d) => acc | d);
-        return Enum.GetValues<TerrainDeclarations>().Where(f => f != TerrainDeclarations.None && flags.HasFlag(f)).Select(f => Tabletop.Content.ContentJson.Serialize(f).Trim('"')).ToList();
+        var names = Enum.GetValues<TerrainDeclarations>().Where(f => f != TerrainDeclarations.None && flags.HasFlag(f)).Select(f => Tabletop.Content.ContentJson.Serialize(f).Trim('"')).ToList();
+        // Grounded Reinforcement: "most of them within 1" of terrain"; p.11: a volume declaring no terrain type is open terrain, which no rule affects.
+        var declared = terrain.Where(v => v.Volume.Declarations != TerrainDeclarations.None).ToList();
+        if (living.Count > 0 && living.Count(id => declared.Any(v => Geometry.Distance.EdgeToEdge(Placed(state, id)!.Value, v) <= NearDistance)) * 2 > living.Count)
+            names.Add("near");
+        return names;
     }
 
     public static Placement Settle(GameState state, Placement client) =>

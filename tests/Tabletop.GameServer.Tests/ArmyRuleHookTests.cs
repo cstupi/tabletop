@@ -418,4 +418,19 @@ public partial class ArmyRuleHookTests
         rush.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
         Assert.DoesNotContain(rush.Emitted, e => e is GrantRemoved);
     }
+
+    [Fact]
+    public void Grounded_reinforcement_gives_plus_one_to_defense_near_declared_terrain_only()
+    {
+        Tabletop.Content.TerrainPlacement Block(Tabletop.Geometry.TerrainDeclarations d) => new(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("block"), new Tabletop.Geometry.Point3(7.5, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
+            [new Tabletop.Content.TerrainVolume(Guid.CreateVersion7(), new Tabletop.Geometry.Volume(Tabletop.Geometry.VolumeKind.Solid, Tabletop.Geometry.Footprint.Rect(1, 4), new Tabletop.Geometry.Point2(0, 0), new Tabletop.Geometry.Yaw(0), 0, 1, d, null))]);
+        foreach (var (declarations, expected) in new[] { (Tabletop.Geometry.TerrainDeclarations.Cover, true), (Tabletop.Geometry.TerrainDeclarations.None, false) })
+        {
+            var a = Unit("A", "2+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, [P("Grounded Reinforcement")]);
+            var sim = new Sim(State([a], [b], x1: -6, x2: 6, terrain: [Block(declarations)]), GrimdarkFutureRules.Instance, Core, new ScriptedDice(5, 3));
+            sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+            sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+            Assert.Equal(expected, sim.Steps("roll-to-block").Single().Rolls.Single().Modifiers.Any(m => m.Source == "Grounded Reinforcement"));
+        }
+    }
 }
