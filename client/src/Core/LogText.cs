@@ -49,7 +49,8 @@ public static class LogText
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
             RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => Change(c, n)))}")}",
-            ObjectiveControlSet o => Change(o, n),
+            ObjectiveControlSet { TeamId: { } team } o => $"gave {n.Marker(o.MarkerId)} to {n.Team(team)}",   // a menu edit; inside round_ended the same change reads "took"
+            ObjectiveControlSet o => $"made {n.Marker(o.MarkerId)} neutral",
             GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
             var other => other.GetType().Name,
         };

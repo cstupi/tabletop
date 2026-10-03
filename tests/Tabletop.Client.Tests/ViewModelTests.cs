@@ -248,9 +248,9 @@ public class ViewModelTests
         string Line(EventPayload p) => LogText.Describe(new GameEvent(9, null, p, null), names);
         Assert.Equal("the game ended round 4: Team 1 took smoke", Line(new RoundEnded(4, [new ObjectiveControlSet(Samples.Token.Id, Samples.Team1)])));
         Assert.Equal("the game ended round 4", Line(new RoundEnded(4, [])));
-        Assert.Equal("the game smoke became neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
+        Assert.Equal("the game made smoke neutral", Line(new ObjectiveControlSet(Samples.Token.Id, null)));
         var setup = a.Projection.Board.Table.Markers[0].Id;
-        Assert.Equal($"the game Team 2 took {Names.Short(setup)}", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
+        Assert.Equal($"the game gave {Names.Short(setup)} to Team 2", Line(new ObjectiveControlSet(setup, Samples.Team2)));   // a setup marker with no label
 
         // A labelled setup marker verifies the setup marker lookup works (would fail if Names.Marker's board lookup were deleted)
         var labelledMarker = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(30, 20, 0), new Yaw(0), 3, "centre", VisualRef.OfBuiltin("objective-ring"));
@@ -259,7 +259,7 @@ public class ViewModelTests
         var labelledBoard = new Board(labelledTable, [new ArmyInPlay(Samples.P1, ArmySnapshot.Of(Samples.Army, Guid.CreateVersion7()))]);
         var b = new EventApplier(labelledBoard, Game);
         var namesb = new Names(Game, b.Projection);
-        Assert.Equal("the game Team 2 took centre", LogText.Describe(new GameEvent(9, null, new ObjectiveControlSet(labelledMarker.Id, Samples.Team2), null), namesb));
+        Assert.Equal("the game gave centre to Team 2", LogText.Describe(new GameEvent(9, null, new ObjectiveControlSet(labelledMarker.Id, Samples.Team2), null), namesb));
     }
 
     [Fact]

@@ -18,7 +18,8 @@ public static class MenuTranslation
         bool HasUnit(Guid id) => p.Units.ContainsKey(id) || Missing(ref miss, $"no unit {id}");
         bool HasTeam(Guid id) => state.Info.Teams.Any(t => t.Id == id) || Missing(ref miss, $"no team {id}");
         bool HasMarker(Guid id) => p.Markers.ContainsKey(id) || Missing(ref miss, $"no marker {id}");
-        bool HasObjective(Guid id) => p.Markers.ContainsKey(id) || state.Board.Table.Markers.Any(m => m.Id == id) || Missing(ref miss, $"no marker {id}");
+        // The play entry wins a shared id, as in GfObjectives.Markers; only an objective can be held.
+        bool HasObjective(Guid id) => (p.Markers.TryGetValue(id, out var played) ? played : state.Board.Table.Markers.FirstOrDefault(m => m.Id == id)) is { Kind: Tabletop.Content.MarkerKind.Objective } || Missing(ref miss, $"no objective {id}");
         bool SubjectExists(Subject s) => s.Kind == SubjectKind.Unit ? HasUnit(s.Id) : HasModel(s.Id);
 
         EventPayload? payload = command switch

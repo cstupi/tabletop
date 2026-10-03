@@ -530,7 +530,7 @@ list imports before there is anything to play it with. The catalogue holds 33 co
 **Not built, by design.** Missions beyond the core one: a dropped marker is placed within 1" by the
 opponent, side-missions count *"5+ models"*, and missions are content in a book. The engine scores the
 core mission (*seized* is distinct from *control*): objectives are seized at each round's end and the
-round-4 end names the winner, which answers the owner's open question on automating objective seizing.
+round-4 end names the winner.
 The `objectives` scenario runs at seed 1 and ends with winner team ordinal 2. Page 13's same-time rules-priority
 tie-break is not implemented, because `ordinal` gives replay a deterministic order.
 

@@ -45,6 +45,20 @@ public class ObjectivesTests
     }
 
     [Fact]
+    public void Three_inches_edge_to_edge_seizes_and_a_hundredth_more_does_not()
+    {
+        // A diameter-2 objective at (10,10) and a 1.26" base (radius 0.63): edge distance is the centre distance less 1.63.
+        foreach (var (y, seizes) in new[] { (14.63, true), (14.64, false) })
+        {
+            var s = Game();
+            var placed = new Marker(Guid.CreateVersion7(), MarkerKind.Objective, new Point3(10, 10, 0), new Yaw(0), 2, "B", VisualRef.OfBuiltin("objective-ring"));
+            Apply(s, new MarkerPlaced(placed));
+            Put(s, Red, 10, y);
+            Assert.Equal(seizes, Seize(s).Contains(new ObjectiveControlSet(placed.Id, Samples.Team1)));
+        }
+    }
+
+    [Fact]
     public void Both_sides_within_range_make_a_held_marker_neutral_and_leave_a_neutral_one_neutral()
     {
         var s = Game();
@@ -185,7 +199,7 @@ public class ObjectivesTests
         Assert.Equal(["ask_answered", "ask_closed", "round_ended", "game_ended"], h.Kinds(seq));
         var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
         Assert.Equal([h.Teams[0]], end.Winners);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", end.Reason);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", end.Reason);
     }
 
     [Fact]
@@ -203,7 +217,7 @@ public class ObjectivesTests
         OntoTheObjective(h);
         for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
         var fifth = h.Log.Last(e => e.Payload is RoundStarted);
-        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)} Markers held: team 1: 1, team 2: 0.", fifth.Warning);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", fifth.Warning);
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
         Assert.Equal(h.Teams[0], Assert.Single(h.P.Control).Value);
     }

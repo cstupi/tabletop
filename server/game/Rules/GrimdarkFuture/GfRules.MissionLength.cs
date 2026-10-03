@@ -21,6 +21,6 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>The winners and the standing are read after round 4's seizures: the round-end step runs before BeginRound proposes round 5 (objectives spec → Where the seize runs).</summary>
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) =>
         proposed.OfType<RoundStarted>().FirstOrDefault(r => r.Round > FinalRound) is { } next
-            ? new GameEndingBreach(MissionLength, $"{MissionLengthDetail(next.Round - 1)} {GfObjectives.Standing(state)}", GfObjectives.Winners(state))
+            ? new GameEndingBreach(MissionLength, $"{MissionLengthDetail(next.Round - 1)}. {GfObjectives.Standing(state)}", GfObjectives.Winners(state))
             : null;
 }

@@ -173,11 +173,12 @@ public class CommandDispatcherTests
     {
         foreach (var e in new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict })
         {
-            var state = State(e, new MarkerPlaced(Samples.Token));
+            var played = Samples.Token with { Kind = Tabletop.Content.MarkerKind.Objective };
+            var state = State(e, new MarkerPlaced(played));
             var setup = state.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
             var given = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Samples.Team2), Watcher)).Events));
             Assert.Equal((setup, (Guid?)Samples.Team2), (given.MarkerId, given.TeamId));
-            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(Samples.Token.Id, null), Watcher)).Events));
+            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(played.Id, null), Watcher)).Events));
             Assert.Null(neutral.TeamId);
         }
         Assert.Equal(CommandClass.Override, CommandDispatcher.Classify(new SetObjectiveControl(Guid.CreateVersion7(), null)));
@@ -190,5 +191,12 @@ public class CommandDispatcherTests
         var setup = state.Board.Table.Markers.First().Id;
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(Guid.CreateVersion7(), Samples.Team1), Clay)).Reason);
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Guid.CreateVersion7()), Clay)).Reason);
+    }
+
+    [Fact]
+    public void Control_of_a_token_is_refused_as_unknown()
+    {
+        var state = State(Enforcement.Warn, new MarkerPlaced(Samples.Token));
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new SetObjectiveControl(Samples.Token.Id, Samples.Team1), Clay)).Reason);
     }
 }
