@@ -36,7 +36,7 @@ public partial class TableInput : Node
     {
         _view = view; _session = session;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
-        view.IsHeld = _drops.Holds; session.RefusedReceived += OnRefused;
+        view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a move Ask's proposed placements session.RefusedReceived += OnRefused;
         _presenceTimer.Timeout += OnPresenceTick;
     }
 

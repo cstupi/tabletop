@@ -175,6 +175,7 @@ public partial class AskPanel : PanelContainer
             _note.Text = $"Move up to {remaining:0.0}\" (used {used:0.0}\"). Drag the models, then commit.";
             _input.Allowance = remaining;
             _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position);
+            _view.Snap(legal.ModelIds);                                                  // drawn and committed agree: a rebuilt Ask (a refusal) starts from the server's positions
             OfferEmbark(ask, legal, p, names);
         }
         _box.AddChild(Btn("Commit move", () => { if (_proposed is null) return; Send(ask, new Destinations(legal.ModelIds.Select(id =>

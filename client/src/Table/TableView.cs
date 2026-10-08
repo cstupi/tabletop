@@ -55,17 +55,24 @@ public partial class TableView : Node3D
         if (table is null) { Clear(); return; }
         if (table.Size != Size || _slab.GetChildCount() == 0) { Size = table.Size; _slab.Set(Size, table.Texture); }
         Volumes = table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
-        Sync(_terrain, table.Terrain, t => t.Id, t => { var n = new TerrainNode { PlacementId = t.Id }; n.Set(t); LoadTerrainMesh(n, t); return n; }, (TerrainNode n, TerrainPlacement t) => n.Set(t));
+        Sync(_terrain, table.Terrain, t => t.Id, t => { var n = new TerrainNode { PlacementId = t.Id }; n.Set(t); LoadTerrainMesh(n, t); return n; }, (TerrainNode n, TerrainPlacement t) => { if (!IsHeld(t.Id)) n.Set(t); });
         // A play marker wins over a setup marker of the same id: one disc per id.
         var played = _session.Projection?.Markers.Values.ToList() ?? [];
         var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played).ToList();
         Color? ControlColour(Marker m) => _session.Projection?.Control.TryGetValue(m.Id, out var holder) == true
             && _session.Game?.Teams.FirstOrDefault(t => t.Id == holder) is { } team ? Palette.Team(team.Ordinal) : null;
-        Sync(_markers, markers, m => m.Id, m => { var n = new MarkerNode { MarkerId = m.Id }; n.Set(m, ControlColour(m)); return n; }, (MarkerNode n, Marker m) => n.Set(m, ControlColour(m)));
+        Sync(_markers, markers, m => m.Id, m => { var n = new MarkerNode { MarkerId = m.Id }; n.Set(m, ControlColour(m)); return n; }, (MarkerNode n, Marker m) => { if (!IsHeld(m.Id)) n.Set(m, ControlColour(m)); });
         var teams = _session.Game?.Teams ?? [];
         Sync(_zones, table.Zones, z => z.Id, z => { var n = new ZoneNode(); n.Set(z, Size, ZoneColour(z, teams)); return n; }, (ZoneNode n, DeploymentZone z) => n.Set(z, Size, ZoneColour(z, teams)));
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
         Sync(_pieces, onTable, m => m.Id, m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, (PieceNode n, ModelInPlay m) => { if (!IsHeld(m.Id)) Place(n, m); });
+    }
+
+    /// <summary>Put the named models' nodes back on the projection's placements, held or not: a move Ask that starts again from the server's positions.</summary>
+    public void Snap(IEnumerable<Guid> modelIds)
+    {
+        foreach (var id in modelIds)
+            if (PieceAt(id) is { } node && _session.Projection?.Models.GetValueOrDefault(id) is { Location: OnTable } m) Place(node, m);
     }
 
     static Color ZoneColour(DeploymentZone z, IReadOnlyList<Team> teams) => teams.Any(t => t.Ordinal == z.TeamOrdinal) ? Palette.Team(z.TeamOrdinal) with { A = 0.35f } : Palette.Unassigned;
