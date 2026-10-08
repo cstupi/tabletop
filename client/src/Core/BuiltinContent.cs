@@ -73,6 +73,10 @@ public static class BuiltinContent
     public static IReadOnlyList<string> ZoneStyleIds => ZoneStyles.All;
 
     public static string TextureFile(string name) => $"res://content/builtin/textures/{name}.png";
+    /// <summary>The built-in meshes are glTF, so Y-up: height on glTF +Y in [0, 1], the footprint on X and Z. Pitch 90 reads
+    /// them into the table-frame unit box (z up, base at z = 0), the same value the web app writes for a Y-up asset.</summary>
+    public static readonly Orientation MeshOrientation = new(Pitch: 90, Yaw: 0, Roll: 0);
+
     public static string? TerrainMeshFile(string name) => Terrain.TryGetValue(name, out var t) ? t.MeshFile ?? $"res://content/builtin/terrain/{name}.glb" : null;
 
     public static IReadOnlyList<TerrainVolume> VolumesOf(string name) => [new TerrainVolume(Guid.CreateVersion7(), Terrain[name].Volume)];
