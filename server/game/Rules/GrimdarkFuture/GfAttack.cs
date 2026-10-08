@@ -321,7 +321,6 @@ public static partial class GfAttack
         {
             var (ix, live, kind) = Settle(ctx);
             var eligible = EligibleModels(ctx.State, live, ix.Attacker.UnitId, ix.Defender!.UnitId, ctx.Frame.Context.WeaponIds, kind);
-            if (kind == AttackKind.Shooting) live.Use(Side.Attacker, GfNames.Indirect);   // p.14: its sight and cover half applies to this attack, so a granted one is spent
             // `attacks_<i>` is the presence signal rather than the per-Quality keys, because a group the pusher settled at zero
             // attacks writes no per-Quality key at all and must still not be recounted here.
             var settled = Pushed(ctx.Frame, "attacks");
@@ -393,6 +392,7 @@ public static partial class GfAttack
             // p.13 caps Blast at "as many hits as models in the target unit" without saying when they are counted. p.8 fires all
             // weapons simultaneously, so the cap is fixed at the same moment as the attack counts: this reads the defender's model
             // count that determine-attacks carried down from the pushing frame.
+            if (kind == AttackKind.Shooting) live.Use(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here
             var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))

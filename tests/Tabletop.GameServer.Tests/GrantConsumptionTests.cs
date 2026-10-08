@@ -18,7 +18,10 @@ public class GrantConsumptionTests
     static EntryDocument Spell(string name, string grants) =>
         new(name, CatalogKind.Spell, false, null, 1, null, $"{name}.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(grants)]);
 
-    static readonly PropertySet Props = TestProperties.WithSpells(Spell("Fog", "Counter-Attack"), Spell("Slow Hands", "Unwieldy"), Spell("Wings", "Flying"), Spell("Spotter", "Indirect"), Spell("Blessed Ammo", "Shred"));
+    static readonly EntryDocument Spikes = new("Spikes", CatalogKind.Spell, false, null, 1, null, "Counts as dangerous terrain.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18),
+        [Row("x") with { Kind = EffectKind.CountAsTerrain, TargetEntry = null, TargetTerrain = TargetTerrain.Dangerous }]);
+
+    static readonly PropertySet Props = TestProperties.WithSpells(Spell("Fog", "Counter-Attack"), Spell("Slow Hands", "Unwieldy"), Spell("Wings", "Flying"), Spell("Spotter", "Indirect"), Spell("Blessed Ammo", "Shred"), Spikes);
 
     static void Grant(Sim sim, Guid unit, string spell) =>
         sim.Append([new GrantAdded(unit, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), Props.Entry(spell)!.Effects[0].Id, spell, unit, 1))]);
@@ -130,5 +133,44 @@ public class GrantConsumptionTests
         Grant(sim, a.Id, "Blessed Ammo");
         sim.Start(GfNames.AttackSequence, new SequenceContext(a.Id, [b.Id], a.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
         Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    static TerrainPlacement Rough(double x, double y) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("rubble"), new Point3(x, y, 0), new Yaw(0), 1,
+        [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 2), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Difficult, null))]);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_granted_Flying_is_spent_by_the_next_applied_move_whatever_it_crosses(bool difficult)
+    {
+        var u = Unit("U", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12, terrain: difficult ? [Rough(-8, -18.5)] : null), GrimdarkFutureRules.Instance, Props, Twos);
+        Grant(sim, u.Id, "Wings");
+        sim.Start(GfNames.RushSeq, new SequenceContext(u.Id, [], [], GfNames.Rush));
+        var m = u.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 8 } }))]));
+        Assert.Empty(sim.Unit(u.Id).Grants);
+    }
+
+    [Fact]
+    public void A_granted_Indirect_still_gives_its_minus_one_to_hit_after_an_Advance_and_is_then_spent()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "6+", [], 1, []);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Props, Twos);
+        Grant(sim, a.Id, "Spotter");
+        sim.Start(GfNames.AttackSequence, new SequenceContext(a.Id, [b.Id], a.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Advance));
+        Assert.Contains(sim.Steps("roll-to-hit").Single().Rolls.Single().Modifiers, m => m.Source == "Indirect" && m.Amount == -1);
+        Assert.Empty(sim.Unit(a.Id).Grants);
+    }
+
+    [Fact]
+    public void An_innate_Flying_skipping_the_activation_test_spends_a_count_as_dangerous_grant()
+    {
+        var u = Unit("U", "4+", "4+", [], 1, [P("Flying")]);
+        var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12), GrimdarkFutureRules.Instance, Props, Twos);
+        Grant(sim, u.Id, "Spikes");
+        sim.Start(GfNames.HoldSeq, new SequenceContext(u.Id, [], [], GfNames.Hold));
+        Assert.Empty(sim.Steps("test"));
+        Assert.Empty(sim.Unit(u.Id).Grants);
     }
 }

@@ -135,11 +135,7 @@ public static class GfMoves
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
             var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
-            if (CountsAsIn(live, TargetTerrain.Difficult))
-            {
-                if (!strider) allowance = Math.Min(allowance, GfNames.DifficultCap);
-                else if (!live.Has(Side.Attacker, "Strider")) live.Use(Side.Attacker, "Flying");   // the cap Flying lifted: a granted Flying is spent
-            }
+            if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             var terrain = Battlefield.Terrain(ctx.State);
             switch (ctx.Frame.Value("phase"))
@@ -223,15 +219,12 @@ public static class GfMoves
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, to.Placement);
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size);
-            used = Math.Max(used, check.Distance);
-            // A granted Flying is spent by the move it changed: one that crosses difficult terrain more cheaply than the cap would allow.
-            if (flying && !live.Has(Side.Attacker, "Strider") && Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance != check.Distance) live.Use(Side.Attacker, "Flying");
+            used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
             if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
-        if (flying && exposed.Count > 0) live.Use(Side.Attacker, "Flying");   // the dangerous terrain test it skips
+        if (flying && moves.Count > 0) live.Use(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
         return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
     }
