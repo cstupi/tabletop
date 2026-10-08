@@ -9,6 +9,7 @@ public static class Palette
     public static Color Team(int ordinal) => Teams[(Math.Max(1, ordinal) - 1) % Teams.Length];
     public static readonly Color Proxy = new(0.3f, 0.9f, 0.4f, 0.45f);       // semi-transparent green (asset library)
     public static readonly Color Selected = new(1f, 1f, 1f);
+    public static readonly Color Picked = new(1f, 0.85f, 0.2f, 0.7f);        // the selected unit's models
     public static readonly Color Ghost = new(0.9f, 0.9f, 1f, 0.35f);
     public static readonly Color Unassigned = new(0.6f, 0.6f, 0.6f, 0.35f);
 

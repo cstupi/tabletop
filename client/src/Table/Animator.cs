@@ -7,13 +7,13 @@ namespace Tabletop.Client.Table;
 /// <summary>The queue between the projection and the renderer. The projection is already current; this only paces what the table plays out.</summary>
 public sealed class Animator : IDisposable
 {
-    readonly Session _s; readonly TableView _view; readonly AnimationQueue _queue = new();
+    readonly Session _s; readonly TableView _view; readonly TableInput _input; readonly AnimationQueue _queue = new();
     readonly Action<IReadOnlyList<GameEvent>> _onEvents;
     bool _busy, _disposed; int _generation;
 
-    public Animator(Session s, TableView view)
+    public Animator(Session s, TableView view, TableInput input)
     {
-        _s = s; _view = view;
+        _s = s; _view = view; _input = input;
         _onEvents = events => { _queue.Enqueue(events); Pump(); };
         s.EventsApplied += _onEvents;
     }
@@ -36,7 +36,8 @@ public sealed class Animator : IDisposable
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
             List<ModelsMoved> moves = e.Payload switch { ModelsMoved m => [m], StepCompleted s => [.. s.Changes.OfType<ModelsMoved>()], _ => [] };
-            foreach (var relocation in moves.SelectMany(m => m.Moves))
+            // The player's own drops are already on the table where they put them: consume the holds, and glide only the rest.
+            foreach (var relocation in moves.SelectMany(m => m.Moves).Where(r => !_input.ConsumeOwn(r)).ToList())
                 if (_s.Settings.Animate && relocation.To is OnTable to && _view.PieceAt(relocation.ModelId) is { } node && node.IsInsideTree())
                 {
                     // The table has already redrawn the piece at its destination, so the glide starts from where it was.

@@ -62,6 +62,7 @@ public partial class AskPanel : PanelContainer
             ClearControls(); Unhook(); _renderedAsk = null; _region?.Hide();
             _title.Text = AskViewModel.WaitingFor(p, game, _s.MyTeamId) is { } teams ? $"Waiting for {teams}…" : (p.OpenAsks.Count == 0 ? "" : "Waiting…");
             _note.Text = _revealed ?? "";                                  // a sealed Ask's reveal stays up until the next Ask
+            if (DeployView.MidDeploy(p, _s.Log, _s.MyTeamId) is { } mid) RenderDeploy(mid, new Names(game, p));
             return;
         }
         if (_renderedAsk == mine.Ask.Id) return;
@@ -85,6 +86,20 @@ public partial class AskPanel : PanelContainer
                 break;
             case AskMode.PickPieces:
                 var sel = (PieceSelection)mine.Ask.Legal; var count = new Label { Text = $"0 of {sel.Min}–{sel.Max}" }; _box.AddChild(count);
+                Button done = null!; done = Btn("Done", () => { _input.PieceLeftClicked -= OnPick; Send(mine.Ask, new SelectedPieces(_picked.ToList())); });
+                void Refresh() { count.Text = sel.Max == 1 && _picked.Count == 1 ? names.Piece(_picked[0]) : $"{_picked.Count} of {sel.Min}–{sel.Max}"; done.Disabled = _picked.Count < sel.Min || _picked.Count > sel.Max; }
+                // A shelved unit has no node to click (a deploy), so the panel lists it; a click on the table still picks the ones that have one.
+                foreach (var shelved in DeployView.OffTable(p, sel.Eligible))
+                {
+                    var toggle = new Button { Text = names.Piece(shelved), ToggleMode = true };
+                    toggle.Toggled += on =>
+                    {
+                        if (on && _picked.Count >= sel.Max) { toggle.SetPressedNoSignal(false); return; }
+                        if (on) _picked.Add(shelved); else _picked.Remove(shelved);
+                        Refresh();
+                    };
+                    _box.AddChild(toggle);
+                }
                 _input.PieceLeftClicked += OnPick; _unhook += () => _input.PieceLeftClicked -= OnPick;
                 // The clicked piece's own id first, then the id selection widened to: an Eligible set holds
                 // model ids (a Takedown's chosen model, p.14) or unit ids (a charge target, a deploy), and a bare
@@ -99,11 +114,11 @@ public partial class AskPanel : PanelContainer
                     {
                         _picked.Add(pick); _input.CancelDrag();
                         // One model out of a unit is worth reading back before Done, so a single pick shows the name rather than a tally.
-                        count.Text = sel.Max == 1 ? names.Piece(pick) : $"{_picked.Count} of {sel.Min}–{sel.Max}";
+                        Refresh();
                         _view.PieceAt(pick)?.SetHighlight(Palette.Ghost);
                     }
                 }
-                _box.AddChild(Btn("Done", () => { _input.PieceLeftClicked -= OnPick; Send(mine.Ask, new SelectedPieces(_picked.ToList())); }));
+                _box.AddChild(done); Refresh();
                 break;
             case AskMode.Allocate:
                 var alloc = (Allocation)mine.Ask.Legal; var spins = alloc.Targets.ToDictionary(t => t, t => new SpinBox { MinValue = 0, MaxValue = alloc.Amount, Prefix = names.Piece(t) });
@@ -133,6 +148,24 @@ public partial class AskPanel : PanelContainer
         if (mine.Ask.AllowPass) _box.AddChild(Btn("Pass", () => Send(mine.Ask, new Passed())));
         if (mine.Ask.WindowKind is { } kind) _box.AddChild(Btn($"Mute '{kind}' windows", () => _s.UpdateSettings(x => x.Mute(kind))));
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, names) is { } who) _note.Text = $"{who} answered for your team";
+    }
+
+    /// <summary>The server is waiting for every model of the unit just picked to be on the table: one click puts the shelved ones in a row there, and the player drags them into place.</summary>
+    void RenderDeploy(MidDeploy mid, Names names)
+    {
+        _title.Text = $"Place the models of {names.Unit(mid.UnitId)}";
+        _box.AddChild(Btn("Place on table", () =>
+        {
+            _note.Text = "Click the table where the unit goes.";
+            _input.PickNextPoint(at =>
+            {
+                if (_s.Projection is not { } now) return;
+                var models = now.Models.Values.Where(m => m.UnitId == mid.UnitId && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).ToList();
+                if (models.Count == 0) return;
+                _note.Text = "";
+                Guarded.Command(_s, new MoveModels(DeployView.Layout(models, at, _view.Size)), message => { _refusal = $"Could not place the models: {message}"; _refusalAsk = null; Render(); });
+            });
+        }));
     }
 
     void RenderMove(Ask ask, MoveRegion legal, Projection p, Names names)
@@ -175,6 +208,7 @@ public partial class AskPanel : PanelContainer
             _note.Text = $"Move up to {remaining:0.0}\" (used {used:0.0}\"). Drag the models, then commit.";
             _input.Allowance = remaining;
             _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position);
+            _view.Snap(legal.ModelIds);                                                  // drawn and committed agree: a rebuilt Ask (a refusal) starts from the server's positions
             OfferEmbark(ask, legal, p, names);
         }
         _box.AddChild(Btn("Commit move", () => { if (_proposed is null) return; Send(ask, new Destinations(legal.ModelIds.Select(id =>
