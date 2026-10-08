@@ -91,6 +91,19 @@ public class SpellWeaponRuleTests
     }
 
     [Fact]
+    public void Power_Surge_through_the_hit_step_applies_Hazardous_AP_four_and_wounds_the_caster_on_a_one()
+    {
+        var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
+        var (sim, wizard) = Cast(TestProperties.Core, "Power Surge", "hk70l4d471plza00", t, t.Models[0].Id, 6, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4);
+        var hit = sim.Steps("hit").Single();
+        Assert.Equal(1, hit.Values!["self_wounds"]);
+        Assert.Equal(1, sim.Model(wizard.Models[0].Id).Wounds);
+        var blocks = sim.Steps("roll-to-block").Single().Rolls;
+        Assert.Equal(6, blocks.Sum(r => r.Dice.Count));
+        Assert.All(blocks, r => Assert.Equal(-4, ApOf(r)));
+    }
+
+    [Fact]
     public void A_die_carrying_two_per_die_grants_is_blocked_once_in_one_group_with_both()
     {
         var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Rending"), P("Crack")));

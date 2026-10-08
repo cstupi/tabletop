@@ -127,6 +127,15 @@ public class SpellLibraryTests
                     var hit = sim.Steps("hit").Single();
                     if (row.TargetRoll is null) { Assert.Empty(hit.Rolls); Assert.Equal(row.Amount, hit.Values!["hits"]); }
                     else Assert.Equal(row.Amount, hit.Rolls.Single().Dice.Count);
+                    // The spell's weapon rules belong to every hit: one block die per hit (times the multiplier), and each rule is a live attacker rule on the hits.
+                    var hits = (hit.Values!["hits"] + hit.Rolls.Sum(Dice.RollOutcome.Successes) + hit.Values["extra_hits"]) * hit.Values["hit_multiplier"];
+                    var blocks = sim.Steps("roll-to-block").Single().Rolls;
+                    Assert.Equal(hits, blocks.Sum(r => r.Dice.Count));
+                    var rules = row.Children.Where(c => c.Kind == EffectKind.GrantProperty).ToList();
+                    var settled = LiveProperties.Settle(new Interaction(sim.State, props, Party.Whole(sim.State, wizard.Id), Party.Whole(sim.State, enemy.Id), AttackKind.Spell, null, null, [],
+                        SpellRules: rules.Select(c => (c.TargetEntry!, c.Amount)).ToList()));
+                    foreach (var rule in rules) Assert.True(settled.Has(Side.Attacker, rule.TargetEntry!), $"{name}: {rule.TargetEntry} is not on the hits' live set");
+                    if (rules.Any(c => c.TargetEntry == "AP")) Assert.Contains(blocks, r => r.Modifiers.Any(m => m.Source == "AP"));
                     break;
                 case EffectKind.TakeTest:
                     Assert.Contains(sim.Emitted.OfType<SequenceStarted>(), s => s.Sequence == GfNames.MoraleTest && s.Context.ActorUnitId == targetUnit);
