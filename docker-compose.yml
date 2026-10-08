@@ -91,7 +91,7 @@ services:
       TABLETOP_S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
       TABLETOP_MANAGEMENT_URL: http://0.0.0.0:5100
     ports:
-      - "5100:5100"
+      - "127.0.0.1:5100:5100"   # loopback only: Development maps POST /v1/dev/sessions, which mints a session with no login
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5100"]
       interval: 5s
@@ -110,7 +110,7 @@ services:
       <<: *dotnet-env
       TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
     ports:
-      - "5200:5200"
+      - "127.0.0.1:5200:5200"
 
 volumes:
   postgres-data:
