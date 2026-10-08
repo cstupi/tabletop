@@ -1,0 +1,193 @@
+{
+  "uid": "vux1Y5vvULmaxZ8P",
+  "name": "Eternal Dynasty",
+  "version": "3.5.3",
+  "gameRules": "grimdark-future",
+  "spells": [
+    {
+      "name": "Spirit Power",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one friendly unit within 12\u0022, which gets Flying once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Flying",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Soul Spear",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy model within 24\u0022, which takes 1 hit with Tear. This effect is resolved as if the target was a unit of [1].",
+      "targeting": {
+        "side": "enemy",
+        "grain": "model",
+        "count": 1,
+        "range": 24
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 1,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Tear",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Spirit Resolve",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Clan Warrior Boost once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Clan Warrior Boost",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Mind Vortex",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 12\u0022, which take 2 hits with AP(2) each.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 2,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Eternal Guidance",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three enemy units within 18\u0022, which friendly units get \u002B6\u0022 range when shooting against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 3,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "modify_stat",
+          "targetStat": {
+            "level": "weapon",
+            "name": "Range"
+          },
+          "amount": 6,
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "shooting"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Dragon Breath",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 9 hits.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 9,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

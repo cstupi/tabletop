@@ -107,8 +107,8 @@ public sealed class PostgresFixture : IAsyncLifetime
             foreach (var p in u.Properties) await Run("insert into management.unit_property values ($1, $2, $3)", u.Id, p.Name, p.Parameter);
             foreach (var s in u.Models)
             {
-                await Run("insert into management.model_slot (id, unit_id, ordinal, name, base_shape, base_a, base_b, height, asset_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                    s.Id, u.Id, s.Ordinal, s.Name, RowMapping.EnumText(s.Base.Shape), s.Base.A, s.Base.B, s.Height, s.AssetId);
+                await Run("insert into management.model_slot (id, unit_id, ordinal, name, base_shape, base_a, base_b, height, asset_id, army_book) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                    s.Id, u.Id, s.Ordinal, s.Name, RowMapping.EnumText(s.Base.Shape), s.Base.A, s.Base.B, s.Height, s.AssetId, s.ArmyBook);
                 foreach (var (k, v) in s.Stats) await Run("insert into management.slot_stat values ($1, $2, $3)", s.Id, k, v);
                 foreach (var p in s.Properties) await Run("insert into management.slot_property values ($1, $2, $3)", s.Id, p.Name, p.Parameter);
                 foreach (var w in s.Weapons)

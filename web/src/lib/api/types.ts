@@ -24,7 +24,7 @@ export interface PropertyInstance { name: string; parameter?: number }
 export interface Weapon { id: Guid; name: string; stats: Record<string, string>; properties: PropertyInstance[] }
 export interface ModelSlot {
   id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[];
-  base: Base; height: number; assetId?: Guid; weapons: Weapon[];
+  base: Base; height: number; assetId?: Guid; weapons: Weapon[]; armyBook?: string;
 }
 export interface Unit { id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[]; models: ModelSlot[] }
 export interface Army { id: Guid; name: string; gameSystem: string; source: string; units: Unit[] }

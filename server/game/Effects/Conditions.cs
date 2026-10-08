@@ -17,7 +17,7 @@ public static class Conditions
         switch (c.Kind)
         {
             case ConditionKind.ActionTaken: return ix.ActionTaken is { } a && Membership(c, a);
-            case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k == AttackKind.Shooting ? "shooting" : "melee");
+            case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k switch { AttackKind.Shooting => "shooting", AttackKind.Melee => "melee", _ => "spell" });
             case ConditionKind.Range: return ix.RangeInches is { } r && c.Compare((int)Math.Floor(r));
             case ConditionKind.RollResult:
                 if (die is null || c.Values.Count != 2 || die.Roll != c.Values[0]) return false;
@@ -31,15 +31,47 @@ public static class Conditions
             // The terrain list describes the defender, or the lone party when there is no defender (a resolve check, a move, a hazard roll).
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
-            case ConditionKind.UsageCount: return c.Compare(Usage(ix, source));
+            case ConditionKind.UsageCount: return c.Compare(Usage(ix, source, c));
+            case ConditionKind.AtPoint: return ix.Point is { } point && Membership(c, point);
+            // The side holds the entry under its own aggregation, a granted instance included; a suppression does not unhold (spell library spec).
+            case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.UnitHas(ix.State, ix.Properties, ix.Of(side).UnitId, c.Values[0]);
+            case ConditionKind.MostModels: return c.Values.Count == 1 && MostModels(ix, side, c);
             default: return false;
         }
+    }
+
+    /// <summary>"Most models have ...": more than half the side's living models meet the comparison. A model stat compares its target number, read off
+    /// the slot or the unit; a rule compares its parameter, and a model without the rule fails.</summary>
+    static bool MostModels(Interaction ix, Side side, EffectCondition c)
+    {
+        var state = ix.State; var unit = state.Projection.Units[ix.Of(side).UnitId]; var name = c.Values[0];
+        var models = Lookup.LivingModels(state, unit.Id);
+        if (models.Count == 0) return false;
+        var isStat = ix.Properties.Stat(StatLevel.Model, name) is not null || ix.Properties.Stat(StatLevel.Unit, name) is not null;
+        int? Value(Guid m)
+        {
+            if (!isStat) return Lookup.ModelParameter(state, m, name);
+            var text = state.Projection.Models[m].Slot.Stats.TryGetValue(name, out var own) ? own : unit.Definition.Stats.GetValueOrDefault(name);
+            return text is null ? null : Tabletop.Content.StatValue.Read(Tabletop.Content.StatKind.TargetNumber, text).TargetNumber;
+        }
+        return models.Count(m => Value(m) is { } v && c.Compare(v)) * 2 > models.Count;
     }
 
     static bool Membership(EffectCondition c, string actual) => c.Comparison == Comparison.Neq ? !c.Values.Contains(actual) : c.Values.Contains(actual);
     static bool Membership(EffectCondition c, IReadOnlyList<string> actual, bool applies) => applies && (c.Comparison == Comparison.Neq ? !actual.Intersect(c.Values).Any() : actual.Intersect(c.Values).Any());
 
-    /// <summary>How many sequences in the live log have used this weapon: the usage record a per-use limit reads.</summary>
-    static int Usage(Interaction ix, LiveProperty source) => source.WeaponId is not { } w ? 0
-        : EventApplier.EffectiveLog(ix.State.Applier.Log).Count(e => e.Payload is SequenceStarted s && s.Context.WeaponIds.Contains(w));
+    /// <summary>How many times the rule has been used. A weapon rule with no scope counts the sequences that used the weapon (Limited, "once per game").
+    /// A scope of `round` or `activation` counts the sequences this rule started for its holder's unit (its name is their Action) since the
+    /// last round_started, or since the unit's activation began (its last action_recorded) (army-rule hooks spec).</summary>
+    static int Usage(Interaction ix, LiveProperty source, EffectCondition c)
+    {
+        var log = EventApplier.EffectiveLog(ix.State.Applier.Log).ToList();
+        if (c.Values.FirstOrDefault() is "round" or "activation")
+        {
+            var unit = ix.Of(source.Holder).UnitId;
+            var from = c.Values[0] == "round" ? log.FindLastIndex(e => e.Payload is RoundStarted) : log.FindLastIndex(e => e.Payload is ActionRecorded a && a.UnitId == unit);
+            return log.Skip(Math.Max(0, from)).Count(e => e.Payload is SequenceStarted s && s.Context.Action == source.Entry.Name && s.Context.ActorUnitId == unit);
+        }
+        return source.WeaponId is not { } w ? 0 : log.Count(e => e.Payload is SequenceStarted s && s.Context.WeaponIds.Contains(w));
+    }
 }

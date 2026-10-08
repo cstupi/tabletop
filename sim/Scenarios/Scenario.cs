@@ -1,5 +1,4 @@
 using Tabletop.Content;
-using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -19,7 +18,8 @@ public sealed record ScenarioArmy(
     IReadOnlyList<ScenarioRule> UnitRules,
     IReadOnlyList<ScenarioRule> ModelRules,
     IReadOnlyList<ScenarioWeapon> Weapons,
-    IReadOnlyDictionary<string, string> UnitStats);
+    IReadOnlyDictionary<string, string> UnitStats,
+    string? ArmyBook = null);
 
 /// <summary>
 /// What a run is: a board, armies, a scheduler shape, enforcement, a round cap, a seed, a script and
@@ -40,7 +40,6 @@ public sealed record Scenario(
     IReadOnlyList<ScenarioTerrain> Terrain,
     IReadOnlyList<ScenarioMarker> Markers,
     IReadOnlyList<string> ZoneShapes,
-    IReadOnlyList<EntryDocument> Spells,
     AnswerScript Script,
     bool ScriptOnly,
     IReadOnlyList<Expectation> Expectations)

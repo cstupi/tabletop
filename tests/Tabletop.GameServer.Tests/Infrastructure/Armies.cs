@@ -19,7 +19,10 @@ public static class Armies
     public static Unit Unit(string name, string quality, string defense, PropertyInstance[] unitProps, int models, PropertyInstance[] modelProps, params Weapon[] weapons) =>
         new(Guid.CreateVersion7(), 1, name, new Dictionary<string, string> { ["Quality"] = quality, ["Defense"] = defense }, unitProps,
             Enumerable.Range(1, models).Select(i => new ModelSlot(Guid.CreateVersion7(), i, $"{name} {i}", new Dictionary<string, string>(), modelProps, Base.Circle(1.26), 1.5, null,
-                weapons.Select(w => w with { Id = Guid.CreateVersion7() }).ToList())).ToList());
+                weapons.Select(w => w with { Id = Guid.CreateVersion7() }).ToList(), TestProperties.TestBook)).ToList());
+
+    /// <summary>The unit with every slot naming the given army book, for a test against a shipped book's spells.</summary>
+    public static Unit InBook(Unit unit, string bookUid) => unit with { Models = unit.Models.Select(m => m with { ArmyBook = bookUid }).ToList() };
 
     /// <summary>A playing game: two armies, every model deployed in a row at the given x, one inch apart along y.</summary>
     public static GameState State(IReadOnlyList<Unit> team1, IReadOnlyList<Unit> team2, double x1 = -12, double x2 = 12, Enforcement enforcement = Enforcement.Warn, bool waits = false, IReadOnlyList<TerrainPlacement>? terrain = null)

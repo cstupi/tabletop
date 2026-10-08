@@ -8,17 +8,8 @@ namespace Tabletop.Sim.Scenarios;
 /// <summary>The named scenarios the console runs. Regression scripts are added here beside the soak ones.</summary>
 public static class ScenarioCatalog
 {
-    /// <summary>One test spell, the shape of a damage spell: an enemy unit in range takes hits. Authored as JSON and parsed
-    /// through the production path, so the sim declares a spell exactly as a content document would. Never shipped.</summary>
-    static readonly EntryDocument Bolt = PropertiesJson.Parse(
-        """
-        { "name": "Sim spells", "gameRules": "grimdark-future", "stats": [], "actions": [], "rolls": [], "entries": [
-          { "name": "Bolt", "kind": "spell", "cost": 2, "faction": "Sim Book",
-            "ruleText": "Target enemy unit within 24\" takes 3 hits with AP(1).",
-            "targeting": { "side": "enemy", "grain": "unit", "count": 1, "range": 24 },
-            "effects": [ { "subject": "self", "ordinal": 10, "kind": "add_hit", "amount": 3, "conditions": [],
-              "children": [ { "subject": "self", "ordinal": 20, "kind": "grant_property", "targetEntry": "AP", "amount": 1, "conditions": [] } ] } ] } ] }
-        """).Entries.Single();
+    private static readonly ScenarioWeapon Rifle = new("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, []);
+    private static readonly ScenarioWeapon HandWeapon = new("Hand Weapon", new Dictionary<string, string> { ["Attacks"] = "1" }, []);
 
     private static readonly Dictionary<string, Func<Scenario>> Factories = new(StringComparer.Ordinal)
     {
@@ -65,12 +56,26 @@ public static class ScenarioCatalog
             .Build(),
 
         // Casting is not a mode: a spell is cast inside an ordinary activation. This preset exists only because none of the
-        // other five fields a caster, so nothing else opens casting's two player decisions in a whole-game run — the token
-        // spend map (p.13), and the caster spending its own leftover tokens on its own roll.
+        // other scenarios fields a caster. Both armies are Human Defense Force (z65fgu0l29i4lnlu), whose six spells cover a unit-rule
+        // grant, an "against" grant, a speed grant, unit and model damage, and one to three targets (spell library spec → Testing).
         ["casting"] = () => new ScenarioBuilder("casting", seed: 1)
-            .Spells(Bolt)
-            .Army("Red", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
-            .Army("Blue", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)])
+            .Army("Red", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)], armyBook: "z65fgu0l29i4lnlu")
+            .Army("Blue", 2, 3, modelRules: [new ScenarioRule(1, "Caster", 2)], armyBook: "z65fgu0l29i4lnlu")
+            .Expect(new Expectation.AskAsked("cast"))
+            .Build(),
+
+        // Every army-rule hook in one game (army-rule hooks spec -> Testing): moves after melee and shooting, a placement before attacking and at
+        // activation, shooting after Rush, a die at the attack's start, extra attacks, and the near-terrain bonus, on the terrain board.
+        ["army-rules"] = () => new ScenarioBuilder("army-rules", seed: 1)
+            .Army("Red", 4, 3,
+                modelRules: [new ScenarioRule(1, "Hit & Run Fighter"), new ScenarioRule(2, "Teleport"), new ScenarioRule(3, "Quick Shot"), new ScenarioRule(4, "Rapid Blink")],
+                weapons: [Rifle, HandWeapon])
+            .Army("Blue", 4, 3,
+                modelRules: [new ScenarioRule(1, "Hit & Run Shooter"), new ScenarioRule(2, "Unpredictable Fighter"), new ScenarioRule(3, "Primal"), new ScenarioRule(4, "Grounded Reinforcement")],
+                weapons: [Rifle, HandWeapon])
+            .Terrain("ruin", new Point3(36, 24, 0), volumes:
+                [new Volume(VolumeKind.Solid, Footprint.Rect(6, 6), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.Cover, null)])
+            .Expect(new Expectation.AskAsked("react"))
             .Build(),
 
         // The core mission scored (p.6): three markers across the middle, one deep in Red's frontline zone. Ends after round 4 under strict

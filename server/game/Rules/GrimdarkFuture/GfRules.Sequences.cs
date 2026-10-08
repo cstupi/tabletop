@@ -22,18 +22,21 @@ public sealed partial class GrimdarkFutureRules
         GfMoves.Advance(),
         GfMoves.Rush(),
         GfMoves.DangerousTerrain(),
+        GfMoves.Idle(),
+        GfMoves.Reposition(),
         GfMorale.MoraleTest(),
         GfMelee.Charge(),
         GfMelee.Melee(),
         GfCasting.Casting(),
         GfCasting.SpellHits(),
+        GfCasting.SpellTest(),
         GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName switch
     {
-        GfNames.Hold => GfNames.HoldSeq, GfNames.Advance => GfNames.AdvanceSeq, GfNames.Rush => GfNames.RushSeq, GfNames.Charge => GfNames.ChargeSeq,
+        GfNames.Hold => GfNames.HoldSeq, GfNames.Advance => GfNames.AdvanceSeq, GfNames.Rush => GfNames.RushSeq, GfNames.Charge => GfNames.ChargeSeq, ActivationOption.Idle => GfNames.IdleSeq,
         _ => null,   // an out-of-set action accepted under warn/silent: recorded, no sequence
     };
     public RollSpec RollSpec(string roll) => GfRolls.Spec(roll);

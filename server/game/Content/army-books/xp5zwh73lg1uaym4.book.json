@@ -1,0 +1,207 @@
+{
+  "uid": "xp5zwh73lg1uaym4",
+  "name": "Dark Brothers",
+  "version": "3.5.3",
+  "gameRules": "grimdark-future",
+  "spells": [
+    {
+      "name": "Dark Sight",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Unstoppable when shooting against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Unstoppable",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "shooting"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Dark Trauma",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 18\u0022, which takes 1 hit with Blast(3) and Lacerate.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 1,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Blast",
+              "amount": 3,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            },
+            {
+              "subject": "self",
+              "ordinal": 30,
+              "kind": "grant_property",
+              "targetEntry": "Lacerate",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Blessed Ammo",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Shred when shooting once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Shred",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "shooting"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Lightning Fog",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two enemy units within 9\u0022, which take 4 hits each.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 2,
+        "range": 9
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 4,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Dark Dome",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 12\u0022, which get Evasive once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Evasive",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Psychic Terror",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 6\u0022, which takes 9 hits with Bane.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 6
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 9,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Bane",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

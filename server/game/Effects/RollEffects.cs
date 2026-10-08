@@ -4,7 +4,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Effects;
 
-public sealed record DieEffects(int ExtraHits, IReadOnlyList<(string Entry, int? Parameter)> Grants);
+/// <summary>What one die does beyond its success, for the side that rolled it: extra hits it scores, extra wounds that side's unit takes, per-hit grants.</summary>
+public sealed record DieEffects(int ExtraHits, int ExtraWounds, IReadOnlyList<(string Entry, int? Parameter)> Grants, int ExtraAttacks = 0);
 
 public static class RollEffects
 {
@@ -13,16 +14,20 @@ public static class RollEffects
     {
         var modifiers = baseModifiers.ToList();
         foreach (var (src, e) in live.Effects(roller, EffectKind.ModifyRoll).Where(x => x.Effect.TargetRoll == roll))
+        {
             modifiers.Add(new RollModifier(src.Entry.Name, e.EffectiveAmount(src.Parameter)));
-        if (live.SuppressedModifiers.Contains(TargetModifier.Cover)) modifiers.RemoveAll(m => m.Source == "cover");
-        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties)) modifiers.RemoveAll(m => m.Amount < 0);
+            live.Read(src);
+        }
+        live.ReadRemoved(roller, EffectKind.ModifyRoll, e => e.TargetRoll == roll);
+        if (live.SuppressedModifiers.Contains(TargetModifier.Cover) && modifiers.RemoveAll(m => m.Source == "cover") > 0) live.ReadSuppressedModifier(TargetModifier.Cover);
+        if (roll == hitRollName && live.SuppressedModifiers.Contains(TargetModifier.ToHitPenalties) && modifiers.RemoveAll(m => m.Amount < 0) > 0) live.ReadSuppressedModifier(TargetModifier.ToHitPenalties);
         // ForceReroll: its roll_result condition names the face; every other condition must hold now.
         var reroll = new HashSet<int>();
         foreach (var p in live.Live)
-            foreach (var e in p.Entry.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
+            foreach (var e in p.Effects.Where(e => e.Kind == EffectKind.ForceReroll && e.TargetRoll == roll && p.ActedOn(e) == roller))
             {
                 var face = e.Conditions.FirstOrDefault(c => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == roll && c.Values[1] == "raw");
-                if (face?.Number is { } n && e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))) reroll.Add(n);
+                if (face?.Number is { } n && e.Conditions.Where(c => c != face).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))) { reroll.Add(n); live.Read(p); }
             }
         return new RollPlan(roll, threshold, modifiers, convention, requiredRaw, reroll);
     }
@@ -31,10 +36,14 @@ public static class RollEffects
     public static DieEffects PerDie(LiveSet live, Side roller, Die die, string roll)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified);
-        var extra = live.Effects(roller, EffectKind.AddHit, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        var adds = live.Effects(roller, EffectKind.AddHit, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).ToList();
+        var extra = adds.Where(x => x.Effect.TargetQuantity is null or TargetQuantity.Hits).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        var wounds = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        foreach (var x in adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Wounds)) live.Read(x.Source);
         var grants = live.Effects(roller, EffectKind.GrantProperty, ctx).Where(x => x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             .Select(x => (x.Effect.TargetEntry!, x.Effect.Amount)).ToList();
-        return new DieEffects(extra, grants);
+        var attacks = adds.Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks).Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        return new DieEffects(extra, wounds, grants, attacks);
     }
 
     public static int HitMultiplier(LiveSet live, Side attacker, int defenderModels) => Multiplier(live, attacker, TargetQuantity.Hits, defenderModels);
@@ -43,22 +52,46 @@ public static class RollEffects
     static int Multiplier(LiveSet live, Side side, TargetQuantity quantity, int defenderModels)
     {
         var product = 1;
+        live.ReadRemoved(side, EffectKind.Multiply, e => e.TargetQuantity == quantity);
         foreach (var (src, e) in live.Effects(side, EffectKind.Multiply).Where(x => x.Effect.TargetQuantity == quantity))
         {
             var x = Math.Max(1, e.EffectiveAmount(src.Parameter));
             if (e.CapKind == CapKind.ModelsInTargetUnit) x = Math.Min(x, Math.Max(1, defenderModels));
             product *= x;
+            live.Read(src);
         }
         return product;
     }
 
     /// <summary>Kind-5 rolls a property owns: the property supplies its own dice and threshold, and its child effect is applied once per success.</summary>
-    public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter) =>
-        live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
+    public static IReadOnlyList<(LiveProperty Source, Effect Roll)> OwnRolls(LiveSet live, Side side, Func<Effect, bool> childFilter)
+    {
+        live.ReadRemoved(side, EffectKind.Roll, e => e.Children.Any(childFilter));
+        var result = live.Effects(side, EffectKind.Roll).Where(x => x.Effect.Children.Any(childFilter)).ToList();
+        foreach (var x in result) live.Read(x.Source);
+        return result;
+    }
 
-    /// <summary>A once-grant is consumed the first time its effect applies: every granted instance whose entry contributed a modifier to this plan, with one use left.</summary>
-    // A grant is matched to a modifier by entry name: the grant's entry and the modifier's source are the same string.
-    public static IReadOnlyList<StateChange> ConsumeGrants(LiveSet live, Side side, RollPlan plan) =>
-        live.On(side).Where(p => p.GrantId is not null && plan.Modifiers.Any(m => m.Source == p.Entry.Name))
-            .Select(p => (StateChange)new GrantRemoved(live.Interaction.Of(side).UnitId, p.GrantId!.Value)).ToList();
+    /// <summary>"Next time the effect would apply" for a per-die rule: the attack whose roll it reads, whatever the dice show. Records every granted
+    /// source acting on the side with a roll_result condition on this roll whose other conditions hold.</summary>
+    public static void ReadPerDie(LiveSet live, Side side, string roll)
+    {
+        foreach (var p in live.Live.Where(p => p.GrantId is not null))
+            if (p.Effects.Any(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == roll)
+                    && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))))
+                live.Read(p);
+    }
+
+    /// <summary>A GrantRemoved for every grant the live set read, and for every other grant on that unit the same spell left (spell library → the grants
+    /// a spell left on a unit are consumed together). A grant already gone, or on a unit no longer in play, removes nothing.</summary>
+    public static IReadOnlyList<StateChange> Consume(LiveSet live)
+    {
+        var units = live.Interaction.State.Projection.Units;
+        return live.GrantsRead
+            .Where(r => units.ContainsKey(r.UnitId))
+            .SelectMany(r => units[r.UnitId].Grants.FirstOrDefault(g => g.Id == r.GrantId) is { } read
+                ? units[r.UnitId].Grants.Where(g => g.EntryName == read.EntryName).Select(g => (r.UnitId, g.Id)) : [])
+            .Distinct()
+            .Select(x => (StateChange)new GrantRemoved(x.UnitId, x.Item2)).ToList();
+    }
 }

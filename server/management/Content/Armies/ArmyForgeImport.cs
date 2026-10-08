@@ -122,7 +122,7 @@ public static class ArmyForgeImport
             : new Dictionary<string, string>();
         for (var i = 0; i < u.Size; i++)
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
-                slotProps[i], body.Base, body.Height, null, slotWeapons[i]));
+                slotProps[i], body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
     }
 
     /// <summary>"32" → circle 32 mm; "60x35" → oval 60×35 mm; anything else → null. Inches out.</summary>

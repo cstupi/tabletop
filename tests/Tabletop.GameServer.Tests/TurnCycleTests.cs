@@ -68,17 +68,21 @@ public class TurnCycleTests
     }
 
     [Fact]
-    public void Idle_and_an_unknown_action_write_the_record_and_complete_without_a_sequence()
+    public void Idle_runs_the_idle_sequence_and_an_unknown_action_writes_the_record_and_completes_without_one()
     {
         var g = InRounds(out var team, out var units);
         TestGames.Apply(g, new ConditionSet(TestGames.UnitSubject(units[0]), GfNames.Shaken, true));
         var ask = Opened(Step(g, team, Cycle)); TestGames.Apply(g, new AskOpened(ask));
         Answer(g, ask, team, new Chosen(ActivationOption.Id(units[0], ActivationOption.Idle)));
         var start = Assert.IsType<CycleEmit>(Step(g, team, Cycle)).Events;
-        Assert.Equal(new ActionRecorded(units[0], ActivationOption.Idle), Assert.Single(start));
+        Assert.Equal(new ActionRecorded(units[0], ActivationOption.Idle), start[0]);
+        var idle = Assert.IsType<SequenceStarted>(start[1]);
+        Assert.Equal((GfNames.IdleSeq, ActivationOption.Idle), (idle.Sequence, idle.Context.Action));
         TestGames.Apply(g, start.ToArray());
+        Assert.IsType<CycleWaiting>(Step(g, team, Cycle));
+        TestGames.Apply(g, new SequenceFinished(idle.FrameId));
         Assert.IsType<CycleComplete>(Step(g, team, Cycle));
-        Assert.Empty(_starter.Started);
+        Assert.Equal(GfNames.IdleSeq, Assert.Single(_starter.Started).Sequence);
         TestGames.Apply(g, new TurnStarted(team));
         var second = Opened(Step(g, team, Cycle)); TestGames.Apply(g, new AskOpened(second));
         Answer(g, second, team, new Chosen(ActivationOption.Id(units[1], "Teleport")));                 // out of set, accepted under warn

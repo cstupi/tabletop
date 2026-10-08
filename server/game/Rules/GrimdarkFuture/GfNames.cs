@@ -8,11 +8,16 @@ public static class GfNames
     public const string Hit = "hit", DefenseRoll = "defense", Morale = "morale", Casting = "casting", RollOff = "roll-off";
     public const string Shaken = "shaken", Fatigued = "fatigued", Moved = "moved";
     public const string BeforeAttacking = "before-attacking";
+    public const string QuickShot = "Quick Shot";   // army-rule hooks: a name check on the rush sequence's shooting
+    public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";
     public const string DangerousTerrain = "dangerous-terrain", CastingSeq = "casting", SpellHitsSeq = "spell-hits", RollOffSeq = "roll-off";
     /// <summary>The roll-off's two step names. The scheduler reads the order off the step_completed named by the second.</summary>
     public const string RollOffRollStep = "roll-off", RollOffOrderStep = "order";
+    public const string CounterAttack = "Counter-Attack", Unwieldy = "Unwieldy";
+    public const string ChargeRangeKey = "charge_range";   // hundredths of an inch, on the charge frame's charge-target step
+    public const string IdleSeq = "idle", SpellTestSeq = "spell-test";                                                // p.10 idle activation; spell library take_test
     public const string TransportDestroyedSeq = "transport-destroyed";                                                  // p.15: a wrecked container disgorges (Task 19)
     public const double MeleeHorizontal = 2, MeleeVertical = 4, ChargeCloseIn = 3, Consolidate = 3, FallBack = 1, Separation = 1, CastRange = 18, DifficultCap = 6;
     /// <summary>p.15 and p.21: a unit leaving a container "must stay fully within 6" of it".</summary>

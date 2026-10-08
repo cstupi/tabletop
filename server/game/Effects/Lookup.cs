@@ -24,11 +24,15 @@ public static class Lookup
     public static IReadOnlyList<Guid> OccupantUnits(GameState state, Guid containerModelId) =>
         state.Projection.Models.Values.Where(m => m.Location is Inside i && i.ContainerId == containerModelId).Select(m => m.UnitId).Distinct().ToList();
 
-    /// <summary>The unit's own properties plus its grants as instances. A grant's parameter is the granting effect's amount ("gets AP(1)" → AP with parameter 1), read from the pinned set by Grant.EffectId.</summary>
+    /// <summary>The unit's own properties plus the rules its grants give it: a grant whose row is a subject-self grant_property names a rule the
+    /// unit holds, with the row's amount as its parameter ("gets AP(1)" → AP 1). Any other grant gives the unit no rule by name.</summary>
     public static IEnumerable<PropertyInstance> UnitProperties(GameState state, PropertySet props, Guid unitId)
     {
         var unit = state.Projection.Units[unitId];
-        return unit.Definition.Properties.Concat(unit.Grants.Select(g => new PropertyInstance(g.EntryName, props.AllEffects().FirstOrDefault(e => e.Id == g.EffectId)?.Amount)));
+        var granted = unit.Grants.Select(g => props.AllEffects().FirstOrDefault(e => e.Id == g.EffectId))
+            .Where(r => r is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null })
+            .Select(r => new PropertyInstance(r!.TargetEntry!, r.Amount));
+        return unit.Definition.Properties.Concat(granted);
     }
 
     public static IEnumerable<(Guid ModelId, PropertyInstance Property)> ModelProperties(GameState state, Guid unitId, IEnumerable<Guid> modelIds) =>

@@ -1,0 +1,306 @@
+{
+ "uid": "z65fgu0l29i4lnlu",
+ "name": "Human Defense Force",
+ "versionString": "3.5.3",
+ "spells": [
+  {
+   "id": "ya8QP",
+   "name": "Psy-Injected Courage",
+   "threshold": 1,
+   "effect": "Pick one friendly unit within 12\", which gets Hold the Line Boost once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "4NMqPbqMvE4C",
+        "name": "Hold the Line Boost"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "i1uZl",
+   "name": "Electric Tempest",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 12\", which takes 2 hits with AP(1) and Crack. Roll as many dice as hits to see if \"on rolls of 6\" effects trigger.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 1,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": "Roll as many dice as hits to see if \"on rolls of 6\" effects trigger."
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "JSnFcm3SCiMD",
+        "name": "Crack"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "TzMwj",
+   "name": "Calculated Foresight",
+   "threshold": 2,
+   "effect": "Pick up to two enemy units within 18\", which friendly units gets Relentless against once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "1yTPcanTyckX",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "H9E9PIWpGRdw",
+        "name": "Relentless"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "2u5gr",
+   "name": "Searing Burst",
+   "threshold": 2,
+   "effect": "Pick one enemy unit within 12\", which takes 6 hits.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "3"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "sC4Gz",
+   "name": "Shock Speed",
+   "threshold": 3,
+   "effect": "Pick up to three friendly units within 12\", which moves +2\" when using Advance actions and +4\" when using Rush/Charge actions once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "rz0b1dShgnvg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "advanceSpeed",
+       "value": "+2\""
+      },
+      {
+       "name": "rushSpeed",
+       "value": "+4\""
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "CsJOp",
+   "name": "Expel Threat",
+   "threshold": 3,
+   "effect": "Pick one enemy model within 18\", which takes 6 hits with AP(1). This effect is resolved as if the target was a unit of [1].",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 1,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "model"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

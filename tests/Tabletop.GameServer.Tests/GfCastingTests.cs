@@ -33,7 +33,7 @@ public class GfCastingTests
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
         var enemyCaster = Unit("Warlock", "4+", "4+", [], 1, [P("Caster", 1)]); var grunts = Unit("Grunts", "4+", "5+", [], 3, []);
-        var sim = Casting(wizard, [], [grunts, enemyCaster], 5, 6, 1, 1, 2, 3, 4);
+        var sim = Casting(wizard, [], [grunts, enemyCaster], 5, 2, 3, 4);
         sim.Append([new SpellTokensSet(enemyCaster.Models[0].Id, 2)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         var pick = Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal);
@@ -53,8 +53,8 @@ public class GfCastingTests
         Assert.Equal((1, 1), (targets.Min, targets.Max)); Assert.Contains(grunts.Id, targets.Eligible);
         sim.Answer(Samples.Team1, new SelectedPieces([grunts.Id]));
         var hit = sim.Steps("hit").Single();
-        Assert.Equal((GfNames.Hit, 1, 3, 3), (hit.Rolls[0].Roll, hit.Rolls[0].Threshold, hit.Rolls[0].Dice.Count, hit.Rolls[0].Dice.Count(d => d.Success)));
-        Assert.Equal(3, hit.Values!["granted_AP_1"]);
+        Assert.Empty(hit.Rolls); Assert.Equal(3, hit.Values!["hits"]);
+        Assert.DoesNotContain(hit.Values!.Keys, k => k.StartsWith("granted_"));                         // AP(1) is the spell's whole-group rule, not a per-die subset
         var block = sim.Steps("roll-to-block").Single().Rolls.Single();
         Assert.Contains(block.Modifiers, m => m.Source == "AP" && m.Amount == -1);
         Assert.Equal(3, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);            // 2,3,4 −1 against 5+: three wounds
@@ -166,13 +166,13 @@ public class GfCastingTests
             [Fx(EffectKind.AddHit, amount: 1), Fx(EffectKind.AddHit, amount: 2) with { Conditions = [new ConditionDocument(ConditionKind.RoundNumber, null, Comparison.Eq, 99, [])] }]);
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]); var target = Unit("T", "4+", "4+", [], 2, []);
         var state = State([wizard], [target], x1: -4, x2: 4);
-        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4, 4, 4));
+        var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), TestProperties.WithSpells(spark), new ScriptedDice(5, 4));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Spark|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
         sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
-        Assert.Single(sim.Steps("hit").Single().Rolls.Single().Dice);
+        Assert.Empty(sim.Steps("hit").Single().Rolls); Assert.Equal(1, sim.Steps("hit").Single().Values!["hits"]);   // the second hit effect's own condition fails
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class GfCastingTests
         var targets = Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((1, 2), (targets.Min, targets.Max)); Assert.Equal(new HashSet<Guid> { wizard.Id, a.Id, b.Id }, targets.Eligible.ToHashSet());
         sim.Answer(Samples.Team1, new SelectedPieces([a.Id, b.Id]));
-        Assert.All(new[] { a.Id, b.Id }, u => Assert.Equal(("Regeneration", 1, wizard.Id), (sim.Unit(u).Grants.Single().EntryName, sim.Unit(u).Grants.Single().RemainingUses, sim.Unit(u).Grants.Single().CasterUnitId)));
+        Assert.All(new[] { a.Id, b.Id }, u => Assert.Equal(("Ward", 1, wizard.Id), (sim.Unit(u).Grants.Single().EntryName, sim.Unit(u).Grants.Single().RemainingUses, sim.Unit(u).Grants.Single().CasterUnitId)));
         Assert.True(Lookup.UnitHas(sim.State, Book, a.Id, "Regeneration"));
         // A wound on A: the granted Regeneration rolls (6: ignored) and is consumed.
         var shooter = sim.State.Board.Armies[1].Snapshot.Units[0];
@@ -249,7 +249,7 @@ public class GfCastingTests
         var target = Unit("T", "4+", "2+", [], 1, []);
         var sim = new Sim(State([shooter], [target], x1: -4, x2: 4), GrimdarkFutureRules.Instance, book, new ScriptedDice(6, 4, 6, 6));
         var grantId = Guid.CreateVersion7();
-        sim.Append([new GrantAdded(shooter.Id, new Grant(grantId, book.Entry("Sharpen")!.Effects[0].Id, "AP", shooter.Id, 1))]);
+        sim.Append([new GrantAdded(shooter.Id, new Grant(grantId, book.Entry("Sharpen")!.Effects[0].Id, "Sharpen", shooter.Id, 1))]);
         sim.Start(GfNames.AttackSequence, new SequenceContext(shooter.Id, [target.Id], shooter.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold));
         var block = sim.Steps("roll-to-block").Single();
         Assert.Equal(2, block.Rolls.Count);                                                                // the Rending group and the plain hit: two pools, both AP(1)-modified
@@ -271,5 +271,34 @@ public class GfCastingTests
         sim.Answer(Samples.Team1, new Passed());                                                      // spend nothing; the 2 fails
         Assert.Empty(sim.State.Projection.Stack);
         Assert.Equal(["Ward|Bolt"], GfCasting.TriedThisActivation(sim.State, wizard.Id));
+    }
+
+    [Fact]
+    public void A_caster_is_offered_only_its_own_books_spells()
+    {
+        var other = Fireball with { Name = "Other Fireball" };
+        var props = PropertiesJson.ToSet(TestProperties.CoreDocument with
+        {
+            Name = "two books",
+            Entries = [.. TestProperties.CoreDocument.Entries, Fireball, other],
+            Books = [.. TestProperties.CoreDocument.Books ?? [], new BookRecord("book-a", "Book A", "1", ["Fireball"]), new BookRecord("book-b", "Book B", "1", ["Other Fireball"])],
+        }, Guid.CreateVersion7);
+        var wizard = Armies.InBook(Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]), "book-a");
+        var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+        state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+        Assert.Equal([$"Fireball|{wizard.Models[0].Id}"], GfCasting.SpellOptions(state, props, wizard.Id).Select(o => o.Id));
+    }
+
+    [Fact]
+    public void A_caster_with_no_book_or_an_unknown_book_is_offered_nothing()
+    {
+        foreach (var book in new string?[] { null, "a-book-this-set-does-not-list" })
+        {
+            var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+            wizard = wizard with { Models = wizard.Models.Select(m => m with { ArmyBook = book }).ToList() };
+            var state = State([wizard], [Unit("T", "4+", "4+", [], 1, [])]);
+            state.Applier.Apply(new GameEvent(2, null, new SpellTokensSet(wizard.Models[0].Id, 3), null));
+            Assert.Empty(GfCasting.SpellOptions(state, Book, wizard.Id));
+        }
     }
 }

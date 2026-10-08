@@ -1,6 +1,7 @@
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Properties;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -8,7 +9,10 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 public static class GfCasting
 {
     public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new TargetsStep(), new EffectsStep()]);
-    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits)]);
+    /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
+    public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
+        [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
+    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
@@ -20,12 +24,14 @@ public static class GfCasting
 
     /// <summary>
     /// p.13: a caster may "spend as many tokens as the spell's value to try casting one or more spells (only one try per spell)": one option per
-    /// caster model and spell it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
+    /// caster model and spell of that model's own army book
+    /// (ModelSlot.ArmyBook; "the Caster's spells must be picked from their own faction") it can afford and has not tried this activation. Empty means nothing to cast, so GfHooks.ReactionsAt offers no window.
     /// </summary>
     public static IReadOnlyList<AskOption> SpellOptions(GameState state, PropertySet props, Guid unit)
     {
         var tried = TriedPicks(state, unit);
-        return Casters(state, unit).SelectMany(m => props.Entries.Where(e => e.Kind == CatalogKind.Spell && !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
+        return Casters(state, unit).SelectMany(m => props.SpellsOf(state.Projection.Models[m].Slot.ArmyBook)
+                .Where(e => !tried.Contains((e.Name, m)) && e.Cost <= state.Projection.Models[m].SpellTokens)
             .Select(e => new AskOption($"{e.Name}|{m}", $"{e.Name} ({e.Cost})", [m]))).ToList();
     }
 
@@ -158,9 +164,13 @@ public static class GfCasting
         public string Name => "roll";
         public StepOutcome Run(StepContext ctx)
         {
-            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, ctx.Frame.Value("net_tokens")), 1)) == 1;
+            var (_, caster) = Picked(ctx.Frame);
+            var casterUnit = ctx.Projection.Models[caster].UnitId;
+            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
+            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1)) == 1;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0 };
-            return passed ? new Complete([], values) : new Finish([], values);
+            var spent = RollEffects.Consume(live);
+            return passed ? new Complete(spent, values) : new Finish(spent, values);
         }
     }
 
@@ -195,8 +205,13 @@ public static class GfCasting
             var holding = Holding(ctx, casterUnit, targetUnit, spell);
             var hits = holding.Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
             if (hits.Count > 0 && ctx.History.Children.Count == 0) return new Push(GfNames.SpellHitsSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
-            var changes = holding.Where(e => e.Duration == EffectDuration.Once)
-                .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, e.TargetEntry ?? spell.Name, casterUnit, 1))).ToList();
+            if (holding.Any(e => e.Kind == EffectKind.TakeTest) && ctx.History.Children.Count == 0)
+                return new Push(GfNames.SpellTestSeq, new SequenceContext(casterUnit, [targetUnit], [], null));
+            // p.13: "Effects from multiple instances of the same special rule or spell don't stack": a target already holding this spell's grants gets none.
+            var already = ctx.Projection.Units[targetUnit].Grants.Any(g => g.EntryName == spell.Name);
+            // A once-row's conditions say when the grant applies ("Shred when shooting"), not whether it is written: every once-row is granted.
+            var changes = already ? [] : spell.Effects.Where(e => e.Duration == EffectDuration.Once)
+                .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, spell.Name, casterUnit, 1))).ToList();
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
         }
 
@@ -213,24 +228,90 @@ public static class GfCasting
         }
     }
 
-    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; the hits' nested grants become granted_* values.</summary>
+    /// <summary>A spell's weapon rules for the hit interaction: the child rules of its add_hit rows that hold for this target, settled into the attacker's
+    /// instances before pass one. Empty outside a casting frame.</summary>
+    internal static IReadOnlyList<(string Entry, int? Parameter)> WeaponRules(StepContext ctx, Guid caster, Guid target)
+    {
+        for (var f = ctx.Frame; f is not null; f = f.Parent)
+            if (f.Frame.Sequence == GfNames.CastingSeq)
+                return ctx.Properties.Entry(Picked(f).Spell) is { } spell
+                    ? EffectsStep.Holding(ctx, caster, target, spell).Where(e => e.Kind == EffectKind.AddHit)
+                        .SelectMany(e => e.Children.Where(c => c.Kind == EffectKind.GrantProperty).Select(c => (c.TargetEntry!, c.Amount))).ToList() : [];
+        return [];
+    }
+
+    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
     sealed class HitStep : IStep
     {
         public string Name => "hit";
         public StepOutcome Run(StepContext ctx)
         {
             var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1 };
-            var total = 0;
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
-            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, ctx.Frame.Context.TargetUnitIds[0], spell).Where(e => e.Kind == EffectKind.AddHit))
+            var target = ctx.Frame.Context.TargetUnitIds[0];
+            var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
+            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
+            // The spell's weapon rules are part of this settled set (AttackInteraction), so every hit carries them and their pass-one rows act.
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
+            var total = 0; var multiplier = 1;
+            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
-                var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
-                total += Dice.RollOutcome.Successes(record);
-                foreach (var grant in hit.Children.Where(c => c.Kind == EffectKind.GrantProperty)) { var key = $"granted_{grant.TargetEntry}_{grant.Amount}"; values[key] = values.GetValueOrDefault(key) + n; }
+                if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
+                else
+                {
+                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
+                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
+                    total += Dice.RollOutcome.Successes(record);
+                    RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
+                    foreach (var die in record.Dice)
+                    {
+                        var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
+                        values["extra_hits"] += effects.ExtraHits;
+                        values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
+                        if (GfAttack.GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
+                    }
+                }
+                // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
+                multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(live, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
             }
-            return total == 0 ? new Finish([], values) : new Complete([], values);
+            values["hit_multiplier"] = multiplier;
+            values["wounds"] = values.GetValueOrDefault("self_wounds");
+            var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
+            return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
+        }
+    }
+
+    sealed class ConsequenceStep : IStep
+    {
+        public string Name => "consequence";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var target = ctx.Frame.Context.TargetUnitIds[0];
+            if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
+            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
+            var changes = children.Where(c => c.Kind == EffectKind.SetCondition)
+                .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
+            if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
+            if (ctx.History.LastClosed("move") is { } moved)
+                return new Complete([.. changes, .. GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved))]);
+            var terrain = Battlefield.Terrain(ctx.State);
+            return new OpenAsks([ctx.Ask("move", $"Move up to {move.EffectiveAmount(null)}\" in a straight line", ctx.ActorTeam!.Value,
+                new MoveRegion(Lookup.AliveModels(ctx.State, target), move.EffectiveAmount(null),
+                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
+                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+        }
+
+        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
+        static bool Failed(GameState state, Guid frameId)
+        {
+            var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
+            var mine = log.FindIndex(p => p is SequenceStarted s && s.FrameId == frameId);
+            var child = log.Skip(mine + 1).OfType<SequenceStarted>().FirstOrDefault(s => s.Sequence == GfNames.MoraleTest);
+            if (child is null) return false;
+            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "test");
+            return done?.Values is { } v && v.GetValueOrDefault("passed", 1) == 0;
         }
     }
 }

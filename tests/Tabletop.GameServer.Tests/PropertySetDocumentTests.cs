@@ -1,5 +1,6 @@
 using Tabletop.Content;
 using Tabletop.GameServer.Properties;
+using Tabletop.GameServer.Tests.Infrastructure;
 
 namespace Tabletop.GameServer.Tests;
 
@@ -63,9 +64,18 @@ public class PropertySetDocumentTests
     }
 
     [Fact]
+    public void A_spell_no_book_lists_is_refused()
+    {
+        var orphan = new EntryDocument("Orphan", CatalogKind.Spell, false, null, 1, null, "Orphan.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+        Assert.Contains(PropertiesJson.Validate(TestProperties.CoreDocument with { Entries = [.. TestProperties.CoreDocument.Entries, orphan] }),
+            p => p.Contains("Orphan: no book lists this spell"));
+    }
+
+    [Fact]
     public void A_spells_effect_is_hits_or_a_once_grant_and_nothing_else()
     {
-        var doc = PropertiesJson.Parse(ApJson);
+        var doc = PropertiesJson.Parse(ApJson) with { Books = [new BookRecord("b", "B", null, ["Bolt"])] };
         EntryDocument Spell(EffectKind kind, EffectDuration duration) => new("Bolt", CatalogKind.Spell, false, null, 2, "Book", "x",
             new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
             [new EffectDocument(EffectSubject.Self, 10, kind, null, null, kind == EffectKind.GrantProperty ? "Regeneration" : null, null, null, null, null, 3, false, null, null, null, duration, [], [])]);
@@ -130,5 +140,44 @@ public class PropertySetDocumentTests
         var withModifiedRoll = doc with { Rolls = [.. doc.Rolls, "modified"] };
         var modifiedProblems = PropertiesJson.Validate(withModifiedRoll);
         Assert.Contains(modifiedProblems, p => p.Contains("modified") && p.Contains("reserved"));
+    }
+
+    [Fact]
+    public void A_book_must_list_spell_entries_and_book_uids_are_unique()
+    {
+        var spell = new EntryDocument("Zap", CatalogKind.Spell, false, null, 1, null, "Zap.", new SpellTargeting(TargetSide.Enemy, TargetGrain.Unit, 1, 12),
+            [new EffectDocument(EffectSubject.Self, 10, EffectKind.AddHit, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+        var doc = TestProperties.CoreDocument with { Entries = [.. TestProperties.CoreDocument.Entries, spell] };
+        var shipped = TestProperties.CoreDocument.Books ?? [];
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Nope"])] }), p => p.Contains("book b lists 'Nope', which is no spell entry"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["AP"])] }), p => p.Contains("book b lists 'AP', which is no spell entry"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"]), new BookRecord("b", "B2", null, [])] }), p => p.Contains("book uids must be unique"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap", "Zap"])] }), p => p.Contains("book b lists 'Zap' more than once"));
+        Assert.Empty(PropertiesJson.Validate(doc with { Books = [.. shipped, new BookRecord("b", "B", null, ["Zap"])] }));
+    }
+
+    [Fact]
+    public void Books_sort_by_uid_in_the_canonical_form_and_keep_their_spell_order()
+    {
+        var doc = TestProperties.CoreDocument with { Books = [new BookRecord("z", "Z", null, []), new BookRecord("a", "A", null, [])] };
+        var swapped = doc with { Books = [doc.Books![1], doc.Books[0]] };
+        Assert.Equal(PropertiesJson.Hash(doc), PropertiesJson.Hash(swapped));
+    }
+
+    [Fact]
+    public void Place_amount_dice_at_point_attacks_and_an_own_roll_validate()
+    {
+        EffectDocument F(EffectKind k, string? dice = null, TargetQuantity? q = null, IReadOnlyList<ConditionDocument>? when = null, IReadOnlyList<EffectDocument>? kids = null, int? threshold = null) =>
+            new(EffectSubject.Self, 10, k, null, null, null, null, q, null, null, 1, false, threshold, null, null, EffectDuration.Interaction, when ?? [], kids ?? [], AmountDice: dice);
+        EntryDocument E(params EffectDocument[] f) => new("X", CatalogKind.Model, false, Aggregation.All, null, null, "X.", null, f);
+        IReadOnlyList<string> V(EntryDocument e) => PropertiesJson.Validate(TestProperties.RulebookDocument with { Entries = [.. TestProperties.RulebookDocument.Entries, e] });
+        Assert.Empty(V(E(F(EffectKind.Place, "d3"))));
+        Assert.Contains(V(E(F(EffectKind.Move, "d3"))), p => p.Contains("amount_dice is place only"));
+        Assert.Contains(V(E(F(EffectKind.Place, "d6"))), p => p.Contains("amount_dice is 'd3'"));
+        Assert.Contains(V(E(F(EffectKind.Place, when: [new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["whenever"])]))), p => p.Contains("no point 'whenever'"));
+        Assert.Contains(V(E(F(EffectKind.AddHit, q: TargetQuantity.Attacks))), p => p.Contains("add_hit attacks is per die"));
+        var own = new ConditionDocument(ConditionKind.RollResult, null, Comparison.Lte, 3, ["X", "raw"]);
+        Assert.Empty(V(E(F(EffectKind.Roll, threshold: 1, kids: [F(EffectKind.GrantProperty, when: [own]) with { TargetEntry = "Rending" }]))));
+        Assert.Contains(V(E(F(EffectKind.GrantProperty, when: [own]) with { TargetEntry = "Rending" })), p => p.Contains("roll 'X' is not declared"));
     }
 }

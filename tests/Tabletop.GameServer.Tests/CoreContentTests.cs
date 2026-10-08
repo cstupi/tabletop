@@ -10,11 +10,11 @@ public class CoreContentTests
     [Fact]
     public void The_document_is_valid_and_names_the_rulebooks_thirty_three_rules()
     {
-        Assert.Empty(PropertiesJson.Validate(TestProperties.CoreDocument));
+        Assert.Empty(PropertiesJson.Validate(TestProperties.RulebookDocument));
         string[] rules = ["Aircraft", "Ambush", "AP", "Artillery", "Bane", "Blast", "Caster", "Counter", "Deadly", "Fast", "Fear", "Fearless", "Flying", "Furious",
             "Hero", "Immobile", "Impact", "Indirect", "Limited", "Regeneration", "Relentless", "Reliable", "Rending", "Scout", "Slow", "Stealth", "Strider",
             "Surge", "Takedown", "Thrust", "Tough", "Transport", "Unstoppable"];
-        Assert.Equal(rules.OrderBy(r => r), Core.Entries.Select(e => e.Name).OrderBy(r => r));
+        Assert.Equal(rules.OrderBy(r => r), TestProperties.RulebookDocument.Entries.Select(e => e.Name).OrderBy(r => r));
         // Quality and Defense are declared at model level as well as unit level: a joined hero is a model of the unit it joined and its slot carries its own two.
         Assert.Equal([(StatLevel.Unit, "Defense"), (StatLevel.Unit, "Quality"), (StatLevel.Model, "Defense"), (StatLevel.Model, "Quality"), (StatLevel.Weapon, "Attacks"), (StatLevel.Weapon, "Range")],
             Core.Stats.OrderBy(s => s.Level).ThenBy(s => s.Name, StringComparer.Ordinal).Select(s => (s.Level, s.Name)));

@@ -31,14 +31,6 @@ public static class Program
             return 2;
         }
 
-        // Scenario-local spells are folded into the pinned PropertySet and have no authored document, so
-        // the game server could not load them from Postgres.
-        if (options.Driver == SimOptions.Socket && template.Spells.Count > 0)
-        {
-            output.WriteLine($"scenario '{template.Name}' declares its own spells, which have no authored properties document the game server can load; --driver socket cannot run it (use --driver in-process)");
-            return 2;
-        }
-
         return await RunScenarioAsync(template, options, output, ct);
     }
 

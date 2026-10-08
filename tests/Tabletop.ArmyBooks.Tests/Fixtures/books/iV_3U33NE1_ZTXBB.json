@@ -1,0 +1,306 @@
+{
+ "uid": "iV_3U33NE1_ZTXBB",
+ "name": "Titan Lords War Disciples",
+ "versionString": "3.5.2",
+ "spells": [
+  {
+   "id": "FyJX5mYR",
+   "name": "Terrifying Fury",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 18\", which must take a morale test. If failed, it becomes fatigued.",
+   "generation": {
+    "effect": {
+     "id": "ZcZbsyKjR5yN",
+     "parameters": [
+      {
+       "name": "moraleTest",
+       "value": "must take a morale test. If failed, it"
+      },
+      {
+       "name": "becomes-stopsbeing",
+       "value": "becomes"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "L2MLJCql",
+   "name": "Flame of Destruction",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 18\", which takes 1 hit with Blast(3).",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "w_vX0mi58KKt",
+        "name": "Blast",
+        "rating": 3,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": ""
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "IMINHoAo",
+   "name": "Fiery Protection",
+   "threshold": 2,
+   "effect": "Pick up to two friendly units within 12\", which get Melee Evasion once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "EgdF_3MSddXR",
+        "name": "Melee Evasion"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "qvE1vtay",
+   "name": "Brutal Massacre",
+   "threshold": 2,
+   "effect": "Pick one enemy unit within 6\", which takes 6 hits with Crack. Roll as many dice as hits to see if \"on rolls of 6\" effects trigger.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "3"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "JSnFcm3SCiMD",
+        "name": "Crack"
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": "Roll as many dice as hits to see if \"on rolls of 6\" effects trigger."
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 6\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "1ncY3-OY",
+   "name": "War Boon",
+   "threshold": 3,
+   "effect": "Pick up to three friendly units within 12\", which get Warbound Boost once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "5G44ZDmQG-N5",
+        "name": "Warbound Boost"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "0_C3EPvs",
+   "name": "Headtaker Strike",
+   "threshold": 3,
+   "effect": "Pick up to two enemy units within 12\", which take 3 hits with AP(2) each.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 2,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

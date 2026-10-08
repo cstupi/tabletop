@@ -61,4 +61,16 @@ public class GameRowsReadTests(PostgresFixture pg)
         Assert.Equal(["Second", "First", "Third"], read.Select(w => w.Name));
         Assert.All(read, w => Assert.Equal(["Zeta", "Alpha", "Mid"], w.Properties.Select(p => p.Name)));
     }
+
+    [Fact]
+    public async Task A_slots_army_book_reads_back()
+    {
+        var sample = Tabletop.Content.Tests.ArmyTests.Sample();
+        var unit = sample.Units[0];
+        var army = sample with { Units = [unit with { Models = [unit.Models[0] with { ArmyBook = "z65fgu0l29i4lnlu" }, .. unit.Models.Skip(1)] }, .. sample.Units.Skip(1)] };
+        var seeded = await pg.SeedArmyAsync(await pg.SeedAccountAsync("Owner"), army);
+        var read = (await _rows.ReadArmyAsync(seeded.Id, CancellationToken.None))!.Army;
+        Assert.Equal("z65fgu0l29i4lnlu", read.Units[0].Models[0].ArmyBook);
+        Assert.Equal(Tabletop.Content.ContentJson.Serialize(seeded), Tabletop.Content.ContentJson.Serialize(read));
+    }
 }

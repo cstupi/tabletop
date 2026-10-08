@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfShooting
 {
-    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new FireGroupsStep()]);
+    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new GfAttack.AttackStartStep(), new FireGroupsStep(), new GfMoves.PointWindowStep(GfNames.AfterShooting, "after-shooting")]);
 
     /// <summary>
     /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon already fired is left out
@@ -30,8 +30,26 @@ public static class GfShooting
         return ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team && Lookup.AliveModels(ctx.State, u.Id).Count > 0).Select(u => u.Id).Where(target =>
         {
             var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
+            // p.7: "Rush - Moves 12" but can't shoot", unless Quick Shot is live for this target ("This model may shoot after using Rush actions"):
+            // innate, or granted against this target (army-rule hooks → Shooting after Rush). Offering reads nothing; FireGroupsStep spends it.
+            if (ctx.Frame.Context.Action == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return false;
             return GfAttack.EligibleModels(ctx.State, live, unit, target, group.WeaponIds, AttackKind.Shooting).Count > 0;
         }).ToList();
+    }
+
+    /// <summary>The shooting a Rush's Quick Shot enables is where it is applied: read its source on this target's live set and spend it, so a once grant goes with the shooting and an innate rule is untouched.</summary>
+    static IReadOnlyList<StateChange> SpendQuickShot(StepContext ctx, Guid unit, Guid target, IReadOnlyList<Guid> weapons)
+    {
+        var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
+        foreach (var p in live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.QuickShot)) live.Read(p);
+        return RollEffects.Consume(live);
+    }
+
+    /// <summary>The declare-targets answer cut to what the Ask offered: only a group it listed, aimed at a unit it offered. Null when nothing was answered with an Assigned.</summary>
+    public static Assigned? Declared(StepContext ctx)
+    {
+        if (ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return null;
+        return answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
     }
 
     sealed class DeclareTargetsStep : IStep
@@ -65,28 +83,28 @@ public static class GfShooting
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            // Only a group the Ask listed, aimed at a unit the Ask offered: what else was assigned is dropped.
-            if (ctx.Frame.Frame.Steps[0].Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return new Complete([]);
-            var assigned = answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
+            if (Declared(ctx) is not { } assigned) return new Complete([]);
             var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Where(g => assigned.Targets.ContainsKey(g.Name)).ToList();
             if (groups.Count == 0) return new Complete([]);                                   // nothing was assigned a target: also the guard that bounds the recording phase
             if (!ctx.Frame.Values.ContainsKey("attacks_0"))
             {
                 var settled = new Dictionary<string, int>();
+                var spent = new List<StateChange>();
                 foreach (var (g, i) in groups.Select((g, i) => (g, i)))
                 {
                     var byQuality = GfAttack.AttacksAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action);
+                    if (ctx.Frame.Context.Action == GfNames.Rush) spent.AddRange(SpendQuickShot(ctx, unit, assigned.Targets[g.Name], g.WeaponIds));
                     settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);
                     foreach (var (quality, attacks) in byQuality) settled[$"attacks_{i}_q{quality}"] = attacks;
                     settled[$"defender_models_{i}"] = Lookup.LivingModels(ctx.State, assigned.Targets[g.Name]).Count;   // p.13's Blast cap and p.14's Hero sunset, frozen with the counts
                     settled[$"in_cover_{i}"] = GfAttack.InCoverAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds) ? 1 : 0;   // p.11's majority, frozen with them
                 }
-                return new Complete([], settled, Repeat: true);
+                return new Complete(spent.Distinct().ToList(), settled, Repeat: true);
             }
             var pushed = ctx.History.Children.Count;
             if (pushed < groups.Count && (pushed == 0 || ctx.History.Children[^1].Finished || ctx.History.Children[^1].Abandoned))
                 return new Push(GfNames.AttackSequence, new SequenceContext(unit, [assigned.Targets[groups[pushed].Name]], groups[pushed].WeaponIds, ctx.Frame.Context.Action));
-            return new Complete([]);
+            return new Complete(GfAttack.SpendAttackStart(ctx, unit, assigned.Targets.Values.Distinct().ToList(), AttackKind.Shooting));
         }
     }
 }

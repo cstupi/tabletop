@@ -1,5 +1,4 @@
 using Tabletop.Content;
-using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
@@ -17,7 +16,6 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     private readonly List<ScenarioTerrain> _terrain = [];
     private readonly List<ScenarioMarker> _markers = [];
     private string? _zoneStyle;
-    private readonly List<EntryDocument> _spells = [];
     private AnswerScript _script = AnswerScript.Empty;
     private bool _scriptOnly;
     private readonly List<Expectation> _expectations = [];
@@ -29,18 +27,13 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     /// <summary>A zone style id from Tabletop.Geometry.ZoneStyles; its shapes expand in team-ordinal order.</summary>
     public ScenarioBuilder Zones(string style) { _zoneStyle = style; return this; }
 
-    /// <summary>Spells for this run only, folded into the pinned PropertySet the way TestProperties.WithSpells does.
-    /// The shipped content document is every special rule on pages 13-15 and holds no spells, because a spell list belongs
-    /// to an army book this project has not designed. Nothing invented here reaches the game's content.</summary>
-    public ScenarioBuilder Spells(params EntryDocument[] spells) { _spells.AddRange(spells); return this; }
-
     public ScenarioBuilder Army(string armyName, int units, int modelsPerUnit,
         IReadOnlyList<ScenarioRule>? unitRules = null, IReadOnlyList<ScenarioRule>? modelRules = null,
-        IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null)
+        IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
-            unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }));
+            unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook));
         return this;
     }
 
@@ -58,6 +51,6 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
         var style = _zoneStyle ?? (_armies.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
         var shapes = ZoneStyles.ShapesOf(style).Take(_armies.Count).ToList();
-        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _spells, _script, _scriptOnly, _expectations);
+        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations);
     }
 }

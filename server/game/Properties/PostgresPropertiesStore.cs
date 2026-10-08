@@ -24,7 +24,7 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
             r => (EffectId: r.GetGuid(1), Condition: Condition(r.GetGuid(0), EnumFrom<ConditionKind>(r.GetString(2)), NullableString(r, 3), EnumFrom<Comparison>(r.GetString(4)), r.IsDBNull(5) ? null : r.GetInt32(5), values[r.GetGuid(0)].ToList())))).ToLookup(x => x.EffectId, x => x.Condition);
         // Build captures locals read while the reader is open, never `r` itself — `r` is disposed when Rows returns,
         // but Build is not invoked until Children(...) runs afterward.
-        var effectRows = await Rows(conn, "select id, entry_name, parent_effect_id, subject, ordinal, kind, target_roll, target_stat_level, target_stat, target_entry, target_action, target_quantity, target_result, target_modifier, amount, amount_from_parameter, threshold, cap_kind, replacement, duration from management.effect where properties_hash = $1 order by ordinal, id", hash, ct,
+        var effectRows = await Rows(conn, "select id, entry_name, parent_effect_id, subject, ordinal, kind, target_roll, target_stat_level, target_stat, target_entry, target_action, target_quantity, target_result, target_modifier, amount, amount_from_parameter, threshold, cap_kind, replacement, duration, target_terrain, target_condition, amount_dice from management.effect where properties_hash = $1 order by ordinal, id", hash, ct,
             r =>
             {
                 var id = r.GetGuid(0);
@@ -46,17 +46,24 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
                 var capKind = r.IsDBNull(17) ? null : (CapKind?)EnumFrom<CapKind>(r.GetString(17));
                 var replacement = NullableString(r, 18);
                 var duration = EnumFrom<EffectDuration>(r.GetString(19));
+                var targetTerrain = r.IsDBNull(20) ? null : (TargetTerrain?)EnumFrom<TargetTerrain>(r.GetString(20));
+                var targetCondition = NullableString(r, 21);
+                var amountDice = NullableString(r, 22);
                 var effectConditions = conditions[id].ToList();
                 return (Entry: entry, Parent: parent, Row: id, Build: new Func<IReadOnlyList<Effect>, Effect>(children => new Effect(id, subject, ordinal, kind,
                     targetRoll, targetStat, targetEntry, targetAction, targetQuantity, targetResult, targetModifier, amount, amountFromParameter, threshold, capKind,
-                    replacement, duration, effectConditions, children)));
+                    replacement, duration, effectConditions, children, targetTerrain, targetCondition, amountDice)));
             });
         IReadOnlyList<Effect> Children(Guid parent) => effectRows.Where(x => x.Parent == parent).Select(x => x.Build(Children(x.Row))).ToList();
         var entries = await Rows(conn, "select name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range from management.catalog_entry where properties_hash = $1 order by name", hash, ct,
             r => new CatalogEntry(r.GetString(0), EnumFrom<CatalogKind>(r.GetString(1)), r.GetBoolean(2), r.IsDBNull(3) ? null : EnumFrom<Aggregation>(r.GetString(3)), r.IsDBNull(4) ? null : r.GetInt32(4), NullableString(r, 5), r.GetString(6),
                 r.IsDBNull(7) ? null : new SpellTargeting(EnumFrom<TargetSide>(r.GetString(7)), EnumFrom<TargetGrain>(r.GetString(8)), r.GetInt32(9), r.GetDouble(10)),
                 effectRows.Where(x => x.Entry == r.GetString(0) && x.Parent is null).Select(x => x.Build(Children(x.Row))).ToList()));
-        return new PropertySet(hash, name, rules, stats, actions, rolls, entries);
+        var bookSpells = (await Rows(conn, "select book_uid, entry_name from management.book_spell where properties_hash = $1 order by book_uid, ordinal", hash, ct,
+            r => (Book: r.GetString(0), Entry: r.GetString(1)))).ToLookup(x => x.Book, x => x.Entry);
+        var books = await Rows(conn, "select uid, name, version from management.book where properties_hash = $1 order by uid", hash, ct,
+            r => (Uid: r.GetString(0), Name: r.GetString(1), Version: NullableString(r, 2)));
+        return new PropertySet(hash, name, rules, stats, actions, rolls, entries, books.Select(b => new BookRecord(b.Uid, b.Name, b.Version, bookSpells[b.Uid].ToList())).ToList());
     }
 
     /// <summary>roll_result's two values are the roll name and raw|modified; the roll name goes first on the way back.</summary>
@@ -108,15 +115,21 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
                 set.ContentHash, e.Name, EnumText(e.Kind), e.TakesParameter, e.Aggregation is { } ag ? EnumText(ag) : null, e.Cost, e.Faction, e.RuleText,
                 e.Targeting is { } t ? EnumText(t.Side) : null, e.Targeting is { } t2 ? EnumText(t2.Grain) : null, e.Targeting?.Count, e.Targeting is { } t3 ? (double?)t3.Range : null);
         foreach (var e in set.Entries) foreach (var f in e.Effects) await Effect(e.Name, null, f);
+        foreach (var b in set.Books.Values)
+        {
+            await Run("insert into management.book (properties_hash, uid, name, version) values ($1, $2, $3, $4)", set.ContentHash, b.Uid, b.Name, b.Version);
+            foreach (var (spell, i) in b.Spells.Select((s, i) => (s, i)))
+                await Run("insert into management.book_spell (properties_hash, book_uid, entry_name, ordinal) values ($1, $2, $3, $4)", set.ContentHash, b.Uid, spell, i);
+        }
         await tx.CommitAsync(ct);
         return true;
 
         async Task Effect(string entry, Guid? parent, Effect f)
         {
-            await Run("insert into management.effect (id, properties_hash, entry_name, parent_effect_id, subject, ordinal, kind, target_roll, target_stat_level, target_stat, target_entry, target_action, target_quantity, target_result, target_modifier, amount, amount_from_parameter, threshold, cap_kind, replacement, duration) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)",
+            await Run("insert into management.effect (id, properties_hash, entry_name, parent_effect_id, subject, ordinal, kind, target_roll, target_stat_level, target_stat, target_entry, target_action, target_quantity, target_result, target_modifier, amount, amount_from_parameter, threshold, cap_kind, replacement, duration, target_terrain, target_condition, amount_dice) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)",
                 f.Id, set.ContentHash, entry, parent, EnumText(f.Subject), f.Ordinal, EnumText(f.Kind), f.TargetRoll, f.TargetStat is { } s ? EnumText(s.Level) : null, f.TargetStat?.Name, f.TargetEntry, f.TargetAction,
                 f.TargetQuantity is { } q ? EnumText(q) : null, f.TargetResult is { } tr ? EnumText(tr) : null, f.TargetModifier is { } tm ? EnumText(tm) : null, f.Amount, f.AmountFromParameter, f.Threshold,
-                f.CapKind is { } ck ? EnumText(ck) : null, f.Replacement, EnumText(f.Duration));
+                f.CapKind is { } ck ? EnumText(ck) : null, f.Replacement, EnumText(f.Duration), f.TargetTerrain is { } tt ? EnumText(tt) : null, f.TargetCondition, f.AmountDice);
             foreach (var c in f.Conditions)
             {
                 await Run("insert into management.effect_condition (id, effect_id, kind, subject, comparison, number) values ($1, $2, $3, $4, $5, $6)", c.Id, f.Id, EnumText(c.Kind), c.Subject is { } cs ? EnumText(cs) : null, EnumText(c.Comparison), c.Number);

@@ -26,7 +26,6 @@ public sealed record SimOptions(
         and TABLETOP_SIM_MANAGEMENT (default {DefaultManagement}), from the environment or the
         nearest .env. Session tokens are minted from POST /v1/dev/sessions, which needs the
         management API run as a development environment.
-        A scenario that declares its own spells (casting) cannot run on the socket driver.
         """;
 
     public IEnumerable<ulong> Seeds

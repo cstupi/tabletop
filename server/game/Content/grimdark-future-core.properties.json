@@ -1,5 +1,5 @@
 {
-  "name": "Grimdark Future v3.5.1 core", "gameRules": "grimdark-future",
+  "name": "Grimdark Future v3.5.1", "gameRules": "grimdark-future",
   "stats": [
     { "level": "unit", "name": "Quality", "kind": "target_number" }, { "level": "unit", "name": "Defense", "kind": "target_number" },
     { "level": "model", "name": "Quality", "kind": "target_number" }, { "level": "model", "name": "Defense", "kind": "target_number" },

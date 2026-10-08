@@ -57,11 +57,11 @@ public sealed partial class GrimdarkFutureRules
     {
         SelectedPieces { PieceIds: [var unit] } when state.Projection.Units.ContainsKey(unit) => new Activation(unit, Deploy, false, []),
         Chosen c when ActivationOption.TryParse(c.OptionId, out var unit, out var action) && state.Projection.Units.ContainsKey(unit)
-            => new Activation(unit, action, action != ActivationOption.Idle, [new ActionRecorded(unit, action)]),
+            => new Activation(unit, action, true, [new ActionRecorded(unit, action)]),
         _ => null,
     };
 
-    /// <summary>Deploying ends when the last model of the unit has a placement (scheduler → Deployment). Idle is complete at once.</summary>
+    /// <summary>Deploying ends when the last model of the unit has a placement (scheduler → Deployment). Idle runs its own sequence (p.10, p.11 "or is activated in it").</summary>
     public bool ActivationComplete(GameState state, Activation activation) =>
         activation.Action != Deploy || !TeamUnits.ModelsOf(state, state.Projection.Units[activation.UnitId]).Any(m => m.Location is OnShelf);
 }

@@ -1,0 +1,318 @@
+{
+ "uid": "k5T0f2XIfpmPO28h",
+ "name": "Goblin Reclaimers",
+ "versionString": "3.5.3",
+ "spells": [
+  {
+   "id": "bBHHA",
+   "name": "Ammo Boost",
+   "threshold": 1,
+   "effect": "Pick one friendly unit within 12\", which gets Mischievous Boost once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "pUt7fqbSTNWP",
+        "name": "Mischievous Boost"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "x4Szf",
+   "name": "Zap!",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 12\", which takes 2 hits with AP(1) and Surge.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 1,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "5v6oaGfrdf29",
+        "name": "Surge"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "dm709",
+   "name": "Mob Frenzy",
+   "threshold": 2,
+   "effect": "Pick up to two enemy units within 18\", which friendly units gets Unpredictable Shooter against once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "1yTPcanTyckX",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "eOGs64JpVsP3",
+        "name": "Unpredictable Shooter"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "pMFQu",
+   "name": "Boom!",
+   "threshold": 2,
+   "effect": "Pick one enemy unit within 18\", which takes 2 hits with Blast(3).",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "w_vX0mi58KKt",
+        "name": "Blast",
+        "rating": 3,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "mfx9y",
+   "name": "Shroud Field",
+   "threshold": 3,
+   "effect": "Pick up to three friendly units within 12\", which get +1 to defense rolls once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "txtrnRX2fPJJ",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "rollModifier",
+       "value": "+1"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "u5dTO",
+   "name": "Pow!",
+   "threshold": 3,
+   "effect": "Pick one enemy unit within 6\", which takes 3 hits with Deadly(3) and Tear.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "_mrPya5SXSqW",
+        "name": "Deadly",
+        "rating": 3,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": ""
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "xeJDKejG4QZN",
+        "name": "Tear"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 6\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

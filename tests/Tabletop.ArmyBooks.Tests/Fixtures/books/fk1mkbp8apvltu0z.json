@@ -1,0 +1,304 @@
+{
+ "uid": "fk1mkbp8apvltu0z",
+ "name": "Dwarf Guilds",
+ "versionString": "3.5.3",
+ "spells": [
+  {
+   "id": "6RfYW",
+   "name": "Battle Rune ",
+   "threshold": 1,
+   "effect": "Pick one friendly unit within 12\", which gets +6\" range when shooting once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "7w-FrWUjKqqG",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "rangeModifier",
+       "value": "+6\""
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "taC_s",
+   "name": "Breaking Rune ",
+   "threshold": 1,
+   "effect": "Pick one enemy model within 24\", which takes 1 hit with AP(4). This effect is resolved as if the target was a unit of [1].",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 4,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "model"
+      },
+      {
+       "name": "inRange",
+       "value": "within 24\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "xQ-Dv",
+   "name": "Armor Rune ",
+   "threshold": 2,
+   "effect": "Pick up to two friendly units within 12\", which get Sturdy Boost once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "rMKm6JKLIxgn",
+        "name": "Sturdy Boost"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "plGib",
+   "name": "Smiting Rune ",
+   "threshold": 2,
+   "effect": "Pick one enemy unit within 12\", which takes 4 hits with AP(1) and Shred.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "17crjK7P6_w6",
+        "name": "AP",
+        "rating": 1,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "IEJp3a4vE0CB",
+        "name": "Shred"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "3Rm66",
+   "name": "Deceleration Rune ",
+   "threshold": 3,
+   "effect": "Pick up to three enemy units within 18\", which moves -2\" when using Advance actions and -4\" when using Rush/Charge actions once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "rz0b1dShgnvg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "advanceSpeed",
+       "value": "-2\""
+      },
+      {
+       "name": "rushSpeed",
+       "value": "-4\""
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "vAujA",
+   "name": "Cleaving Rune ",
+   "threshold": 3,
+   "effect": "Pick one enemy unit within 18\", which takes 3 hits with Blast(3).",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "w_vX0mi58KKt",
+        "name": "Blast",
+        "rating": 3,
+        "hideModifier": true
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

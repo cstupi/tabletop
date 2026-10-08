@@ -1,0 +1,315 @@
+{
+ "uid": "78qp9l5alslt6yj8",
+ "name": "Battle Brothers",
+ "versionString": "3.5.3",
+ "spells": [
+  {
+   "id": "c19YO",
+   "name": "Advanced Sight",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 18\", which friendly units gets Unstoppable when shooting against once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "54xO9EKTj-ix",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "weaponRule",
+       "value": {
+        "id": "QXyt-zV_bjpg",
+        "name": "Unstoppable"
+       }
+      },
+      {
+       "name": "attackType",
+       "value": "when shooting"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "IiOah",
+   "name": "Cerebral Trauma",
+   "threshold": 1,
+   "effect": "Pick one enemy unit within 18\", which takes 1 hit with Blast(3) and Lacerate.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "1"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "w_vX0mi58KKt",
+        "name": "Blast",
+        "rating": 3,
+        "hideModifier": true
+       }
+      },
+      {
+       "name": "spellHitRoll",
+       "value": ""
+      },
+      {
+       "name": "weaponRule2",
+       "value": {
+        "id": "WcOMD7QgPYXZ",
+        "name": "Lacerate"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 18\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "iBpcF",
+   "name": "Blessed Ammo",
+   "threshold": 2,
+   "effect": "Pick up to two friendly units within 12\", which get Shred when shooting once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "i1BVqztsr1V6",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "weaponRule",
+       "value": {
+        "id": "IEJp3a4vE0CB",
+        "name": "Shred"
+       }
+      },
+      {
+       "name": "attackType",
+       "value": "when shooting"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "98xBf",
+   "name": "Lightning Fog",
+   "threshold": 2,
+   "effect": "Pick up to two enemy units within 9\", which take 4 hits each.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "2"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 9\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to two"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "L_-cl",
+   "name": "Protective Dome",
+   "threshold": 3,
+   "effect": "Pick up to three friendly units within 12\", which get Evasive once (next time the effect would apply).",
+   "generation": {
+    "effect": {
+     "id": "RWnJrrMKAUbg",
+     "parameters": [
+      {
+       "name": "effectDuration",
+       "value": "once (next time the effect would apply)"
+      },
+      {
+       "name": "gets/loses/ignores",
+       "value": "gets"
+      },
+      {
+       "name": "unitRule",
+       "value": {
+        "id": "O_sf2rsHA7rD",
+        "name": "Evasive"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "friendly"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 12\""
+      },
+      {
+       "name": "numberText",
+       "value": "up to three"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "0IRkW",
+   "name": "Psychic Terror",
+   "threshold": 3,
+   "effect": "Pick one enemy unit within 6\", which takes 9 hits with Bane.",
+   "generation": {
+    "effect": {
+     "id": "QFjxWsOHTCSi",
+     "parameters": [
+      {
+       "name": "numberDigit",
+       "value": "3"
+      },
+      {
+       "name": "hits-wounds",
+       "value": "hits"
+      },
+      {
+       "name": "weaponRule1",
+       "value": {
+        "id": "Naqc5mga9Uha",
+        "name": "Bane"
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "id": "9o9ZgMk8pLf5",
+     "parameters": [
+      {
+       "name": "friendly-enemy",
+       "value": "enemy"
+      },
+      {
+       "name": "target",
+       "value": "unit"
+      },
+      {
+       "name": "inRange",
+       "value": "within 6\""
+      },
+      {
+       "name": "numberText",
+       "value": "one"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

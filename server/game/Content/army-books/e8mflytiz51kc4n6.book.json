@@ -1,0 +1,212 @@
+{
+  "uid": "e8mflytiz51kc4n6",
+  "name": "Wolf Prime Brothers",
+  "version": "3.5.3",
+  "gameRules": "grimdark-future",
+  "spells": [
+    {
+      "name": "Wolf Sight",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 18\u0022, which friendly units gets Unstoppable when shooting against once (next time the effect would apply).",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 18
+      },
+      "effects": [
+        {
+          "subject": "opponent",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Unstoppable",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "attack_kind",
+              "comparison": "eq",
+              "values": [
+                "shooting"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Wolf Wound",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 1,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 2 hits with Shatter.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "Shatter",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Righteous Fury",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick up to two friendly units within 12\u0022, which get Piercing Assault once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 2,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Piercing Assault",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Godly Thunder",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 2,
+      "ruleText": "Pick one enemy model within 24\u0022, which takes 2 hits with AP(4). This effect is resolved as if the target was a unit of [1].",
+      "targeting": {
+        "side": "enemy",
+        "grain": "model",
+        "count": 1,
+        "range": 24
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "amount": 2,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 4,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Wolf Dome",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick up to three friendly units within 12\u0022, which get Evasive once (next time the effect would apply).",
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 3,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "grant_property",
+          "targetEntry": "Evasive",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Storm of Power",
+      "kind": "spell",
+      "takesParameter": false,
+      "cost": 3,
+      "ruleText": "Pick one enemy unit within 12\u0022, which takes 6 hits with AP(1) and Surge. Roll as many dice as hits to see if \u0022on rolls of 6\u0022 effects trigger.",
+      "targeting": {
+        "side": "enemy",
+        "grain": "unit",
+        "count": 1,
+        "range": 12
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 10,
+          "kind": "add_hit",
+          "targetRoll": "hit",
+          "amount": 6,
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": [
+            {
+              "subject": "self",
+              "ordinal": 20,
+              "kind": "grant_property",
+              "targetEntry": "AP",
+              "amount": 1,
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            },
+            {
+              "subject": "self",
+              "ordinal": 30,
+              "kind": "grant_property",
+              "targetEntry": "Surge",
+              "amountFromParameter": false,
+              "duration": "interaction",
+              "conditions": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
