@@ -303,7 +303,7 @@ public static class GfCasting
                     terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
         }
 
-        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0, or it finished with no model to test.</summary>
+        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
         static bool Failed(GameState state, Guid frameId)
         {
             var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
