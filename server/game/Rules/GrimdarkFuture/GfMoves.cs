@@ -299,7 +299,8 @@ public static class GfMoves
                 var terrain = Battlefield.Terrain(ctx.State);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, Declared(terrain, TerrainDeclarations.Impassable).Select(v => v.Id).ToList(),
-                        Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+                        Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(),
+                        live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying") ? null : GfNames.DifficultCap), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
