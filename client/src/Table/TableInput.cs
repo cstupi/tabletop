@@ -70,6 +70,13 @@ public partial class TableInput : Node
         return (WorldFrame.FromGodot(hit ?? ground ?? Vector3.Zero), best);
     }
 
+    /// <summary>The camera ray against the horizontal plane at wire height z (Godot y): where a drag follows the cursor, whatever stands in the way. Null when the ray never reaches it.</summary>
+    Point3? OnPlane(Vector2 screen, double z)
+    {
+        var hit = new Plane(Vector3.Up, (float)z).IntersectsRay(_view.Camera.ProjectRayOrigin(screen), _view.Camera.ProjectRayNormal(screen));
+        return hit is { } h ? WorldFrame.FromGodot(h) : null;
+    }
+
     /// <summary>Ray against an axis-aligned box (slab method): the entry point, or null. Godot's Aabb has no ray test in C#.</summary>
     static Vector3? RayHit(Aabb box, Vector3 from, Vector3 dir)
     {
@@ -108,6 +115,7 @@ public partial class TableInput : Node
     void OnMotion(Vector2 screen)
     {
         var (point, piece) = Pick(screen);
+        if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
         _cursor = new Cursor(point, piece is null ? null : IdOf(piece)); _presenceDirty = true;
         if (_drag is null) return;
         var delta = new Point2(point.X - _drag.Start.X, point.Y - _drag.Start.Y);
@@ -141,7 +149,7 @@ public partial class TableInput : Node
     void OnLeftDown(Vector2 screen, bool shift)
     {
         var (point, piece) = Pick(screen);
-        if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(point); return; }
+        if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(OnPlane(screen, 0) ?? point); return; }   // a point pick is the table surface, never a box top
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
         if (Tool == TableTool.Measure) { Measure(point, piece); return; }
         if (piece is null) { Selected = null; SelectionChanged?.Invoke(); _presenceDirty = true; return; }
