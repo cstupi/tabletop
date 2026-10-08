@@ -18,9 +18,15 @@ public static class GfMelee
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
     static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
     /// <summary>p.13 Counter's strike-first weapons, and every melee weapon of a defender with Counter-Attack ("Strikes first when charged").</summary>
-    static bool StrikesFirst(StepContext ctx, Weapon w) => IsCounter(w) || Lookup.UnitHas(ctx.State, ctx.Properties, Defender(ctx), GfNames.CounterAttack);
+    static bool StrikesFirst(StepContext ctx, Weapon w) => IsCounter(w) || CounterAttacks(ctx);
+    const string CounterAttackKey = "counter_attack";
+    /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
+    static bool CounterAttacks(StepContext ctx) =>
+        ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterAttack);
+    static LiveSet DefenderLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
+    static LiveSet ChargerLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
-    static bool StrikesLast(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == GfNames.Unwieldy) || Lookup.UnitHas(ctx.State, ctx.Properties, Charger(ctx), GfNames.Unwieldy);
+    static bool StrikesLast(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == GfNames.Unwieldy) || ChargerLive(ctx).Has(Side.Attacker, GfNames.Unwieldy);
     static bool CounterStruck(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(StruckKey) == 1);
     static Guid Charger(StepContext ctx) => ctx.Frame.Context.ActorUnitId!.Value;
     static Guid Defender(StepContext ctx) => ctx.Frame.Context.TargetUnitIds[0];
@@ -183,8 +189,12 @@ public static class GfMelee
         {
             var counters = MeleeWeapons(ctx.State, Defender(ctx), w => StrikesFirst(ctx, w));
             if (counters.Count == 0) return new Complete([]);
-            // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back.
-            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, values: new Dictionary<string, int> { [StruckKey] = 1 });
+            // p.13: Counter moves the weapon's strike first; the defender's fatigue is set once, at the end of strike-back. A granted Counter-Attack
+            // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
+            var live = DefenderLive(ctx);
+            var values = new Dictionary<string, int> { [StruckKey] = 1 };
+            if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
+            return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
         }
     }
 
@@ -226,10 +236,14 @@ public static class GfMelee
         {
             var weapons = ctx.Frame.Context.WeaponIds.Where(id => StrikesLast(ctx, WeaponOf(ctx.State, id))).ToList();
             if (weapons.Count == 0 && !Recorded(ctx, Name)) return new Complete([]);
-            if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete([]);
+            // A granted Unwieldy is spent here, where it put the charger's weapons last, whether or not they get to strike.
+            var live = ChargerLive(ctx);
+            live.Use(Side.Attacker, GfNames.Unwieldy);
+            var spent = RollEffects.Consume(live);
+            if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.
-            if (!Recorded(ctx, Name) && Lookup.LivingModels(ctx.State, Defender(ctx)).Count == 0) return new Complete(Fatigue(Charger(ctx)));
-            return Strike(ctx, Name, GroupsOf(ctx.State, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, Fatigue(Charger(ctx)));
+            if (!Recorded(ctx, Name) && Lookup.LivingModels(ctx.State, Defender(ctx)).Count == 0) return new Complete([.. spent, .. Fatigue(Charger(ctx))]);
+            return Strike(ctx, Name, GroupsOf(ctx.State, weapons), Charger(ctx), Defender(ctx), GfNames.Charge, [.. spent, .. Fatigue(Charger(ctx))]);
         }
     }
 

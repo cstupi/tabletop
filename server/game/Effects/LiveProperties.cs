@@ -47,6 +47,13 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
 
     public IEnumerable<LiveProperty> On(Side side) => Live.Where(p => p.Holder == side);
     public bool Has(Side side, string entry) => On(side).Any(p => p.Entry.Name == entry);
+    /// <summary>Has, for a rule that is applied here: every instance of it is read, so a granted one is spent by RollEffects.Consume with the step's other reads.</summary>
+    public bool Use(Side side, string entry)
+    {
+        var any = false;
+        foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Read(p); any = true; }
+        return any;
+    }
     public int? Parameter(Side side, string entry)
     {
         var instances = On(side).Where(p => p.Entry.Name == entry).ToList();

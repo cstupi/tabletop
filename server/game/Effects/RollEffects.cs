@@ -73,11 +73,11 @@ public static class RollEffects
     }
 
     /// <summary>"Next time the effect would apply" for a per-die rule: the attack whose roll it reads, whatever the dice show. Records every granted
-    /// source acting for the side with a roll_result condition on this roll whose other conditions hold.</summary>
+    /// source acting on the side with a roll_result condition on this roll whose other conditions hold.</summary>
     public static void ReadPerDie(LiveSet live, Side side, string roll)
     {
-        foreach (var p in live.On(side).Where(p => p.GrantId is not null))
-            if (p.Effects.Any(e => e.Conditions.Any(c => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == roll)
+        foreach (var p in live.Live.Where(p => p.GrantId is not null))
+            if (p.Effects.Any(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult && c.Values.Count == 2 && c.Values[0] == roll)
                     && e.Conditions.Where(c => c.Kind != ConditionKind.RollResult).All(c => Conditions.Holds(live.Interaction, p.Holder, c, p, null))))
                 live.Read(p);
     }

@@ -95,11 +95,17 @@ public static class GfMoves
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            if (Lone(ctx, unit, ctx.Frame.Context.Action).Has(Side.Attacker, "Flying")) return new Complete([]);   // p.13: ignores terrain effects
+            var live = Lone(ctx, unit, ctx.Frame.Context.Action);
+            // p.13: Flying ignores terrain effects. A granted Flying is spent when there was a test to skip.
+            if (live.Has(Side.Attacker, "Flying"))
+            {
+                var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit).Count > 0;
+                if (tested) live.Use(Side.Attacker, "Flying");
+                return new Complete(RollEffects.Consume(live));
+            }
             // Write the dice count first, then push: the child reads dangerous_dice off this frame, so it must be settled before the push.
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
             if (ctx.Frame.Value("dangerous_dice") > 0) return new Push(GfNames.DangerousTerrain, ctx.Frame.Context);
-            var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             // p.11 "or is activated in it": a unit that counts as being in dangerous terrain tests every model, as if all stood in it.
             var standing = CountsAsIn(live, TargetTerrain.Dangerous) ? Lookup.LivingModels(ctx.State, unit) : StandingInDangerous(ctx.State, unit);
             if (standing.Count == 0) return new Complete([]);
@@ -129,7 +135,11 @@ public static class GfMoves
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
             var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
-            if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
+            if (CountsAsIn(live, TargetTerrain.Difficult))
+            {
+                if (!strider) allowance = Math.Min(allowance, GfNames.DifficultCap);
+                else if (!live.Has(Side.Attacker, "Strider")) live.Use(Side.Attacker, "Flying");   // the cap Flying lifted: a granted Flying is spent
+            }
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             var terrain = Battlefield.Terrain(ctx.State);
             switch (ctx.Frame.Value("phase"))
@@ -213,11 +223,15 @@ public static class GfMoves
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
             var settled = Battlefield.Settle(ctx.State, to.Placement);
-            used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
+            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size);
+            used = Math.Max(used, check.Distance);
+            // A granted Flying is spent by the move it changed: one that crosses difficult terrain more cheaply than the cap would allow.
+            if (flying && !live.Has(Side.Attacker, "Strider") && Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance != check.Distance) live.Use(Side.Attacker, "Flying");
             // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
             if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
+        if (flying && exposed.Count > 0) live.Use(Side.Attacker, "Flying");   // the dangerous terrain test it skips
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
         return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
     }

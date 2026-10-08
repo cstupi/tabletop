@@ -126,7 +126,7 @@ public static partial class GfAttack
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .FirstOrDefault();
 
-            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var rolled = false; var dead = new HashSet<Guid>();
+            var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
                 var model = ctx.Projection.Models[modelId];
@@ -136,7 +136,6 @@ public static partial class GfAttack
                 {
                     var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
                     incoming = Dice.RollOutcome.Failures(record);   // each success overrides one wound
-                    rolled = true;
                 }
                 var applied = Math.Min(capacity - model.Wounds, incoming);
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
@@ -322,6 +321,7 @@ public static partial class GfAttack
         {
             var (ix, live, kind) = Settle(ctx);
             var eligible = EligibleModels(ctx.State, live, ix.Attacker.UnitId, ix.Defender!.UnitId, ctx.Frame.Context.WeaponIds, kind);
+            if (kind == AttackKind.Shooting) live.Use(Side.Attacker, GfNames.Indirect);   // p.14: its sight and cover half applies to this attack, so a granted one is spent
             // `attacks_<i>` is the presence signal rather than the per-Quality keys, because a group the pusher settled at zero
             // attacks writes no per-Quality key at all and must still not be recounted here.
             var settled = Pushed(ctx.Frame, "attacks");
