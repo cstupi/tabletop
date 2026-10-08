@@ -14,7 +14,7 @@ public static class DotEnv
                 var line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith('#') || !line.Contains('=')) continue;
                 var (key, value) = (line[..line.IndexOf('=')].Trim(), line[(line.IndexOf('=') + 1)..].Trim());
-                if (Environment.GetEnvironmentVariable(key) is null) Environment.SetEnvironmentVariable(key, value);
+                if (value.Length > 0 && Environment.GetEnvironmentVariable(key) is null) Environment.SetEnvironmentVariable(key, value);
             }
             return;
         }

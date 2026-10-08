@@ -34,8 +34,9 @@ reaches the project over `\\wsl.localhost\Ubuntu-26.04\home\cstupi\src\tabletop`
 - The management API needs the Stytch test project (id in `.env.example`) to have
   `{TABLETOP_WEB_URL}/reset-password` (`http://localhost:5173/reset-password` locally) registered as a
   `RESET_PASSWORD` redirect URL in the Stytch dashboard, not in this repo, or password resets fail at Stytch.
-  The `account_id` claim needs no dashboard setting: management adds it to each new session. The secret is set
-  once per machine with `dotnet user-secrets set STYTCH_SECRET <secret>` in `server/management`.
+  The `account_id` claim needs no dashboard setting: management adds it to each new session. The secret is
+  `TABLETOP_STYTCH_SECRET` in the untracked `.env` (the management container reads it there); `dotnet user-secrets set
+  STYTCH_SECRET <secret>` in `server/management` still serves `./scripts/management`.
 
 `.env` needs `TABLETOP_STYTCH_PROJECT_ID` (the test project id from `docs/handoff.md`, in `.env.example`); the game server derives the JWKS URL from it and `TABLETOP_STYTCH_BASE_URL`. Tests in `tests/Tabletop.GameServer.Tests` marked `[Collection("Postgres")]` need the Docker Postgres up. Node 24 for `web/` comes from mise (`~/.local/share/mise`) in WSL; `npm`, exact versions (`web/.npmrc`).
 
@@ -46,10 +47,10 @@ dotnet build                 # compile; output goes to client/.godot/mono/temp/b
 ./scripts/godot -e           # open the editor on the Windows host
 ./scripts/godot              # run
 dotnet test                  # every xUnit project under tests/; the server tests need docker compose up -d
-cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432) and MinIO (9000/9001) in WSL
-dotnet run --project server/game   # the game server on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
-./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret)
-cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine; never in a file
+cp -n .env.example .env && docker compose up -d   # Postgres 17 (5432), MinIO (9000/9001), and the management API (5100) and game server (5200) under `dotnet watch`; first start restores for minutes, game waits on management; `docker compose stop management game` frees the ports for the two commands below
+dotnet run --project server/game   # the game server (or the compose `game` service) on http://0.0.0.0:5200, /ws; reads .env (TABLETOP_DB_CONNECTION, TABLETOP_STYTCH_PROJECT_ID)
+./scripts/management         # the management API on http://localhost:5100 (needs docker compose up and the Stytch secret; or the compose `management` service)
+cd server/management && dotnet user-secrets set STYTCH_SECRET <secret>   # once per machine for ./scripts/management; compose reads TABLETOP_STYTCH_SECRET from the untracked .env
 ./scripts/web                # the web app on http://localhost:5173 (Vite; /v1 proxied to management on :5100)
 cd web && npm test           # Vitest: the API client, session, units, the mesh pipeline against tests/fixtures
 ./scripts/client             # build, run scripts/check-client, launch the Godot client on Windows

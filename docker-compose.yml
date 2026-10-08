@@ -1,5 +1,27 @@
 name: tabletop
 
+# The servers run from the SDK image with `dotnet watch` over the repo bind-mounted at the host's own path:
+# obj/Unix records absolute paths, so any other mount path would break the WSL host's restore. They run as the
+# host user (TABLETOP_UID/TABLETOP_GID, default 1000) so the obj/ and bin/ they write stay deletable on the host.
+x-dotnet: &dotnet
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  user: "${TABLETOP_UID:-1000}:${TABLETOP_GID:-1000}"
+  working_dir: ${PWD}
+  volumes:
+    - ${PWD}:${PWD}
+    - nuget-cache:/nuget
+  env_file:
+    - path: .env
+      required: false
+  environment: &dotnet-env
+    HOME: /nuget/home
+    NUGET_PACKAGES: /nuget/packages
+    DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "1"
+    DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    DOTNET_NOLOGO: "1"
+    ASPNETCORE_ENVIRONMENT: Development
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -46,6 +68,51 @@ services:
       mc mb --ignore-existing local/${TABLETOP_S3_BUCKET:-tabletop-blobs} &&
       echo bucket ready"
 
+  dev-init:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /nuget/home /nuget/packages && chown -R ${TABLETOP_UID:-1000}:${TABLETOP_GID:-1000} /nuget"]
+    volumes:
+      - nuget-cache:/nuget
+
+  # The first start restores and builds the whole solution graph, which takes minutes. Management goes first and game
+  # waits on its health: both build the same libs into the same obj/ and bin/, and a concurrent restore collides.
+  management:
+    <<: *dotnet
+    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "server/management/Tabletop.Management.csproj"]
+    depends_on:
+      dev-init: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+    environment:
+      <<: *dotnet-env
+      TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
+      TABLETOP_S3_ENDPOINT: http://minio:9000
+      TABLETOP_S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      TABLETOP_MANAGEMENT_URL: http://0.0.0.0:5100
+    ports:
+      - "127.0.0.1:5100:5100"   # loopback only: Development maps POST /v1/dev/sessions, which mints a session with no login
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5100"]
+      interval: 5s
+      timeout: 3s
+      retries: 120
+      start_period: 30s
+
+  game:
+    <<: *dotnet
+    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "server/game/Tabletop.GameServer.csproj"]
+    depends_on:
+      dev-init: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      management: { condition: service_healthy }
+    environment:
+      <<: *dotnet-env
+      TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
+    ports:
+      - "127.0.0.1:5200:5200"
+
 volumes:
   postgres-data:
   minio-data:
+  nuget-cache:

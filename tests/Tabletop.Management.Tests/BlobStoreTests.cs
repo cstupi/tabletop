@@ -26,6 +26,18 @@ public class BlobStoreTests : IAsyncLifetime
         Assert.Equal(glb, got);
     }
 
+    [Fact]
+    public async Task Presigned_urls_name_the_public_endpoint_when_one_is_set()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DB_CONNECTION"] = "x", ["S3_ENDPOINT"] = "http://minio:9000", ["S3_PUBLIC_ENDPOINT"] = "http://127.0.0.1:9000", ["S3_BUCKET"] = "b",
+            ["S3_ACCESS_KEY"] = "k", ["S3_SECRET_KEY"] = "s", ["STYTCH_PROJECT_ID"] = "p", ["STYTCH_SECRET"] = "s",
+        }).Build();
+        var url = await new S3BlobStore(ManagementOptions.From(config)).PresignDownload("k", TimeSpan.FromMinutes(1));
+        Assert.Equal("127.0.0.1", url.Host);
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
     public Task DisposeAsync() => _store.Delete([_key]);
 }
