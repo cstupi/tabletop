@@ -152,6 +152,7 @@ public class PropertySetDocumentTests
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Nope"])] }), p => p.Contains("book b lists 'Nope', which is no spell entry"));
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["AP"])] }), p => p.Contains("book b lists 'AP', which is no spell entry"));
         Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap"]), new BookRecord("b", "B2", null, [])] }), p => p.Contains("book uids must be unique"));
+        Assert.Contains(PropertiesJson.Validate(doc with { Books = [new BookRecord("b", "B", null, ["Zap", "Zap"])] }), p => p.Contains("book b lists 'Zap' more than once"));
         Assert.Empty(PropertiesJson.Validate(doc with { Books = [.. shipped, new BookRecord("b", "B", null, ["Zap"])] }));
     }
 
