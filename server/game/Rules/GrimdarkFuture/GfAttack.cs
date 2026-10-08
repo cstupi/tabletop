@@ -15,7 +15,7 @@ public static partial class GfAttack
         if (actor is not { } a) return new Interaction(state, ctx.Properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
         var models = weapons.Count > 0 ? state.Projection.Models.Values.Where(m => m.Slot.Weapons.Any(w => weapons.Contains(w.Id))).Select(m => m.Id).ToList() : Lookup.LivingModels(state, a);
         return new Interaction(state, ctx.Properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(ctx.Frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
-            Faces: FacesFor(ctx.Frame, a, target));
+            Faces: FacesFor(ctx.Frame, a, target), SpellRules: kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
     }
 
     /// <summary>The attack-start interactions of a unit: one per opponent it attacks (so a grant against that opponent is live). An attack with no opponent has no attack-start.</summary>
@@ -116,13 +116,13 @@ public static partial class GfAttack
         return null;
     }
 
-    /// <summary>The `granted_&lt;entry&gt;_&lt;amount&gt;` keys of the nearest attack-sequence or spell-hits frame above this one: the rules the group's
-    /// hits carry (a weapon's per-die grants, a spell's weapon rules), with how many hits carry each.</summary>
+    /// <summary>The `granted_` keys of the nearest attack-sequence or spell-hits frame above this one: the per-die rules the group's hits carry,
+    /// with how many hits carry each (a hit carrying two is counted under both).</summary>
     public static IReadOnlyList<(string Entry, int Amount, int Count)> GrantedOf(FrameView frame)
     {
         for (var f = frame.Parent; f is not null; f = f.Parent)
             if (f.Frame.Sequence is GfNames.AttackSequence or GfNames.SpellHitsSeq)
-                return f.Values.Where(kv => kv.Key.StartsWith("granted_")).Select(kv => { var (e, a) = ParseGrantKey(kv.Key); return (e, a, kv.Value); }).ToList();
+                return f.Values.Where(kv => kv.Key.StartsWith("granted_")).SelectMany(kv => ParseGrantSet(kv.Key).Select(g => (g.Entry, g.Amount, kv.Value))).ToList();
         return [];
     }
 
@@ -480,7 +480,7 @@ public static partial class GfAttack
                     values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
                     if (!die.Success) return 0;
                     values["extra_hits"] += effects.ExtraHits;
-                    foreach (var (entry, amount) in effects.Grants) values[$"granted_{entry}_{amount ?? 0}"] = values.GetValueOrDefault($"granted_{entry}_{amount ?? 0}") + 1;
+                    if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
                     return effects.ExtraAttacks;
                 }
                 var added = ctx.Roll(plan, attacks).Dice.Sum(Read);
@@ -500,6 +500,15 @@ public static partial class GfAttack
         var cut = key.LastIndexOf('_');
         return (key["granted_".Length..cut], int.TryParse(key[(cut + 1)..], out var amount) ? amount : 0);
     }
+
+    /// <summary>`granted_&lt;entry&gt;_&lt;amount&gt;` for one per-die grant on a hit; a hit carrying several is keyed by the whole set, `granted_&lt;a&gt;_&lt;n&gt;|&lt;b&gt;_&lt;m&gt;`,
+    /// in name order, so it is counted in one key and blocked once. Null when the die carries none.</summary>
+    public static string? GrantKey(IEnumerable<(string Entry, int? Amount)> grants) =>
+        grants.Select(g => $"{g.Entry}_{g.Amount ?? 0}").Distinct().Order(StringComparer.Ordinal).ToList() is { Count: > 0 } set ? "granted_" + string.Join('|', set) : null;
+
+    /// <summary>The grants a `granted_` key names: one for a single grant, several for a set.</summary>
+    public static IReadOnlyList<(string Entry, int Amount)> ParseGrantSet(string key) =>
+        key["granted_".Length..].Split('|').Select(m => ParseGrantKey("granted_" + m)).ToList();
 
     sealed class RollToBlockStep : IStep
     {
@@ -522,10 +531,10 @@ public static partial class GfAttack
             var defenderModels = parent.Value("defender_models", Lookup.LivingModels(ctx.State, defender).Count);
             var wounds = 0; var extraWounds = 0; var plain = hits;
             RollEffects.ReadPerDie(live, Side.Defender, GfNames.DefenseRoll);
-            foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")))
+            // One live set carries every whole-group rule (a weapon's, a spell's); the hits split only by the set of per-die grants each die carries.
+            foreach (var (key, count) in parent.Values.Where(kv => kv.Key.StartsWith("granted_")).OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {
-                var (entry, amount) = ParseGrantKey(key);
-                var granted = live.WithGranted(Side.Attacker, entry, amount);
+                var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
                 var record = ctx.Roll(plan, group);

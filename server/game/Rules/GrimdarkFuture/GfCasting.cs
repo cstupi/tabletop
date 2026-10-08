@@ -228,7 +228,19 @@ public static class GfCasting
         }
     }
 
-    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; the hits' nested grants become granted_* values.</summary>
+    /// <summary>A spell's weapon rules for the hit interaction: the child rules of its add_hit rows that hold for this target, settled into the attacker's
+    /// instances before pass one. Empty outside a casting frame.</summary>
+    internal static IReadOnlyList<(string Entry, int? Parameter)> WeaponRules(StepContext ctx, Guid caster, Guid target)
+    {
+        for (var f = ctx.Frame; f is not null; f = f.Parent)
+            if (f.Frame.Sequence == GfNames.CastingSeq)
+                return ctx.Properties.Entry(Picked(f).Spell) is { } spell
+                    ? EffectsStep.Holding(ctx, caster, target, spell).Where(e => e.Kind == EffectKind.AddHit)
+                        .SelectMany(e => e.Children.Where(c => c.Kind == EffectKind.GrantProperty).Select(c => (c.TargetEntry!, c.Amount))).ToList() : [];
+        return [];
+    }
+
+    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
     sealed class HitStep : IStep
     {
         public string Name => "hit";
@@ -239,13 +251,12 @@ public static class GfCasting
             var target = ctx.Frame.Context.TargetUnitIds[0];
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
+            // The spell's weapon rules are part of this settled set (AttackInteraction), so every hit carries them and their pass-one rows act.
             var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
             var total = 0; var multiplier = 1;
             foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
-                var rules = hit.Children.Where(c => c.Kind == EffectKind.GrantProperty).ToList();
-                var granted = rules.Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.TargetEntry!, g.Amount));
                 if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
                 else
                 {
@@ -255,14 +266,14 @@ public static class GfCasting
                     RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
                     foreach (var die in record.Dice)
                     {
-                        var effects = RollEffects.PerDie(granted, Side.Attacker, die, GfNames.Hit);
+                        var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
                         values["extra_hits"] += effects.ExtraHits;
                         values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
+                        if (GfAttack.GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
                     }
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
-                multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(granted, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
-                foreach (var g in rules) { var key = $"granted_{g.TargetEntry}_{g.Amount ?? 0}"; values[key] = values.GetValueOrDefault(key) + n; }
+                multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(live, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
             }
             values["hit_multiplier"] = multiplier;
             values["wounds"] = values.GetValueOrDefault("self_wounds");

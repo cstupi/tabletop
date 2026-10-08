@@ -54,7 +54,7 @@ public class GfCastingTests
         sim.Answer(Samples.Team1, new SelectedPieces([grunts.Id]));
         var hit = sim.Steps("hit").Single();
         Assert.Empty(hit.Rolls); Assert.Equal(3, hit.Values!["hits"]);
-        Assert.Equal(3, hit.Values!["granted_AP_1"]);
+        Assert.DoesNotContain(hit.Values!.Keys, k => k.StartsWith("granted_"));                         // AP(1) is the spell's whole-group rule, not a per-die subset
         var block = sim.Steps("roll-to-block").Single().Rolls.Single();
         Assert.Contains(block.Modifiers, m => m.Source == "AP" && m.Amount == -1);
         Assert.Equal(3, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);            // 2,3,4 −1 against 5+: three wounds
