@@ -88,6 +88,17 @@ public class SpellTranslatorTests
     }
 
     [Fact]
+    public void An_unknown_gets_loses_ignores_verb_is_refused_rather_than_read_as_a_grant()
+    {
+        var b = Book("78qp9l5alslt6yj8");
+        var blessed = b.Spells.Single(x => x.Name == "Blessed Ammo");
+        var verb = System.Text.Json.JsonDocument.Parse("\"ignores\"").RootElement;
+        var ignoring = blessed with { Generation = blessed.Generation with { Effect = blessed.Generation.Effect with {
+            Parameters = blessed.Generation.Effect.Parameters.Select(p => p.Name == "gets/loses/ignores" ? p with { Value = verb } : p).ToList() } } };
+        Assert.Contains("ignores", Assert.ThrowsAny<Exception>(() => SpellTranslator.Translate(b, ignoring)).Message);
+    }
+
+    [Fact]
     public void A_text_that_disagrees_with_its_generation_is_named()
     {
         var b = Book("78qp9l5alslt6yj8");

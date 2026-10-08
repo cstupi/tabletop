@@ -28,8 +28,12 @@ public static partial class SpellTranslator
             "RWnJrrMKAUbg" => [Grant(e.Rule("unitRule"), EffectSubject.Self, [], where)],
             "1yTPcanTyckX" => [Grant(e.Rule("unitRule"), EffectSubject.Opponent, [], where)],
             "54xO9EKTj-ix" => [Grant(e.Rule("weaponRule"), EffectSubject.Opponent, Attack(e.Text("attackType"), where), where)],
-            "i1BVqztsr1V6" => [e.Text("gets/loses/ignores") == "loses" ? Loses(e.Rule("weaponRule"), Attack(e.Text("attackType"), where), where)
-                                : Grant(e.Rule("weaponRule"), EffectSubject.Self, Attack(e.Text("attackType"), where), where)],
+            "i1BVqztsr1V6" => [e.Text("gets/loses/ignores") switch
+                {
+                    "loses" => Loses(e.Rule("weaponRule"), Attack(e.Text("attackType"), where), where),
+                    "gets" => Grant(e.Rule("weaponRule"), EffectSubject.Self, Attack(e.Text("attackType"), where), where),
+                    var x => throw Bad(where, $"gets/loses/ignores '{x}'"),
+                }],
             "4xqVFHJrq78d" => [RollMod("casting", Int(e.Text("rollModifier"), where), EffectSubject.Self, [])],
             "txtrnRX2fPJJ" => [RollMod("defense", Int(e.Text("rollModifier"), where), EffectSubject.Self, [])],
             "nxIQS1UnUBL_" => [RollMod("morale", Int(e.Text("rollModifier"), where), EffectSubject.Self, [])],
