@@ -78,7 +78,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         // the editor and from an exported .pck alike, which GlobalizePath would not. Built-ins ship inside the build and
         // never enter the cache. A missing file returns null, and TerrainNode keeps its proxies visible.
         if (file is null || !Godot.FileAccess.FileExists(file)) return null;
-        var scene = Build(file, 1, default);
+        var scene = Build(file, 1, BuiltinContent.MeshOrientation);
         if (scene is null) return null;
         if (fit is null) return scene;
         // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
