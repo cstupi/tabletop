@@ -94,14 +94,16 @@ Dice readouts last 1.5 s and only with animation on. The game's end is one log l
 Read first: `docs/design/client/design.md`, `client/src/Panels/AskPanel.cs`, `client/src/Table/TableInput.cs`,
 `client/src/Screens/GameScreen.Play.cs`.
 
-### 2. Merge the terrain fixes
+### 2. Merge the terrain fix
 
-The owner reported terrain sitting inside the table instead of on it, and most terrain lying 90° on its side. An agent
-is root-causing and fixing both on branch `terrain-placement-fixes` (worktree
-`.claude/worktrees/agent-a926f6b5bf678900a`, based on `3ca77a9`). Also suspected: round terrain proxies use
-`Footprint.A` as a radius in `TerrainNode.cs`, while `PieceNode` treats it as a diameter. Check `git log
-main..terrain-placement-fixes`, rerun `dotnet test tests/Tabletop.Client.Tests`, confirm `git merge-tree --write-tree
-main terrain-placement-fixes` is clean, and merge on the owner's go.
+Terrain sitting inside the table and lying 90° on its side are one bug. The built-in meshes
+(`client/content/builtin/terrain/*.glb`) are glTF Y-up, height in Y over [0, 1], and `MeshLoader.LoadBuiltin` read them
+at pitch 0 as if Z-up. The fix is `BuiltinContent.MeshOrientation` (pitch 90), plus a test that checks every shipped
+mesh stands in the unit box. It is commit `91cf2dd` on branch `terrain-placement-fixes`, based on `3ca77a9`, and merges
+clean into `main`. Merge it on the owner's go. Then check in the client that hills, woods and buildings stand upright
+with their bases flush on the table, and that water and pads lie flat. The placement data is sound: every `pos_z` and
+`bottom` is 0. Round terrain proxies are the right size, because `Footprint.Circle` stores a radius.
+`docs/design/client/design.md` still says the built-ins are authored Z-up; correct it to Y-up at pitch 90.
 
 ### 3. Smaller items
 
