@@ -22,7 +22,7 @@ public partial class GameScreen
         {
             _askPanel = new AskPanel(); _side.AddChild(_askPanel); _askPanel.Bind(_session, Table, Input);
             _logPanel = new LogPanel(); _side.AddChild(_logPanel); _logPanel.Bind(_session, Table, Toast);
-            _animator = new Animator(_session, Table);
+            _animator = new Animator(_session, Table, Input);
             _animate = new CheckBox { Text = "Animate", ButtonPressed = _session.Settings.Animate };
             _animate.Toggled += on => _session.UpdateSettings(x => x with { Animate = on });
             _side.AddChild(_animate);

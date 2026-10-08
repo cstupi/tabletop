@@ -14,7 +14,7 @@ public partial class TableInput : Node
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; Measurement? _measurement; Point3? _measureFrom;
-    Drag? _drag;
+    Drag? _drag; readonly PendingDrops _drops = new();
     public TableTool Tool { get; set; } = TableTool.Select;
     public Selection? Selected { get; private set; }
     /// <summary>Models a declared move is positioning: their drag streams proposed ghosts, and the release sends nothing (the Ask panel commits).</summary>
@@ -36,12 +36,19 @@ public partial class TableInput : Node
     {
         _view = view; _session = session;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
+        view.IsHeld = _drops.Holds; session.RefusedReceived += OnRefused;
         _presenceTimer.Timeout += OnPresenceTick;
     }
 
     void OnPresenceTick() { if (_presenceDirty) { _presenceDirty = false; Observe(_session.SendPresenceAsync(Snapshot())); } }
 
-    public override void _ExitTree() => _presenceTimer.Timeout -= OnPresenceTick;
+    public override void _ExitTree() { _presenceTimer.Timeout -= OnPresenceTick; if (_session is not null) _session.RefusedReceived -= OnRefused; }
+
+    /// <summary>A refused drop: the nodes go back to the projection's truth.</summary>
+    void OnRefused(Refused r) { if (_drops.Refuse(r.MessageId).Count > 0 && IsInstanceValid(_view)) _view.Redraw(); }
+
+    /// <summary>The Animator's question of each relocation: true when this client dropped the model there itself, so the node is already in place and the hold is over.</summary>
+    public bool ConsumeOwn(ModelRelocation moved) => _drops.Consume(moved);
 
     /// <summary>A socket send that fails is logged, never thrown into the engine and never left unobserved.</summary>
     static async void Observe(Task task)
@@ -221,10 +228,16 @@ public partial class TableInput : Node
         // the nodes are left where the player put them. Redrawing here would snap a proposed placement back to the projection,
         // and a disembark ghost has no projected placement to snap to at all.
         if (drag.ModelIds.All(Proposing.Contains)) return;
+        var held = Guid.CreateVersion7(); var freeMove = false;
         try
         {
             if (p is not null && drag.ModelIds.All(p.Models.ContainsKey))
-                await _session.SendCommandAsync(new MoveModels(drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList()));
+            {
+                // The nodes stay where they were dropped until the server's event (or a refusal) lands; the Animator skips this move.
+                var moves = drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList();
+                freeMove = true; _drops.Add(held, moves);
+                await _session.SendCommandAsync(new MoveModels(moves), held);
+            }
             else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
                 await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
             else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
@@ -232,8 +245,8 @@ public partial class TableInput : Node
             else if (p is not null && p.Markers.ContainsKey(drag.PieceId))
                 await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
         }
-        catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); }
-        if (IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // server wins: the node snaps back to the projection until the event lands
+        catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); _drops.Refuse(held); freeMove = false; }
+        if (!freeMove && IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // an edit or a marker move still snaps back until its event lands; a free move waits for its event or a refusal
     }
 
     void Measure(Point3 point, Node3D? piece)

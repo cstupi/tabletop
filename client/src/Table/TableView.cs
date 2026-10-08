@@ -14,6 +14,8 @@ public partial class TableView : Node3D
     public OrbitCamera Camera { get; } = new();
     public TableSize Size { get; private set; } = new(72, 48);
     public IReadOnlyList<WorldVolume> Volumes { get; private set; } = [];
+    /// <summary>Ids whose nodes Redraw leaves where they are: a drop the server has not answered, a drag in hand.</summary>
+    public Func<Guid, bool> IsHeld { get; set; } = _ => false;
 
     public override void _Ready()
     {
@@ -63,7 +65,7 @@ public partial class TableView : Node3D
         var teams = _session.Game?.Teams ?? [];
         Sync(_zones, table.Zones, z => z.Id, z => { var n = new ZoneNode(); n.Set(z, Size, ZoneColour(z, teams)); return n; }, (ZoneNode n, DeploymentZone z) => n.Set(z, Size, ZoneColour(z, teams)));
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
-        Sync(_pieces, onTable, m => m.Id, m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, (PieceNode n, ModelInPlay m) => Place(n, m));
+        Sync(_pieces, onTable, m => m.Id, m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, (PieceNode n, ModelInPlay m) => { if (!IsHeld(m.Id)) Place(n, m); });
     }
 
     static Color ZoneColour(DeploymentZone z, IReadOnlyList<Team> teams) => teams.Any(t => t.Ordinal == z.TeamOrdinal) ? Palette.Team(z.TeamOrdinal) with { A = 0.35f } : Palette.Unassigned;
