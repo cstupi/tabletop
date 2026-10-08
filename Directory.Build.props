@@ -5,9 +5,17 @@
     tooling and CLI builds run in WSL. A shared obj/ directory breaks that, because restore
     writes absolute, OS-specific paths into project.assets.json — so give each OS its own.
     $(OS) is "Windows_NT" or "Unix".
+    The compose server containers set TabletopBuildSlot (an environment variable, so an MSBuild property) to get an
+    obj/ and bin/ of their own: a host build then never touches what their `dotnet watch` reads, and the two
+    containers never restore the shared libs into the same directory.
   -->
   <PropertyGroup>
-    <BaseIntermediateOutputPath>obj\$(OS)\</BaseIntermediateOutputPath>
+    <BaseIntermediateOutputPath>obj/$(OS)$(TabletopBuildSlot)/</BaseIntermediateOutputPath>
+    <!-- Every slot's generated sources, not only this build's: the SDK excludes just its own obj/ and bin/. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TabletopBuildSlot)' != ''">
+    <BaseOutputPath>bin/$(TabletopBuildSlot)/</BaseOutputPath>
   </PropertyGroup>
 
 </Project>

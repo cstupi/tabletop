@@ -75,8 +75,8 @@ services:
     volumes:
       - nuget-cache:/nuget
 
-  # The first start restores and builds the whole solution graph, which takes minutes. Management goes first and game
-  # waits on its health: both build the same libs into the same obj/ and bin/, and a concurrent restore collides.
+  # The first start restores and builds for minutes. Each container builds into its own obj/ and bin/ (TabletopBuildSlot,
+  # Directory.Build.props), so a host build never restarts or breaks its watch. Game waits on management's migrations.
   management:
     <<: *dotnet
     command: ["dotnet", "watch", "run", "--non-interactive", "--project", "server/management/Tabletop.Management.csproj"]
@@ -89,6 +89,7 @@ services:
       TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
       TABLETOP_S3_ENDPOINT: http://minio:9000
       TABLETOP_S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      TabletopBuildSlot: -management
       TABLETOP_MANAGEMENT_URL: http://0.0.0.0:5100
     ports:
       - "127.0.0.1:5100:5100"   # loopback only: Development maps POST /v1/dev/sessions, which mints a session with no login
@@ -109,6 +110,7 @@ services:
     environment:
       <<: *dotnet-env
       TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
+      TabletopBuildSlot: -game
     ports:
       - "127.0.0.1:5200:5200"
 
