@@ -91,18 +91,14 @@ and feel.
 Shown nowhere on the table: wounds, Shaken, Fatigued, spell tokens, unit names, who has activated, round, phase.
 Dice readouts last 1.5 s and only with animation on. The game's end is one log line.
 
-Read first: `docs/design/client/design.md`, `client/src/Panels/AskPanel.cs`, `client/src/Table/TableInput.cs`,
+Read first: `client/AGENTS.md`, `docs/design/client/design.md`, `client/src/Panels/AskPanel.cs`, `client/src/Table/TableInput.cs`,
 `client/src/Screens/GameScreen.Play.cs`.
 
-### 2. Merge the terrain fix
+### 2. Check the terrain fix in the client
 
-Terrain sitting inside the table and lying 90° on its side are one bug. The built-in meshes
-(`client/content/builtin/terrain/*.glb`) are glTF Y-up, height in Y over [0, 1], and `MeshLoader.LoadBuiltin` read them
-at pitch 0 as if Z-up. The fix is `BuiltinContent.MeshOrientation` (pitch 90), plus a test that checks every shipped
-mesh stands in the unit box. It is commit `91cf2dd` on branch `terrain-placement-fixes`, based on `3ca77a9`, and merges
-clean into `main`. Merge it on the owner's go. Then check in the client that hills, woods and buildings stand upright
-with their bases flush on the table, and that water and pads lie flat. The placement data is sound: every `pos_z` and
-`bottom` is 0. Round terrain proxies are the right size, because `Footprint.Circle` stores a radius.
+Merged (`4fbe694`). The built-in terrain meshes are glTF Y-up and were read as Z-up, which laid them on their side
+and sank half of each into the table; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
+woods and buildings stand upright with their bases flush on the table, and water and pads lie flat.
 `docs/design/client/design.md` still says the built-ins are authored Z-up; correct it to Y-up at pitch 90.
 
 ### 3. Smaller items
@@ -111,7 +107,7 @@ with their bases flush on the table, and that water and pads lie flat. The place
   doc and the plans.
 - Cleanup the owner runs; the permission check refuses these from Claude: `git worktree remove .worktrees/spells`,
   `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
-  (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`).
+  (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`, `agent-a926f6b5bf678900a`).
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Flying is spent by the first leg of a split move; a granted Counter-Attack or Unwieldy on a
   unit with no melee weapon stays until next used.
