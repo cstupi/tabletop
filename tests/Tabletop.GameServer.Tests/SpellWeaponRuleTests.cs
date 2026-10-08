@@ -20,11 +20,16 @@ public class SpellWeaponRuleTests
     static readonly PropertySet Props = TestProperties.WithSpells(
         Spell("Venom Bolt", TargetGrain.Unit, Hits(2, null, Grant("Bane"))),
         Spell("Burn Bolt", TargetGrain.Unit, Hits(2, null, Grant("Disintegrate"))),
-        Spell("Overload", TargetGrain.Model, Hits(2, "hit", Grant("Hazardous"))));
+        Spell("Overload", TargetGrain.Model, Hits(2, "hit", Grant("Hazardous"))),
+        Spell("Plain Bolt", TargetGrain.Unit, Hits(2, null)),
+        Spell("Rolled Bolt", TargetGrain.Unit, Hits(2, "hit")));
 
-    static (Sim Sim, Tabletop.Content.Unit Wizard) Cast(PropertySet props, string spell, string? book, Tabletop.Content.Unit target, object pick, params int[] dice)
+    static (Sim Sim, Tabletop.Content.Unit Wizard) Cast(PropertySet props, string spell, string? book, Tabletop.Content.Unit target, object pick, params int[] dice) =>
+        Cast(props, spell, book, target, pick, [], dice);
+
+    static (Sim Sim, Tabletop.Content.Unit Wizard) Cast(PropertySet props, string spell, string? book, Tabletop.Content.Unit target, object pick, IReadOnlyList<Tabletop.Content.PropertyInstance> holds, params int[] dice)
     {
-        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6), P("Tough", 3)]);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6), P("Tough", 3), .. holds]);
         if (book is not null) wizard = InBook(wizard, book);
         var sim = new Sim(State([wizard], [target], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), props, new ScriptedDice(dice));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
@@ -114,5 +119,36 @@ public class SpellWeaponRuleTests
         var one = Assert.Single(rolls);
         Assert.Single(one.Dice);
         Assert.Equal(-6, ApOf(one));
+    }
+
+    // Model rules worded "hits from this model's weapons" / "when attacking" are not read for the holder's spells (final review I4).
+    [Theory]
+    [InlineData("Warbound")]
+    [InlineData("Infected")]
+    public void A_defense_die_rule_of_the_caster_adds_no_wound_to_its_spells_hits(string rule)
+    {
+        var t = Unit("T", "4+", "4+", [], 1, [P("Tough", 6)]);
+        var (sim, _) = Cast(Props, "Plain Bolt", null, t, t, [P(rule)], 6, 1, 1);
+        Assert.Equal(2, sim.Model(t.Models[0].Id).Wounds);                                  // two failed blocks, two wounds: no extra wound for the ones
+    }
+
+    [Fact]
+    public void Warbound_still_adds_a_wound_per_defense_one_to_a_weapon_attack()
+    {
+        var shooter = Unit("S", "2+", "4+", [P("Warbound")], 1, [], Gun("Rifle", "24\"", 1)); var t = Unit("T", "4+", "4+", [], 1, [P("Tough", 6)]);
+        var sim = new Sim(State([shooter], [t], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Props, new ScriptedDice(5, 1, 6));
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = t.Id }));
+        Assert.Equal(2, sim.Model(t.Models[0].Id).Wounds);
+    }
+
+    [Theory]
+    [InlineData("Devout")]
+    [InlineData("Ferocious")]
+    public void A_when_attacking_rule_of_the_caster_adds_no_hit_to_its_spells_sixes(string rule)
+    {
+        var t = Unit("T", "4+", "4+", [], 2, []);
+        var (sim, _) = Cast(Props, "Rolled Bolt", null, t, t, [P(rule)], 6, 6, 6, 5, 5, 5, 5);
+        Assert.Equal(2, sim.Steps("roll-to-block").Single().Rolls.Sum(r => r.Dice.Count));
     }
 }
