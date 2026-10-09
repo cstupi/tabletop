@@ -18,22 +18,45 @@ public class AppliedHooksTests
     static TerrainPlacement Patch(TerrainDeclarations kind) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("patch"), new Point3(-17, -18.5, 0), new Yaw(0), 1,
         [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 4), new Point2(0, 0), new Yaw(0), 0, 1, kind, null))]);
 
-    static Sim Advance(PropertyInstance[] props, TerrainPlacement? terrain, double dx, params int[] dice)
+    static Sim Advance(PropertyInstance[] props, TerrainPlacement? terrain, double dx) => Moved(GfNames.AdvanceSeq, GfNames.Advance, props, terrain, dx);
+    static Sim Rush(PropertyInstance[] props, TerrainPlacement? terrain, double dx, PropertySet? set = null, string? grant = null) => Moved(GfNames.RushSeq, GfNames.Rush, props, terrain, dx, set, grant);
+
+    static Sim Moved(string sequence, string action, PropertyInstance[] props, TerrainPlacement? terrain, double dx, PropertySet? set = null, string? grant = null)
     {
         var a = Unit("A", "4+", "4+", [], 1, props);
-        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, terrain: terrain is null ? null : [terrain]), GrimdarkFutureRules.Instance, TestProperties.Core,
-            new ScriptedDice(dice.Length == 0 ? [4] : dice));
-        sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+        set ??= TestProperties.Core;
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, terrain: terrain is null ? null : [terrain]), GrimdarkFutureRules.Instance, set, new ScriptedDice(4));
+        if (grant is not null) sim.Append([new GrantAdded(a.Id, new Grant(Guid.CreateVersion7(), set.Entry(grant)!.Effects[0].Id, grant, a.Id, 1))]);
+        sim.Start(sequence, new SequenceContext(a.Id, [], [], action));
         Shift(sim, a.Models[0].Id, dx);
         return sim;
     }
 
+    static readonly PropertySet Stride = TestProperties.WithSpells(new EntryDocument("Stride", CatalogKind.Spell, false, null, 1, null, "Stride.",
+        new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18),
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Strider", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]));
+
     [Fact]
     public void Movement_lists_strider_across_difficult_terrain_and_nothing_on_open_ground()
     {
-        Assert.Equal(["Strider"], Applied(Advance([P("Strider")], Patch(TerrainDeclarations.Difficult), 5), "move"));
-        NoneApplied(Advance([P("Strider")], null, 5));
-        NoneApplied(Advance([], Patch(TerrainDeclarations.Difficult), 5));
+        Assert.Equal(["Strider"], Applied(Rush([P("Strider")], Patch(TerrainDeclarations.Difficult), 8), "move"));
+        NoneApplied(Rush([P("Strider")], null, 8));
+        NoneApplied(Rush([], Patch(TerrainDeclarations.Difficult), 5));
+    }
+
+    [Fact]
+    public void Movement_lists_no_strider_on_an_advance_whose_allowance_the_difficult_cap_never_bound()
+    {
+        NoneApplied(Advance([P("Strider")], Patch(TerrainDeclarations.Difficult), 5));
+        NoneApplied(Advance([P("Flying")], Patch(TerrainDeclarations.Difficult), 5));
+    }
+
+    [Fact]
+    public void A_granted_strider_is_listed_with_its_spell_and_not_spent_by_the_move()
+    {
+        var sim = Rush([], Patch(TerrainDeclarations.Difficult), 8, Stride, "Stride");
+        Assert.Equal(["Strider", "Stride"], Applied(sim, "move"));
+        Assert.Single(sim.Unit(sim.State.Board.Armies[0].Snapshot.Units[0].Id).Grants);
     }
 
     [Fact]
@@ -43,6 +66,26 @@ public class AppliedHooksTests
         Assert.Equal(["Flying"], Applied(over, "move"));
         Assert.Empty(over.Steps("test"));
         NoneApplied(Advance([P("Flying")], null, 5));
+    }
+
+    static Sim Lob(bool wall, params int[] dice)
+    {
+        var mortar = Unit("Mortar", "4+", "4+", [], 1, [], Gun("Mortar", "36\"", 1, P("Indirect"))); var t = Unit("T", "4+", "4+", [], 1, []);
+        var block = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(0, -18.5, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 6), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.BlocksLineOfSight, null))]);
+        var sim = Sim.Gf(State([mortar], [t], x1: -6, x2: 6, terrain: wall ? [block] : null), dice);
+        sim.Start(GfNames.AttackSequence, new SequenceContext(mortar.Id, [t.Id], mortar.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Hold));
+        return sim;
+    }
+
+    [Fact]
+    public void Attack_lists_indirect_where_it_let_a_hidden_target_be_shot_and_nothing_at_a_target_in_the_open()
+    {
+        var hidden = Lob(wall: true, 5, 6);
+        Assert.Equal(1, hidden.Steps("determine-attacks").Single().Values!["attacks"]);
+        Assert.Contains("Indirect", Applied(hidden, "determine-attacks"));
+        Assert.Empty(Applied(hidden, "roll-to-hit"));
+        NoneApplied(Lob(wall: false, 5, 6));
     }
 
     [Fact]

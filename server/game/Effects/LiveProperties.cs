@@ -75,6 +75,13 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
         foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Read(p); any = true; }
         return any;
     }
+    /// <summary>Use without spending: every instance is recorded as having acted, for a rule whose use the step does not spend (Strider, Indirect's sight and cover halves).</summary>
+    public bool Record(Side side, string entry)
+    {
+        var any = false;
+        foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Record(p); any = true; }
+        return any;
+    }
     /// <summary>Use without recording: every instance is spent, for a rule a step spends whether or not it changed anything (a granted Flying on any applied move).</summary>
     public bool Spend(Side side, string entry)
     {

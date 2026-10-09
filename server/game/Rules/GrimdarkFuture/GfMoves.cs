@@ -232,9 +232,11 @@ public static class GfMoves
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         if (flying && moves.Count > 0) live.Spend(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
-        // Applied: Flying when it skipped a difficult cap or a dangerous test (p.13), Strider when it skipped a difficult cap (p.14). A unit holding both crossing difficult ground lists both.
-        if (flying && (crossedDifficult || exposed.Count > 0)) live.Use(Side.Attacker, "Flying");
-        if (crossedDifficult) live.Use(Side.Attacker, "Strider");
+        // Applied, recorded without spending: Flying when it skipped a dangerous test (p.13) or a difficult cap that would have bound, Strider when it
+        // skipped that cap (p.14). The cap binds only when the allowance is over it, so an Advance across difficult ground lists neither.
+        var capSkipped = crossedDifficult && allowance > GfNames.DifficultCap;
+        if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, "Flying");
+        if (capSkipped) live.Record(Side.Attacker, "Strider");
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
         return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
     }
