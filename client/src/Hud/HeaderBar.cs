@@ -60,7 +60,7 @@ public partial class HeaderBar : PanelContainer
             _top.AddChild(label);
         }
         _gameOver.Visible = m.Result is not null;
-        _gameOver.Text = m.Result is { } result ? $"  Game over: {result}" : "";
+        _gameOver.Text = m.Result is { } result ? $"  {result}" : "";
         _top.MoveChild(_gameOver, -1);
 
         _activation.Visible = m.ActiveUnit is not null;
