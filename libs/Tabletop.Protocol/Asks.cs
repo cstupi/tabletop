@@ -55,7 +55,8 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// every listed model once any one of them enters (OPR p.11: "all models in the unit may not move more than 6"").
 /// Containment is non-null only when this move may embark or is disembarking; null is every move on open table.
 /// MinDistance, when set, is how far every listed model must move (OPR p.13 Aircraft: 30"), or as far as the table lets its whole
-/// base go (Tabletop.Geometry.Movement.FarthestOnTable) when that is less; the region is then an annulus. Null is no minimum.
+/// base go (Tabletop.Geometry.Movement.FarthestOnTable) when that is less; the region is then an annulus. Null is no minimum. The "when
+/// that is less" is a standing ruling until the owner rules: p.13 assumes the room, p.6 allows "smaller areas", p.7 keeps every base on the table.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null) : LegalSet;

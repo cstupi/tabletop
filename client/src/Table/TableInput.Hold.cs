@@ -54,10 +54,10 @@ public partial class TableInput
             if (drag.Rows > 0 && piece is not null) piece.Rotation = new Vector3(0, WorldFrame.Radians(drag.Yaw), 0);
             ModelDragged?.Invoke(id, drag.Current[id]);
             if (Allowance is { } allowance && Proposing.Contains(id) && piece is not null)
-                piece.SetHighlight(MoveRuler.Read(drag.Starts[id].Horizontal, drag.Current[id].Horizontal, allowance, Minimum).OutOfRange ? Colors.Red : Palette.Selected);
+                piece.SetHighlight(MoveRuler.Read(drag.Starts[id].Horizontal, drag.Current[id].Horizontal, allowance, Minimum?.GetValueOrDefault(id)).OutOfRange ? Colors.Red : Palette.Selected);
         }
         var lead = drag.ModelIds[0];
         _ruler.Show(drag.Starts[lead], drag.Current[lead],
-            MoveRuler.Read(drag.Starts[lead].Horizontal, drag.Current[lead].Horizontal, Proposing.Contains(lead) ? Allowance : null, Proposing.Contains(lead) ? Minimum : null), Colors.White);
+            MoveRuler.Read(drag.Starts[lead].Horizontal, drag.Current[lead].Horizontal, Proposing.Contains(lead) ? Allowance : null, Proposing.Contains(lead) ? Minimum?.GetValueOrDefault(lead) : null), Colors.White);
     }
 }

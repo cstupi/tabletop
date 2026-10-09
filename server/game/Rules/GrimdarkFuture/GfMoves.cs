@@ -98,7 +98,7 @@ public static class GfMoves
     {
         if (region.DifficultCap is not { } cap || region.Containment?.ExitingId is not null) return null;
         var difficult = Battlefield.Terrain(state).Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList();
-        var checks = answer.Moves.Where(m => m.To is OnTable && region.ModelIds.Contains(m.ModelId) && Battlefield.Placed(state, m.ModelId) is not null)
+        var checks = GfAnswers.Moves(state, region, answer).Where(m => m.To is OnTable && Battlefield.Placed(state, m.ModelId) is not null)
             .Select(m => (m.ModelId, Check: Movement.Check(Battlefield.Placed(state, m.ModelId)!.Value, ((OnTable)m.To).Placement.Position.Horizontal,
                 region.Allowance, [], difficult, cap, null))).ToList();
         var earlier = state.Projection.Stack.FirstOrDefault(f => f.Id == ask.FrameId)?.Steps.Any(s => s.Values?.GetValueOrDefault(GfNames.EnteredDifficultKey) > 0) ?? false;
@@ -111,17 +111,23 @@ public static class GfMoves
 
     /// <summary>
     /// p.13 Aircraft: "Aircraft can't move into the table edges to move less than 30"" — the move is mandatory. The region's MinDistance is that 30";
-    /// every listed model on the table must move at least that far, or as far as the table lets its whole base go when that is less
-    /// (Movement.FarthestOnTable). A model the answer leaves out has not moved. Null when every model went far enough.
+    /// every listed model on the table must move at least that far. Where the table has no room for it, the model must go as far as its whole base
+    /// can (Movement.FarthestOnTable): p.13 assumes 30" of room, which p.6's 6'x4' table always has, but p.6 allows "smaller areas" and p.7 keeps
+    /// every base on the table; a standing ruling until the owner rules. The answer is read as the move step applies it (GfAnswers.Moves): a model
+    /// it leaves out, or whose relocation that reading drops, has not moved. Null when every model went far enough.
     /// </summary>
+    /// <summary>The least this model must move under a minimum (MinimumBreach): the minimum, or as far as the table lets its whole base go when less.</summary>
+    public static double Minimum(GameState state, PlacedModel start, double minimum) => Math.Min(minimum, Movement.FarthestOnTable(start, state.Board.Table.Size).Distance);
+
     public static AnswerBreachFound? MinimumBreach(GameState state, MoveRegion region, Destinations answer)
     {
         if (region.MinDistance is not { } minimum) return null;
+        var moves = GfAnswers.Moves(state, region, answer);
         foreach (var id in region.ModelIds)
         {
             if (Battlefield.Placed(state, id) is not { } start) continue;
-            var to = answer.Moves.LastOrDefault(m => m.ModelId == id)?.To is OnTable on ? on.Placement.Position.Horizontal : start.Placement.Position.Horizontal;
-            var required = Math.Min(minimum, Movement.FarthestOnTable(start, state.Board.Table.Size).Distance);
+            var to = moves.FirstOrDefault(m => m.ModelId == id)?.To is OnTable on ? on.Placement.Position.Horizontal : start.Placement.Position.Horizontal;
+            var required = Minimum(state, start, minimum);
             var moved = start.Placement.Position.Horizontal.DistanceTo(to);
             if (moved < required - 1e-6)
                 return new(GfNames.AircraftMinimumRule, $"an Aircraft must move at least {required:0.#}\" (p.13), and {state.Projection.Models[id].Slot.Name} moved {moved:0.##}\"");
@@ -213,7 +219,7 @@ public static class GfMoves
                     List<Guid> difficult = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
                     var containment = Containers(ctx, unit, action, remaining, Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
-                        : ignoreSeparation ? "Charge: move into contact" : aircraft ? $"Move {GfNames.AircraftMove:0.#}\" to {remaining:0.#}\" in a straight line" : $"Move up to {remaining:0.#}\"";
+                        : ignoreSeparation ? "Charge: move into contact" : aircraft ? $"Move {AircraftLeast(ctx, unit)} to {remaining:0.#}\" in a straight line" : $"Move up to {remaining:0.#}\"";
                     // p.13: an Aircraft's move is mandatory, so it may not pass and must go at least 30" (MinimumBreach judges the answer).
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null), allowPass: !aircraft)]);
@@ -236,6 +242,14 @@ public static class GfMoves
                     var reacted = ctx.History.Children.Count > 0;
                     return new Complete([], new Dictionary<string, int> { ["phase"] = remaining > 0 && !aircraft ? 0 : 2 }, Repeat: reacted);
             }
+        }
+
+        /// <summary>The prompt's minimum: what MinimumBreach will require, which the table can hold below 30" (one figure, or the range over the unit's models).</summary>
+        static string AircraftLeast(StepContext ctx, Guid unit)
+        {
+            var least = Lookup.AliveModels(ctx.State, unit).Select(m => Battlefield.Placed(ctx.State, m)).OfType<PlacedModel>()
+                .Select(p => Math.Round(Minimum(ctx.State, p, GfNames.AircraftMove), 1)).Distinct().Order().ToList();
+            return least.Count switch { 0 => $"{GfNames.AircraftMove:0.#}\"", 1 => $"{least[0]:0.#}\"", _ => $"{least[0]:0.#}\"–{least[^1]:0.#}\"" };
         }
 
         /// <summary>

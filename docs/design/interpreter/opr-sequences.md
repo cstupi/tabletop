@@ -457,7 +457,11 @@ Only the Ask's prompt and the client's decision not to flag it change.
 `ContainerMovesThisActivation` and returns `null` for the exit after an embark and `null` for the
 enterable list after a disembark. The legal set enforces it, the way every other rule here does.
 The answer is applied as sent, and `LegalSet.Contains` under `strict` checks a `move_region`
-answer's model ids only, plus p.11's cap and an Aircraft's minimum (`IGameRules.AnswerBreach`).
+answer's model ids (each once) and finite placements only, plus p.11's cap and an Aircraft's minimum (`IGameRules.AnswerBreach`).
+Both breach checks and every step that applies a move read the answer through `GfAnswers.Moves`: the first relocation per listed
+model, `From` taken from the projection, and nothing that is not applied. It drops a non-finite placement, one farther from the
+model than the table's diagonal, an `Inside` the Ask did not list as enterable, and a move out of a container the Ask is not
+exiting (so a unit that embarked cannot step out on a later segment, whose Ask offers no exit). A dropped model has not moved.
 
 `ContainersInReach` lists **friendly** containers only, so no automated move puts a unit inside an
 enemy vehicle, while `Battlefield.InsideReach` implements p.14 as written. That asymmetry leaves

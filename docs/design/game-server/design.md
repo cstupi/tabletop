@@ -29,7 +29,7 @@ management's rows plus the event log.
 - **Any rule.** No dice, no turn order, no legality beyond membership of an Ask's
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
   `Id`; the later plans add `JudgeAdvance`, `OnRoundEnded` and `AnswerBreach`, default members returning none. `InertEngine` judges nothing and advances nothing.
-- **Geometry adjudication.** `MoveRegion` answers are checked for model ids only, plus what the
+- **Geometry adjudication.** `MoveRegion` answers are checked for model ids (each at most once) and finite placements only, plus what the
   ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: p.11's difficult-terrain cap, p.13's Aircraft minimum). Distance,
   containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
@@ -487,8 +487,11 @@ functions read it:
   `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
   every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
   that key's own cap, with **no total**, because a spend is any number up to a maximum —
-  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
+  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**: every id is in
+  `ModelIds` and appears once, and every table placement has finite coordinates and yaw. The distance
   against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
+  Grimdark Future reads a move answer one way, `GfAnswers.Moves`, for both its breach checks and
+  the steps that apply it, so nothing a check does not see is applied.
   An answer inside the set is then asked of `IGameRules.AnswerBreach(state, ask, answer)`, which
   needs the table and returns `AnswerBreachFound(Rule, Detail)`. Grimdark Future's are
   `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`

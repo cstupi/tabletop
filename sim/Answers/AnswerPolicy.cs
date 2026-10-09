@@ -175,7 +175,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     /// <summary>
     /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until Movement.Check likes it. The reach is
     /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
-    /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still.
+    /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still, except under a minimum, which answers
+    /// the point at the minimum toward the farthest corner instead.
     /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins.
     /// </summary>
     private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
@@ -184,11 +185,15 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         var origin = start.Placement.Position.Horizontal;
         // A minimum (MoveRegion.MinDistance) the table has room for is sampled above; one it has no room for is met only at the farthest corner.
         var least = 0.0;
+        Point2? fallback = null;
         if (m.MinDistance is { } minimum)
         {
             var (reach, corner) = Movement.FarthestOnTable(start, view.Table);
             if (reach < minimum) return reach <= m.Allowance ? corner : null;
             least = minimum;
+            // When every sample misses, standing still is not legal: the point at the minimum on the ray to the farthest corner is, since the
+            // table inset by the base is convex and holds both the start and the corner.
+            fallback = least > m.Allowance ? null : reach > 0 ? origin + (corner - origin) * (least / reach) : origin;
         }
         Point2? best = null;
         for (var i = 0; i < _o.MoveSamples; i++)
@@ -201,6 +206,6 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             if (target is not { } goal) return candidate;
             if (best is null || candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
         }
-        return best;
+        return best ?? fallback;
     }
 }

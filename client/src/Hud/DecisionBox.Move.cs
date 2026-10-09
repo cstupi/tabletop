@@ -47,7 +47,9 @@ public partial class DecisionBox
             var minimum = MoveRuler.Minimum(start, legal, _view.Size);
             _region!.Show(boundary, Palette.Team(ordinal), minimum is { } least ? MoveRuler.Inner(on.Placement.Position.Horizontal, boundary, least) : null);
             _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\")." : $"Move up to {remaining:0.0}\" (used {used:0.0}\").";
-            _input.Allowance = remaining; _input.Minimum = minimum;
+            _input.Allowance = remaining;
+            _input.Minimum = legal.MinDistance is null ? null : legal.ModelIds.Where(id => p.Models[id].Location is OnTable)
+                .ToDictionary(id => id, id => MoveRuler.Minimum(new PlacedModel(BodyOf(p, id), ((OnTable)p.Models[id].Location).Placement), legal, _view.Size)!.Value);
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
             StartMove();

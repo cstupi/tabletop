@@ -208,6 +208,92 @@ public class GfMovesTests
         Assert.Equal([walker.Id], GfMelee.ChargeTargets(state, TestProperties.Core, charger.Id));
     }
 
+    // ---- One reading of a move answer: what the breach checks judge is what the step applies ------------------------------------------
+
+    static Sim Jet(Enforcement enforcement, out Unit jet, params Unit[] others)
+    {
+        jet = Unit("Jet", "4+", "4+", [P(GfNames.Aircraft)], 1, []);
+        var sim = Sim.Gf(State([jet, .. others], [Unit("B", "4+", "4+", [], 1, [])], enforcement: enforcement), 4);
+        var id = jet.Models[0].Id;
+        sim.Append([new ModelsMoved([new ModelRelocation(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(10, 24, 0), new Yaw(0))))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(jet.Id, [], [], GfNames.Advance));
+        return sim;
+    }
+
+    static ModelRelocation At(Sim sim, Guid model, double x, double y) =>
+        new(model, sim.Model(model).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))));
+
+    [Fact]
+    public void Under_strict_a_duplicated_model_a_stranger_and_a_non_finite_placement_are_outside_the_legal_set()
+    {
+        var sim = Jet(Enforcement.Strict, out var jet, Unit("Other", "4+", "4+", [], 1, []));
+        var id = jet.Models[0].Id;
+        var stranger = sim.State.Projection.Models.Values.First(m => m.UnitId != jet.Id).Id;
+        Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(Move(sim, Shifted(sim, id, 2), Shifted(sim, id, 32))).Reason);
+        Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(Move(sim, Shifted(sim, id, 32), At(sim, stranger, 40, 24))).Reason);
+        Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(Move(sim, At(sim, id, double.NaN, 24))).Reason);
+        Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(Move(sim, At(sim, id, double.PositiveInfinity, 24))).Reason);
+        var yawless = Shifted(sim, id, 32) is { To: OnTable on } r ? r with { To = new OnTable(on.Placement with { Yaw = new Yaw(double.NaN) }) } : null!;
+        Assert.Equal(RefusalReason.OutsideLegalSet, Assert.IsType<Refused>(Move(sim, yawless)).Reason);
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, id, 32)));
+    }
+
+    [Fact]
+    public void Under_warn_a_duplicated_model_is_judged_and_applied_by_its_first_relocation()
+    {
+        // The check and the step read one relocation per model, the first: a short first and a long second is judged short, and moves short.
+        var sim = Jet(Enforcement.Warn, out var jet);
+        var id = jet.Models[0].Id;
+        var x = ((OnTable)sim.Model(id).Location).Placement.Position.X;
+        var answer = new Destinations([Shifted(sim, id, 2), Shifted(sim, id, 32)]);
+        Assert.Equal(GfNames.AircraftMinimumRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), answer)!.Rule);
+        Assert.NotNull(Assert.IsType<Applied>(Move(sim, [.. answer.Moves])).Warning);
+        sim.Run();
+        Assert.Equal(x + 2, ((OnTable)sim.Model(id).Location).Placement.Position.X, 6);
+    }
+
+    [Fact]
+    public void A_placement_the_reading_drops_is_judged_as_not_moved_and_is_not_applied()
+    {
+        // Under warn a non-finite or impossibly far placement is accepted with a warning; the step does not apply it, and the minimum judges it unmoved.
+        foreach (var bad in new[] { double.NaN, 1e9 })
+        {
+            var sim = Jet(Enforcement.Warn, out var jet);
+            var id = jet.Models[0].Id;
+            var before = sim.Model(id).Location;
+            var answer = new Destinations([At(sim, id, bad, 24)]);
+            Assert.Equal(GfNames.AircraftMinimumRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), answer)!.Rule);
+            Move(sim, [.. answer.Moves]);
+            sim.Run();
+            Assert.Equal(before, sim.Model(id).Location);
+        }
+        var strict = Jet(Enforcement.Strict, out var far);
+        Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(Move(strict, At(strict, far.Models[0].Id, 1e9, 24))).Reason);
+    }
+
+    [Fact]
+    public void A_unit_that_embarked_cannot_step_out_on_a_later_segment_that_offers_no_exit()
+    {
+        // p.15: "units can't both embark/disembark as part of the same activation". After a cast the second segment offers no exit;
+        // a relocation out of the transport anyway is not applied.
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11)]);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = new Sim(State([bus, wizard], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, enforcement: Enforcement.Warn),
+            GrimdarkFutureRules.Instance, TestProperties.WithSpells(Ward), new ScriptedDice(1));
+        var container = bus.Models[0].Id;
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3), new ModelsMoved([At(sim, container, 36, 24), At(sim, wizard.Models[0].Id, 36, 28)])]);
+        sim.Start(GfNames.RushSeq, new SequenceContext(wizard.Id, [], [], GfNames.Rush));
+        Assert.Contains(container, Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Containment!.Enterable);
+        Assert.IsType<Applied>(Move(sim, new ModelRelocation(wizard.Models[0].Id, sim.Model(wizard.Models[0].Id).Location, new Inside(container))));
+        sim.Run();
+        CastAndFail(sim);
+        Assert.Null(Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal).Containment);
+        var seat = ((OnTable)sim.Model(container).Location).Placement.Position;
+        Move(sim, new ModelRelocation(wizard.Models[0].Id, new Inside(container), new OnTable(new Placement(seat with { X = seat.X + 3 }, new Yaw(0)))));
+        sim.Run();
+        Assert.Equal(new Inside(container), sim.Model(wizard.Models[0].Id).Location);
+    }
+
     // ---- Leaving a transport (p.7, p.15) -----------------------------------------------------------------------------------------------
 
     [Fact]

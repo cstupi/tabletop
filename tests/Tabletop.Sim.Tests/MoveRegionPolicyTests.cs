@@ -9,11 +9,11 @@ public class MoveRegionPolicyTests
 {
     static readonly Guid Model = Guid.CreateVersion7(), Unit = Guid.CreateVersion7(), Part = Guid.CreateVersion7(), Team = Guid.CreateVersion7();
 
-    static (PolicyView View, Guid ModelId) Standing(Point3 at)
+    static (PolicyView View, Guid ModelId) Standing(Point3 at, TableSize? size = null)
     {
         var slot = new ModelSlot(Model, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
         var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [slot]);
-        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var table = new TableState(Guid.CreateVersion7(), null, size ?? new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
         var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
             SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
             [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
@@ -37,6 +37,24 @@ public class MoveRegionPolicyTests
             Assert.True(check.WithinAllowance, $"seed {seed} moved {check.Distance}");
             Assert.False(check.LeavesTable);
             Assert.Equal(new OnTable(new Placement(view.PlacedOf(model)!.Value.Placement.Position, new Yaw(0))).GetType(), answer.Moves[0].From.GetType());
+        }
+    }
+
+    [Fact]
+    public void A_minimum_move_with_little_room_for_it_is_always_met_on_the_table()
+    {
+        // p.13 Aircraft: a 30" minimum on a 24" table from near a corner, where only bearings close to the far diagonal have room (just over 30").
+        var (view, model) = Standing(new Point3(2, 2, 0), new TableSize(24, 24));
+        var start = view.PlacedOf(model)!.Value;
+        Assert.InRange(Movement.FarthestOnTable(start, view.Table).Distance, 30, 31);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 36, [], [], null, null, 30), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 40; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To).Placement.Position.Horizontal;
+            var check = Movement.Check(start, to, 36, [], [], null, view.Table);
+            Assert.True(check.Distance >= 30 - 1e-6, $"seed {seed} moved {check.Distance}");
+            Assert.False(check.LeavesTable, $"seed {seed} left the table");
         }
     }
 
