@@ -104,7 +104,7 @@ public static class ServeApp
     {
         try
         {
-            Directory.CreateDirectory(options.OutDir);
+            if (options.Keep) Directory.CreateDirectory(options.OutDir);      // an unkept run writes nothing, not even its directory
             var report = await runner.RunAsync(options, new Inline<SuiteGameResult>(run.Game), ct);
             if (options.Keep) await File.WriteAllTextAsync(Path.Combine(options.OutDir, SuiteReport.FileName), report.ToJson(), ct);
             run.Done(report);
