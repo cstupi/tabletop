@@ -106,7 +106,8 @@ public class SocketTests(PostgresFixture pg)
         await a.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         Assert.IsType<BoardMessage>(await a.ReceiveAsync());
         Assert.Equal([1L], Assert.IsType<EventsMessage>(await a.ReceiveAsync()).Events.Select(e => e.Seq));
-        Assert.Equal(1L, Assert.IsType<AtRest>(await a.ReceiveAsync()).Seq);           // the whole log, then rest, with nothing between
+        Assert.IsType<ModelFacts>(await a.ReceiveAsync());
+        Assert.Equal(1L, Assert.IsType<AtRest>(await a.ReceiveAsync()).Seq);           // the whole log, the facts, then rest, with nothing between
         await a.AssertSilentAsync(TimeSpan.FromMilliseconds(300));                     // an idle game says nothing more
 
         await a.SendAsync(new CommandMessage(Guid.CreateVersion7(), new SetScore(seeded.TeamIds[0], 5)));

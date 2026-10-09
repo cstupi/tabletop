@@ -94,7 +94,7 @@ public class GameSessionTests
         await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
         foreach (var c in new[] { clay, opponent, watcher })
         {
-            Assert.Equal([typeof(EventsMessage), typeof(AtRest)], c.Received.Select(m => m.GetType()));   // the events, then rest, never the other way round
+            Assert.Equal([typeof(EventsMessage), typeof(ModelFacts), typeof(AtRest)], c.Received.Select(m => m.GetType()));   // the events, the first facts, then rest, never the other way round
             Assert.Equal(1L, c.Received.OfType<AtRest>().Single().Seq);
         }
     }
