@@ -39,15 +39,26 @@ public class SpellGamesTests
     }
 
     [Fact]
-    public void Every_model_of_the_books_army_is_a_caster_on_that_book()
+    public void The_books_army_is_one_caster_on_that_book_per_spell_and_every_game_checks_its_spells_resolve_on_legal_casts()
     {
         Assert.All(Spells, g =>
         {
             var army = g.Scenario.Armies[0];
             Assert.Equal(g.Group[SuiteCatalog.SpellsPrefix.Length..], army.ArmyBook);
+            Assert.Equal((g.Covers.Count, 1), (army.Units, army.ModelsPerUnit));
             Assert.Equal(Enumerable.Range(1, army.Units), army.ModelRules.Where(r => r.Name == "Caster").Select(r => r.Unit));
             Assert.Null(g.Scenario.Armies[1].ArmyBook);
+            Assert.Contains(g.Checks, c => c.Name == SpellGames.ResolvedCheck);
         });
+    }
+
+    [Fact]
+    public void The_casting_order_puts_the_setups_first_spells_ahead_of_the_books_order()
+    {
+        var book = Set.Books["04z57ua0bwth37zh"];
+        var order = SpellGames.CastingOrder(book, new SpellSetup(First: ["Mutating Inferno"]));
+        Assert.Equal(["Mutating Inferno", .. book.Spells.Where(s => s != "Mutating Inferno")], order);
+        Assert.Equal(book.Spells, SpellGames.CastingOrder(book, null));
     }
 
     [Fact]
@@ -79,8 +90,8 @@ static class SpellDefects
 {
     static readonly Dictionary<string, string[]> Known = new(StringComparer.Ordinal)
     {
-        // Roller.Judge succeeds on modified >= threshold alone: the casting roll fixed to an unmodified 1 at +21 passes (p.5: "a roll of 1 always counts as a fail").
-        ["spells-human-defense-force"] = [SuiteCatalog.CastingRollCheck],
+        // D9: Roller.Judge succeeds on modified >= threshold alone, so an unmodified 1 lifted to 4+ passes (p.5: "a roll of 1 always counts as a fail").
+        ["spells-human-defense-force"] = [SuiteCatalog.NaturalCastingDieCheck],
     };
 
     public static void AssertOnlyKnown(SuiteGameResult result)
