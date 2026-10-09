@@ -13,7 +13,7 @@ public sealed record ScenarioMarker(MarkerKind Kind, Point3 Position, double Dia
 /// <summary>
 /// One model of a unit with its own rules, stats and weapons (a Hero among non-heroes). Unit and Model are 1-based ordinals. Rules are
 /// added to the unit's model rules; Stats are the slot's own (a stat the slot names overrides the unit's); Weapons, when given, replace the
-/// army's weapons for this model.
+/// army's weapons for this model. A rule's Unit field is not read here: the model's Unit names the unit.
 /// </summary>
 public sealed record ScenarioModel(int Unit, int Model, IReadOnlyList<ScenarioRule>? Rules = null,
     IReadOnlyDictionary<string, string>? Stats = null, IReadOnlyList<ScenarioWeapon>? Weapons = null);

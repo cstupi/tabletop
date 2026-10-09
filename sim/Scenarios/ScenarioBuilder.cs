@@ -56,8 +56,8 @@ public sealed class ScenarioBuilder(string name, ulong seed)
         if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
         foreach (var a in _armies)
         {
-            if (a.SetAside.FirstOrDefault(u => u < 1 || u > a.Units) is var bad and not 0)
-                throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sets aside unit {bad}; it has {a.Units}");
+            if (a.SetAside.Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } bad)
+                throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sets aside unit {bad}; its units are 1..{a.Units}");
             if (a.Models.FirstOrDefault(m => m.Unit < 1 || m.Unit > a.Units || m.Model < 1 || m.Model > a.ModelsPerUnit) is { } model)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' has no model {model.Unit}.{model.Model}");
         }

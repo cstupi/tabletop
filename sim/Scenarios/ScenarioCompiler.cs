@@ -12,6 +12,9 @@ public sealed record CompiledScenario(
     IReadOnlyDictionary<Guid, Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)
 {
     public Guid ParticipantFor(Guid teamId) => TeamOfParticipant.First(kv => kv.Value == teamId).Key;
+
+    /// <summary>The unit condition a player sets from the menu to set a unit aside before deployment (the ruleset's name); RunLoop sends it for Scenario's set-aside units.</summary>
+    public string SetAsideCondition { get; init; } = GfNames.SetAside;
 }
 
 /// <summary>

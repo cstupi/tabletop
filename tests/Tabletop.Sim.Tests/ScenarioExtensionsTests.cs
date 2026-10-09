@@ -26,8 +26,9 @@ public class ScenarioExtensionsTests(PostgresFixture pg)
     static readonly IReadOnlyDictionary<string, string> HeroStats = new Dictionary<string, string> { ["Quality"] = "3+", ["Defense"] = "3+" };
     static readonly ScenarioWeapon Pistol = new("Pistol", new Dictionary<string, string> { ["Range"] = "12\"", ["Attacks"] = "1" }, []);
 
-    /// <summary>Red unit 1 is a set-aside Scout, Red unit 2 a set-aside Ambusher; unit 3 deploys as usual. Round 2 brings the Ambusher in.</summary>
-    static Scenario Reserves(ulong seed) => new ScenarioBuilder("reserves", seed).RoundCap(2)
+    /// <summary>Red unit 1 is a set-aside Scout, Red unit 2 a set-aside Ambusher; unit 3 deploys as usual. Round 2 brings the Ambusher in. Strict enforcement.</summary>
+    static Scenario Reserves(ulong seed, SchedulerShape shape = SchedulerShape.AlternatingActivation) => new ScenarioBuilder("reserves", seed).RoundCap(2)
+        .Shape(shape).Enforcing(Enforcement.Strict)
         .Army("Red", 3, 2, unitRules: [new ScenarioRule(1, "Scout"), new ScenarioRule(2, "Ambush")], setAside: [1, 2])
         .Army("Blue", 2, 2)
         .Build();
@@ -83,10 +84,12 @@ public class ScenarioExtensionsTests(PostgresFixture pg)
         Assert.All(red.Take(2).SelectMany(u => u.Models), m => Assert.IsType<OnTable>(final.Models[m.Id].Location));
     }
 
-    [Fact]
-    public async Task A_set_aside_scout_and_ambusher_deploy_through_their_own_asks_in_process()
+    [Theory]
+    [InlineData(SchedulerShape.AlternatingActivation)]
+    [InlineData(SchedulerShape.PlayerTurn)]
+    public async Task A_set_aside_scout_and_ambusher_deploy_through_their_own_asks_in_process(SchedulerShape shape)
     {
-        var c = ScenarioCompiler.Compile(Reserves(1));
+        var c = ScenarioCompiler.Compile(Reserves(1, shape));
         await using var driver = await InProcessDriver.StartAsync(c, Ct);
         var (report, loop) = await PlayAsync(driver, c);
         AssertReserves(c, report, loop, await driver.ProjectionAsync(Ct));
@@ -138,9 +141,12 @@ public class ScenarioExtensionsTests(PostgresFixture pg)
         Assert.Throws<InvalidOperationException>(() => new ScenarioBuilder("bad", 1)
             .Army("Red", 1, 3, models: [new ScenarioModel(unit, model)]).Army("Blue", 1, 1).Build());
 
-    [Fact]
-    public void Setting_aside_a_unit_the_army_lacks_is_a_programming_error() =>
-        Assert.Throws<InvalidOperationException>(() => new ScenarioBuilder("bad", 1).Army("Red", 1, 1, setAside: [2]).Army("Blue", 1, 1).Build());
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Setting_aside_a_unit_the_army_lacks_is_a_programming_error(int unit) =>
+        Assert.Contains($"sets aside unit {unit}; its units are 1..1",
+            Assert.Throws<InvalidOperationException>(() => new ScenarioBuilder("bad", 1).Army("Red", 1, 1, setAside: [unit]).Army("Blue", 1, 1).Build()).Message);
 
     static void AssertHero(CompiledScenario c, Projection p)
     {

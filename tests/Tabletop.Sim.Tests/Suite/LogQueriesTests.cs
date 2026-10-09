@@ -70,6 +70,16 @@ public class LogQueriesTests
     }
 
     [Fact]
+    public void A_steps_rolls_show_the_edited_faces()
+    {
+        var step = new LogQueries(Log(), Final).StepsOf("attack-sequence", "roll-to-hit").Single();
+        var roll = step.Rolls("hit").Single();
+        Assert.Equal([6, 5], roll.Dice.Select(d => d.Raw));                   // the dice_edited a SetDice logs is applied
+        Assert.Same(roll, step.AllRolls.Single());
+        Assert.Equal("hit 4+ [] 6/6 5/5", LogQueries.Show(roll));
+    }
+
+    [Fact]
     public void Asks_by_question_carry_their_answers_and_deployments_are_read_off_them()
     {
         var q = new LogQueries(Log(), Final);
@@ -98,6 +108,21 @@ public class LogQueriesTests
         Assert.False(q.HasCondition(Blue.Id, "shaken", 13));
         Assert.True(q.HasCondition(Blue.Id, "shaken", 14));
         Assert.Equal(Blue.Name, q.UnitName(Blue.Id));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(6)]
+    public async Task A_steps_rolls_after_a_dice_fix_show_the_fixed_face(int face)
+    {
+        var check = new GameCheck("the step reads the fixed face", run =>
+        {
+            var roll = LogQueries.Of(run).Steps.SelectMany(s => s.Rolls("hit")).FirstOrDefault();
+            return roll is null ? "no hit roll" : roll is { Edited: true, Dice: [{ Raw: var raw }] } && raw == face ? null : LogQueries.Show(roll);
+        });
+        var game = SuiteFixtures.Game(dice: [new DiceFix("hit", 0, [face])], checks: [check]);
+        var report = await new SuiteRunner([game]).RunAsync(new SuiteOptions([game.Name], DriverKind.InProcess, false, SuiteFixtures.TempDir()), null, SuiteFixtures.Ct);
+        Assert.True(report.Passed, string.Join("\n", report.Games.SelectMany(g => g.Failures)));
     }
 
     [Fact]

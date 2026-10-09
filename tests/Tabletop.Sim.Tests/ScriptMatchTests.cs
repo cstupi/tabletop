@@ -67,7 +67,7 @@ public class ScriptMatchTests
     {
         var first = await PlayAsync(Casting(6));
         var second = await PlayAsync(Casting(6));
-        Assert.Equal(Shape(first.Loop), Shape(second.Loop));
+        Assert.Equal(Shape(first), Shape(second));
 
         var (c, loop) = first;
         var asks = loop.Log.Select(e => e.Payload).OfType<AskOpened>().ToDictionary(o => o.Ask.Id, o => o.Ask);
@@ -95,7 +95,21 @@ public class ScriptMatchTests
         Assert.All(targets, h => Assert.Equal([blue2.Id], Assert.IsType<SelectedPieces>(h.Answer).PieceIds));
     }
 
-    static IEnumerable<string> Shape(RunLoop loop) => loop.Answers.History.Select(h => $"{h.Question}#{h.Ordinal}:{h.FromScript}:{h.Answer.GetType().Name}");
+    /// <summary>Each answer by question, ordinal and source, with what it picked by name: the chosen option's label or the selected pieces' names (ids differ between runs).</summary>
+    static IEnumerable<string> Shape((CompiledScenario C, RunLoop Loop) run)
+    {
+        var (c, loop) = run;
+        var asks = loop.Log.Select(e => e.Payload).OfType<AskOpened>().ToDictionary(o => o.Ask.Id, o => o.Ask);
+        var units = c.Board.Armies.SelectMany(a => a.Snapshot.Units).ToList();
+        var names = units.Select(u => (u.Id, u.Name)).Concat(units.SelectMany(u => u.Models).Select(m => (m.Id, m.Name))).ToDictionary(x => x.Id, x => x.Name);
+        string Picked(AnsweredAsk h) => h.Answer switch
+        {
+            Chosen c when asks[h.AskId].Legal is Options o => o.Choices.Single(x => x.Id == c.OptionId).Label,
+            SelectedPieces s => string.Join(",", s.PieceIds.Select(id => names[id])),
+            var a => a.GetType().Name,
+        };
+        return loop.Answers.History.Select(h => $"{h.Question}#{h.Ordinal}:{h.FromScript}:{Picked(h)}");
+    }
 
     static async Task<(CompiledScenario C, RunLoop Loop)> PlayAsync(Scenario s)
     {

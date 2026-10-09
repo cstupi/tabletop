@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.Protocol;
 using Tabletop.Sim.Answers;
 using Tabletop.Sim.Drivers;
@@ -189,7 +188,7 @@ public sealed partial class RunLoop(
             {
                 var unit = army.Snapshot.Units.Single(u => u.Ordinal == ordinal);
                 var result = await driver.SubmitAsync(army.ParticipantId,
-                    new SetCondition(new Subject(SubjectKind.Unit, unit.Id), GfNames.SetAside, true), ct);
+                    new SetCondition(new Subject(SubjectKind.Unit, unit.Id), scenario.SetAsideCondition, true), ct);
                 Absorb(await driver.DrainEventsAsync(ct));
                 if (result is SubmitResult.Rejected rejected)
                     return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting aside {unit.Name}: {rejected.Reason} {rejected.Detail}");

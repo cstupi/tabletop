@@ -30,12 +30,18 @@ public sealed record LoggedStep(long Seq, StepCompleted Step, LoggedFrame Frame,
     /// <summary>Whether the step's Applied names the entry.</summary>
     public bool Lists(string entry) => Step.Applied?.Contains(entry) == true;
     public int Value(string key) => Step.Values?.GetValueOrDefault(key) ?? 0;
-    public IEnumerable<RollRecord> Rolls(string kind) => Step.Rolls.Where(r => r.Roll == kind);
+    internal readonly List<LoggedRoll> RollList = [];
+    /// <summary>The step's rolls with their dice as they stand (edits and rerolls applied). Step.Rolls holds the dice as first rolled.</summary>
+    public IReadOnlyList<LoggedRoll> AllRolls => RollList;
+    /// <summary>The step's rolls of that kind, dice as they stand.</summary>
+    public IEnumerable<LoggedRoll> Rolls(string kind) => RollList.Where(r => r.Kind == kind);
 }
 
-/// <summary>A roll as it stands: its dice after every edit and reroll, whether a dice fix edited it, and its rerolls.</summary>
+/// <summary>A roll as it stands: its dice after every edit and reroll, whether a dice fix edited it, and its rerolls.
+/// Roll is the record as logged, dice as first rolled; read Dice.</summary>
 public sealed record LoggedRoll(RollRecord Roll, IReadOnlyList<Die> Dice, LoggedStep Step, bool Edited, IReadOnlyList<DiceRerolled> Rerolls)
 {
+    public string Kind => Roll.Roll;
     public LoggedFrame Frame => Step.Frame;
     public int Successes => Dice.Count(d => d.Success);
     /// <summary>Dice whose unmodified face is one of those.</summary>
@@ -152,7 +158,11 @@ public sealed class LogQueries
                 }
         }
         foreach (var (roll, entry) in Rolls())
-            _rolls.Add(new LoggedRoll(roll, entry.Dice, entry.Step, entry.Edited, entry.Rerolls));
+        {
+            var logged = new LoggedRoll(roll, entry.Dice, entry.Step, entry.Edited, entry.Rerolls);
+            _rolls.Add(logged);
+            entry.Step.RollList.Add(logged);
+        }
 
         IEnumerable<(RollRecord, (Die[] Dice, LoggedStep Step, List<DiceRerolled> Rerolls, bool Edited))> Rolls() =>
             _steps.SelectMany(s => s.Step.Rolls).Select(r => (r, rolls[r.Id]));
@@ -256,7 +266,7 @@ public sealed class LogQueries
     /// <summary>The unit with that name, by its definition.</summary>
     public Guid UnitNamed(string name) => Final.Units.Values.Single(u => u.Definition.Name == name).Id;
 
-    /// <summary>A roll for a failure message: kind, threshold, modifiers and each die as raw/modified.</summary>
-    public static string Show(RollRecord r) =>
-        $"{r.Roll} {r.Threshold}+ [{string.Join(",", r.Modifiers.Select(m => $"{m.Source}{m.Amount:+0;-0}"))}] {string.Join(" ", r.Dice.Select(d => $"{d.Raw}/{d.Modified}"))}";
+    /// <summary>A roll for a failure message: kind, threshold, modifiers and each die as it stands, raw/modified.</summary>
+    public static string Show(LoggedRoll r) =>
+        $"{r.Kind} {r.Roll.Threshold}+ [{string.Join(",", r.Roll.Modifiers.Select(m => $"{m.Source}{m.Amount:+0;-0}"))}] {string.Join(" ", r.Dice.Select(d => $"{d.Raw}/{d.Modified}"))}";
 }
