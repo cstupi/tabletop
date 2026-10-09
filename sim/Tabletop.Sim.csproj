@@ -9,6 +9,9 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../server/game/Tabletop.GameServer.csproj" />
   </ItemGroup>
 </Project>

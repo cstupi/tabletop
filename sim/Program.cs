@@ -6,6 +6,7 @@ using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
+using Tabletop.Sim.Serve;
 using Tabletop.Sim.Suite;
 
 namespace Tabletop.Sim;
@@ -16,6 +17,11 @@ public static class Program
     {
         try
         {
+            if (args.Length > 0 && args[0] == ServeArguments.Verb)
+            {
+                await ServeApp.Build(ServeArguments.Parse(args[1..]), new SuiteRunner()).RunAsync();
+                return 0;
+            }
             return args.Length > 0 && args[0] == SuiteArguments.Verb
                 ? await RunSuiteAsync(SuiteArguments.Parse(args[1..]), Console.Out, new SuiteRunner(), CancellationToken.None)
                 : await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None);
