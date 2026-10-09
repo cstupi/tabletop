@@ -127,7 +127,7 @@ public static class SpellGames
 
     /// <summary>
     /// Every spell of the book resolved at least once on a cast whose die was not an unmodified 1, so its coverage never rests on a cast
-    /// p.5 says fails (D9: the engine passes a raw 1 lifted to 4+).
+    /// p.5 says fails.
     /// </summary>
     public static GameCheck ResolvedUnderP5(IReadOnlyList<string> spells) => new(ResolvedCheck, run =>
     {

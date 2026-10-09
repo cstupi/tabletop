@@ -93,14 +93,14 @@ public class SpellShapeTests
     public void A_casting_modifier_grant_applies_to_the_units_next_casting_roll_and_is_spent()
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]);
-        var sim = new Sim(State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(6));
+        var sim = new Sim(State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(5));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6), new GrantAdded(wizard.Id, new Grant(Guid.CreateVersion7(), Props.Entry("Hex")!.Effects[0].Id, "Hex", wizard.Id, 1))]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Quiet Bolt|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
         var roll = sim.Steps("roll").Single().Rolls.Single();
         Assert.Contains(roll.Modifiers, m => m.Source == "Hex" && m.Amount == -3);
-        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);                                   // 6 − 3 = 3, short of 4
+        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);                                   // 5 − 3 = 2, short of 4 (a 6 would pass whatever the modifier, p.5)
         Assert.Empty(sim.Unit(wizard.Id).Grants);
     }
 

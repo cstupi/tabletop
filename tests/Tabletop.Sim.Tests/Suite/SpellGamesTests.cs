@@ -93,8 +93,6 @@ static class SpellDefects
 {
     static readonly Dictionary<string, string[]> Known = new(StringComparer.Ordinal)
     {
-        // D9: Roller.Judge succeeds on modified >= threshold alone, so an unmodified 1 lifted to 4+ passes (p.5: "a roll of 1 always counts as a fail").
-        ["spells-human-defense-force"] = [SuiteCatalog.NaturalCastingDieCheck],
         // D10: the casting step stores "passed" when it rolls; a die edited to a raw 1 afterwards still resolves the spell.
         [SuiteCatalog.EditedCastingDieName] = [SuiteCatalog.EditedCastCheck],
     };

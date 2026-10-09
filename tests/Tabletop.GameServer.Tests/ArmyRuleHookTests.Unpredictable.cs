@@ -14,6 +14,7 @@ public partial class ArmyRuleHookTests
     static string Face(string rule, Guid unit) => $"face_{unit:N}_{rule}";
 
     [Theory]
+    [InlineData(1, true, false)]
     [InlineData(3, true, false)]
     [InlineData(4, false, true)]
     public void Unpredictable_shooter_rolls_once_and_its_face_picks_ap_or_plus_one_to_hit_for_every_group(int face, bool ap, bool toHit)
@@ -24,6 +25,7 @@ public partial class ArmyRuleHookTests
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id, ["Pistol"] = b.Id }));
         var start = sim.Steps("attack-start").Single();
         Assert.Equal(("Unpredictable Shooter", face), (start.Rolls.Single().Roll, start.Values![Face("Unpredictable Shooter", a.Id)]));
+        Assert.True(start.Rolls.Single().Dice[0].Success);                                              // a table roll, not a test: no face fails it, a 1 included
         Assert.All(sim.Steps("roll-to-hit"), s => Assert.Equal(toHit, s.Rolls.SelectMany(r => r.Modifiers).Any(m => m.Source == "Unpredictable Shooter")));
         Assert.All(sim.Steps("roll-to-block"), s => Assert.Equal(ap, s.Rolls.SelectMany(r => r.Modifiers).Any(m => m.Source == "AP")));
         Assert.Single(sim.Steps("attack-start"));

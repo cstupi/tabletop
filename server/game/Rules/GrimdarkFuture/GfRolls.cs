@@ -9,7 +9,13 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 /// <summary>OPR's dice: 1D6 against a target number, never clamped. Thresholds are functions of the live set; fatigue and cover are read here.</summary>
 public static class GfRolls
 {
-    static readonly RollConvention D6 = new(6, null);
+    /// <summary>
+    /// p.5: *"a roll of 6 always counts as a success and a roll of 1 always counts as a fail, regardless of how much it is being modified by"*.
+    /// The page is General Principles and names no roll, so every OPR roll carries it: hit, defense, morale, casting and a property's own
+    /// roll. The roll-off has no threshold, so the faces never judge it. A roll the book says succeeds only on an unmodified face (p.9's
+    /// fatigue) is a RequiredRaw plan, which the Roller judges on the raw face alone.
+    /// </summary>
+    static readonly RollConvention D6 = new(6, null, AlwaysFails: 1, AlwaysSucceeds: 6);
     static readonly StatRef Quality = new(StatLevel.Unit, GfNames.Quality), Defense = new(StatLevel.Unit, GfNames.Defense);
     static readonly StatRef ModelQuality = new(StatLevel.Model, GfNames.Quality), ModelDefense = new(StatLevel.Model, GfNames.Defense);
 

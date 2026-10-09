@@ -2,8 +2,11 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Dice;
 
-/// <summary>What GameRules supplies per roll: the die, and whether summed modifiers are clamped (OPR never; 40k ±1).</summary>
-public sealed record RollConvention(int Sides, int? ModifierCap);
+/// <summary>
+/// What GameRules supplies per roll: the die, whether summed modifiers are clamped (OPR never; 40k ±1), and the raw faces that fail or
+/// succeed a thresholded roll whatever its modifiers.
+/// </summary>
+public sealed record RollConvention(int Sides, int? ModifierCap, int? AlwaysFails = null, int? AlwaysSucceeds = null);
 
 /// <summary>One roll, settled: the threshold GameRules derived, the modifiers the two passes and the players contributed, and the per-die rules.
 /// RerollRaw faces are re-rolled whatever the die scored; RerollSuccessfulRaw faces only when the die succeeded ("re-roll successful unmodified results").</summary>

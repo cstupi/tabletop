@@ -25,8 +25,11 @@ public sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid Caster
 public sealed record Die(int Raw, int Modified, bool Success);
 public sealed record RollModifier(string Source, int Amount);
 
-/// <summary>A roll as it happened. Threshold is null for the roll-off. Replay applies this; it never re-rolls.</summary>
-public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice);
+/// <summary>
+/// A roll as it happened. Threshold is null for the roll-off. RequiredRaw is the raw face a roll judged on alone (null for a roll judged
+/// on its modified result), so a reroll or an edit judges the die the way the roll did. Replay applies this; it never re-rolls.
+/// </summary>
+public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw = null);
 
 /// <summary>What a sequence was invoked with. Action is the action row's name when the sequence is an action.</summary>
 public sealed record SequenceContext(Guid? ActorUnitId, IReadOnlyList<Guid> TargetUnitIds, IReadOnlyList<Guid> WeaponIds, string? Action);
