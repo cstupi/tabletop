@@ -7,7 +7,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 - `Program.cs`, `SimOptions.cs`, `Summary.cs`: console entry, option parsing (`UsageException`), the per-run summary table and `summary.json`.
 - `Scenarios/`: `Scenario`, `ScenarioBuilder`, `ScenarioCatalog` (the named scenarios), `ScenarioCompiler`, `Expectation`.
-- `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default), `AnswerScript` (named answers by question and ordinal), `PolicyView`. `Chooser.cs` is the seeded random stream.
+- `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal), `PolicyView`. `Chooser.cs` is the seeded random stream.
 - `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `SocketRowSeeder`, `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
 - `Invariants/`: `Invariants` (the checks), `ProjectionComparer`.
@@ -17,10 +17,14 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 
 - `ScenarioCatalog` holds `skirmish`, `terrain`, `player-turn`, `free-for-all`, `stalemate`, `final-round`, `final-round-warn`, `final-round-silent`, `casting`, `army-rules`, `objectives`. `--list` prints them.
 - A scenario has a seed, a round cap, a scheduler shape, an enforcement setting, armies, terrain, an optional `AnswerScript` and `Expectation`s.
-- `ScenarioCompiler` turns it into a `CompiledScenario`; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `AnswerPolicy` unless `ScriptOnly`.
+- `ScenarioCompiler` turns it into a `CompiledScenario`; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
 - `RunLoop` asks the driver for open Asks, answers each, drains events, and ends in a `RunOutcome`: `Ended`, `RoundLimit`, `Stuck`, `Failed` or `Paused`.
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
+- The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
+  the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.
+  `ObjectiveGoal.Nearest` (the nearest objective marker the model's team does not control) reads team and control; `objectives`
+  is the only scenario that opts in. Build a run's policy with `Scenario.Policy()` so the goal comes along.
 - `sim/` holds no second implementation of the rules. It asserts invariants over the log and projection.
 - `InProcessDriver` hosts the engine in the process. `SocketDriver` seeds rows in Postgres, mints sessions and plays over the game server's WebSocket.
 - `DriverMode.StepAndWait` stops with one Ask open and answers nothing (`RunOutcome.Paused`).

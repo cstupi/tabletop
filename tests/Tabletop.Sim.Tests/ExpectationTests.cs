@@ -107,6 +107,7 @@ public class ExpectationTests
         Assert.Contains(failures, f => f.Contains("expected team 1 to win"));
     }
 
+    /// <summary>The objectives board played by the uniform policy, not the catalog's goal-seeking one: seed 3 is then a game nobody seizes in.</summary>
     static async Task<(CompiledScenario Compiled, Projection Projection, IReadOnlyList<GameEvent> Log, RunOutcome Outcome)> Objectives(ulong seed)
     {
         var scenario = ScenarioCatalog.Get("objectives").WithSeed(seed);
@@ -142,6 +143,20 @@ public class ExpectationTests
         var (stalemate, stalemateProjection, stalemateLog, stalemateOutcome) = await Known();  // capped: no game_ended
         Assert.Contains(Expectations.Check([new Expectation.MostMarkersWin()], stalemateProjection, stalemateLog, stalemateOutcome, stalemate),
             f => f.Contains("no game_ended"));
+    }
+
+    [Fact]
+    public async Task MostMarkersWin_counts_only_objective_markers()
+    {
+        var (compiled, _, log, outcome) = await Objectives(1);                         // seed 1: team 2 holds one marker and wins
+        var applier = new EventApplier(compiled.Board, compiled.Info);
+        foreach (var e in log) applier.Apply(e);
+        var team1 = compiled.Info.Teams.Single(t => t.Ordinal == 1).Id;
+        var seq = log[^1].Seq;
+        foreach (var stray in new[] { Guid.CreateVersion7(), Guid.CreateVersion7() })     // control of ids that name no objective marker
+            applier.Apply(new GameEvent(++seq, null, new ObjectiveControlSet(stray, team1), null));
+        Assert.Equal(3, applier.Projection.Control.Count);
+        Assert.Empty(Expectations.Check([new Expectation.MostMarkersWin()], applier.Projection, log, outcome, compiled));
     }
 
     [Fact]

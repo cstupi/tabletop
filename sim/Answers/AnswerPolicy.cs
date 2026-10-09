@@ -13,14 +13,25 @@ public sealed class NoLegalAnswerException(Ask ask)
 public sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24);
 
 /// <summary>
+/// Where a model would rather be, or null for nowhere in particular. A goal ranks destinations the policy has already found legal; it
+/// never adds one and never removes one, so the answer stays inside the legal set. It may read any state PolicyView carries.
+/// </summary>
+public delegate Point2? MoveGoal(Guid modelId, PolicyView view);
+
+/// <summary>
 /// An Ask in, an answer out, from the legal set's shape alone. This is the default policy and it stays
 /// ignorant of state on purpose: a cleverer policy explores a narrower, more plausible region and finds
 /// fewer bugs (spec → Two ways to answer an Ask). It never narrows the set either — every choice is uniform over
 /// exactly what the server said was legal. It reads only PolicyView's geometry members, never UnitOf,
 /// ModelOf, TeamOf or Properties; a policy that wants those is a second IAnswerSource, named as such.
 /// Deterministic for a seed, given the same run: one chooser stream advanced in Ask order.
+///
+/// The one opt-in exception is a <see cref="MoveGoal"/> (a scenario's <c>Goal</c>, e.g. <see cref="ObjectiveGoal.Nearest"/>): with one,
+/// a model that has a goal draws all <see cref="PolicyOptions.MoveSamples"/> candidates and takes the legal one nearest its goal. The
+/// goal is the state-reading part; the sampling and the legality check are the uniform policy's own. Without a goal, or for a model the
+/// goal returns null for, the move is exactly the uniform one.
 /// </summary>
-public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
+public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null, MoveGoal? goal = null)
 {
     private readonly PolicyOptions _o = options ?? new PolicyOptions();
 
@@ -115,7 +126,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
             var from = view.LocationOf(id);
             var start = view.PlacedOf(id);
             var destination = start is { } placed
-                ? Sample(placed, m, impassable, difficult, view)
+                ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view))
                 : SampleExit(m, view);
             if (destination is null)
             {
@@ -149,19 +160,23 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null)
     /// A uniform bearing and a uniform distance inside the allowance, retried until Movement.Check likes it. The reach is
     /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
     /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still.
+    /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins.
     /// </summary>
     private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, PolicyView view)
+        IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null)
     {
         var origin = start.Placement.Position.Horizontal;
+        Point2? best = null;
         for (var i = 0; i < _o.MoveSamples; i++)
         {
             var bearing = chooser.Double() * Math.Tau;
             var distance = chooser.Double() * m.Allowance;
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
-            if (check is { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) return candidate;
+            if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) continue;
+            if (target is not { } goal) return candidate;
+            if (best is null || candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
         }
-        return null;
+        return best;
     }
 }

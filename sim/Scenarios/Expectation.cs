@@ -20,7 +20,8 @@ public abstract record Expectation
     public sealed record Won(int TeamOrdinal) : Expectation;
 
     /// <summary>The live game_ended names exactly the teams controlling the most markers in the final projection (p.6: "the player
-    /// that controls most markers wins"): one team is a win, several a tie, every team when none holds a marker. Holds for any seed.</summary>
+    /// that controls most markers wins"): one team is a win, several a tie, every team when none holds a marker. Holds for any seed.
+    /// Only control of an objective marker in play counts, as in the engine's own tally.</summary>
     public sealed record MostMarkersWin : Expectation;
 }
 
@@ -68,8 +69,9 @@ public static class Expectations
                     break;
                 case Expectation.MostMarkersWin:
                     var ended = EventApplier.EffectiveLog(log).LastOrDefault(e => e.Payload is GameEnded)?.Payload as GameEnded;
+                    var objectives = Answers.PolicyView.ObjectiveMarkersOf(projection).Select(m => m.Id).ToHashSet();
                     var held = scenario.Info.Teams.OrderBy(t => t.Ordinal)
-                        .Select(t => (t.Ordinal, t.Id, Count: projection.Control.Count(kv => kv.Value == t.Id))).ToList();
+                        .Select(t => (t.Ordinal, t.Id, Count: projection.Control.Count(kv => kv.Value == t.Id && objectives.Contains(kv.Key)))).ToList();
                     var most = held.Where(h => h.Count == held.Max(m => m.Count)).Select(h => h.Id).ToList();
                     if (ended is null || !ended.Winners.Order().SequenceEqual(most.Order()))
                         failures.Add($"expected winners [{Ordinals(most, scenario)}] (markers held: {string.Join(", ", held.Select(h => $"team {h.Ordinal}: {h.Count}"))}), " +

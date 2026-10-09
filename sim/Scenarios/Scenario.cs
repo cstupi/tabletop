@@ -45,4 +45,10 @@ public sealed record Scenario(
     IReadOnlyList<Expectation> Expectations)
 {
     public Scenario WithSeed(ulong seed) => this with { Seed = seed };
+
+    /// <summary>The move goal the scenario's policy ranks legal destinations by; null for the uniform policy.</summary>
+    public MoveGoal? Goal { get; init; }
+
+    /// <summary>The policy for a run of this scenario, seeded from it, or null for a script-only run.</summary>
+    public AnswerPolicy? Policy() => ScriptOnly ? null : new AnswerPolicy(new Chooser(Seed), goal: Goal);
 }

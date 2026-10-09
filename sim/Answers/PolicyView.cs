@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -47,6 +48,16 @@ public sealed class PolicyView(
     }
 
     public double SurfaceAt(Point2 point) => Settling.SurfaceHeightAt(point, Volumes);
+
+    /// <summary>The objective markers where they stand now: the setup rows, then those placed in play, the projection's entry winning on a shared id.</summary>
+    public IReadOnlyList<Marker> ObjectiveMarkers => ObjectiveMarkersOf(Projection);
+
+    public static IReadOnlyList<Marker> ObjectiveMarkersOf(Projection projection)
+    {
+        var play = projection.Markers;
+        return projection.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values)
+            .Where(m => m.Kind == MarkerKind.Objective).ToList();
+    }
 
     // Wounds, conditions, actions, grants and the unit definition with its stats.
     public UnitInPlay UnitOf(Guid unitId) => Projection.Units[unitId];
