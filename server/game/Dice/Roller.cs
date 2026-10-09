@@ -7,10 +7,12 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
 {
     public long Cursor { get; private set; } = cursor;
 
+    /// <summary>A required raw face rules alone; otherwise a thresholded roll fails on the convention's AlwaysFails face, succeeds on its AlwaysSucceeds face, and else compares the modified result.</summary>
     public Die Judge(RollPlan plan, int raw)
     {
         var modified = raw + plan.NetModifier;
-        var success = plan.RequiredRaw is { } r ? raw >= r : plan.Threshold is { } t && modified >= t;
+        var success = plan.RequiredRaw is { } r ? raw >= r
+            : plan.Threshold is { } t && raw != plan.Convention.AlwaysFails && (raw == plan.Convention.AlwaysSucceeds || modified >= t);
         return new Die(raw, modified, success);
     }
 

@@ -335,9 +335,11 @@ sequence test uses it to script a whole engagement as one array of faces in draw
 `RerollRaw`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
 modifiers, then clamps to `±Convention.ModifierCap` when the ruleset set one. OPR never clamps.
 40k clamps hit and wound at ±1. Summing is generic and clamping is the ruleset's: constraint 4.
-Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Modified >= t`. The
-`RequiredRaw` branch covers fatigue's *unmodified 6s* and 40k's critical hits, and is why a die
-carries both raw and modified.
+Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Raw != AlwaysFails && (Raw ==
+AlwaysSucceeds || Modified >= t)`, the two faces read from the convention. OPR's are 1 and 6 on every
+roll (p.5). The `RequiredRaw` branch covers fatigue's *unmodified 6s*, rolls that are no test (a
+spell's *"Roll as many dice as hits"*, Unpredictable's table roll) and 40k's critical hits, and is
+why a die carries both raw and modified.
 
 Every roll is recorded per die: `RollRecord(Guid Id, string Roll, int? Threshold,
 IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice)` with `Die(int Raw, int Modified,
@@ -763,7 +765,7 @@ pinned by the shape of Tasks 8 and 9 rather than by an assertion.
 | --- | --- | --- | --- | --- |
 | 1 | Roll count and names are data | 40k has Hit, Wound, Save and Feel No Pain against OPR's two | `roll` rows; `RollDefinition` | source scan of five directories |
 | 2 | Threshold derivation is a function, not a stat reference | 40k's wound roll is a Strength-against-Toughness lookup | `RollSpec.Threshold : Func<LiveSet, Side, int?>` | the property is a `Delegate` |
-| 3 | Dice conventions are per roll | Battle-shock is 2D6 >= Leadership | `RollConvention.Sides` | every OPR roll is `(6, null)`; no `Six`/`D6` member on `Roller` |
+| 3 | Dice conventions are per roll | Battle-shock is 2D6 >= Leadership | `RollConvention.Sides` | every OPR roll is `(6, null, 1, 6)`; no `Six`/`D6` member on `Roller` |
 | 4 | Modifier caps are per roll | 40k clamps hit and wound at ±1; OPR never clamps | `RollConvention.ModifierCap`, applied after summing | `RollPlan.NetModifier` under both conventions |
 | 5 | Granularity: pooled or per attack | 40k allocates per attack, with pooling legitimised by Fast Dice Rolling | `Roller.Roll(frameId, plan, count)` plus a later step consuming the pool | by shape |
 | 6 | Damage reads a capacity, not a rule name | `Tough(X)` in OPR, the W stat in 40k | `Lookup.ModelParameter(state, modelId, "Tough") ?? 1` inside `GfAttack` only | `Tough` absent from the generic half |

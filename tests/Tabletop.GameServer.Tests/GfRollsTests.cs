@@ -29,7 +29,7 @@ public class GfRollsTests
         Assert.Equal(4, Gf.RollSpec(GfNames.Morale).Threshold(live, Side.Defender));
         Assert.Equal(4, Gf.RollSpec(GfNames.Casting).Threshold(live, Side.Attacker));
         Assert.Null(Gf.RollSpec(GfNames.RollOff).Threshold(live, Side.Attacker));
-        Assert.Equal(new RollConvention(6, null), Gf.RollSpec(GfNames.Hit).Convention);
+        Assert.All(new[] { GfNames.Hit, GfNames.DefenseRoll, GfNames.Morale, GfNames.Casting, "Regeneration" }, r => Assert.Equal(new RollConvention(6, null, 1, 6), Gf.RollSpec(r).Convention));   // p.5: a 1 always fails, a 6 always succeeds
         Assert.Equal(GfNames.Hit, Gf.HitRoll);
         Assert.Equal(GfNames.ChargeSeq, Gf.ActionSequence(GfNames.Charge));
         Assert.Throws<UnknownSequenceException>(() => Gf.Sequence("nope"));
@@ -52,6 +52,21 @@ public class GfRollsTests
         Assert.Contains(GfRolls.DefensePlan(ctx, shot, inCover: true, defenderModels: 1).Modifiers, m => m.Source == "cover" && m.Amount == 1);
         Assert.DoesNotContain(GfRolls.DefensePlan(ctx, shot, inCover: false, defenderModels: 1).Modifiers, m => m.Source == "cover");
         Assert.DoesNotContain(GfRolls.DefensePlan(ctx, live, inCover: true, defenderModels: 1).Modifiers, m => m.Source == "cover");   // melee: no cover bonus
+    }
+
+    /// <summary>p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail, regardless of how much it is being modified by".</summary>
+    [Fact]
+    public void A_natural_one_fails_and_a_natural_six_succeeds_whatever_the_modifiers()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([a], [b]), 1);
+        var frame = new FrameView(new Frame(Guid.CreateVersion7(), "x", new SequenceContext(a.Id, [b.Id], [], GfNames.Advance)), 0, new Dictionary<string, int>(), StepHistory.Empty, null);
+        var ctx = new StepContext(sim.State, Core, Gf, frame, new Roller(new ScriptedDice(1, 6), sim.State.RngSeed, 0));
+        var live = LiveProperties.Settle(new Interaction(sim.State, Core, Party.Whole(sim.State, a.Id), Party.Whole(sim.State, b.Id), AttackKind.Shooting, GfNames.Advance, 1, []));
+        var lifted = ctx.Roll(GfRolls.CastingPlan(ctx, live, 4), 1).Dice.Single();
+        Assert.Equal((1, 5, false), (lifted.Raw, lifted.Modified, lifted.Success));                  // a 1 lifted to 4+ by tokens still fails
+        var lowered = ctx.Roll(GfRolls.CastingPlan(ctx, live, -3), 1).Dice.Single();
+        Assert.Equal((6, 3, true), (lowered.Raw, lowered.Modified, lowered.Success));                // a 6 lowered below 4+ still succeeds
     }
 
     [Fact]

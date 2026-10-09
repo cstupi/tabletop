@@ -379,7 +379,8 @@ still takes its test.
 shape:
 
 - **`AddHit` with no `RollResult` condition** → `Push(spell-hits, ...)`. Its `hit` step rolls
-  `amount` dice at threshold 1, so every die is a hit and *on rolls of 6* rules read a real die.
+  `amount` dice at threshold 1 with `RequiredRaw` 1, so every die is a hit (p.5's natural 1 does not
+  judge a roll that is no test) and *on rolls of 6* rules read a real die.
   It writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`.
 - **Any effect with `Duration = Once`** → `GrantAdded(targetUnit, new Grant(id, effect.Id,
   effect.TargetEntry ?? spell.Name, casterUnit, 1))`. A model-grain target's grant lands on its
@@ -511,8 +512,8 @@ at all: `dice_edited` reaches back into a recorded `RollRecord` and never rewrit
 
 ## Roll specs
 
-`GfRolls.Spec(roll)` gives every OPR roll the same convention, `new RollConvention(6, null)`,
-which is 1D6 with no modifier cap. The specs differ only in threshold derivation, and a spec's threshold is the default a caller that
+`GfRolls.Spec(roll)` gives every OPR roll the same convention, `new RollConvention(6, null, 1, 6)`,
+which is 1D6 with no modifier cap, where a raw 1 always fails and a raw 6 always succeeds (p.5). The specs differ only in threshold derivation, and a spec's threshold is the default a caller that
 names none gets: `GfRolls` passes its own to `StepContext.Plan` wherever the rulebook makes the
 target number a model's.
 

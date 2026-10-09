@@ -35,7 +35,7 @@ public class InterfaceConstraintTests
     {
         Assert.IsAssignableFrom<Delegate>(typeof(RollSpec).GetProperty(nameof(RollSpec.Threshold))!.GetValue(GrimdarkFutureRules.Instance.RollSpec(GfNames.Hit)));
         var specs = TestProperties.Core.Rolls.Select(r => GrimdarkFutureRules.Instance.RollSpec(r.Name)).ToList();
-        Assert.All(specs, s => Assert.Equal(new RollConvention(6, null), s.Convention));
+        Assert.All(specs, s => Assert.Equal(new RollConvention(6, null, AlwaysFails: 1, AlwaysSucceeds: 6), s.Convention));
         var capped = new RollPlan("x", 4, [new RollModifier("a", 2), new RollModifier("b", 1)], new RollConvention(6, 1), null, new HashSet<int>());
         Assert.Equal(1, capped.NetModifier);                                                     // the cap is the convention's, applied after summing
         Assert.Equal(3, (capped with { Convention = new RollConvention(6, null) }).NetModifier);

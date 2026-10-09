@@ -95,10 +95,7 @@ public static partial class SuiteCatalog
         };
 
         /// <summary>Per book uid: the engine defects its game is pinned to.</summary>
-        public static readonly Dictionary<string, IReadOnlyList<KnownDefect>> Known = new(StringComparer.Ordinal)
-        {
-            ["z65fgu0l29i4lnlu"] = [new KnownDefect("D9", NaturalCastingDieCheck, "raw 1, modified 5: judged a success")],
-        };
+        public static readonly Dictionary<string, IReadOnlyList<KnownDefect>> Known = new(StringComparer.Ordinal);
 
         /// <summary>The unit after the caster's in the book's army, wrapping: "&lt;army&gt; unit k" → "&lt;army&gt; unit k+1".</summary>
         static IReadOnlyList<string> NextUnit(string caster)

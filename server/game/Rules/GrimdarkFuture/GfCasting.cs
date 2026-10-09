@@ -263,8 +263,9 @@ public static class GfCasting
                 if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
                 else
                 {
-                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
-                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
+                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": every die is a hit, so the roll cannot fail. It is
+                    // no test, so p.5's natural 1 does not judge it: RequiredRaw 1 succeeds on every face.
+                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: 1, new HashSet<int>()), n);
                     total += Dice.RollOutcome.Successes(record);
                     RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
                     foreach (var die in record.Dice)

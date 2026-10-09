@@ -23,7 +23,8 @@ public static partial class GfAttack
             foreach (var (source, row) in live.AtPoint(Side.Attacker, GfNames.AttackStart).Where(x => x.Effect.Kind == EffectKind.Roll))
             {
                 if (!rolled.Add(source.Entry.Name)) continue;
-                var record = ctx.Roll(new Dice.RollPlan(source.Entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), Math.Max(1, row.Amount ?? 1));
+                // A table roll read by its raw face (Unpredictable's "on a 1-3"), never modified: the row's threshold is a raw face, so p.5's natural 1 does not fail it.
+                var record = ctx.Roll(new Dice.RollPlan(source.Entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: row.Threshold, new HashSet<int>()), Math.Max(1, row.Amount ?? 1));
                 values[$"face_{unit:N}_{source.Entry.Name}"] = record.Dice[0].Raw;
                 live.Record(source);
             }
