@@ -109,6 +109,51 @@ public static class GfMoves
             : null;
     }
 
+    /// <summary>The least this model must move under a minimum (MinimumBreach): the minimum, or as far as the table lets its whole base go when less.</summary>
+    public static double Minimum(GameState state, PlacedModel start, double minimum) => Math.Min(minimum, Movement.FarthestOnTable(start, state.Board.Table.Size).Distance);
+
+    /// <summary>
+    /// A relocation of a listed model that the move steps do not read (GfAnswers.Unread): an Inside the Ask did not offer, a move out of a container
+    /// the Ask is not exiting, a move farther than the table's diagonal, or one to the shelf. Refused under strict instead of applied as nothing.
+    /// </summary>
+    public static AnswerBreachFound? NotOfferedBreach(GameState state, MoveRegion region, Destinations answer) =>
+        GfAnswers.Unread(state, region, answer) is { } m
+            ? new(GfNames.MoveNotOfferedRule, $"the move Ask does not offer {state.Projection.Models[m.ModelId].Slot.Name} that relocation")
+            : null;
+
+    /// <summary>
+    /// The geometry of each move on the table, against the Ask's own parameters, read as the steps apply it (GfAnswers.Moves). In order:
+    /// p.7 "models may also never move outside of the battlefield (no part of them, at any point)" (a model already standing off the table, which only a
+    /// hand move can do, is not judged for it); p.11 "Units may not move through impassable terrain" (the volumes the Ask lists); p.7 "as long as no
+    /// part of their bases move further than the total movement distance" (the Ask's Allowance). A disembark is judged by ExitPlacement instead: p.15
+    /// "must stay fully within 6" of it when exiting" and p.7's table edge. The 1" separation and coherency stay client-flagged.
+    /// </summary>
+    public static AnswerBreachFound? PathBreach(GameState state, MoveRegion region, Destinations answer)
+    {
+        var impassable = Battlefield.Terrain(state).Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
+        var size = state.Board.Table.Size;
+        foreach (var m in GfAnswers.Moves(state, region, answer))
+        {
+            if (m.To is not OnTable to) continue;
+            var name = state.Projection.Models[m.ModelId].Slot.Name;
+            if (m.From is Inside from)
+            {
+                if (ExitPlacement(state, m.ModelId, from.ContainerId, to.Placement, region.Containment?.ExitWithin ?? GfNames.ExitWithin) is null)
+                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport and on the table (p.15, p.7)");
+                continue;
+            }
+            if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
+            var check = Movement.Check(start, to.Placement.Position.Horizontal, region.Allowance, impassable, [], null, size);
+            if (check.LeavesTable && Table.ContainsBase(size, start))
+                return new(GfNames.MoveOffTableRule, $"{name} would leave the table: models may never move outside of the battlefield (p.7)");
+            if (check.CrossesImpassable)
+                return new(GfNames.MoveImpassableRule, $"{name} would move through impassable terrain (p.11)");
+            if (check.Distance > region.Allowance + 1e-6)
+                return new(GfNames.MoveAllowanceRule, $"{name} moved {check.Distance:0.##}\", more than the {region.Allowance:0.#}\" allowed (p.7)");
+        }
+        return null;
+    }
+
     /// <summary>
     /// p.13 Aircraft: "Aircraft can't move into the table edges to move less than 30"" — the move is mandatory. The region's MinDistance is that 30";
     /// every listed model on the table must move at least that far. Where the table has no room for it, the model must go as far as its whole base
@@ -116,9 +161,6 @@ public static class GfMoves
     /// every base on the table; a standing ruling until the owner rules. The answer is read as the move step applies it (GfAnswers.Moves): a model
     /// it leaves out, or whose relocation that reading drops, has not moved. Null when every model went far enough.
     /// </summary>
-    /// <summary>The least this model must move under a minimum (MinimumBreach): the minimum, or as far as the table lets its whole base go when less.</summary>
-    public static double Minimum(GameState state, PlacedModel start, double minimum) => Math.Min(minimum, Movement.FarthestOnTable(start, state.Board.Table.Size).Distance);
-
     public static AnswerBreachFound? MinimumBreach(GameState state, MoveRegion region, Destinations answer)
     {
         if (region.MinDistance is not { } minimum) return null;

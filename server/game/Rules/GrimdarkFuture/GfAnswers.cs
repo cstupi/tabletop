@@ -64,6 +64,17 @@ public static class GfAnswers
             }).ToList();
     }
 
+    /// <summary>
+    /// The first relocation of a listed model the reading does not apply: one Moves drops, or one to somewhere no move step puts a model (the
+    /// shelf). Null when every relocation is read. AnswerBreach refuses it under strict rather than let it pass as a silent zero move.
+    /// </summary>
+    public static ModelRelocation? Unread(GameState state, MoveRegion region, Destinations answer)
+    {
+        var read = Moves(state, region, answer).ToDictionary(m => m.ModelId);
+        return answer.Moves.Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId)).DistinctBy(m => m.ModelId)
+            .FirstOrDefault(m => !read.TryGetValue(m.ModelId, out var r) || r.To is not (OnTable or Inside));
+    }
+
     static bool WithinDiagonal(GameState state, Location from, Placement to)
     {
         var size = state.Board.Table.Size;

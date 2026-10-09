@@ -54,9 +54,10 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `SequenceInterpreter` opens a "Continue: {step}" confirm Ask between steps when `Info.WaitsBetweenSteps` is on, gated to the actor's team. The client never offers the flag; it serves development. A frame with no actor and no parent (the roll-off) is always gated, to every team.
 - A `MoveModels` goes through `HandMoves.Judge` and `EnforcementPolicy.Decide`: placing the unit the actor's team last picked at a deploy Ask from the shelf onto the table, or inside a container the rules allow (`IGameRules.MayDeployInside`), is legal; anything else is `hand_move`, which `silent` accepts, `warn` warns and `strict` refuses.
 - An Ask answer inside its legal set is also asked of `IGameRules.AnswerBreach`, which names the rule broken; the dispatcher decides it as a
-  `Breach` (`StrictRefuses(Illegal)`) under the enforcement setting. Grimdark Future's (`GfRules.Moves.cs`) are `difficult_cap`
+  `Breach` (`StrictRefuses(Illegal)`) under the enforcement setting. Grimdark Future's (`GfRules.Moves.cs`) are `move_not_offered`, `move_exit`,
+  `move_off_table`, `move_impassable`, `move_allowance` (`GfMoves.PathBreach`, p.7 and p.11, against the Ask's own parameters), `difficult_cap`
   (`GfMoves.DifficultCapBreach`: p.11 holds every model of a `MoveRegion` to its `DifficultCap` once any model's path, or an earlier segment of the
-  move, enters difficult ground) and `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13). Both read the
+  move, enters difficult ground) and `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
 - `SightQuery` is answered to the asker alone from `Sight.Line` per model pair and `IGameRules.Shooters`: nothing appended or broadcast, no `AtRest`. `ModelFacts` (`IGameRules.MaxWounds`) goes to a client on connect once playing, and to everyone after a batch that changes a value. `Shooters` reads the game's `PropertySet` through `IRulesEngine.Properties`; Grimdark Future's calls `GfAttack.AttackInteraction`'s frame-optional core with no frame, the core the fire groups share.
 - `IStep.Label` puts a step in its sequence's outline; `SequenceStarted.Outline` carries the labelled steps in order.

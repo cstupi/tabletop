@@ -253,16 +253,16 @@ public class GfMovesTests
     }
 
     [Fact]
-    public void A_placement_the_reading_drops_is_judged_as_not_moved_and_is_not_applied()
+    public void A_placement_the_reading_drops_is_reported_and_is_not_applied()
     {
-        // Under warn a non-finite or impossibly far placement is accepted with a warning; the step does not apply it, and the minimum judges it unmoved.
+        // Under warn a non-finite or impossibly far placement is accepted with a warning (move_not_offered); the step does not apply it.
         foreach (var bad in new[] { double.NaN, 1e9 })
         {
             var sim = Jet(Enforcement.Warn, out var jet);
             var id = jet.Models[0].Id;
             var before = sim.Model(id).Location;
             var answer = new Destinations([At(sim, id, bad, 24)]);
-            Assert.Equal(GfNames.AircraftMinimumRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), answer)!.Rule);
+            Assert.Equal(GfNames.MoveNotOfferedRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), answer)!.Rule);
             Move(sim, [.. answer.Moves]);
             sim.Run();
             Assert.Equal(before, sim.Model(id).Location);
@@ -292,6 +292,78 @@ public class GfMovesTests
         Move(sim, new ModelRelocation(wizard.Models[0].Id, new Inside(container), new OnTable(new Placement(seat with { X = seat.X + 3 }, new Yaw(0)))));
         sim.Run();
         Assert.Equal(new Inside(container), sim.Model(wizard.Models[0].Id).Location);
+    }
+
+    // ---- A move answer's geometry under strict (p.7, p.11, p.15) -----------------------------------------------------------------------
+
+    static void Place(Sim sim, Guid model, double x, double y) =>
+        sim.Append([new ModelsMoved([new ModelRelocation(model, sim.Model(model).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))))])]);
+
+    static void RefusedFor(Sim sim, string rule, params ModelRelocation[] moves)
+    {
+        Assert.Equal(rule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations(moves))?.Rule);
+        Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(Move(sim, moves)).Reason);
+    }
+
+    [Fact]
+    public void Under_strict_an_advance_over_its_allowance_through_impassable_terrain_or_off_the_table_is_refused()
+    {
+        var unit = Unit("A", "4+", "4+", [], 2, []);
+        var wall = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(24, 24, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 10), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null))]);
+        var sim = Sim.Gf(State([unit], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict, terrain: [wall]), 4);
+        var (a, b) = (unit.Models[0].Id, unit.Models[1].Id);
+        Place(sim, a, 20, 24); Place(sim, b, 2, 10);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(unit.Id, [], [], GfNames.Advance));
+        RefusedFor(sim, GfNames.MoveAllowanceRule, At(sim, a, 12, 24));                               // p.7: 8" on a 6" Advance
+        RefusedFor(sim, GfNames.MoveImpassableRule, At(sim, a, 25.5, 24));                             // p.11: through the wall
+        RefusedFor(sim, GfNames.MoveOffTableRule, At(sim, b, -1, 10));                                 // p.7: off the table edge
+        Assert.IsType<Applied>(Move(sim, At(sim, a, 15, 24), At(sim, b, 6, 10)));
+    }
+
+    [Fact]
+    public void Under_strict_a_charge_and_the_defenders_close_in_are_held_to_their_allowances()
+    {
+        var charger = Unit("C", "4+", "4+", [], 1, [], Melee("Fist", 1));
+        var target = Unit("T", "4+", "4+", [], 2, [], Melee("Fist", 1));
+        var sim = Sim.Gf(State([charger], [target], enforcement: Enforcement.Strict), 1);
+        Place(sim, charger.Models[0].Id, 20, 24); Place(sim, target.Models[0].Id, 28, 24); Place(sim, target.Models[1].Id, 28, 28);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(charger.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([target.Id]));
+        RefusedFor(sim, GfNames.MoveAllowanceRule, At(sim, charger.Models[0].Id, 6, 24));             // 14" on a 12" charge
+        Assert.IsType<Applied>(Move(sim, At(sim, charger.Models[0].Id, 26.74, 24)));
+        sim.Run();
+        // The defender's free model may close in 3" (p.9): 5" is refused, 2" is applied.
+        var free = target.Models[1].Id;
+        var close = sim.AskFor(Samples.Team2);
+        Assert.Equal(GfNames.MoveAllowanceRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, close, new Destinations([At(sim, free, 28, 23)]))?.Rule);
+        Assert.IsType<Refused>(sim.Dispatch(new AnswerAsk(close.Id, new Destinations([At(sim, free, 28, 23)])), P2, Samples.Team2));
+        Assert.IsType<Applied>(sim.Dispatch(new AnswerAsk(close.Id, new Destinations([At(sim, free, 28, 26)])), P2, Samples.Team2));
+    }
+
+    [Fact]
+    public void Under_strict_a_disembark_outside_six_inches_and_a_forced_move_through_a_wall_are_refused()
+    {
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11)]);
+        var riders = Unit("Riders", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([bus, riders], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict), 4);
+        var container = bus.Models[0].Id;
+        Place(sim, container, 36, 24);
+        sim.Append([new ModelsMoved([new ModelRelocation(riders.Models[0].Id, sim.Model(riders.Models[0].Id).Location, new Inside(container))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(riders.Id, [], [], GfNames.Advance));
+        ModelRelocation Out(double x) => new(riders.Models[0].Id, new Inside(container), new OnTable(new Placement(new Point3(x, 24, 0), new Yaw(0))));
+        RefusedFor(sim, GfNames.MoveExitRule, Out(48));                                                  // p.15: 12" out
+        Assert.IsType<Applied>(Move(sim, Out(40)));
+
+        // A spell's forced move carries the same parameters (GfCasting): the same judge reads it.
+        var wall = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("wall"), new Point3(24, 10, 0), new Yaw(0), 1,
+            [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Solid, Footprint.Rect(1, 10), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null))]);
+        var pushed = Unit("P", "4+", "4+", [], 1, []);
+        var other = Sim.Gf(State([pushed], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict, terrain: [wall]), 4);
+        Place(other, pushed.Models[0].Id, 22, 10);
+        var region = new MoveRegion([pushed.Models[0].Id], 6, [wall.Volumes[0].Id], [], GfNames.DifficultCap);
+        Assert.Equal(GfNames.MoveImpassableRule, GfMoves.PathBreach(other.State, region, new Destinations([At(other, pushed.Models[0].Id, 26, 10)]))?.Rule);
+        Assert.Null(GfMoves.PathBreach(other.State, region, new Destinations([At(other, pushed.Models[0].Id, 18, 10)])));
     }
 
     // ---- Leaving a transport (p.7, p.15) -----------------------------------------------------------------------------------------------

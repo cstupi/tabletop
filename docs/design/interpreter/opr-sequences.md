@@ -228,8 +228,10 @@ map of integers. A `Passed` answer is a zero move.
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
-Indirect's *"shooting after moving"* reads. It does **not** enforce the 1-inch separation or coherency. The client
-flags those, per `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
+Indirect's *"shooting after moving"* reads. Under the enforcement setting, dispatch judges the answer's allowance, impassable
+terrain and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
+(`move_not_offered`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
+`architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
 prompt for a charge.
 
 p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in a straight line, and adding 30" to its
@@ -241,7 +243,8 @@ segment (the casting checkpoint never returns it to phase 0), so each model move
 table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
 `GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer
 left out. Where the table has no room for 30" (a small table), the minimum is as far as the whole base can go
-(`Movement.FarthestOnTable`); the rulebook does not cover that case.
+(`Movement.FarthestOnTable`); the rulebook does not cover that case (p.6 allows "smaller areas", p.7 keeps every base on the
+table), so this is a standing ruling until the owner rules.
 
 Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes

@@ -44,7 +44,15 @@ public class GfForgedMoveTests
         var ask = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
         Assert.DoesNotContain(bus.Models[0].Id, ask.Containment?.Enterable ?? []);
         var before = sim.Model(mine).Location;
-        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(mine, before, new Inside(bus.Models[0].Id))]));
+        var forged = new Destinations([new ModelRelocation(mine, before, new Inside(bus.Models[0].Id))]);
+        if (enforcement == Enforcement.Strict)
+        {
+            // Not a silent zero move: strict refuses the relocation the step would not read (move_not_offered).
+            var refused = Assert.IsType<Tabletop.GameServer.Dispatch.Refused>(sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, forged), Samples.P1, Samples.Team1));
+            Assert.Equal(RefusalReason.Illegal, refused.Reason);
+            return;
+        }
+        sim.Answer(Samples.Team1, forged);
         Assert.Equal(before, sim.Model(mine).Location);
         Assert.DoesNotContain(Relocations(sim), r => r.To is Inside);
     }
