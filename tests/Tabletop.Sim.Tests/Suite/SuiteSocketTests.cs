@@ -32,9 +32,9 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
             PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-        return new SuiteSocket(pg.Db, (c, _) =>
+        return new SuiteSocket(pg.Db, (c, minted, _) =>
         {
-            _minted.AddRange(c.Info.Participants.Select(p => p.AccountId));
+            foreach (var p in c.Info.Participants) { _minted.Add(p.AccountId); minted.Add(p.AccountId); }
             return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
         }, () => new FactoryConnector(_factory));
     }
@@ -91,6 +91,48 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
         }
     }
 
+    /// <summary>A run in flight holds its lock, so another run's sweep leaves its games; once its session ends they are swept.</summary>
+    [Fact]
+    public async Task The_sweep_spares_a_live_run_and_takes_it_once_its_lock_is_gone()
+    {
+        var socket = await SocketAsync();
+        var rows = new SuiteRows(pg.Db);
+        var live = Guid.CreateVersion7();
+        var c = ScenarioCompiler.Compile(Scenario());
+        c = c with { Info = c.Info with { Name = SuiteRows.GameName(live, Name, keep: false) } };
+        await new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)).SeedAsync(c, await socket.CredentialsAsync(c, new List<Guid>(), Ct), Ct);
+        try
+        {
+            await using (await rows.HoldAsync(live, Ct))
+            {
+                var report = await new SuiteRunner([Game()], socket).RunAsync(Options(), null, Ct);
+                Assert.True(report.Passed, Why(report));
+                Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1", c.Info.Id));
+            }
+            Assert.Contains(c.Info.Id, await rows.SweepAsync(Guid.CreateVersion7(), Ct));
+            Assert.Equal(0, await pg.CountAsync("select count(*) from management.game where id = $1", c.Info.Id));
+        }
+        finally { await rows.DeleteGameAsync(c.Info.Id, _minted, Ct); }
+    }
+
+    [Fact]
+    public async Task Accounts_minted_before_a_failed_seed_are_deleted()
+    {
+        var minted = new List<Guid>();
+        var failing = new SuiteSocket(pg.Db, async (c, sink, ct) =>
+        {
+            var id = await pg.SeedAccountAsync("sim-suite-mint-then-fail");
+            minted.Add(id); sink.Add(id);
+            throw new InvalidOperationException("the second mint failed");
+        }, () => new FactoryConnector(_factory));
+        await SocketAsync();
+
+        var report = await new SuiteRunner([Game()], failing).RunAsync(Options(), null, Ct);
+
+        Assert.Contains("setup: the second mint failed", report.Games.Single().Failures);
+        Assert.Equal(0, await pg.CountAsync("select count(*) from management.account where id = any($1)", minted.ToArray()));
+    }
+
     [Fact]
     public async Task A_run_sweeps_games_left_by_an_interrupted_run()
     {
@@ -102,7 +144,7 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
         {
             var c = ScenarioCompiler.Compile(Scenario());
             c = c with { Info = c.Info with { Name = SuiteRows.GameName(Guid.CreateVersion7(), Name, keep) } };
-            await new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)).SeedAsync(c, await socket.CredentialsAsync(c, Ct), Ct);
+            await new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)).SeedAsync(c, await socket.CredentialsAsync(c, new List<Guid>(), Ct), Ct);
             return c;
         }
         var interrupted = await SeedAsync(keep: false);

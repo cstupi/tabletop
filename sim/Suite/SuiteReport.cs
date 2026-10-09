@@ -38,7 +38,9 @@ public sealed record SuiteReport(Guid RunId, IReadOnlyList<SuiteGameResult> Game
         foreach (var c in Coverage)
         {
             var state = c.Uncovered ? "UNCOVERED" : c.Fired ? "fired" : "NOT FIRED";
-            lines.Add($"  {c.Kind,-5}  {c.Name}  {state}{(c.Uncovered ? "" : $"  ({string.Join(", ", c.Games)})")}");
+            var exact = c.Exact.Count == 0 ? "" : $"  exact {c.Exact.Count(x => x.Passed)}/{c.Exact.Count}"
+                + string.Concat(c.Exact.Where(x => !x.Passed).Select(x => $"  FAIL {x.Game}: {x.Check}"));
+            lines.Add($"  {c.Kind,-5}  {c.Name}  {state}{(c.Uncovered ? "" : $"  ({string.Join(", ", c.Games)})")}{exact}");
         }
 
         lines.Add($"{(Passed ? "PASSED" : "FAILED")}: {Games.Count(g => g.Passed)} of {Games.Count} games passed; "

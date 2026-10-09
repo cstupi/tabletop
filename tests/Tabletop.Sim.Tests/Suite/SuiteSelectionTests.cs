@@ -56,8 +56,10 @@ public class SuiteSelectionTests
     public void Replay_reruns_one_game_alone_with_keep()
     {
         Assert.Equal("dotnet run --project sim -- suite --only volley --keep", SuiteRunner.ReplayOf(Games[1], DriverKind.InProcess));
-        Assert.Equal("dotnet run --project sim -- suite --only \"two words\" --keep --driver socket",
+        Assert.Equal("dotnet run --project sim -- suite --only 'two words' --keep --driver socket",
             SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "two words"), DriverKind.Socket));
+        Assert.Equal("dotnet run --project sim -- suite --only 'it'\\''s $HOME' --keep",          // single quotes: the shell expands nothing
+            SuiteRunner.ReplayOf(SuiteFixtures.Game(name: "it's $HOME"), DriverKind.InProcess));
     }
 
     /// <summary>Guards for the four group files: what --only, the replay line and coverage rely on.</summary>

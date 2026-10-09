@@ -25,7 +25,7 @@ public static class Checks
             ? $"never fired: {string.Join(", ", silent)}"
             : null);
 
-    /// <summary>An exact check over the effective log; the name quotes the rule and its page.</summary>
-    public static GameCheck Event(string name, Func<IReadOnlyList<GameEvent>, string?> failure) =>
-        new(name, run => failure(run.EffectiveLog));
+    /// <summary>An exact check over the effective log; the name quotes the rule and its page, and entries are the catalog entries it checks.</summary>
+    public static GameCheck Event(string name, Func<IReadOnlyList<GameEvent>, string?> failure, params string[] entries) =>
+        new(name, run => failure(run.EffectiveLog), entries.Length == 0 ? null : entries);
 }

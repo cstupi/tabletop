@@ -66,6 +66,35 @@ public class SuiteRunnerTests
     }
 
     [Fact]
+    public async Task Every_game_is_judged_by_ended_invariants_and_fired_whether_or_not_it_lists_them()
+    {
+        var report = await RunAsync(Game(covers: ["AP", "Furious"], checks: []));       // Furious is on no model: it cannot fire
+        Assert.False(report.Passed);
+        Assert.Equal(["fired: never fired: Furious"], report.Games.Single().Failures);
+        Assert.False(report.Coverage.Single(c => c.Name == "Furious").Fired);
+
+        // A game that lists one of them is not judged by it twice.
+        var listed = await RunAsync(Game(covers: ["AP", "Furious"], checks: [Checks.FiredAll(), Checks.Ended()]));
+        Assert.Equal(["fired: never fired: Furious"], listed.Games.Single().Failures);
+    }
+
+    [Fact]
+    public async Task Exact_checks_are_reported_against_the_entries_they_name()
+    {
+        var report = await RunAsync(Game(checks:
+        [
+            Checks.Event("p.13 AP: -1 to the block", _ => null, "AP"),
+            Checks.Event("p.13 AP: a made-up miss", _ => "expected 2, saw 1", "AP"),
+            Checks.Event("about nothing", _ => null),
+        ]));
+        var ap = report.Coverage.Single(c => c.Name == "AP");
+        Assert.Equal([new ExactResult(Name, "p.13 AP: -1 to the block", true), new ExactResult(Name, "p.13 AP: a made-up miss", false)], ap.Exact);
+        Assert.Contains($"exact 1/2  FAIL {Name}: p.13 AP: a made-up miss", report.Table());
+        Assert.Contains("\"exact\"", report.ToJson());
+        Assert.False(report.Passed);
+    }
+
+    [Fact]
     public async Task A_full_run_fails_on_coverage_and_an_only_run_does_not()
     {
         var full = await new SuiteRunner([Game()]).RunAsync(Options(), null, Ct);

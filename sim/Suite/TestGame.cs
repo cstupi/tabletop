@@ -11,8 +11,14 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces);
 
-/// <summary>One check a game makes of its run: Failure returns null for a pass, else the reason.</summary>
-public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure);
+/// <summary>
+/// One check a game makes of its run: Failure returns null for a pass, else the reason. Entries: the catalog entries an exact check is
+/// about, reported against each entry's coverage; null for a check about no entry.
+/// </summary>
+public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IReadOnlyList<string>? Entries = null);
+
+/// <summary>One exact check's verdict, as an entry's coverage lists it.</summary>
+public sealed record ExactResult(string Game, string Check, bool Passed);
 
 /// <summary>
 /// A themed sim scenario with what it covers (catalog entry names: rules and spells), the dice it fixes and the checks it makes.
@@ -32,4 +38,8 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
 
 /// <summary>What a game's checks read: the outcome, the effective log (undone ranges removed), the final projection and the sim's invariant failures.</summary>
 public sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IReadOnlyList<GameEvent> EffectiveLog,
-    Projection Final, IReadOnlyList<string> InvariantFailures);
+    Projection Final, IReadOnlyList<string> InvariantFailures)
+{
+    /// <summary>The verdicts of the game's checks that name entries, by entry; set by the runner once the checks have run.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ExactResult>> Exact { get; init; } = new Dictionary<string, IReadOnlyList<ExactResult>>();
+}

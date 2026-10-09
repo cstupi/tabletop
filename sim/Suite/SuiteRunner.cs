@@ -16,7 +16,8 @@ public enum DriverKind { InProcess, Socket }
 public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir);
 
 /// <summary>
-/// Plays the selected games one after another on one driver, judges each, and computes coverage. A socket run sweeps what an
+/// Plays the selected games one after another on one driver, judges each, and computes coverage. Every game is judged by Ended,
+/// Invariants and FiredAll whether or not it lists them, then by its own checks. A socket run holds its run lock, sweeps what an
 /// interrupted run left, then seeds, plays and deletes each game's rows, pass or fail, unless Keep. Keep writes each game's recording.
 /// </summary>
 /// <param name="games">The games to select from; the catalog by default.</param>
@@ -33,9 +34,15 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         var sock = options.Driver == DriverKind.Socket ? socket ?? SuiteSocket.FromEnvironment() : null;
         var results = new List<SuiteGameResult>();
         var runs = new List<SuiteGameRun>();
+        IAsyncDisposable? runLock = null;
         try
         {
-            if (sock is not null) await new SuiteRows(sock.Db).SweepAsync(runId, ct);
+            if (sock is not null)
+            {
+                var rows = new SuiteRows(sock.Db);
+                runLock = await rows.HoldAsync(runId, ct);
+                await rows.SweepAsync(runId, ct);
+            }
             foreach (var game in selected)
             {
                 var (result, run) = await PlayAsync(game, options, runId, sock, ct);
@@ -44,10 +51,15 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
                 progress?.Report(result);
             }
         }
-        finally { if (sock is not null && sock != socket) await sock.DisposeAsync(); }
+        finally
+        {
+            if (runLock is not null) await runLock.DisposeAsync();
+            if (sock is not null && sock != socket) await sock.DisposeAsync();
+        }
 
         var coverage = Coverage.Of(properties ?? ScenarioCompiler.CoreProperties, runs, fullRun: options.Only.Count == 0);
-        return new SuiteReport(runId, results, coverage, results.All(r => r.Passed) && Coverage.Complete(coverage));
+        return new SuiteReport(runId, results, coverage,
+            results.All(r => r.Passed) && Coverage.Complete(coverage) && coverage.All(c => c.Uncovered || c.Fired));
     }
 
     /// <summary>The command line that reruns one game alone and keeps it.</summary>
@@ -67,12 +79,13 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         SuiteGameRun? run = null;
         string? recordingPath = null;
         SocketCredentials? credentials = null;
+        var minted = new List<Guid>();
         try
         {
             IGameDriver inner;
             if (sock is not null)
             {
-                credentials = await sock.CredentialsAsync(compiled, ct);
+                credentials = await sock.CredentialsAsync(compiled, minted, ct);
                 await new SocketRowSeeder(sock.Db, new PostgresGameRows(sock.Db)).SeedAsync(compiled, credentials, ct);
                 inner = await SocketDriver.StartAsync(compiled, sock.Connector(), credentials, ct);
             }
@@ -86,10 +99,12 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             var final = await driver.ProjectionAsync(ct);
             run = new SuiteGameRun(game, report.Outcome, EventApplier.EffectiveLog(loop.Log), final,
                 await InvariantFailuresAsync(inner, report.Outcome, final, loop.Log, compiled, ct));
+            var (judged, exact) = Judge(game, run);
+            run = run with { Exact = exact };
 
             failures.AddRange(report.Failures);     // the scenario's expectations; a stuck or failed run's detail
             failures.AddRange(driver.Failures);
-            failures.AddRange(Judge(game, run));
+            failures.AddRange(judged);
 
             if (options.Keep)
             {
@@ -103,9 +118,10 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         }
         finally
         {
+            // A failed cleanup is this game's failure; the run and its report go on.
             if (sock is not null && !options.Keep)
-                await new SuiteRows(sock.Db).DeleteGameAsync(compiled.Info.Id,
-                    credentials?.Sessions.Select(s => s.AccountId).ToList() ?? [], CancellationToken.None);
+                try { await new SuiteRows(sock.Db).DeleteGameAsync(compiled.Info.Id, minted, CancellationToken.None); }
+                catch (Exception ex) { failures.Add($"cleanup: {ex.Message}"); }
         }
 
         run ??= new SuiteGameRun(game, new RunOutcome.Failed(failures.LastOrDefault() ?? "setup"), [],
@@ -115,15 +131,24 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         return (result, run);
     }
 
-    private static IEnumerable<string> Judge(TestGame game, SuiteGameRun run)
+    /// <summary>The checks every game makes (rules suite spec → Checks 1 and 2); a game's own check of the same name is not run twice.</summary>
+    private static readonly IReadOnlyList<GameCheck> Mandatory = [Checks.Ended(), Checks.Invariants(), Checks.FiredAll()];
+
+    /// <summary>The failures, and the result of every check that names the entries it is about.</summary>
+    private static (IReadOnlyList<string> Failures, IReadOnlyDictionary<string, IReadOnlyList<ExactResult>> Exact) Judge(TestGame game, SuiteGameRun run)
     {
-        foreach (var check in game.Checks)
+        var failures = new List<string>();
+        var exact = new Dictionary<string, List<ExactResult>>();
+        foreach (var check in Mandatory.Concat(game.Checks.Where(c => Mandatory.All(m => m.Name != c.Name))))
         {
             string? failure;
             try { failure = check.Failure(run); }
             catch (Exception ex) { failure = $"threw {ex.GetType().Name}: {ex.Message}"; }
-            if (failure is not null) yield return $"{check.Name}: {failure}";
+            if (failure is not null) failures.Add($"{check.Name}: {failure}");
+            foreach (var entry in (check.Entries ?? []).Distinct())
+                (exact.TryGetValue(entry, out var list) ? list : exact[entry] = []).Add(new ExactResult(game.Name, check.Name, failure is null));
         }
+        return (failures, exact.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<ExactResult>)kv.Value));
     }
 
     private static async Task<IReadOnlyList<string>> InvariantFailuresAsync(IGameDriver inner, RunOutcome outcome, Projection final,
@@ -137,7 +162,9 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         return failures;
     }
 
-    private static string Quote(string name) => name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or ':' or '.') ? name : $"\"{name}\"";
+    /// <summary>Single quotes, in which a POSIX shell expands nothing; a quote inside the name is closed, escaped and reopened.</summary>
+    private static string Quote(string name) =>
+        name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or ':' or '.') ? name : $"'{name.Replace("'", "'\\''")}'";
 
     private static string FileNameOf(string name) =>
         new([.. name.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '-')]);
