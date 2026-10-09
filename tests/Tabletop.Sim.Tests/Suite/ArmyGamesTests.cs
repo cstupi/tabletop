@@ -96,12 +96,46 @@ public class ArmyGamesTests
 
     static GameCheck Check(string game, string entry) => Army.Single(g => g.Name == game).Checks.Single(c => c.Name.StartsWith(entry + ": "));
 
-    static string? Judge(string game, string entry, params EventPayload[] log)
+    static string? Judge(string game, string entry, params EventPayload[] log) => new Board(game).Judge(entry, log);
+
+    /// <summary>A game's scenario compiled once, so a hand-built log can name its units by the ids its projection holds.</summary>
+    sealed class Board(string game)
     {
-        var compiled = ScenarioCompiler.Compile(Army.Single(g => g.Name == game).Scenario);
-        var events = log.Select((p, i) => new GameEvent(i + 1, null, p, null)).ToList();
-        var run = new SuiteGameRun(Army.Single(g => g.Name == game), new RunOutcome.RoundLimit(4), events, new EventApplier(compiled.Board, compiled.Info).Projection, []);
-        return Check(game, entry).Failure(run);
+        readonly TestGame _game = Army.Single(g => g.Name == game);
+        readonly CompiledScenario _compiled = ScenarioCompiler.Compile(Army.Single(g => g.Name == game).Scenario);
+
+        public Guid Unit(string name) => _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == name).Id;
+        public Guid Weapon(string unit, string weapon) =>
+            _compiled.Board.Armies.SelectMany(a => a.Snapshot.Units).Single(u => u.Name == unit).Models[0].Weapons.Single(w => w.Name == weapon).Id;
+
+        SuiteGameRun Run(EventPayload[] log) => new(_game, new RunOutcome.RoundLimit(4), [.. log.Select((p, i) => new GameEvent(i + 1, null, p, null))],
+            new EventApplier(_compiled.Board, _compiled.Info).Projection, []);
+        public string? Judge(string entry, params EventPayload[] log) => Check(_game.Name, entry).Failure(Run(log));
+        public IReadOnlyList<string> Reasons(string entry, params EventPayload[] log) => Check(_game.Name, entry).FailuresOf(Run(log));
+    }
+
+    /// <summary>
+    /// One attack of a hand-built log: a shooting frame when shooting, the attack-sequence, its roll-to-hit step, and one resolve-hits frame
+    /// with its roll-to-block step when a defense roll is given; every frame finishes.
+    /// </summary>
+    static EventPayload[] Attack(Guid attacker, Guid target, IReadOnlyList<Guid> weapons, bool shooting, StepCompleted? hit, Func<Guid, EventPayload[]>? block = null)
+    {
+        var log = new List<EventPayload>();
+        var shoot = Guid.CreateVersion7();
+        var attack = Guid.CreateVersion7();
+        var resolve = Guid.CreateVersion7();
+        if (shooting) log.Add(new SequenceStarted(shoot, "shooting", new SequenceContext(attacker, [target], [], "Hold")));
+        log.Add(new SequenceStarted(attack, "attack-sequence", new SequenceContext(attacker, [target], weapons, shooting ? "Hold" : null)));
+        if (hit is not null) log.Add(hit with { FrameId = attack });
+        if (block is not null)
+        {
+            log.Add(new SequenceStarted(resolve, "resolve-hits", new SequenceContext(attacker, [target], [], null)));
+            log.AddRange(block(resolve));
+            log.Add(new SequenceFinished(resolve));
+        }
+        log.Add(new SequenceFinished(attack));
+        if (shooting) log.Add(new SequenceFinished(shoot));
+        return [.. log];
     }
 
     static (SequenceStarted Start, Guid Frame) Frame(string sequence, string? action = null, Guid? actor = null)
@@ -119,16 +153,64 @@ public class ArmyGamesTests
     [Fact]
     public void Extra_attacks_must_match_the_pools_sixes_and_never_chain()
     {
-        var (start, frame) = Frame("attack-sequence");
+        var board = new Board("saurian-starhost-primal");
+        var (holder, target) = (board.Unit("Saurian Starhost unit 1"), board.Unit("Opponents unit 1"));
         RollRecord Pool() => Roll("hit", 4, [], (6, true), (2, false), (6, true));
         string? With(params RollRecord[] added) =>
-            Judge("saurian-starhost-primal", "Primal", start, Step(frame, "roll-to-hit", ["Primal"], null, [Pool(), .. added]));
+            board.Judge("Primal", Attack(holder, target, [], shooting: true, Step(Guid.Empty, "roll-to-hit", ["Primal"], null, [Pool(), .. added])));
 
         Assert.Null(With(Roll("hit", 4, [], (3, false), (4, true))));
         Assert.Null(With(Roll("hit", 4, [], (6, true), (4, true))));      // "This rule doesn't apply to newly generated attacks": the added 6 adds none
         Assert.Contains("1 added attacks", With(Roll("hit", 4, [], (3, false))));
         Assert.Contains("3 hit rolls", With(Roll("hit", 4, [], (6, true), (4, true)), Roll("hit", 4, [], (1, false))));
-        Assert.Equal("no occasion in the log", Judge("saurian-starhost-primal", "Primal", start));
+        Assert.Equal("no occasion in the log", board.Judge("Primal", Attack(holder, target, [], shooting: true, hit: null)));
+        Assert.Equal("no occasion in the log", board.Judge("Primal",                           // the opponents' attacks are not the rule's
+            Attack(target, holder, [], shooting: true, Step(Guid.Empty, "roll-to-hit", [], null, Pool()))));
+    }
+
+    /// <summary>
+    /// The occasions are the holder's attacks, read from the log and the army definitions, not the steps whose Applied lists the rule: an
+    /// attack the engine left the rule off fails, whatever Applied says.
+    /// </summary>
+    [Fact]
+    public void A_rule_that_acts_on_one_of_its_two_occasions_fails()
+    {
+        var board = new Board("saurian-starhost-primal");
+        var (holder, target) = (board.Unit("Saurian Starhost unit 1"), board.Unit("Opponents unit 1"));
+        var applied = Attack(holder, target, [], shooting: true,
+            Step(Guid.Empty, "roll-to-hit", ["Primal"], null, Roll("hit", 4, [], (6, true), (2, false)), Roll("hit", 4, [], (3, false))));
+        var skipped = Attack(holder, target, [], shooting: true, Step(Guid.Empty, "roll-to-hit", [], null, Roll("hit", 4, [], (6, true), (2, false))));
+
+        Assert.Null(board.Judge("Primal", applied));
+        Assert.Equal(["1 of 2 occasions: 0 added attacks from [6 2], expected 1"], board.Reasons("Primal", [.. applied, .. skipped]));
+    }
+
+    /// <summary>Each distinct failure is its own reason, none dropped, so a pin on one never covers another.</summary>
+    [Fact]
+    public void An_exact_check_reports_every_distinct_failure_on_its_own_line()
+    {
+        var board = new Board("saurian-starhost-primal");
+        var (holder, target) = (board.Unit("Saurian Starhost unit 1"), board.Unit("Opponents unit 1"));
+        EventPayload[] Sixes(int count) => Attack(holder, target, [], shooting: true,
+            Step(Guid.Empty, "roll-to-hit", [], null, Roll("hit", 4, [], [.. Enumerable.Repeat((6, true), count)])));
+        var reasons = board.Reasons("Primal", [.. Sixes(1), .. Sixes(2), .. Sixes(3), .. Sixes(4), .. Sixes(4)]);
+        Assert.Equal(
+            ["1 of 5 occasions: 0 added attacks from [6], expected 1", "1 of 5 occasions: 0 added attacks from [6 6], expected 2",
+             "1 of 5 occasions: 0 added attacks from [6 6 6], expected 3", "2 of 5 occasions: 0 added attacks from [6 6 6 6], expected 4"], reasons);
+    }
+
+    /// <summary>A unit that holds the Boost is the Boost's check's: the base rule's check skips its attacks; a weapon rule's occasions are the attacks with that weapon.</summary>
+    [Fact]
+    public void The_base_check_skips_a_Boost_holders_attacks()
+    {
+        var board = new Board("havoc-brothers-havocbound");
+        var (plain, boosted, target) = (board.Unit("Havoc Brothers unit 1"), board.Unit("Havoc Brothers unit 2"), board.Unit("Opponents unit 1"));
+        EventPayload[] Block(Guid frame, int ap) => [Step(frame, "roll-to-block", [], null, Roll("defense", 4, [new RollModifier("AP", ap)], (5, true)))];
+        Assert.Equal("no occasion in the log", board.Judge("Havocbound", Attack(boosted, target, [], shooting: true, null, f => Block(f, -1))));
+        Assert.Null(board.Judge("Havocbound", Attack(plain, target, [], shooting: true, null, f => Block(f, -1))));
+        Assert.Contains("defense under AP [0]", board.Judge("Havocbound", [.. Attack(plain, target, [], shooting: true, null, f => Block(f, -1)),
+            .. Attack(plain, target, [], shooting: true, null, f => Block(f, 0))]));
+        Assert.Equal("no occasion in the log", board.Judge("Havocbound", Attack(plain, target, [], shooting: false, null, f => Block(f, -1))));   // a melee strike is not a shot
     }
 
     [Fact]
@@ -154,12 +236,24 @@ public class ArmyGamesTests
     }
 
     [Fact]
+    public void A_weapon_rules_occasions_are_the_attacks_made_with_that_weapon()
+    {
+        var board = new Board("dwarf-guilds-shred");
+        var (holder, target) = (board.Unit("Dwarf Guilds unit 1"), board.Unit("Opponents unit 1"));
+        EventPayload[] With(string weapon, int extra) => Attack(holder, target, [board.Weapon("Dwarf Guilds unit 1", weapon)], shooting: weapon == "Rifle", null,
+            f => [Step(f, "roll-to-block", [], new() { ["extra_wounds"] = extra }, Roll("defense", 4, [], (1, false), (5, true)))]);
+        Assert.Null(board.Judge("Shred", With("Rifle", 1)));
+        Assert.Contains("0 extra wounds", board.Judge("Shred", [.. With("Rifle", 1), .. With("Rifle", 0)]));
+        Assert.Equal("no occasion in the log", board.Judge("Shred", With("Blade", 0)));          // the Blade carries no Shred
+    }
+
+    [Fact]
     public void Extra_wounds_count_only_failed_dice_showing_the_faces()
     {
-        var (start, frame) = Frame("resolve-hits");
+        var board = new Board("infected-colonies-infected-boost");
         var defense = Roll("defense", 4, [new RollModifier("cover", 3)], (1, false), (2, true), (2, false), (5, true));    // the first 2 made a success
-        string? With(int extra) => Judge("infected-colonies-infected-boost", "Infected Boost", start,
-            Step(frame, "roll-to-block", ["Infected Boost"], new() { ["extra_wounds"] = extra }, defense));
+        string? With(int extra) => board.Judge("Infected Boost", Attack(board.Unit("Infected Colonies unit 1"), board.Unit("Opponents unit 1"), [], shooting: true, null,
+            f => [Step(f, "roll-to-block", ["Infected Boost"], new() { ["extra_wounds"] = extra }, defense)]));
         Assert.Null(With(2));
         Assert.Contains("expected 2", With(3));         // "failed defense rolls of 1-2": the successful 2 adds none
     }
@@ -193,18 +287,20 @@ public class ArmyGamesTests
     [Fact]
     public void Rerolls_must_be_exactly_the_dice_the_rule_names()
     {
-        var (start, frame) = Frame("resolve-hits");
         var defense = Roll("defense", 4, [], (6, true), (5, true), (5, false), (2, false));      // the third die: a 5 a modifier made fail
-        DiceRerolled Of(params int[] indexes) => new(frame, defense.Id, [.. indexes.Select(i => new DieReplacement(i, defense.Dice[i], new Die(1, 1, false)))]);
-        string? With(string entry, IReadOnlyList<string> applied, params DiceRerolled[] rerolls) =>
-            Judge(entry == "Mischievous" ? "goblin-reclaimers-mischief" : "goblin-reclaimers-mischief-boost", entry, [start, Step(frame, "roll-to-block", applied, null, defense), .. rerolls]);
+        string? With(string entry, params int[] rerolled)
+        {
+            var board = new Board(entry == "Mischievous" ? "goblin-reclaimers-mischief" : "goblin-reclaimers-mischief-boost");
+            return board.Judge(entry, Attack(board.Unit("Goblin Reclaimers unit 1"), board.Unit("Opponents unit 1"), [], shooting: true, null, f =>
+                [Step(f, "roll-to-block", [], null, defense),
+                 new DiceRerolled(f, defense.Id, [.. rerolled.Select(i => new DieReplacement(i, defense.Dice[i], new Die(1, 1, false)))])]));
+        }
 
-        Assert.Null(With("Mischievous", ["Mischievous"], Of(0)));
-        Assert.Contains("re-rolled dice [0,1]", With("Mischievous", ["Mischievous"], Of(0, 1)));
-        Assert.Null(With("Mischievous Boost", ["Mischievous Boost"], Of(0, 1)));
-        Assert.Contains("expected [0,1]", With("Mischievous Boost", ["Mischievous Boost"], Of(0)));
-        Assert.Contains("expected [0,1]", With("Mischievous Boost", ["Mischievous Boost"], Of(0, 1, 2)));     // only "successful" 5s
-        Assert.Equal("no occasion in the log", With("Mischievous", ["Mischievous", "Mischievous Boost"], Of(0, 1)));   // a Boost step is the Boost's
+        Assert.Null(With("Mischievous", 0));
+        Assert.Contains("re-rolled dice [0,1]", With("Mischievous", 0, 1));
+        Assert.Null(With("Mischievous Boost", 0, 1));
+        Assert.Contains("expected [0,1]", With("Mischievous Boost", 0));
+        Assert.Contains("expected [0,1]", With("Mischievous Boost", 0, 1, 2));     // only "successful" 5s
     }
 
     [Fact]

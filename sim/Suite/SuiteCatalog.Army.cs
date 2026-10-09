@@ -44,37 +44,37 @@ public static partial class SuiteCatalog
         public static IReadOnlyList<TestGame> All { get; } =
         [
             Game(Saurians, "saurian-starhost-primal", Play.Shoots, ["Primal"], [R(1, "Primal"), R(2, "Primal")], [],
-                [ExtraAttacks("Primal", "Primal Boost", [6], Sixes)]),
+                [ExtraAttacks("Primal", By("Primal", "Primal Boost"), [6], Sixes)]),
             Game(Saurians, "saurian-starhost-primal-boost", Play.Shoots, ["Primal Boost"], [R(1, "Primal"), R(1, "Primal Boost"), R(2, "Primal"), R(2, "Primal Boost")], [],
-                [ExtraAttacks("Primal Boost", null, [5, 6], FivesToo)]),
+                [ExtraAttacks("Primal Boost", By("Primal Boost"), [5, 6], FivesToo)]),
             Game(Saurians, "saurian-starhost-evasive-teleport", Play.ShotWhileMoving, ["Evasive", "Teleport"],
                 [R(1, "Evasive"), R(1, "Teleport"), R(2, "Evasive"), R(2, "Teleport"), R(3, "Evasive"), R(3, "Teleport")], [],
                 [Modifier("Evasive", "hit", -1, "\"Enemies get -1 to hit rolls\""), Teleport()]),
             Game(Dynasty, "eternal-dynasty-clan-warrior", Play.Shoots, ["Clan Warrior"], [R(1, "Clan Warrior"), R(2, "Clan Warrior")], [],
-                [ExtraAttacks("Clan Warrior", "Clan Warrior Boost", [6], Sixes)]),
+                [ExtraAttacks("Clan Warrior", By("Clan Warrior", "Clan Warrior Boost"), [6], Sixes)]),
             Game(Dynasty, "eternal-dynasty-clan-warrior-boost", Play.Shoots, ["Clan Warrior Boost"], [R(1, "Clan Warrior"), R(1, "Clan Warrior Boost"), R(2, "Clan Warrior"), R(2, "Clan Warrior Boost")],
-                [], [ExtraAttacks("Clan Warrior Boost", null, [5, 6], FivesToo)]),
+                [], [ExtraAttacks("Clan Warrior Boost", By("Clan Warrior Boost"), [5, 6], FivesToo)]),
             // Counter-Attack states no number: its fired check is the whole check. Only the opponents move, so every melee is a charge at it.
             Game(Dynasty, "eternal-dynasty-counter-attack", Play.Charged, ["Counter-Attack"], [R(1, "Counter-Attack"), R(2, "Counter-Attack"), R(3, "Counter-Attack")], [], [],
                 enemyUnits: 4),
             Game(Sisters, "blessed-sisters-devout", Play.Shoots, ["Devout", "Disintegrate"], [R(1, "Devout"), R(2, "Devout")], [],
-                [ExtraHits("Devout", "Devout Boost", [6], ExtraHit),
-                 ApGrant("Disintegrate", 2, "\"against units where most models have Defense 2+ to Defense 3+, this weapon gets AP(+2)\"")],
+                [ExtraHits("Devout", By("Devout", "Devout Boost"), [6], ExtraHit),
+                 ApGrant("Disintegrate", With("Disintegrate"), 2, "\"against units where most models have Defense 2+ to Defense 3+, this weapon gets AP(+2)\"")],
                 weapon: [R(0, "Disintegrate")], enemyStats: Stats(4, 3)),
             Game(Sisters, "blessed-sisters-devout-boost", Play.Shoots, ["Devout Boost"], [R(1, "Devout"), R(1, "Devout Boost"), R(2, "Devout"), R(2, "Devout Boost")], [],
-                [ExtraHits("Devout Boost", null, [5, 6], ExtraHit56)]),
+                [ExtraHits("Devout Boost", By("Devout Boost", when: When.Shooting), [5, 6], ExtraHit56)]),
             // Fails on an engine defect: a dice edit (SetDice) re-judges the dice but never the per-die effects its step stored in Values
             // (opr-sequences.md: "dice_edited ... never rewrites a step_completed's Values"), so three 6s fixed onto the first hit roll deal
             // the extra hits of the faces the roll first showed.
             Game(Sisters, "blessed-sisters-devout-edited-dice", Play.Shoots, [], [R(1, "Devout"), R(2, "Devout")], [Fix("hit", 6, 6, 6)], [EditedExtraHits("Devout", ExtraHit)]).Pinned("D10", "Devout:", "1 extra hits for edited dice [6 6 6 "),
             Game(Orcs, "orc-marauders-ferocious", Play.Shoots, ["Ferocious"], [R(1, "Ferocious"), R(2, "Ferocious")], [],
-                [ExtraHits("Ferocious", "Ferocious Boost", [6], ExtraHit)]),
+                [ExtraHits("Ferocious", By("Ferocious", "Ferocious Boost"), [6], ExtraHit)]),
             Game(Orcs, "orc-marauders-ferocious-boost", Play.Shoots, ["Ferocious Boost"], [R(1, "Ferocious"), R(1, "Ferocious Boost"), R(2, "Ferocious"), R(2, "Ferocious Boost")], [],
-                [ExtraHits("Ferocious Boost", null, [5, 6], ExtraHit56)]),
+                [ExtraHits("Ferocious Boost", By("Ferocious Boost", when: When.Shooting), [5, 6], ExtraHit56)]),
             Game(Orcs, "orc-marauders-hit-and-run", Play.Charges, ["Hit & Run Fighter", "Piercing Assault"],
                 [R(1, "Hit & Run Fighter"), R(1, "Piercing Assault"), R(2, "Hit & Run Fighter"), R(2, "Piercing Assault"), R(3, "Hit & Run Fighter"), R(3, "Piercing Assault")],
                 [Fix("hit", 6)],
-                [Reposition("Hit & Run Fighter", 3, "\"may move by up to 3\" after being in melee\""), ApGrant("Piercing Assault", 1, "\"This model gets AP(+1) when charging\"")]),
+                [Reposition("Hit & Run Fighter", 3, "\"may move by up to 3\" after being in melee\""), ApGrant("Piercing Assault", By("Piercing Assault", when: When.Charging), 1, "\"This model gets AP(+1) when charging\"")]),
             Game(Cults, "soul-snatcher-cults-grounded", Play.Shot, ["Grounded Reinforcement"], [R(1, "Grounded Reinforcement")], [Fix("hit", 6, 6, 6)],
                 [Modifier("Grounded Reinforcement", "defense", 1, "\"they get +1 to defense rolls\"")], board: Ruins),
             // Quick Shot states no number: its fired check is the whole check.
@@ -82,7 +82,7 @@ public static partial class SuiteCatalog
             // Fails over the socket only, on the same family of defect: the socket server's property set comes back from Postgres without the
             // document's condition order, so the most_models opponent condition is judged first in activation-terrain's lone interaction.
             Game(Cults, "soul-snatcher-cults-slayers", Play.Shoots, ["Slayer"], [R(1, "Slayer"), R(2, "Slayer")], [],
-                [ApGrant("Slayer", 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
+                [ApGrant("Slayer", By("Slayer", when: When.Shooting), 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
                 // D12 over the socket only: the property set read back from Postgres orders Slayer's conditions by row id, so its most_models
                 // opponent condition can be judged first in a lone interaction and throw as in D4.
                 .Pinned("D12", "failed:", "the engine threw in Advance: no defender in this interaction", DriverKind.Socket)
@@ -99,27 +99,27 @@ public static partial class SuiteCatalog
                 // field the throw left behind differs, one failure line each (sequence, round, phase, active team, the deployed models).
                 .Pinned("D4", "invariants: the driver's projection differs from the server's", " — ", DriverKind.InProcess),
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
-                [ApGrant("Tear", 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
+                [ApGrant("Tear", With("Tear"), 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
             Game(Custodians, "custodian-brothers-guardian", Play.Shot, ["Guardian"], [R(1, "Guardian")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian", 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
+                [ApGrant("Guardian", On("Guardian", "Guardian Boost", When.Shooting), 0, "\"those hits count as having AP(-1), to a min. of AP(0)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
             Game(Custodians, "custodian-brothers-guardian-boost", Play.Shot, ["Guardian Boost"], [R(1, "Guardian"), R(1, "Guardian Boost")], [Fix("hit", 6, 6, 6)],
-                [ApGrant("Guardian Boost", 0, "\"enemy hits always count as having AP(-1)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
+                [ApGrant("Guardian Boost", On("Guardian Boost"), 0, "\"enemy hits always count as having AP(-1)\" (against AP(1))")], enemyWeapon: [R(0, "AP", 1)]),
             Game(DarkElves, "dark-elf-raiders-harassing", Play.Shoots, ["Harassing", "Harassing Boost"], [R(1, "Harassing"), R(2, "Harassing"), R(2, "Harassing Boost")], [],
                 [Reposition("Harassing", 3, "\"may move by up to 3\" after shooting or being in melee\""), Reposition("Harassing Boost", 6, "\"they may move by up to 6\" from Harassing\"")]),
             Game(DarkElves, "dark-elf-raiders-lacerate", Play.Shoots, ["Lacerate", "Piercing Hunter"], [R(1, "Piercing Hunter"), R(2, "Piercing Hunter")], [],
-                [Rerolls("Lacerate", null, [6], successOnly: false, "\"the target must re-roll unmodified Defense results of 6\""),
-                 ApGrant("Piercing Hunter", 1, "\"When this model shoots at enemies over 9\" away, its weapons get AP(+1)\"")], weapon: [R(0, "Lacerate")]),
+                [Rerolls("Lacerate", With("Lacerate"), [6], successOnly: false, "\"the target must re-roll unmodified Defense results of 6\""),
+                 ApGrant("Piercing Hunter", By("Piercing Hunter", when: When.Shooting), 1, "\"When this model shoots at enemies over 9\" away, its weapons get AP(+1)\"")], weapon: [R(0, "Lacerate")]),
             Game(DarkElves, "dark-elf-raiders-melee-evasion", Play.Charges, ["Melee Evasion"], [R(1, "Melee Evasion"), R(2, "Melee Evasion"), R(3, "Melee Evasion")],
                 [Fix("hit", 1)], [Modifier("Melee Evasion", "hit", -1, "\"Enemies get -1 to hit rolls in melee\"", s => s.Nearest(MeleeSequence) is not null)]),
             Game(Havoc, "havoc-brothers-havocbound", Play.Shoots, ["Havocbound", "Havocbound Boost"], [R(1, "Havocbound"), R(2, "Havocbound"), R(2, "Havocbound Boost")],
-                [], [ApGrant("Havocbound", 1, "\"its weapons get AP(+1)\""), ApGrant("Havocbound Boost", 1, "\"it always gets AP(+1) from Havocbound\"")]),
+                [], [ApGrant("Havocbound", By("Havocbound", "Havocbound Boost", When.Shooting), 1, "\"its weapons get AP(+1)\""), ApGrant("Havocbound Boost", By("Havocbound Boost"), 1, "\"it always gets AP(+1) from Havocbound\"")]),
             Carried(Havoc, "havoc-brothers-resistance", "Resistance", [R(1, "Resistance")], IgnoreWounds("Resistance", 6, IgnoreOn6)),
             Game(Ratmen, "ratmen-clans-scurry", Play.Moves, ["Scurry", "Scurry Boost"], [R(1, "Scurry"), R(2, "Scurry"), R(2, "Scurry Boost"), R(3, "Scurry"), R(4, "Scurry"), R(4, "Scurry Boost")], [],
                 [Allowance("Scurry", "Scurry Boost", Plus2Plus2, ("advance", 8), ("rush", 14), ("charge", 14)),
                  Allowance("Scurry Boost", null, Plus4Plus4, ("advance", 10), ("rush", 16), ("charge", 16))]),
             Game(Ratmen, "ratmen-clans-hazardous", Play.Shoots, ["Hazardous"], [], [],
-                [ApGrant("Hazardous", 4, "\"Gets AP(4)\""), SelfWounds("Hazardous", "\"this model's unit takes one wound on unmodified rolls of 1 to hit\"")], weapon: [R(0, "Hazardous")], units: 2),
+                [ApGrant("Hazardous", With("Hazardous"), 4, "\"Gets AP(4)\""), SelfWounds("Hazardous", With("Hazardous"), "\"this model's unit takes one wound on unmodified rolls of 1 to hit\"")], weapon: [R(0, "Hazardous")], units: 2),
             Game(HighElves, "high-elf-fleets-highborn", Play.Moves, ["Highborn", "Highborn Boost"], [R(1, "Highborn"), R(2, "Highborn"), R(2, "Highborn Boost"), R(3, "Highborn"), R(4, "Highborn"), R(4, "Highborn Boost")], [],
                 [Allowance("Highborn", "Highborn Boost", Plus2Plus2, ("advance", 8), ("rush", 14), ("charge", 14)),
                  Allowance("Highborn Boost", null, Plus4Plus4, ("advance", 10), ("rush", 16), ("charge", 16))]),
@@ -130,44 +130,44 @@ public static partial class SuiteCatalog
             Morale(Hdf, "human-defense-force-hold-the-line", "Hold the Line", [R(1, "Hold the Line")], 1, HitAndMorale),
             Morale(Hdf, "human-defense-force-hold-the-line-boost", "Hold the Line Boost", [R(1, "Hold the Line"), R(1, "Hold the Line Boost")], 2, "\"they get +2 to morale test rolls from Hold the Line\""),
             Game(Hdf, "human-defense-force-crack", Play.Shoots, ["Crack"], [], [],
-                [PerDieAp("Crack", 2, "\"On unmodified results of 6 to hit, those hits get AP(+2)\"")], weapon: [R(0, "Crack")], units: 2),
+                [PerDieAp("Crack", With("Crack"), 2, "\"On unmodified results of 6 to hit, those hits get AP(+2)\"")], weapon: [R(0, "Crack")], units: 2),
             Game(Hdf, "human-defense-force-rapid-advance", Play.Moves, ["Rapid Advance"], [R(1, "Rapid Advance"), R(2, "Rapid Advance"), R(3, "Rapid Advance"), R(4, "Rapid Advance"), R(5, "Rapid Advance"), R(6, "Rapid Advance")], [],
                 [Allowance("Rapid Advance", null, "\"This model moves +4\" when using Advance actions\"", ("advance", 10))]),
             Game(Infected, "infected-colonies-infected", Play.Shoots, ["Infected"], [R(1, "Infected"), R(2, "Infected")], [],
-                [ExtraWounds("Infected", "Infected Boost", [1], ExtraWound)]),
+                [ExtraWounds("Infected", By("Infected", "Infected Boost"), [1], ExtraWound)]),
             Game(Infected, "infected-colonies-infected-boost", Play.Shoots, ["Infected Boost"], [R(1, "Infected"), R(1, "Infected Boost"), R(2, "Infected"), R(2, "Infected Boost")], [],
-                [ExtraWounds("Infected Boost", null, [1, 2], ExtraWound12)]),
+                [ExtraWounds("Infected Boost", By("Infected Boost", when: When.Shooting), [1, 2], ExtraWound12)]),
             Game(MachineCults, "machine-cults-fog", Play.Shot, ["Machine-Fog", "Machine-Fog Boost"], [R(1, "Machine-Fog"), R(2, "Machine-Fog"), R(2, "Machine-Fog Boost")], [],
                 [Modifier("Machine-Fog", "hit", -1, "\"enemy units get -1 to hit rolls\""), Modifier("Machine-Fog Boost", "hit", -1, "\"enemies attacking them always get -1 to hit rolls\"")]),
             Game(MachineCults, "machine-cults-hit-and-run", Play.Shoots, ["Hit & Run Shooter"], [R(1, "Hit & Run Shooter"), R(2, "Hit & Run Shooter")], [],
                 [Reposition("Hit & Run Shooter", 3, "\"may move by up to 3\" after shooting\"")]),
             Game(Goblins, "goblin-reclaimers-mischief", Play.Shoots, ["Mischievous", "Unpredictable Shooter"], [R(1, "Mischievous"), R(1, "Unpredictable Shooter"), R(2, "Mischievous"), R(2, "Unpredictable Shooter")],
                 [],
-                [Rerolls("Mischievous", "Mischievous Boost", [6], successOnly: false, SixesRerolled), Unpredictable("Unpredictable Shooter")]),
+                [Rerolls("Mischievous", By("Mischievous", "Mischievous Boost"), [6], successOnly: false, SixesRerolled), Unpredictable("Unpredictable Shooter")]),
             Game(Goblins, "goblin-reclaimers-mischief-boost", Play.Shoots, ["Mischievous Boost"], [R(1, "Mischievous"), R(1, "Mischievous Boost"), R(2, "Mischievous"), R(2, "Mischievous Boost")],
-                [], [Rerolls("Mischievous Boost", null, [5, 6], successOnly: true, FivesRerolled)]),
+                [], [Rerolls("Mischievous Boost", By("Mischievous Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)]),
             Game(Jesters, "elven-jesters-blink", Play.Shoots, ["Rapid Blink", "Rapid Blink Boost"], [R(1, "Rapid Blink"), R(2, "Rapid Blink"), R(2, "Rapid Blink Boost")],
                 [], [RapidBlink("Rapid Blink", 1), RapidBlink("Rapid Blink Boost", 2)]),
             Game(Jesters, "elven-jesters-unpredictable", Play.Charges, ["Unpredictable Fighter"],
                 [R(1, "Unpredictable Fighter"), R(2, "Unpredictable Fighter"), R(3, "Unpredictable Fighter")], [], [Unpredictable("Unpredictable Fighter")]),
             Game(Jackals, "jackals-scrapper", Play.Shoots, ["Scrapper", "Shatter"], [R(1, "Scrapper"), R(2, "Scrapper")], [],
-                [Rerolls("Scrapper", "Scrapper Boost", [6], successOnly: false, SixesRerolled),
-                 ApGrant("Shatter", 2, "\"Against units where most models have Tough(3) or higher, this weapon gets AP(+2)\"")],
+                [Rerolls("Scrapper", By("Scrapper", "Scrapper Boost"), [6], successOnly: false, SixesRerolled),
+                 ApGrant("Shatter", With("Shatter"), 2, "\"Against units where most models have Tough(3) or higher, this weapon gets AP(+2)\"")],
                 weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
             // Fails on a content defect: Scrapper Boost's row re-rolls every unmodified 5 (roll_result eq 5 raw), so under Shatter's AP(+2) the
             // fixed 5, which fails to block, is re-rolled, where the rule re-rolls only "successful unmodified defense results of 5-6".
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", null, [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]")
+                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]")
                 .Pinned("D6", "Scrapper Boost:", "re-rolled dice [4,5,6] of [3 3 1 3 5 6 5 2 3], expected [5]")
                 .Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,2] of [5 4 5], expected []"),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],
-                [PerDieAp("Destructive", 4, "\"On unmodified results of 6 to hit, those hits get AP(+4)\"")], weapon: [R(0, "Destructive")], units: 2),
+                [PerDieAp("Destructive", With("Destructive"), 4, "\"On unmodified results of 6 to hit, those hits get AP(+4)\"")], weapon: [R(0, "Destructive")], units: 2),
             Game(Dwarves, "dwarf-guilds-sturdy", Play.Shot, ["Sturdy", "Sturdy Boost"], [R(1, "Sturdy"), R(2, "Sturdy"), R(2, "Sturdy Boost")], [Fix("hit", 6, 6, 6)],
                 [Modifier("Sturdy", "defense", 1, "\"they get +1 to defense rolls\""), Modifier("Sturdy Boost", "defense", 1, "\"they always get +1 to defense rolls from Sturdy\"")]),
             Game(Dwarves, "dwarf-guilds-shred", Play.Shoots, ["Shred"], [], [],
-                [ExtraWounds("Shred", null, [1], "\"On unmodified results of 1 to block hits, this weapon deals 1 extra wound\"")], weapon: [R(0, "Shred")], units: 2),
+                [ExtraWounds("Shred", With("Shred"), [1], "\"On unmodified results of 1 to block hits, this weapon deals 1 extra wound\"")], weapon: [R(0, "Shred")], units: 2),
             Game(Dao, "dao-union-visors", Play.Shoots, ["Targeting Visor", "Targeting Visor Boost"], [R(1, "Targeting Visor"), R(2, "Targeting Visor"), R(2, "Targeting Visor Boost")], [],
                 [Modifier("Targeting Visor", "hit", 1, "\"it gets +1 to hit rolls\""), Modifier("Targeting Visor Boost", "hit", 1, "\"it always gets +1 to hit rolls when shooting\"")]),
             Game(Dao, "dao-union-shielded", Play.Shot, ["Shielded"], [R(1, "Shielded")], [Fix("hit", 6, 6, 6)],
@@ -175,7 +175,7 @@ public static partial class SuiteCatalog
             Game(Change, "change-disciples-changebound", Play.Shot, ["Changebound", "Changebound Boost"], [R(1, "Changebound"), R(2, "Changebound"), R(2, "Changebound Boost")], [],
                 [Modifier("Changebound", "hit", -1, "\"enemy units get -1 to hit rolls\""), Modifier("Changebound Boost", "hit", -1, "\"enemies attacking them always get -1 to hit rolls\"")]),
             Game(Change, "change-disciples-bane", Play.Shoots, ["Bane when Shooting"], [R(1, "Bane when Shooting"), R(2, "Bane when Shooting")], [],
-                [Rerolls("Bane when Shooting", null, [6], successOnly: false, "\"This model gets Bane when shooting\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")]),
+                [Rerolls("Bane when Shooting", By("Bane when Shooting", when: When.Shooting), [6], successOnly: false, "\"This model gets Bane when shooting\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")]),
             Game(Lust, "lust-disciples-lustbound", Play.Charges, ["Lustbound"], [R(1, "Lustbound"), R(2, "Lustbound"), R(3, "Lustbound"), R(4, "Lustbound")], [],
                 [Allowance("Lustbound", "Lustbound Boost", "\"moves +2\" when using Charge actions\"", ("charge", 14))]),
             Game(Lust, "lust-disciples-lustbound-boost", Play.Charges, ["Lustbound Boost"],
@@ -186,16 +186,18 @@ public static partial class SuiteCatalog
             Game(Plague, "plague-disciples-rapid-rush", Play.Moves, ["Rapid Rush"], [R(1, "Rapid Rush"), R(2, "Rapid Rush"), R(3, "Rapid Rush"), R(4, "Rapid Rush"), R(5, "Rapid Rush"), R(6, "Rapid Rush")], [],
                 [Allowance("Rapid Rush", null, "\"This model moves +6\" when using Rush actions\"", ("rush", 18))]),
             Game(War, "war-disciples-warbound", Play.Shoots, ["Warbound"], [R(1, "Warbound"), R(2, "Warbound")], [],
-                [ExtraWounds("Warbound", "Warbound Boost", [1], ExtraWound)]),
+                [ExtraWounds("Warbound", By("Warbound", "Warbound Boost"), [1], ExtraWound)]),
             Game(War, "war-disciples-warbound-boost", Play.Shoots, ["Warbound Boost"], [R(1, "Warbound"), R(1, "Warbound Boost"), R(2, "Warbound"), R(2, "Warbound Boost")], [],
-                [ExtraWounds("Warbound Boost", null, [1, 2], ExtraWound12)]),
+                [ExtraWounds("Warbound Boost", By("Warbound Boost", when: When.Shooting), [1, 2], ExtraWound12)]),
         ];
 
         /// <summary>
         /// Who acts. Shoots: the rule's side holds and shoots every activation, the opponent holds with blades only, so every hit roll is the
         /// rule's side's and every defense roll the target's. Shot: the reverse. ShotWhileMoving: Shot with the rule's side free to move.
         /// Charges: only the rule's side moves, both have blades, so every melee is its charge. Charged: the reverse. Moves: the rule's side
-        /// moves and shoots freely at a holding opponent with blades only.
+        /// moves and shoots freely at a holding opponent with blades only. In Shoots and Shot both sides hold in their 12"-deep zones on a 36"
+        /// table, so every shot crosses at least 12": a rule that acts "when it shoots ... enemies over 9" away" (the Boosts, Slayer, Piercing
+        /// Hunter, Havocbound, Guardian) takes every shooting attack of its holder as its occasion (By/On with When.Shooting).
         /// </summary>
         enum Play { Shoots, Shot, ShotWhileMoving, Charges, Charged, Moves }
 
