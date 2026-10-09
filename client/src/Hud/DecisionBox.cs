@@ -20,10 +20,12 @@ public partial class DecisionBox : PanelContainer
     Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly HashSet<Guid> _sealed = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
-    Action? _onEnter; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel;
+    Action? _onEnter; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit;
+    /// <summary>What glows on the table for the open Ask: model ids, unit ids, or both. A unit id lights every model of the unit.</summary>
+    readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Refused>? _onRefused;
-    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged;
+    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
     partial void RenderPicks(AskView mine, Projection p, Names names);
@@ -47,8 +49,9 @@ public partial class DecisionBox : PanelContainer
             Reset(); _renderedAsk = null; Render();
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
+        _onUnitClicked = id => _onUnit?.Invoke(id);
         s.EventsApplied += _onEvents; s.GameChanged += _onChanged; s.BoardChanged += _onChanged; s.FactsChanged += _onChanged; s.RefusedReceived += _onRefused;
-        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged;
+        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked;
         Render();
     }
 
@@ -56,7 +59,7 @@ public partial class DecisionBox : PanelContainer
     {
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; _s.RefusedReceived -= _onRefused;
-        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; }
+        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
@@ -90,7 +93,7 @@ public partial class DecisionBox : PanelContainer
         if (_renderedAsk == mine.Ask.Id) return;
         Reset(); _renderedAsk = mine.Ask.Id; _note.Text = ""; _revealed = null;
         _title.Text = model.Title; _hint.Text = model.Hint; _numbered = model.Numbered;
-        foreach (var id in mine.Highlights) _view.PieceAt(id)?.SetHighlight(Palette.Selected);
+        Glow(mine.Highlights);
         if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
         {
             Send(mine.Ask, new Passed()); _note.Text = $"auto-passed (muted: {mine.Ask.WindowKind})";
@@ -113,26 +116,71 @@ public partial class DecisionBox : PanelContainer
         if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
-    /// <summary>Numbered options. A choice's pieces light while its button is hovered; a click on a piece that belongs to exactly one choice picks it (activate: the unit).</summary>
+    /// <summary>
+    /// Numbered options. A click on a piece exactly one choice names picks that choice. A piece several choices name (activate: one
+    /// option per unit and action) is not a pick: the click selects its unit as any click does, and the box narrows to that unit's
+    /// options, renumbered from 1, until another unit is clicked or Esc widens it again.
+    /// </summary>
     void RenderChoose(AskView mine)
     {
-        var choices = ((Options)mine.Ask.Legal).Choices; var lit = mine.Highlights;
-        foreach (var c in choices)
+        var options = (Options)mine.Ask.Legal; var all = options.Choices;
+        var list = new VBoxContainer(); Add(list);
+        var narrowed = false;
+        var full = _numbered;
+        void Show(IReadOnlyList<AskOption> shown, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
         {
-            var key = _numbered.FirstOrDefault(n => n.OptionId == c.Id).Key;
-            var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
-            var pieces = c.Pieces;
-            b.MouseEntered += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(Palette.Selected); };
-            b.MouseExited += () => { foreach (var id in pieces) if (_view.PieceAt(id) is { } n && IsInstanceValid(n)) n.SetHighlight(lit.Contains(id) ? Palette.Selected : null); };
-            Add(b);
+            if (!IsInstanceValid(list)) return;
+            foreach (var c in list.GetChildren()) { list.RemoveChild(c); c.QueueFree(); }
+            _numbered = numbered;
+            foreach (var c in shown)
+            {
+                var key = _numbered.FirstOrDefault(n => n.OptionId == c.Id).Key;
+                var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
+                var pieces = c.Pieces;
+                b.MouseEntered += () => Light(pieces, Palette.Selected);
+                b.MouseExited += () => Light(pieces, null);
+                list.AddChild(b);
+            }
         }
+        Show(all, full);
         _onNumber = option => Send(mine.Ask, new Chosen(option));
-        _input.Eligible = choices.SelectMany(c => c.Pieces).ToHashSet();
+        _input.Eligible = DecisionView.ClickAnswers(options);
         _onTarget = clicked =>
         {
-            var hits = choices.Where(c => Resolve(clicked, c.Pieces) is not null).ToList();
+            var hits = all.Where(c => Resolve(clicked, c.Pieces) is not null).ToList();
             if (hits.Count == 1) Send(mine.Ask, new Chosen(hits[0].Id));
         };
+        _onUnit = unit =>
+        {
+            if (_s.Projection is not { } p) return;
+            var hits = DecisionView.ChoicesOf(options, p, unit);
+            if (hits.Count == 0) { if (narrowed) { narrowed = false; Show(all, full); } return; }
+            narrowed = true; Show(hits, DecisionView.Number(hits));
+        };
+        _onCancel = () => { if (!narrowed) return false; narrowed = false; Show(all, full); return true; };
+    }
+
+    /// <summary>The open Ask's glow: its pieces lit, a unit id lighting each of the unit's models. Pieces that leave the set go dark.</summary>
+    void Glow(IEnumerable<Guid> ids)
+    {
+        var next = ids.ToHashSet();
+        foreach (var n in _view.Pieces.OfType<PieceNode>())
+        {
+            if (!IsInstanceValid(n)) continue;
+            bool was = Glows(n), now = next.Contains(n.ModelId) || next.Contains(n.UnitId);
+            if (was != now) n.SetHighlight(now ? Palette.Selected : null);
+        }
+        _glow.Clear(); _glow.UnionWith(next);
+    }
+
+    /// <summary>Whether a model glows for the open Ask: GameScreen puts the glow back where the selection leaves a model.</summary>
+    public bool Glows(PieceNode n) => _glow.Contains(n.ModelId) || _glow.Contains(n.UnitId);
+
+    /// <summary>A choice's pieces lit while its button is hovered, then back to the Ask's glow.</summary>
+    void Light(IReadOnlyList<Guid> pieces, Color? colour)
+    {
+        foreach (var n in _view.Pieces.OfType<PieceNode>())
+            if (IsInstanceValid(n) && (pieces.Contains(n.ModelId) || pieces.Contains(n.UnitId))) n.SetHighlight(colour ?? (Glows(n) ? Palette.Selected : null));
     }
 
     /// <summary>
@@ -217,7 +265,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The open Ask's handlers and table state, dropped whenever it ends by any route: our answer, a teammate's, a server close, a replacing Ask.</summary>
     void Unhook()
     {
-        _onEnter = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null;
+        _onEnter = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
         _proposed = null; _deployAt = null; _deployUnit = null;
         if (_pointArmed && _input is not null && IsInstanceValid(_input)) _input.PickNextPoint(null!);   // a deploy's unused point pick would eat the next table click
         _pointArmed = false;

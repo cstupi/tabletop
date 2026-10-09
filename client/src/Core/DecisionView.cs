@@ -33,8 +33,23 @@ public static class DecisionView
             PieceSelection s when DeployQuestions.Contains(ask.Question) => s.Eligible.Select(id => (n.Unit(id), id.ToString())),
             _ => [],
         };
-        return entries.Select((e, i) => (i < Keyed ? i + 1 : 0, e.Label, e.Id)).ToList();
+        return Keys(entries);
     }
+
+    static IReadOnlyList<(int Key, string Label, string OptionId)> Keys(IEnumerable<(string Label, string Id)> entries) =>
+        entries.Select((e, i) => (i < Keyed ? i + 1 : 0, e.Label, e.Id)).ToList();
+
+    /// <summary>Choices numbered from 1 in their order: the box narrowed to a clicked unit's options.</summary>
+    public static IReadOnlyList<(int Key, string Label, string OptionId)> Number(IEnumerable<AskOption> choices) => Keys(choices.Select(c => (c.Label, c.Id)));
+
+    /// <summary>The pieces a table click answers with: those exactly one choice names. A piece several choices name (activate: one
+    /// option per unit and action) cannot answer; a click on it selects the unit and narrows the box (<see cref="ChoicesOf"/>).</summary>
+    public static IReadOnlySet<Guid> ClickAnswers(Options options) =>
+        options.Choices.SelectMany(c => c.Pieces.Distinct()).GroupBy(id => id).Where(g => g.Count() == 1).Select(g => g.Key).ToHashSet();
+
+    /// <summary>The choices that name a unit, by its id or one of its models' ids, in their order.</summary>
+    public static IReadOnlyList<AskOption> ChoicesOf(Options options, Projection p, Guid unitId) =>
+        options.Choices.Where(c => c.Pieces.Any(id => id == unitId || p.Models.GetValueOrDefault(id)?.UnitId == unitId)).ToList();
 
     static string Hint(Projection p, Ask ask, IReadOnlyList<(int Key, string Label, string OptionId)> numbered)
     {

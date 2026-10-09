@@ -93,8 +93,7 @@ public partial class GameScreen : Control
     {
         if (!IsInstanceValid(_selection)) return;
         var p = _session.Projection; var game = _session.Game;
-        var ask = p is not null && game is not null ? AskViewModel.Mine(p, game, _session.MyTeamId, _session.Settings.MutedWindowKinds)?.Highlights : null;
-        foreach (var id in _lit) if (Table.PieceAt(id) is { } old && IsInstanceValid(old)) old.SetHighlight(ask?.Contains(id) == true ? Palette.Selected : null);
+        foreach (var id in _lit) if (Table.PieceAt(id) is { } old && IsInstanceValid(old)) old.SetHighlight(_decision is { } d && IsInstanceValid(d) && d.Glows(old) ? Palette.Selected : null);   // the open Ask's glow, which only play has
         _lit.Clear();
         _selection.Text = p is null || game is null ? "" : SelectionView.Describe(new Names(game, p), p, Input.Selected) ?? "";
         if (p is null) return;

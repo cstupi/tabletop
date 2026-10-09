@@ -87,4 +87,24 @@ public class DecisionViewTests
         Assert.True(Of(ask, Samples.Team1, ["reaction"]).AutoPass);
         Assert.False(Of(ask, Samples.Team1).AutoPass);
     }
+    /// <summary>activate offers one option per unit and action: a click on such a unit cannot answer, so it selects the unit and narrows the box.</summary>
+    [Fact]
+    public void Only_a_piece_one_choice_names_answers_a_click()
+    {
+        var other = Guid.CreateVersion7();
+        var options = new Options([new AskOption("a", "Advance", [Samples.Unit]), new AskOption("h", "Hold", [Samples.Unit]), new AskOption("s", "Strike", [other])]);
+        Assert.Equal([other], DecisionView.ClickAnswers(options));
+    }
+
+    [Fact]
+    public void A_unit_narrows_the_box_to_its_choices_numbered_from_one()
+    {
+        var a = new EventApplier(Samples.Board, Game);
+        var other = Guid.CreateVersion7();
+        var options = new Options([new AskOption("x", "Other: Hold", [other]), new AskOption("a", "Advance", [Samples.Unit]), new AskOption("m", "Charge", [Samples.Model])]);
+        var narrowed = DecisionView.ChoicesOf(options, a.Projection, Samples.Unit);
+        Assert.Equal(["a", "m"], narrowed.Select(c => c.Id));                                    // by the unit id, or by one of its models
+        Assert.Equal(new[] { (1, "Advance", "a"), (2, "Charge", "m") }, DecisionView.Number(narrowed));
+        Assert.Empty(DecisionView.ChoicesOf(options, a.Projection, Guid.CreateVersion7()));
+    }
 }
