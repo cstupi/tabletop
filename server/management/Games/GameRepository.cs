@@ -5,6 +5,9 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Management.Games;
 
+/// <summary>One catalog entry's player-facing text (spec: in-game UX → Rule text). Dapper maps by constructor parameter name.</summary>
+public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText);
+
 public sealed class GameRepository(Database db)
 {
     private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy);
@@ -23,6 +26,17 @@ public sealed class GameRepository(Database db)
             select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules
             from properties order by game_rules, name, seeded_at desc
             """)).ToList();
+    }
+
+    /// <summary>Every catalog entry of a pinned set, by name; null when no set has this hash.</summary>
+    public async Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash)
+    {
+        await using var c = await db.Open();
+        if (await c.ExecuteScalarAsync<int>("select count(*) from properties where content_hash = @hash", new { hash }) == 0) return null;
+        return (await c.QueryAsync<CatalogRuleText>("""
+            select name as Name, kind as Kind, takes_parameter as TakesParameter, rule_text as RuleText
+            from catalog_entry where properties_hash = @hash order by name
+            """, new { hash })).ToList();
     }
 
     public async Task<GameInfo?> Create(Guid creator, CreateGameRequest r)
