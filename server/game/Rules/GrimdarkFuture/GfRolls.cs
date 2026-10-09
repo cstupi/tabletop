@@ -92,6 +92,8 @@ public static class GfRolls
     {
         var living = Lookup.LivingModels(ctx.State, live.Interaction.Defender!.UnitId);
         var alone = defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null;
+        if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => p.Name == GfNames.Hero) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
+            ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Defender, GfNames.DefenseRoll,
             live.Interaction.Attack == AttackKind.Shooting && inCover ? [new RollModifier("cover", 1)] : [],
             threshold: alone is { } id ? StatReader.TargetNumber(live, Side.Defender, ModelDefense, id) : null);
@@ -106,10 +108,12 @@ public static class GfRolls
     public static RollPlan MoralePlan(StepContext ctx, LiveSet live)
     {
         var unit = live.Interaction.Attacker.UnitId;
-        var best = Lookup.LivingModels(ctx.State, unit)
+        var own = StatReader.TargetNumber(live, Side.Attacker, Quality);
+        var heroes = Lookup.LivingModels(ctx.State, unit)
             .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero))
-            .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m))
-            .Append(StatReader.TargetNumber(live, Side.Attacker, Quality)).Min();
+            .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m)).ToList();
+        var best = heroes.Append(own).Min();
+        if (best < own) ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Attacker, GfNames.Morale, [], threshold: best);
     }
 

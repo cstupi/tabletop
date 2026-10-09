@@ -25,8 +25,8 @@ public static class GfMelee
     /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
     static bool CounterAttacks(StepContext ctx) =>
         ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterAttack);
-    static LiveSet DefenderLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
-    static LiveSet ChargerLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
+    static LiveSet DefenderLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
+    static LiveSet ChargerLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
     static bool StrikesLast(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == GfNames.Unwieldy) || ChargerLive(ctx).Has(Side.Attacker, GfNames.Unwieldy);
     static bool CounterStruck(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(StruckKey) == 1);
@@ -95,6 +95,7 @@ public static class GfMelee
     {
         var wounds = ctx.Projection.Units[to].WoundsThisActivation - ctx.Frame.Value(beforeKey);
         var fear = attacked ? Lookup.LivingModels(ctx.State, by).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0) : 0;
+        if (fear > 0) ctx.Applied.Add("Fear");
         return wounds + fear;
     }
 
@@ -195,6 +196,7 @@ public static class GfMelee
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
             var values = new Dictionary<string, int> { [StruckKey] = 1 };
+            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), IsCounter).Count > 0) ctx.Applied.Add("Counter");
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
             return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
         }
@@ -209,11 +211,12 @@ public static class GfMelee
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             if (ctx.Frame.Value("impact_phase") == 1)
                 return AfterChild(ctx, () => new Push(GfNames.ResolveHits, new SequenceContext(charger, [defender], [], GfNames.Charge)));
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
+            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
             var counterModels = Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
             var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
+            if (counterModels > 0) ctx.Applied.Add("Counter");
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
             return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: hits > 0);
         }
@@ -241,6 +244,7 @@ public static class GfMelee
             // A granted Unwieldy is spent here, where it put the charger's weapons last, whether or not they get to strike.
             var live = ChargerLive(ctx);
             live.Use(Side.Attacker, GfNames.Unwieldy);
+            if (weapons.Count > 0 && !Recorded(ctx, Name)) ctx.Applied.Add(GfNames.Unwieldy);
             var spent = RollEffects.Consume(live);
             if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.

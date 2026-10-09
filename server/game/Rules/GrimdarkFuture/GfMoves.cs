@@ -18,7 +18,7 @@ public static class GfMoves
     public static Sequence Idle() => new(GfNames.IdleSeq, [new ActivationTerrainStep(), new PointWindowStep(GfNames.ActivationStart, "activation-start")]);
     public static Sequence DangerousTerrain() => new(GfNames.DangerousTerrain, [new DangerousTestStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.ActorUnitId!.Value], [], null))]);
 
-    static LiveSet Lone(StepContext ctx, Guid unit, string? action) => LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
+    static LiveSet Lone(StepContext ctx, Guid unit, string? action) => ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, null, action, null, Battlefield.TerrainUnder(ctx.State, unit)));
 
     /// <summary>A count_as_terrain row of this type live on the holder (spell library, kind 13), recorded as read so the step that acts spends it.</summary>
     static bool CountsAsIn(LiveSet live, TargetTerrain terrain)
@@ -199,7 +199,7 @@ public static class GfMoves
     public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed)
     {
         var terrain = Battlefield.Terrain(ctx.State);
-        var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>();
+        var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
         var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
@@ -211,7 +211,7 @@ public static class GfMoves
             // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
             if (m.To is Inside into)
             {
-                if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table
+                if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) { moves.Add(m); ctx.Applied.Add(GfNames.Transport); }   // never point Inside at something that is not on the table
                 continue;
             }
             if (m.To is not OnTable to) continue;
@@ -220,7 +220,7 @@ public static class GfMoves
             {
                 if (!ctx.Projection.Models.ContainsKey(from.ContainerId)) continue;
                 if (ExitPlacement(ctx.State, m.ModelId, from.ContainerId, to.Placement, GfNames.ExitWithin) is { } exit)
-                    moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit)));
+                { moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(exit))); ctx.Applied.Add(GfNames.Transport); }
                 continue;
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
@@ -228,9 +228,13 @@ public static class GfMoves
             used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
             if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
+            crossedDifficult |= Movement.VolumesCrossed(start, settled.Position.Horizontal, difficult).Count > 0;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
-        if (flying && moves.Count > 0) live.Use(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
+        if (flying && moves.Count > 0) live.Spend(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
+        // Applied: Flying when it skipped a difficult cap or a dangerous test (p.13), Strider when it skipped a difficult cap (p.14). A unit holding both crossing difficult ground lists both.
+        if (flying && (crossedDifficult || exposed.Count > 0)) live.Use(Side.Attacker, "Flying");
+        if (crossedDifficult) live.Use(Side.Attacker, "Strider");
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
         return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed));
     }

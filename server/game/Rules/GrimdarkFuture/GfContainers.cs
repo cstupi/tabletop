@@ -72,6 +72,7 @@ public static class GfContainers
                 moves.Add(new ModelRelocation(m, new Inside(container), new OnShelf()));
             }
             changes.Add(new ModelsMoved(moves));
+            ctx.Applied.Add(GfNames.Transport);
             if (fatal > 0) changes.Add(new WoundsThisActivationSet(unit, ctx.Projection.Units[unit].WoundsThisActivation + fatal));
             return new Complete(changes, new Dictionary<string, int> { ["destroyed"] = destroyed });
         }

@@ -18,6 +18,7 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
 {
     private readonly List<RollRecord> _rolls = new();
     private readonly List<DiceRerolled> _forced = new();
+    private readonly Dictionary<RollPlan, (LiveSet Live, IReadOnlyList<(int Face, LiveProperty Source)> Rerolls)> _rerolls = new(ReferenceEqualityComparer.Instance);
 
     public GameState State { get; } = state;
     public PropertySet Properties { get; } = properties;
@@ -29,6 +30,11 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     public Guid? TeamOf(Guid unitId) => Teams.Of(State, unitId);
     public IReadOnlyList<RollRecord> Rolls => _rolls;
     public IReadOnlyList<DiceRerolled> ForcedRerolls => _forced;
+    /// <summary>The catalog entries that acted in this run, for StepCompleted.Applied. Live sets settled through Settle record into it; a ruleset hook adds the rule it names.</summary>
+    public AppliedEntries Applied { get; } = new();
+
+    /// <summary>The two passes for this step: the live set records what its consumers apply into Applied.</summary>
+    public LiveSet Settle(Interaction interaction) => LiveProperties.Settle(interaction, Applied);
 
     /// <summary>
     /// The roll spec supplies the threshold, unless the ruleset names one. A ruleset overrides it where the target number is a
@@ -38,14 +44,22 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     public RollPlan Plan(LiveSet live, Side roller, string roll, IEnumerable<RollModifier> baseModifiers, int? requiredRaw = null, int? threshold = null)
     {
         var spec = Rules.RollSpec(roll);
-        return RollEffects.Plan(live, roller, roll, threshold ?? spec.Threshold(live, roller), baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll);
+        var (plan, rerolls) = RollEffects.Attributed(live, roller, roll, threshold ?? spec.Threshold(live, roller), baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll);
+        if (rerolls.Count > 0) _rerolls[plan] = (live, rerolls);
+        return plan;
     }
 
+    /// <summary>A forced reroll acted when the roller redrew a die showing its face: its source is recorded then, and only then.</summary>
     public RollRecord Roll(RollPlan plan, int count)
     {
         var result = roller.Roll(Frame.Id, plan, count);
         _rolls.Add(result.Record);
-        if (result.ForcedRerolls is { } f) _forced.Add(f);
+        if (result.ForcedRerolls is { } f)
+        {
+            _forced.Add(f);
+            if (_rerolls.TryGetValue(plan, out var by))
+                foreach (var (face, source) in by.Rerolls) if (f.Replaced.Any(d => d.Old.Raw == face)) by.Live.Record(source);
+        }
         return result.Record;
     }
 

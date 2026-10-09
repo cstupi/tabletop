@@ -36,7 +36,7 @@ public static class GfMorale
             var living = Lookup.AliveModels(ctx.State, unit);                                     // in play, not positioned: a unit carried in a transport still takes its test
             if (living.Count == 0) return new Finish([]);
             var cause = ctx.Frame.Context.Action switch { "melee" => AttackKind.Melee, "spell" => AttackKind.Spell, _ => CauseOf(ctx.State, unit) };
-            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, cause, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit)));
+            var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), null, cause, ctx.Frame.Context.Action, null, Battlefield.TerrainUnder(ctx.State, unit)));
             var passed = false;
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken))
                 passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.MoralePlan(ctx, live), 1)) == 1;

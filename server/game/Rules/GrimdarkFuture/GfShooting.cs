@@ -30,7 +30,7 @@ public static class GfShooting
         // The in-play reading: an enemy unit inside a container is still a candidate, and EligibleModels is what rules it out (or, for a fellow occupant, in).
         return ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team && Lookup.AliveModels(ctx.State, u.Id).Count > 0).Select(u => u.Id).Where(target =>
         {
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
+            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, unit, target, group.WeaponIds, AttackKind.Shooting, ctx.Frame.Context.Action));
             // p.7: "Rush - Moves 12" but can't shoot", unless Quick Shot is live for this target ("This model may shoot after using Rush actions"):
             // innate, or granted against this target (army-rule hooks → Shooting after Rush). Offering reads nothing; FireGroupsStep spends it.
             if (ctx.Frame.Context.Action == GfNames.Rush && !live.Has(Side.Attacker, GfNames.QuickShot)) return false;
@@ -41,7 +41,7 @@ public static class GfShooting
     /// <summary>The shooting a Rush's Quick Shot enables is where it is applied: read its source on this target's live set and spend it, so a once grant goes with the shooting and an innate rule is untouched.</summary>
     static IReadOnlyList<StateChange> SpendQuickShot(StepContext ctx, Guid unit, Guid target, IReadOnlyList<Guid> weapons)
     {
-        var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, unit, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
+        var live = ctx.Settle(GfAttack.AttackInteraction(ctx, unit, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
         foreach (var p in live.On(Side.Attacker).Where(p => p.Entry.Name == GfNames.QuickShot)) live.Read(p);
         return RollEffects.Consume(live);
     }
@@ -59,8 +59,14 @@ public static class GfShooting
         public StepOutcome Run(StepContext ctx)
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
+            var all = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id);
+            // p.14 Limited: a weapon already fired this game is left out of the groups, which is the rule acting. Recorded on the run that completes.
+            var offered = all.SelectMany(g => g.WeaponIds).ToHashSet();
+            if (Lookup.AliveModels(ctx.State, unit).SelectMany(m => ctx.Projection.Models[m].Slot.Weapons)
+                    .Any(w => w.Stats.ContainsKey(GfNames.Range) && w.Properties.Any(p => p.Name == "Limited") && !offered.Contains(w.Id)))
+                ctx.Applied.Add("Limited");
             if (ctx.History.LastClosed() is not null) return new Complete([]);
-            var groups = GfShooting.Groups(ctx.State, ctx.Properties, unit, ctx.Frame.Id).Select(g => (Group: g, Targets: ValidTargets(ctx, unit, g))).Where(x => x.Targets.Count > 0).ToList();
+            var groups = all.Select(g => (Group: g, Targets: ValidTargets(ctx, unit, g))).Where(x => x.Targets.Count > 0).ToList();
             if (groups.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("declare_targets", "Declare weapon groups and up to two targets", ctx.ActorTeam!.Value,
                 new Assignment(groups.Select(x => new AskOption(x.Group.Name, x.Group.Name, x.Group.WeaponIds)).ToList(), groups.SelectMany(x => x.Targets).Distinct().ToList(), 2))]);

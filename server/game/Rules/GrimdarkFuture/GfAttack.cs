@@ -99,6 +99,14 @@ public static partial class GfAttack
         return woundedTough.Count > 0 ? [woundedTough[0]] : pool;
     }
 
+    /// <summary>p.15's "heroes must be assigned wounds last": a living hero and a living model that is not one, so the hero was held back from this wound.</summary>
+    static bool HeroDeferred(GameState state, Guid unit)
+    {
+        var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
+        bool IsHero(Guid m) => state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero);
+        return living.Any(IsHero) && living.Any(m => !IsHero(m));
+    }
+
     /// <summary>
     /// One segment per run, repeating (p.8: one model removed for each wound, so ordinary wounds carry over past a dead model): the
     /// wounds left come from the parent's failed defense rolls on the first run and from the previous segment's "wounds_left" after.
@@ -117,6 +125,8 @@ public static partial class GfAttack
             // decide the prompt's targets, and there is no prompt (p.14).
             var takedown = TakedownModel(ctx.Frame) is { } named && Lookup.AliveModels(ctx.State, target).Contains(named) ? named : (Guid?)null;
             var eligible = takedown is null ? EligibleForNextWound(ctx.State, ctx.Properties, target) : [];
+            if (takedown is not null) ctx.Applied.Add(GfNames.Takedown);
+            else if (HeroDeferred(ctx.State, target)) ctx.Applied.Add(GfNames.Hero);
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
             else if (eligible.Count == 1) allocation = new Dictionary<Guid, int> { [eligible[0]] = wounds };   // nothing to choose
@@ -125,7 +135,7 @@ public static partial class GfAttack
 
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
-            var live = LiveProperties.Settle(ix);
+            var live = ctx.Settle(ix);
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
@@ -140,6 +150,7 @@ public static partial class GfAttack
             {
                 var model = ctx.Projection.Models[modelId];
                 var capacity = Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1;
+                if (capacity > 1) ctx.Applied.Add(GfNames.Tough);
                 var incoming = count * multiplier;
                 if (regen.Roll is { } roll)
                 {
@@ -248,7 +259,7 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind, string? action)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
+        var live = ctx.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
         return Attacks(ctx, live, EligibleModels(ctx.State, live, attacker, target, weapons, kind), weapons, kind);
     }
 
@@ -260,7 +271,7 @@ public static partial class GfAttack
     /// </summary>
     public static bool InCoverAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
+        var live = ctx.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
         return GfRolls.InCover(ctx.State, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting), live.Has(Side.Attacker, GfNames.Indirect));
     }
 
@@ -299,7 +310,7 @@ public static partial class GfAttack
         var c = ctx.Frame.Context;
         var kind = KindOf(ctx);
         var ix = AttackInteraction(ctx, c.ActorUnitId, c.TargetUnitIds[0], c.WeaponIds, kind, c.Action);
-        return (ix, LiveProperties.Settle(ix), kind);
+        return (ix, ctx.Settle(ix), kind);
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>
