@@ -694,7 +694,7 @@ each multi-wound model, the Shift tag. `SightLines`: the server's `SightAnswer` 
 target assignment is open; green clear, amber screened, red blocked with the blocker lit, a summary over the target,
 and under a target pick the models that cannot shoot dimmed. `TargetLines`: each assigned weapon group's shooters to
 its target, one colour per target. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
-move until any later event lands (`HandMoveUndo`).
+move until any later event lands (`HandMoveUndo`), undoing to the last effective-log event below the move.
 
 The Hud parts take keys in `_Input`, which runs before the `SubViewportContainer` hands a key to the table's
 viewport, and leave the digits and Esc to the table while a drag is in hand. Hud buttons give the GUI focus straight

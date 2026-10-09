@@ -127,8 +127,8 @@ and a thin line joins those two bases. Each model with more than one wound shows
   as today.
 - Outside a move step, a drag is a hand move (`MoveModels`) and follows the game's enforcement setting. Under
   `strict` the drag does not start and the server refuses the command. Under `warn` and `silent` the move is sent on
-  release, and an **Undo move** button appears beside the moved unit. It sends `Undo` to the event before that
-  `ModelsMoved` and stays until any later event lands in the log, since an undo to that point would take the later
+  release, and an **Undo move** button appears beside the moved unit. It sends `Undo` to the last live event before that
+  `ModelsMoved` (an `Undone` marker or an undone event is not a target) and stays until any later event lands in the log, since an undo to that point would take the later
   events with it. **Ctrl+Z** does the same.
 
 **Formations.** While a unit is held in a drag, **1–5** arranges it in that many rows around the cursor, the models

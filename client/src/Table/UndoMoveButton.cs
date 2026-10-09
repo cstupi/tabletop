@@ -38,7 +38,7 @@ public partial class UndoMoveButton : Button
 
     void OnHandMoved(IReadOnlyList<Guid> models)
     {
-        if (_lastOwn is { } last && Covers(models, last.Ids)) { _undo.OnOwnMove(last.Seq, models); _lastOwn = null; _sent = null; }
+        if (_lastOwn is { } last && Covers(models, last.Ids)) { _undo.OnOwnMove(_s.Log, last.Seq, models); _lastOwn = null; _sent = null; }
         else _sent = models;
     }
 
@@ -50,7 +50,7 @@ public partial class UndoMoveButton : Button
             if (e.Actor == _s.ParticipantId && e.Payload is ModelsMoved moved)
             {
                 var ids = moved.Moves.Select(r => r.ModelId).ToList();
-                if (_sent is { } sent && Covers(sent, ids)) { _undo.OnOwnMove(e.Seq, sent); _sent = null; continue; }
+                if (_sent is { } sent && Covers(sent, ids)) { _undo.OnOwnMove(_s.Log, e.Seq, sent); _sent = null; continue; }
                 _lastOwn = (e.Seq, ids);
             }
             _undo.OnEvent(e.Seq);
