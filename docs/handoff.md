@@ -76,7 +76,8 @@ the tag stays true;
 (3) the effects are authored, many by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
 descriptions; the catalog, not the army, is where rule text lives.
 
-Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
+Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked, and a new game
+starts with no zones (the in-game UX plan, Task 6, gives new drafts zones). Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
 the -12" to attackers' range are. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets
