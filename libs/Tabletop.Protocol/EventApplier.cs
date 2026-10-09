@@ -78,7 +78,7 @@ public sealed class EventApplier(Board board, GameInfo game)
                 foreach (var c in t.Changes) ApplyChange(p, c);
                 break;
             case PhaseStarted ph: p.Scheduler.Phase = ph.Phase; break;
-            case SequenceStarted s: p.StackMut.Add(new Frame(s.FrameId, s.Sequence, s.Context)); break;
+            case SequenceStarted s: p.StackMut.Add(new Frame(s.FrameId, s.Sequence, s.Context, s.Outline)); break;
             case StepCompleted s:
             {
                 var frame = FrameOf(p, s.FrameId, s);

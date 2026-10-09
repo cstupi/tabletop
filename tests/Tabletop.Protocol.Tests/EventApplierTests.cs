@@ -179,4 +179,30 @@ public class EventApplierTests
         a.Apply(Ev(4, new MarkerRemoved(Samples.Token.Id)));
         Assert.Empty(a.Projection.Control);
     }
+
+    [Fact]
+    public void SequenceStarted_without_outline_reads_as_empty()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        Assert.Empty(a.Projection.Stack.Single().Outline);
+
+        // A log row written before Outline existed: no "outline" key at all.
+        var json = $"{{\"kind\":\"sequence_started\",\"frameId\":\"{Frame}\",\"sequence\":\"hold\",\"context\":{{\"actorUnitId\":\"{Samples.Unit}\",\"targetUnitIds\":[],\"weaponIds\":[]}}}}";
+        var old = Assert.IsType<SequenceStarted>(WireJson.Deserialize<EventPayload>(json));
+        Assert.Null(old.Outline);
+        var b = Fresh();
+        b.Apply(Ev(1, old));
+        Assert.Empty(b.Projection.Stack.Single().Outline);
+    }
+
+    [Fact]
+    public void A_frame_carries_its_sequences_outline_in_order()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "advance", new SequenceContext(Samples.Unit, [], [], "Advance"),
+            [new OutlineStep("move", "Move"), new OutlineStep("shoot", "Shoot")])));
+        Assert.Equal(["move", "shoot"], a.Projection.Stack.Single().Outline.Select(o => o.Step));
+        Assert.Equal(["Move", "Shoot"], a.Projection.Stack.Single().Outline.Select(o => o.Label));
+    }
 }

@@ -76,4 +76,23 @@ public class ManagementClientTests
         Assert.Equal((AssetKind.Miniature, 2.5, new Tabletop.Geometry.Orientation { Pitch = 90, Yaw = 0, Roll = 0 }), (entry.Kind, entry.Scale, entry.Orientation));
         Assert.Equal($"/v1/games/{game.Id}/assets", f.Requests[5].RequestUri!.AbsolutePath);
     }
+
+    [Fact]
+    public async Task Rule_texts_are_read_from_the_pinned_set()
+    {
+        var (c, f) = Make();
+        f.Answer(HttpStatusCode.OK, "[{\"name\":\"Tough\",\"kind\":\"unit\",\"takesParameter\":true,\"ruleText\":\"Must take X wounds to be killed.\"}]");
+        var rows = await c.GetRuleTexts("sha256:abc");
+        Assert.Equal("http://localhost:5100/v1/properties/sha256:abc/rules", f.Requests.Single().RequestUri!.ToString());
+        Assert.Equal(new RuleTextDto("Tough", "unit", true, "Must take X wounds to be killed."), rows.Single());
+    }
+
+    [Fact]
+    public async Task An_unknown_set_is_a_404()
+    {
+        var (c, f) = Make();
+        f.Answer(HttpStatusCode.NotFound, "{\"title\":\"Not found\",\"status\":404}", "application/problem+json");
+        var ex = await Assert.ThrowsAsync<ManagementException>(() => c.GetRuleTexts("sha256:nope"));
+        Assert.Equal(404, ex.Status);
+    }
 }

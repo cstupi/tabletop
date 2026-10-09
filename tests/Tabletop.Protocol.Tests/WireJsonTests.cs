@@ -39,4 +39,20 @@ public class WireJsonTests
         var json = WireJson.Serialize(new EventsMessage([new GameEvent(1, null, new TurnStarted(Samples.Team1), null)]));
         Assert.StartsWith("{\"kind\":\"events\",\"events\":[{\"seq\":1,\"payload\":{\"kind\":\"turn_started\",\"teamId\":\"", json);
     }
+
+    [Fact]
+    public void Sight_and_facts_travel_under_their_kinds()
+    {
+        Assert.StartsWith("{\"kind\":\"sight_query\",", WireJson.Serialize(new SightQuery(Guid.Empty, Guid.Empty, Guid.Empty)));
+        Assert.StartsWith("{\"kind\":\"sight_answer\",", WireJson.Serialize(new SightAnswer(Guid.Empty, [], [])));
+        var facts = WireJson.Serialize(new ModelFacts(new Dictionary<Guid, int> { [Guid.Empty] = 3 }));
+        Assert.Equal("{\"kind\":\"model_facts\",\"maxWounds\":{\"00000000-0000-0000-0000-000000000000\":3}}", facts);
+    }
+
+    [Fact]
+    public void A_sequence_without_an_outline_writes_no_outline_key()
+    {
+        var json = WireJson.Serialize<EventPayload>(new SequenceStarted(Guid.Empty, "hold", new SequenceContext(null, [], [], null)));
+        Assert.DoesNotContain("outline", json);
+    }
 }

@@ -345,6 +345,11 @@ export interface Options {
   readonly choices: readonly AskOption[];
 }
 
+export interface OutlineStep {
+  readonly step: string;
+  readonly label: string;
+}
+
 export interface Participant {
   readonly id: string;
   readonly accountId: string;
@@ -468,6 +473,7 @@ export interface SequenceStarted {
   readonly frameId: string;
   readonly sequence: string;
   readonly context: SequenceContext;
+  readonly outline?: readonly OutlineStep[];
 }
 
 export type SocketMessage = Connect | Welcome | GameInfoMessage | BoardMessage | EventsMessage | Refused | Rejected;

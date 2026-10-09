@@ -52,7 +52,9 @@ public sealed record PhaseStarted(string Phase) : EventPayload;
 public sealed record GameEnded(string Reason, IReadOnlyList<Guid> Winners) : EventPayload;
 
 // Resolution stack
-public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context) : EventPayload;
+/// <summary>Outline: the player-facing steps of the sequence, in order; Step matches StepCompleted.Step. Null in logs written before it existed.</summary>
+public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context, IReadOnlyList<OutlineStep>? Outline = null) : EventPayload;
+public sealed record OutlineStep(string Step, string Label);
 /// <summary>
 /// Everything the step produced: the answer that resumed it, its rolls, the state changes it applied, and Values — a flat map of
 /// named integers holding the step's settled parameters (attacks counted, a capped multiplier, a distance used in tenths, a token spend,
