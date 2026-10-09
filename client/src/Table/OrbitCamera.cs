@@ -11,6 +11,8 @@ public partial class OrbitCamera : Camera3D
     Vector3 _target; float _distance = 60, _yaw = 0.6f, _pitch = 0.9f;
 
     public void FocusOn(TableSize size) { _target = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, 0)); _distance = (float)Math.Max(size.Width, size.Length) * 0.9f; Apply(); }
+    /// <summary>Look at a point, keeping the distance and angle: Tab and Space bring a unit to the centre of the screen.</summary>
+    public void Centre(Vector3 target) { _target = target; Apply(); }
 
     public override void _UnhandledInput(InputEvent e)
     {
