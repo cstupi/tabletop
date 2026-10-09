@@ -137,6 +137,7 @@ What the suite does not check or report today.
   The failure lines still carry `known defect Dn:`.
 - **The 231 army-book rules outside the catalog are not reported.** The spec says the suite reports them as outside the catalog
   (*Known rule gaps*, below); the suite measures the catalog only.
+- The pinned checks for D1, D2, D7 and D11 stop at their first failing occasion, so while a pin holds, a later occasion failing for another reason in the same check is not reported.
 
 ## Known rule gaps
 
