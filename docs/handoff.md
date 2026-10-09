@@ -1,9 +1,9 @@
-# Handoff — 2026-10-08
+# Handoff — 2026-10-09
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
 after round 4. `sim/` plays whole games headless; `viewer/` draws them. The in-game client is built to the
-in-game UX spec on branch `in-game-ux` and waits for the owner's on-screen check (*Next* 1); polish follows.
+in-game UX spec, merged to `main`, and waits for the owner's on-screen check (*Next* 1); polish follows.
 
 ## Get running
 
@@ -33,15 +33,32 @@ saw 0"; "expected team 2 to win, got winners [1, 2]"), and did before the in-gam
 
 ## Next
 
-### 1. The in-game UX: the owner's on-screen check
+### 1. The in-game UX: one fix, then the owner's on-screen check
 
-Built on branch `in-game-ux`, not merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`,
-plan `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision
-box, dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the
-table; the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New
-games start with Frontline deployment zones, drawn through round 0. The server side is checked by `.superpowers/e2e/`
-(`E2E_SCENARIO=ingame`, once per setting) and the sim. What needs the owner's eyes is the rendering and the input: the
-launch checklist in the plan's Task 19, Step 6 (`task-19-assembly.md`). On the owner's approval, merge `in-game-ux`.
+Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
+`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision box,
+dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
+the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New games start
+with Frontline deployment zones, drawn through round 0. The server side is checked by `.superpowers/e2e/`
+(`E2E_SCENARIO=ingame`, once per setting) and the sim.
+
+**Fix first.** Under `strict`, `HandMoves.Placed` (`server/game/Dispatch/HandMoves.cs`) accepts deploying the picked
+unit `Inside` any model of another friendly unit: nothing checks that the model carries Transport or is on the table,
+and nothing downstream refuses it (the client's "Put inside a container" menu reaches it). Fix: a default member
+`IGameRules.MayDeployInside(GameState, Guid unitId, Guid containerModelId) => false`, forwarded by every hand-forwarding
+wrapper; Grimdark Future answers with `ContainersInReach`'s check without the distance (on the table, Transport via
+`GfMoves.IsContainer`, another unit of the same team); `HandMoves` asks it. Tests: a friendly non-transport and a
+transport still on the shelf are a breach under `strict`; the legal case's container carries Transport. Then
+`server/game/AGENTS.md` and the spec say "inside a container the rules allow".
+
+**Then the owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
+selection and the stat sheet's two tabs, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
+shooting targets (chips, two targets), casualties (clicks, Auto), **Undo move** and Ctrl+Z, zones during deployment and
+gone at round 1, the end message, F1.
+
+**Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
+rule; the client holds none); terrain and marker drags in play are not gated under `strict`; the e2e sight check's
+observer has only melee weapons, so it never proves a non-empty `CanShoot` (the unit tests do).
 
 ### 2. Check the terrain fix in the client
 
@@ -68,6 +85,9 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 - Management: a login blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment.
 
 ## Known rule gaps
+
+Split fire is not checked per group: the `Assignment` legal set lists the union of the weapon groups' targets, so an
+illegal target for one group is accepted.
 
 **Most army-book rules do nothing in play.** The official books put 313 rule names on units and upgrades. 231 of them
 have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile Attack, Agile, Armor, Unique, …), and
