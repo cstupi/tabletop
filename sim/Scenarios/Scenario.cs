@@ -49,6 +49,12 @@ public sealed record Scenario(
     /// <summary>The move goal the scenario's policy ranks legal destinations by; null for the uniform policy.</summary>
     public MoveGoal? Goal { get; init; }
 
+    /// <summary>
+    /// The game's step gate (GameInfo.WaitsBetweenSteps): every step boundary of a frame with an actor waits on a Confirm to the
+    /// actor's team, so a completed step's rolls stay on the stack where SetDice can reach them. Off unless a run fixes dice.
+    /// </summary>
+    public bool WaitsBetweenSteps { get; init; }
+
     /// <summary>The policy for a run of this scenario, seeded from it, or null for a script-only run.</summary>
     public AnswerPolicy? Policy() => ScriptOnly ? null : new AnswerPolicy(new Chooser(Seed), goal: Goal);
 }
