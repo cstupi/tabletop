@@ -22,6 +22,7 @@ public sealed partial class GameSession
             var log = EventFilter.ForViewer(Play.Applier.Log, TeamOf(client.ParticipantId), new HashSet<Guid>());
             for (var i = 0; i < log.Count; i += EventsPerMessage) await client.SendAsync(new EventsMessage(log.Skip(i).Take(EventsPerMessage).ToList()));
             if (log.Count == 0) await client.SendAsync(new EventsMessage([]));
+            await SendFactsAsync(client);
         }
         await AttachCoreAsync(client);
         await client.SendAsync(Rest());

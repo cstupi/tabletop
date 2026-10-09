@@ -12,6 +12,7 @@ public sealed partial class GameSession
         PresenceMessage p => HandlePresence(from, p.Presence),
         PingMessage p => BroadcastAsync(new PingMessage(p.Ping with { Sender = from.ParticipantId }), except: from),
         EditMessage e => HandleEditAsync(from, e),
+        SightQuery q => HandleSightAsync(from, q),
         _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
     });
 
