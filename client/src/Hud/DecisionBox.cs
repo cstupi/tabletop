@@ -154,11 +154,11 @@ public partial class DecisionBox : PanelContainer
     public override void _Input(InputEvent e)
     {
         if (!Visible || KeyOverlay.IntentOf(e, GetViewport()) is not { } intent) return;
-        var dragging = _input.Holding || Godot.Input.IsMouseButtonPressed(MouseButton.Left);   // a drag in hand owns the digits (rows) and Esc
+        var dragging = _input.Holding || Godot.Input.IsMouseButtonPressed(MouseButton.Left);   // a drag in hand owns the digits (rows) and Esc, and holds off Enter
         var used = intent switch
         {
             >= Intent.Option1 and <= Intent.Option9 when !dragging => Number(intent - Intent.Option1 + 1),
-            Intent.Confirm when _onEnter is { } enter => Run(enter),
+            Intent.Confirm when !dragging && _onEnter is { } enter => Run(enter),   // a commit mid-drag would race the drop's own send
             Intent.Cancel when !dragging => _onCancel?.Invoke() == true,
             _ => false,
         };
