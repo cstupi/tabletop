@@ -80,6 +80,40 @@ public class ScenarioTests
         Assert.True(report.Passed, string.Join("\n", report.Failures));
     }
 
+    // A catalog scenario's expectations are what the rules guarantee for any seed, not what its own seed happened to do: the
+    // console runs it over seed ranges. Seeds 3 and 4 of objectives end with no marker held, a 0–0 tie (p.6).
+    [Theory]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(3UL)]
+    [InlineData(4UL)]
+    [InlineData(5UL)]
+    public async Task The_objectives_scenario_meets_its_expectations_on_every_seed(ulong seed)
+    {
+        var scenario = ScenarioCatalog.Get("objectives").WithSeed(seed);
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
+        var report = await loop.RunAsync(CancellationToken.None);
+        Assert.True(report.Passed, string.Join("\n", report.Failures));
+    }
+
+    // The seize end to end on one known game: seed 1's Blue unit ends round 2 within 3" of Blue home, so round_ended records it
+    // and the 1–0 is a scored win. A seed-specific fact, so it lives here and not in the catalog's expectations.
+    [Fact]
+    public async Task Objectives_seed_1_seizes_a_marker_and_scores_a_win()
+    {
+        var scenario = ScenarioCatalog.Get("objectives") with
+        {
+            Expectations = [new Expectation.EventOfKind("round_ended"), new Expectation.Won(2), new Expectation.MostMarkersWin()],
+        };
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(1))), HandPlacement.ChooserFor(1));
+        var report = await loop.RunAsync(CancellationToken.None);
+        Assert.True(report.Passed, string.Join("\n", report.Failures));
+    }
+
     [Fact]
     public void The_army_rules_scenario_fields_every_hook_rule()
     {

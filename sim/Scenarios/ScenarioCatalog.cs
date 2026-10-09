@@ -78,15 +78,16 @@ public static class ScenarioCatalog
             .Expect(new Expectation.AskAsked("react"))
             .Build(),
 
-        // The core mission scored (p.6): three markers across the middle, one deep in Red's frontline zone. Ends after round 4 under strict
-        // with the team holding most markers named on game_ended.
+        // The core mission scored (p.6): three markers across the middle, one deep in Blue's frontline zone. Ends after round 4 under strict
+        // with game_ended naming the teams that hold the most markers. Which team that is, and whether any marker is held at all, depends on
+        // the seed: a game in which no unit ends a round within 3" of a marker is a 0–0 tie between every team.
         ["objectives"] = () => new ScenarioBuilder("objectives", seed: 1)
             .Army("Red", 3, 3).Army("Blue", 3, 3)
             .Marker(MarkerKind.Objective, new Point3(18, 24, 0), label: "West")
             .Marker(MarkerKind.Objective, new Point3(36, 24, 0), label: "Centre")
             .Marker(MarkerKind.Objective, new Point3(54, 24, 0), label: "East")
-            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Red home")
-            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("round_ended"), new Expectation.Won(2))
+            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Blue home")
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.MostMarkersWin())
             .Build(),
     };
 

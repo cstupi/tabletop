@@ -198,7 +198,7 @@ The ten catalog scenarios and what each exists to exercise:
 | `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
 | `final-round-warn` | alternating activation | the same under `warn`: round 5 starts with a warning and the run stops at the cap |
 | `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
-| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with a scored winner (seed 1, winner team ordinal 2) |
+| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with the teams holding the most markers named on `game_ended` (`MostMarkersWin`, any seed; a 0–0 tie when nothing is seized) |
 
 `Scenario.Enforcement` defaults to `Enforcement.Strict`, which is the opposite of every
 fixture's default. An answer outside the legal set must be refused loudly rather than logged and
@@ -802,7 +802,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
 | `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties`, `PropertySet PropertiesFor(IRL<EntryDocument>)` |
 | `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` |
-| `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)` |
+| `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)`, `Warnings(string, int)`, `Won(int)`, `MostMarkersWin` |
 | `static class Expectations` | `IRL<string> Check(IRL<Expectation>, Projection, IRL<GameEvent>, RunOutcome, CompiledScenario)`, `int ModelsOnTable(Projection, CompiledScenario, int teamOrdinal)`, `int ModelsOnTable(Projection, CompiledScenario, Guid teamId)` |
 
 ### Produced: `Tabletop.Sim.Answers`
