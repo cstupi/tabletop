@@ -73,11 +73,19 @@ public static class ScenarioCompiler
         {
             var modelRules = a.ModelRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList();
             // Weapon ids are per model: the engine addresses weapons by id across the unit.
-            var models = Enumerable.Range(1, a.ModelsPerUnit).Select(m => new ModelSlot(
-                Guid.CreateVersion7(), m, $"{a.Name} {u}.{m}",
-                new Dictionary<string, string>(), modelRules, Base.Circle(1.26), 1.5, null,
-                a.Weapons.Select(w => new Weapon(Guid.CreateVersion7(), w.Name,
-                    w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList(), a.ArmyBook)).ToList();
+            var unit = u;
+            var models = Enumerable.Range(1, a.ModelsPerUnit).Select(m =>
+            {
+                // A model's own entries: its rules added to the unit's, its stats as the slot's, its weapons in place of the army's.
+                var own = a.Models.Where(x => x.Unit == unit && x.Model == m).ToList();
+                var rules = modelRules.Concat(own.SelectMany(x => x.Rules ?? []).Select(r => new PropertyInstance(r.Name, r.Parameter))).ToList();
+                var stats = own.SelectMany(x => x.Stats ?? new Dictionary<string, string>()).GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value);
+                var weapons = own.LastOrDefault(x => x.Weapons is not null)?.Weapons ?? a.Weapons;
+                return new ModelSlot(
+                    Guid.CreateVersion7(), m, $"{a.Name} {unit}.{m}", stats, rules, Base.Circle(1.26), 1.5, null,
+                    weapons.Select(w => new Weapon(Guid.CreateVersion7(), w.Name,
+                        w.Stats, w.Rules.Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList())).ToList(), a.ArmyBook);
+            }).ToList();
             units.Add(new Unit(Guid.CreateVersion7(), u, $"{a.Name} unit {u}", a.UnitStats,
                 a.UnitRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList(), models));
         }

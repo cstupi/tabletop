@@ -30,11 +30,13 @@ public sealed class ScenarioBuilder(string name, ulong seed)
 
     public ScenarioBuilder Army(string armyName, int units, int modelsPerUnit,
         IReadOnlyList<ScenarioRule>? unitRules = null, IReadOnlyList<ScenarioRule>? modelRules = null,
-        IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null)
+        IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null,
+        IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
-            unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook));
+            unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook)
+        { SetAside = setAside ?? [], Models = models ?? [] });
         return this;
     }
 
@@ -52,6 +54,13 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     public Scenario Build()
     {
         if (_armies.Count < 2) throw new InvalidOperationException($"scenario '{name}' needs at least two armies; it has {_armies.Count}");
+        foreach (var a in _armies)
+        {
+            if (a.SetAside.FirstOrDefault(u => u < 1 || u > a.Units) is var bad and not 0)
+                throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sets aside unit {bad}; it has {a.Units}");
+            if (a.Models.FirstOrDefault(m => m.Unit < 1 || m.Unit > a.Units || m.Model < 1 || m.Model > a.ModelsPerUnit) is { } model)
+                throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' has no model {model.Unit}.{model.Model}");
+        }
         var style = _zoneStyle ?? (_armies.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
         var shapes = ZoneStyles.ShapesOf(style).Take(_armies.Count).ToList();
         return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal };
