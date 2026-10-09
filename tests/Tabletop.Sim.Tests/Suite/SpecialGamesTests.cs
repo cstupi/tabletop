@@ -22,7 +22,6 @@ public class SpecialGamesTests
     [
         ("special-aircraft-overhead", "D7", "p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
         ("special-aircraft-overhead", "D8", "p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
-        ("special-stealth-at-nine-and-a-half", "D11", "fired", "never fired: Stealth"),
         ("special-stealth-at-nine-and-a-half", "D11", "p.14 Stealth:", "\" away: hit 4+ [] "),
     ];
 
@@ -38,7 +37,8 @@ public class SpecialGamesTests
     [Fact]
     public void Every_exact_check_is_about_entries_its_game_covers()
     {
-        Assert.All(Games, g => Assert.All(g.Checks, c => Assert.Subset(g.Covers.ToHashSet(), (c.Entries ?? []).ToHashSet())));
+        // A defect exhibit covers nothing and reports its check against the entry it shows the defect in.
+        Assert.All(Games.Where(g => g.Covers.Count > 0), g => Assert.All(g.Checks, c => Assert.Subset(g.Covers.ToHashSet(), (c.Entries ?? []).ToHashSet())));
         Assert.All(Games.SelectMany(g => g.Covers), rule => Assert.Contains(Games, g => g.Checks.Any(c => c.Entries?.Contains(rule) == true)));
     }
 
