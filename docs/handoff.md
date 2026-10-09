@@ -26,7 +26,7 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
   `./scripts/client` again.
 
 **Checks.** `dotnet build` has 0 errors (7 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1493 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 44, Viewer 9, Client 161,
+`dotnet test` passes 1503 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 44, Viewer 9, Client 171,
 GameServer 859, Management 94, Sim 127. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 `dotnet run --project sim -- objectives --seeds 1..4` fails seeds 3 and 4 ("expected at least 1 'round_ended' events,
 saw 0"; "expected team 2 to win, got winners [1, 2]"), and did before the in-game UX branch; not yet diagnosed.
@@ -76,6 +76,10 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 - Management: a login blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment.
 
 ## Known rule gaps
+
+Passengers can deploy into a transport later than the transport: p.15 says *"units inside Transports are deployed at
+the same time as the Transport"*, but deployment accepts placing a picked unit inside any friendly transport already on
+the table.
 
 **Most army-book rules do nothing in play.** The official books put 313 rule names on units and upgrades. 231 of them
 have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile Attack, Agile, Armor, Unique, …), and
