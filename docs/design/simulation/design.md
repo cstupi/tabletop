@@ -128,7 +128,7 @@ and *k*. The answers are `sim/`'s: one `Chooser`, SplitMix64 over a counter, adv
 order over legal sets the engine offers in its own ordinal order.
 
 Both are fixed by `Scenario.Seed`. It reaches the engine as `GameInfo.RngSeed`, and it
-constructs the `AnswerPolicy`'s `Chooser` and the `RunLoop`'s placement `Chooser`.
+constructs the `AnswerPolicy`'s `Chooser` (`Scenario.Policy()`) and the `RunLoop`'s placement `Chooser`.
 
 The seed is its own stored value on the management-owned game row, `rng_seed`, not null, written
 once when the game is created. It is not derived from the game id: hashing the id would make the
@@ -198,7 +198,7 @@ The ten catalog scenarios and what each exists to exercise:
 | `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
 | `final-round-warn` | alternating activation | the same under `warn`: round 5 starts with a warning and the run stops at the cap |
 | `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
-| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with the teams holding the most markers named on `game_ended` (`MostMarkersWin`, any seed; a 0–0 tie when nothing is seized) |
+| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with the teams holding the most markers named on `game_ended` (`MostMarkersWin`, any seed, a tie included). Opts into `ObjectiveGoal.Nearest`, so every seed seizes at least once (`EventOfKind("round_ended")`). Blue home sits in Blue's zone, against p.6's "outside of the deployment zones", on purpose |
 
 `Scenario.Enforcement` defaults to `Enforcement.Strict`, which is the opposite of every
 fixture's default. An answer outside the legal set must be refused loudly rather than logged and
@@ -276,6 +276,16 @@ not, and a boolean is one careless `new PolicyOptions(readState: true)` away fro
 soak default. Keeping `AnswerPolicy` free of state reads also lets its own tests pass a bare
 view. Asserting "uniform over the legal set" is cheap as a result.
 
+One state read is opted into per scenario, and it is named rather than flagged: a `MoveGoal`
+(`delegate Point2? MoveGoal(Guid modelId, PolicyView view)`), passed to `AnswerPolicy`'s
+constructor from `Scenario.Goal` (`ScenarioBuilder.Seeking`). `ObjectiveGoal.Nearest` is the one
+goal: the nearest objective marker (`PolicyView.ObjectiveMarkers`) that the model's team
+(`TeamOf`) does not hold in `Projection.Control`. The goal reads the state; `AnswerPolicy` still
+samples and checks destinations from the legal set alone, and the goal only ranks the ones that
+passed (see `MoveRegion` below), so neither prohibition is touched. Only `objectives` opts in: with
+uniform moves, 8 of its first 20 seeds never seized a marker, so a broken seize would pass as a
+0–0 tie.
+
 ### `PolicyView` and the seven legal-set shapes
 
 `PolicyView(Projection, Board, IReadOnlyList<WorldVolume>? volumes = null, GameInfo? info = null,
@@ -321,7 +331,9 @@ not expressible from the set alone. `MoveRegion` names model ids, an allowance a
 and says nothing about where those models stand. `PlacedOf`, `BodyOf`, `VolumesById` and
 `SurfaceAt` are how a destination gets computed at all. Per model the policy samples a uniform
 bearing and a uniform distance inside the allowance, up to `PolicyOptions.MoveSamples` (24)
-times, and accepts the first destination `Movement.Check` likes. Every parameter of that check
+times, and accepts the first destination `Movement.Check` likes. With a `MoveGoal` that names a
+point for the model, it draws all the samples and takes the passing one nearest that point; with
+none, or a null point, the draws and the answer are the uniform ones. Every parameter of that check
 comes from the legal set itself. Standing still is the fallback and is always legal, because it
 is where the model already is. The retry budget is per model rather than per Ask, so a unit of
 five gets five independent budgets and one model that cannot find a destination does not freeze
@@ -746,6 +758,7 @@ stored rather than derived, and the two runs are separate games that rolled the 
 | The simulator may read anything the engine exposes; two prohibitions carry the argument | invariants, expectations and the recording all read state, so a ban on reading it would contradict itself | banning every read of game state | spec → Two ways to answer an Ask |
 | The default policy is uniform over the legal set and ignorant of state | a cleverer policy explores a narrower region and finds fewer bugs | weighting toward plausible play | spec → Two ways to answer an Ask |
 | A state-reading policy is a second `IAnswerSource`, not a `PolicyOptions` flag | a type name is named; a boolean is one careless call away from becoming the soak default | `PolicyOptions(readState: true)` | **(plan)** Task 2 |
+| A move goal is a named `MoveGoal` a scenario opts into, ranking only destinations the uniform sampler found legal | the `objectives` scenario must seize on every seed to catch a broken seize; the goal never adds or removes a destination | a separate `IAnswerSource` duplicating the move sampler | sim-goal brief |
 | The policy prefers to act: `PassProbability` defaults to `0` | a pass is taken only when the legal set admits nothing else | preferring to pass, or tuning toward plausible play | spec → Deliberately not decided |
 | The RNG seed is a stored column, `game.rng_seed bigint not null`, reaching the engine as `GameInfo.RngSeed` | a run sets the seed explicitly and takes ordinary v7 ids | hashing the game id to derive the seed, which would force `sim/` to derive its ids from its run seed | spec → The seed is stored, so a run sets it; `schema.md` → A game stores its dice seed |
 | `GameInfo.RngSeed` is positional and last among the scalars | a construction that forgets the seed fails to compile rather than getting `0` | a defaulted or named parameter | [contracts](../contracts/design.md) → Key decisions |
@@ -794,11 +807,11 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 
 | Type | Members |
 | --- | --- |
-| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
+| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
 | `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats)` | |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
-| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Expect`, `Build` |
+| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Seeking`, `Expect`, `Build` |
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
 | `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties`, `PropertySet PropertiesFor(IRL<EntryDocument>)` |
 | `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` |
@@ -809,9 +822,10 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 
 | Type | Members |
 | --- | --- |
-| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double SurfaceAt(Point2)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
+| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double SurfaceAt(Point2)`, `IRL<Marker> ObjectiveMarkers`, `static IRL<Marker> ObjectiveMarkersOf(Projection)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
 | `sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24)` | |
-| `sealed class AnswerPolicy(Chooser, PolicyOptions? = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
+| `sealed class AnswerPolicy(Chooser, PolicyOptions? = null, MoveGoal? goal = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
+| `delegate Point2? MoveGoal(Guid modelId, PolicyView view)`; `static class ObjectiveGoal` | `static Point2? Nearest(Guid, PolicyView)` |
 | `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IRD<ScriptKey,AskAnswer> Answers)` | `static Empty`, `static ScriptBuilder Build()`, `bool TryGet(string, int, out AskAnswer)`, `int Count` |
 | `sealed class ScriptBuilder` | `At(string, int, AskAnswer)`, `Then(string, AskAnswer)`, `Build()` |
 | `interface IAnswerSource` | `AskAnswer Answer(Ask, PolicyView)`, `IRL<AnsweredAsk> History` |
@@ -1188,6 +1202,7 @@ Twelve xUnit classes in `tests/Tabletop.Sim.Tests`. All but one need nothing run
 | `ScenarioTests` | the builder's teams and participants, the same seed with different ids, the properties hash and rules id, every catalog scenario compiling, `strict` by default | nothing |
 | `AnswerPolicyTests` | one test per legal-set shape, the empty set, the pass probability, the same seed answering identically, `ShapeNames` matching the switch | nothing |
 | `MoveRegionPolicyTests` | 25 seeds each: a destination within the allowance and on the table, an impassable volume not crossed, embarking putting every model inside | nothing |
+| `ObjectiveGoalTests` | the goal is the nearest objective marker the team does not hold (tokens and held markers skipped, an enemy's marker kept), none when every marker is held, a goal-directed move within the allowance and closer, the same seed answering identically, no goal leaving the uniform answer unchanged | nothing |
 | `AnswerScriptTests` | the ordinal counting per question, a duplicate key throwing, the script winning, a script-only run failing on the first unscripted Ask | nothing |
 | `InProcessDriverTests` | hydrating to a playing game with the first Ask open, every model on the shelf before deployment, an accepted answer, an out-of-set answer refused under `strict`, the driver's and the server's projections agreeing, draining twice | nothing |
 | `RecordingTests` | the board block, a frame's models, the score and passed, a marker placed during play, an Ask on every frame until it closes, the dice raw and modified, a JSON round trip, camelCase and omitted nulls | nothing |
@@ -1210,7 +1225,7 @@ many draws. Nothing tests a socket run against a server that never rests, so `Re
 the `Failed` outcome it produces have no coverage. Nothing tests a recording against `viewer/`,
 which is that plan's to do.
 And no test proves the two prohibitions: that `sim/` never narrows a legal set and never computes
-a rules outcome is enforced by `AnswerPolicy` reading only `PolicyView`'s geometry members, and a
+a rules outcome is enforced by `AnswerPolicy` reading only `PolicyView`'s geometry members (a `MoveGoal` only ranks what it already found legal), and a
 future `IAnswerSource` could violate both without a test noticing.
 
 ## Rulings and deferred work

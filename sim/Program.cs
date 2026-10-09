@@ -64,7 +64,7 @@ public static class Program
     private static async Task<RunReport> PlayAsync(Scenario scenario, SimOptions options, CancellationToken ct)
     {
         var compiled = ScenarioCompiler.Compile(scenario);
-        var answers = new ComposedAnswers(scenario.Script, scenario.ScriptOnly ? null : new AnswerPolicy(new Chooser(scenario.Seed)));
+        var answers = new ComposedAnswers(scenario.Script, scenario.Policy());
 
         NpgsqlDataSource? db = null;
         try

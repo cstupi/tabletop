@@ -26,10 +26,10 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
   `./scripts/client` again.
 
 **Checks.** `dotnet build` has 0 errors (7 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1523 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 45, Viewer 9, Client 179,
-GameServer 861, Management 94, Sim 136. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
-Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`: its expectations hold for any seed, a 0–0
-tie included.
+`dotnet test` passes 1535 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 45, Viewer 9, Client 179,
+GameServer 861, Management 94, Sim 148. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
+does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
 
