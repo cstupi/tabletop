@@ -22,6 +22,8 @@ public static class GfNames
     public const double MeleeHorizontal = 2, MeleeVertical = 4, ChargeCloseIn = 3, Consolidate = 3, FallBack = 1, Separation = 1, CastRange = 18, DifficultCap = 6;
     /// <summary>p.15 and p.21: a unit leaving a container "must stay fully within 6" of it".</summary>
     public const double ExitWithin = 6;
+    /// <summary>p.13 Aircraft: "adding 30" to its total move".</summary>
+    public const double AircraftMove = 30;
     public const int TokenCap = 6;
 
     // The scheduler plan's names (its Task 2 reads them from here; one names class).

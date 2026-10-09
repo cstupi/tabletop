@@ -119,15 +119,23 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
 
         var impassable = view.VolumesById(m.ImpassableVolumeIds);
         var difficult = view.VolumesById(m.DifficultVolumeIds);
+        var destinations = m.ModelIds.ToDictionary(id => id, id => view.PlacedOf(id) is { } placed
+            ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view))
+            : SampleExit(id, m, view));
+        // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model sampled
+        // further than it is sampled again within the cap. Nothing is redrawn when no path enters.
+        if (m.DifficultCap is { } cap && cap < m.Allowance && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && destinations[id] is { } d
+                && Movement.Check(p, d, m.Allowance, impassable, difficult, cap, view.Table).EntersDifficult))
+            foreach (var id in m.ModelIds)
+                if (view.PlacedOf(id) is { } p && destinations[id] is { } d && p.Placement.Position.Horizontal.DistanceTo(d) > cap)
+                    destinations[id] = Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view));
         var moves = new List<ModelRelocation>();
         var sampled = false;
         foreach (var id in m.ModelIds)
         {
             var from = view.LocationOf(id);
             var start = view.PlacedOf(id);
-            var destination = start is { } placed
-                ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view))
-                : SampleExit(m, view);
+            var destination = destinations[id];
             if (destination is null)
             {
                 moves.Add(new ModelRelocation(id, from, from));   // stand still: always legal
@@ -144,16 +152,24 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
 
     /// <summary>
     /// A disembark: the models are Inside, so there is no start to walk from. A point within the stated exit distance of
-    /// the container's placed position; the server checks the placement. Null when the container has no table position.
+    /// the container's placed position, retried until the base lies fully within it (Containment.BaseFullyWithin, which
+    /// MoveContainment names) and fully on the table, as every move's region is. Null when the container has no table
+    /// position or no sample passes.
     /// </summary>
-    private Point2? SampleExit(MoveRegion m, PolicyView view)
+    private Point2? SampleExit(Guid modelId, MoveRegion m, PolicyView view)
     {
         if (m.Containment is not { ExitingId: { } exiting, ExitWithin: { } within }) return null;
         if (_o.MoveSamples <= 0 || view.PlacedOf(exiting) is not { } container) return null;
         var origin = container.Placement.Position.Horizontal;
-        var bearing = chooser.Double() * Math.Tau;
-        var distance = chooser.Double() * within;
-        return new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
+        for (var i = 0; i < _o.MoveSamples; i++)
+        {
+            var bearing = chooser.Double() * Math.Tau;
+            var distance = chooser.Double() * within;
+            var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
+            var placed = new PlacedModel(view.BodyOf(modelId), new Placement(new Point3(candidate.X, candidate.Y, 0), new Yaw(0)));
+            if (Containment.BaseFullyWithin(placed, container, within) && Table.ContainsBase(view.Table, placed)) return candidate;
+        }
+        return null;
     }
 
     /// <summary>

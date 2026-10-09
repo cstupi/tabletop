@@ -22,10 +22,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     {
         // deal-wounds opens an empty remove_casualties Allocation when an earlier weapon group destroyed the target (p.8).
         ["core-overkill"] = ["'remove_casualties' (Allocation) admits no answer", "p.8: \"all weapons are fired simultaneously\""],
-        // A move in which one model enters difficult terrain lets the unit's other models go past 6" (p.11), under strict.
-        ["core-rough-ground"] = ["p.11: \"If any model in a unit moves in or through difficult terrain"],
-        // A disembark is accepted with the model's base off the table edge (p.7).
-        ["core-transport-run"] = ["NoModelInTwoPlacesOrOffTheSlab"],
     };
 
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];

@@ -75,14 +75,36 @@ public static class GfMoves
     }
 
     /// <summary>
-    /// p.15 and p.21: "must stay fully within 6" of it when exiting". The settled placement when the whole base is inside the
-    /// radius of the container's base, null otherwise — the one containment constraint that is geometry, so it is checked on the
-    /// server rather than trusted from the client, and a model whose placement is refused simply stays inside.
+    /// p.15 and p.21: "must stay fully within 6" of it when exiting", and p.7: "models may also never move outside of the battlefield (no part
+    /// of them, at any point)". The settled placement when the whole base is inside the radius of the container's base and on the table, null
+    /// otherwise — the one containment constraint that is geometry, so it is checked on the server rather than trusted from the client, and a
+    /// model whose placement is refused simply stays inside (a destroyed transport's survivor is destroyed instead: GfContainers).
     /// </summary>
     public static Placement? ExitPlacement(GameState state, Guid modelId, Guid container, Placement proposed, double within)
     {
         var settled = Battlefield.Settle(state, proposed);
-        return Battlefield.Placed(state, container) is { } c && Containment.BaseFullyWithin(Battlefield.At(state, modelId, settled), c, within) ? settled : null;
+        var at = Battlefield.At(state, modelId, settled);
+        return Battlefield.Placed(state, container) is { } c && Containment.BaseFullyWithin(at, c, within) && Table.ContainsBase(state.Board.Table.Size, at) ? settled : null;
+    }
+
+    /// <summary>
+    /// p.11: "If any model in a unit moves in or through difficult terrain at any point of its move, then all models in the unit may not move more than 6"
+    /// for that movement." The region's DifficultCap is that cap (null for Strider, Flying and Aircraft, which it does not bind): once any listed model's
+    /// straight path from where it stands touches a listed difficult volume, every model moving on the table is held to it. The detail for the first
+    /// model over, null when none is. A disembark (no start to measure from) and an embark are not moves on the table and are not judged.
+    /// </summary>
+    public static string? DifficultCapBreach(GameState state, MoveRegion region, Destinations answer)
+    {
+        if (region.DifficultCap is not { } cap || region.Containment?.ExitingId is not null) return null;
+        var difficult = Battlefield.Terrain(state).Where(v => region.DifficultVolumeIds.Contains(v.Id)).ToList();
+        var checks = answer.Moves.Where(m => m.To is OnTable && region.ModelIds.Contains(m.ModelId) && Battlefield.Placed(state, m.ModelId) is not null)
+            .Select(m => (m.ModelId, Check: Movement.Check(Battlefield.Placed(state, m.ModelId)!.Value, ((OnTable)m.To).Placement.Position.Horizontal,
+                region.Allowance, [], difficult, cap, null))).ToList();
+        if (!checks.Any(c => c.Check.EntersDifficult)) return null;
+        var limit = Math.Min(region.Allowance, cap);
+        return checks.FirstOrDefault(c => c.Check.Distance > limit + 1e-6) is { Check: { } check, ModelId: var over }
+            ? $"the unit moved in or through difficult terrain, so no model may move more than {limit:0.#}\" (p.11), and {state.Projection.Models[over].Slot.Name} moved {check.Distance:0.##}\""
+            : null;
     }
 
     /// <summary>p.11 "is activated in it": the unit's living models whose base centre is inside a Dangerous volume right now.</summary>
@@ -101,6 +123,7 @@ public static class GfMoves
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
+            if (IsAircraft(ctx, unit)) return new Complete([]);                                       // p.13: Aircraft "ignore all units and terrain when moving and stopping"
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             // p.13: Flying ignores terrain effects. A granted Flying is spent when there was a test to skip.
             if (live.Has(Side.Attacker, "Flying"))
@@ -128,8 +151,19 @@ public static class GfMoves
     }
 
     /// <summary>
+    /// p.13 Aircraft: "May only use Advance actions, moving in a straight line, and adding 30" to its total move (even if Shaken). Aircraft ignore all
+    /// units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12" to their range.
+    /// Note that since Aircraft are flying high above the ground, only the actual model counts (base doesn't block movement or line of sight, and units
+    /// may move and shoot under it). Aircraft can't move into the table edges to move less than 30", and their mandatory move doesn't break the staying
+    /// idle requirement to stop being Shaken." The move is the move step's: 30" on the allowance, no terrain volumes and no cap, no dangerous terrain
+    /// test, and one segment, so each model's move is one straight line. Advance only is ActionsFor's; "can't be charged" is GfMelee.ChargeTargets'.
+    /// </summary>
+    public static bool IsAircraft(StepContext ctx, Guid unit) => Lookup.UnitHas(ctx.State, ctx.Properties, unit, GfNames.Aircraft);
+
+    /// <summary>
     /// One segment per run of its phase machine, carried in Values["phase"]: 0 ask for a move → apply it (Repeat); 1 dangerous terrain test (Push) → (Repeat);
     /// 2 the casting checkpoint: react-or-pass to the actor's own team; a cast with budget left goes back to phase 0 (Repeat), otherwise the step completes.
+    /// An Aircraft moves in one segment (IsAircraft).
     /// </summary>
     public sealed class MoveStep(string action, bool ignoreSeparation) : IStep
     {
@@ -138,20 +172,21 @@ public static class GfMoves
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             var live = Lone(ctx, unit, action);
-            var allowance = StatReader.ActionDistance(live, Side.Attacker, action);
+            var aircraft = IsAircraft(ctx, unit);
+            var allowance = StatReader.ActionDistance(live, Side.Attacker, action) + (aircraft ? GfNames.AircraftMove : 0);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
-            var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
+            var strider = aircraft || live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
             if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             var terrain = Battlefield.Terrain(ctx.State);
             switch (ctx.Frame.Value("phase"))
             {
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
-                    var impassable = terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList();
-                    var difficult = terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
+                    List<Guid> impassable = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList();
+                    List<Guid> difficult = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
                     var containment = Containers(ctx, unit, action, Math.Max(0, allowance - used), Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
-                        : ignoreSeparation ? "Charge: move into contact" : $"Move up to {allowance - used:0.#}\"";
+                        : ignoreSeparation ? "Charge: move into contact" : aircraft ? $"Move up to {allowance - used:0.#}\" in a straight line" : $"Move up to {allowance - used:0.#}\"";
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), Math.Max(0, allowance - used), impassable, difficult, strider ? null : GfNames.DifficultCap, containment), allowPass: true)]);
                 case 0:
@@ -168,7 +203,7 @@ public static class GfMoves
                     // p.13: a caster may try more than one spell in an activation, so a finished cast reopens the window — back to the
                     // move when budget remains, otherwise round again on the checkpoint. A pass leaves no casting child and the step ends.
                     var reacted = ctx.History.Children.Count > 0;
-                    return new Complete([], new Dictionary<string, int> { ["phase"] = allowance - used > 0 ? 0 : 2 }, Repeat: reacted);
+                    return new Complete([], new Dictionary<string, int> { ["phase"] = allowance - used > 0 && !aircraft ? 0 : 2 }, Repeat: reacted);
             }
         }
 
@@ -198,7 +233,9 @@ public static class GfMoves
     /// <summary>The destinations settled onto the surface, the moved condition, the segment's distance in tenths, and the dangerous-terrain dice the models that moved in or through a Dangerous volume owe (p.11).</summary>
     public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed)
     {
-        var terrain = Battlefield.Terrain(ctx.State);
+        // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
+        var aircraft = IsAircraft(ctx, unit);
+        IReadOnlyList<WorldVolume> terrain = aircraft ? [] : Battlefield.Terrain(ctx.State);
         var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
@@ -231,6 +268,7 @@ public static class GfMoves
             crossedDifficult |= Movement.VolumesCrossed(start, settled.Position.Horizontal, difficult).Count > 0;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
+        if (aircraft && moves.Any(m => m.From is OnTable && m.To is OnTable)) ctx.Applied.Add(GfNames.Aircraft);
         if (flying && moves.Count > 0) live.Spend(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
         // Applied, recorded without spending: Flying when it skipped a dangerous test (p.13) or a difficult cap that would have bound, Strider when it
         // skipped that cap (p.14). The cap binds only when the allowance is over it, so an Advance across difficult ground lists neither.

@@ -51,7 +51,8 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// <summary>
 /// Anywhere within the allowance: parameters, not an enumeration. The client draws the region with Tabletop.Geometry.Movement.Region.
 /// ImpassableVolumeIds and DifficultVolumeIds name volumes on the Board (TerrainPlacement.WorldVolumes()); DifficultCap is the
-/// whole-move cap GameRules computed when any listed difficult volume is entered (OPR: 6"), null when the ruleset has none.
+/// whole-move cap GameRules computed when any listed difficult volume is entered (OPR: 6"), null when the ruleset has none. It holds
+/// every listed model once any one of them enters (OPR p.11: "all models in the unit may not move more than 6"").
 /// Containment is non-null only when this move may embark or is disembarking; null is every move on open table.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,

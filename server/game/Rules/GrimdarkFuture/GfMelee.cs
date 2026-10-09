@@ -102,6 +102,7 @@ public static class GfMelee
     /// <summary>
     /// The enemy units this unit could charge: p.7 "Units may only take a Charge action if at least one model is within charge distance of the
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
+    /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target.
     /// </summary>
     public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
     {
@@ -112,7 +113,7 @@ public static class GfMelee
         // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
         var inside = Lookup.ContainerOf(state, unit);
-        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team).Select(u => u.Id).Where(t => inside is { } container
+        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t => inside is { } container
             ? Lookup.LivingModels(state, t).Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
             : Lookup.LivingModels(state, unit).Any(m => Lookup.LivingModels(state, t).Any(e =>
             {

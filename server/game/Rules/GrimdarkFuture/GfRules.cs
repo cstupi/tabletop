@@ -1,3 +1,4 @@
+using Tabletop.Protocol;
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 /// <summary>
@@ -10,4 +11,7 @@ public sealed partial class GrimdarkFutureRules : IGameRules
     public const string RulesId = "grimdark-future";
     public static GrimdarkFutureRules Instance { get; } = new();
     public string Id => RulesId;
+
+    public string? AnswerBreach(GameState state, Ask ask, AskAnswer answer) =>
+        ask.Legal is MoveRegion region && answer is Destinations moves ? GfMoves.DifficultCapBreach(state, region, moves) : null;
 }
