@@ -25,15 +25,6 @@ public class ArmyGamesTests
         ["jackals-scrapper-boost"] = "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]",
     };
 
-    /// <summary>
-    /// Games that fail on a defect over the socket only. The socket server reads the property set back from Postgres, which does not keep a
-    /// row's condition order, so Slayer's most_models opponent condition is judged first in a lone interaction (activation-terrain) and throws.
-    /// </summary>
-    public static readonly Dictionary<string, string> SocketDefects = new()
-    {
-        ["soul-snatcher-cults-slayers"] = "no defender in this interaction",
-    };
-
     /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"); they are not the army group's.</summary>
     static readonly string[] Staging = ["Immobile"];
 
@@ -62,7 +53,7 @@ public class ArmyGamesTests
     public void The_defect_tables_are_the_games_the_catalog_pins()
     {
         Assert.Equal(Defects.Keys.Order(), Army.Where(g => g.KnownOn(DriverKind.InProcess).Count > 0).Select(g => g.Name).Order());
-        Assert.Equal(Defects.Keys.Concat(SocketDefects.Keys).Order(), Army.Where(g => g.KnownOn(DriverKind.Socket).Count > 0).Select(g => g.Name).Order());
+        Assert.Equal(Defects.Keys.Order(), Army.Where(g => g.KnownOn(DriverKind.Socket).Count > 0).Select(g => g.Name).Order());
     }
 
     public static TheoryData<string> Playable() => [.. Army.Where(g => !Defects.ContainsKey(g.Name)).Select(g => g.Name)];
@@ -351,7 +342,7 @@ public class ArmyGamesSocketTests(PostgresFixture pg) : IDisposable
         var report = await new SuiteRunner(army, socket).RunAsync(new SuiteOptions([.. army.Select(g => g.Name)], DriverKind.Socket, false, TempDir()), null, Ct);
         Assert.All(report.Games, g =>
         {
-            if (ArmyGamesTests.Defects.TryGetValue(g.Name, out var defect) || ArmyGamesTests.SocketDefects.TryGetValue(g.Name, out defect))
+            if (ArmyGamesTests.Defects.TryGetValue(g.Name, out var defect))
                 Assert.Contains(g.Failures, f => f.Contains(defect));
             else Assert.True(g.Passed, $"{g.Name}: {string.Join("; ", g.Failures)}");
         });
