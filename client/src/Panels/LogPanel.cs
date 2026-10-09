@@ -52,6 +52,9 @@ public partial class LogPanel : PanelContainer
                 foreach (var id in LogText.Touched(e)) _view.PieceAt(id)?.SetHighlight(Colors.Yellow);
             };
             row.AddChild(text);
+            if (e.Payload is StepCompleted { Rolls.Count: > 0 } rolled)   // each roll's dice inline (in-game UX spec → Log)
+                row.AddChild(new Label { Text = string.Join("   ", rolled.Rolls.Select(r =>
+                    $"{r.Roll}: {string.Join(" ", r.Dice.Select(d => d.Success ? $"[{d.Raw}]" : $"{d.Raw}"))}")) });
             if (isLive && e.Payload is not Undone) { var undo = new Button { Text = "Undo to here", Flat = true }; undo.Pressed += () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); row.AddChild(undo); }
             if (isLive && e.Payload is StepCompleted { Rolls.Count: > 0 } step)
             {
