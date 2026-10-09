@@ -318,7 +318,7 @@ public partial class TableInput : Node
                 await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
             else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
                 await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
-            else if (p is not null && p.Markers.ContainsKey(drag.PieceId))
+            else if (p is not null && (p.Markers.ContainsKey(drag.PieceId) || p.Board.Table.Markers.Any(m => m.Id == drag.PieceId)))   // a play marker, or a setup one (an unlocked objective)
                 await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
         }
         catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); _drops.Refuse(held); freeMove = false; }

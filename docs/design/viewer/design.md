@@ -418,8 +418,8 @@ carrying `kind` and `unknownId`, thrown from the four helpers `unitIn`, `modelIn
 `askIn`. No `!` on a `Map.get` survives in the file. The spelling matters more than it looks.
 `p.models.get(id)!.wounds = w` throws an untyped `TypeError`. `{ ...p.markers.get(id)!, position }`
 on a missing marker spreads `undefined` and succeeds, writing a marker with no `id` into the store,
-which is a silent divergence at the exact case the fault exists for: a marker placed during setup and then
-moved. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
+which is a silent divergence at the exact case the fault exists for: moving a marker neither the board nor
+the log holds. A setup marker's first `marker_moved` copies its board row into `markers`, as the C# does. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
 there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
 the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
 ported, so `step_completed` and `modifier_added` can fault on an unknown frame id in C# and cannot
@@ -850,8 +850,8 @@ side resolved non-empty rings so the exclusion cannot cover an empty field on bo
 the feed goes to `status: 'error'` naming the event kind and the id. Any other error thrown while
 applying events fails the feed the same way with `String(error)` as the detail. Later frames change
 nothing, because the message handler ignores every frame once the feed has failed. The operator reconnects from the
-source picker, which rebuilds from the redelivered log. The two designed features that reach this
-are moving a marker placed during setup and editing the dice of a popped frame.
+source picker, which rebuilds from the redelivered log. The designed feature that reaches this is
+editing the dice of a popped frame.
 
 **Ordering in the live feed.** Events before the board are held and drained. A `board` frame before
 a `welcome` is an error, because the projector needs `GameInfo` for team ordinals. A `game` frame

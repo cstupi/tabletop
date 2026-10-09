@@ -313,8 +313,10 @@ Four decisions are carried in this shape.
 - **Objectives and tokens are one `Marker` with a `Kind`**, sized by a diameter. Markers ignore
   terrain: no settling, no collision (setup content → Markers; table domain model). Where a marker
   lives differs by origin. Setup markers are rows in `TableState.Markers`. A token dropped in play is
-  a logged `MarkerPlaced` and lands in `Projection.Markers`.
-  [Failure modes](#failure-modes) covers a token placed during setup.
+  a logged `MarkerPlaced` and lands in `Projection.Markers`. A setup marker's first `MarkerMoved`
+  copies its row into `Projection.Markers` at the new position, and that entry wins on the shared id
+  from then on; control stays keyed by id. A setup marker is never removed: `RemoveMarker` naming one
+  is refused.
 - **`DeploymentZone` names a *shape id* and a team ordinal**, never a team, because a saved layout
   has zones and no game. Shape ids are namespaced by style (`"frontline/1"`), the ids
   `Tabletop.Geometry.ZoneStyles.ShapesOf(style)` lists, one row per shape, keyed by ordinal `1..n`.
@@ -1497,14 +1499,9 @@ lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`sc
 nothing when the frame is already gone.
 
 Strictness holds because the server is the only writer and it emits ids from the snapshot it
-hydrated. Two cases fall on the wrong side of it, and both are a typed desync rather than a
+hydrated. One case falls on the wrong side of it, and it is a typed desync rather than a
 `KeyNotFoundException` or an `InvalidOperationException`.
 
-- **A token placed during setup and then moved in play throws.** Setup content says objectives are
-  snapshot rows and *"a token placed during setup may sit in the snapshot as well, as initial
-  state"*. Such a marker lives in `Projection.Board.Table.Markers`, while `MarkerMoved` and
-  `MarkerRemoved` look in `Projection.Markers`, which holds only tokens dropped in play. Two id
-  spaces, one `MarkerId` field, and a renderer that has to union the two collections anyway.
 - **Editing a roll after its sequence has finished throws.** The scheduler says *"every roll result
   is editable from the menu, as any roll is"*. `SetDice`/`DiceEdited` carry a `FrameId`, and
   `ReplaceDice` calls `FrameOf`, which throws once the frame has been popped. The roll lookup throws
@@ -1622,7 +1619,7 @@ Geometry 12, Content 15, Protocol 32.
 | Derived properties stay off the wire | `"horizontal"`, `"isBuiltin"`, `"transform"` absent from serialised `TableState` | Content |
 | One literal wire shape | the `EventsMessage` prefix is asserted character for character: `{"kind":"events","events":[{"seq":1,"payload":{"kind":"turn_started","teamId":"` | Protocol |
 | Applier behaviour | deployment moves a model off the shelf; every store copies what its event says and un-copies on the inverse event; the scheduler's four events with a pass that stands across a round; frames push, record steps, clear pending modifiers, replace dice, and pop with everything above; Asks open, collect and close; undo drops a range while `Log` stays append-only, including `ProjectTo(1)`, `ProjectTo(0)` and `Undone(0)` | Protocol |
-| Desync is typed | moving a marker that came from the setup draft, and editing the dice of a frame that has been popped, each throw `ProjectionDesyncException` carrying the event kind and the unknown id | Protocol |
+| Desync is typed | moving a marker neither the board nor the log holds, and editing the dice of a frame that has been popped, each throw `ProjectionDesyncException` carrying the event kind and the unknown id; moving a setup marker copies it into `Projection.Markers` | Protocol |
 
 `Every_concrete_kind_has_a_sample` plus the round-trip loop means no message kind can be added to
 the contract without a serialisation test existing for it. That is the mechanism keeping a
@@ -1647,7 +1644,7 @@ hand-written union honest.
 - **`EffectiveLog` is not tested against interleaved undos**: an `Undone` after an `Undone`, or an
   `Undone` naming a sequence that was already undone past. The behaviour is defined by the code and
   by a server-side guard in a different module, and no test states it.
-- **A missing id is tested at two sites, not at all sixteen.** The setup marker and the popped frame
+- **A missing id is tested at two sites, not at all sixteen.** The unknown marker and the popped frame
   are asserted; the model, unit, Ask and roll lookups are not. One test per site would be cheap and
   is not in the plan.
 - **Nothing measures.** No assertion bounds a frame size, a projection rebuild, or `EffectiveLog`

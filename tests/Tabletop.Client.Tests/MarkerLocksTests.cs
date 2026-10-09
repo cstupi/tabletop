@@ -80,4 +80,13 @@ public class MarkerLocksTests
         locks.Chosen(MenuModel.ForMarker(Game, p, setup, locks)[^1]);
         Assert.Equal("Lock", MenuModel.ForMarker(Game, p, setup, locks)[^1].Label);
     }
+
+    [Fact]
+    public void A_moved_setup_objective_is_still_not_removable()
+    {
+        var board = Samples.Board; var a = new EventApplier(board, Game);
+        var setup = board.Table.Markers.First(m => m.Kind == MarkerKind.Objective).Id;
+        a.Apply(new GameEvent(1, Samples.P1, new MarkerMoved(setup, new Point3(9, 9, 0), new Yaw(0)), null));
+        Assert.DoesNotContain("Remove", MenuModel.ForMarker(Game, a.Projection, setup).Select(i => i.Label));
+    }
 }
