@@ -12,6 +12,7 @@ A static developer web app that draws a `sim/` recording top-down on a 2D canvas
 - `src/lib/board/` `frame.ts` (shapes, `OVAL_VERTICES`), `draw.ts`, `pick.ts`, `transform.ts`, `palette.ts` (declaration colours).
 - `src/lib/timeline/timeline.ts` (`reduce`, `frameOf`), `src/lib/asks/describe.ts`.
 - `src/lib/components/` `SourcePicker`, `Board`, `Timeline`, `LogPanel`, `AskPanel`, `RollPanel`, `Scoreboard`.
+- `src/lib/suite/` `client.ts` (runner API: `fetchSuite`, `startRun`, `runEvents`), `model.ts` (Tests page model); `components/TestsPage.svelte`.
 - `tests/` Vitest; `tests/fixtures/` per-scenario files (`skirmish`, `terrain`): `.recording.json`, `.events.json`, `.board.json`, `.welcome.json`.
 
 ## How it works
@@ -21,6 +22,7 @@ A static developer web app that draws a `sim/` recording top-down on a 2D canvas
 - Live feed: `management.ts` posts to `/v1/auth/password` or `/v1/auth/session/refresh` for a JWT, `liveFeed.ts` sends `Connect` on the game socket (`VITE_GAME_SOCKET`, default `ws://localhost:5200/ws`). The account must already be a participant with no team.
 - Live frames come from `Applier` (port of `Tabletop.Protocol.EventApplier`) and `FrameProjector` (port of `Tabletop.Sim.Recording.FrameProjector`); `lineOf` ports `Tabletop.Sim.Recording.LogLines`.
 - The board is a grid in inches: each model's base outline coloured by team with facing, terrain volumes as outlines labelled with declarations. A timeline sits beside the log.
+- The Tests page (header tab) drives the runner service (`sim serve`): `/suite` and `/runs` are proxied to `TABLETOP_SUITE_PROXY_TARGET` (default `http://localhost:5180`; compose `http://sim-runner:5180`). Watch loads a kept recording; Open live logs in and opens the live feed on a kept socket game.
 - Playback only. It sends no command and answers no Ask. The only calls to management are the two auth endpoints.
 
 ## Commands
