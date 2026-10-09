@@ -245,7 +245,9 @@ the game server's assembly. The document has the eight tables' shape without ids
 `PropertiesJson.Canonical` serialises it with the lists whose order carries no meaning sorted
 (`stats` by level then name, `actions`, `rolls` and `entries` by name, all `StringComparer.Ordinal`)
 and the lists whose order *is* meaning left alone (an effect's `ordinal` is authored, and so is
-the order of its children and conditions). `PropertiesJson.Hash` is `"sha256:"` plus 64 lowercase
+the order of its children, conditions and condition values). The stored rows keep both kinds of order: every action,
+effect, condition and condition value records its `position` in the document (`docs/schema.md` → Ordered child rows
+record their position), because the engine reads actions in order too. `PropertiesJson.Hash` is `"sha256:"` plus 64 lowercase
 hex over that. `PropertySetDocumentTests` pins the property that matters: reversing `entries` and
 `rolls` does not change the hash, changing `name` does.
 
@@ -253,8 +255,8 @@ Consequences:
 
 - **Editing a document produces a new set.** The hash changes, `SeedAsync` inserts new rows, and
   every game that pinned the old hash keeps reading the old rows. Undo-by-replay requires this.
-  Content is therefore append-only: nothing updates a seeded row, and stale sets are never
-  garbage-collected. §Failure modes takes that up.
+  Content is therefore append-only: nothing updates a seeded row's content, and stale sets are never
+  garbage-collected. The one update is a present set's null `position`s, filled from its document. §Failure modes takes that up.
 - **Effect and condition ids are minted at seeding**, not authored. `Grant.EffectId` is stable
   within one database and not portable between databases. A grant in an event log refers to an
   `effect.id`, so restoring a log into an independently seeded database would dangle. Nothing in

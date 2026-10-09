@@ -269,6 +269,7 @@ erDiagram
         text properties_hash PK
         text name PK
         float8 distance
+        int position
     }
     ROLL {
         text properties_hash PK
@@ -316,6 +317,7 @@ erDiagram
         text cap_kind
         text replacement
         text duration
+        int position
     }
     EFFECT_CONDITION {
         uuid id PK
@@ -324,10 +326,12 @@ erDiagram
         text subject
         text comparison
         int number
+        int position
     }
     CONDITION_VALUE {
         uuid condition_id PK
         text value PK
+        int position
     }
     GAME_EVENT {
         uuid game_id PK
@@ -503,6 +507,21 @@ log and never a row — consumed the first time that grant's effect applies. Eve
 **`ordinal` is not decoration.** The rulebook orders effects by hand — `Deadly` is *"resolved
 first"*, `Blast` applies *"after resolving other special rules"* — and four of the twelve kinds
 act on other properties rather than on game state, which does not commute.
+
+### Ordered child rows record their position
+
+`action.position`, `effect.position`, `effect_condition.position` and `condition_value.position` are each row's index among
+its siblings in the document (an effect's siblings share its entry and parent), arriving as management's
+`007_properties_positions.sql`. The game server reads every one of those lists in that order and nothing else orders them:
+ids are v7 uuids minted in one loop, random within a millisecond. The order is evaluated, not cosmetic: sibling effects that
+share an `ordinal` apply in document order, conditions are judged in order (`Slayer`'s `attack_kind`, judged first, keeps its
+`most_models` from reading a defender an interaction without an attack does not have), a `roll_result` condition's values are its roll then `raw | modified`,
+and a turn's options list actions in document order.
+
+`position` is null on rows seeded before the column existed. Their order is not in the rows, so the game server's seeder,
+finding a set already present with a null position, takes the positions from the document its hash names and updates the
+rows in place, matching each document sibling to a stored sibling with the same content; ids are kept, because a game's
+grants name effect ids. A set whose document is no longer embedded keeps null positions and reads in id order.
 
 ### A condition is a row, and its values are rows
 

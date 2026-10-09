@@ -78,7 +78,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - The engine never appends or broadcasts. The session does both.
 - Dice are never drawn from a clock or a global generator. Anything random goes through `Roller` and `DiceCursor`.
 - Authored properties are `Content/*.properties.json`, every `*.part.json`, and every `army-books/*.book.json` of the same game rules. `PropertiesSeeder.Compose` folds them into one document per core file, ordered by name and uid.
-- Seeding is by content hash at startup. Editing any of these files makes a new set with a new hash; games already created keep their hash.
+- Seeding is by content hash at startup. Editing any of these files makes a new set with a new hash; games already created keep their hash. Stored rows keep the document's order in `position` (actions, effects, conditions, condition values); a present set with null positions gets them from its document, ids kept.
 - Two sources carrying an entry of the same name must have equal canonical forms, else `Compose` throws.
 - A `*.book.json` is never edited by hand. Fix `scripts/ArmyBooks` and run `./scripts/army-books generate`.
 - New content files need the `EmbeddedResource` globs in `Tabletop.GameServer.csproj`; the three patterns there are `*.properties.json`, `*.part.json`, `army-books/*.book.json`.

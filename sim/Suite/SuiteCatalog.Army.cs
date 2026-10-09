@@ -79,16 +79,8 @@ public static partial class SuiteCatalog
                 [Modifier("Grounded Reinforcement", "defense", 1, "\"they get +1 to defense rolls\"")], board: Ruins),
             // Quick Shot states no number: its fired check is the whole check.
             Game(Cults, "soul-snatcher-cults-quick-shot", Play.Moves, ["Quick Shot"], [R(1, "Quick Shot"), R(2, "Quick Shot"), R(3, "Quick Shot"), R(4, "Quick Shot")], [], []),
-            // Fails over the socket only, on the same family of defect: the socket server's property set comes back from Postgres without the
-            // document's condition order, so the most_models opponent condition is judged first in activation-terrain's lone interaction.
             Game(Cults, "soul-snatcher-cults-slayers", Play.Shoots, ["Slayer"], [R(1, "Slayer"), R(2, "Slayer")], [],
-                [ApGrant("Slayer", By("Slayer", when: When.Shooting), 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
-                // D12 over the socket only: the property set read back from Postgres orders Slayer's conditions by row id, so its most_models
-                // opponent condition can be judged first in a lone interaction and throw as in D4.
-                .Pinned("D12", "failed:", "the engine threw in Advance: no defender in this interaction", DriverKind.Socket)
-                .Pinned("D12", "ended: failed:", "the engine threw in Advance: no defender in this interaction", DriverKind.Socket)
-                .Pinned("D12", "fired", "never fired: Slayer", DriverKind.Socket)
-                .Pinned("D12", "Slayer:", "AP -2: no occasion in the log", DriverKind.Socket),
+                [ApGrant("Slayer", By("Slayer", when: When.Shooting), 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
             // Fails on an engine defect: GfMelee.ChargeTargets settles a defender-less melee interaction, and Slayer's charge row reaches its
             // most_models opponent condition there, which throws "no defender in this interaction" when round 1 offers its first activation to
             // a unit that may charge (a holding unit, above, is never asked).
