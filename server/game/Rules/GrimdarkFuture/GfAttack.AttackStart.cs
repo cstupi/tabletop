@@ -58,7 +58,7 @@ public static partial class GfAttack
     }
 
     /// <summary>The faces the nearest shooting or melee frame recorded, by side of this interaction.</summary>
-    static IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? FacesFor(FrameView frame, Guid attacker, Guid target)
+    static IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? FacesFor(FrameView? frame, Guid attacker, Guid target)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence is GfNames.Shooting or GfNames.Melee)

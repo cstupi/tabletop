@@ -34,6 +34,8 @@ public sealed class FakeRules : IGameRules
     public Func<GameState, Guid?, IReadOnlyList<Guid>, IReadOnlyList<Guid>?>? OrderReactionsHook { get; set; }
     public Func<GameState, PropertySet, IReadOnlyList<EventPayload>, GameEndingBreach?>? JudgeAdvanceHook { get; set; }
     public Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }
+    /// <summary>Replaces Grimdark Future's MaxWounds: how a session test makes the facts change between batches.</summary>
+    public Func<GameState, Guid, int>? MaxWoundsHook { get; set; }
 
     public FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => FirstTeamHook?.Invoke(state, round, teams) ?? new OrderedTeams(teams);
     public TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => LegalTurnHook is { } h ? h(state, properties, teamId) : _inner.LegalTurn(state, properties, teamId);
@@ -43,6 +45,8 @@ public sealed class FakeRules : IGameRules
     public IReadOnlyList<Guid>? OrderReactions(GameState state, Guid? actorTeamId, IReadOnlyList<Guid> reactingTeams) => OrderReactionsHook?.Invoke(state, actorTeamId, reactingTeams);
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => JudgeAdvanceHook?.Invoke(state, properties, proposed);
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => RoundEndedHook?.Invoke(state, properties, round) ?? [];
+    public int MaxWounds(GameState state, Guid modelId) => MaxWoundsHook?.Invoke(state, modelId) ?? _inner.MaxWounds(state, modelId);
+    public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => _inner.Shooters(state, properties, unitId, targetUnitId);
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }

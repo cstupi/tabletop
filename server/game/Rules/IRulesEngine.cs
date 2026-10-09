@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Dispatch;
+using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules;
@@ -41,6 +42,9 @@ public interface IRulesEngine
     Emit Advance(GameState state);
     /// <summary>The changes a round start carries for this game's scheduler and ruleset; what a menu set_round writes (enforcement spec → A menu round start).</summary>
     IReadOnlyList<StateChange> RoundStartChanges(GameState state, int round) => [];
+
+    /// <summary>The game's pinned property set, for a question asked outside Advance (the sight check's who-can-shoot). Null for an engine with none.</summary>
+    PropertySet? Properties => null;
 }
 
 public interface IRulesEngineFactory
