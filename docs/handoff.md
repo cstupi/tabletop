@@ -56,9 +56,11 @@ Scope: the game screen from deployment to the end of the game. Placeholder art. 
 - `WaitsBetweenSteps` (the per-game flag behind every "Continue: {step}" Ask, `SequenceInterpreter.cs:64`) becomes a
   development-only switch, not offered to players.
 
-**Asked, not answered: accidental moves.** (A) models move only while an Ask wants them moved, plus an "edit table"
-mode on a hotkey for referee hand moves, shown clearly; (B) a held modifier for hand moves; (C) hand moves preview
-as a ghost and need a confirm. Recommended A; the owner's click-to-select model fits it.
+- Moves follow the game's enforcement setting. Under `strict` a hand move outside an open move step is refused by the
+  server and never starts in the client; today `MoveModels` is an `Override` command and skips `EnforcementPolicy`
+  (`CommandDispatcher.cs:23`), so this is a server change. Under `warn` and `silent` a plain drag outside a move step
+  moves the unit, and on release an undo button for that move shows clearly on screen.
+- A plain click and drag acts on the whole unit; a held modifier acts on individual models (select and position one).
 
 **Still to cover:**
 - the screen layout (offer the visual companion, as its own message, when the first layout question comes up)
