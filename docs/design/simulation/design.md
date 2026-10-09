@@ -767,14 +767,16 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
 - **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
   checks. Fired reads `StepCompleted.Applied` and `RollModifier.Source` in the effective log; a rule that acts in the
   scheduler or in action legality gives its game an `Evidence` predicate. An exact check names the entries it is about
-  and quotes its rule; its expected value is a literal from the text.
+  and quotes its rule; its expected value is a literal from the text. A check reports one failure line per reason. The army
+  attack checks choose their occasions from the log and the army definitions (the holder's attacks, the attacks on it, the
+  attacks with its weapon), never from `Applied`.
 - **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes, so a game that fixes
   dice runs with the step gate on. A fix that never meets its roll fails the game.
 - **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
   (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are
   scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Models`).
 - **Known defects.** A game an engine defect blocks keeps its failing check and is pinned (`TestGame.Known`): a check and
-  the reason text the defect produces. The report files matching failures under the defect id, counts the game apart from
+  the reason text the defect produces, matched against each failure line. The report files matching failures under the defect id, counts the game apart from
   unexpected failures, and lists every pin that no longer fails.
 - **Coverage.** Every entry of the shipped property set, with the games covering it, whether it fired in each, and its
   exact checks. A full run fails on an uncovered entry; any run fails on a covered entry that never fired.
@@ -936,7 +938,7 @@ The viewer's whole input.
 | --- | --- |
 | `sealed record TestGame(string Name, string Group, Scenario Scenario, IRL<string> Covers, IRL<DiceFix> Dice, IRL<GameCheck> Checks, IRD<string, Func<IRL<GameEvent>, bool>>? Evidence = null)` | `bool FiredIn(IRL<GameEvent>, string)`, `IRL<KnownDefect> Known { init; }`, `TestGame Pinned(string id, string check, string reason, DriverKind? driver = null)`, `IRL<KnownDefect> KnownOn(DriverKind)` |
 | `sealed record DiceFix(string Roll, int Ordinal, IRL<int> Faces)` | the Ordinal-th roll of that kind gets these faces by `SetDice` |
-| `sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IRL<string>? Entries = null)` | null is a pass; Entries make it an exact check |
+| `sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IRL<string>? Entries = null)` | null is a pass; Entries make it an exact check; `static Each(string, Func<SuiteGameRun, IEnumerable<string>>, IRL<string>?)` reports one line per reason; `IRL<string> FailuresOf(SuiteGameRun)` |
 | `sealed record KnownDefect(string Id, string Check, string Reason, DriverKind? Driver = null)` | a pin: a failure that starts with Check and contains Reason is that defect's (`bool Matches(string)`) |
 | `sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IRL<GameEvent> EffectiveLog, Projection Final, IRL<string> InvariantFailures)` | `IRD<string, IRL<ExactResult>> Exact { init; }` |
 | `static class Checks` | `Ended()`, `Invariants()`, `FiredAll()`, `Event(string, Func<IRL<GameEvent>, string?>, params string[])` |

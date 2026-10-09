@@ -50,7 +50,11 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   names), `Dice` (`DiceFix`) and `Checks`. `SuiteCatalog.All` holds every game, one partial file per group.
 - The runner judges every game by `Checks.Ended()`, `Checks.Invariants()` and `Checks.FiredAll()`, then its own checks. A check returns
   null or the reason; its name quotes the rule and page. A check with `Entries` is an exact check, reported against those entries'
-  coverage.
+  coverage. A check that can fail for several reasons (`GameCheck.Each`: `invariants`, `fired`, the army exact checks) reports one
+  failure line per reason, so a pin on one reason never covers another.
+- The army attack checks (extra hits, attacks and wounds, self wounds, AP, per-die AP, re-rolls) take as occasions every attack the game
+  names for its rule, from the attack-sequence frames and the army definitions: `By` the holder, `On` the holder, `With` the weapon,
+  narrowed by `When.Shooting` or `When.Charging`. They never select by `Applied`, so a rule that stops acting on some occasions fails.
 - Fired: the entry is in a step's `StepCompleted.Applied` or a `RollModifier.Source` of the effective log (`Fired.In`). A rule that acts
   where no step completes (Scout, Ambush, Aircraft, Immobile) gets the game's `Evidence` predicate instead.
 - `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. A game with fixes runs

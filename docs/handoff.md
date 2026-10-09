@@ -39,8 +39,8 @@ Today: 113 of 128 games pass in-process (112 over the socket), every other game 
 (report line `KNOWN Dn`), 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1789 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
-GameServer 887, Management 94, Sim 374. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1795 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
+GameServer 887, Management 94, Sim 380. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
@@ -119,6 +119,24 @@ Each defect fails the named suite game on both drivers unless noted; quoted evid
 | D10 | Every roll result is editable (`docs/design/client/design.md`); p.13 casting "on 4+ resolve the effect"; p.14 Surge and Rending's extra hit "on unmodified results of 6" | Values a step stores when it rolls are not re-derived after `SetDice`: casting `passed` (`GfCasting.cs:172`, and a failed cast's frame ends in that step, so it cannot be corrected), `extra_hits` on attacks (`GfAttack.cs:434-444`) and spell hits (`GfCasting.cs:255-274`); morale finishes in the step that rolls | `spells-edited-casting-die` (a cast edited to a raw 1 still resolves), `blessed-sisters-devout-edited-dice` (extra hits frozen) | Derive these values in a later step from the dice as they stand (as `GfAttack.HitsFrom` does), or gate the decision behind its own step |
 | D11 | p.14 Stealth "shot from over 9" away"; also Relentless, Artillery, Piercing Hunter; p.5 measures base to base | `Conditions.Holds` `Range` (`Effects/Conditions.cs:21`) floors the distance: 9.41" counts as 9, not over 9 | `special-stealth-at-nine-and-a-half` (a 9.41" shot with no Stealth modifier) | Compare the measured distance, unrounded |
 | D12 | Socket only: the set read from Postgres must evaluate as the document does | `PostgresPropertiesStore` (`Properties/PostgresPropertiesStore.cs:21-23`) orders conditions by id (UUIDv7 minted in one loop, so random within a millisecond) and condition values by value; no condition ordinal is stored | `soul-snatcher-cults-slayers` over the socket (Slayer's opponent condition judged first, then D4's throw); may pass on a different seeding | Store a condition ordinal and order by it; the D4 fix removes the throw |
+
+## Rules-suite gaps
+
+What the suite does not check or report today.
+
+- **Fired is generous for suppressors.** `LiveProperties.ReadRemoved` (`server/game/Effects/LiveProperties.cs:59`) records a
+  suppressor in `Applied` whenever a property it removed had an effect of the kind read, without checking that removed row's
+  conditions. A suppressor can read as fired where the removed effect would not have applied.
+- **Core clauses no game checks:** p.7 coherency and the 1" separation from enemy models; p.9 base contact and which models can
+  strike; p.8 which models can shoot; p.11 impassable and elevated terrain; a unit activated in dangerous terrain; morale for a
+  single model by its Tough.
+- **The exit code cannot gate CI.** `SuiteReport.Passed` (`sim/Suite/SuiteRunner.cs`) is false whenever a pinned game fails, so a
+  full run exits 1 while any known defect remains. Nothing tells unexpected failures apart in the exit code.
+- **The viewer's Tests page shows no known or stale status.** `SuiteGameResult` in `viewer/src/lib/suite/client.ts` has no `known`,
+  `pinned` or `stale`; `counts` (`model.ts`) counts a known failure as failed, the verdict is always FAIL, and stale pins never show.
+  The failure lines still carry `known defect Dn:`.
+- **The 231 army-book rules outside the catalog are not reported.** The spec says the suite reports them as outside the catalog
+  (*Known rule gaps*, below); the suite measures the catalog only.
 
 ## Known rule gaps
 
