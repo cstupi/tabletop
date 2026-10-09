@@ -16,7 +16,7 @@ public class SpellGamesTests
     static PropertySet Set => ScenarioCompiler.CoreProperties;
     static IReadOnlyList<TestGame> Spells => SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.SpellsPrefix, StringComparison.Ordinal)).ToList();
 
-    /// <summary>The per-book games: the group less its defect exhibit (SuiteCatalog.EditedCastingDieName).</summary>
+    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName).</summary>
     static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName).ToList();
 
     public static TheoryData<string> GameNames() => [.. Spells.Select(g => g.Name)];
@@ -95,8 +95,6 @@ static class SpellDefects
     {
         // D9: Roller.Judge succeeds on modified >= threshold alone, so an unmodified 1 lifted to 4+ passes (p.5: "a roll of 1 always counts as a fail").
         ["spells-human-defense-force"] = [SuiteCatalog.NaturalCastingDieCheck],
-        // D10: the casting step stores "passed" when it rolls; a die edited to a raw 1 afterwards still resolves the spell.
-        [SuiteCatalog.EditedCastingDieName] = [SuiteCatalog.EditedCastCheck],
     };
 
     public static void AssertOnlyKnown(SuiteGameResult result)

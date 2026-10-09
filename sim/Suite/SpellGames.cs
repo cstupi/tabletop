@@ -149,7 +149,7 @@ public static class SpellGames
             if (pick is null || roll?.Rolls("casting").FirstOrDefault() is not { } r) return null;
             var targets = f.Steps.FirstOrDefault(s => s.Name == "targets")?.Step.Answer is SelectedPieces p ? p.PieceIds : [];
             return pick.OptionId.StartsWith(spell + "|", StringComparison.Ordinal)
-                ? new SpellCast(f, f.Context.ActorUnitId!.Value, r, r.Dice[0], roll.Value("passed") == 1, targets) : null;
+                ? new SpellCast(f, f.Context.ActorUnitId!.Value, r, r.Dice[0], f.Steps.FirstOrDefault(s => s.Name == "result")?.Value("passed") == 1, targets) : null;
         }).OfType<SpellCast>().ToList();
 }
 

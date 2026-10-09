@@ -474,7 +474,7 @@ public partial class ArmyRuleHookTests
         var hit = sim.Steps("roll-to-hit").First();
         Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));                                   // the added six adds no third attack
         Assert.Equal(2, hit.Rolls.Sum(r => r.Dice.Count(d => d.Success)));                           // the first six and the added die's six
-        Assert.Equal(2, hit.Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
+        Assert.Equal(2, sim.Steps("score-hits").First().Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
     }
 
     static readonly EntryDocument Frenzy = new("Test Frenzy", CatalogKind.Spell, false, null, 1, null, "Grants Primal.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Primal")]);

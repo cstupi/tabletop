@@ -21,7 +21,6 @@ public class ArmyGamesTests
     public static readonly Dictionary<string, string> Defects = new()
     {
         ["soul-snatcher-cults-slayers-charging"] = "no defender in this interaction",
-        ["blessed-sisters-devout-edited-dice"] = "1 extra hits for edited dice [6 6 6 3 2 4 1 5 2 5 2 5], expected 3",
         ["jackals-scrapper-boost"] = "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]",
     };
 
@@ -274,7 +273,8 @@ public class ArmyGamesTests
         var (start, frame) = Frame("attack-sequence");
         var hit = Roll("hit", 4, [], (2, false), (3, false));
         var edit = new DiceEdited(frame, hit.Id, [new DieReplacement(0, hit.Dice[0], new Die(6, 6, true))]);
-        string? With(int extra) => Judge("blessed-sisters-devout-edited-dice", "Devout", start, Step(frame, "roll-to-hit", [], new() { ["extra_hits"] = extra }, hit), edit);
+        string? With(int extra) => Judge("blessed-sisters-devout-edited-dice", "Devout", start, Step(frame, "roll-to-hit", [], null, hit), edit,
+            Step(frame, "score-hits", [], new() { ["extra_hits"] = extra }));
         Assert.Null(With(1));
         Assert.Contains("0 extra hits for edited dice [6 3], expected 1", With(0));
     }

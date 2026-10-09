@@ -100,7 +100,7 @@ public class SpellShapeTests
         sim.Answer(Samples.Team1, new Passed());
         var roll = sim.Steps("roll").Single().Rolls.Single();
         Assert.Contains(roll.Modifiers, m => m.Source == "Hex" && m.Amount == -3);
-        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);                                   // 6 − 3 = 3, short of 4
+        Assert.Equal(0, sim.Steps("result").Single().Values!["passed"]);                                   // 6 − 3 = 3, short of 4
         Assert.Empty(sim.Unit(wizard.Id).Grants);
     }
 
@@ -161,7 +161,7 @@ public class SpellShapeTests
         var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Weapons, new ScriptedDice(1, 5, 6));
         sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Pistol"] = b.Id }));
-        Assert.Equal(1, sim.Steps("roll-to-hit").Single().Values!["self_wounds"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["self_wounds"]);
         var removed = a.Models.Count(m => sim.Model(m.Id).Location is OnShelf);
         Assert.Equal(1, removed + (sim.AskForOrNull(Samples.Team1) is { Legal: Allocation } ? 1 : 0));   // removed, or awaiting its own allocation
     }

@@ -59,7 +59,9 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   where no step completes (Scout, Ambush, Aircraft, Immobile) gets the game's `Evidence` predicate instead.
 - `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. A game with fixes runs
   with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable; a fix that never meets its roll fails
-  the game. Morale dice cannot be fixed (the morale frame finishes in the step that rolls).
+  the game. A fix lands before the step that decides from those dice (opr-sequences.md → Dice edits), so the casting result, a
+  hit's extra hits and per-die grants, and a morale test's consequence follow the fixed faces; added attack dice were drawn on the
+  faces as rolled.
 - `LogQueries.Of(run)` reads the effective log for checks: frames with parents and steps, rolls with dice as they stand after edits and
   rerolls, Asks with answers, removals, deployments, activations, moves. It reads the log; it never computes a rule.
 - Expected values in checks are literals from the rule text. `sim/` holds no second rules engine.

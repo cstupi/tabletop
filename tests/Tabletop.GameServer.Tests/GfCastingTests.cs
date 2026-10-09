@@ -72,7 +72,7 @@ public class GfCastingTests
         sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
         Assert.Equal([Samples.Team1], sim.AskFor(Samples.Team1).Teams);                              // no enemy caster in range: only the caster itself may spend
         sim.Answer(Samples.Team1, new Passed());
-        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
+        Assert.Equal(0, sim.Steps("result").Single().Values!["passed"]);
         Assert.Equal(1, sim.Model(wizard.Models[0].Id).SpellTokens);                                  // a failed cast keeps its cost spent
         Assert.Empty(sim.State.Projection.Stack);                                                     // casting finished; no activation frame in this test, so the scan covers the whole log
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
@@ -111,7 +111,7 @@ public class GfCastingTests
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Fireball|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
-        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);
+        Assert.Equal(0, sim.Steps("result").Single().Values!["passed"]);
         Assert.Equal(4, sim.Model(wizard.Models[0].Id).SpellTokens);                                  // Fireball (2) is still affordable: only the tried list can hide it
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         Assert.Equal([$"Ward|{wizard.Models[0].Id}"], Assert.IsType<Options>(sim.AskFor(Samples.Team1).Legal).Choices.Select(c => c.Id));

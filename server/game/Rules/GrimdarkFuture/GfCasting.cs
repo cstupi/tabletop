@@ -8,11 +8,11 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfCasting
 {
-    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new TargetsStep(), new EffectsStep()]);
+    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new ResultStep(), new TargetsStep(), new EffectsStep()]);
     /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
     public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
         [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
-    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
+    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
@@ -168,10 +168,22 @@ public static class GfCasting
             var (_, caster) = Picked(ctx.Frame);
             var casterUnit = ctx.Projection.Models[caster].UnitId;
             var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
-            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1)) == 1;
+            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1);
+            return new Complete(RollEffects.Consume(live));
+        }
+    }
+
+    /// <summary>p.13: "on 4+ resolve the effect", read off the casting die as it now stands, so an edit made after `roll` counts (opr-sequences →
+    /// Dice edits). A failure ends the casting.</summary>
+    sealed class ResultStep : IStep
+    {
+        public string Name => "result";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var die = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).LastOrDefault(r => r.Roll == GfNames.Casting);
+            var passed = die is not null && Dice.RollOutcome.Successes(die) == 1;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0 };
-            var spent = RollEffects.Consume(live);
-            return passed ? new Complete(spent, values) : new Finish(spent, values);
+            return passed ? new Complete([], values) : new Finish([], values);
         }
     }
 
@@ -242,7 +254,8 @@ public static class GfCasting
         return [];
     }
 
-    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
+    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die. What the dice decide is
+    /// `score-hits`' (opr-sequences → Dice edits).</summary>
     sealed class HitStep : IStep
     {
         public string Name => "hit";
@@ -252,36 +265,29 @@ public static class GfCasting
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
             var target = ctx.Frame.Context.TargetUnitIds[0];
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
+            var values = new Dictionary<string, int> { ["hit_multiplier"] = 1, ["hits"] = 0 };
             // The spell's weapon rules are part of this settled set (AttackInteraction), so every hit carries them and their pass-one rows act.
-            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
-            var total = 0; var multiplier = 1;
+            var ix = GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null);
+            var live = ctx.Settle(ix);
+            var multiplier = 1; var rolled = false;
             ctx.Applied.Add(spell.Name);
             foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
-                if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
+                if (hit.TargetRoll is null) values["hits"] += n;
                 else
                 {
                     // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
-                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
-                    total += Dice.RollOutcome.Successes(record);
-                    RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
-                    foreach (var die in record.Dice)
-                    {
-                        var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                        values["extra_hits"] += effects.ExtraHits;
-                        values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
-                        if (GfAttack.GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
-                    }
+                    ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
+                    rolled = true;
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
                 multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(live, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
             }
             values["hit_multiplier"] = multiplier;
-            values["wounds"] = values.GetValueOrDefault("self_wounds");
-            var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
-            return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
+            // A granted multiplier on the caster is used up by these hits; a per-die rule is left for score-hits, which reads it.
+            var spent = rolled ? GfDeferred.Leave(RollEffects.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)) : RollEffects.Consume(live);
+            return new Complete(spent, values);
         }
     }
 
@@ -307,14 +313,14 @@ public static class GfCasting
                     terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
         }
 
-        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
+        /// <summary>The morale test this frame pushed failed: its consequence step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
         static bool Failed(GameState state, Guid frameId)
         {
             var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
             var mine = log.FindIndex(p => p is SequenceStarted s && s.FrameId == frameId);
             var child = log.Skip(mine + 1).OfType<SequenceStarted>().FirstOrDefault(s => s.Sequence == GfNames.MoraleTest);
             if (child is null) return false;
-            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "test");
+            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "consequence");
             return done?.Values is { } v && v.GetValueOrDefault("passed", 1) == 0;
         }
     }

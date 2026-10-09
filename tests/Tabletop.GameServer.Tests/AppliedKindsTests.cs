@@ -106,7 +106,7 @@ public class AppliedKindsTests
     {
         var six = Shoot(Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Surge"))), Unit("B", "4+", "4+", [], 2, []), 3, null, 6, 6, 6);
         six.Start(GfNames.AttackSequence, Attack(UnitOf(six, 0), UnitOf(six, 1)));
-        Assert.Equal(["Surge"], Applied(six, "roll-to-hit"));
+        Assert.Equal(["Surge"], Applied(six, "score-hits"));
 
         var five = Shoot(Unit("A", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Surge"))), Unit("B", "4+", "4+", [], 2, []), 3, null, 5, 6);
         five.Start(GfNames.AttackSequence, Attack(UnitOf(five, 0), UnitOf(five, 1)));
@@ -134,7 +134,7 @@ public class AppliedKindsTests
     {
         var sim = Shoot(Unit("A", "4+", "4+", [], 1, [], Gun("Saw", "24\"", 1, P("Rending"))), Unit("B", "4+", "2+", [], 1, []), 3, null, 6, 5);
         sim.Start(GfNames.AttackSequence, Attack(UnitOf(sim, 0), UnitOf(sim, 1)));
-        Assert.Equal(["Rending"], Applied(sim, "roll-to-hit"));
+        Assert.Equal(["Rending"], Applied(sim, "score-hits"));
         Assert.Equal(["AP"], Applied(sim, "roll-to-block"));
     }
 

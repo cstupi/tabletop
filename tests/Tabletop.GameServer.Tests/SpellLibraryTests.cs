@@ -128,7 +128,7 @@ public class SpellLibraryTests
                     if (row.TargetRoll is null) { Assert.Empty(hit.Rolls); Assert.Equal(row.Amount, hit.Values!["hits"]); }
                     else Assert.Equal(row.Amount, hit.Rolls.Single().Dice.Count);
                     // The spell's weapon rules belong to every hit: one block die per hit (times the multiplier), and each rule is a live attacker rule on the hits.
-                    var hits = (hit.Values!["hits"] + hit.Rolls.Sum(Dice.RollOutcome.Successes) + hit.Values["extra_hits"]) * hit.Values["hit_multiplier"];
+                    var hits = (hit.Values!["hits"] + hit.Rolls.Sum(Dice.RollOutcome.Successes) + sim.Steps("score-hits").Single().Values!["extra_hits"]) * hit.Values["hit_multiplier"];
                     var blocks = sim.Steps("roll-to-block").Single().Rolls;
                     Assert.Equal(hits, blocks.Sum(r => r.Dice.Count));
                     var rules = row.Children.Where(c => c.Kind == EffectKind.GrantProperty).ToList();

@@ -179,9 +179,10 @@ internal sealed class CoreLog
     /// <summary>The attack sequences a unit made in melee (under a melee frame), in log order.</summary>
     public IEnumerable<CoreFrame> MeleeAttacks => Frames.Where(f => f.Sequence == "attack-sequence" && Frame(f.Parent)?.Sequence == "melee");
 
-    /// <summary>The morale tests, each with its logged roll (null when none was rolled) and the step that settled it.</summary>
+    /// <summary>The morale tests, each with its logged roll (null when none was rolled) and the consequence step that settled it.</summary>
     public IEnumerable<(CoreFrame Frame, CoreStep Test, RollRecord? Roll)> MoraleTests =>
-        Frames.Where(f => f.Sequence == "morale-test").SelectMany(f => f.Steps.Where(s => s.Step.Step == "test").Select(s => (f, s, s.Step.Rolls.FirstOrDefault(r => r.Roll == "morale"))));
+        Frames.Where(f => f.Sequence == "morale-test").SelectMany(f => f.Steps.Where(s => s.Step.Step == "consequence")
+            .Select(s => (f, s, f.Steps.Where(t => t.Step.Step == "test").SelectMany(t => t.Step.Rolls).FirstOrDefault(r => r.Roll == "morale"))));
 
     /// <summary>Models of the frame's target sent to the shelf by this deal-wounds frame's own steps.</summary>
     public int CasualtiesIn(CoreFrame deal) => deal.Steps.SelectMany(s => s.Step.Changes.OfType<ModelsMoved>()).SelectMany(m => m.Moves).Count(m => m.To is OnShelf);

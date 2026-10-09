@@ -67,7 +67,7 @@ public class SpellWeaponRuleTests
     {
         var t = Unit("T", "4+", "4+", [], 5, []);
         var (sim, _) = Cast(TestProperties.Core, "Electric Tempest (Human Defense Force)", HumanDefenseForce, t, t, 6, 6, 3, 4, 4);
-        Assert.Equal(1, sim.Steps("hit").Single().Values!["granted_AP_2"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["granted_AP_2"]);
         var rolls = sim.Steps("roll-to-block").Single().Rolls;
         Assert.Equal(2, rolls.Sum(r => r.Dice.Count));
         Assert.Equal([-3, -1], rolls.Select(ApOf).Order().ToArray());   // AP(1)+AP(2) on the six, AP(1) on the other
@@ -90,7 +90,7 @@ public class SpellWeaponRuleTests
     {
         var t = Unit("T", "4+", "4+", [], 1, [P("Tough", 3)]);
         var (sim, wizard) = Cast(Props, "Overload", null, t, t.Models[0].Id, 6, 1, 3, 4, 4);
-        Assert.Equal(1, sim.Steps("hit").Single().Values!["self_wounds"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["self_wounds"]);
         Assert.Equal(1, sim.Model(wizard.Models[0].Id).Wounds);
         Assert.All(sim.Steps("roll-to-block").Single().Rolls, r => Assert.Equal(-4, ApOf(r)));
     }
@@ -100,8 +100,7 @@ public class SpellWeaponRuleTests
     {
         var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
         var (sim, wizard) = Cast(TestProperties.Core, "Power Surge", "hk70l4d471plza00", t, t.Models[0].Id, 6, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4);
-        var hit = sim.Steps("hit").Single();
-        Assert.Equal(1, hit.Values!["self_wounds"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["self_wounds"]);
         Assert.Equal(1, sim.Model(wizard.Models[0].Id).Wounds);
         var blocks = sim.Steps("roll-to-block").Single().Rolls;
         Assert.Equal(6, blocks.Sum(r => r.Dice.Count));

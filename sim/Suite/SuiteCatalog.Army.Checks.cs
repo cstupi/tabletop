@@ -37,10 +37,16 @@ public static partial class SuiteCatalog
 
         /// <summary>
         /// One attack-sequence of the log: the attacking unit, its target, its weapon group, whether it was made shooting or in a melee the
-        /// attacker started by charging, its roll-to-hit step and the roll-to-block steps of the resolve-hits frames under it.
+        /// attacker started by charging, its roll-to-hit step, the score-hits step that read those dice as they then stood, and the
+        /// roll-to-block steps of the resolve-hits frames under it.
         /// </summary>
         sealed record LoggedAttack(SequenceStarted Frame, Guid? Attacker, Guid? Target, IReadOnlyList<Guid> Weapons, bool Shooting, bool Charging,
-            LoggedStep? Hit, IReadOnlyList<LoggedStep> Blocks);
+            LoggedStep? Hit, LoggedStep? Score, IReadOnlyList<LoggedStep> Blocks)
+        {
+            /// <summary>The hit dice as they stand after every edit and reroll: what score-hits read.</summary>
+            public IReadOnlyList<Die> HitDice => Hit is null ? [] : [.. Hit.Rolls("hit").SelectMany(Hit.Now)];
+            public int Scored(string key) => Score?.Value(key) ?? 0;
+        }
 
         /// <summary>The effective log's steps and Asks, each with its frame: sequences nest, so a frame's parent is the one open when it started.</summary>
         sealed record ArmyLog(IReadOnlyList<LoggedStep> Steps, IReadOnlyList<LoggedAsk> Asks)
@@ -66,6 +72,7 @@ public static partial class SuiteCatalog
                         Shooting: x.Ancestors.Any(a => a.Sequence == ShootingSequence),
                         Charging: melee is not null && attacker is not null && melee.Context.ActorUnitId == attacker,
                         Hit: steps.FirstOrDefault(s => s.Frame.FrameId == x.Frame.FrameId && s.Step.Step == "roll-to-hit"),
+                        Score: steps.FirstOrDefault(s => s.Frame.FrameId == x.Frame.FrameId && s.Step.Step == "score-hits"),
                         Blocks: [.. steps.Where(s => s.Step.Step == "roll-to-block" && s.Frame.Sequence == "resolve-hits"
                             && s.Ancestors.FirstOrDefault(a => a.Sequence == AttackSequence)?.FrameId == x.Frame.FrameId)]);
                 })];
@@ -157,8 +164,9 @@ public static partial class SuiteCatalog
         static IEnumerable<LoggedAttack> Of(SuiteGameRun run, ArmyLog log, Occasion occasion) => log.Attacks.Where(a => occasion(run, a));
 
         static string Faces(IEnumerable<Die> dice) => $"[{string.Join(" ", dice.Select(d => d.Raw))}]";
-        static int Count(IEnumerable<RollRecord> rolls, IReadOnlyCollection<int> faces, bool successOnly = true) =>
-            rolls.SelectMany(r => r.Dice).Count(d => faces.Contains(d.Raw) && (d.Success || !successOnly));
+        static int Count(IEnumerable<RollRecord> rolls, IReadOnlyCollection<int> faces, bool successOnly = true) => Count(rolls.SelectMany(r => r.Dice), faces, successOnly);
+        static int Count(IEnumerable<Die> dice, IReadOnlyCollection<int> faces, bool successOnly = true) =>
+            dice.Count(d => faces.Contains(d.Raw) && (d.Success || !successOnly));
 
         /// <summary>Whether the unit's models carry the entry in the army definition (what the scenario gave them, not a rules reading).</summary>
         static bool Holds(SuiteGameRun run, Guid? unitId, string entry) =>
@@ -178,16 +186,16 @@ public static partial class SuiteCatalog
                     : scope?.Invoke(s) == false ? $"in {s.Frame.Sequence}, outside where the rule applies"
                     : null);
 
-        /// <summary>add_hit (hits): on every roll-to-hit of the occasion's attacks, the extra hits equal its successful dice showing the faces.</summary>
+        /// <summary>add_hit (hits): on every hit roll of the occasion's attacks, the extra hits equal its successful dice showing the faces.</summary>
         static GameCheck ExtraHits(string entry, Occasion occasion, IReadOnlyCollection<int> faces, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                let s = a.Hit
-                let expected = Count(s.Rolls("hit"), faces)
-                select s.Value("extra_hits") == expected ? null : $"{s.Value("extra_hits")} extra hits from {Faces(s.Rolls("hit").SelectMany(r => r.Dice))}, expected {expected}");
+                let expected = Count(a.HitDice, faces)
+                select a.Scored("extra_hits") == expected ? null : $"{a.Scored("extra_hits")} extra hits from {Faces(a.HitDice)}, expected {expected}");
 
-        /// <summary>add_hit (attacks): one added die per successful pool die showing the faces, rolled once in the same step, and the added dice add none.</summary>
+        /// <summary>add_hit (attacks): one added die per successful pool die showing the faces as rolled (an edit draws no die), rolled once in the same
+        /// step, and the added dice add none.</summary>
         static GameCheck ExtraAttacks(string entry, Occasion occasion, IReadOnlyCollection<int> faces, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from a in Of(run, log, occasion)
@@ -207,14 +215,13 @@ public static partial class SuiteCatalog
                 let expected = s.Rolls("defense").SelectMany(r => r.Dice).Count(d => faces.Contains(d.Raw) && !d.Success)
                 select s.Value("extra_wounds") == expected ? null : $"{s.Value("extra_wounds")} extra wounds from {Faces(s.Rolls("defense").SelectMany(r => r.Dice))}, expected {expected}");
 
-        /// <summary>Hazardous's wound: the roll-to-hit's self wounds equal its unmodified 1s.</summary>
+        /// <summary>Hazardous's wound: the attack's self wounds equal its hit dice's unmodified 1s.</summary>
         static GameCheck SelfWounds(string entry, Occasion occasion, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                let s = a.Hit
-                let expected = Count(s.Rolls("hit"), [1], successOnly: false)
-                select s.Value("self_wounds") == expected ? null : $"{s.Value("self_wounds")} self wounds from {Faces(s.Rolls("hit").SelectMany(r => r.Dice))}, expected {expected}");
+                let expected = Count(a.HitDice, [1], successOnly: false)
+                select a.Scored("self_wounds") == expected ? null : $"{a.Scored("self_wounds")} self wounds from {Faces(a.HitDice)}, expected {expected}");
 
         /// <summary>A granted or changed AP: every block of the occasion's attacks that rolls defense rolls it under AP of the stated size (p.13 AP: "-X to Defense rolls"), and under no other.</summary>
         static GameCheck ApGrant(string entry, Occasion occasion, int ap, string quote) =>
@@ -225,15 +232,14 @@ public static partial class SuiteCatalog
                 let aps = s.Rolls("defense").SelectMany(r => r.Modifiers).Where(m => m.Source == "AP").Select(m => m.Amount).ToList()
                 select aps.Contains(-ap) && aps.All(a => a == -ap) ? null : $"defense under AP [{string.Join(",", aps)}]");
 
-        /// <summary>A per-die AP grant on the hit's 6: the roll-to-hit grants it once per unmodified 6, and the block that follows rolls that many dice under it.</summary>
+        /// <summary>A per-die AP grant on the hit's 6: score-hits grants it once per unmodified 6, and the block that follows rolls that many dice under it.</summary>
         static GameCheck PerDieAp(string entry, Occasion occasion, int ap, string quote) =>
             Exact(entry, quote, (run, log) =>
                 from a in Of(run, log, occasion)
                 where a.Hit is not null
-                let s = a.Hit
-                let sixes = Count(s.Rolls("hit"), [6])
+                let sixes = Count(a.HitDice, [6])
                 let under = a.Blocks.FirstOrDefault()?.Rolls("defense").Where(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -ap)).Sum(r => r.Dice.Count) ?? 0
-                select s.Value($"granted_AP_{ap}") != sixes ? $"AP({ap}) granted {s.Value($"granted_AP_{ap}")} times for {Faces(s.Rolls("hit").SelectMany(r => r.Dice))}"
+                select a.Scored($"granted_AP_{ap}") != sixes ? $"AP({ap}) granted {a.Scored($"granted_AP_{ap}")} times for {Faces(a.HitDice)}"
                     : under != sixes ? $"{under} defense dice under AP -{ap} for {sixes} sixes" : null);
 
         /// <summary>A forced re-roll of the defender's dice: exactly the dice showing the faces (successful ones only when the rule says so) are re-rolled.</summary>
@@ -331,15 +337,14 @@ public static partial class SuiteCatalog
                     : blocks.All(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -1)) ? null : $"face {face}: a block without AP -1");
 
         /// <summary>
-        /// The extra hits of a roll-to-hit whose dice an edit (SetDice) replaced follow the dice as they now stand: one per successful
+        /// The extra hits of an attack whose hit dice an edit (SetDice) replaced follow the dice as they now stand: one per successful
         /// unmodified 6, which "unmodified results of 6 to hit deal 1 extra hit" asks of the dice the game plays with.
         /// </summary>
         static GameCheck EditedExtraHits(string entry, string quote) =>
             Exact(entry, $"{quote}, after a dice edit", (_, log) =>
-                from s in log.Steps
-                where s.Step.Step == "roll-to-hit" && s.Changes.OfType<DiceEdited>().Any()
-                let now = s.Rolls("hit").SelectMany(s.Now).ToList()
-                let expected = now.Count(d => d.Raw == 6 && d.Success)
-                select s.Value("extra_hits") == expected ? null : $"{s.Value("extra_hits")} extra hits for edited dice {Faces(now)}, expected {expected}");
+                from a in log.Attacks
+                where a.Hit is not null && a.Hit.Changes.OfType<DiceEdited>().Any()
+                let expected = a.HitDice.Count(d => d.Raw == 6 && d.Success)
+                select a.Scored("extra_hits") == expected ? null : $"{a.Scored("extra_hits")} extra hits for edited dice {Faces(a.HitDice)}, expected {expected}");
     }
 }
