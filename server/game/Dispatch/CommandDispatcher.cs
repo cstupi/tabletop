@@ -79,13 +79,18 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         // Passing is a real answer and is never probed; a framed Ask, an Ambusher Ask and the boundary confirmation are not turn Asks.
         var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
         var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
-        var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
+        // An answer inside the set can still break a rule only the table answers (IGameRules.AnswerBreach): the ruleset names it, and strict refuses it.
+        var breach = inSet && readable ? state.Rules.AnswerBreach(state, ask, command.Answer) : null;
+        var legal = inSet && readable && breach is null;
+        var verdict = breach is not null
+            ? EnforcementPolicy.Decide(state.Info.Enforcement, new Breach(breach.Rule, $"answer to '{ask.Question}': {breach.Detail}", new StrictRefuses(RefusalReason.Illegal)))
+            : EnforcementPolicy.Decide(state.Info.Enforcement, legal ? Legality.Legal : Legality.OutsideLegalSet, detail);
         switch (verdict)
         {
             case Refuse r: return new Refused(r.Reason, r.Detail);
             case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
         }
-        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable) };
+        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !legal) };
         var answered = new Dictionary<Guid, AskAnswer>(open.Answers.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value!)) { [team] = command.Answer };
         if (!ask.Sealed || ask.Teams.All(answered.ContainsKey))
             events.Add(new AskClosed(ask.Id, ask.Teams.Where(answered.ContainsKey).Select(t => new TeamAnswer(t, answered[t])).ToList()));

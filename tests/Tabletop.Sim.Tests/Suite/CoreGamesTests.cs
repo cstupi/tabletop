@@ -20,10 +20,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     /// <summary>Each blocked game's failures: every failure contains one of these, and each of these is in some failure.</summary>
     static readonly Dictionary<string, string[]> Blocked = new()
     {
-        // A move in which one model enters difficult terrain lets the unit's other models go past 6" (p.11), under strict.
-        ["core-rough-ground"] = ["p.11: \"If any model in a unit moves in or through difficult terrain"],
-        // A disembark is accepted with the model's base off the table edge (p.7).
-        ["core-transport-run"] = ["NoModelInTwoPlacesOrOffTheSlab"],
     };
 
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];

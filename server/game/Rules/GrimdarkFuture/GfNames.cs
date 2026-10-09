@@ -22,6 +22,15 @@ public static class GfNames
     public const double MeleeHorizontal = 2, MeleeVertical = 4, ChargeCloseIn = 3, Consolidate = 3, FallBack = 1, Separation = 1, CastRange = 18, DifficultCap = 6;
     /// <summary>p.15 and p.21: a unit leaving a container "must stay fully within 6" of it".</summary>
     public const double ExitWithin = 6;
+    /// <summary>p.13 Aircraft: "adding 30" to its total move".</summary>
+    public const double AircraftMove = 30;
+    /// <summary>The move step's Values key: an earlier segment of this move went in or through difficult terrain (p.11 "for that movement").</summary>
+    public const string EnteredDifficultKey = "entered_difficult";
+    /// <summary>IGameRules.AnswerBreach rule names (enforcement spec → The breach): p.11's cap over the unit, p.13 Aircraft's mandatory move.</summary>
+    public const string DifficultCapRule = "difficult_cap", AircraftMinimumRule = "aircraft_minimum";
+    /// <summary>IGameRules.AnswerBreach rule names for a move answer's geometry (p.7, p.11, p.15) and for a relocation the move steps do not read.</summary>
+    public const string MoveAllowanceRule = "move_allowance", MoveImpassableRule = "move_impassable", MoveOffTableRule = "move_off_table",
+        MoveExitRule = "move_exit", MoveNotOfferedRule = "move_not_offered";
     public const int TokenCap = 6;
 
     // The scheduler plan's names (its Task 2 reads them from here; one names class).

@@ -254,7 +254,9 @@ public class GfShootingTests
         var troops = Unit("Troops", "4+", "4+", [], 2, []);
         var sim = Sim.Gf(State([bus, troops], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12), 1);
         var container = bus.Models[0].Id;
-        sim.Append([new ModelsMoved(troops.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container))).ToList())]);
+        // The bus stands on the table (p.7: no exit placement may put a base off it); Armies.State's rows start below y = 0.
+        sim.Append([new ModelsMoved([new ModelRelocation(container, sim.Model(container).Location, new OnTable(new Placement(new Point3(36, 24, 0), new Yaw(0)))),
+            .. troops.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container)))])]);
         sim.Start(GfNames.AdvanceSeq, new SequenceContext(troops.Id, [], [], GfNames.Advance));
         var ask = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((container, GfNames.ExitWithin), (ask.Containment!.ExitingId!.Value, ask.Containment.ExitWithin!.Value));

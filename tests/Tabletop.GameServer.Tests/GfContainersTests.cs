@@ -12,10 +12,17 @@ namespace Tabletop.GameServer.Tests;
 public class GfContainersTests
 {
     /// <summary>Starts deal-wounds under a parent frame that recorded the wounds, the way resolve-hits does (Task 12's harness, R-F3). Riders, when given, are inside the container first.</summary>
-    static Sim Wound(Tabletop.Content.Unit attacker, Tabletop.Content.Unit[] team2, Tabletop.Content.Unit target, int wounds, Tabletop.Content.Unit? riders, Guid container, params int[] dice)
+    static Sim Wound(Tabletop.Content.Unit attacker, Tabletop.Content.Unit[] team2, Tabletop.Content.Unit target, int wounds, Tabletop.Content.Unit? riders, Guid container, params int[] dice) => Wound(attacker, team2, target, wounds, riders, container, null, dice);
+
+    static Sim Wound(Tabletop.Content.Unit attacker, Tabletop.Content.Unit[] team2, Tabletop.Content.Unit target, int wounds, Tabletop.Content.Unit? riders, Guid container, Point3? seat, params int[] dice) =>
+        Wound(Tabletop.Protocol.Enforcement.Warn, attacker, team2, target, wounds, riders, container, seat, dice);
+
+    static Sim Wound(Tabletop.Protocol.Enforcement enforcement, Tabletop.Content.Unit attacker, Tabletop.Content.Unit[] team2, Tabletop.Content.Unit target, int wounds, Tabletop.Content.Unit? riders, Guid container, Point3? seat, params int[] dice)
     {
-        var sim = new Sim(State([attacker], team2), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "wounds")), TestProperties.Core, new ScriptedDice(dice));
-        if (riders is not null) sim.Append([new ModelsMoved(riders.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container))).ToList())]);
+        var sim = new Sim(State([attacker], team2, enforcement: enforcement), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "wounds")), TestProperties.Core, new ScriptedDice(dice));
+        // The container stands on the table (p.7: no survivor may be placed off it); Armies.State's rows start below y = 0.
+        if (riders is not null) sim.Append([new ModelsMoved([new ModelRelocation(container, sim.Model(container).Location, new OnTable(new Placement(seat ?? new Point3(36, 24, 0), new Yaw(0)))),
+            .. riders.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container)))])]);
         var parent = Guid.CreateVersion7();
         sim.Append([new SequenceStarted(parent, "test-parent", new SequenceContext(attacker.Id, [target.Id], [], GfNames.Hold)),
             new StepCompleted(parent, "wounds", null, [], []) { Values = new Dictionary<string, int> { ["wounds"] = wounds } }]);
@@ -51,6 +58,47 @@ public class GfContainersTests
         Assert.IsType<OnShelf>(sim.Model(riders.Models[2].Id).Location);                              // killed by the test
         Assert.IsType<OnShelf>(sim.Model(container).Location);                                        // removed after them
         Assert.Contains(GfNames.Shaken, sim.Unit(riders.Id).Conditions);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void A_survivor_placed_with_part_of_its_base_off_the_table_is_destroyed()
+    {
+        // p.7: "models may also never move outside of the battlefield (no part of them, at any point)"; the wreck stands 3" from the edge.
+        var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var riders = Unit("Riders", "4+", "4+", [], 2, []);
+        var container = bus.Models[0].Id;
+        var sim = Wound(gunners, [bus, riders], bus, 3, riders, container, new Point3(3, 24, 0), 4, 4);
+        var seat = ((OnTable)sim.Model(container).Location).Placement.Position;
+        sim.Answer(Samples.Team2, new Destinations([
+            new ModelRelocation(riders.Models[0].Id, new Inside(container), new OnTable(new Placement(seat with { X = 0.5 }, new Yaw(0)))),   // within 6", half off the edge
+            new ModelRelocation(riders.Models[1].Id, new Inside(container), new OnTable(new Placement(seat with { X = 6 }, new Yaw(0)))),
+        ]));
+        Assert.IsType<OnShelf>(sim.Model(riders.Models[0].Id).Location);
+        Assert.IsType<OnTable>(sim.Model(riders.Models[1].Id).Location);
+        Assert.Equal(1, sim.Steps("place").Single().Values!["destroyed"]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Under_strict_a_survivor_answered_where_it_is_or_left_out_is_accepted_and_destroyed(bool answeredInside)
+    {
+        // Ruling 12: a survivor with nowhere legal to stand is destroyed. Its stand-still answer (Inside to the same Inside) is not a dropped relocation.
+        var gunners = Unit("Gunners", "4+", "4+", [], 1, [], Gun("Cannon", "24\"", 1));
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11), P("Tough", 3)]);
+        var riders = Unit("Riders", "4+", "4+", [], 2, []);
+        var container = bus.Models[0].Id;
+        var sim = Wound(Tabletop.Protocol.Enforcement.Strict, gunners, [bus, riders], bus, 3, riders, container, null, 4, 4);
+        var seat = ((OnTable)sim.Model(container).Location).Placement.Position;
+        var placed = new ModelRelocation(riders.Models[0].Id, new Inside(container), new OnTable(new Placement(seat with { X = seat.X + 4 }, new Yaw(0))));
+        sim.Answer(Samples.Team2, new Destinations(answeredInside
+            ? [placed, new ModelRelocation(riders.Models[1].Id, new Inside(container), new Inside(container))]
+            : [placed]));
+        Assert.IsType<OnTable>(sim.Model(riders.Models[0].Id).Location);
+        Assert.IsType<OnShelf>(sim.Model(riders.Models[1].Id).Location);
+        Assert.Equal(1, sim.Steps("place").Single().Values!["destroyed"]);
         Assert.Empty(sim.State.Projection.Stack);
     }
 

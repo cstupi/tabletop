@@ -78,18 +78,24 @@ static partial class SpecialGames
     }
 
     /// <summary>
-    /// Aircraft: Blue unit 1 is the Aircraft; both sides close in and Red charges whenever it may, picking the Aircraft when offered. Its
-    /// move (D7) and "can't be charged" (D8) are engine defects.
+    /// Aircraft: Blue unit 1 is the Aircraft; both sides close in and Red charges whenever it may, picking the Aircraft when offered.
+    /// Red unit 3, the first to charge, is Fast and Red unit 2 is Slow, so the move allowances the Aircraft's 30" adds to sit beside theirs.
     /// </summary>
     static TestGame Aircraft()
     {
         const string name = "special-aircraft-overhead";
         return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
-                .Army("Red", 3, 3, unitStats: Stats(4, 4))
+                .Army("Red", 3, 3, modelRules: [new(3, "Fast"), new(2, "Slow")], unitStats: Stats(4, 4))
                 .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4))
                 .Build(),
-            ["Aircraft"],
+            ["Aircraft", "Fast", "Slow"],
             [
+                Exact("p.13 Fast: \"move +2\" when using Advance and +4\" when using Rush/Charge\"", ["Fast"], run =>
+                    Each(Moves(run).Where(m => m.Own && m.Unit == "Red unit 3" && m.Action is "Advance" or "Rush" or "Charge"), "a Fast move", m =>
+                        m.Region.Allowance == (m.Action == "Advance" ? 8 : 16) ? null : $"{m.Action}: allowance {m.Region.Allowance}")),   // p.7: Advance 6", Rush and Charge 12"
+                Exact("p.14 Slow: \"move -2\" when using Advance, and -4\" when using Rush/Charge\"", ["Slow"], run =>
+                    Each(Moves(run).Where(m => m.Own && m.Unit == "Red unit 2" && m.Action is "Advance" or "Rush" or "Charge"), "a Slow move", m =>
+                        m.Region.Allowance == (m.Action == "Advance" ? 4 : 8) ? null : $"{m.Action}: allowance {m.Region.Allowance}")),
                 Exact("p.13 Aircraft: \"May only use Advance actions ... adding 30\" to its total move\"", ["Aircraft"], run =>
                 {
                     var offered = ActivateOptions(run).Where(o => o.Unit == "Blue unit 1").ToList();

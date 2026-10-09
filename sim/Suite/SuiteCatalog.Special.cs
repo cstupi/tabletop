@@ -21,8 +21,7 @@ static partial class SpecialGames
     public static IEnumerable<TestGame> All() =>
     [
         Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), Command(), Deployment(),
-        Aircraft().Pinned("D7", "p.13 Aircraft: \"May only use Advance", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)")
-            .Pinned("D8", "p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
+        Aircraft(),
         StealthAtNineAndAHalf(),
     ];
 

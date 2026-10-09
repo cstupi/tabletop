@@ -215,10 +215,14 @@ in both cases with a fresh history, so the window **reopens**. p.13 is *"spend a
 the spell's value to try casting one or more spells (only one try per spell)"*, and one window per
 activation would allow only one spell. That reopening is why the fifth step outcome exists.
 
-Phase 0's Ask is a `MoveRegion` carrying six parameters: the unit's models still in play,
-`allowance − used`, the impassable volume ids, the difficult volume ids, `GfNames.DifficultCap`
-of 6 inches, and `MoveStep.Containers(...)`. The cap is `null` for a `Strider`/`Flying` unit,
-which it does not bind. The allowance is `StatReader.ActionDistance(live, side, action)`, so
+Phase 0's Ask is a `MoveRegion` carrying seven parameters: the unit's models still in play,
+`allowance − used`, the impassable volume ids, the difficult volume ids, what is left of `GfNames.DifficultCap`
+(6 inches less `used`), `MoveStep.Containers(...)`, and a minimum distance (an Aircraft's 30", else null). The cap is
+`null` for a `Strider`/`Flying`/`Aircraft` unit, which it does not bind. p.11's cap is *"for that movement"*, so it spans
+every segment a cast splits the move into: once a segment went in or through difficult ground the step records
+`Values["entered_difficult"]` and clamps every later segment's allowance to what is left of the cap. p.11 also holds
+*every* model of the unit to the cap once any one enters; the answer is judged for that by `GfMoves.DifficultCapBreach`
+at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the recorded flag for an earlier segment. The allowance is `StatReader.ActionDistance(live, side, action)`, so
 `Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
@@ -226,9 +230,26 @@ map of integers. A `Passed` answer is a zero move.
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
-Indirect's *"shooting after moving"* reads. It does **not** enforce the 1-inch separation or coherency. The client
-flags those, per `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
+Indirect's *"shooting after moving"* reads. Under the enforcement setting, dispatch judges the answer's allowance, impassable
+terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
+(`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
+terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask (read
+from the live set, `GfMoves.Flies`) lists no impassable volume; p.11 *"may not end their move partially overhanging gaps or
+terrain"* and p.7 *"physically impossible locations"* still hold its landing (`GfMoves.LandsInImpassable`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
+`architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
 prompt for a charge.
+
+p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in a straight line, and adding 30" to its
+total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping"*. For an Aircraft unit
+the allowance gains `GfNames.AircraftMove` (30), the Ask names no impassable or difficult volume and no cap,
+`ApplyMove` sweeps no terrain (so no dangerous terrain test), `activation-terrain` tests nothing, and the move is one
+segment (the casting checkpoint never returns it to phase 0), so each model moves in one straight line. The step lists
+`Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The move is mandatory (*"can't move into the
+table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
+`GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer
+left out. Where the table has no room for 30" (a small table), the minimum is as far as the whole base can go
+(`Movement.FarthestOnTable`); the rulebook does not cover that case (p.6 allows "smaller areas", p.7 keeps every base on the
+table), so this is a standing ruling until the owner rules.
 
 Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
@@ -311,7 +332,7 @@ that causes a wound would be counted twice.
 
 `charge-target` offers enemy units with a model within `StatReader.ActionDistance(Charge)` of a
 charger model whose straight path crosses no impassable volume
-(`Movement.Check(...).CrossesImpassable`). Two containment consequences fall out:
+(`Movement.Check(...).CrossesImpassable`); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is
@@ -440,7 +461,7 @@ move step's work, not a sequence of their own. `MoveStep.Containers` decides wha
 | Answer shape | Meaning | What is measured |
 | --- | --- | --- |
 | `To is Inside` | embarking | **nothing.** p.15: *"only one model needs to reach the Transport for everyone to embark"*, and the 1-inch move restriction is ignored. `distance_used_tenths` does not grow. The one guard is state integrity: an `Inside` whose container is not a model on the table is dropped |
-| `From is Inside`, `To is OnTable` | disembarking | only p.15's *"must stay fully within 6 inches of it when exiting"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. A placement outside the radius is not applied and that model stays inside |
+| `From is Inside`, `To is OnTable` | disembarking | p.15's *"must stay fully within 6 inches of it when exiting"* and p.7's *"never move outside of the battlefield (no part of them, at any point)"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin` and `Table.ContainsBase`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. Under strict, a placement outside the radius or off the table is refused (`move_exit`); under warn and silent it is not applied and that model stays inside. A model answered `Inside` the container it is in stands still and stays inside |
 | table to table | an ordinary move | as before |
 
 Ignoring the 1-inch restriction needs no code, because nothing enforces it in the first place.
@@ -450,7 +471,11 @@ Only the Ask's prompt and the client's decision not to flag it change.
 `ContainerMovesThisActivation` and returns `null` for the exit after an embark and `null` for the
 enterable list after a disembark. The legal set enforces it, the way every other rule here does.
 The answer is applied as sent, and `LegalSet.Contains` under `strict` checks a `move_region`
-answer's model ids only.
+answer's model ids (each once) and finite placements only, plus p.11's cap and an Aircraft's minimum (`IGameRules.AnswerBreach`).
+Both breach checks and every step that applies a move read the answer through `GfAnswers.Moves`: the first relocation per listed
+model, `From` taken from the projection, and nothing that is not applied. It drops a non-finite placement, one farther from the
+model than the table's diagonal, an `Inside` the Ask did not list as enterable, and a move out of a container the Ask is not
+exiting (so a unit that embarked cannot step out on a later segment, whose Ask offers no exit). A dropped model has not moved.
 
 `ContainersInReach` lists **friendly** containers only, so no automated move puts a unit inside an
 enemy vehicle, while `Battlefield.InsideReach` implements p.14 as written. That asymmetry leaves

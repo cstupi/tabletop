@@ -40,7 +40,7 @@ public partial class TableInput
 
     /// <summary>
     /// The held models to these points, each settled on what it stands over, and the ruler on the lead model. Inside a move
-    /// step a model past the allowance turns red (spec → Formations: "a model beyond its move distance shows red").
+    /// step a model past the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
     /// </summary>
     void Place(IReadOnlyDictionary<Guid, Point3> targets)
     {
@@ -54,10 +54,10 @@ public partial class TableInput
             if (drag.Rows > 0 && piece is not null) piece.Rotation = new Vector3(0, WorldFrame.Radians(drag.Yaw), 0);
             ModelDragged?.Invoke(id, drag.Current[id]);
             if (Allowance is { } allowance && Proposing.Contains(id) && piece is not null)
-                piece.SetHighlight(MoveRuler.Read(drag.Starts[id].Horizontal, drag.Current[id].Horizontal, allowance).OverAllowance ? Colors.Red : Palette.Selected);
+                piece.SetHighlight(MoveRuler.Read(drag.Starts[id].Horizontal, drag.Current[id].Horizontal, allowance, Minimum?.GetValueOrDefault(id)).OutOfRange ? Colors.Red : Palette.Selected);
         }
         var lead = drag.ModelIds[0];
         _ruler.Show(drag.Starts[lead], drag.Current[lead],
-            MoveRuler.Read(drag.Starts[lead].Horizontal, drag.Current[lead].Horizontal, Proposing.Contains(lead) ? Allowance : null), Colors.White);
+            MoveRuler.Read(drag.Starts[lead].Horizontal, drag.Current[lead].Horizontal, Proposing.Contains(lead) ? Allowance : null, Proposing.Contains(lead) ? Minimum?.GetValueOrDefault(lead) : null), Colors.White);
     }
 }

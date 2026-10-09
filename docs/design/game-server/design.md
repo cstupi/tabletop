@@ -28,9 +28,10 @@ management's rows plus the event log.
 
 - **Any rule.** No dice, no turn order, no legality beyond membership of an Ask's
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
-  `Id`; the later plans add `JudgeAdvance` and `OnRoundEnded`, both default members returning none. `InertEngine` judges nothing and advances nothing.
-- **Geometry adjudication.** `MoveRegion` answers are checked for model ids only. Distance,
-  containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
+  `Id`; the later plans add `JudgeAdvance`, `OnRoundEnded` and `AnswerBreach`, default members returning none. `InertEngine` judges nothing and advances nothing.
+- **Geometry adjudication.** `MoveRegion` answers are checked for model ids (each at most once) and finite placements only, plus what the
+  ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: the allowance, impassable terrain, the table edge, a disembark's
+  6", p.11's difficult-terrain cap, p.13's Aircraft minimum). Applying, containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
 - **HTTP resources.** The game server exposes commands and events and nothing else. Creating,
   joining, leaving, ending and deleting a game are management endpoints, and layouts stay
@@ -424,8 +425,8 @@ replays with none.
 `RulesEngine` holds. Grimdark Future answers it per ranged weapon group with `GfAttack.EligibleModels`, over the live
 set of `GfAttack.AttackInteraction`'s frame-optional core: the same core the fire groups use inside a sequence, called
 with no frame, so the range is the units' distance and there are no faces. Every `IGameRules` wrapper that forwards by
-hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters` and `MayDeployInside`, or the wrapped ruleset
-answers 1, nobody and never.
+hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside` and `AnswerBreach`, or the wrapped
+ruleset answers 1, nobody, never and nothing broken.
 
 ### Enforcement and the override path
 
@@ -486,8 +487,39 @@ functions read it:
   `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
   every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
   that key's own cap, with **no total**, because a spend is any number up to a maximum —
-  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
-  against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
+  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**: every id is in
+  `ModelIds` and appears once, and every table placement has finite coordinates and yaw. The distance
+  against `Allowance`, the impassable volume ids and the table edge are geometry the ruleset judges.
+  Grimdark Future reads a move answer one way, `GfAnswers.Moves`, for both its breach checks and
+  the steps that apply it, so nothing a check does not see is applied.
+  An answer inside the set is then asked of `IGameRules.AnswerBreach(state, ask, answer)`, which
+  needs the table and returns `AnswerBreachFound(Rule, Detail)`. Grimdark Future's are, in order:
+  `move_not_offered` (`GfMoves.NotOfferedBreach`: a relocation `GfAnswers.Moves` does not read, so
+  strict never accepts an answer as a silent zero move); `move_exit` (a disembark not fully within
+  `ExitWithin` of the container and on the table, p.15 and p.7, `GfMoves.ExitPlacement`);
+  `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move's
+  straight path against the Ask's own parameters: p.7 *"never move outside of the battlefield (no part
+  of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of
+  their bases move further than the total movement distance"*, and the landing against every impassable
+  volume on the table, p.11 *"may not end their move partially overhanging gaps or terrain"* with p.7
+  *"physically impossible locations"*, except the Aircraft move (p.13 *"when moving and stopping"*); a
+  model answered where it stands is not judged, one already standing off the table is not judged for the
+  edge, and one whose base already touches an impassable volume is not judged for sweeping that volume);
+  `aircraft_minimum`; and
+  `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
+  is held to it once any model's straight path enters a listed difficult volume, or an earlier
+  segment of the move did; p.11: *"all models in the unit may not move more than 6" for that
+  movement"*), with `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least
+  `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
+  charges, the defender's close-in and consolidation (whose Asks list the impassable volumes), a
+  disembark and a destroyed transport's survivors, rule repositions and placements, and a spell's forced
+  move. A Flying unit's action move, charge, close-in, consolidation and reposition Asks list no impassable
+  volume (p.13 Flying *"may move through units and terrain"*; p.11 *"unless they have any rules that allow
+  them to ignore it"*; `GfMoves.Flies`, read from the live set), so only its landing is judged. A relocation
+  to where the model already is (an occupant answered `Inside` its own container) is standing still, not
+  `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
+  `AskAnswered.OutsideLegalSet` under `warn`.
   A spend divides the same way: whether the answering team owns the models it paid with is state
   the protocol cannot answer, so the spend step checks it.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for

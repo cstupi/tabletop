@@ -48,10 +48,18 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `StepCompleted.Applied` lists the catalog entries that acted in that run of the step, each once, in order of first application;
   null when none did. Each `StepContext` owns an `AppliedEntries`: a live set settled through `StepContext.Settle` records every
   effect row that applies, and a ruleset hook that changes a result adds the rule it names (`ctx.Applied.Add`). A rule that acts in
-  the scheduler or in action legality (Scout, Ambush, Aircraft, Immobile) completes no step and is not listed. The rules suite reads it
+  the scheduler or in action legality (Scout, Ambush, Immobile) completes no step and is not listed; Aircraft's action restriction is
+  not listed either, but its move (p.13: +30", no terrain) is, on the move step. The rules suite reads it
   to judge which rules fired.
 - `SequenceInterpreter` opens a "Continue: {step}" confirm Ask between steps when `Info.WaitsBetweenSteps` is on, gated to the actor's team. The client never offers the flag; it serves development. A frame with no actor and no parent (the roll-off) is always gated, to every team.
 - A `MoveModels` goes through `HandMoves.Judge` and `EnforcementPolicy.Decide`: placing the unit the actor's team last picked at a deploy Ask from the shelf onto the table, or inside a container the rules allow (`IGameRules.MayDeployInside`), is legal; anything else is `hand_move`, which `silent` accepts, `warn` warns and `strict` refuses.
+- An Ask answer inside its legal set is also asked of `IGameRules.AnswerBreach`, which names the rule broken; the dispatcher decides it as a
+  `Breach` (`StrictRefuses(Illegal)`) under the enforcement setting. Grimdark Future's (`GfRules.Moves.cs`) are `move_not_offered`, `move_exit`,
+  `move_off_table`, `move_impassable`, `move_allowance` (`GfMoves.PathBreach`, p.7 and p.11, against the Ask's own parameters, plus the landing
+  against every impassable volume, which a Flying unit's Ask does not list), `difficult_cap`
+  (`GfMoves.DifficultCapBreach`: p.11 holds every model of a `MoveRegion` to its `DifficultCap` once any model's path, or an earlier segment of the
+  move, enters difficult ground) and `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13). All read the
+  answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.
 - `SightQuery` is answered to the asker alone from `Sight.Line` per model pair and `IGameRules.Shooters`: nothing appended or broadcast, no `AtRest`. `ModelFacts` (`IGameRules.MaxWounds`) goes to a client on connect once playing, and to everyone after a batch that changes a value. `Shooters` reads the game's `PropertySet` through `IRulesEngine.Properties`; Grimdark Future's calls `GfAttack.AttackInteraction`'s frame-optional core with no frame, the core the fire groups share.
 - `IStep.Label` puts a step in its sequence's outline; `SequenceStarted.Outline` carries the labelled steps in order.
 - `Windows` offers interrupting reactions as one Ask per eligible team, in reaction order (`GameRules.OrderReactions`, else turn order after the actor's team).
@@ -84,7 +92,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - New content files need the `EmbeddedResource` globs in `Tabletop.GameServer.csproj`; the three patterns there are `*.properties.json`, `*.part.json`, `army-books/*.book.json`.
 - The game server writes a game's rows only in `lobby` or `setup`, plus `playing` to `ended` once. Management writes at creation, end, leave and delete.
 - `WaitsBetweenSteps` is the per-game flag behind every "Continue" Ask (`SequenceInterpreter.cs`). Players never see it.
-- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters` and `MayDeployInside`, or a wrapped ruleset answers 1, nobody and never.
+- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside` and `AnswerBreach`, or a wrapped ruleset answers 1, nobody, never and nothing broken.
 - `ProjectionDesyncException` at hydration is a server bug: every reconnect replays the same event.
 - The first `Connect` frame has `HandshakeTimeout` (10 s by default).
 - Schema changes are management migrations, never made here.

@@ -929,7 +929,7 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_ca
 Two geometry obligations are discharged by this module rather than by geometry. A dangerous
 terrain test is owed `Movement.VolumesCrossed`, because p.11 says *"moves in or through"* rather
 than "ends in". `Containment.BaseFullyWithin` implements p.15's *"fully within 6 inches of it"*,
-and `GfMoves.ExitPlacement` is its only caller.
+and `GfMoves.ExitPlacement` is its only caller; it also holds the base on the table (`Table.ContainsBase`, p.7).
 
 ## Sequences
 

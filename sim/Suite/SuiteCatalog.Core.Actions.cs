@@ -122,7 +122,7 @@ internal static partial class CoreGames
     public static TestGame TransportRun()
     {
         const string name = "core-transport-run";
-        var scenario = new ScenarioBuilder(name, seed: 1)
+        var scenario = new ScenarioBuilder(name, seed: 5)
             .RoundCap(4).Table(24, 36)
             .Army("Red", 3, 1, modelRules: [new ScenarioRule(1, "Transport", 6), new ScenarioRule(1, "Tough", 3)], weapons: [Rifle(), HandWeapon()],
                 unitStats: new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "5+" })

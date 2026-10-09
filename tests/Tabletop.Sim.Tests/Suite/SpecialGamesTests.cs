@@ -20,8 +20,6 @@ public class SpecialGamesTests
     /// </summary>
     public static readonly (string Game, string Defect, string Check, string Reason)[] BlockedChecks =
     [
-        ("special-aircraft-overhead", "D7", "p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
-        ("special-aircraft-overhead", "D8", "p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
     ];
 
     [Fact]

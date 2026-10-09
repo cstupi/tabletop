@@ -14,6 +14,8 @@ public sealed record SequenceStart(string Sequence, SequenceContext Context);
 
 /// <summary>A breach found in the engine's own proposal (enforcement spec → Who raises a breach). Under strict it always ends the game, with these winners.</summary>
 public sealed record GameEndingBreach(string Rule, string Detail, IReadOnlyList<Guid> Winners);
+/// <summary>A rule an Ask answer breaks (enforcement spec → The breach): its snake_case name and the sentence players read. Under strict it refuses the answer.</summary>
+public sealed record AnswerBreachFound(string Rule, string Detail);
 public sealed class UnknownSequenceException(string name) : Exception($"No sequence named '{name}'.");
 
 /// <summary>
@@ -73,6 +75,12 @@ public interface IGameRules
     int MaxWounds(GameState state, Guid modelId) => 1;
     /// <summary>The unit's models that may fire at the target unit now (OPR p.8, Who can shoot). Empty when either unit is unknown or off the table. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
+
+    // Asked by dispatch's answer judge.
+    /// <summary>A rule an Ask answer inside its legal set still breaks, which set membership cannot see because it needs the table (OPR p.11: every model of a
+    /// unit held to 6" once any moved in or through difficult terrain). Null when nothing is broken. Decided under the enforcement setting like a hand move:
+    /// strict refuses, warn warns. Wrapping rulesets must forward it.</summary>
+    AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => null;
 
     // Asked by dispatch's hand-move judge.
     /// <summary>May the unit deploy from the shelf inside this model (OPR p.15: a friendly Transport on the table). False by default. Wrapping rulesets must forward it.</summary>

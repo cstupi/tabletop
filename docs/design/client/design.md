@@ -650,9 +650,11 @@ participants: `PresenceOverlay.StartOf` returns null for an occupant.
 
 Every input to the region comes from the server. The Ask's `MoveRegion` carries the allowance, the
 impassable and difficult volume ids and the difficult cap. The client renders the consequence and
-the server re-decides every answer. Drawing a region the server offered is not a legality check.
-Under `strict` the server checks `LegalSetMembership.Contains`, and for a disembark `GfMoves.ExitPlacement`
-re-checks every model. A ghost dropped outside the drawn region still commits.
+the server re-decides every answer. Drawing a region the server offered is not a legality check. A `MinDistance` (an
+Aircraft's 30", held to `Movement.FarthestOnTable`, `MoveRuler.Minimum`) cuts the drawn region to the ring beyond it
+(`MoveRuler.Inner`), and a model dragged short of it shows red like one past the allowance.
+Under `strict` the server checks `LegalSetMembership.Contains` and `IGameRules.AnswerBreach` (p.11's cap holds every
+model once any one enters difficult ground; an Aircraft moves at least `MinDistance`), and for a disembark `GfMoves.ExitPlacement` re-checks every model. A ghost dropped outside the drawn region still commits.
 
 `Region` cannot serve a disembark, so there are two functions. When `Containment.ExitingId` is
 non-null the unit is inside the container and its models have no `Placement`. There is no start to

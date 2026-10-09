@@ -165,6 +165,23 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void A_minimum_move_reads_short_moves_red_and_cuts_a_ring_from_the_region()
+    {
+        // p.13 Aircraft: the move Ask sets a 30" minimum; the table holds it to what the base can reach.
+        Assert.True(MoveRuler.Read(new Point2(0, 0), new Point2(20, 0), 36, 30).OutOfRange);
+        Assert.False(MoveRuler.Read(new Point2(0, 0), new Point2(31, 0), 36, 30).OutOfRange);
+        var legal = new MoveRegion([Samples.Model], 36, [], [], null, null, 30);
+        var start = new PlacedModel(new ModelBody(Base.Circle(1.26), 1.5), new Placement(new Point3(36, 24, 0), new Yaw(0)));
+        Assert.Equal(30, MoveRuler.Minimum(start, legal, new TableSize(72, 48)));
+        Assert.True(MoveRuler.Minimum(start with { Placement = new Placement(new Point3(15, 15, 0), new Yaw(0)) }, legal, new TableSize(30, 30)) < 30);
+        Assert.Null(MoveRuler.Minimum(start, legal with { MinDistance = null }, new TableSize(72, 48)));
+        var boundary = MoveRuler.Region(start, legal, [], new TableSize(72, 48));
+        var inner = MoveRuler.Inner(new Point2(36, 24), boundary, 30);
+        Assert.Equal(boundary.Count, inner.Count);
+        Assert.All(inner.Zip(boundary), x => Assert.Equal(Math.Min(30, x.Second.DistanceTo(new Point2(36, 24))), x.First.DistanceTo(new Point2(36, 24)), 6));
+    }
+
+    [Fact]
     public void The_ruler_reads_displacement_and_remaining_allowance()
     {
         Assert.Equal(new RulerReadout(5, 1, false), MoveRuler.Read(new Point2(0, 0), new Point2(3, 4), 6));

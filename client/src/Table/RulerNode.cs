@@ -14,10 +14,10 @@ public partial class RulerNode : Node3D
     {
         var a = WorldFrame.ToGodot(from) + Vector3.Up * 0.3f; var b = WorldFrame.ToGodot(to) + Vector3.Up * 0.3f;
         var im = new ImmediateMesh(); im.SurfaceBegin(Mesh.PrimitiveType.Lines); im.SurfaceAddVertex(a); im.SurfaceAddVertex(b); im.SurfaceEnd();
-        _line.Mesh = im; _line.MaterialOverride = new StandardMaterial3D { AlbedoColor = readout.OverAllowance ? Colors.Red : colour, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+        _line.Mesh = im; _line.MaterialOverride = new StandardMaterial3D { AlbedoColor = readout.OutOfRange ? Colors.Red : colour, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
         _label.Position = (a + b) / 2 + Vector3.Up * 0.8f;
         _label.Text = readout.Remaining is { } r ? $"{readout.Distance:0.0}\"  ({r:0.0}\" left)" : $"{readout.Distance:0.0}\"";
-        _label.Modulate = readout.OverAllowance ? Colors.Red : Colors.White;
+        _label.Modulate = readout.OutOfRange ? Colors.Red : Colors.White;
         Visible = true;
     }
 

@@ -12,7 +12,7 @@ using static Tabletop.GameServer.Tests.Infrastructure.Armies;
 namespace Tabletop.GameServer.Tests;
 
 /// <summary>StepCompleted.Applied for the rules Rules/GrimdarkFuture/ implements by name, one family at a time: the hook records its rule when it changed the step's result.
-/// Deployment's hooks (Scout, Ambush) and action legality (Aircraft, Immobile) run in the scheduler, where no step completes, so they have no StepCompleted to list them on.</summary>
+/// Deployment's hooks (Scout, Ambush) and action legality (Aircraft's Advance only, Immobile) run in the scheduler, where no step completes, so they have no StepCompleted to list them on.</summary>
 public class AppliedHooksTests
 {
     static TerrainPlacement Patch(TerrainDeclarations kind) => new(Guid.CreateVersion7(), VisualRef.OfBuiltin("patch"), new Point3(-17, -18.5, 0), new Yaw(0), 1,
