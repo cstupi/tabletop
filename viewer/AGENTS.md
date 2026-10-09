@@ -25,8 +25,12 @@ A static developer web app that draws a `sim/` recording top-down on a 2D canvas
 
 ## Commands
 
+- `docker compose up -d` runs the dev server as the `viewer` service on `http://127.0.0.1:5174`, `/v1` proxied to
+  `http://management:5100`, `VITE_GAME_SOCKET=ws://127.0.0.1:5200/ws`. It shares `viewer/node_modules` with the host and
+  runs `npm ci` on start when `package-lock.json` differs from the hash in `node_modules/.tabletop-lock.sha256`.
 - `cd viewer && npm install`
-- `cd viewer && npm run dev`: `:5174`, `/v1` proxied to management on `:5100`.
+- `cd viewer && npm run dev` (after `docker compose stop viewer`): `:5174`, `/v1` proxied to `TABLETOP_API_PROXY_TARGET`,
+  default `http://localhost:5100`.
 - `cd viewer && npm test`: Vitest (`tests/**/*.test.ts`).
 - `cd viewer && npm run check`: `svelte-check`.
 - `cd viewer && npm run build`.

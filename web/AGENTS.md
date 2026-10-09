@@ -27,8 +27,11 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 
 ## Commands
 
-- `npm install` once in `web/`; Node 24 comes from mise in WSL.
-- `./scripts/web`: dev server on `http://localhost:5173`, `/v1` proxied to management on `:5100` (needs management running).
+- `docker compose up -d` runs the dev server as the `web` service on `http://127.0.0.1:5173`, `/v1` proxied to
+  `http://management:5100`. It shares `web/node_modules` with the host and runs `npm ci` on start when
+  `package-lock.json` differs from the hash in `node_modules/.tabletop-lock.sha256`.
+- Host run: `npm install` once in `web/` (Node 24 from mise), `docker compose stop web`, then `./scripts/web`; `/v1` goes to
+  `TABLETOP_API_PROXY_TARGET`, default `http://localhost:5100`.
 - `cd web && npm test`: Vitest (`tests/**/*.test.ts`, node environment, 60 s timeout).
 - `cd web && npm run check`: `svelte-kit sync` and `svelte-check`.
 - `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`.

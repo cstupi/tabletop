@@ -8,9 +8,8 @@ in-game UX spec, merged to `main`, and waits for the owner's on-screen check (*N
 ## Get running
 
 ```bash
-docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game server 5200 (both under dotnet watch)
+docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite)
 ./scripts/client         # build, check, launch the Godot client on Windows
-./scripts/web            # only for importing armies and meshes (http://localhost:5173)
 ```
 
 - Docker Desktop must be running on the Windows host. From WSL:
@@ -20,7 +19,11 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - The two servers bind `127.0.0.1` only: Development maps `POST /v1/dev/sessions`, which mints a session with no login.
   Each builds into its own `obj/Unix-<slot>/` and `bin/-<slot>/`, so host builds never disturb them. The first start
   after a clean restores NuGet for about a minute.
-- `docker compose stop management game` frees the ports for `./scripts/management` and `dotnet run --project server/game`.
+- `docker compose stop management game` frees the ports for `./scripts/management` and `dotnet run --project server/game`;
+  `docker compose stop web viewer` does the same for `./scripts/web` and the viewer's `npm run dev`.
+- The web app (`http://127.0.0.1:5173`, importing armies and meshes) and the viewer (`http://127.0.0.1:5174`) run as
+  Vite dev servers in `node:24.19.0` containers, proxying `/v1` to the management container. They share `node_modules`
+  with the host and run `npm ci` on start only when `package-lock.json` changed since the last install.
 - Never `docker compose down -v`: the Postgres volume holds the schema the server tests read.
 - Godot's import step wipes the client's build output. If every script fails with "class could not be found", run
   `./scripts/client` again.

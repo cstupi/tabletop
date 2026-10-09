@@ -22,6 +22,32 @@ x-dotnet: &dotnet
     DOTNET_NOLOGO: "1"
     ASPNETCORE_ENVIRONMENT: Development
 
+# The Vite dev servers run the same way: repo bind-mounted at the host's path, as the host user. node_modules is shared
+# with the host (both Linux x64 glibc, so the native bindings match); `npm ci` runs on start only when package-lock.json
+# differs from the copy last installed, recorded as a hash in node_modules/.tabletop-lock.sha256. Vite's inotify watch
+# sees edits without polling: Docker Desktop's containers share the WSL kernel.
+x-vite: &vite
+  image: node:24.19.0-trixie-slim
+  user: "${TABLETOP_UID:-1000}:${TABLETOP_GID:-1000}"
+  volumes:
+    - ${PWD}:${PWD}
+    - npm-cache:/npm
+  command:
+    - sh
+    - -c
+    - >-
+      sha256sum package-lock.json | cmp -s - node_modules/.tabletop-lock.sha256 ||
+      { npm ci && sha256sum package-lock.json > node_modules/.tabletop-lock.sha256; } &&
+      exec npm run dev
+  depends_on:
+    dev-init: { condition: service_completed_successfully }
+    management: { condition: service_healthy }
+  environment: &vite-env
+    HOME: /npm/home
+    npm_config_cache: /npm/cache
+    npm_config_update_notifier: "false"
+    TABLETOP_API_PROXY_TARGET: http://management:5100
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -71,9 +97,10 @@ services:
   dev-init:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     user: "0:0"
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /nuget/home /nuget/packages && chown -R ${TABLETOP_UID:-1000}:${TABLETOP_GID:-1000} /nuget"]
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /nuget/home /nuget/packages /npm/home /npm/cache && chown -R ${TABLETOP_UID:-1000}:${TABLETOP_GID:-1000} /nuget /npm"]
     volumes:
       - nuget-cache:/nuget
+      - npm-cache:/npm
 
   # The first start restores and builds for minutes. Each container builds into its own obj/ and bin/ (TabletopBuildSlot,
   # Directory.Build.props), so a host build never restarts or breaks its watch. Game waits on management's migrations.
@@ -114,7 +141,23 @@ services:
     ports:
       - "127.0.0.1:5200:5200"
 
+  web:
+    <<: *vite
+    working_dir: ${PWD}/web
+    ports:
+      - "127.0.0.1:5173:5173"
+
+  viewer:
+    <<: *vite
+    working_dir: ${PWD}/viewer
+    environment:
+      <<: *vite-env
+      VITE_GAME_SOCKET: ${VITE_GAME_SOCKET:-ws://127.0.0.1:5200/ws}   # opened by the browser, so the host's address
+    ports:
+      - "127.0.0.1:5174:5174"
+
 volumes:
   postgres-data:
   minio-data:
   nuget-cache:
+  npm-cache:

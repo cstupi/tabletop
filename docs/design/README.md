@@ -387,14 +387,14 @@ the ECS Fargate sketch a later session will design against.
 
 | Process | Where | Address |
 | --- | --- | --- |
-| Management API | WSL | `localhost:5100` |
-| Game server | WSL | `localhost:5200` |
-| Web app dev server | WSL | `localhost:5173` |
+| Management API | Docker | `127.0.0.1:5100` |
+| Game server | Docker | `127.0.0.1:5200` |
+| Web app dev server | Docker | `127.0.0.1:5173` |
 | Postgres | Docker | `localhost:5432` |
 | Blob store, MinIO | Docker | `localhost:9000` |
 | Godot client | Windows host | Connects over forwarded localhost |
 | Simulator | WSL | A console run, no address of its own |
-| Viewer dev server | WSL | `localhost:5174` |
+| Viewer dev server | Docker | `127.0.0.1:5174` |
 
 The client runs on the Windows host because the Godot editor does; the repository is reached
 over the WSL share. This is the only configuration, so it is the one that is always tested.

@@ -30,9 +30,8 @@ export or referenced by a server.
 
 ```bash
 cp -n .env.example .env   # then add TABLETOP_STYTCH_SECRET; .env is never committed
-docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, game server 5200 (dotnet watch)
+docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite)
 ./scripts/client          # build, check and launch the Godot client on Windows
-./scripts/web             # the web app on http://localhost:5173
 dotnet build && dotnet test   # every .NET project; the server tests need the stack up
 ```
 
@@ -44,6 +43,9 @@ dotnet build && dotnet test   # every .NET project; the server tests need the st
   reach WSL, and .NET waits 21 s before falling back.
 - WSL `dotnet` is 10.0.400 from `~/.dotnet`. apt's 8.0 SDK is also at `/usr/bin/dotnet`; PATH order picks the right one.
 - `docker` works only while Docker Desktop runs on the Windows host. Never `docker compose down -v`.
+- Every compose service publishes on `127.0.0.1` only. The web app is `http://127.0.0.1:5173`, the viewer
+  `http://127.0.0.1:5174`; both proxy `/v1` to the management container. `docker compose stop <service>` frees a port
+  for a host run (`./scripts/web`, `npm run dev`, `./scripts/management`).
 - `Directory.Build.props` gives each OS its own `obj/` (`obj/Unix`, `obj/Windows_NT`), and each compose server container
   its own `obj/Unix-<slot>/` and `bin/-<slot>/`, because restore records absolute paths.
 

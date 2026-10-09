@@ -35,22 +35,17 @@ dotnet test                  # needs the Docker stack up (below)
 Once per machine:
 
 ```bash
-cp -n .env.example .env                                         # carries the Stytch test project id
-cd server/management && dotnet user-secrets set STYTCH_SECRET <secret> && cd -
-cd web && npm install && cd -
+cp -n .env.example .env      # carries the Stytch test project id; set TABLETOP_STYTCH_SECRET in it
 ```
 
 The Stytch test project needs `http://localhost:5173/reset-password` registered as a
 `RESET_PASSWORD` redirect URL (Stytch dashboard), or password resets fail at Stytch.
 
-Each session, one terminal per line, from the repo root in WSL. Docker Desktop must be running on
+Each session, from the repo root in WSL. Docker Desktop must be running on
 the Windows host.
 
 ```bash
-docker compose up -d                  # Postgres :5432, MinIO :9000; never from a worktree
-./scripts/management                  # management API, http://localhost:5100
-dotnet run --project server/game      # game server, http://localhost:5200/ws
-./scripts/web                         # web app, http://localhost:5173
+docker compose up -d                  # Postgres, MinIO, management :5100, game :5200/ws, web app :5173, viewer :5174; never from a worktree
 ./scripts/client                      # builds, then launches the Godot client on Windows
 ```
 

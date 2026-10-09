@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Run the web app's dev server from WSL on http://localhost:5173, proxying /v1 to the management API on :5100.
-# Windows reaches it at the same address over forwarded localhost. Needs `npm install` once in web/.
+# Run the web app's dev server on the host on :5173, proxying /v1 to TABLETOP_API_PROXY_TARGET (default
+# http://localhost:5100). `docker compose up -d` already runs it as the `web` service; `docker compose stop web` first.
+# Needs `npm install` once in web/.
 set -euo pipefail
 cd "$(dirname "$0")/../web"
 exec npm run dev -- "$@"
