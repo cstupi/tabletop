@@ -38,9 +38,9 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 113 of 128 games pass in-process (112 over the socket), every other game fails only on a pinned known defect
 (report line `KNOWN Dn`), 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
-**Checks.** `dotnet build` has 0 errors (7 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1535 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 45, Viewer 9, Client 179,
-GameServer 861, Management 94, Sim 148. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+**Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
+`dotnet test` passes 1787 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
+GameServer 887, Management 94, Sim 372. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
