@@ -62,6 +62,14 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             results.All(r => r.Passed) && Coverage.Complete(coverage) && coverage.All(c => c.Uncovered || c.Fired));
     }
 
+    /// <summary>A fresh session for a kept game's spectator account (SuiteGameResult.Spectator).</summary>
+    public async Task<MintedSession> SpectatorSessionAsync(string spectator, CancellationToken ct)
+    {
+        var sock = socket ?? SuiteSocket.FromEnvironment();
+        try { return await sock.SessionAsync(spectator, ct); }
+        finally { if (sock != socket) await sock.DisposeAsync(); }
+    }
+
     /// <summary>The command line that reruns one game alone and keeps it.</summary>
     public static string ReplayOf(TestGame game, DriverKind driver) =>
         $"dotnet run --project sim -- suite --only {Quote(game.Name)} --keep{(driver == DriverKind.Socket ? " --driver socket" : "")}";
@@ -77,7 +85,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
 
         var failures = new List<string>();
         SuiteGameRun? run = null;
-        string? recordingPath = null;
+        string? recordingPath = null, spectator = null;
         SocketCredentials? credentials = null;
         var minted = new List<Guid>();
         try
@@ -106,6 +114,15 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             failures.AddRange(driver.Failures);
             failures.AddRange(judged);
 
+            // After the play, so the extra participant cannot touch the game's setup or its log.
+            if (sock is not null && options.Keep)
+            {
+                spectator = SuiteRows.SpectatorName(runId, game.Name);
+                var session = await sock.SessionAsync(spectator, ct);
+                minted.Add(session.AccountId);
+                await new SuiteRows(sock.Db).SeedSpectatorAsync(compiled.Info.Id, session.AccountId, spectator, ct);
+            }
+
             if (options.Keep)
             {
                 recordingPath = Path.Combine(options.OutDir, $"{FileNameOf(game.Name)}-{scenario.Seed}.json");
@@ -127,7 +144,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         run ??= new SuiteGameRun(game, new RunOutcome.Failed(failures.LastOrDefault() ?? "setup"), [],
             new EventApplier(compiled.Board, compiled.Info).Projection, []);
         var result = new SuiteGameResult(game.Name, game.Group, failures.Count == 0, failures, scenario.Seed,
-            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null);
+            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator);
         return (result, run);
     }
 

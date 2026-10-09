@@ -1,4 +1,10 @@
+using System.Net;
+using System.Net.Http.Json;
 using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using Tabletop.Protocol;
+using Tabletop.Sim.Serve;
 using Tabletop.GameServer.Persistence;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -19,6 +25,7 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
 {
     readonly GameServerFactory _factory = new();
     readonly List<Guid> _minted = [];
+    readonly Dictionary<string, Guid> _byName = [];
 
     public void Dispose() => _factory.Dispose();
 
@@ -36,7 +43,22 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
         {
             foreach (var p in c.Info.Participants) { _minted.Add(p.AccountId); minted.Add(p.AccountId); }
             return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
-        }, () => new FactoryConnector(_factory));
+        }, () => new FactoryConnector(_factory), session: async (name, _) =>
+        {
+            // Like the dev mint, a name is always the same account.
+            if (!_byName.TryGetValue(name, out var id)) { _byName[name] = id = await pg.SeedAccountAsync(name); _minted.Add(id); }
+            return new MintedSession(TestKeys.Mint(id), id);
+        });
+    }
+
+    /// <summary>Connects with the jwt and returns the server's first message.</summary>
+    async Task<SocketMessage> FirstMessageAsync(string jwt, Guid gameId)
+    {
+        using var socket = await new FactoryConnector(_factory).ConnectAsync(Ct);
+        await socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(new Connect(jwt, gameId, ProtocolVersion.Current))), WebSocketMessageType.Text, true, Ct);
+        var buffer = new byte[1 << 16];
+        var read = await socket.ReceiveAsync(buffer, Ct);
+        return WireJson.Deserialize(Encoding.UTF8.GetString(buffer, 0, read.Count));
     }
 
     static SuiteOptions Options(bool keep = false, string? outDir = null) => new([Name], DriverKind.Socket, keep, outDir ?? TempDir());
@@ -60,6 +82,7 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
         Assert.True(report.Passed, Why(report));
         var result = Assert.Single(report.Games);
         Assert.Null(result.GameId);
+        Assert.Null(result.Spectator);
         Assert.Equal(SuiteRunner.ReplayOf(game, DriverKind.Socket), result.Replay);
         Assert.Equal(0, await Games(SuiteRows.GameName(report.RunId, "", keep: false)));
         Assert.NotEmpty(_minted);
@@ -83,10 +106,47 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
             Assert.True(await pg.CountAsync("select count(*) from game.game_event where game_id = $1", result.GameId.Value) > 0);
             Assert.True(File.Exists(result.RecordingPath));
             Assert.Equal(_minted.Count, await Accounts());
+
+            // The spectator: a participant with no team, named by the result, that a socket can connect as.
+            Assert.Equal(SuiteRows.SpectatorName(report.RunId, Name), result.Spectator);
+            Assert.Equal(1, await pg.CountAsync(
+                "select count(*) from management.participant p join management.account a on a.id = p.account_id where p.game_id = $1 and p.team_id is null and a.name = $2",
+                result.GameId.Value, result.Spectator!));
+            var session = await socket.SessionAsync(result.Spectator!, Ct);
+            Assert.IsType<Welcome>(await FirstMessageAsync(session.Jwt, result.GameId.Value));
         }
         finally
         {
             if (report?.Games.Single().GameId is { } id) await new SuiteRows(pg.Db).DeleteGameAsync(id, _minted, Ct);
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task The_spectate_endpoint_gives_a_session_that_connects_to_a_kept_socket_game()
+    {
+        var socket = await SocketAsync();
+        var directory = TempDir();
+        await using var app = ServeApp.Build(new ServeArguments(0, "127.0.0.1", directory), new SuiteRunner([Game()], socket));
+        await app.StartAsync();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.First()), Timeout = TimeSpan.FromSeconds(120) };
+        Guid? gameId = null;
+        try
+        {
+            var started = await http.PostAsJsonAsync("/runs", new { driver = "socket", keep = true });
+            var run = (await started.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("runId").GetGuid();
+            await (await http.GetAsync($"/runs/{run}/events")).Content.ReadAsStringAsync();   // to the end of the stream
+
+            var response = await http.PostAsync($"/runs/{run}/games/{Name}/spectate", null);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            gameId = body.GetProperty("gameId").GetGuid();
+            Assert.IsType<Welcome>(await FirstMessageAsync(body.GetProperty("jwt").GetString()!, gameId.Value));
+            Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsync($"/runs/{run}/games/nope/spectate", null)).StatusCode);
+        }
+        finally
+        {
+            if (gameId is { } id) await new SuiteRows(pg.Db).DeleteGameAsync(id, _minted, Ct);
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }
@@ -158,7 +218,8 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
             Assert.Equal(0, await pg.CountAsync("select count(*) from management.account where id = any($1)",
                 interrupted.Info.Participants.Select(p => p.AccountId).ToArray()));
             Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1", kept.Info.Id));
-            Assert.Equal(0, await Games("suite-run "));
+            // Only this test's rows: other suite runs may share the Postgres, and their live games are not this run's to judge.
+            Assert.Equal(0, await Games(SuiteRows.GameName(report.RunId, "", keep: false)));
         }
         finally
         {

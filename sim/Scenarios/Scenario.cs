@@ -10,6 +10,14 @@ public sealed record ScenarioWeapon(string Name, IReadOnlyDictionary<string, str
 public sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IReadOnlyList<Volume> Volumes);
 public sealed record ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label);
 
+/// <summary>
+/// One model of a unit with its own rules, stats and weapons (a Hero among non-heroes). Unit and Model are 1-based ordinals. Rules are
+/// added to the unit's model rules; Stats are the slot's own (a stat the slot names overrides the unit's); Weapons, when given, replace the
+/// army's weapons for this model. A rule's Unit field is not read here: the model's Unit names the unit.
+/// </summary>
+public sealed record ScenarioModel(int Unit, int Model, IReadOnlyList<ScenarioRule>? Rules = null,
+    IReadOnlyDictionary<string, string>? Stats = null, IReadOnlyList<ScenarioWeapon>? Weapons = null);
+
 /// <summary>One army per team, in team-ordinal order. Rules go on the side their catalog entry is declared for.</summary>
 public sealed record ScenarioArmy(
     string Name,
@@ -19,7 +27,14 @@ public sealed record ScenarioArmy(
     IReadOnlyList<ScenarioRule> ModelRules,
     IReadOnlyList<ScenarioWeapon> Weapons,
     IReadOnlyDictionary<string, string> UnitStats,
-    string? ArmyBook = null);
+    string? ArmyBook = null)
+{
+    /// <summary>Unit ordinals the run sets aside before deployment (the menu's set-aside condition): a Scout or Ambush unit's way in.</summary>
+    public IReadOnlyList<int> SetAside { get; init; } = [];
+
+    /// <summary>Models with their own rules, stats or weapons.</summary>
+    public IReadOnlyList<ScenarioModel> Models { get; init; } = [];
+}
 
 /// <summary>
 /// What a run is: a board, armies, a scheduler shape, enforcement, a round cap, a seed, a script and

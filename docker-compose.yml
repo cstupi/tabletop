@@ -141,6 +141,31 @@ services:
     ports:
       - "127.0.0.1:5200:5200"
 
+  # The rules-suite runner (`sim serve`): the viewer's Tests page reaches it through the viewer's proxy (TABLETOP_SUITE_PROXY_TARGET).
+  # Socket runs play against the game server and mint sessions at management; kept recordings land in ./recordings/runner.
+  sim-runner:
+    <<: *dotnet
+    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "sim/Tabletop.Sim.csproj", "--", "serve", "--port", "5180", "--bind", "0.0.0.0"]
+    depends_on:
+      dev-init: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      management: { condition: service_healthy }
+      game: { condition: service_started }
+    environment:
+      <<: *dotnet-env
+      TABLETOP_DB_CONNECTION: Host=postgres;Port=5432;Database=tabletop;Username=tabletop;Password=${TABLETOP_DB_PASSWORD:-tabletop};Search Path=management,game,public
+      TABLETOP_SIM_WS: ws://game:5200/ws
+      TABLETOP_SIM_MANAGEMENT: http://management:5100
+      TabletopBuildSlot: -sim-runner
+    ports:
+      - "127.0.0.1:5180:5180"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5180"]
+      interval: 5s
+      timeout: 3s
+      retries: 120
+      start_period: 30s
+
   web:
     <<: *vite
     working_dir: ${PWD}/web
@@ -153,6 +178,7 @@ services:
     environment:
       <<: *vite-env
       VITE_GAME_SOCKET: ${VITE_GAME_SOCKET:-ws://127.0.0.1:5200/ws}   # opened by the browser, so the host's address
+      TABLETOP_SUITE_PROXY_TARGET: http://sim-runner:5180             # /suite and /runs, proxied like /v1
     ports:
       - "127.0.0.1:5174:5174"
 

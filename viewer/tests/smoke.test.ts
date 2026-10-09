@@ -11,7 +11,10 @@ describe('the viewer project', () => {
 
   it('proxies /v1 to management and names the game socket nowhere but the config', () => {
     const config = readFileSync('vite.config.ts', 'utf8');
-    expect(config).toContain("target: 'http://localhost:5100'");
+    expect(config).toContain('TABLETOP_API_PROXY_TARGET');
+    expect(config).toContain('http://localhost:5100');
+    expect(config).toContain('TABLETOP_SUITE_PROXY_TARGET');
+    expect(config).toContain('http://localhost:5180');
     expect(config).toContain("port: 5174");
   });
 });
