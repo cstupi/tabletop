@@ -24,6 +24,7 @@ public sealed partial class RunLoop(
     private int _sinceLastAnswer;       // non-Ask events absorbed since the last accepted answer, wherever they were drained
     private RunOutcome? _forced;     // an outcome decided outside DriveAsync, reported by the next RunAsync
     private int _absorbedThisCycle;     // every event absorbed since the last step's check
+    private bool _setAsideSent;         // the scenario's set-aside units, sent once before the first answer
 
     public FrameProjector Projector { get; } = new(scenario);
     public IReadOnlyList<GameEvent> Log => _log;
@@ -106,6 +107,11 @@ public sealed partial class RunLoop(
     {
         _lastAnswered = null;       // a pause between an answer and its reopening is not a hang
         Absorb(await driver.DrainEventsAsync(ct));
+        if (!_setAsideSent)
+        {
+            _setAsideSent = true;
+            if (await SetAsideAsync(ct) is { } refused) return refused;
+        }
         for (var step = 0; step < _settings.MaxSteps; step++)
         {
             var result = await driver.StepAsync(ct);
@@ -164,6 +170,29 @@ public sealed partial class RunLoop(
 
             if (open.Ask.Sealed) continue;
             break;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The scenario's set-aside units get the condition a player sets from the menu, before the first answer: the roll-off's confirm gate is
+    /// what is open then, so the first deploy Ask has not opened and already leaves them out (a deploy Ask open before the change stands as
+    /// logged). Sent by the owning participant.
+    /// </summary>
+    private async Task<RunOutcome?> SetAsideAsync(CancellationToken ct)
+    {
+        for (var i = 0; i < scenario.Scenario.Armies.Count; i++)
+        {
+            var army = driver.Board.Armies[i];
+            foreach (var ordinal in scenario.Scenario.Armies[i].SetAside)
+            {
+                var unit = army.Snapshot.Units.Single(u => u.Ordinal == ordinal);
+                var result = await driver.SubmitAsync(army.ParticipantId,
+                    new SetCondition(new Subject(SubjectKind.Unit, unit.Id), scenario.SetAsideCondition, true), ct);
+                Absorb(await driver.DrainEventsAsync(ct));
+                if (result is SubmitResult.Rejected rejected)
+                    return new RunOutcome.Stuck(StuckReason.SubmitRefused, $"setting aside {unit.Name}: {rejected.Reason} {rejected.Detail}");
+            }
         }
         return null;
     }

@@ -218,7 +218,8 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
             Assert.Equal(0, await pg.CountAsync("select count(*) from management.account where id = any($1)",
                 interrupted.Info.Participants.Select(p => p.AccountId).ToArray()));
             Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1", kept.Info.Id));
-            Assert.Equal(0, await Games("suite-run "));
+            // Only this test's rows: other suite runs may share the Postgres, and their live games are not this run's to judge.
+            Assert.Equal(0, await Games(SuiteRows.GameName(report.RunId, "", keep: false)));
         }
         finally
         {
