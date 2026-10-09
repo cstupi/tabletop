@@ -24,6 +24,10 @@ public partial class TableInput : Node
     /// <summary>What a click picks while a decision wants a unit or a model: unit ids, model ids, or both. Empty when nothing is being picked.</summary>
     public IReadOnlySet<Guid> Eligible { get => _eligible; set { _eligible = value; EligibleChanged?.Invoke(); } }
     public bool SightHeld { get; private set; }
+    /// <summary>Objective markers locked from play on: a drag on a locked one does not start. Local to this client.</summary>
+    public MarkerLocks Locks { get; } = new();
+    /// <summary>The marker under the cursor, or null.</summary>
+    public Guid? HoveredMarker { get; private set; }
     /// <summary>A drag is armed: past the threshold, models in hand.</summary>
     public bool Holding => _drag is { Armed: true };
     public event Action<Guid, Point3>? ModelDragged;
@@ -32,6 +36,7 @@ public partial class TableInput : Node
     public event Action? SelectionChanged;
     public event Action<Guid>? PieceLeftClicked;
     public event Action<Guid?>? HoveredUnitChanged;
+    public event Action<Guid?>? HoveredMarkerChanged;
     public event Action<Guid>? UnitClicked;
     public event Action<Guid>? TargetClicked;
     public event Action<Guid, bool>? ModelClicked;
@@ -166,6 +171,8 @@ public partial class TableInput : Node
     {
         var over = piece as PieceNode;
         Input.SetDefaultCursorShape(over is not null && (Eligible.Contains(over.ModelId) || Eligible.Contains(over.UnitId)) ? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
+        var marker = (piece as MarkerNode)?.MarkerId;
+        if (marker != HoveredMarker) { HoveredMarker = marker; HoveredMarkerChanged?.Invoke(marker); }
         if (over?.UnitId == _hovered) return;
         _hovered = over?.UnitId; HoveredUnitChanged?.Invoke(_hovered);
     }
@@ -231,10 +238,15 @@ public partial class TableInput : Node
 
     /// <summary>
     /// Under strict a hand move is refused (spec → Moves), so a model drag starts only when every model is Proposing: a move
-    /// step, or a deployment placement's ghosts. Terrain and markers are not hand moves; silent and warn send on release.
+    /// step, or a deployment placement's ghosts. A locked objective marker never drags, under every enforcement. Terrain and
+    /// other markers are not hand moves.
     /// </summary>
-    bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) =>
-        piece is not PieceNode || models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict;
+    bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) => piece switch
+    {
+        PieceNode => models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict,
+        MarkerNode m => Locks.MayDrag(_session.Game?.Status, _session.Projection, m.MarkerId),
+        _ => true,
+    };
 
     /// <summary>Select a unit, or one of its models, as a click would: Tab and the stat sheet's models strip.</summary>
     public void Select(Guid unitId, Guid? modelId = null)

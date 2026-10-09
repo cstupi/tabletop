@@ -6,23 +6,25 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the one-model tag at the cursor.</summary>
+/// <summary>The hovered unit's name in its team colour, the distance from my selected unit with the line between the two closest bases, and each multi-wound model's wounds left (HoverView). Shift held shows the one-model tag at the cursor. A hovered locked objective says how to unlock it.</summary>
 public partial class HoverLabels : Node3D
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly Label3D _name = new() { Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 56, PixelSize = 0.01f, OutlineSize = 12, NoDepthTest = true, Visible = false };
     readonly MeshInstance3D _line = new() { MaterialOverride = LineMesh.Material() };
     readonly Node3D _wounds = new();
+    readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: one model", Visible = false };
-    Guid? _hovered;
-    Action<Guid?>? _onHover; Action? _onChanged; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Guid? _hovered, _marker;
+    Action<Guid?>? _onHover, _onMarker; Action? _onChanged; Action<IReadOnlyList<GameEvent>>? _onEvents;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view; _input = input;
-        AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_layer); _layer.AddChild(_shift);
-        _onHover = id => { _hovered = id; Draw(); }; _onChanged = Draw; _onEvents = _ => Draw();
-        input.HoveredUnitChanged += _onHover; input.SelectionChanged += _onChanged; input.EligibleChanged += _onChanged;
+        AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift);
+        _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onEvents = _ => Draw();
+        input.HoveredUnitChanged += _onHover; input.HoveredMarkerChanged += _onMarker; input.SelectionChanged += _onChanged; input.EligibleChanged += _onChanged;
+        input.Locks.Changed += _onChanged;
         session.EventsApplied += _onEvents; session.FactsChanged += _onChanged;
     }
 
@@ -30,7 +32,11 @@ public partial class HoverLabels : Node3D
     {
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.FactsChanged -= _onChanged;
-        if (IsInstanceValid(_input)) { _input.HoveredUnitChanged -= _onHover; _input.SelectionChanged -= _onChanged; _input.EligibleChanged -= _onChanged; }
+        if (IsInstanceValid(_input))
+        {
+            _input.HoveredUnitChanged -= _onHover; _input.HoveredMarkerChanged -= _onMarker; _input.SelectionChanged -= _onChanged; _input.EligibleChanged -= _onChanged;
+            _input.Locks.Changed -= _onChanged;
+        }
     }
 
     public override void _Process(double delta)
@@ -43,6 +49,7 @@ public partial class HoverLabels : Node3D
     {
         _name.Visible = false; _line.Mesh = null;
         foreach (var c in _wounds.GetChildren()) c.QueueFree();
+        DrawLock();
         if (_hovered is not { } unit || _s.Projection is not { } p || _s.Game is not { } game) return;
         if (HoverView.Of(p, game, new Names(game, p), unit, MySelectedUnit(p, game), _s.MaxWounds) is not { } info) return;
         var nodes = _view.Pieces.OfType<PieceNode>().Where(n => n.UnitId == unit && !n.IsQueuedForDeletion()).ToList();
@@ -62,6 +69,14 @@ public partial class HoverLabels : Node3D
             _wounds.AddChild(new Label3D { Text = $"{left}/{max}", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true,
                 Position = new Vector3(node.GlobalPosition.X, node.Bounds.End.Y + 0.4f, node.GlobalPosition.Z) });
         }
+    }
+
+    void DrawLock()
+    {
+        _lock.Visible = false;
+        if (_marker is not { } id || !_input.Locks.IsLocked(_s.Game?.Status, _s.Projection, id) || _view.MarkerAt(id) is not { } node) return;
+        _lock.Position = new Vector3(node.GlobalPosition.X, node.Bounds.End.Y + 0.6f, node.GlobalPosition.Z);
+        _lock.Visible = true;
     }
 
     /// <summary>The selected unit when it is one of mine: "With one of my units selected, the distance follows the name".</summary>
