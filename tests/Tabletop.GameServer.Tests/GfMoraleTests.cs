@@ -27,7 +27,7 @@ public class GfMoraleTests
         var ok = WithLosses(u, 2, 5);
         ok.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
         Assert.DoesNotContain(GfNames.Shaken, ok.Unit(u.Id).Conditions);
-        Assert.Equal(1, ok.Steps("test").Single().Values!["passed"]);
+        Assert.Equal(1, ok.Steps("consequence").Single().Values!["passed"]);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class GfMoraleTests
         var u = Unit("U", "4+", "4+", [], 4, []);
         var routed = WithLosses(u, 2, 1);
         routed.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "melee"));
-        Assert.Equal(0, routed.Alive(u.Id)); Assert.Equal(1, routed.Steps("test").Single().Values!["routed"]);
+        Assert.Equal(0, routed.Alive(u.Id)); Assert.Equal(1, routed.Steps("consequence").Single().Values!["routed"]);
         var shaken = WithLosses(u, 1, 1);
         shaken.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "melee"));
         Assert.Equal(3, shaken.Alive(u.Id)); Assert.Contains(GfNames.Shaken, shaken.Unit(u.Id).Conditions);
@@ -48,9 +48,9 @@ public class GfMoraleTests
         var u = Unit("U", "4+", "4+", [], 3, [P("Fearless")]);
         var sim = WithLosses(u, 1, 1, 4);
         sim.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
-        var step = sim.Steps("test").Single();
-        Assert.Equal([GfNames.Morale, "Fearless"], step.Rolls.Select(r => r.Roll));
-        Assert.Equal(4, step.Rolls[1].Threshold);
+        var rolls = sim.Steps("test").Single().Rolls.Concat(sim.Steps("override").Single().Rolls).ToList();
+        Assert.Equal([GfNames.Morale, "Fearless"], rolls.Select(r => r.Roll));
+        Assert.Equal(4, rolls[1].Threshold);
         Assert.DoesNotContain(GfNames.Shaken, sim.Unit(u.Id).Conditions);
 
         var already = WithLosses(Unit("S", "4+", "4+", [], 2, []), 0, 6);
@@ -64,9 +64,9 @@ public class GfMoraleTests
         var shakenFearless = WithLosses(fearless, 0, 5);
         shakenFearless.Append([new ConditionSet(new Subject(SubjectKind.Unit, fearless.Id), GfNames.Shaken, true)]);
         shakenFearless.Start(GfNames.MoraleTest, new SequenceContext(fearless.Id, [], [], "wounds"));
-        var f = shakenFearless.Steps("test").Single();
-        Assert.Equal(["Fearless"], f.Rolls.Select(r => r.Roll));                               // the automatic failure still triggers Fearless
-        Assert.Equal(1, f.Values!["passed"]);
+        Assert.Empty(shakenFearless.Steps("test").Single().Rolls);
+        Assert.Equal(["Fearless"], shakenFearless.Steps("override").Single().Rolls.Select(r => r.Roll));   // the automatic failure still triggers Fearless
+        Assert.Equal(1, shakenFearless.Steps("consequence").Single().Values!["passed"]);
     }
 
     [Fact]

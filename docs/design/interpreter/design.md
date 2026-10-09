@@ -364,11 +364,16 @@ buys. With the wait setting on, a reroll of a block die between `roll-to-block` 
 changes the number of wounds `assign` asks the defender to allocate, because `assign` reads the
 record rather than a stored count.
 
-One known inconsistency: `RequiredRaw` is not in `RollRecord`, so `RulesEngine.PlanOf` cannot
-restore it, and a player's reroll of a fatigued hit die is judged as `Modified >= Threshold`.
-`GfRolls.HitPlan` sets threshold 6 with no modifiers for that case, so the two agree by
-construction, and `GfRolls.HitQuality` returns 6 for every model of a fatigued unit, so there is
-one pool to keep aligned rather than one per Quality value. A comment holds that alignment in place, not a type.
+**The edit model.** An edit reaches a frame on the stack and nothing popped. It appends one event
+and rewrites none: every `step_completed` already appended keeps its `Values` and `Changes`, and an
+edit changes exactly what later steps read off the record. Where a sequence is split for it, the
+rolling step records and the next step reads the record as it now stands and decides, so the
+boundary between them is where an edit lands. Grimdark Future splits the roll-off, the hit rolls
+(attacks and spell hits), the casting roll and the morale test. Six rolls still settle their
+consequence in the step that rolls them, and an edit to one reaches only later readers:
+`roll-to-block`'s per-die extra wounds, `assign`'s wound-ignoring rolls, `dangerous-terrain`'s
+test, `impact`, the attack-start rolls and a dice-distance move
+([opr-sequences.md → Dice edits](opr-sequences.md#dice-edits)).
 
 ### The effect grammar: two passes
 
@@ -559,7 +564,8 @@ an explicit `Values["phase"]` machine. `GfContainers.WreckTestStep` guards it wi
 hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who lost. There is no
 schema per step kind, one flat map (contracts → Event inventory). It buys two things. A later step or a nested frame reads a settled
 parameter without re-deriving it. A reroll between steps changes what the next step reads, which
-is the record, without changing what was settled, which is the value. The cost is untyped string
+is the record, without changing what was settled, which is the value. A value a face decides is
+therefore settled by the step after the roll in the split sequences above. The cost is untyped string
 keys with no registry. `dangerous_dice`, `net_tokens`, `phase`, `hits`, `hit_multiplier`,
 `distance_used_tenths`, `place_1..place_n` and `loser` are conventions held in `GfNames`' vicinity
 and in prose, not in a type.
@@ -1051,7 +1057,8 @@ sequenceDiagram
     participant TD as transport-destroyed frame
 
     AS->>AS: determine-attacks: Values[attacks] and Values[attacks_q3], [attacks_q5] read off the pushing frame, Values[eligible_models] counted now
-    AS->>AS: roll-to-hit: one RollRecord(hit) per attacks_q&lt;n&gt; - Values[extra_hits], [hit_multiplier] capped at defender_models, [granted_Rending_4]
+    AS->>AS: roll-to-hit: one RollRecord(hit) per attacks_q&lt;n&gt; - Values[hit_multiplier] capped at defender_models
+    AS->>AS: score-hits: the hit dice as they now stand - Values[extra_hits], [granted_Rending_4], [self_wounds]
     AS->>RH: resolve: Push
     RH->>RH: roll-to-block: one defense roll per grant group, cover as a base modifier off in_cover, the unit's Defense until defender_models is 1
     RH->>RH: cover: GfRolls.InCover over the target unit's models, seen from every eligible attacker model
@@ -1236,7 +1243,7 @@ and what else it touches.
 | 5 | May generic `Effects/` know the two weapon stat names? | Yes, while OPR is the only ruleset. `StatReader` reads `"Range"` and `"Attacks"`, whitelisted by the constraint test | A second ruleset needs `IGameRules` to gain `StatRef RangeStat` and `StatRef AttacksStat`, and `StatReader` to take them |
 | 6 | One sealed `TokenSpend` legal set for every team? | Yes. `TokenSpend` is a cap per model (ruling 14), so no per-team maximum exists to place in the Ask and no clamp derives one. One Ask serves every team, since a sealed Ask closes when its addressed teams have all answered and one Ask per team would reveal the first answer to the last | None; the Ask carries nothing per team |
 | 7 | `Takedown`'s per-model target | Per **model**: p.14 reads *"This model may pick"*. `attack-sequence` has `pick-target-model`, a `PieceSelection(AliveModels(target), 1, 1)` to the attacker's team after `determine-attacks` and before `roll-to-hit`, and `deal-wounds` assigns that group's wounds to the named model without opening its allocation. `GfShooting.Groups` splits a takedown weapon type into one group per model, so each pick, hit roll and `deal-wounds` is one model's | *Resolved as if it was a unit of [1]* is not modelled, so cover, `Blast`'s cap and the defence roll read the whole target unit |
-| 8 | Confirm gates and the actor | The gate goes to the acting unit's team where there is one, and a frame with no actor and no parent is gated at every boundary past position 0 whatever the wait setting, by one unsealed `Confirm` Ask to every team. The roll-off is the only such frame; its `order` step gives the gate a boundary to sit on, and its dice are editable from the menu like any other roll | A root frame *with* an actor and one step, which is the end-of-turn `morale-test`, pops before any boundary can gate it, so that die is unreachable once the frame is gone. Gating a root frame's terminal boundary would close that too, at the price of a confirm after every morale test |
+| 8 | Confirm gates and the actor | The gate goes to the acting unit's team where there is one, and a frame with no actor and no parent is gated at every boundary past position 0 whatever the wait setting, by one unsealed `Confirm` Ask to every team. The roll-off is the only such frame; its `order` step gives the gate a boundary to sit on, and its dice are editable from the menu like any other roll | A frame with an actor is gated only by the wait setting. `morale-test` rolls in `test` and decides in `consequence`, so with the wait setting on its die is editable at the boundaries between them like any other roll |
 | 9 | Can a unit embark into an enemy's transport, or an occupant target its own container? | No: a unit cannot enter an enemy transport, and only friendly containers are offered, since p.21 writes the containment text for the same-army case. `ContainersInReach` lists friendly containers only. p.15's *target the Transport itself* is consequently unreachable, since valid targets are enemies and a unit's own container is friendly | `InsideReach` keeps p.15's predicate as written, which only a menu-written state reaches |
 | 10 | May a caster inside a container cast? | Yes, at what is in there with it. `EligibleSpenders` is positional on both ends for every model but the caster, which is admitted without measurement, so such a cast draws no tokens from anybody else and resolves at 4+ modified only by what the caster itself still holds | Barring it would mean `ReactionsAt` and `GfCasting.Casters` reading `LivingModels`, two lines. Either way the model-grain edge stays open |
 | 11 | Where does the disembark radius come from, and is it edge to edge? | `GfNames.ExitWithin = 6`, p.15's `Transport` figure, edge to edge from the container's base as the table domain model's *"never centre to centre"* requires, so the region is the footprint grown by 6 inches. A garrisonable building has no automated exit (the geometry plan's ruling 8) | `Containment.BaseFullyWithin` is the only place the number is applied |

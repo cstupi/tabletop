@@ -63,10 +63,8 @@ public static partial class SuiteCatalog
                 weapon: [R(0, "Disintegrate")], enemyStats: Stats(4, 3)),
             Game(Sisters, "blessed-sisters-devout-boost", Play.Shoots, ["Devout Boost"], [R(1, "Devout"), R(1, "Devout Boost"), R(2, "Devout"), R(2, "Devout Boost")], [],
                 [ExtraHits("Devout Boost", By("Devout Boost", when: When.Shooting), [5, 6], ExtraHit56)]),
-            // Fails on an engine defect: a dice edit (SetDice) re-judges the dice but never the per-die effects its step stored in Values
-            // (opr-sequences.md: "dice_edited ... never rewrites a step_completed's Values"), so three 6s fixed onto the first hit roll deal
-            // the extra hits of the faces the roll first showed.
-            Game(Sisters, "blessed-sisters-devout-edited-dice", Play.Shoots, [], [R(1, "Devout"), R(2, "Devout")], [Fix("hit", 6, 6, 6)], [EditedExtraHits("Devout", ExtraHit)]).Pinned("D10", "Devout:", "1 extra hits for edited dice [6 6 6 "),
+            // Three 6s fixed onto the first hit roll before score-hits reads it (opr-sequences.md → Dice edits) deal the extra hits of the fixed faces.
+            Game(Sisters, "blessed-sisters-devout-edited-dice", Play.Shoots, [], [R(1, "Devout"), R(2, "Devout")], [Fix("hit", 6, 6, 6)], [EditedExtraHits("Devout", ExtraHit)]),
             Game(Orcs, "orc-marauders-ferocious", Play.Shoots, ["Ferocious"], [R(1, "Ferocious"), R(2, "Ferocious")], [],
                 [ExtraHits("Ferocious", By("Ferocious", "Ferocious Boost"), [6], ExtraHit)]),
             Game(Orcs, "orc-marauders-ferocious-boost", Play.Shoots, ["Ferocious Boost"], [R(1, "Ferocious"), R(1, "Ferocious Boost"), R(2, "Ferocious"), R(2, "Ferocious Boost")], [],

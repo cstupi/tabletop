@@ -18,10 +18,7 @@ public class ArmyGamesTests
     static IReadOnlyList<TestGame> Army => [.. SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.ArmyPrefix))];
 
     /// <summary>Games that fail on a defect the suite found, with the failure each keeps until the defect is fixed (the game's comment names it).</summary>
-    public static readonly Dictionary<string, string> Defects = new()
-    {
-        ["blessed-sisters-devout-edited-dice"] = "1 extra hits for edited dice [6 6 6 3 2 4 1 5 2 5 2 5], expected 3",
-    };
+    public static readonly Dictionary<string, string> Defects = new();
 
     /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"); they are not the army group's.</summary>
     static readonly string[] Staging = ["Immobile"];
@@ -263,7 +260,8 @@ public class ArmyGamesTests
         var (start, frame) = Frame("attack-sequence");
         var hit = Roll("hit", 4, [], (2, false), (3, false));
         var edit = new DiceEdited(frame, hit.Id, [new DieReplacement(0, hit.Dice[0], new Die(6, 6, true))]);
-        string? With(int extra) => Judge("blessed-sisters-devout-edited-dice", "Devout", start, Step(frame, "roll-to-hit", [], new() { ["extra_hits"] = extra }, hit), edit);
+        string? With(int extra) => Judge("blessed-sisters-devout-edited-dice", "Devout", start, Step(frame, "roll-to-hit", [], null, hit), edit,
+            Step(frame, "score-hits", [], new() { ["extra_hits"] = extra }));
         Assert.Null(With(1));
         Assert.Contains("0 extra hits for edited dice [6 3], expected 1", With(0));
     }

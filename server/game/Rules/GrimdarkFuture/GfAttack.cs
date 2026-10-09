@@ -212,7 +212,7 @@ public static partial class GfAttack
     /// <summary>The grants this step used (spell library → consumption): every granted source it read, with the rest of its spell's grants on that unit.</summary>
     static IReadOnlyList<StateChange> Consumed(LiveSet live) => RollEffects.Consume(live);
 
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
+    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
@@ -424,8 +424,8 @@ public static partial class GfAttack
     /// in ascending order, since p.4 scores each test against *"the model's Quality value"* and a joined hero brings its own.
     /// p.4's *"having dice of multiple colors ... and then roll them all at once"* is the tabletop procedure for it. The
     /// counts are `determine-attacks`' `attacks_q&lt;n&gt;`, so nothing is recounted here and the pools are the ones the action started
-    /// with. `extra_hits` and every `granted_&lt;entry&gt;_&lt;amount&gt;` sum across all of the pools, because they belong to the group's hits
-    /// rather than to one pool, and `GfAttack.HitsFrom` already sums the successes of every `hit` roll on the frame.
+    /// with. What a face decides is `score-hits`' (opr-sequences → Dice edits); only the dice an extra-attacks row adds are drawn
+    /// here, on the faces as rolled, because drawing is the roll's.
     /// </summary>
     sealed class RollToHitStep : IStep
     {
@@ -438,28 +438,55 @@ public static partial class GfAttack
             // count that determine-attacks carried down from the pushing frame.
             if (kind == AttackKind.Shooting) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
             var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
+            var values = new Dictionary<string, int> { ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                // One die's per-die effects; the attacks it adds are returned for the caller to roll.
-                int Read(Die die)
-                {
-                    var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                    values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
-                    if (!die.Success) return 0;
-                    values["extra_hits"] += effects.ExtraHits;
-                    if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
-                    return effects.ExtraAttacks;
-                }
-                var added = ctx.Roll(plan, attacks).Dice.Sum(Read);
+                var added = ctx.Roll(plan, attacks).Dice.Sum(d => AddedAttacks(live, d));
                 // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                if (added > 0)
-                    foreach (var die in ctx.Roll(plan, added).Dice) Read(die);
+                if (added > 0) ctx.Roll(plan, added);
             }
-            RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
-            values["wounds"] = values.GetValueOrDefault("self_wounds");
-            return new Complete(Consumed(live), values);
+            return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
+        }
+
+        /// <summary>The attacks a successful die's extra-attacks rows add, recorded as having acted; nothing else a face decides is read here.</summary>
+        static int AddedAttacks(LiveSet live, Die die)
+        {
+            if (!die.Success) return 0;
+            var adds = live.Effects(Side.Attacker, EffectKind.AddHit, new DieContext(GfNames.Hit, die.Raw, die.Modified, die.Success))
+                .Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).ToList();
+            foreach (var x in adds) live.Record(x.Source);
+            return adds.Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        }
+    }
+
+    /// <summary>
+    /// What the frame's `hit` dice decide, read as they now stand, so an edit made after the roll counts (opr-sequences → Dice edits):
+    /// `extra_hits` and every `granted_&lt;entry&gt;_&lt;amount&gt;` on a success, and `self_wounds` on any die, summed across every pool and
+    /// the added dice, since they belong to the group's hits rather than to one pool. `wounds` is `self_wounds`, for the self-wounds
+    /// deal. Shared by `attack-sequence` and `spell-hits`; a spell's frame finishes here when it scored no hit.
+    /// </summary>
+    public sealed class ScoreHitsStep(bool finishWithoutHits = false) : IStep
+    {
+        public string Name => "score-hits";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (_, live, _) = Settle(ctx);
+            var rolls = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
+            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["self_wounds"] = 0 };
+            foreach (var die in rolls.SelectMany(r => r.Dice))
+            {
+                var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
+                values["self_wounds"] += effects.ExtraWounds;
+                if (!die.Success) continue;
+                values["extra_hits"] += effects.ExtraHits;
+                if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
+            }
+            if (rolls.Count > 0) RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
+            values["wounds"] = values["self_wounds"];
+            var spent = Consumed(live);
+            var scored = ctx.Frame.Value("hits") + rolls.Sum(Dice.RollOutcome.Successes);
+            return finishWithoutHits && scored == 0 ? new Finish(spent, values) : new Complete(spent, values);
         }
     }
 

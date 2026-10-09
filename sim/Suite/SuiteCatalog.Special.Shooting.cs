@@ -149,8 +149,7 @@ static partial class SpecialGames
                 }),
                 Exact("p.14 Surge: \"unmodified results of 6 to hit ... deal 1 extra hit\"; p.14 Relentless: the same \"when this model shoots at enemies over 9\" away\"", ["Surge", "Relentless"], run =>
                 {
-                    var edited = EditedRolls(run);
-                    return Each(Attacks(run).Where(a => a.Actor == "Red unit 1" && Sixes(a.Hit) > 0 && !edited.Contains(HitRoll(a)!.Id)), "a 6 to hit from the gunline", a =>
+                    return Each(Attacks(run).Where(a => a.Actor == "Red unit 1" && Sixes(a.Hit) > 0), "a 6 to hit from the gunline", a =>
                     {
                         var relentless = a.Hit!.Applied?.Contains("Relentless") == true;
                         var gap = Gap(run, a.Actor, a.Target, a.At);

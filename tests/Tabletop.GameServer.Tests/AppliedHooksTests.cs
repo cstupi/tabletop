@@ -141,7 +141,7 @@ public class AppliedHooksTests
         var joined = squad with { Models = [squad.Models[0] with { Stats = new Dictionary<string, string> { ["Quality"] = "3+", ["Defense"] = "2+" }, Properties = [P("Hero")] }, squad.Models[1]] };
         var sim = Sim.Gf(State([joined], [Unit("E", "4+", "4+", [], 1, [])]), 4);
         sim.Start(GfNames.MoraleTest, new SequenceContext(joined.Id, [], [], "wounds"));
-        Assert.Equal(1, sim.Steps("test").Single().Values!["passed"]);
+        Assert.Equal(1, sim.Steps("consequence").Single().Values!["passed"]);
         Assert.Equal(["Hero"], Applied(sim, "test"));
 
         var plain = Sim.Gf(State([Unit("P", "4+", "4+", [], 2, [])], [Unit("E", "4+", "4+", [], 1, [])]), 4);
@@ -155,7 +155,7 @@ public class AppliedHooksTests
         var u = Unit("U", "4+", "4+", [], 3, [P("Fearless")]);
         var sim = Sim.Gf(State([u], [Unit("E", "4+", "4+", [], 1, [])]), 1, 4);
         sim.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
-        Assert.Equal(["Fearless"], Applied(sim, "test"));
+        Assert.Equal(["Fearless"], Applied(sim, "override"));
         var passed = Sim.Gf(State([u], [Unit("E", "4+", "4+", [], 1, [])]), 5);
         passed.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
         NoneApplied(passed);

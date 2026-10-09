@@ -9,7 +9,8 @@ namespace Tabletop.Sim.Suite;
 static partial class SpecialGames
 {
 
-    /// <summary>One weapon group's attack: its attack-sequence frame and steps, the resolve-hits block and the deal-wounds assign steps.</summary>
+    /// <summary>One weapon group's attack: its attack-sequence frame and steps, the resolve-hits block and the deal-wounds assign steps. `Hit` is the
+    /// roll-to-hit step with score-hits' Values and Applied folded in, since score-hits settles what those dice decide.</summary>
     /// <param name="At">Its log position.</param><param name="Volley">Which shooting or melee frame it was made in, counted in log order.</param>
     sealed record Attack(SequenceStarted Seq, string Weapon, string Actor, string Target, string? Action, long At, int Volley)
     {
@@ -49,9 +50,6 @@ static partial class SpecialGames
             ? e with { Payload = s with { Rolls = s.Rolls.Select(r => r with { Dice = r.Dice.Select((d, i) => edits.GetValueOrDefault((r.Id, i), d)).ToList() }).ToList() } }
             : e).ToList();
     }
-
-    /// <summary>The rolls a DiceFix edited: a step's Values were settled from the dice before the edit, so a check that reads them skips these.</summary>
-    static HashSet<Guid> EditedRolls(SuiteGameRun run) => run.EffectiveLog.Select(e => e.Payload).OfType<DiceEdited>().Select(d => d.RollId).ToHashSet();
 
     /// <summary>
     /// p.4 Quality tests and p.5 Defense: a die's modified value is its raw value plus the roll's modifiers; "a 6 is always a success" and "a 1
@@ -150,6 +148,13 @@ static partial class SpecialGames
                         case "determine-attacks": owner.Determine = step; break;
                         case "pick-target-model": owner.Pick = step; break;
                         case "roll-to-hit": owner.Hit = step; break;
+                        case "score-hits" when owner.Hit is { } rolled:
+                            owner.Hit = rolled with
+                            {
+                                Values = (rolled.Values ?? new Dictionary<string, int>()).Concat(step.Values ?? new Dictionary<string, int>()).GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value),
+                                Applied = (rolled.Applied ?? []).Union(step.Applied ?? []).ToList() is { Count: > 0 } applied ? applied : null,
+                            };
+                            break;
                         case "roll-to-block": owner.Block = step; break;
                         case "assign": owner.Assigns.Add(step); break;
                     }

@@ -32,7 +32,7 @@ static partial class SpecialGames
                         ?? Judged(charges.Where(a => a.Block is not null).SelectMany(a => a.Block!.Rolls.Where(r => r.Roll == "defense")), "a defense roll against a Lance charge");
                 }),
                 Exact("p.14 Furious: \"When charging, unmodified results of 6 to hit in melee deal 1 extra hit\"", ["Furious"], run =>
-                    Each(Attacks(run).Where(a => a.Weapon == "Lance" && a.Action == "Charge" && Sixes(a.Hit) > 0 && !EditedRolls(run).Contains(HitRoll(a)!.Id)), "a Lance 6 on the charge", a =>
+                    Each(Attacks(run).Where(a => a.Weapon == "Lance" && a.Action == "Charge" && Sixes(a.Hit) > 0), "a Lance 6 on the charge", a =>
                     {
                         var dice = a.Block?.Rolls.Where(r => r.Roll == "defense").Sum(r => r.Dice.Count) ?? 0;
                         return Value(a.Hit!, "extra_hits") == Sixes(a.Hit) && dice == Hits(a.Hit) + Sixes(a.Hit) ? null
@@ -162,13 +162,17 @@ static partial class SpecialGames
                 }),
                 Exact("p.13 Fearless: \"fails a morale test, roll one die. On a 4+ it counts as passed\"; p.10: \"If the test is failed, the unit is Shaken\"", ["Fearless"], run =>
                 {
-                    var failedTests = Steps(run).Where(s => s.Frame?.Sequence == "morale-test" && s.Step.Rolls.Any(r => r.Roll == "morale" && !r.Dice[0].Success)
-                        && s.Frame.Context.ActorUnitId is { } u && UnitName(run, u) is "Red unit 3" or "Blue unit 2").Select(s => s.Step).ToList();
-                    var outcomes = failedTests.Select(s => s.Rolls.FirstOrDefault(r => r.Roll == "Fearless")?.Dice[0].Raw >= 4).Distinct().Count();
-                    return Each(failedTests, "a failed morale test by a Fearless squad", s =>
+                    // One morale-test frame's three steps: the test die, the override (Fearless) dice, and the consequence that read both.
+                    var failedTests = Steps(run).Where(s => s.Frame?.Sequence == "morale-test" && s.Frame.Context.ActorUnitId is { } u && UnitName(run, u) is "Red unit 3" or "Blue unit 2")
+                        .GroupBy(s => s.Step.FrameId).Select(g => g.Select(x => x.Step).ToList())
+                        .Where(f => f.Any(s => s.Step == "test" && s.Rolls.Any(r => r.Roll == "morale" && !r.Dice[0].Success)))
+                        .Select(f => (Rolls: f.SelectMany(s => s.Rolls).ToList(), Consequence: f.FirstOrDefault(s => s.Step == "consequence"))).ToList();
+                    var outcomes = failedTests.Select(t => t.Rolls.FirstOrDefault(r => r.Roll == "Fearless")?.Dice[0].Raw >= 4).Distinct().Count();
+                    return Each(failedTests, "a failed morale test by a Fearless squad", t =>
                     {
-                        var fearless = s.Rolls.SingleOrDefault(r => r.Roll == "Fearless");
-                        if (fearless is null || fearless.Threshold != 4 || fearless.Dice.Count != 1) return $"no one-die 4+ Fearless roll: {string.Join(" ", s.Rolls.Select(Show))}";
+                        var fearless = t.Rolls.SingleOrDefault(r => r.Roll == "Fearless");
+                        if (fearless is null || fearless.Threshold != 4 || fearless.Dice.Count != 1) return $"no one-die 4+ Fearless roll: {string.Join(" ", t.Rolls.Select(Show))}";
+                        if (t.Consequence is not { } s) return "no consequence step";
                         var passed = fearless.Dice[0].Raw >= 4;
                         var shaken = s.Changes.OfType<ConditionSet>().Any(c => c.Condition == "shaken" && c.Present) || Value(s, "routed") == 1;
                         return Value(s, "passed") == (passed ? 1 : 0) && shaken != passed ? null : $"Fearless {Show(fearless)}: passed={Value(s, "passed")}, shaken or routed {shaken}";

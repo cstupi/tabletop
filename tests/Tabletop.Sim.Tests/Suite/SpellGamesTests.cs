@@ -16,7 +16,7 @@ public class SpellGamesTests
     static PropertySet Set => ScenarioCompiler.CoreProperties;
     static IReadOnlyList<TestGame> Spells => SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.SpellsPrefix, StringComparison.Ordinal)).ToList();
 
-    /// <summary>The per-book games: the group less its defect exhibit (SuiteCatalog.EditedCastingDieName).</summary>
+    /// <summary>The per-book games: the group less its edited-casting-die game (SuiteCatalog.EditedCastingDieName).</summary>
     static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName).ToList();
 
     public static TheoryData<string> GameNames() => [.. Spells.Select(g => g.Name)];
@@ -93,8 +93,6 @@ static class SpellDefects
 {
     static readonly Dictionary<string, string[]> Known = new(StringComparer.Ordinal)
     {
-        // D10: the casting step stores "passed" when it rolls; a die edited to a raw 1 afterwards still resolves the spell.
-        [SuiteCatalog.EditedCastingDieName] = [SuiteCatalog.EditedCastCheck],
     };
 
     public static void AssertOnlyKnown(SuiteGameResult result)
