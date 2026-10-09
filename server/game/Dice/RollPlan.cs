@@ -4,7 +4,7 @@ namespace Tabletop.GameServer.Dice;
 
 /// <summary>
 /// What GameRules supplies per roll: the die, whether summed modifiers are clamped (OPR never; 40k ±1), and the raw faces that fail or
-/// succeed a thresholded roll whatever its modifiers (OPR p.5: 1 and 6 on every roll).
+/// succeed a thresholded roll whatever its modifiers.
 /// </summary>
 public sealed record RollConvention(int Sides, int? ModifierCap, int? AlwaysFails = null, int? AlwaysSucceeds = null);
 

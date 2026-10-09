@@ -242,7 +242,7 @@ public static class GfCasting
         return [];
     }
 
-    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
+    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1 with RequiredRaw 1 (no test, so p.5's natural 1 does not fail it, and an edit judges it the same way), so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
     sealed class HitStep : IStep
     {
         public string Name => "hit";

@@ -1,3 +1,4 @@
+using Applied = Tabletop.GameServer.Dispatch.Applied;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Properties;
@@ -106,6 +107,28 @@ public class SpellWeaponRuleTests
         var blocks = sim.Steps("roll-to-block").Single().Rolls;
         Assert.Equal(6, blocks.Sum(r => r.Dice.Count));
         Assert.All(blocks, r => Assert.Equal(-4, ApOf(r)));
+    }
+
+    /// <summary>A spell's "Roll as many dice as hits" is no test: a die set to a raw 1 by hand still lands, because the record carries RequiredRaw back to the edit.</summary>
+    [Fact]
+    public void A_spell_hit_die_set_to_a_one_by_hand_is_still_a_hit()
+    {
+        var t = Unit("T", "4+", "6+", [], 5, []);
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]);
+        var sim = new Sim(State([wizard], [t], x1: -4, x2: 4, waits: true), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(6, 4, 4, 5, 5));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Confirm(); sim.Answer(Samples.Team1, new Chosen($"Rolled Bolt|{wizard.Models[0].Id}"));
+        sim.Confirm(); sim.Answer(Samples.Team1, new Passed());
+        sim.Confirm(); sim.Answer(Samples.Team1, new SelectedPieces([t.Id]));
+        for (var i = 0; i < 20 && sim.Steps("hit").Count == 0; i++) sim.Answer(sim.AskFor(Samples.Team1).Teams[0], new Confirmed());
+        var record = sim.Steps("hit").Single().Rolls.Single();
+        Assert.Equal(1, record.RequiredRaw);
+        var frame = sim.State.Projection.Stack.Single(f => f.Steps.Any(s => s.Rolls.Any(r => r.Id == record.Id))).Id;
+        var edited = Assert.IsType<DiceEdited>(Assert.IsType<Applied>(sim.Dispatch(new SetDice(frame, record.Id, [new DieValue(0, 1)]), Samples.P1, Samples.Team1)).Events.Single());
+        Assert.True(edited.Replaced[0].New.Success);
+        sim.Confirm();
+        Assert.Equal(2, sim.Steps("roll-to-block").Single().Rolls.Sum(r => r.Dice.Count));          // both hits still reach the target
     }
 
     [Fact]

@@ -423,6 +423,7 @@ export interface RollRecord {
   readonly threshold?: number;
   readonly modifiers: readonly RollModifier[];
   readonly dice: readonly Die[];
+  readonly requiredRaw?: number;
 }
 
 export interface RoundEnded {

@@ -1168,7 +1168,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `enum SubjectKind { Unit, Model }`; `sealed record Subject(SubjectKind Kind, Guid Id)` | |
 | `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | |
 | `sealed record Die(int Raw, int Modified, bool Success)`; `sealed record RollModifier(string Source, int Amount)` | |
-| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice)` | `Threshold` null for the roll-off |
+| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise |
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
 | `sealed record GameEvent(long Seq, Guid? Actor, EventPayload Payload, string? Warning)` | `string Kind` `[JsonIgnore]` |
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |

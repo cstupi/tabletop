@@ -69,6 +69,29 @@ public class GfRollsTests
         Assert.Equal((6, 3, true), (lowered.Raw, lowered.Modified, lowered.Success));                // a 6 lowered below 4+ still succeeds
     }
 
+    /// <summary>
+    /// p.5 on an edit: SetDice re-judges the stored hit roll under the ruleset's convention (RulesEngine.PlanOf), its modifiers included.
+    /// Quality 2+ with Unpredictable Shooter's +1 (a scripted 5) would pass a raw 1 at modified 2; Quality 6+ shooting a Stealth unit
+    /// from over 9" would fail a raw 6 at modified 5.
+    /// </summary>
+    [Theory]
+    [InlineData("2+", "Unpredictable Shooter", null, 1, false)]
+    [InlineData("6+", null, "Stealth", 6, true)]
+    public void A_hit_die_set_by_hand_is_judged_by_its_natural_face(string quality, string? shooterRule, string? targetRule, int face, bool success)
+    {
+        var shooter = Unit("Shooter", quality, "4+", [], 1, shooterRule is null ? [] : [P(shooterRule)], Gun("Rifle", "36\"", 1));
+        var target = Unit("T", "4+", "6+", [], 1, targetRule is null ? [] : [P(targetRule)]);
+        var sim = Sim.Gf(State([shooter], [target], waits: true), 5);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        for (var i = 0; i < 20 && sim.Steps("roll-to-hit").Count == 0; i++)
+            sim.Answer(Samples.Team1, sim.AskFor(Samples.Team1).Question == AskQuestions.Confirm ? new Confirmed() : new Assigned(new Dictionary<string, Guid> { ["Rifle"] = target.Id }));
+        var record = sim.Steps("roll-to-hit").Single().Rolls.Single();
+        Assert.Equal(success ? -1 : 1, record.Modifiers.Sum(m => m.Amount));
+        var frame = sim.State.Projection.Stack.Single(f => f.Steps.Any(s => s.Rolls.Any(r => r.Id == record.Id))).Id;
+        var edited = Assert.IsType<DiceEdited>(Assert.IsType<Applied>(sim.Dispatch(new SetDice(frame, record.Id, [new DieValue(0, face)]), Samples.P1, Samples.Team1)).Events.Single());
+        Assert.Equal((face, success), (edited.Replaced[0].New.Raw, edited.Replaced[0].New.Success));
+    }
+
     [Fact]
     public void A_joined_hero_hits_at_its_own_quality_blocks_on_the_units_until_it_is_alone_and_lends_its_quality_to_morale()
     {

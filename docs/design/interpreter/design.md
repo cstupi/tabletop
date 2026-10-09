@@ -342,8 +342,8 @@ spell's *"Roll as many dice as hits"*, Unpredictable's table roll) and 40k's cri
 why a die carries both raw and modified.
 
 Every roll is recorded per die: `RollRecord(Guid Id, string Roll, int? Threshold,
-IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice)` with `Die(int Raw, int Modified,
-bool Success)`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
+IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw)` with `Die(int Raw, int Modified,
+bool Success)`. A reroll or `SetDice` re-judges a die under the record's own threshold, modifiers and `RequiredRaw`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
 so a threshold recomputed after a deploy could disagree with what the players rolled (resolution →
 Rerolling does not break undo).
 
