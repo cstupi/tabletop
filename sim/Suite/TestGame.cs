@@ -34,7 +34,23 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
         Evidence?.TryGetValue(entry, out var evidence) == true
             ? evidence(EventApplier.EffectiveLog(effectiveLog))
             : Suite.Fired.In(effectiveLog, entry);
+
+    /// <summary>The engine defects this game is pinned to; empty for a game expected to pass.</summary>
+    public IReadOnlyList<KnownDefect> Known { get; init; } = [];
+
+    /// <summary>This game pinned to defect <paramref name="id"/> for failures that start with any of <paramref name="checks"/>.</summary>
+    public TestGame Pinned(string id, params string[] checks) => this with { Known = [.. Known, .. checks.Select(c => new KnownDefect(id, c))] };
+
+    /// <summary>The pins that apply to a run on that driver.</summary>
+    public IReadOnlyList<KnownDefect> KnownOn(DriverKind driver) => [.. Known.Where(k => k.Driver is null || k.Driver == driver)];
 }
+
+/// <summary>
+/// An engine defect a game is pinned to: Id names it (docs/handoff.md → Defects the rules suite found), Check is the start of the failure
+/// line it causes (a check's name, or a base failure such as "invariants" or "stuck"); Driver, when set, limits the pin to runs on that
+/// driver. The game keeps its failing check; the report files that failure under the defect instead of as unexpected.
+/// </summary>
+public sealed record KnownDefect(string Id, string Check, DriverKind? Driver = null);
 
 /// <summary>What a game's checks read: the outcome, the effective log (undone ranges removed), the final projection and the sim's invariant failures.</summary>
 public sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IReadOnlyList<GameEvent> EffectiveLog,

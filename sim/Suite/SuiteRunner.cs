@@ -143,8 +143,11 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
 
         run ??= new SuiteGameRun(game, new RunOutcome.Failed(failures.LastOrDefault() ?? "setup"), [],
             new EventApplier(compiled.Board, compiled.Info).Projection, []);
-        var result = new SuiteGameResult(game.Name, game.Group, failures.Count == 0, failures, scenario.Seed,
-            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator);
+        var pins = game.KnownOn(options.Driver);
+        var (lines, known) = SuiteGameResult.Attribute(failures, pins);
+        var result = new SuiteGameResult(game.Name, game.Group, failures.Count == 0, lines, scenario.Seed,
+            ReplayOf(game, options.Driver), recordingPath, sock is not null && options.Keep ? compiled.Info.Id : null, spectator, known,
+            pins.Count == 0 ? null : pins.Select(k => k.Id).Distinct().ToList());
         return (result, run);
     }
 
