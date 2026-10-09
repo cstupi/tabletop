@@ -61,7 +61,7 @@ public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer,
 
 // Task 3 — sim/Suite/ (namespace Tabletop.Sim.Suite)
 public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces);   // the Ordinal-th roll of that kind in the game gets these faces by SetDice
-public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure);  // null = pass, else the reason
+public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IReadOnlyList<string>? Entries = null);  // null = pass, else the reason; Entries: what an exact check is about
 public sealed record TestGame(string Name, string Group, Scenario Scenario, IReadOnlyList<string> Covers,
     IReadOnlyList<DiceFix> Dice, IReadOnlyList<GameCheck> Checks);
 public sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IReadOnlyList<GameEvent> EffectiveLog,
@@ -76,13 +76,16 @@ public static partial class SuiteCatalog
 }
 public static class Fired { public static bool In(IReadOnlyList<GameEvent> effectiveLog, string entry); }   // Applied or RollModifier.Source
 public static class Coverage { public static IReadOnlyList<CoverageEntry> Of(PropertySet set, IEnumerable<SuiteGameRun> runs, bool fullRun); }
-public sealed record CoverageEntry(string Name, string Kind, IReadOnlyList<string> Games, bool Fired);   // Kind: rule | spell
+public sealed record CoverageEntry(string Name, string Kind, IReadOnlyList<string> Games, bool Fired, IReadOnlyList<ExactResult> Exact);   // Kind: rule | spell
+public sealed record ExactResult(string Game, string Check, bool Passed);
+// TestGame also carries Evidence: entry -> predicate over the effective log, for rules that act outside a step (Scout, Ambush, Aircraft, Immobile).
+// The runner always applies Ended, Invariants and FiredAll to every game.
 public static class Checks                                           // helpers games use; each returns a GameCheck
 {
     public static GameCheck Ended();                                  // outcome ended or the round cap
     public static GameCheck Invariants();
     public static GameCheck FiredAll();                               // every Covers entry fired
-    public static GameCheck Event(string name, Func<IReadOnlyList<GameEvent>, string?> failure);   // an exact check over the log, quoted rule in name
+    public static GameCheck Event(string name, IReadOnlyList<string> entries, Func<IReadOnlyList<GameEvent>, string?> failure);   // an exact check over the log, quoted rule in name
 }
 public sealed class SuiteRunner { public Task<SuiteReport> RunAsync(SuiteOptions options, IProgress<SuiteGameResult>? progress, CancellationToken ct); }
 public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver, bool Keep, string OutDir);
@@ -163,6 +166,7 @@ covered entry into play, `Checks.Ended()`, `Checks.Invariants()`, `Checks.FiredA
 Seeds are fixed. Each game must pass on both drivers; a game blocked by an engine defect keeps its failing check and
 the task's report names the defect with the log evidence.
 
+- **Morale dice cannot be fixed** (the morale frame finishes in the step that rolls): a morale exact check reads the logged morale roll and asserts the p.10 consequence for its result; pick seeds that give both a pass and a fail.
 - **Task 4, `core`** — pp.4–12, about ten games: the four actions and their moves; terrain (difficult, dangerous,
   cover, LoS-blocking, p.11–12); shooting incl. split fire; charge and melee incl. strike back; morale, Shaken,
   Fatigued; deployment with Scout and Ambush; transports embark/disembark/destroyed; objectives seize and contest;
