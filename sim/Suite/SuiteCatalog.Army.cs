@@ -227,12 +227,12 @@ public static partial class SuiteCatalog
         /// <summary>
         /// A wound-ignoring rule on three models, shot by one model with three attacks whose fixed hits and blocks deal three wounds. Where the
         /// policy's allocation gives one model more wounds than it can take while another model is left, the excess carries to that model:
-        /// "roll one die for each" is read over every ignore die of the deal-wounds frame. Seed 4's allocation carries (engine defect: the carried
-        /// wounds' ignore dice are rolled again); about half of all seeds' allocations carry. Pinned to D5.
+        /// "roll one die for each" is read over every ignore die of the deal-wounds frame. Seed 4's allocation carries; about half of all seeds'
+        /// allocations carry.
         /// </summary>
         static TestGame Carried((string Uid, string Army) book, string name, string entry, IReadOnlyList<ScenarioRule> rules, GameCheck check) =>
             Game(book, name, Play.Shot, [entry], rules, [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)], [check],
-                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4).Pinned("D5", check.Name, "4 dice [3 2 1 1] for 3 wounds");
+                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4);
 
         /// <summary>p.10: wounds that leave the unit at half or less of its starting size force a morale test. Fixed: two of three models fall to the first shooting.</summary>
         static TestGame Morale((string Uid, string Army) book, string name, string entry, IReadOnlyList<ScenarioRule> rules, int amount, string quote) =>

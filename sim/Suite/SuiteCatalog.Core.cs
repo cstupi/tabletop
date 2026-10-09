@@ -10,10 +10,7 @@ public static partial class SuiteCatalog
 {
     private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround().Pinned("D2", "p.11: \"If any model in a unit moves in or through difficult terrain", "a rush into the bog moved a model"),
         CoreGames.CoverAndSight(), CoreGames.TransportRun().Pinned("D3", "invariants: NoModelInTwoPlacesOrOffTheSlab", ", off a 24x36 slab"),
-        CoreGames.Overkill()
-            .Pinned("D1", "stuck", "the legal set of ask 'remove_casualties' (Allocation) admits no answer")
-            .Pinned("D1", "ended: stuck (NoLegalAnswer)", "the legal set of ask 'remove_casualties' (Allocation) admits no answer")
-            .Pinned("D1", "p.8: \"all weapons are fired simultaneously\"", "never finished"), CoreGames.HoldTheMarkers(), CoreGames.Deployment()];
+        CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment()];
 }
 
 /// <summary>

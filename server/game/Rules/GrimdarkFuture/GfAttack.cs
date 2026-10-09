@@ -110,7 +110,10 @@ public static partial class GfAttack
     /// <summary>
     /// One segment per run, repeating (p.8: one model removed for each wound, so ordinary wounds carry over past a dead model): the
     /// wounds left come from the parent's failed defense rolls on the first run and from the previous segment's "wounds_left" after.
-    /// Deadly's multiplied wounds and a Takedown's (a unit of one, p.14) do not carry over, so only their excess is lost.
+    /// Deadly's multiplied wounds and a Takedown's (a unit of one, p.14) do not carry over, so only their excess is lost. A carried wound
+    /// has already taken its wound-ignoring roll (Regeneration p.14, Resistance, Self-Repair, Plaguebound: "roll one die for each"), so
+    /// "wounds_carried" counts the wounds left that keep their result and roll no die again. With no model left to take a wound (an earlier
+    /// weapon group destroyed the unit, p.8 "all weapons are fired simultaneously") the wounds are lost and nothing is asked.
     /// </summary>
     sealed class AssignStep : IStep
     {
@@ -125,6 +128,7 @@ public static partial class GfAttack
             // decide the prompt's targets, and there is no prompt (p.14).
             var takedown = TakedownModel(ctx.Frame) is { } named && Lookup.AliveModels(ctx.State, target).Contains(named) ? named : (Guid?)null;
             var eligible = takedown is null ? EligibleForNextWound(ctx.State, ctx.Properties, target) : [];
+            if (takedown is null && eligible.Count == 0) return new Finish([]);
             if (takedown is not null) ctx.Applied.Add(GfNames.Takedown);
             else if (HeroDeferred(ctx.State, target)) ctx.Applied.Add(GfNames.Hero);
             Dictionary<Guid, int> allocation;
@@ -145,6 +149,7 @@ public static partial class GfAttack
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .FirstOrDefault();
 
+            var carried = ctx.Frame.Value("wounds_carried");
             var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
@@ -152,10 +157,12 @@ public static partial class GfAttack
                 var capacity = Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1;
                 if (capacity > 1) ctx.Applied.Add(GfNames.Tough);
                 var incoming = count * multiplier;
-                if (regen.Roll is { } roll)
+                var kept = Math.Min(carried, incoming);   // carried wounds come first and keep the result they rolled
+                carried -= kept;
+                if (regen.Roll is { } roll && incoming > kept)
                 {
-                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
-                    incoming = Dice.RollOutcome.Failures(record);   // each success overrides one wound
+                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming - kept);
+                    incoming = kept + Dice.RollOutcome.Failures(record);   // each success overrides one wound
                 }
                 var applied = Math.Min(capacity - model.Wounds, incoming);
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
@@ -172,7 +179,7 @@ public static partial class GfAttack
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
-            var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left };
+            var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }

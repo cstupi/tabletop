@@ -22,11 +22,6 @@ public class ArmyGamesTests
     {
         ["soul-snatcher-cults-slayers-charging"] = "no defender in this interaction",
         ["blessed-sisters-devout-edited-dice"] = "1 extra hits for edited dice [6 6 6 3 2 4 1 5 2 5 2 5], expected 3",
-        ["havoc-brothers-resistance"] = "4 dice [3 2 1 1] for 3 wounds",
-        ["robot-legions-self-repair"] = "4 dice [3 2 1 1] for 3 wounds",
-        ["robot-legions-self-repair-boost"] = "4 dice [3 2 1 1] for 3 wounds",
-        ["plague-disciples-plaguebound"] = "4 dice [3 2 1 1] for 3 wounds",
-        ["plague-disciples-plaguebound-boost"] = "4 dice [3 2 1 1] for 3 wounds",
         ["jackals-scrapper-boost"] = "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]",
     };
 
