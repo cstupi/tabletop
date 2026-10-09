@@ -22,7 +22,6 @@ public class SpecialGamesTests
     [
         ("special-aircraft-overhead", "D7", "p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
         ("special-aircraft-overhead", "D8", "p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
-        ("special-stealth-at-nine-and-a-half", "D11", "p.14 Stealth:", "\" away: hit 4+ [] "),
     ];
 
     [Fact]
@@ -31,7 +30,7 @@ public class SpecialGamesTests
         var rules = TestProperties.RulebookDocument.Entries.Select(e => e.Name).Order().ToList();
         Assert.Equal(33, rules.Count);
         Assert.Equal(rules, Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
-        Assert.All(Games.Where(g => g.Known.Count == 0), g => Assert.InRange(g.Covers.Count, 3, 5));
+        Assert.All(Games.Where(g => g.Known.Count == 0 && g.Covers.Count > 0), g => Assert.InRange(g.Covers.Count, 3, 5));   // a defect exhibit covers nothing
     }
 
     [Fact]

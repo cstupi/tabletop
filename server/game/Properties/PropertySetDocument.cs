@@ -65,7 +65,7 @@ public static class PropertiesJson
         var problems = new List<string>();
         var names = d.Entries.Select(e => e.Name).ToHashSet();
         if (names.Count != d.Entries.Count) problems.Add("entry names must be unique");
-        foreach (var r in d.Rolls.Where(r => r is "raw" or "modified")) problems.Add($"roll '{r}' is reserved");
+        foreach (var r in d.Rolls.Where(r => r is "raw" or "modified" or Effects.Conditions.Success or Effects.Conditions.Fail)) problems.Add($"roll '{r}' is reserved");
         foreach (var e in d.Entries)
         {
             if ((e.Kind == CatalogKind.Model) != (e.Aggregation is not null)) problems.Add($"{e.Name}: aggregation is set exactly when kind is model");
@@ -117,11 +117,15 @@ public static class PropertiesJson
         {
             if (c.Kind == ConditionKind.RollResult)
             {
-                if (c.Values.Count != 2) problems.Add(At($"roll_result condition has {c.Values.Count} values, need exactly 2"));
+                if (c.Values.Count is not (2 or 3)) problems.Add(At($"roll_result condition has {c.Values.Count} values, need 2 or 3"));
                 else
                 {
                     if (!d.Rolls.Contains(c.Values[0]) && c.Values[0] != ownRoll) problems.Add(At($"roll_result roll '{c.Values[0]}' is not declared"));
                     if (c.Values[1] is not "raw" and not "modified") problems.Add(At($"roll_result modifier is '{c.Values[1]}', need 'raw' or 'modified'"));
+                    if (c.Values.Count == 3 && c.Values[2] is not Effects.Conditions.Success and not Effects.Conditions.Fail)
+                        problems.Add(At($"roll_result outcome is '{c.Values[2]}', need '{Effects.Conditions.Success}' or '{Effects.Conditions.Fail}'"));
+                    if (c.Values.Count == 3 && c.Values[0] == ownRoll) problems.Add(At("roll_result on the property's own roll takes no outcome"));
+                    if (c.Values.Count == 3 && f.Kind == EffectKind.ForceReroll && c.Values[2] != Effects.Conditions.Success) problems.Add(At("force_reroll re-rolls a successful face only"));
                 }
             }
         }

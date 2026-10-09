@@ -220,7 +220,7 @@ static partial class SpecialGames
     /// <summary>
     /// Stealth at 9-10": two thirty-model units that only Hold, in frontline zones 9.1" apart on a 33.1" table, so each unit's six rows
     /// leave under 2" of play and the seed puts the closest bases between 9" and 10" apart. p.5: "When measuring the distance between two
-    /// units you always measure from/to the closest model in each unit", base to base; 9.6" is over 9" (D11: the engine floors it to 9). A
+    /// units you always measure from/to the closest model in each unit", base to base; 9.6" is over 9", measured unrounded. A
     /// defect exhibit: it covers nothing (special-long-range-gunline covers Stealth), and its check reports against Stealth.
     /// </summary>
     static TestGame StealthAtNineAndAHalf()

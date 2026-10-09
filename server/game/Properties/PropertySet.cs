@@ -56,6 +56,12 @@ public sealed record EffectCondition(Guid Id, ConditionKind Kind, EffectSubject?
         Comparison.Eq => actual == Number, Comparison.Neq => actual != Number, Comparison.Gte => actual >= Number,
         Comparison.Lte => actual <= Number, Comparison.Gt => actual > Number, Comparison.Lt => actual < Number, _ => false,
     };
+
+    public bool Compare(double actual) => Number is { } n && Comparison switch
+    {
+        Comparison.Eq => actual == n, Comparison.Neq => actual != n, Comparison.Gte => actual >= n,
+        Comparison.Lte => actual <= n, Comparison.Gt => actual > n, Comparison.Lt => actual < n, _ => false,
+    };
 }
 
 /// <summary>The pinned data half of a ruleset, in memory. Addressed by its content hash; a game pins one.</summary>
