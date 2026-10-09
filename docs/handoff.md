@@ -86,9 +86,6 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ## Known rule gaps
 
-Split fire is not checked per group: the `Assignment` legal set lists the union of the weapon groups' targets, so an
-illegal target for one group is accepted.
-
 **Most army-book rules do nothing in play.** The official books put 313 rule names on units and upgrades. 231 of them
 have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile Attack, Agile, Armor, Unique, …), and
 `LiveProperties.Gather` skips a name the set lacks, so a unit carrying one plays without it and nobody is told. The
