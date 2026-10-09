@@ -10,7 +10,7 @@ namespace Tabletop.Client.Hud;
 
 public partial class DecisionBox
 {
-    Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit; bool _pointArmed;
+    Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit;
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
 
@@ -105,8 +105,7 @@ public partial class DecisionBox
         _title.Text = $"Place the models of {names.Unit(mid.UnitId)}";
         _hint.Text = "Click the table where the unit goes";
         var unit = mid.UnitId;
-        _pointArmed = true;
-        _input.PickNextPoint(at => { _pointArmed = false; DropDeploy(unit, at); });
+        _input.PlacementPoint = at => DropDeploy(unit, at);                        // its own slot: a menu point pick cannot take it
     }
 
     void DropDeploy(Guid unit, Point3 at)
@@ -114,7 +113,8 @@ public partial class DecisionBox
         if (_deployUnit != unit || _s.Projection is not { } p) return;              // the deploy moved on before the click
         var models = p.Models.Values.Where(m => m.UnitId == unit && m.Location is OnShelf).OrderBy(m => m.Slot.Ordinal).ToList();
         var layout = DeployView.Layout(models, at, _view.Size);
-        if (layout.Count == 0) return;
+        if (layout.Count == 0) return;                                              // nothing fits there: the pick stands for another click
+        _input.PlacementPoint = null;
         _deployAt = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
         _input.Proposing.Clear(); foreach (var r in layout) _input.Proposing.Add(r.ModelId);
         _view.ShowGhosts(layout);

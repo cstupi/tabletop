@@ -267,8 +267,7 @@ public partial class DecisionBox : PanelContainer
     {
         _onEnter = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
         _proposed = null; _deployAt = null; _deployUnit = null;
-        if (_pointArmed && _input is not null && IsInstanceValid(_input)) _input.PickNextPoint(null!);   // a deploy's unused point pick would eat the next table click
-        _pointArmed = false;
+        if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();

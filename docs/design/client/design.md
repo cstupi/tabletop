@@ -622,7 +622,9 @@ it; Space centres the active unit. Keys go through `Hotkeys.Of`; the table acts 
 tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
 relayed as a `Measurement`. A base of diameter zero stands in for a bare table point, so
 piece-to-point is the same edge-to-edge call. `P` pings at the cursor. `PickNextPiece` and
-`PickNextPoint` let the menu borrow the next click for a `PieceId` or `TablePoint` item.
+`PickNextPoint` let the menu borrow the next click for a `PieceId` or `TablePoint` item. Deployment placement has its
+own standing slot, `PlacementPoint`, which the decision box sets and clears; a menu pick armed meanwhile takes the next
+click first, and the placement keeps waiting for the one after.
 
 `TableInput` draws no ruler for a piece with no placement. `Drag.Starts` resolves a model that is
 `Inside` a container to the container's placement rather than `(0,0,0)`. An occupant has no table
@@ -1062,7 +1064,7 @@ Godot layer, for completeness: `Main` (`static Instance`, `Session`, `Cache`, `H
 (`RefreshManifest`, `LoadAssetAsync`, `LoadBuiltin`), `TableInput` (`Bind`, `Tool`, `Selected`,
 `Proposing`, `Eligible`, `Holding`, `Allowance`, `Select`, `PieceRightClicked`, `TableRightClicked`, `SelectionChanged`,
 `PieceLeftClicked`, `UnitClicked`, `TargetClicked`, `ModelClicked`, `HoveredUnitChanged`, `HandMoved`, `IntentPressed`,
-`ModelDragged`, `PickNextPiece`, `PickNextPoint`, `CancelDrag`), the panels, the Hud parts and the table overlays, each
+`ModelDragged`, `PickNextPiece`, `PickNextPoint`, `PlacementPoint`, `CancelDrag`), the panels, the Hud parts and the table overlays, each
 of the last two with `Bind(Session, TableView, TableInput)`.
 
 ### Consumed from other modules

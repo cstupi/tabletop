@@ -180,6 +180,11 @@ public partial class TableInput : Node
     Action<Guid>? _pickPiece; Action<Point3>? _pickPoint;
     public void PickNextPiece(Action<Guid> then) => _pickPiece = then;
     public void PickNextPoint(Action<Point3> then) => _pickPoint = then;
+    /// <summary>
+    /// Deployment placement's own point pick, separate from the menu's one-shot slot so neither can take the other's click: it
+    /// stands until its owner clears it. A menu pick armed meanwhile takes the next click first, and the placement the one after.
+    /// </summary>
+    public Action<Point3>? PlacementPoint { get; set; }
 
     /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
     public void CancelDrag() { _drag = null; _ruler.Hide(); _presenceDirty = true; _view.Redraw(); }
@@ -189,6 +194,7 @@ public partial class TableInput : Node
         var (point, piece) = Pick(screen);
         if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(OnPlane(screen, 0) ?? point); return; }   // a point pick is the table surface, never a box top
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
+        if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
         if (Tool == TableTool.Measure) { Measure(point, piece); return; }
         if (piece is null) { ClearSelection(); return; }
         if (piece is PieceNode target && (Eligible.Contains(target.ModelId) || Eligible.Contains(target.UnitId)))
