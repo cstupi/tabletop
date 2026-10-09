@@ -73,6 +73,10 @@ public interface IGameRules
     int MaxWounds(GameState state, Guid modelId) => 1;
     /// <summary>The unit's models that may fire at the target unit now (OPR p.8, Who can shoot). Empty when either unit is unknown or off the table. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
+
+    // Asked by dispatch's hand-move judge.
+    /// <summary>May the unit deploy from the shelf inside this model (OPR p.15: a friendly Transport on the table). False by default. Wrapping rulesets must forward it.</summary>
+    bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => false;
 }
 
 public sealed class UnknownGameRulesException(string id) : Exception($"No GameRules named '{id}' ships with this build.");

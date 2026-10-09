@@ -1,5 +1,7 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Rules;
+using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -11,9 +13,9 @@ namespace Tabletop.GameServer.Tests;
 public class HandMovesTests
 {
     /// <summary>A: two units of two models; B: one unit of two. A wins the roll-off (6 against 1), so A's deploy Ask is open.</summary>
-    static SchedulerHarness AtDeployment(Enforcement enforcement)
+    static SchedulerHarness AtDeployment(Enforcement enforcement, Army? a = null, Army? b = null)
     {
-        var h = new SchedulerHarness([TestArmies.Build("A", 2, 2), TestArmies.Build("B", 1, 2)], enforcement: enforcement);
+        var h = new SchedulerHarness([a ?? TestArmies.Build("A", 2, 2), b ?? TestArmies.Build("B", 1, 2)], enforcement: enforcement);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
         h.Run(); h.ConfirmRollOff();
         Assert.Equal((AskQuestions.Deploy, h.Teams[0]), (h.Open.Question, h.Open.Teams.Single()));
@@ -124,15 +126,56 @@ public class HandMovesTests
         Assert.NotNull(HandMoves.Judge(h.State, TestGames.Move(h.State, a[0]), new Actor(Guid.CreateVersion7(), null)));
     }
 
-    [Fact]
-    public void Placing_the_picked_unit_inside_its_own_teams_container_is_placement()
+    /// <summary>
+    /// A: unit 1 plain, unit 2 with Transport(11) on its models, unit 3 plain; B: two units. A wins the roll-off and deploys
+    /// <paramref name="first"/>, B deploys its first unit, then A picks unit 1. Returns A's units.
+    /// </summary>
+    static (SchedulerHarness H, IReadOnlyList<Guid> A) PickingAfter(int first)
     {
-        var h = AtDeployment(Enforcement.Strict);
+        var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));
         var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[first]])); h.Deploy(a[first]);
+        h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
         h.Answer(0, new SelectedPieces([a[0]]));
-        var container = h.P.Units[a[1]].Definition.Models[0].Id;                              // p.15: units may deploy inside a Transport
-        var embark = new MoveModels(h.P.Units[a[0]].Definition.Models.Select(m => new ModelRelocation(m.Id, new OnShelf(), new Inside(container))).ToList());
-        Assert.Null(HandMoves.Judge(h.State, embark, TeamOf(h, 0)));
+        return (h, a);
+    }
+
+    static MoveModels Embark(SchedulerHarness h, Guid unit, Guid container) =>
+        new(h.P.Units[unit].Definition.Models.Select(m => new ModelRelocation(m.Id, new OnShelf(), new Inside(container))).ToList());
+
+    [Fact]
+    public void Placing_the_picked_unit_inside_a_friendly_Transport_on_the_table_is_placement()
+    {
+        var (h, a) = PickingAfter(1);
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;                              // p.15: units may deploy inside a Transport
+        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void Placing_the_picked_unit_inside_a_friendly_model_without_Transport_is_a_breach()
+    {
+        var (h, a) = PickingAfter(2);
+        var plain = h.P.Units[a[2]].Definition.Models[0].Id;
+        Assert.IsType<OnTable>(h.P.Models[plain].Location);
+        Assert.NotNull(HandMoves.Judge(h.State, Embark(h, a[0], plain), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void Placing_the_picked_unit_inside_a_Transport_still_on_the_shelf_is_a_breach()
+    {
+        var (h, a) = PickingAfter(2);
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        Assert.IsType<OnShelf>(h.P.Models[transport].Location);
+        Assert.NotNull(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void A_wrapping_ruleset_forwards_MayDeployInside()
+    {
+        var (h, a) = PickingAfter(1);
+        var wrapped = new WithSequences(GrimdarkFutureRules.Instance);
+        Assert.True(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[1]].Definition.Models[0].Id));
+        Assert.False(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[2]].Definition.Models[0].Id));
     }
 
     [Fact]

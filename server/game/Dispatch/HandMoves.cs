@@ -6,7 +6,7 @@ namespace Tabletop.GameServer.Dispatch;
 
 /// <summary>
 /// A hand move (MoveModels) under the enforcement setting (in-game UX spec → Hand moves under enforcement). Legal only as deployment
-/// placement: every relocation takes a model from the shelf to the table or into a model of another unit of its team, and the model's unit is one the actor's team picked in the
+/// placement: every relocation takes a model from the shelf to the table or into a container the rules allow, and the model's unit is one the actor's team picked in the
 /// deploy-family Ask the scheduler is waiting on. The scheduler waits for placement without opening another Ask (a deploy activation is
 /// incomplete while a model is on the shelf; the Ambusher boundary step waits likewise), so the pick is live exactly while the newest
 /// AskOpened in the effective log is that deploy Ask and it has closed. Everything else is the hand_move breach, which strict refuses.
@@ -24,17 +24,17 @@ public static class HandMoves
         foreach (var move in command.Moves)
         {
             if (!p.Models.TryGetValue(move.ModelId, out var model)) continue;
-            if (model.Location is OnShelf && placing.Contains(model.UnitId) && Placed(state, move.To, model.UnitId, actor.TeamId)) continue;
+            if (model.Location is OnShelf && placing.Contains(model.UnitId) && Placed(state, move.To, model.UnitId)) continue;
             return new Breach(Rule, $"{p.Units[model.UnitId].Definition.Name} moved by hand outside a move step", new StrictRefuses(RefusalReason.Illegal));
         }
         return null;
     }
 
-    /// <summary>Onto the table, or inside a model of another unit of the actor's team (p.15: units may deploy inside a Transport; capacity is unenforced).</summary>
-    static bool Placed(GameState state, Location to, Guid unit, Guid? team) => to switch
+    /// <summary>Onto the table, or inside a container the rules allow (IGameRules.MayDeployInside).</summary>
+    static bool Placed(GameState state, Location to, Guid unit) => to switch
     {
         OnTable => true,
-        Inside i => state.Projection.Models.TryGetValue(i.ContainerId, out var c) && c.UnitId != unit && Teams.Of(state, c.UnitId) == team,
+        Inside i => state.Rules.MayDeployInside(state, unit, i.ContainerId),
         _ => false,
     };
 

@@ -50,21 +50,24 @@ public static class GfMoves
         return (moves.Any(r => r.To is Inside), moves.Any(r => r.From is Inside));
     }
 
-    /// <summary>
-    /// p.15: the containers a model of this unit could reach — a friendly model with Transport(X) on the table, within the move's
-    /// remaining allowance of one of the unit's models, by a straight path crossing no impassable volume (the same reading as
-    /// charge-target's). Only one model has to reach it, so the answer is per container, not per model. Capacity is not checked:
-    /// game flow rules it unenforced and Transport's (X) is carried unread.
-    /// </summary>
     /// <summary>p.15: a model that can hold others — `Transport` is on it. The (X) is carried and never read; game flow rules capacity unenforced. The name lives here because `Effects/` may not name an OPR rule (constraint 1, Task 18).</summary>
     public static bool IsContainer(GameState state, Guid modelId) => Lookup.ModelParameter(state, modelId, GfNames.Transport) is not null;
 
+    /// <summary>p.15: a container this unit may be inside — a Transport on the table belonging to another unit of the unit's team. Capacity is not checked (game flow).</summary>
+    public static bool IsFriendlyContainer(GameState state, Guid unit, Guid containerModelId) =>
+        state.Projection.Models.TryGetValue(containerModelId, out var c) && c.Location is OnTable && c.UnitId != unit && IsContainer(state, c.Id)
+        && Teams.Of(state, c.UnitId) is { } team && team == Teams.Of(state, unit);
+
+    /// <summary>
+    /// p.15: the containers a model of this unit could reach — a friendly container (IsFriendlyContainer) within the move's
+    /// remaining allowance of one of the unit's models, by a straight path crossing no impassable volume (the same reading as
+    /// charge-target's). Only one model has to reach it, so the answer is per container, not per model.
+    /// </summary>
     public static IReadOnlyList<Guid> ContainersInReach(StepContext ctx, Guid unit, double remaining, IReadOnlyList<WorldVolume> impassable)
     {
-        var team = ctx.TeamOf(unit);
         var movers = Lookup.LivingModels(ctx.State, unit);
         if (movers.Count == 0) return [];
-        return ctx.Projection.Models.Values.Where(c => c.Location is OnTable && c.UnitId != unit && IsContainer(ctx.State, c.Id) && ctx.TeamOf(c.UnitId) == team)
+        return ctx.Projection.Models.Values.Where(c => IsFriendlyContainer(ctx.State, unit, c.Id))
             .Where(c => movers.Any(m => Battlefield.Distance(ctx.State, m, c.Id) <= remaining
                 && !Movement.Check(Battlefield.Placed(ctx.State, m)!.Value, Battlefield.Placed(ctx.State, c.Id)!.Value.Placement.Position.Horizontal,
                     remaining, impassable, [], null, ctx.State.Board.Table.Size).CrossesImpassable))

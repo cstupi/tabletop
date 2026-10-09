@@ -28,4 +28,7 @@ public sealed partial class GrimdarkFutureRules
             return GfAttack.EligibleModels(state, live, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting);
         }).Distinct().ToList();
     }
+
+    /// <summary>p.15: "Transports may deploy with units inside" — a friendly Transport already on the table (GfMoves.IsFriendlyContainer).</summary>
+    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => GfMoves.IsFriendlyContainer(state, unitId, containerModelId);
 }

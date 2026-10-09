@@ -26,14 +26,14 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
   `./scripts/client` again.
 
 **Checks.** `dotnet build` has 0 errors (7 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1488 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 44, Viewer 9, Client 161,
-GameServer 854, Management 94, Sim 127. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1493 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 44, Viewer 9, Client 161,
+GameServer 859, Management 94, Sim 127. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 `dotnet run --project sim -- objectives --seeds 1..4` fails seeds 3 and 4 ("expected at least 1 'round_ended' events,
 saw 0"; "expected team 2 to win, got winners [1, 2]"), and did before the in-game UX branch; not yet diagnosed.
 
 ## Next
 
-### 1. The in-game UX: one fix, then the owner's on-screen check
+### 1. The in-game UX: the owner's on-screen check
 
 Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
 `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision box,
@@ -42,16 +42,7 @@ the sight check, answered by the server; hand moves under the enforcement settin
 with Frontline deployment zones, drawn through round 0. The server side is checked by `.superpowers/e2e/`
 (`E2E_SCENARIO=ingame`, once per setting) and the sim.
 
-**Fix first.** Under `strict`, `HandMoves.Placed` (`server/game/Dispatch/HandMoves.cs`) accepts deploying the picked
-unit `Inside` any model of another friendly unit: nothing checks that the model carries Transport or is on the table,
-and nothing downstream refuses it (the client's "Put inside a container" menu reaches it). Fix: a default member
-`IGameRules.MayDeployInside(GameState, Guid unitId, Guid containerModelId) => false`, forwarded by every hand-forwarding
-wrapper; Grimdark Future answers with `ContainersInReach`'s check without the distance (on the table, Transport via
-`GfMoves.IsContainer`, another unit of the same team); `HandMoves` asks it. Tests: a friendly non-transport and a
-transport still on the shelf are a breach under `strict`; the legal case's container carries Transport. Then
-`server/game/AGENTS.md` and the spec say "inside a container the rules allow".
-
-**Then the owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
+**The owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
 selection and the stat sheet's two tabs, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
 shooting targets (chips, two targets), casualties (clicks, Auto), **Undo move** and Ctrl+Z, zones during deployment and
 gone at round 1, the end message, F1.

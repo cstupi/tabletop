@@ -424,7 +424,8 @@ replays with none.
 `RulesEngine` holds. Grimdark Future answers it per ranged weapon group with `GfAttack.EligibleModels`, over the live
 set of `GfAttack.AttackInteraction`'s frame-optional core: the same core the fire groups use inside a sequence, called
 with no frame, so the range is the units' distance and there are no faces. Every `IGameRules` wrapper that forwards by
-hand (the tests' `WithSequences`) forwards `MaxWounds` and `Shooters`, or the wrapped ruleset answers 1 and nobody.
+hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters` and `MayDeployInside`, or the wrapped ruleset
+answers 1, nobody and never.
 
 ### Enforcement and the override path
 
@@ -445,8 +446,8 @@ sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting
 fifteen menu and hand-move commands in `CommandClass.Override`, and `Override` translates each through
 `MenuTranslation`, which refuses only a missing reference. A `MoveModels` then goes through
 `HandMoves.Judge(state, command, actor)` and `Decide(Enforcement, Breach?)`. A relocation that takes a model from the
-shelf to the table, or inside a model of another unit of the actor's team (p.15: units may deploy inside a Transport),
-is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
+shelf to the table, or inside a container the rules allow (`IGameRules.MayDeployInside`; Grimdark Future, p.15: a Transport on the
+table belonging to another unit of the actor's team), is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
 `deploy_scouts`, `deploy_ambusher`) whose answer the scheduler is waiting on, which holds while no Ask has opened since
 that one closed: that is the placement the scheduler waits for. Anything else is the breach `hand_move`, detail
 "{unit} moved by hand outside a move step", `StrictRefuses(Illegal)`: `silent` accepts, `warn` accepts with the
