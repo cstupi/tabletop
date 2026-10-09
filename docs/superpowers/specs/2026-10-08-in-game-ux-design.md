@@ -135,6 +135,11 @@ turn the arrangement 15°. Bases sit with a fixed gap that keeps unit coherency 
 does: inside a move step it waits for **Enter**, and a model beyond its move distance shows red; outside one it is a
 hand move.
 
+**Deployment zones.** Each team's zone is drawn in its team colour through round 0, the phases before the first round
+(deployment, then Scouts), and removed when round 1 starts. Today `TableView` syncs `ZoneNode`s from the board in
+play as well, yet no zone shows during deployment; the plan's first client task finds why (the zones on the board in
+play, or the zone mesh's height and facing over the slab) before building on it.
+
 **Deployment placement.** Once a deploy answer picks a unit, a click on the table drops its shelved models there as
 ghosts in a row (`DeployView.Layout`). They drag, **Shift**-drag and take formations like a move, and **Enter** places
 them with one `MoveModels` from the shelf. Nothing reaches the server before Enter, so the placement is final under
