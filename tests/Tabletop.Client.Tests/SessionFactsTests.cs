@@ -70,11 +70,12 @@ public class SessionFactsTests : IDisposable
     {
         await LoggedIn();
         await _s.ConnectAsync(Game.Id);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _s.QuerySightAsync(Samples.Unit, Target));   // not welcomed yet
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _s.QuerySightAsync(Guid.CreateVersion7(), Samples.Unit, Target));   // not welcomed yet
         var sock = _sockets.Last;
         sock.Deliver(new Welcome(Samples.P1, Game));
         sock.Deliver(new BoardMessage(Samples.Board));
-        var id = await _s.QuerySightAsync(Samples.Unit, Target);
+        var id = Guid.CreateVersion7();                                    // the caller's id, known before the send: the newest query wins
+        await _s.QuerySightAsync(id, Samples.Unit, Target);
         var query = Assert.IsType<SightQuery>(sock.Sent[^1]);
         Assert.Equal((id, Samples.Unit, Target), (query.QueryId, query.ObserverUnitId, query.TargetUnitId));
         SightAnswer? got = null; _s.SightAnswered += a => got = a;

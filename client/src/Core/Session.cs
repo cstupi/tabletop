@@ -252,12 +252,9 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public Task SendPingAsync(Ping ping) => Welcomed()?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
 
     /// <summary>Asks the server what the observer's models see of the target's (in-game UX spec → Sight check). Returns the query id.</summary>
-    public async Task<Guid> QuerySightAsync(Guid observerUnitId, Guid targetUnitId)
-    {
-        var id = Guid.CreateVersion7();
-        await (Welcomed() ?? throw NotConnected()).SendAsync(new SightQuery(id, observerUnitId, targetUnitId));
-        return id;
-    }
+    /// <summary>The caller names the query, so it knows which answer is its newest before the send returns.</summary>
+    public async Task QuerySightAsync(Guid queryId, Guid observerUnitId, Guid targetUnitId) =>
+        await (Welcomed() ?? throw NotConnected()).SendAsync(new SightQuery(queryId, observerUnitId, targetUnitId));
 
     /// <summary>The socket once the server has welcomed it; nothing but Connect goes out before that.</summary>
     IGameSocket? Welcomed() => _welcomed ? _socket : null;

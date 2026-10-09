@@ -13,7 +13,7 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
   - `IDispatcher`: posts to the main thread; `ImmediateDispatcher` in tests, `GodotDispatcher` in `src/Screens/`.
   - `AskViewModel`: `LegalSet` to `AskMode`, and the first open Ask for my team.
   - `AnimationQueue`, `MoveRuler`, `DeployView`, `SelectionView`, `PendingDrops`, `PresenceTable`, `MenuModel`, `LogText`, `Names`.
-  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`.
+  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`.
   - `AssetCache` (content-addressed), `BuiltinContent`, `TerrainGenerators`, `ClientSettings`, `SessionStore`.
 - `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `UpdateRequiredScreen`, `GodotDispatcher`.
 - `src/Hud/`: the play Hud: `HeaderBar`, `StatSheet`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `EndMessage`, `KeyOverlay`.

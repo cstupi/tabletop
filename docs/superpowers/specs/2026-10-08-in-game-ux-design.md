@@ -164,8 +164,8 @@ without L. The client asks the server and draws the answer:
 
 - a line from every model of the selected unit to every model of the hovered one: green clear, amber clear but
   screened (cover), red blocked, with the blocking terrain piece or model lit;
-- a summary, `4 of 5 models can see Red Warriors · in cover`, and with `declare_targets` open, how many models can
-  shoot.
+- a summary, `4 of 5 models can see Red Warriors · 2 of 3 clear lines screened`, and with `declare_targets` open, how
+  many models can shoot. Whether the unit is in cover is the rules' (p.11's majority) and the client does not state it.
 
 The answer is the same `Sight` the rules use, so the check tests the server.
 
@@ -280,6 +280,7 @@ Logic goes in `client/src/Core/`, Godot-free and unit-tested; Godot nodes draw i
 | `CasualtyPick` | the allocation being built, Auto, completeness |
 | `Formation` | N rows around a point at a yaw, coherent spacing (geometry from `Tabletop.Geometry`) |
 | `HoverView` | name, unit-to-unit distance and its two closest points, per-model wounds |
+| `SightSummary` | the sight summary's counts, and the models that cannot shoot the hovered or an assigned target |
 | `HandMoveUndo` | the undoable hand move and when it expires |
 | `Hotkeys` | key to intent per context |
 | `RuleTexts` | the fetched catalog by name |

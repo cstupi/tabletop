@@ -88,6 +88,8 @@ public partial class GameScreen
     {
         if (_targets is null || !IsInstanceValid(_targets)) return;
         if (_decision?.Targets is { } t) _targets.Show(t.Groups, t.Assigned); else _targets.Clear();
+        if (_sight is not null && IsInstanceValid(_sight))
+            _sight.ShowAssigned(_decision?.Targets?.Groups ?? [], _decision?.Targets is { } a ? new Dictionary<string, Guid>(a.Assigned) : new Dictionary<string, Guid>());
     }
 
     IReadOnlyList<MenuItem> ItemsFor(Guid id, bool shift)
