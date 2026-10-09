@@ -66,12 +66,15 @@ public static class GfAnswers
 
     /// <summary>
     /// The first relocation of a listed model the reading does not apply: one Moves drops, or one to somewhere no move step puts a model (the
-    /// shelf). Null when every relocation is read. AnswerBreach refuses it under strict rather than let it pass as a silent zero move.
+    /// shelf). Null when every relocation is read. AnswerBreach refuses it under strict rather than let it pass as a silent zero move. A
+    /// relocation to where the model already is (an occupant answered Inside the container it is in) is standing still, not a dropped one:
+    /// it is how a model with nowhere to stand answers, and it moves nothing (a transport's survivor is then destroyed: GfContainers).
     /// </summary>
     public static ModelRelocation? Unread(GameState state, MoveRegion region, Destinations answer)
     {
         var read = Moves(state, region, answer).ToDictionary(m => m.ModelId);
         return answer.Moves.Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId)).DistinctBy(m => m.ModelId)
+            .Where(m => m.To != state.Projection.Models[m.ModelId].Location)
             .FirstOrDefault(m => !read.TryGetValue(m.ModelId, out var r) || r.To is not (OnTable or Inside));
     }
 

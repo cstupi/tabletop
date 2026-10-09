@@ -83,9 +83,9 @@ public static class GfMelee
     }
     static IReadOnlyList<StateChange> Fatigue(Guid unit) => [new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Fatigued, true)];
 
-    /// <summary>p.11 "Units may not move through impassable terrain": the volumes a close-in or a consolidation lists, which AnswerBreach judges.</summary>
-    static List<Guid> Impassable(GameState state) =>
-        Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList();
+    /// <summary>p.11 "Units may not move through impassable terrain": the volumes a close-in or a consolidation lists, which AnswerBreach judges; none for a
+    /// Flying mover (p.13, GfMoves.Flies), whose landing AnswerBreach still judges.</summary>
+    static IReadOnlyList<Guid> Impassable(StepContext ctx, Guid mover) => GfMoves.ImpassableFor(ctx.State, GfMoves.Flies(ctx.State, ctx.Properties, mover));
 
     /// <summary>The settled move answer: every model that went on the table lands on the surface. Shared by the defender's close-in and consolidation.</summary>
     static StepOutcome Settled(StepContext ctx, AskRecord closed)
@@ -112,7 +112,8 @@ public static class GfMelee
     {
         var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
         var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
-        var impassable = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
+        // p.13 Flying "may move through units and terrain": a Flying charger's reach is not blocked by impassable terrain.
+        var impassable = live.Has(Side.Attacker, "Flying") ? [] : Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var team = Teams.Of(state, unit);
         // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
@@ -159,7 +160,7 @@ public static class GfMelee
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
             var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > Touching)).ToList();
             if (free.Count == 0 || ctx.TeamOf(target) is not { } team) return new Complete([]);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, Impassable(ctx.State), [], null), allowPass: true)]);   // a close-in: impassable terrain, no difficult cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, Impassable(ctx, target), [], null), allowPass: true)]);   // a close-in: impassable terrain, no difficult cap
         }
     }
 
@@ -319,7 +320,7 @@ public static class GfMelee
             var (chargerAlive, defenderAlive) = (Lookup.LivingModels(ctx.State, charger), Lookup.LivingModels(ctx.State, defender));
             if (chargerAlive.Count == 0 && defenderAlive.Count == 0) return new Complete([]);
             var (mover, distance) = chargerAlive.Count == 0 ? (defender, GfNames.Consolidate) : defenderAlive.Count == 0 ? (charger, GfNames.Consolidate) : (charger, GfNames.FallBack);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx.State), [], null), allowPass: true)]);   // fall back / consolidate: impassable terrain, no difficult cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx, mover), [], null), allowPass: true)]);   // fall back / consolidate: impassable terrain, no difficult cap
         }
     }
 }

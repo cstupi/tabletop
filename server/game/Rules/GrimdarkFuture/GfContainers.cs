@@ -40,8 +40,10 @@ public static class GfContainers
 
     /// <summary>
     /// p.15: the survivors are Shaken and "placed fully within 6" of the transport". The Ask is a move_region whose containment names
-    /// the container being exited, so the client draws the region a disembark move draws. A survivor with no placement in the answer,
-    /// or one outside the radius, has nowhere legal to stand; the rulebook does not cover it (ruling 12), so it is destroyed.
+    /// the container being exited, so the client draws the region a disembark move draws. A survivor left out of the answer, or answered
+    /// where it is (inside the wreck), has nowhere legal to stand; the rulebook does not cover it (ruling 12), so it is destroyed. A placement
+    /// outside the radius or off the table is refused under strict (GfMoves.PathBreach, move_exit); under warn and silent it is applied as nowhere
+    /// to stand, and that survivor is destroyed too.
     /// That removal is a casualty and writes what `assign` writes for one: wounds at capacity, the model to the shelf, and the wounds on the
     /// unit's activation tally, so p.10's end-of-activation morale test counts it. `Values["destroyed"]` is how many went that way.
     /// </summary>

@@ -30,6 +30,29 @@ public static class GfMoves
 
     static IReadOnlyList<WorldVolume> Declared(IReadOnlyList<WorldVolume> terrain, TerrainDeclarations flag) => terrain.Where(v => v.Volume.Declarations.HasFlag(flag)).ToList();
 
+    /// <summary>
+    /// p.13 Flying: "Models with this special rule may move through units and terrain"; p.11: "Units may not move through impassable terrain, unless they
+    /// have any rules that allow them to ignore it". A Flying unit's move Ask lists no impassable volume to sweep; where it ends is still judged
+    /// (LandsInImpassable). Read from the unit's live set, since Flying can be granted.
+    /// </summary>
+    public static bool Flies(GameState state, PropertySet props, Guid unit) =>
+        LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, null, null, Battlefield.TerrainUnder(state, unit))).Has(Side.Attacker, "Flying");
+
+    /// <summary>The impassable volumes a move of this unit may not sweep: none for a Flying unit (Flies).</summary>
+    public static IReadOnlyList<Guid> ImpassableFor(GameState state, bool flying) =>
+        flying ? [] : Declared(Battlefield.Terrain(state), TerrainDeclarations.Impassable).Select(v => v.Id).ToList();
+
+    /// <summary>
+    /// p.11: units "may not end their move partially overhanging gaps or terrain", and p.7: models may never "be placed in physically impossible
+    /// locations". Whether the model's base, at this landing, touches an impassable volume's footprint — the test Movement.Check's sweep makes at
+    /// each point, so a unit that may not pass through impassable terrain and one that flies over it are held to the same landing.
+    /// </summary>
+    public static bool LandsInImpassable(GameState state, Guid modelId, Placement landing, IReadOnlyList<WorldVolume> impassable)
+    {
+        var at = Battlefield.At(state, modelId, landing);
+        return Movement.Check(at, at.Placement.Position.Horizontal, 0, impassable, [], null, null).CrossesImpassable;
+    }
+
     /// <summary>p.11: one die per model, or the model's Tough value in dice.</summary>
     public static int DangerousDice(GameState state, IEnumerable<Guid> models) => models.Sum(m => Lookup.ModelParameter(state, m, "Tough") ?? 1);
 
@@ -124,13 +147,20 @@ public static class GfMoves
     /// <summary>
     /// The geometry of each move on the table, against the Ask's own parameters, read as the steps apply it (GfAnswers.Moves). In order:
     /// p.7 "models may also never move outside of the battlefield (no part of them, at any point)" (a model already standing off the table, which only a
-    /// hand move can do, is not judged for it); p.11 "Units may not move through impassable terrain" (the volumes the Ask lists); p.7 "as long as no
-    /// part of their bases move further than the total movement distance" (the Ask's Allowance). A disembark is judged by ExitPlacement instead: p.15
-    /// "must stay fully within 6" of it when exiting" and p.7's table edge. The 1" separation and coherency stay client-flagged.
+    /// hand move can do, is not judged for it); p.11 "Units may not move through impassable terrain" (the volumes the Ask lists, less any the model's
+    /// base already touches where it stands, which again only a hand move can do, so that it can move out); p.7 "as long as no part of their bases
+    /// move further than the total movement distance" (the Ask's Allowance); and p.11 "may not end their move partially overhanging gaps or terrain"
+    /// with p.7 "physically impossible locations" (LandsInImpassable, against every impassable volume on the table, whether or not the Ask lists it:
+    /// a Flying unit's Ask lists none, p.13). The Aircraft move, the one Ask with a MinDistance (MoveStep), is exempt from the landing: p.13 "Aircraft
+    /// ignore all units and terrain when moving and stopping". A model answered where it stands has not moved and is not judged. A disembark is
+    /// judged by ExitPlacement instead: p.15 "must stay fully within 6" of it when exiting" and p.7's table edge. The 1" separation and coherency
+    /// stay client-flagged.
     /// </summary>
     public static AnswerBreachFound? PathBreach(GameState state, MoveRegion region, Destinations answer)
     {
-        var impassable = Battlefield.Terrain(state).Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
+        var terrain = Battlefield.Terrain(state);
+        var impassable = terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
+        var landing = region.MinDistance is null ? Declared(terrain, TerrainDeclarations.Impassable) : [];
         var size = state.Board.Table.Size;
         foreach (var m in GfAnswers.Moves(state, region, answer))
         {
@@ -143,11 +173,16 @@ public static class GfMoves
                 continue;
             }
             if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
-            var check = Movement.Check(start, to.Placement.Position.Horizontal, region.Allowance, impassable, [], null, size);
+            var destination = to.Placement.Position.Horizontal;
+            if (start.Placement.Position.Horizontal.DistanceTo(destination) <= 1e-6) continue;
+            var swept = impassable.Where(v => !Movement.Check(start, start.Placement.Position.Horizontal, 0, [v], [], null, null).CrossesImpassable).ToList();
+            var check = Movement.Check(start, destination, region.Allowance, swept, [], null, size);
             if (check.LeavesTable && Table.ContainsBase(size, start))
                 return new(GfNames.MoveOffTableRule, $"{name} would leave the table: models may never move outside of the battlefield (p.7)");
             if (check.CrossesImpassable)
                 return new(GfNames.MoveImpassableRule, $"{name} would move through impassable terrain (p.11)");
+            if (LandsInImpassable(state, m.ModelId, to.Placement, landing))
+                return new(GfNames.MoveImpassableRule, $"{name} would end its move in impassable terrain (p.11, p.7)");
             if (check.Distance > region.Allowance + 1e-6)
                 return new(GfNames.MoveAllowanceRule, $"{name} moved {check.Distance:0.##}\", more than the {region.Allowance:0.#}\" allowed (p.7)");
         }
@@ -245,7 +280,8 @@ public static class GfMoves
             var aircraft = IsAircraft(ctx, unit);
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action) + (aircraft ? GfNames.AircraftMove : 0);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
-            var strider = aircraft || live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");
+            var flying = live.Has(Side.Attacker, "Flying");
+            var strider = aircraft || live.Has(Side.Attacker, "Strider") || flying;
             if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             // p.11 "for that movement": the cap spans every segment of the move a cast splits. What is left of it is this segment's cap, and once an
@@ -257,9 +293,10 @@ public static class GfMoves
             switch (ctx.Frame.Value("phase"))
             {
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
-                    List<Guid> impassable = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList();
+                    // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (Flies); PathBreach still judges where Flying ends.
+                    var impassable = ImpassableFor(ctx.State, aircraft || flying);
                     List<Guid> difficult = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
-                    var containment = Containers(ctx, unit, action, remaining, Declared(terrain, TerrainDeclarations.Impassable));
+                    var containment = Containers(ctx, unit, action, remaining, aircraft || flying ? [] : Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
                         : ignoreSeparation ? "Charge: move into contact" : aircraft ? $"Move {AircraftLeast(ctx, unit)} to {remaining:0.#}\" in a straight line" : $"Move up to {remaining:0.#}\"";
                     // p.13: an Aircraft's move is mandatory, so it may not pass and must go at least 30" (MinimumBreach judges the answer).
@@ -429,7 +466,7 @@ public static class GfMoves
             {
                 var terrain = Battlefield.Terrain(ctx.State);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, Declared(terrain, TerrainDeclarations.Impassable).Select(v => v.Id).ToList(),
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, ImpassableFor(ctx.State, live.Has(Side.Attacker, "Flying")),
                         Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(),
                         live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying") ? null : GfNames.DifficultCap), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
@@ -480,7 +517,7 @@ public static class GfMoves
     }
 
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
-    /// stood and its centre is outside every impassable volume. Nothing between is swept. A landing that fails stays where it was. The table edge
+    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Nothing between is swept. A landing that fails stays where it was. The table edge
     /// and p.7's 1" are client-flagged, as for every move (MoveStep reports Movement.Check's LeavesTable and does not refuse it).</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
@@ -493,7 +530,7 @@ public static class GfMoves
             var to = settled.Position;
             var displaced = Math.Sqrt((to.X - from.X) * (to.X - from.X) + (to.Y - from.Y) * (to.Y - from.Y));
             if (displaced > distance + 1e-6) continue;
-            if (Containment.VolumesContaining(Battlefield.At(ctx.State, m.ModelId, settled), impassable).Count > 0) continue;
+            if (LandsInImpassable(ctx.State, m.ModelId, settled, impassable)) continue;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         return moves.Count == 0 ? [] : [new ModelsMoved(moves)];

@@ -500,17 +500,24 @@ functions read it:
   `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move's
   straight path against the Ask's own parameters: p.7 *"never move outside of the battlefield (no part
   of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of
-  their bases move further than the total movement distance"*; a model already standing off the
-  table is not judged for the edge); `aircraft_minimum`; and
+  their bases move further than the total movement distance"*, and the landing against every impassable
+  volume on the table, p.11 *"may not end their move partially overhanging gaps or terrain"* with p.7
+  *"physically impossible locations"*, except the Aircraft move (p.13 *"when moving and stopping"*); a
+  model answered where it stands is not judged, one already standing off the table is not judged for the
+  edge, and one whose base already touches an impassable volume is not judged for sweeping that volume);
+  `aircraft_minimum`; and
   `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
   is held to it once any model's straight path enters a listed difficult volume, or an earlier
   segment of the move did; p.11: *"all models in the unit may not move more than 6" for that
   movement"*), with `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least
   `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
   charges, the defender's close-in and consolidation (whose Asks list the impassable volumes), a
-  disembark and a destroyed transport's survivors, rule repositions and a spell's forced move. The
-  1" separation and coherency stay client-flagged. One gap: a placement row's landing inside impassable
-  terrain is still dropped by `ApplyPlacement` rather than judged, because its Ask lists no volumes. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  disembark and a destroyed transport's survivors, rule repositions and placements, and a spell's forced
+  move. A Flying unit's action move, charge, close-in, consolidation and reposition Asks list no impassable
+  volume (p.13 Flying *"may move through units and terrain"*; p.11 *"unless they have any rules that allow
+  them to ignore it"*; `GfMoves.Flies`, read from the live set), so only its landing is judged. A relocation
+  to where the model already is (an occupant answered `Inside` its own container) is standing still, not
+  `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
   `AskAnswered.OutsideLegalSet` under `warn`.
   A spend divides the same way: whether the answering team owns the models it paid with is state

@@ -55,7 +55,8 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - A `MoveModels` goes through `HandMoves.Judge` and `EnforcementPolicy.Decide`: placing the unit the actor's team last picked at a deploy Ask from the shelf onto the table, or inside a container the rules allow (`IGameRules.MayDeployInside`), is legal; anything else is `hand_move`, which `silent` accepts, `warn` warns and `strict` refuses.
 - An Ask answer inside its legal set is also asked of `IGameRules.AnswerBreach`, which names the rule broken; the dispatcher decides it as a
   `Breach` (`StrictRefuses(Illegal)`) under the enforcement setting. Grimdark Future's (`GfRules.Moves.cs`) are `move_not_offered`, `move_exit`,
-  `move_off_table`, `move_impassable`, `move_allowance` (`GfMoves.PathBreach`, p.7 and p.11, against the Ask's own parameters), `difficult_cap`
+  `move_off_table`, `move_impassable`, `move_allowance` (`GfMoves.PathBreach`, p.7 and p.11, against the Ask's own parameters, plus the landing
+  against every impassable volume, which a Flying unit's Ask does not list), `difficult_cap`
   (`GfMoves.DifficultCapBreach`: p.11 holds every model of a `MoveRegion` to its `DifficultCap` once any model's path, or an earlier segment of the
   move, enters difficult ground) and `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least `MinDistance`, p.13). All read the
   answer through `GfAnswers.Moves`, the reading the move steps apply, so a check never passes a relocation the step reads differently.

@@ -229,8 +229,11 @@ map of integers. A `Passed` answer is a zero move.
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
 Indirect's *"shooting after moving"* reads. Under the enforcement setting, dispatch judges the answer's allowance, impassable
-terrain and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
-(`move_not_offered`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
+terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
+(`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
+terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask (read
+from the live set, `GfMoves.Flies`) lists no impassable volume; p.11 *"may not end their move partially overhanging gaps or
+terrain"* and p.7 *"physically impossible locations"* still hold its landing (`GfMoves.LandsInImpassable`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
 `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
 prompt for a charge.
 
@@ -327,7 +330,7 @@ that causes a wound would be counted twice.
 
 `charge-target` offers enemy units with a model within `StatReader.ActionDistance(Charge)` of a
 charger model whose straight path crosses no impassable volume
-(`Movement.Check(...).CrossesImpassable`). Two containment consequences fall out:
+(`Movement.Check(...).CrossesImpassable`); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is
@@ -450,7 +453,7 @@ move step's work, not a sequence of their own. `MoveStep.Containers` decides wha
 | Answer shape | Meaning | What is measured |
 | --- | --- | --- |
 | `To is Inside` | embarking | **nothing.** p.15: *"only one model needs to reach the Transport for everyone to embark"*, and the 1-inch move restriction is ignored. `distance_used_tenths` does not grow. The one guard is state integrity: an `Inside` whose container is not a model on the table is dropped |
-| `From is Inside`, `To is OnTable` | disembarking | p.15's *"must stay fully within 6 inches of it when exiting"* and p.7's *"never move outside of the battlefield (no part of them, at any point)"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin` and `Table.ContainsBase`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. A placement outside the radius or off the table is not applied and that model stays inside |
+| `From is Inside`, `To is OnTable` | disembarking | p.15's *"must stay fully within 6 inches of it when exiting"* and p.7's *"never move outside of the battlefield (no part of them, at any point)"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin` and `Table.ContainsBase`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. Under strict, a placement outside the radius or off the table is refused (`move_exit`); under warn and silent it is not applied and that model stays inside. A model answered `Inside` the container it is in stands still and stays inside |
 | table to table | an ordinary move | as before |
 
 Ignoring the 1-inch restriction needs no code, because nothing enforces it in the first place.

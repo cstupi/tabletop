@@ -119,8 +119,10 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
 
         var impassable = view.VolumesById(m.ImpassableVolumeIds);
         var difficult = view.VolumesById(m.DifficultVolumeIds);
+        // An Ask may list no impassable volume to sweep and still not let a model end in one, so every sample lands clear of them all.
+        var landing = view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var destinations = m.ModelIds.ToDictionary(id => id, id => view.PlacedOf(id) is { } placed
-            ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view))
+            ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view), landing)
             : SampleExit(id, m, view));
         // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model sampled
         // further than it is sampled again within the cap. Nothing is redrawn when no path enters.
@@ -128,7 +130,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
                 && Movement.Check(p, d, m.Allowance, impassable, difficult, cap, view.Table).EntersDifficult))
             foreach (var id in m.ModelIds)
                 if (view.PlacedOf(id) is { } p && destinations[id] is { } d && p.Placement.Position.Horizontal.DistanceTo(d) > cap)
-                    destinations[id] = Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view));
+                    destinations[id] = Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view), landing);
         var moves = new List<ModelRelocation>();
         var sampled = false;
         foreach (var id in m.ModelIds)
@@ -138,7 +140,9 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var destination = destinations[id];
             if (destination is null)
             {
-                moves.Add(new ModelRelocation(id, from, from));   // stand still: legal unless the region sets a minimum
+                // Nowhere to stand. A model on the table stands still (legal unless the region sets a minimum); one inside a container is left
+                // out, which leaves it where it is.
+                if (start is not null) moves.Add(new ModelRelocation(id, from, from));
                 continue;
             }
             sampled = true;
@@ -177,10 +181,17 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
     /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still, except under a minimum, which answers
     /// the point at the minimum toward the farthest corner instead.
-    /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins.
+    /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins. A sample whose base, where it
+    /// lands, touches a <paramref name="landing"/> volume is rejected too.
     /// </summary>
+    private static bool Lands(PlacedModel start, Point2 at, IReadOnlyList<WorldVolume> volumes)
+    {
+        var there = start with { Placement = start.Placement with { Position = new Point3(at.X, at.Y, start.Placement.Position.Z) } };
+        return Movement.Check(there, at, 0, volumes, [], null, null).CrossesImpassable;
+    }
+
     private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null)
+        IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null, IReadOnlyList<WorldVolume>? landing = null)
     {
         var origin = start.Placement.Position.Horizontal;
         // A minimum (MoveRegion.MinDistance) the table has room for is sampled above; one it has no room for is met only at the farthest corner.
@@ -203,6 +214,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
             if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) continue;
+            if (landing is { Count: > 0 } && Lands(start, candidate, landing)) continue;
             if (target is not { } goal) return candidate;
             if (best is null || candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
         }

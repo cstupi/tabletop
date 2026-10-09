@@ -250,9 +250,9 @@ public partial class ArmyRuleHookTests
     [Fact]
     public void A_placement_crosses_impassable_terrain_but_may_not_land_in_it()
     {
-        var wall = new Tabletop.Content.TerrainPlacement(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("wall"), new Tabletop.Geometry.Point3(-9, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
+        var wall = new Tabletop.Content.TerrainPlacement(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("wall"), new Tabletop.Geometry.Point3(-9.5, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
             [new Tabletop.Content.TerrainVolume(Guid.CreateVersion7(), new Tabletop.Geometry.Volume(Tabletop.Geometry.VolumeKind.Solid, Tabletop.Geometry.Footprint.Rect(1, 6), new Tabletop.Geometry.Point2(0, 0), new Tabletop.Geometry.Yaw(0), 0, 4, Tabletop.Geometry.TerrainDeclarations.Impassable, null))]);
-        foreach (var (dx, lands) in new[] { (3.0, true), (2.0, false) })
+        foreach (var (dx, lands) in new[] { (3.0, true), (2.5, false), (1.5, false) })   // 2.5": the centre is clear but the base overhangs the wall (p.11 "partially overhanging")
         {
             var a = Unit("A", "4+", "4+", [], 1, [P("Teleport")]);
             var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -11, x2: 20, terrain: [wall]), GrimdarkFutureRules.Instance, Core, new ScriptedDice(4));
