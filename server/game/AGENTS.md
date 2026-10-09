@@ -19,7 +19,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `Properties/`: `PropertySet` (pinned set), `PropertySetDocument`, `IPropertiesStore`, `PostgresPropertiesStore`, `PropertiesSeeder`.
 - `Content/`: `grimdark-future-core.properties.json`, `grimdark-future-army-rules.part.json`, `army-books/<uid>.book.json`. All embedded resources.
 - `Dice/`: `DiceSource`, `ScriptedDice` (tests), `DiceCursor`, `Roller`, `RollPlan`.
-- `Effects/`: `LiveProperties`, `RollEffects`, `Conditions`, `StatReader`, `Lookup`, `Interaction`.
+- `Effects/`: `LiveProperties`, `RollEffects`, `Conditions`, `StatReader`, `Lookup`, `Interaction`, `AppliedEntries`.
 - `Interpreter/`: `SequenceInterpreter`, `FrameReader`, `Steps`, `StepContext`, `Windows`, `Battlefield`, `Sight`.
 - `Scheduler/`: `SchedulerFactory`, `AlternatingActivationScheduler`, `PlayerTurnScheduler`, `SchedulerBase`, `RollOff`, `TurnCycle`, `ActivationOption.cs`, `SchedulerTypes.cs`.
 
@@ -45,6 +45,11 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `SchedulerFactory` picks `AlternatingActivationScheduler` or `PlayerTurnScheduler` from `game.SchedulerShape`.
 - Dice: die `i` of a game is a pure function of (`rng_seed`, `i`) in `DiceSource.Draw`. `DiceCursor.DrawnSoFar` counts dice in the effective log (roll records plus rerolls); edits draw nothing.
 - Effects run two passes over live properties. Pass one (`LiveProperties`, to a fixed point): which properties are live, grants, suppressions, parameter changes, suppressed modifier classes. Pass two (`RollEffects` and readers): what the live properties do to a roll or stat.
+- `StepCompleted.Applied` lists the catalog entries that acted in that run of the step, each once, in order of first application;
+  null when none did. Each `StepContext` owns an `AppliedEntries`: a live set settled through `StepContext.Settle` records every
+  effect row that applies, and a ruleset hook that changes a result adds the rule it names (`ctx.Applied.Add`). A rule that acts in
+  the scheduler or in action legality (Scout, Ambush, Aircraft, Immobile) completes no step and is not listed. The rules suite reads it
+  to judge which rules fired.
 - `SequenceInterpreter` opens a "Continue: {step}" confirm Ask between steps when `Info.WaitsBetweenSteps` is on, gated to the actor's team. The client never offers the flag; it serves development. A frame with no actor and no parent (the roll-off) is always gated, to every team.
 - A `MoveModels` goes through `HandMoves.Judge` and `EnforcementPolicy.Decide`: placing the unit the actor's team last picked at a deploy Ask from the shelf onto the table, or inside a container the rules allow (`IGameRules.MayDeployInside`), is legal; anything else is `hand_move`, which `silent` accepts, `warn` warns and `strict` refuses.
 - `SightQuery` is answered to the asker alone from `Sight.Line` per model pair and `IGameRules.Shooters`: nothing appended or broadcast, no `AtRest`. `ModelFacts` (`IGameRules.MaxWounds`) goes to a client on connect once playing, and to everyone after a batch that changes a value. `Shooters` reads the game's `PropertySet` through `IRulesEngine.Properties`; Grimdark Future's calls `GfAttack.AttackInteraction`'s frame-optional core with no frame, the core the fire groups share.

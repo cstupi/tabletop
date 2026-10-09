@@ -22,7 +22,8 @@ A static developer web app that draws a `sim/` recording top-down on a 2D canvas
 - Live feed: `management.ts` posts to `/v1/auth/password` or `/v1/auth/session/refresh` for a JWT, `liveFeed.ts` sends `Connect` on the game socket (`VITE_GAME_SOCKET`, default `ws://localhost:5200/ws`). The account must already be a participant with no team.
 - Live frames come from `Applier` (port of `Tabletop.Protocol.EventApplier`) and `FrameProjector` (port of `Tabletop.Sim.Recording.FrameProjector`); `lineOf` ports `Tabletop.Sim.Recording.LogLines`.
 - The board is a grid in inches: each model's base outline coloured by team with facing, terrain volumes as outlines labelled with declarations. A timeline sits beside the log.
-- The Tests page (header tab) drives the runner service (`sim serve`): `/suite` and `/runs` are proxied to `TABLETOP_SUITE_PROXY_TARGET` (default `http://localhost:5180`; compose `http://sim-runner:5180`). Watch loads a kept recording; Open live asks the runner for a spectator session (`POST /runs/{id}/games/{game}/spectate`) and opens the live feed on that kept socket game.
+- The Tests page (header tab) drives the runner service (`sim serve`): `/suite` and `/runs` are proxied to `TABLETOP_SUITE_PROXY_TARGET` (default `http://localhost:5180`; compose `http://sim-runner:5180`). Watch loads a kept recording; Open live asks the runner for a spectator session (`POST /runs/{id}/games/{game}/spectate`) and opens the live feed on that kept socket game. The page groups the games, runs a selection with Keep and a driver, lists each result
+  as it arrives (a game pinned to an engine defect shows failures prefixed `known defect <id>: `) and the coverage table at the end.
 - Playback only. It sends no command and answers no Ask. The only calls to management are the two auth endpoints.
 
 ## Commands
