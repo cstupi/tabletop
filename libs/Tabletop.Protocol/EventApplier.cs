@@ -82,7 +82,7 @@ public sealed class EventApplier(Board board, GameInfo game)
             case StepCompleted s:
             {
                 var frame = FrameOf(p, s.FrameId, s);
-                frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values));
+                frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values, s.Applied));
                 foreach (var roll in s.Rolls) frame.PendingMut.Remove(roll.Roll);
                 foreach (var c in s.Changes) ApplyChange(p, c);
                 break;

@@ -30,10 +30,14 @@ export or referenced by a server.
 
 ```bash
 cp -n .env.example .env   # then add TABLETOP_STYTCH_SECRET; .env is never committed
-docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite)
+docker compose up -d      # Postgres 5432, MinIO 9000/9001, management 5100, game 5200 (dotnet watch), web 5173, viewer 5174 (Vite), sim-runner 5180
 ./scripts/client          # build, check and launch the Godot client on Windows
 dotnet build && dotnet test   # every .NET project; the server tests need the stack up
+dotnet run --project sim -- suite                    # the rules suite in-process; --driver socket against the stack
 ```
+
+The rules suite (`sim/AGENTS.md` → The rules suite) also runs from the viewer's Tests page (`http://127.0.0.1:5174`), which
+drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver against the `game` container).
 
 ## Environment
 

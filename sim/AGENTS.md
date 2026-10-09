@@ -1,13 +1,16 @@
 # sim
 
-`Tabletop.Sim`: plays a whole game with no Godot client, from a scenario, and writes one recording per run.
+`Tabletop.Sim`: plays a whole game with no Godot client, from a scenario, and writes one recording per run. Its `suite`
+verb plays the rules suite (themed games that check every catalog rule and spell); `serve` hosts the suite over HTTP.
 Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Tests`. Not shipped to players and not referenced by a server.
 
 ## Layout
 
 - `Program.cs`, `SimOptions.cs`, `Summary.cs`: console entry, option parsing (`UsageException`), the per-run summary table and `summary.json`.
 - `Scenarios/`: `Scenario`, `ScenarioBuilder`, `ScenarioCatalog` (the named scenarios), `ScenarioCompiler`, `Expectation`.
-- `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal), `PolicyView`. `Chooser.cs` is the seeded random stream.
+- `Answers/`: `IAnswerSource`, `AnswerPolicy` (the default, with the `MoveGoal` delegate), `ObjectiveGoal`, `AnswerScript` (named answers by question and ordinal, plus `ScriptMatch` picks), `AskPicks`, `PolicyView`. `Chooser.cs` is the seeded random stream.
+- `Suite/`: the rules suite. `TestGame`, `DiceFix`, `GameCheck`, `KnownDefect` (`TestGame.cs`); `Checks`, `Fired`, `Coverage`, `LogQueries`; `SuiteRunner`, `SuiteReport`, `DiceFixingDriver`, `SuiteSocket`, `SuiteRows`; the games in `SuiteCatalog.Core*.cs`, `SuiteCatalog.Special*.cs`, `SuiteCatalog.Army*.cs`, `SuiteCatalog.Spells.cs` and `SpellGames.cs`.
+- `Serve/`: `ServeApp` (the runner's minimal API), `ServeArguments`, `SuiteRun`.
 - `Drivers/`: `IGameDriver`, `InProcessDriver`, `SocketDriver` with `SocketRowSeeder`, `ScenarioRows`, `RecorderClient`, `IWebSocketConnector`.
 - `Run/`: `RunLoop`, `RunOutcome`, `RunReport`, `AskFingerprint` (stuck detection), `HandPlacement` (deployment from the seed).
 - `Invariants/`: `Invariants` (the checks), `ProjectionComparer`.
@@ -32,6 +35,51 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - One file per run: `<scenario>-<seed>.json` in `--out` (default `./recordings`, git-ignored), plus `summary.json`.
 - A recording is a projection frame per event, not an event log. It is never replayed into the engine.
 - Exit code: 0 when no run failed, 1 otherwise, 2 for usage errors.
+- `ScenarioArmy.SetAside` (builder `setAside:`) lists unit ordinals the run sets aside before the first answer: one `SetCondition`
+  of the ruleset's set-aside condition per unit, as the unit menu does. A Scout or Ambush unit plays only when set aside.
+- `ScenarioArmy.Models` (builder `models:`) gives one model its own rules, stats or weapons (`ScenarioModel(unit, model, ...)`, 1-based):
+  a Hero in a unit, a lone caster.
+- `ScriptBuilder.Match(question, pick)` answers every Ask of that question the pick answers; a keyed answer for the same ordinal wins,
+  a null pick falls through to the policy. `AskPicks` picks by label or name, never by id: `Activate(ask, "Red unit 1", "Charge")`,
+  `Labeled`, `Spell(ask, projection, "Zap!")`, `Pieces(ask, projection, "Blue unit 1")`. Ids are minted at compile time, so a
+  script cannot name them.
+
+## The rules suite
+
+- A `TestGame` is a `Scenario` plus its group (`core`, `special`, `army:<book uid>`, `spells:<book uid>`), `Covers` (catalog entry
+  names), `Dice` (`DiceFix`) and `Checks`. `SuiteCatalog.All` holds every game, one partial file per group.
+- The runner judges every game by `Checks.Ended()`, `Checks.Invariants()` and `Checks.FiredAll()`, then its own checks. A check returns
+  null or the reason; its name quotes the rule and page. A check with `Entries` is an exact check, reported against those entries'
+  coverage. A check that can fail for several reasons (`GameCheck.Each`: `invariants`, `fired`, the army exact checks) reports one
+  failure line per reason, so a pin on one reason never covers another.
+- The army attack checks (extra hits, attacks and wounds, self wounds, AP, per-die AP, re-rolls) take as occasions every attack the game
+  names for its rule, from the attack-sequence frames and the army definitions: `By` the holder, `On` the holder, `With` the weapon,
+  narrowed by `When.Shooting` or `When.Charging`. They never select by `Applied`, so a rule that stops acting on some occasions fails.
+- Fired: the entry is in a step's `StepCompleted.Applied` or a `RollModifier.Source` of the effective log (`Fired.In`). A rule that acts
+  where no step completes (Scout, Ambush, Aircraft, Immobile) gets the game's `Evidence` predicate instead.
+- `DiceFix(roll, ordinal, faces)`: the ordinal-th roll of that kind in the game gets those faces by `SetDice`. A game with fixes runs
+  with the step gate on (`Scenario.WaitsBetweenSteps`), so a completed step's rolls stay editable; a fix that never meets its roll fails
+  the game. Morale dice cannot be fixed (the morale frame finishes in the step that rolls).
+- `LogQueries.Of(run)` reads the effective log for checks: frames with parents and steps, rolls with dice as they stand after edits and
+  rerolls, Asks with answers, removals, deployments, activations, moves. It reads the log; it never computes a rule.
+- Expected values in checks are literals from the rule text. `sim/` holds no second rules engine.
+- A game an engine defect blocks keeps its failing check and is pinned: `game.Pinned("D5", check, reason, driver?)`. A failure is the
+  defect's only when it starts with `check` and contains `reason`, text the defect itself produces, so the same check failing for
+  another reason is unexpected; `driver` limits a pin to one driver. The report marks matched failures `known defect <id>: `, counts
+  the game as failing on a known defect when every failure matched, and lists each pin no failure matched
+  (`(pinned Dn did not fail: <check>)`), pass or fail. The defect ids are listed in
+  `docs/handoff.md` → Defects the rules suite found.
+- A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
+  name the rule it shows.
+- Coverage: every entry of the shipped set, with the games that cover it, whether it fired in all of them, and its exact checks. A
+  run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does.
+- A socket run holds an advisory lock, sweeps games an interrupted run left (named `suite-run <run id> <game>`), seeds and deletes each
+  game's rows and minted accounts. `--keep` keeps them (`suite <run id> <game>`), writes each recording, and adds a spectator
+  participant (no team) for the live feed.
+- `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite`,
+  `POST /runs {only, driver, keep}` (409 while one runs), `GET /runs/{id}/events` (server-sent `game` per result, then `done`),
+  `GET /runs/{id}/recordings/{game}`, `POST /runs/{id}/games/{game}/spectate` (a fresh session for the kept game's spectator).
+  The viewer's Tests page drives it.
 
 ## Commands
 
@@ -40,8 +88,15 @@ dotnet run --project sim -- --list
 dotnet run --project sim -- skirmish --seeds 1..20             # in-process, recordings in ./recordings
 dotnet run --project sim -- skirmish --seed 7 --rounds 2 --no-recording
 dotnet run --project sim -- skirmish --driver socket           # needs the stack below
+dotnet run --project sim -- suite                              # every suite game, in-process
+dotnet run --project sim -- suite --only core,special --driver socket --keep
+dotnet run --project sim -- suite --list
+dotnet run --project sim -- serve                              # the runner service on 127.0.0.1:5180
 dotnet test tests/Tabletop.Sim.Tests
 ```
+
+- Suite options: `--only A,B` (game names or groups), `--driver in-process|socket`, `--keep`, `--out DIR` (recordings and `suite.json`),
+  `--list`. Each failing game prints its replay command line.
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
 - `--driver socket` needs Postgres, the game server and management running, with management in the Development environment.
@@ -63,4 +118,5 @@ dotnet test tests/Tabletop.Sim.Tests
 - `docs/design/simulation/design.md`
 - `docs/superpowers/plans/2026-09-06-simulation/README.md`
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`
+- `docs/superpowers/specs/2026-10-09-rules-suite-design.md`, `docs/superpowers/plans/2026-10-09-rules-suite.md` (the suite)
 - `docs/superpowers/specs/2026-10-02-spell-library-design.md` (the `casting` scenario), `docs/superpowers/specs/2026-10-02-army-rule-hooks-design.md` (`army-rules`), `docs/superpowers/specs/2026-10-02-objectives-design.md` (`objectives`)

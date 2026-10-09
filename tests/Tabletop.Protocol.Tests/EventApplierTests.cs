@@ -209,6 +209,31 @@ public class EventApplierTests
     }
 
     [Fact]
+    public void StepCompleted_applied_round_trips_and_lands_on_the_completed_step()
+    {
+        var withApplied = new StepCompleted(Frame, "roll-to-hit", null, [Samples.Hit], [], ["Furious", "Rending"]);
+        var back = Assert.IsType<StepCompleted>(WireJson.Deserialize<EventPayload>(WireJson.Serialize<EventPayload>(withApplied)));
+        Assert.Equal(["Furious", "Rending"], back.Applied);
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        a.Apply(Ev(2, back));
+        Assert.Equal(["Furious", "Rending"], a.Projection.Stack.Single().Steps.Single().Applied);
+    }
+
+    [Fact]
+    public void StepCompleted_without_applied_reads_as_null_and_an_empty_list_on_the_completed_step()
+    {
+        // A log row written before Applied existed: no "applied" key at all.
+        var json = $"{{\"kind\":\"step_completed\",\"frameId\":\"{Frame}\",\"step\":\"roll\",\"rolls\":[],\"changes\":[]}}";
+        var old = Assert.IsType<StepCompleted>(WireJson.Deserialize<EventPayload>(json));
+        Assert.Null(old.Applied);
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        a.Apply(Ev(2, old));
+        Assert.Empty(a.Projection.Stack.Single().Steps.Single().Applied);
+    }
+
+    [Fact]
     public void A_frame_carries_its_sequences_outline_in_order()
     {
         var a = Fresh();

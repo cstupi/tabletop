@@ -13,6 +13,7 @@ public sealed record SimOptions(
 
     public static string Usage => $"""
         dotnet run --project sim -- <scenario> [options]
+        dotnet run --project sim -- suite [options]       the rules suite
 
           --seed N              one seed (default: the scenario's own)
           --seeds A..B          a closed range of seeds, one game each
@@ -81,4 +82,55 @@ public sealed record SimOptions(
 
     private static ulong ULong(string text) =>
         ulong.TryParse(text, out var value) ? value : throw new UsageException($"'{text}' is not a seed");
+}
+
+/// <summary>`suite [--only a,b] [--driver in-process|socket] [--keep] [--list] [--out DIR]`. Out is null unless given.</summary>
+public sealed record SuiteArguments(IReadOnlyList<string> Only, Suite.DriverKind Driver, bool Keep, bool List, string? Out)
+{
+    public const string Verb = "suite";
+    public const string DefaultOut = "recordings";
+
+    public static string Usage => """
+        dotnet run --project sim -- suite [options]
+
+          --only A,B            game names or groups (core, special, army:<book>, spells:<book>); repeatable; default every game
+          --driver in-process   the default; or socket (the stack up, as for a scenario's socket run)
+          --keep                keep the games: recordings in --out, and a socket run's rows
+          --out DIR             where kept recordings and suite.json go (default: ./recordings); suite.json is written with --keep or --out
+          --list                list the games and what each covers, and exit
+        """;
+
+    public static SuiteArguments Parse(string[] args)
+    {
+        var only = new List<string>();
+        var driver = Suite.DriverKind.InProcess;
+        var keep = false;
+        var list = false;
+        string? output = null;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--only":
+                    only.AddRange(Next(args, ref i, "--only").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+                    break;
+                case "--driver":
+                    driver = Next(args, ref i, "--driver") switch
+                    {
+                        SimOptions.InProcess => Suite.DriverKind.InProcess,
+                        SimOptions.Socket => Suite.DriverKind.Socket,
+                        var other => throw new UsageException($"--driver is {SimOptions.InProcess} or {SimOptions.Socket}, not '{other}'"),
+                    };
+                    break;
+                case "--keep": keep = true; break;
+                case "--list": list = true; break;
+                case "--out": output = Next(args, ref i, "--out"); break;
+                default: throw new UsageException($"unknown suite argument '{args[i]}'\n\n{Usage}");
+            }
+        }
+        return new SuiteArguments(only, driver, keep, list, output);
+    }
+
+    private static string Next(string[] args, ref int i, string option) =>
+        ++i < args.Length ? args[i] : throw new UsageException($"{option} wants a value");
 }

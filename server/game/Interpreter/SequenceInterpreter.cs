@@ -73,7 +73,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
     static void Completed(List<EventPayload> events, StepContext ctx, IStep step, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, bool finished)
     {
         var answer = ctx.History.ClosedExceptConfirm.LastOrDefault()?.Single;
-        events.Add(new StepCompleted(ctx.Frame.Id, step.Name, answer, ctx.Rolls, changes) { Values = values is { Count: > 0 } ? values : null });
+        events.Add(new StepCompleted(ctx.Frame.Id, step.Name, answer, ctx.Rolls, changes, ctx.Applied.Names) { Values = values is { Count: > 0 } ? values : null });
         events.AddRange(ctx.ForcedRerolls);
         if (finished) events.Add(new SequenceFinished(ctx.Frame.Id));
     }

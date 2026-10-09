@@ -59,9 +59,10 @@ public sealed record OutlineStep(string Step, string Label);
 /// Everything the step produced: the answer that resumed it, its rolls, the state changes it applied, and Values — a flat map of
 /// named integers holding the step's settled parameters (attacks counted, a capped multiplier, a distance used in tenths, a token spend,
 /// a winner's ordinal) so a later step or nested frame reads them without re-deriving. No schema per step kind; omitted when null.
+/// Applied: the catalog entries (rules, spells) whose effect changed this step's result, each once, in order of first application; null in logs written before it and when none acted.
 /// A step may complete and run again (the same name twice in a row) — a second step_completed, a fresh history.
 /// </summary>
-public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IReadOnlyList<RollRecord> Rolls, IReadOnlyList<StateChange> Changes) : EventPayload
+public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IReadOnlyList<RollRecord> Rolls, IReadOnlyList<StateChange> Changes, IReadOnlyList<string>? Applied = null) : EventPayload
 {
     public IReadOnlyDictionary<string, int>? Values { get; init; }
 }

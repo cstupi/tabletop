@@ -23,7 +23,7 @@ public sealed class UnscriptedAskException(Ask ask, int ordinal)
     : Exception($"ask '{ask.Question}' ordinal {ordinal} is unscripted and this run is script-only");
 
 /// <summary>
-/// Script first, then the policy. A null policy is a script-only run, and the first uncovered Ask fails it
+/// Script first (keyed answers, then matches), then the policy. A null policy is a script-only run, and the first uncovered Ask fails it
 /// (spec → Two ways to answer an Ask).
 /// </summary>
 public sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) : IAnswerSource
@@ -40,6 +40,11 @@ public sealed class ComposedAnswers(AnswerScript script, AnswerPolicy? policy) :
         {
             _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, scripted, FromScript: true));
             return scripted;
+        }
+        if (script.Match(ask, view.Projection) is { } matched)
+        {
+            _history.Add(new AnsweredAsk(ask.Question, ordinal, ask.Id, matched, FromScript: true));
+            return matched;
         }
         if (policy is null) throw new UnscriptedAskException(ask, ordinal);
         var answer = policy.Answer(ask, view);

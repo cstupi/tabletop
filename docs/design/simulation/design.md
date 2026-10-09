@@ -15,7 +15,8 @@ legal set and never compute a rules outcome the engine should compute.
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
 `IGameDriver` interface and both implementations; the run loop, its outcomes and its
 hand-placement of deployed models; the seven invariants and the projection comparer; the
-recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; and
+recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; the
+rules suite and its runner service (spec `docs/superpowers/specs/2026-10-09-rules-suite-design.md`); and
 the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliverable.
 
 **Not in scope.**
@@ -735,6 +736,12 @@ dotnet run --project sim -- <scenario> [options]
 ```
 
 Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
+
+```
+dotnet run --project sim -- suite [--only A,B] [--driver in-process|socket] [--keep] [--out DIR] [--list]
+dotnet run --project sim -- serve [--port 5180] [--bind 127.0.0.1] [--out DIR]
+```
+
 `--driver socket` reads `TABLETOP_DB_CONNECTION` (the variable the servers read),
 `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`) and `TABLETOP_SIM_MANAGEMENT` (default
 `http://127.0.0.1:5100`), each from the environment or the nearest `.env`, as the servers load theirs. `TABLETOP_MANAGEMENT_URL` in `.env` is management's bind address, so the client side has its own name. A scenario that declares its own spells cannot run on the socket driver, because
@@ -747,6 +754,35 @@ must not accumulate games. Repeating a `--driver socket` run with the same seed 
 game rather than colliding on the primary key, because the game id is random and only `rng_seed`
 repeats. A seed range therefore leaves one row per run. That is the price of the seed being
 stored rather than derived, and the two runs are separate games that rolled the same dice.
+
+### The rules suite
+
+The suite is the sim's regression net for the rules: about 130 themed games, each a `TestGame`, that bring every catalog
+rule and spell into play and check what the rule text states. The `suite` verb plays a selection on one driver, judges
+each game, computes coverage and prints a report; `serve` hosts the same runner over HTTP for the viewer's Tests page.
+
+- **Groups.** `core` (pp.4–12: actions, terrain, shooting, melee, morale, transports, objectives, deployment, the round-4
+  end), `special` (the 33 core special rules, three to five a game), `army:<book uid>` (the army rules, by the book
+  that prints them) and `spells:<book uid>` (every spell, generated per book by `SpellGames`, cast by name).
+- **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
+  checks. Fired reads `StepCompleted.Applied` and `RollModifier.Source` in the effective log; a rule that acts in the
+  scheduler or in action legality gives its game an `Evidence` predicate. An exact check names the entries it is about
+  and quotes its rule; its expected value is a literal from the text. A check reports one failure line per reason. The army
+  attack checks choose their occasions from the log and the army definitions (the holder's attacks, the attacks on it, the
+  attacks with its weapon), never from `Applied`.
+- **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes, so a game that fixes
+  dice runs with the step gate on. A fix that never meets its roll fails the game.
+- **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
+  (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are
+  scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Models`).
+- **Known defects.** A game an engine defect blocks keeps its failing check and is pinned (`TestGame.Known`): a check and
+  the reason text the defect produces, matched against each failure line. The report files matching failures under the defect id, counts the game apart from
+  unexpected failures, and lists every pin that no longer fails.
+- **Coverage.** Every entry of the shipped property set, with the games covering it, whether it fired in each, and its
+  exact checks. A full run fails on an uncovered entry; any run fails on a covered entry that never fired.
+- **Socket hygiene.** A socket run takes an advisory lock, sweeps games an interrupted run left, and deletes each game's
+  rows and minted accounts after judging it. `--keep` keeps them, writes the recording, and adds a spectator participant
+  so a live feed can open the game.
 
 ## Key decisions
 
@@ -808,7 +844,8 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | Type | Members |
 | --- | --- |
 | `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
-| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats)` | |
+| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats, string? ArmyBook = null)` | `IRL<int> SetAside { init; }` (unit ordinals set aside before deployment), `IRL<ScenarioModel> Models { init; }` |
+| `sealed record ScenarioModel(int Unit, int Model, IRL<ScenarioRule>? Rules, IRD<string,string>? Stats, IRL<ScenarioWeapon>? Weapons)` | one model's own rules, stats and weapons (1-based ordinals) |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
 | `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Seeking`, `Expect`, `Build` |
@@ -826,8 +863,10 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24)` | |
 | `sealed class AnswerPolicy(Chooser, PolicyOptions? = null, MoveGoal? goal = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
 | `delegate Point2? MoveGoal(Guid modelId, PolicyView view)`; `static class ObjectiveGoal` | `static Point2? Nearest(Guid, PolicyView)` |
-| `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IRD<ScriptKey,AskAnswer> Answers)` | `static Empty`, `static ScriptBuilder Build()`, `bool TryGet(string, int, out AskAnswer)`, `int Count` |
-| `sealed class ScriptBuilder` | `At(string, int, AskAnswer)`, `Then(string, AskAnswer)`, `Build()` |
+| `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IRD<ScriptKey,AskAnswer> Answers)` | `static Empty`, `static ScriptBuilder Build()`, `bool TryGet(string, int, out AskAnswer)`, `int Count`, `IRL<ScriptMatch> Matches { init; }`, `AskAnswer? Match(Ask, Projection)` |
+| `sealed record ScriptMatch(string Question, Func<Ask, Projection, AskAnswer?> Pick)` | consulted in order for an Ask no keyed answer covers; null falls through |
+| `sealed class ScriptBuilder` | `At(string, int, AskAnswer)`, `Then(string, AskAnswer)`, `Match(string, Func<Ask, Projection, AskAnswer?>)`, `Build()` |
+| `static class AskPicks` | `Option`, `Labeled(Ask, string)`, `Activate(Ask, string unit, string action)`, `Spell(Ask, Projection, string, string? casterUnit)`, `Pieces(Ask, Projection, params string[] units)`, `UnitNameOf(Projection, Guid)`: picks by label and name, never by id |
 | `interface IAnswerSource` | `AskAnswer Answer(Ask, PolicyView)`, `IRL<AnsweredAsk> History` |
 | `sealed record AnsweredAsk(string Question, int Ordinal, Guid AskId, AskAnswer Answer, bool FromScript)` | |
 | `sealed class ComposedAnswers(AnswerScript, AnswerPolicy?) : IAnswerSource`; `sealed class UnscriptedAskException` | a null policy is a script-only run |
@@ -892,6 +931,30 @@ The viewer's whole input.
 | `static class RecordingJson` | `const int SchemaVersion = 1`, `JsonSerializerOptions Options`, `WriteAsync`, `ReadAsync`, `Serialize`, `Deserialize` |
 | `static class LogLines` | `string Of(GameEvent, Projection after, IRD<Guid,int> teamOrdinals)` |
 | `sealed class FrameProjector(CompiledScenario)` | `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IRL<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta)` |
+
+### Produced: `Tabletop.Sim.Suite`
+
+| Type | Members |
+| --- | --- |
+| `sealed record TestGame(string Name, string Group, Scenario Scenario, IRL<string> Covers, IRL<DiceFix> Dice, IRL<GameCheck> Checks, IRD<string, Func<IRL<GameEvent>, bool>>? Evidence = null)` | `bool FiredIn(IRL<GameEvent>, string)`, `IRL<KnownDefect> Known { init; }`, `TestGame Pinned(string id, string check, string reason, DriverKind? driver = null)`, `IRL<KnownDefect> KnownOn(DriverKind)` |
+| `sealed record DiceFix(string Roll, int Ordinal, IRL<int> Faces)` | the Ordinal-th roll of that kind gets these faces by `SetDice` |
+| `sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IRL<string>? Entries = null)` | null is a pass; Entries make it an exact check; `static Each(string, Func<SuiteGameRun, IEnumerable<string>>, IRL<string>?)` reports one line per reason; `IRL<string> FailuresOf(SuiteGameRun)` |
+| `sealed record KnownDefect(string Id, string Check, string Reason, DriverKind? Driver = null)` | a pin: a failure that starts with Check and contains Reason is that defect's (`bool Matches(string)`) |
+| `sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IRL<GameEvent> EffectiveLog, Projection Final, IRL<string> InvariantFailures)` | `IRD<string, IRL<ExactResult>> Exact { init; }` |
+| `static class Checks` | `Ended()`, `Invariants()`, `FiredAll()`, `Event(string, Func<IRL<GameEvent>, string?>, params string[])` |
+| `static class Fired` | `bool In(IRL<GameEvent> effectiveLog, string entry)`: `Applied` or a `RollModifier.Source` |
+| `static class Coverage`; `sealed record CoverageEntry(string Name, string Kind, IRL<string> Games, bool Fired, IRL<ExactResult> Exact)`; `ExactResult(string Game, string Check, bool Passed)` | `Of(PropertySet, IEnumerable<SuiteGameRun>, bool fullRun)`, `Complete(IRL<CoverageEntry>)`; `bool Uncovered` |
+| `sealed class LogQueries` | `static Of(SuiteGameRun)`; `Frames`, `FramesOf`, `Children`, `Descendants`, `Steps`, `StepsOf`, `Listing`, `Rolls`, `Asks`, `AsksOf`, `ModelsRemoved`, `Moves`, deployments and activations; `LoggedFrame`, `LoggedStep`, `LoggedRoll` (dice as they stand), `LoggedAsk` |
+| `static partial class SuiteCatalog` | `IRL<TestGame> All`, `Select(IRL<TestGame>, IRL<string> only)`, `CoreGroup`, `SpecialGroup`, `ArmyPrefix`, `SpellsPrefix` |
+| `sealed class SuiteRunner(IRL<TestGame>? games, SuiteSocket? socket, PropertySet? properties)` | `Task<SuiteReport> RunAsync(SuiteOptions, IProgress<SuiteGameResult>?, CancellationToken)`, `SpectatorSessionAsync`, `static ReplayOf(TestGame, DriverKind)` |
+| `sealed record SuiteOptions(IRL<string> Only, DriverKind Driver, bool Keep, string OutDir)`; `enum DriverKind { InProcess, Socket }` | |
+| `sealed record SuiteGameResult(string Name, string Group, bool Passed, IRL<string> Failures, ulong Seed, string Replay, string? RecordingPath, Guid? GameId, string? Spectator, IRL<string>? Known, IRL<string>? Pinned, IRL<string>? Stale)` | Known: the defect ids when every failure is pinned; Stale: the pins no failure matched |
+| `sealed record SuiteReport(Guid RunId, IRL<SuiteGameResult> Games, IRL<CoverageEntry> Coverage, bool Passed)` | `string Table()`, `string ToJson()`, `int ExitCode` |
+
+### Produced: `Tabletop.Sim.Serve`
+
+`ServeApp` maps `GET /suite`, `POST /runs`, `GET /runs/{id}/events`, `GET /runs/{id}/recordings/{game}` and
+`POST /runs/{id}/games/{game}/spectate`; `ServeArguments(int Port, string Bind, string Out)`.
 
 ### Consumed
 

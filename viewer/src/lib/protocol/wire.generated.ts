@@ -493,6 +493,7 @@ export interface StepCompleted {
   readonly answer?: AskAnswer;
   readonly rolls: readonly RollRecord[];
   readonly changes: readonly StateChange[];
+  readonly applied?: readonly string[];
   readonly values?: { readonly [key: string]: number };
 }
 

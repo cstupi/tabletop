@@ -133,6 +133,7 @@ public static class GfCasting
                 // A pass, another type of answer or an id the Ask did not offer casts nothing and spends nothing.
                 if (GfAnswers.Option(closed) is not { } picked || Pick(picked.Id) is not var (spellName, caster)) return new Finish([]);
                 var cost = ctx.Properties.Entry(spellName)?.Cost ?? 0;
+                ctx.Applied.Add(GfNames.Caster);
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
@@ -166,7 +167,7 @@ public static class GfCasting
         {
             var (_, caster) = Picked(ctx.Frame);
             var casterUnit = ctx.Projection.Models[caster].UnitId;
-            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
+            var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
             var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1)) == 1;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0 };
             var spent = RollEffects.Consume(live);
@@ -212,6 +213,7 @@ public static class GfCasting
             // A once-row's conditions say when the grant applies ("Shred when shooting"), not whether it is written: every once-row is granted.
             var changes = already ? [] : spell.Effects.Where(e => e.Duration == EffectDuration.Once)
                 .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, spell.Name, casterUnit, 1))).ToList();
+            if (changes.Count > 0 || ctx.History.Children.Count > 0) ctx.Applied.Add(spell.Name);   // a cast spell names itself where it reached this target
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
         }
 
@@ -252,8 +254,9 @@ public static class GfCasting
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
             var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
             // The spell's weapon rules are part of this settled set (AttackInteraction), so every hit carries them and their pass-one rows act.
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
+            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
             var total = 0; var multiplier = 1;
+            ctx.Applied.Add(spell.Name);
             foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
@@ -291,6 +294,7 @@ public static class GfCasting
             if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
             var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
             var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
+            if (children.Count > 0) ctx.Applied.Add(spell.Name);
             var changes = children.Where(c => c.Kind == EffectKind.SetCondition)
                 .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
             if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
