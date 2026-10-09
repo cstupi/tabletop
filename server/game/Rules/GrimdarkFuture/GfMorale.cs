@@ -45,6 +45,8 @@ public static class GfMorale
     /// p.10: one Quality test; a Shaken unit "always fails", so no die is rolled for it. Whether it passed is read by the steps after
     /// this one, off the die as it now stands (opr-sequences → Dice edits).
     /// </summary>
+    const string HeldPrefix = "held_";
+
     sealed class TestStep : IStep
     {
         public string Name => "test";
@@ -55,7 +57,11 @@ public static class GfMorale
             var ix = Ix(ctx, unit);
             var live = ctx.Settle(ix);
             if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.Shaken)) ctx.Roll(GfRolls.MoralePlan(ctx, live), 1);
-            return new Complete(GfDeferred.Leave(RollEffects.Consume(live), ix, l => OverrideRolls(l)));
+            var spent = RollEffects.Consume(live);
+            var left = GfDeferred.Leave(spent, ix, l => OverrideRolls(l));
+            // What this step read but left for `override` (a spell's morale modifier beside its Fearless), keyed so override spends it on either path.
+            var held = spent.Except(left).OfType<GrantRemoved>().ToDictionary(g => $"{HeldPrefix}{g.UnitId:N}_{g.GrantId:N}", _ => 1);
+            return new Complete(left, held);
         }
     }
 
@@ -66,11 +72,25 @@ public static class GfMorale
         public string Name => "override";
         public StepOutcome Run(StepContext ctx)
         {
-            if (Passed(ctx.Frame)) return new Complete([]);
+            if (Passed(ctx.Frame)) return new Complete(Held(ctx));
             var live = ctx.Settle(Ix(ctx, ctx.Frame.Context.ActorUnitId!.Value));
             foreach (var (source, roll) in OverrideRolls(live))
                 ctx.Roll(new Dice.RollPlan(source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Morale).Convention, null, new HashSet<int>()), roll.EffectiveAmount(source.Parameter));
-            return new Complete(RollEffects.Consume(live));
+            return new Complete([.. RollEffects.Consume(live).Union(Held(ctx))]);
+        }
+
+        /// <summary>The grants `test` read and held back, still on their unit: spent here whether or not the override rolls.</summary>
+        static IReadOnlyList<StateChange> Held(StepContext ctx)
+        {
+            var held = new List<StateChange>();
+            foreach (var key in ctx.Frame.Values.Keys.Where(k => k.StartsWith(HeldPrefix, StringComparison.Ordinal)))
+            {
+                var ids = key[HeldPrefix.Length..].Split('_');
+                if (Guid.TryParseExact(ids[0], "N", out var unit) && Guid.TryParseExact(ids[1], "N", out var grant)
+                    && ctx.Projection.Units.TryGetValue(unit, out var u) && u.Grants.Any(g => g.Id == grant))
+                    held.Add(new GrantRemoved(unit, grant));
+            }
+            return held;
         }
     }
 

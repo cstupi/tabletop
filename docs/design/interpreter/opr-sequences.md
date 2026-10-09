@@ -547,7 +547,10 @@ die neither adds nor removes dice, and `score-hits` reads whichever dice were dr
 A granted instance is consumed by the step that reads it. The rolling step reads the plan's grants
 and the deciding step the per-die ones, so the rolling step leaves out of its `GrantRemoved`s every
 grant the deciding step will read, with the rest of that spell's grants (`GfDeferred.Leave`). The
-deciding step then settles the same live set the roll was planned against.
+deciding step then settles the same live set the roll was planned against. `override` may roll
+nothing, so `test` names each grant it read and held back in a `Values["held_<unit>_<grant>"]` key,
+and `override` removes those on either path: a spell's morale modifier beside its Fearless is spent
+once whether or not the test passed.
 
 The other rolls still settle their consequence in the step that rolls them, and an edit to one
 changes only later readers: `roll-to-block`'s per-die `extra_wounds` (its failures are read as they

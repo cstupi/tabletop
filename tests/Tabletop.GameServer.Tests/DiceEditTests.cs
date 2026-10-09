@@ -24,7 +24,10 @@ public class DiceEditTests
     /// <summary>One spell leaving two grants: +1 to hit (read when the roll is planned) and Surge (read on the faces).</summary>
     static readonly EntryDocument Zeal = new("Zeal", CatalogKind.Spell, false, null, 1, null, "+1 to hit and Surge once.",
         new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 24), [Row(EffectKind.ModifyRoll, GfNames.Hit, null, 1), Row(EffectKind.GrantProperty, null, "Surge", null) with { Ordinal = 20 }]);
-    static readonly PropertySet Props = TestProperties.WithSpells(Fireball, LoudBolt, Zeal);
+    /// <summary>One spell leaving +1 to morale (read by `test`) and Fearless (read by `override`).</summary>
+    static readonly EntryDocument SteelWill = new("Steel Will", CatalogKind.Spell, false, null, 1, null, "+1 to morale and Fearless once.",
+        new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 24), [Row(EffectKind.ModifyRoll, GfNames.Morale, null, 1), Row(EffectKind.GrantProperty, null, "Fearless", null) with { Ordinal = 20 }]);
+    static readonly PropertySet Props = TestProperties.WithSpells(Fireball, LoudBolt, Zeal, SteelWill);
 
     static Sim Game(IReadOnlyList<Tabletop.Content.Unit> mine, IReadOnlyList<Tabletop.Content.Unit> theirs, params int[] dice) =>
         new(State(mine, theirs, x1: -4, x2: 4, waits: true), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(dice));
@@ -172,6 +175,25 @@ public class DiceEditTests
         sim.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
         Assert.Single(sim.Steps("test"));
         return sim;
+    }
+
+    [Theory]
+    [InlineData(5, 1)]   // passes on the test die: override rolls nothing and still spends the held-back grants
+    [InlineData(1, 2)]   // fails: Fearless rolls, and override spends both
+    public void A_spell_granting_a_morale_modifier_and_fearless_is_spent_once_whether_or_not_the_test_passes(int test, int fearless)
+    {
+        var u = Unit("U", "4+", "4+", [], 4, []);
+        var sim = Game([Unit("A", "4+", "4+", [], 1, [])], [u], test, fearless);
+        foreach (var effect in Props.Entry("Steel Will")!.Effects)
+            sim.Append([new GrantAdded(u.Id, new Grant(Guid.CreateVersion7(), effect.Id, "Steel Will", u.Id, 1))]);
+        sim.Append(u.Models.Take(2).Select(m => (EventPayload)new ModelsMoved([new ModelRelocation(m.Id, sim.Model(m.Id).Location, new OnShelf())])));
+        sim.Start(GfNames.MoraleTest, new SequenceContext(u.Id, [], [], "wounds"));
+        Assert.Contains(sim.Steps("test").Single().Rolls[0].Modifiers, m => m.Source == "Steel Will" && m.Amount == 1);
+        Assert.Equal(2, sim.Unit(u.Id).Grants.Count);                                           // held back for override
+        Pass(sim); Pass(sim);
+        Assert.Equal(test == 1 ? 1 : 0, sim.Steps("override").Single().Rolls.Count);
+        Assert.Empty(sim.Unit(u.Id).Grants);
+        Assert.Equal(1, sim.Emitted.OfType<StepCompleted>().SelectMany(s => s.Changes).OfType<GrantRemoved>().Count(g => g.GrantId == sim.Emitted.OfType<GrantAdded>().First().Grant.Id));
     }
 
     [Fact]

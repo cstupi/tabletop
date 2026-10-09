@@ -480,7 +480,7 @@ public partial class ArmyRuleHookTests
     static readonly EntryDocument Frenzy = new("Test Frenzy", CatalogKind.Spell, false, null, 1, null, "Grants Primal.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Primal")]);
 
     [Fact]
-    public void A_once_granted_primal_adds_an_attack_on_a_six_and_is_gone_after_the_roll_to_hit()
+    public void A_once_granted_primal_adds_an_attack_on_a_six_and_is_spent_by_score_hits()
     {
         var props = TestProperties.WithSpells(Frenzy);
         var a = Unit("A", "4+", "4+", [], 1, [], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
@@ -488,6 +488,8 @@ public partial class ArmyRuleHookTests
         sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Frenzy")!.Effects[0].Id, "Test Frenzy", a.Id, 1))]);
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
         Assert.Equal([2, 1], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+        Assert.Empty(sim.Steps("roll-to-hit").First().Changes.OfType<GrantRemoved>());
+        Assert.Single(sim.Steps("score-hits").First().Changes.OfType<GrantRemoved>());
         Assert.Empty(sim.Unit(a.Id).Grants);
     }
 }

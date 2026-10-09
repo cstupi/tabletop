@@ -361,10 +361,14 @@ record rather than a stored count.
 
 **The edit model.** An edit reaches a frame on the stack and nothing popped. It appends one event
 and rewrites none: every `step_completed` already appended keeps its `Values` and `Changes`, and an
-edit changes exactly what later steps read off the record. A ruleset therefore never settles a
-face's decision in the step that rolls the die. The rolling step records, and the next step reads
-the record as it now stands and decides, so the boundary between them is where an edit lands
-([opr-sequences.md → Dice edits](opr-sequences.md#dice-edits) lists Grimdark Future's pairs).
+edit changes exactly what later steps read off the record. Where a sequence is split for it, the
+rolling step records and the next step reads the record as it now stands and decides, so the
+boundary between them is where an edit lands. Grimdark Future splits the roll-off, the hit rolls
+(attacks and spell hits), the casting roll and the morale test. Six rolls still settle their
+consequence in the step that rolls them, and an edit to one reaches only later readers:
+`roll-to-block`'s per-die extra wounds, `assign`'s wound-ignoring rolls, `dangerous-terrain`'s
+test, `impact`, the attack-start rolls and a dice-distance move
+([opr-sequences.md → Dice edits](opr-sequences.md#dice-edits)).
 
 One known inconsistency: `RequiredRaw` is not in `RollRecord`, so `RulesEngine.PlanOf` cannot
 restore it, and a player's reroll of a fatigued hit die is judged as `Modified >= Threshold`.
@@ -562,7 +566,7 @@ hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who 
 schema per step kind, one flat map (contracts → Event inventory). It buys two things. A later step or a nested frame reads a settled
 parameter without re-deriving it. A reroll between steps changes what the next step reads, which
 is the record, without changing what was settled, which is the value. A value a face decides is
-therefore settled by the step after the roll, never by the rolling step. The cost is untyped string
+therefore settled by the step after the roll in the split sequences above. The cost is untyped string
 keys with no registry. `dangerous_dice`, `net_tokens`, `phase`, `hits`, `hit_multiplier`,
 `distance_used_tenths`, `place_1..place_n` and `loser` are conventions held in `GfNames`' vicinity
 and in prose, not in a type.
