@@ -119,19 +119,19 @@ and in `Expectations.Check`:
 In `sim/Scenarios/ScenarioCatalog.cs`, add (with `using Tabletop.Content;` and `using Tabletop.Geometry;` if absent):
 
 ```csharp
-        // The core mission scored (p.6): three markers across the middle, one deep in Red's frontline zone. Ends after round 4 under strict
-        // with the team holding most markers named on game_ended.
+        // The core mission scored (p.6): three markers across the middle, one deep in Blue's frontline zone. Ends after round 4 under strict
+        // with game_ended naming the teams that hold the most markers; a game with no marker held is a 0–0 tie.
         ["objectives"] = () => new ScenarioBuilder("objectives", seed: 1)
             .Army("Red", 3, 3).Army("Blue", 3, 3)
             .Marker(MarkerKind.Objective, new Point3(18, 24, 0), label: "West")
             .Marker(MarkerKind.Objective, new Point3(36, 24, 0), label: "Centre")
             .Marker(MarkerKind.Objective, new Point3(54, 24, 0), label: "East")
-            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Red home")
-            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("round_ended"))
+            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Blue home")
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.MostMarkersWin())
             .Build(),
 ```
 
-- [ ] **Step 6: Find a seed with a sole winner, and name it**
+- [ ] **Step 6: Find a seed with a sole winner, and pin it in a test**
 
 Run:
 
@@ -147,12 +147,12 @@ for path in sorted(glob.glob('/tmp/objectives-runs/objectives-*.json'), key=lamb
 PY
 ```
 
-Expected: seeds 3, 4, 7, 8, 10, 13, 19 and 20 never seize and fail `EventOfKind("round_ended")`; the other twelve end at round 4. Take the lowest seed whose winner ordinal is not `None`: that is seed 1, winner ordinal 2. Set the scenario's `seed:` to it and append `new Expectation.Won(2)` to its `.Expect(...)`. The scenario is pinned to that seed and is not swept across seeds.
+Expected: every seed ends at round 4 and passes. Seeds 3, 4, 7, 8, 10, 13, 19 and 20 never seize and end in a 0–0 tie; the lowest seed whose winner ordinal is not `None` is seed 1, winner ordinal 2. The catalog's expectations hold for every seed, because the console sweeps catalog scenarios over seed ranges; seed 1's seize and win are pinned in `ScenarioTests.Objectives_seed_1_seizes_a_marker_and_scores_a_win` with `EventOfKind("round_ended")` and `Won(2)`.
 
 - [ ] **Step 7: Run the sim suite**
 
 Run: `dotnet test tests/Tabletop.Sim.Tests && dotnet run --project sim -- objectives --seed <the seed> --no-recording`
-Expected: PASS; the console row is `ended`, round 4, and the run passes its `Won` expectation.
+Expected: PASS; the console row is `ended`, round 4.
 
 - [ ] **Step 8: Commit**
 
