@@ -3,8 +3,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>A rule as the sheet shows it: its label with the parameter, its catalog text, and whether the catalog has it at all.</summary>
-public sealed record SheetRule(string Label, string? Text, bool Automated);
+/// <summary>A rule as the sheet shows it: its label with the parameter, its catalog text, and the *not automated* tag (a loaded catalog without it).</summary>
+public sealed record SheetRule(string Label, string? Text, bool NotAutomated);
 public sealed record SheetWeapon(string Name, int Count, string Range, string Attacks, IReadOnlyList<SheetRule> Rules);
 public sealed record SheetModel(Guid Id, string Label, int Left, int Max, bool Removed);
 public sealed record UnitSheetModel(Guid UnitId, string Team, string Name, int Alive, int Size, string? Quality, string? Defense,
@@ -60,5 +60,5 @@ public static class UnitSheet
         unit.Properties.Concat(standing.SelectMany(s => s.Properties)).Select(x => Rule(x, rules)).DistinctBy(r => r.Label).ToList();
 
     static SheetRule Rule(PropertyInstance x, RuleTexts rules) =>
-        new(x.Parameter is { } v ? $"{x.Name}({v})" : x.Name, rules.TextOf(x.Name), rules.IsAutomated(x.Name));
+        new(x.Parameter is { } v ? $"{x.Name}({v})" : x.Name, rules.TextOf(x.Name), rules.NotAutomated(x.Name));
 }

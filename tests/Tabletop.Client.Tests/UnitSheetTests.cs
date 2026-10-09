@@ -42,11 +42,11 @@ public class UnitSheetTests
         Assert.Equal(("3+", "3+"), (s.Quality, s.Defense));
         Assert.Empty(s.Chips);
         // Fearless is the unit's, Tough(3) the slot's. Only Tough has a catalog entry here, so Fearless reads as not automated.
-        Assert.Equal(new[] { ("Fearless", (string?)null, false), ("Tough(3)", (string?)"Must take X wounds to be killed.", true) },
-            s.Rules.Select(r => (r.Label, r.Text, r.Automated)));
+        Assert.Equal(new[] { ("Fearless", (string?)null, true), ("Tough(3)", (string?)"Must take X wounds to be killed.", false) },
+            s.Rules.Select(r => (r.Label, r.Text, r.NotAutomated)));
         var rifle = Assert.Single(s.Weapons);
         Assert.Equal(("Heavy Rifle", 1, "24\"", "1"), (rifle.Name, rifle.Count, rifle.Range, rifle.Attacks));
-        Assert.Equal(new[] { ("AP(1)", false) }, rifle.Rules.Select(r => (r.Label, r.Automated)));
+        Assert.Equal(new[] { ("AP(1)", true) }, rifle.Rules.Select(r => (r.Label, r.NotAutomated)));
         var model = Assert.Single(s.Models);
         Assert.Equal((Samples.Model, "Battle Brother", 3, 3, false), (model.Id, model.Label, model.Left, model.Max, model.Removed));
     }
@@ -89,5 +89,14 @@ public class UnitSheetTests
             new SpellTokensSet(Samples.Model, 2), new GrantAdded(Samples.Unit, Samples.Grant));
         Assert.Equal(["Activated: Advance", "shaken", "2 spell tokens", "Regeneration from Battle Brothers · 1 use"],
             Sheet(a, Samples.Unit, NoFacts).Chips);
+    }
+
+    /// <summary>Until the catalog loads, or after its fetch failed, no rule is tagged: an unknown catalog says nothing about automation.</summary>
+    [Fact]
+    public void Before_the_catalog_loads_no_rule_is_tagged()
+    {
+        var a = Applier(Samples.Board);
+        var s = UnitSheet.Of(a.Projection, new Names(Game, a.Projection), Samples.Unit, RuleTexts.Empty, NoFacts);
+        Assert.All(s.Rules.Concat(s.Weapons.SelectMany(w => w.Rules)), r => Assert.False(r.NotAutomated));
     }
 }

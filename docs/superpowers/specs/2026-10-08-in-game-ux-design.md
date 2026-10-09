@@ -70,7 +70,8 @@ activation running and nothing selected, the sheet is hidden.
   source and duration.
 - Weapons table: name, count, range, attacks, weapon rules (AP among them).
 - Special rules. Hovering a rule shows its `rule_text` from the game's pinned catalog (*Rule text*). A rule with no
-  catalog entry is tagged *not automated*: `LiveProperties.Gather` skips it. An entry is taken as played, since many
+  catalog entry is tagged *not automated*: `LiveProperties.Gather` skips it. Until the catalog has loaded, or when its
+  fetch failed, no rule is tagged. An entry is taken as played, since many
   rules are played by name in `Rules/GrimdarkFuture/` with no effect rows.
 - Models strip: each model with wounds left (`ModelFacts`); a removed model struck through. Clicking a model selects
   it.

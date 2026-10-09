@@ -21,6 +21,8 @@ public class RuleTextsTests
         var rules = RuleTexts.From([Tough]);
         Assert.Null(rules.TextOf("Furious"));
         Assert.False(rules.IsAutomated("Furious"));
+        Assert.True(rules.NotAutomated("Furious"));
+        Assert.False(rules.NotAutomated("Tough"));
     }
 
     [Fact]
@@ -36,6 +38,8 @@ public class RuleTextsTests
     {
         Assert.Null(RuleTexts.Empty.TextOf("Tough"));
         Assert.False(RuleTexts.Empty.IsAutomated("Tough"));
+        Assert.False(RuleTexts.Empty.Loaded);
+        Assert.False(RuleTexts.Empty.NotAutomated("Tough"));          // not loaded: no tag, rather than every rule tagged
     }
 
     [Fact]

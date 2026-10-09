@@ -122,10 +122,10 @@ public partial class StatSheet : PanelContainer
         foreach (var r in rules)
             flow.AddChild(new Label
             {
-                Text = r.Automated ? r.Label : $"{r.Label} (not automated)",
-                TooltipText = r.Text ?? (r.Automated ? "" : "Not automated: no catalog entry."),
+                Text = r.NotAutomated ? $"{r.Label} (not automated)" : r.Label,
+                TooltipText = r.Text ?? (r.NotAutomated ? "Not automated: no catalog entry." : ""),
                 MouseFilter = MouseFilterEnum.Stop,
-                Modulate = r.Automated ? Colors.White : Dim,
+                Modulate = r.NotAutomated ? Dim : Colors.White,
             });
         return flow;
     }
