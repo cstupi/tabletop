@@ -409,7 +409,8 @@ generated pieces never dragged onto the table.
 
 ### The sight query, model facts and the step outline
 
-Three additions serve the play screen, none of them in the log. A `SightQuery(QueryId, ObserverUnitId, TargetUnitId)`
+Three additions serve the play screen. The sight query and model facts are socket messages outside the log; the
+outline rides on the logged `SequenceStarted`. A `SightQuery(QueryId, ObserverUnitId, TargetUnitId)`
 is answered from the current state with the same `Sight` the rules use: one `SightLine` per model pair, `BlockedBy`
 the obstructing volumes (a terrain volume's id or a model's), and `CanShoot` the observer's models that p.8's *Who can
 shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
