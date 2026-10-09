@@ -26,6 +26,9 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     long? _desyncFloor;                 // the projection's LastSeq at the last desync: one resync per position
     Guid? _pendingUndoCommand;
     Projection? _predicted;
+    readonly Dictionary<string, RuleTexts> _ruleTexts = new(StringComparer.Ordinal);   // by properties hash: a pinned set never changes
+    readonly HashSet<string> _fetchingRules = new(StringComparer.Ordinal);
+    IReadOnlyDictionary<Guid, int> _maxWounds = new Dictionary<Guid, int>();
 
     public SessionPhase Phase { get; private set; } = SessionPhase.LoggedOut;
     public AccountRow? Account { get; private set; }
@@ -43,6 +46,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public string? LastCloseReason { get; private set; }
     public Guid? MyTeamId => Game?.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.TeamId;
     public bool IsCreator => Game is not null && Game.Participants.FirstOrDefault(p => p.Id == ParticipantId)?.AccountId == Game.CreatedBy;
+    /// <summary>The pinned catalog of the game's property set; Empty until fetched (in-game UX spec → Rule text).</summary>
+    public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
+    /// <summary>Wounds each model takes before it is killed, from the latest ModelFacts; an absent id is 1 (in-game UX spec → Model facts).</summary>
+    public IReadOnlyDictionary<Guid, int> MaxWounds => _maxWounds;
 
     public event Action? PhaseChanged;
     public event Action? GameChanged;
@@ -52,6 +59,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public event Action<Ping>? Pinged;
     public event Action<Refused>? RefusedReceived;
     public event Action<SocketClosed, bool>? ConnectionLost;
+    /// <summary>ModelFacts arrived, or the game's rule texts loaded.</summary>
+    public event Action? FactsChanged;
+    /// <summary>The server's answer to a SightQuery, outside the log. A caller matches its own QueryId.</summary>
+    public event Action<SightAnswer>? SightAnswered;
 
     // ---- login -------------------------------------------------------------------------------------------------------
     public Task LoginWithPasswordAsync(string email, string password) => Complete(() => management.LoginWithPassword(email, password));
@@ -240,6 +251,14 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public Task SendPresenceAsync(Presence value) => Welcomed()?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
     public Task SendPingAsync(Ping ping) => Welcomed()?.SendAsync(new PingMessage(ping)) ?? Task.CompletedTask;
 
+    /// <summary>Asks the server what the observer's models see of the target's (in-game UX spec → Sight check). Returns the query id.</summary>
+    public async Task<Guid> QuerySightAsync(Guid observerUnitId, Guid targetUnitId)
+    {
+        var id = Guid.CreateVersion7();
+        await (Welcomed() ?? throw NotConnected()).SendAsync(new SightQuery(id, observerUnitId, targetUnitId));
+        return id;
+    }
+
     /// <summary>The socket once the server has welcomed it; nothing but Connect goes out before that.</summary>
     IGameSocket? Welcomed() => _welcomed ? _socket : null;
     static InvalidOperationException NotConnected() => new("Not connected to the game yet.");
@@ -254,10 +273,12 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 ParticipantId = w.ParticipantId; Game = w.Game;
                 SetPhase(SessionPhase.Connected);
                 GameChanged?.Invoke();
+                EnsureRuleTexts();
                 break;
             case GameInfoMessage g:
                 Game = g.Game;
                 GameChanged?.Invoke();
+                EnsureRuleTexts();
                 break;
             case BoardMessage b when Game is { Status: GameStatus.Playing or GameStatus.Ended }:
                 Draft = null; _predicted = null; PendingUndoTo = null;
@@ -281,6 +302,11 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 Others.Remove(p.ParticipantId); PresenceChanged?.Invoke(p.ParticipantId);
                 break;
             case PingMessage p: Pinged?.Invoke(p.Ping); break;
+            case ModelFacts f:
+                _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
+                FactsChanged?.Invoke();
+                break;
+            case SightAnswer a: SightAnswered?.Invoke(a); break;
             case Refused r:
                 if (r.MessageId == _pendingUndoCommand) { ClearPrediction(); EventsApplied?.Invoke([]); }
                 RefusedReceived?.Invoke(r);
@@ -298,6 +324,30 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     }
 
     void ClearPrediction() { _predicted = null; PendingUndoTo = null; _pendingUndoCommand = null; }
+
+    /// <summary>Fetches the game's catalog once per properties hash, from playing on: the hash is final at the flip.</summary>
+    void EnsureRuleTexts()
+    {
+        if (Game is not { Status: GameStatus.Playing or GameStatus.Ended } game) return;
+        var hash = game.PropertiesHash;
+        if (_ruleTexts.ContainsKey(hash) || !_fetchingRules.Add(hash)) return;
+        _ = FetchRuleTexts(hash);
+    }
+
+    /// <summary>A failure caches nothing, so the next Welcome or game message tries again; the sheet shows no texts meanwhile.</summary>
+    async Task FetchRuleTexts(string hash)
+    {
+        RuleTexts? loaded = null;
+        try { loaded = RuleTexts.From(await management.GetRuleTexts(hash)); }
+        catch (Exception) { }
+        dispatcher.Post(() =>
+        {
+            _fetchingRules.Remove(hash);
+            if (loaded is null) return;
+            _ruleTexts[hash] = loaded;
+            if (Game?.PropertiesHash == hash) FactsChanged?.Invoke();
+        });
+    }
 
     /// <summary>
     /// The applier faulted, so this copy of the projection is unusable: drop it, reopen the socket and rebuild from
@@ -350,6 +400,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     {
         Applier = null; Draft = null; Game = null; ParticipantId = null;
         ClearPrediction(); Others.Clear();
+        _maxWounds = new Dictionary<Guid, int>();
         BoardChanged?.Invoke();
     }
 
