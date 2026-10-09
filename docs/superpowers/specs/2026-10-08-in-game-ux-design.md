@@ -89,7 +89,7 @@ me it shows the waiting line instead.
 | Ask (legal type) | Decision box | Table |
 | --- | --- | --- |
 | `confirm`, `end_round` (Confirmation) | the question, **Enter** confirms | — |
-| `activate`, `act_or_end_phase`, `shoot_or_not`, `react`, `strike_back`, `cast` (Options) | numbered options, **1–9** picks | `activate`: eligible units glow; clicking one picks it |
+| `activate`, `act_or_end_phase`, `shoot_or_not`, `react`, `strike_back`, `cast` (Options) | numbered options, **1–9** picks | `activate`: eligible units glow; clicking one selects it and narrows the box to its options, numbered from 1; an option's only unit answers on a click |
 | `move`, `disembark` (MoveRegion) | "Drag to move", **Enter** commits, **Esc** resets | the move-range circle and ghosts, as today |
 | `deploy`, `deploy_scouts`, `deploy_ambusher` (PieceSelection of shelved units) | the shelved units as numbered entries | *Deployment placement* |
 | `declare_targets` (Assignment) | weapon-group chips (*Shooting targets*) | click targets |

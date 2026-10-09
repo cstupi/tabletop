@@ -616,7 +616,10 @@ the cursor (`Formation.Arrange`), the rows across the screen as the camera sees 
 
 A click selects a unit and Shift+click one model; a click on empty table or Esc clears. While a decision wants a
 pick (`TableInput.Eligible`), a click on an eligible piece answers through `TargetClicked` or `ModelClicked` and
-neither selects nor drags. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
+neither selects nor drags. Under an Options Ask only a piece exactly one choice names is eligible
+(`DecisionView.ClickAnswers`); a unit several choices name (activate: one option per unit and action) glows, a click
+selects it as any click does, and the decision box narrows to its options renumbered from 1 (`DecisionView.ChoicesOf`,
+`Number`) until another unit is clicked or Esc widens it. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
 it; Space centres the active unit. Keys go through `Hotkeys.Of`; the table acts on its own and raises
 `IntentPressed` for the rest. `M` toggles the measure
 tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
