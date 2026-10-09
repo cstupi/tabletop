@@ -139,6 +139,24 @@ public sealed class ServeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Spectate_is_a_404_for_an_unknown_run_an_unknown_game_and_a_game_not_kept_on_the_socket()
+    {
+        Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsync($"/runs/{Guid.NewGuid()}/games/x/spectate", null)).StatusCode);
+        var run = await PostRunAsync(new { keep = true });      // in-process: kept, but no game row to watch
+        await EventsAsync(run);
+        Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsync($"/runs/{run}/games/{SuiteFixtures.Name}/spectate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsync($"/runs/{run}/games/nope/spectate", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_recording_is_served_as_soon_as_its_game_is_reported()
+    {
+        var run = await PostRunAsync(new { keep = true });
+        await EventsAsync(run);
+        Assert.Equal(HttpStatusCode.OK, (await http.GetAsync($"/runs/{run}/recordings/{SuiteFixtures.Name}")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_late_reader_replays_a_finished_runs_events()
     {
         var id = await PostRunAsync(new { });

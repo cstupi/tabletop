@@ -14,6 +14,7 @@ public sealed class SuiteRun(Guid id, string outDir)
 {
     private readonly object gate = new();
     private readonly List<SseMessage> messages = [];
+    private readonly List<SuiteGameResult> results = [];
     private TaskCompletionSource tick = NewTick();
 
     public Guid Id => id;
@@ -26,8 +27,17 @@ public sealed class SuiteRun(Guid id, string outDir)
 
     private static TaskCompletionSource NewTick() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public void Game(SuiteGameResult result) =>
+    /// <summary>A game's result as soon as it is reported, before the run is done.</summary>
+    public SuiteGameResult? ResultOf(string game)
+    {
+        lock (gate) return results.FirstOrDefault(r => r.Name == game);
+    }
+
+    public void Game(SuiteGameResult result)
+    {
+        lock (gate) results.Add(result);
         Append(new SseMessage("game", JsonSerializer.Serialize(result, Compact)), finished: false);
+    }
 
     public void Done(SuiteReport report)
     {

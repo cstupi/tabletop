@@ -77,9 +77,24 @@ public static class ServeApp
 
         app.MapGet("/runs/{id:guid}/recordings/{game}", (Guid id, string game) =>
         {
-            var path = runs.TryGetValue(id, out var run)
-                ? run.Report?.Games.FirstOrDefault(g => g.Name == game)?.RecordingPath : null;
+            var path = runs.TryGetValue(id, out var run) ? run.ResultOf(game)?.RecordingPath : null;
             return path is not null && File.Exists(path) ? Results.File(Path.GetFullPath(path), "application/json") : Results.NotFound();
+        });
+
+        // A fresh session for the spectator a kept socket game was given; the live feed connects with it.
+        app.MapPost("/runs/{id:guid}/games/{game}/spectate", async (Guid id, string game, HttpContext http) =>
+        {
+            var result = runs.TryGetValue(id, out var run) ? run.ResultOf(game) : null;
+            if (result is not { GameId: { } gameId, Spectator: { } spectator }) return Results.NotFound();
+            try
+            {
+                var session = await runner.SpectatorSessionAsync(spectator, http.RequestAborted);
+                return Results.Json(new { gameId, jwt = session.Jwt }, SuiteReport.Json);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return Results.Json(new { error = ex.Message }, SuiteReport.Json, statusCode: 502);
+            }
         });
 
         return app;

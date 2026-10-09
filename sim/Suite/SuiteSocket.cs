@@ -16,12 +16,17 @@ public sealed class SuiteSocket(
     NpgsqlDataSource db,
     Func<CompiledScenario, ICollection<Guid>, CancellationToken, Task<SocketCredentials>> credentials,
     Func<IWebSocketConnector> connector,
-    bool ownsDatabase = false) : IAsyncDisposable
+    bool ownsDatabase = false,
+    Func<string, CancellationToken, Task<MintedSession>>? session = null) : IAsyncDisposable
 {
     public NpgsqlDataSource Db => db;
     public Task<SocketCredentials> CredentialsAsync(CompiledScenario scenario, ICollection<Guid> minted, CancellationToken ct) =>
         credentials(scenario, minted, ct);
     public IWebSocketConnector Connector() => connector();
+
+    /// <summary>A fresh session for the named account (the dev mint makes the account on first use, and a name always gives the same one).</summary>
+    public Task<MintedSession> SessionAsync(string name, CancellationToken ct) =>
+        (session ?? throw new InvalidOperationException("this socket environment cannot mint a session by name"))(name, ct);
 
     /// <summary>TABLETOP_DB_CONNECTION (required), TABLETOP_SIM_WS and TABLETOP_SIM_MANAGEMENT, from the process or the nearest .env.</summary>
     public static SuiteSocket FromEnvironment()
@@ -37,7 +42,12 @@ public sealed class SuiteSocket(
                 using var http = new HttpClient { BaseAddress = management };
                 return await MintAsync(scenario, http, minted, ct);
             },
-            () => new ClientWebSocketConnector(address), ownsDatabase: true);
+            () => new ClientWebSocketConnector(address), ownsDatabase: true,
+            session: async (name, ct) =>
+            {
+                using var http = new HttpClient { BaseAddress = management };
+                return await MintOneAsync(http, name, ct);
+            });
     }
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -50,17 +60,23 @@ public sealed class SuiteSocket(
         var sessions = new List<MintedSession>();
         for (var i = 0; i < scenario.Info.Participants.Count; i++)
         {
-            using var response = await http.PostAsJsonAsync(SocketCredentials.MintPath, new { name = SocketCredentials.NameFor(scenario, i) }, Json, ct);
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                throw new InvalidOperationException(
-                    $"{http.BaseAddress}{SocketCredentials.MintPath.TrimStart('/')} answered 404; the management API must run as a development environment");
-            response.EnsureSuccessStatusCode();
-            var body = await response.Content.ReadFromJsonAsync<MintResponse>(Json, ct)
-                ?? throw new InvalidOperationException("the mint returned an empty body");
-            minted.Add(body.Account.Id);
-            sessions.Add(new MintedSession(body.SessionJwt, body.Account.Id));
+            var session = await MintOneAsync(http, SocketCredentials.NameFor(scenario, i), ct);
+            minted.Add(session.AccountId);
+            sessions.Add(session);
         }
         return new SocketCredentials(sessions);
+    }
+
+    private static async Task<MintedSession> MintOneAsync(HttpClient http, string name, CancellationToken ct)
+    {
+        using var response = await http.PostAsJsonAsync(SocketCredentials.MintPath, new { name }, Json, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException(
+                $"{http.BaseAddress}{SocketCredentials.MintPath.TrimStart('/')} answered 404; the management API must run as a development environment");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<MintResponse>(Json, ct)
+            ?? throw new InvalidOperationException("the mint returned an empty body");
+        return new MintedSession(body.SessionJwt, body.Account.Id);
     }
 
     public async ValueTask DisposeAsync()

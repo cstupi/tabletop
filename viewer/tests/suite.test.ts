@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchSuite, recordingUrl, runEvents, startRun, SuiteError, type RunEvent, type SuiteGameResult } from '../src/lib/suite/client';
+import { fetchSuite, recordingUrl, runEvents, spectate, startRun, SuiteError, type RunEvent, type SuiteGameResult } from '../src/lib/suite/client';
 import { applyEvent, canRun, counts, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup } from '../src/lib/suite/model';
 
 const games = [
@@ -8,7 +8,7 @@ const games = [
   { name: 'spell-a', group: 'spells', covers: ['Fireball'] },
 ];
 const result = (name: string, passed = true): SuiteGameResult =>
-  ({ name, group: 'core', passed, failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null });
+  ({ name, group: 'core', passed, failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null, spectator: null });
 const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [] }], passed: true };
 
 const stream = (chunks: string[]) => new Response(new ReadableStream({
@@ -46,6 +46,18 @@ describe('suite client', () => {
   });
   it('builds a recording url', () => {
     expect(recordingUrl('r1', 'a b')).toBe('/runs/r1/recordings/a%20b');
+  });
+});
+
+describe('spectate', () => {
+  it('posts to the game and returns the game id and jwt', async () => {
+    let url = '', method = '';
+    const f = (async (u: string, init?: RequestInit) => { url = u; method = init?.method ?? ''; return Response.json({ gameId: 'g', jwt: 'j' }); }) as typeof fetch;
+    expect(await spectate('r1', 'a b', '', f)).toEqual({ gameId: 'g', jwt: 'j' });
+    expect([url, method]).toEqual(['/runs/r1/games/a%20b/spectate', 'POST']);
+  });
+  it('throws on a 404', async () => {
+    await expect(spectate('r1', 'x', '', (async () => new Response('', { status: 404 })) as typeof fetch)).rejects.toThrow(SuiteError);
   });
 });
 

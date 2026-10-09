@@ -6,6 +6,8 @@ export type RunRequest = { readonly only: readonly string[]; readonly driver: Dr
 export type SuiteGameResult = {
   readonly name: string; readonly group: string; readonly passed: boolean; readonly failures: readonly string[];
   readonly seed: number; readonly replay: string; readonly recordingPath: string | null; readonly gameId: string | null;
+  /** The account a live feed connects as (a participant with no team); set for a kept socket game. */
+  readonly spectator: string | null;
 };
 export type ExactResult = { readonly game: string; readonly check: string; readonly passed: boolean };
 export type CoverageEntry = {
@@ -45,6 +47,15 @@ export async function startRun(request: RunRequest, base = '', fetchImpl: typeof
 
 export const recordingUrl = (runId: string, game: string, base = ''): string =>
   `${base}/runs/${runId}/recordings/${encodeURIComponent(game)}`;
+
+/** A fresh spectator session for a kept socket game: what `liveFeed` takes as its game id and JWT. */
+export async function spectate(runId: string, game: string, base = '', fetchImpl: typeof fetch = fetch): Promise<{ gameId: string; jwt: string }> {
+  const response = await fetchImpl(`${base}/runs/${runId}/games/${encodeURIComponent(game)}/spectate`, { method: 'POST' });
+  const body = await response.json().catch(() => ({})) as { gameId?: string; jwt?: string; error?: string };
+  if (!response.ok || body.gameId === undefined || body.jwt === undefined)
+    throw new SuiteError(body.error ?? `spectate answered ${response.status}`);
+  return { gameId: body.gameId, jwt: body.jwt };
+}
 
 /** Splits an event-stream into `{event, data}` messages; tolerant of chunk boundaries anywhere. */
 export async function* sseMessages(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: string }> {

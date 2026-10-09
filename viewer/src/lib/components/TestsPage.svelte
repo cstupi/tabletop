@@ -3,9 +3,8 @@
   import type { Feed } from '../feed/feed';
   import { liveFeed } from '../feed/liveFeed';
   import { recordingFeed } from '../feed/recordingFeed';
-  import { logIn } from '../live/management';
   import { fromUrl } from '../recording/source';
-  import { fetchSuite, recordingUrl, runEvents, startRun, type SuiteGameResult } from '../suite/client';
+  import { fetchSuite, recordingUrl, runEvents, spectate, startRun, type SuiteGameResult } from '../suite/client';
   import {
     applyEvent, canRun, counts, failed, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup,
     type Page,
@@ -16,8 +15,6 @@
   let page: Page = $state.raw(initial([]));
   let loaded = $state(false);
   let loadError: string | null = $state(null);
-  let email = $state('');
-  let password = $state('');
   const socketUrl = import.meta.env.VITE_GAME_SOCKET ?? 'ws://localhost:5200/ws';
 
   const groups = $derived(groupsOf(page.games));
@@ -46,8 +43,8 @@
 
   async function openLive(r: SuiteGameResult) {
     try {
-      const { sessionJwt } = await logIn(email, password);
-      onFeed(liveFeed({ url: socketUrl, gameId: r.gameId!, sessionJwt }));
+      const { gameId, jwt } = await spectate(page.runId!, r.name);
+      onFeed(liveFeed({ url: socketUrl, gameId, sessionJwt: jwt }));
     } catch (e) { onError((e as Error).message); }
   }
 </script>
@@ -75,11 +72,6 @@
       {/if}
       {#if page.message !== null}<span class="error">{page.message}</span>{/if}
     </div>
-    <details class="live">
-      <summary>Open live needs a login</summary>
-      <input type="email" placeholder="email" bind:value={email} />
-      <input type="password" placeholder="password" bind:value={password} />
-    </details>
 
     {#each groups as group (group.name)}
       <section>
@@ -100,9 +92,7 @@
             {#if r !== undefined}
               <strong class={r.passed ? 'ok' : 'error'}>{r.passed ? 'passed' : 'failed'}</strong>
               {#if r.recordingPath !== null}<button onclick={() => watch(r)}>Watch</button>{/if}
-              {#if r.gameId !== null && r.recordingPath !== null}
-                <button disabled={email.length === 0 || password.length === 0} onclick={() => openLive(r)}>Open live</button>
-              {/if}
+              {#if r.gameId !== null && r.spectator !== null}<button onclick={() => openLive(r)}>Open live</button>{/if}
             {:else if page.status === 'running' && page.selected.has(game.name)}
               <span class="muted">waiting</span>
             {/if}

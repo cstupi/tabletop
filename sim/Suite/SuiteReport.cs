@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace Tabletop.Sim.Suite;
 
-/// <summary>One game's verdict. Replay is the command line that reruns that game alone with --keep. GameId is set for a kept socket game, the one a live feed can open.</summary>
+/// <summary>One game's verdict. Replay is the command line that reruns that game alone with --keep. GameId is set for a kept socket game, the one a live feed can open; Spectator names the account (a participant with no team) that feed connects as.</summary>
 public sealed record SuiteGameResult(string Name, string Group, bool Passed, IReadOnlyList<string> Failures, ulong Seed,
-    string Replay, string? RecordingPath, Guid? GameId);
+    string Replay, string? RecordingPath, Guid? GameId, string? Spectator = null);
 
 /// <summary>A run's games and coverage. Passed: every game passed and, on a full run, no entry is uncovered.</summary>
 public sealed record SuiteReport(Guid RunId, IReadOnlyList<SuiteGameResult> Games, IReadOnlyList<CoverageEntry> Coverage, bool Passed)

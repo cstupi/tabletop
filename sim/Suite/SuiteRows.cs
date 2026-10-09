@@ -16,6 +16,31 @@ public sealed class SuiteRows(NpgsqlDataSource db)
 
     public static string GameName(Guid runId, string game, bool keep) => $"{(keep ? Kept : Transient)} {runId:N} {game}";
 
+    /// <summary>The name of a kept game's spectator account: the run and game it belongs to.</summary>
+    public static string SpectatorName(Guid runId, string game) => $"suite-spectator {runId:N} {game}";
+
+    /// <summary>A participant with no team and no army for the account: what the live feed's spectator socket needs. Idempotent.</summary>
+    public async Task SeedSpectatorAsync(Guid gameId, Guid accountId, string name, CancellationToken ct)
+    {
+        await using var connection = await db.OpenConnectionAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await using (var account = new NpgsqlCommand("insert into management.account (id, name) values ($1, $2) on conflict (id) do nothing", connection, transaction))
+        {
+            account.Parameters.AddWithValue(accountId);
+            account.Parameters.AddWithValue(name);
+            await account.ExecuteNonQueryAsync(ct);
+        }
+        await using (var participant = new NpgsqlCommand(
+            "insert into management.participant (id, game_id, team_id, account_id, army_id, army_snapshot) values ($1, $2, null, $3, null, null)", connection, transaction))
+        {
+            participant.Parameters.AddWithValue(Guid.CreateVersion7());
+            participant.Parameters.AddWithValue(gameId);
+            participant.Parameters.AddWithValue(accountId);
+            await participant.ExecuteNonQueryAsync(ct);
+        }
+        await transaction.CommitAsync(ct);
+    }
+
     /// <summary>The advisory lock key of a run: the run id's last eight bytes, the random part of a v7 guid.</summary>
     public static long LockKey(Guid runId) => BitConverter.ToInt64(runId.ToByteArray(), 8);
 
