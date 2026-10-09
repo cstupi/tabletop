@@ -1511,7 +1511,7 @@ hydrated. One case falls on the wrong side of it, and it is a typed desync rathe
   gate it. The deployment roll-off is not a case, because it is gated, so its frame is live while
   the gate is open.
 
-The typed exception makes both cases recoverable on the client and loud on the server rather than
+The typed exception makes the case recoverable on the client and loud on the server rather than
 fatal on both, and `EventApplierTests` asserts each of them. It does not make either case
 correct: a client that resyncs replays the same event and desyncs again, so the two id spaces and
 the popped-frame lookup are still the fix, and both belong to the game server module.
