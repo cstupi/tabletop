@@ -278,10 +278,11 @@ That last rule is a reading, not a schema constraint. Spell effects read forty-e
 and found *"always with one duration: once"*. Validating it makes an unexpected spell shape fail
 loudly instead of applying nowhere.
 
-A `roll_result` condition's `condition_value` rows are exactly two: the roll it reads, and `raw` or
-`modified` (`schema.md` → A condition is a row, and its values are rows). `number` is the face.
-`(condition_id, value)` is the primary key and carries no ordinal, so the loader re-orders those
-two to put the roll name first, and `Validate` refuses a roll named `raw` or `modified`.
+A `roll_result` condition's `condition_value` rows are the roll it reads, `raw` or `modified`, and
+optionally `success` or `fail` (`schema.md` → A condition is a row, and its values are rows).
+`number` is the face. `(condition_id, value)` is the primary key and carries no ordinal, so the
+loader re-orders them to roll name, then `raw`/`modified`, then the outcome, and `Validate`
+refuses a roll named `raw`, `modified`, `success` or `fail`.
 
 #### Store and seeder
 

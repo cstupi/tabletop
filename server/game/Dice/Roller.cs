@@ -22,7 +22,7 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
         var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled);
         var replaced = new List<DieReplacement>();
         for (var i = 0; i < rolled.Count; i++)
-            if (plan.RerollRaw.Contains(rolled[i].Raw)) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again
+            if (plan.Rerolls(rolled[i])) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again
         return new RollResult(record, replaced.Count == 0 ? null : new DiceRerolled(frameId, record.Id, replaced), Cursor);
     }
 }

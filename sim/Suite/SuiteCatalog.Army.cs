@@ -81,15 +81,9 @@ public static partial class SuiteCatalog
             Game(Cults, "soul-snatcher-cults-quick-shot", Play.Moves, ["Quick Shot"], [R(1, "Quick Shot"), R(2, "Quick Shot"), R(3, "Quick Shot"), R(4, "Quick Shot")], [], []),
             Game(Cults, "soul-snatcher-cults-slayers", Play.Shoots, ["Slayer"], [R(1, "Slayer"), R(2, "Slayer")], [],
                 [ApGrant("Slayer", By("Slayer", when: When.Shooting), 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
-            // Fails on an engine defect: GfMelee.ChargeTargets settles a defender-less melee interaction, and Slayer's charge row reaches its
-            // most_models opponent condition there, which throws "no defender in this interaction" when round 1 offers its first activation to
-            // a unit that may charge (a holding unit, above, is never asked).
-            Game(Cults, "soul-snatcher-cults-slayers-charging", Play.Charges, [], [R(1, "Slayer")], [], [], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
-                .Pinned("D4", "failed:", "the engine threw in Advance: no defender in this interaction")
-                .Pinned("D4", "ended: failed:", "the engine threw in Advance: no defender in this interaction")
-                // In process the session faults mid-step, so the driver's projection runs ahead of the server's (deployment, round 0): every
-                // field the throw left behind differs, one failure line each (sequence, round, phase, active team, the deployed models).
-                .Pinned("D4", "invariants: the driver's projection differs from the server's", " — ", DriverKind.InProcess),
+            // GfMelee.ChargeTargets settles a defender-less melee interaction, and Slayer's charge row reaches its most_models opponent condition
+            // there when round 1 offers its first activation to a unit that may charge (a holding unit, above, is never asked): the condition is false.
+            Game(Cults, "soul-snatcher-cults-slayers-charging", Play.Charges, [], [R(1, "Slayer")], [], [], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
                 [ApGrant("Tear", With("Tear"), 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
@@ -146,12 +140,10 @@ public static partial class SuiteCatalog
                 [Rerolls("Scrapper", By("Scrapper", "Scrapper Boost"), [6], successOnly: false, SixesRerolled),
                  ApGrant("Shatter", With("Shatter"), 2, "\"Against units where most models have Tough(3) or higher, this weapon gets AP(+2)\"")],
                 weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
-            // Fails on a content defect: Scrapper Boost's row re-rolls every unmodified 5 (roll_result eq 5 raw), so under Shatter's AP(+2) the
-            // fixed 5, which fails to block, is re-rolled, where the rule re-rolls only "successful unmodified defense results of 5-6".
+            // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only, so an
+            // unmodified 5 fails to block there and is not re-rolled, and blocks against the other unit and is.
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]")
-                .Pinned("D6", "Scrapper Boost:", "re-rolled dice [4,5,6] of [3 3 1 3 5 6 5 2 3], expected [5]")
-                .Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,2] of [5 4 5], expected []"),
+                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)]),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],

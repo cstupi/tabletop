@@ -18,7 +18,7 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
 {
     private readonly List<RollRecord> _rolls = new();
     private readonly List<DiceRerolled> _forced = new();
-    private readonly Dictionary<RollPlan, (LiveSet Live, IReadOnlyList<(int Face, LiveProperty Source)> Rerolls)> _rerolls = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<RollPlan, (LiveSet Live, IReadOnlyList<(int Face, bool SuccessOnly, LiveProperty Source)> Rerolls)> _rerolls = new(ReferenceEqualityComparer.Instance);
 
     public GameState State { get; } = state;
     public PropertySet Properties { get; } = properties;
@@ -58,7 +58,7 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
         {
             _forced.Add(f);
             if (_rerolls.TryGetValue(plan, out var by))
-                foreach (var (face, source) in by.Rerolls) if (f.Replaced.Any(d => d.Old.Raw == face)) by.Live.Record(source);
+                foreach (var (face, successOnly, source) in by.Rerolls) if (f.Replaced.Any(d => d.Old.Raw == face && (!successOnly || d.Old.Success))) by.Live.Record(source);
         }
         return result.Record;
     }

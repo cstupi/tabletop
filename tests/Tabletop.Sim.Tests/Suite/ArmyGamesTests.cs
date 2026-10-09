@@ -20,9 +20,7 @@ public class ArmyGamesTests
     /// <summary>Games that fail on a defect the suite found, with the failure each keeps until the defect is fixed (the game's comment names it).</summary>
     public static readonly Dictionary<string, string> Defects = new()
     {
-        ["soul-snatcher-cults-slayers-charging"] = "no defender in this interaction",
         ["blessed-sisters-devout-edited-dice"] = "1 extra hits for edited dice [6 6 6 3 2 4 1 5 2 5 2 5], expected 3",
-        ["jackals-scrapper-boost"] = "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]",
     };
 
     /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"); they are not the army group's.</summary>

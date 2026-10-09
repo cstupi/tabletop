@@ -66,11 +66,12 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
         return new PropertySet(hash, name, rules, stats, actions, rolls, entries, books.Select(b => new BookRecord(b.Uid, b.Name, b.Version, bookSpells[b.Uid].ToList())).ToList());
     }
 
-    /// <summary>roll_result's two values are the roll name and raw|modified; the roll name goes first on the way back (a row without a
-    /// position, seeded before 007_properties_positions.sql and not since, reads its values in value order).</summary>
+    /// <summary>roll_result's values are the roll name, raw|modified and an optional success|fail; they go back in that order (a row
+    /// without a position, seeded before 007_properties_positions.sql and not since, reads its values in value order and is re-ordered here).</summary>
     static EffectCondition Condition(Guid id, ConditionKind kind, string? subject, Comparison cmp, int? number, List<string> values)
     {
-        if (kind == ConditionKind.RollResult && values.Count == 2 && values[0] is "raw" or "modified") values.Reverse();
+        static int Place(string v) => v switch { "raw" or "modified" => 1, Effects.Conditions.Success or Effects.Conditions.Fail => 2, _ => 0 };
+        if (kind == ConditionKind.RollResult) values = values.OrderBy(Place).ToList();
         return new EffectCondition(id, kind, subject is null ? null : EnumFrom<EffectSubject>(subject), cmp, number, values);
     }
 

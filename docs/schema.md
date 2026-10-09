@@ -540,9 +540,10 @@ grammar found is set membership over action types and not an `or`. One row is a 
 several rows are a set, and there is no boolean expression tree anywhere — the rulebook has no
 *or* and no *not* in its properties.
 
-A `roll_result` condition has exactly two `condition_value` rows: the roll it reads (`hit`,
-`defense`) and either `raw` or `modified`. `effect_condition.number` is the face compared. No
-roll may be named `raw` or `modified`.
+A `roll_result` condition has two or three `condition_value` rows: the roll it reads (`hit`,
+`defense`), either `raw` or `modified`, and optionally `success` or `fail`, which the die's
+success must match. `effect_condition.number` is the face compared. No roll may be named `raw`,
+`modified`, `success` or `fail`.
 
 Conditions hang off the effect, never off the property. `Indirect` is why: its three effects
 have different conditions, one of them conditional and two unconditional.
