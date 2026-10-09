@@ -48,28 +48,6 @@ public sealed class Animator : IDisposable
                     _view.GetTree().CreateTimer(0.6).Timeout += () => Done(generation);
                     return;   // one at a time while animating
                 }
-            if (_s.Settings.Animate && e.Payload is StepCompleted { Rolls.Count: > 0 } step)
-            {
-                var actor = _s.Projection?.Stack.FirstOrDefault(f => f.Id == step.FrameId)?.Context.ActorUnitId;
-                var anchor = actor is { } a ? _view.Pieces.OfType<PieceNode>().FirstOrDefault(p => p.UnitId == a) : null;
-                if (anchor is not null && anchor.IsInsideTree())
-                {
-                    // The whole readout of a roll, which is all the client ever shows of one — no die is drawn:
-                    // the faces, which dice passed in brackets, the threshold, and every modifier by source.
-                    // No die is placed on the table and nothing tumbles; Godot physics is not in the scene.
-                    // One block per roll on the step, stacked, because a step may hold several: OPR's roll-to-hit rolls one
-                    // pool per Quality value the attacking models bring, since p.4 tests each attack against "the model's
-                    // Quality value" and a joined hero brings its own. The threshold on each block is what tells them apart.
-                    var text = string.Join("\n", step.Rolls.Select(roll =>
-                    {
-                        var faces = string.Join(" ", roll.Dice.Select(d => d.Success ? $"[{d.Raw}]" : $"{d.Raw}"));
-                        var mods = roll.Modifiers.Count == 0 ? "" : "\n" + string.Join(", ", roll.Modifiers.Select(m => $"{m.Amount:+#;-#;0} {m.Source}"));
-                        return $"{roll.Roll}{(roll.Threshold is { } t ? $" {t}+" : "")}\n{faces}{mods}";
-                    }));
-                    var label = new Label3D { Text = text, Position = new Vector3(0, 3, 0), Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 64, PixelSize = 0.01f };
-                    anchor.AddChild(label); anchor.GetTree().CreateTimer(1.5).Timeout += () => { if (GodotObject.IsInstanceValid(label)) label.QueueFree(); };
-                }
-            }
         }
         _view.Redraw();
     }

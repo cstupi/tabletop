@@ -4,7 +4,7 @@ namespace Tabletop.Client.Core;
 
 public enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }
 
-/// <summary>What the one Ask panel renders. Highlights are the pieces the legal set names.</summary>
+/// <summary>What the decision box renders. Highlights are the pieces the legal set names.</summary>
 public sealed record AskView(Ask Ask, AskMode Mode, IReadOnlyList<Guid> Highlights, IReadOnlyList<string> AnsweredTeams, bool AutoPass);
 
 public static class AskViewModel
