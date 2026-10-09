@@ -1,10 +1,9 @@
-# Handoff — 2026-10-07
+# Handoff — 2026-10-08
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
-after round 4. `sim/` plays whole games headless; `viewer/` draws them. **What it lacks is a usable in-game client.** The
-owner played an activation in the Godot client and could not tell what was happening. The work now is the in-game UX,
-then polish.
+after round 4. `sim/` plays whole games headless; `viewer/` draws them. The in-game client is built to the
+in-game UX spec on branch `in-game-ux` and waits for the owner's on-screen check (*Next* 1); polish follows.
 
 ## Get running
 
@@ -27,23 +26,28 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
   `./scripts/client` again.
 
 **Checks.** `dotnet build` has 0 errors (7 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1358 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 40, Viewer 9, Client 82,
-GameServer 810, Management 91, Sim 127. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1488 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 44, Viewer 9, Client 161,
+GameServer 854, Management 94, Sim 127. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet run --project sim -- objectives --seeds 1..4` fails seeds 3 and 4 ("expected at least 1 'round_ended' events,
+saw 0"; "expected team 2 to win, got winners [1, 2]"), and did before the in-game UX branch; not yet diagnosed.
 
 ## Next
 
-### 1. The in-game UX
+### 1. The in-game UX: the owner's on-screen check
 
-Spec: `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, settled with the owner on 2026-10-08 and waiting for
-their review of the written spec. On approval, `superpowers:writing-plans`. Mockups from the session are in
-`.superpowers/brainstorm/5808-1791512643/content/`.
+Built on branch `in-game-ux`, not merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`,
+plan `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision
+box, dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the
+table; the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New
+games start with Frontline deployment zones, drawn through round 0. The server side is checked by `.superpowers/e2e/`
+(`E2E_SCENARIO=ingame`, once per setting) and the sim. What needs the owner's eyes is the rendering and the input: the
+launch checklist in the plan's Task 19, Step 6 (`task-19-assembly.md`). On the owner's approval, merge `in-game-ux`.
 
 ### 2. Check the terrain fix in the client
 
 Merged (`4fbe694`). The built-in terrain meshes are glTF Y-up and were read as Z-up, which laid them on their side
 and sank half of each into the table; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
 woods and buildings stand upright with their bases flush on the table, and water and pads lie flat.
-`docs/design/client/design.md` still says the built-ins are authored Z-up; correct it to Y-up at pitch 90.
 
 ### 3. Base shape at import
 
@@ -70,14 +74,16 @@ have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile 
 `LiveProperties.Gather` skips a name the set lacks, so a unit carrying one plays without it and nobody is told. The
 spell-library spec recorded this ("the other 261 army-book rule names"); it is its own work item after the in-game UX:
 (1) the army-book generator writes a text-only entry (name, kind, aggregation, the book's `description` as
-`rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2) the in-game UX spec's
-`GET /v1/properties/{hash}/rules` delivers the texts and the client tags rules with no entry "not automated"; a text-only entry then needs an explicit "played" flag so
-the tag stays true;
+`rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2)
+`GET /v1/properties/{hash}/rules` delivers the texts and the stat sheet tags a rule with no entry "not automated", so a
+text-only entry needs an explicit "played" flag for the tag to stay true;
 (3) the effects are authored, many by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
 descriptions; the catalog, not the army, is where rule text lives.
 
-Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked, and a new game
-starts with no zones (the in-game UX plan, Task 6, gives new drafts zones). Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
+Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
+starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Assignment
+legal set carries one target list for every weapon group, so the server checks an answer's targets against the union
+and not per group: a split-fire target one group cannot legally shoot is accepted for that group. Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
 the -12" to attackers' range are. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets

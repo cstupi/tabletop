@@ -429,6 +429,7 @@ flowchart TD
     K -->|"CommandMessage"| CMD["Command: an intent"]
     K -->|"EditMessage"| ED["Edit: lobby or setup"]
     K -->|"PresenceMessage or PingMessage"| PR["Presence value or ping"]
+    K -->|"SightQuery"| SQ["SightAnswer to the asker alone:<br/>never logged, no at_rest"]
 
     CMD --> V{"legality x enforcement"}
     V -->|"strict and out of set"| REF["Refused(messageId, reason, detail)"]
@@ -457,7 +458,7 @@ tests read.
 | Group | Kinds | Payload of note | Source |
 | --- | --- | --- | --- |
 | Scheduler | `round_started`, `turn_started`, `turn_ended`, `phase_started` | `RoundStarted(Round, Order, Changes)`; `TurnEnded(TeamId, Passed, Changes)` | scheduler → Events; `turn_ended.passed` from whole-design review → The scheduler's pass |
-| Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }` | action sequences → The resolution stack, Abandonment |
+| Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }`; `SequenceStarted(FrameId, Sequence, Context, Outline?)`, the outline the sequence's player-facing steps as `OutlineStep(Step, Label)`, null in logs written before it | action sequences → The resolution stack, Abandonment |
 | Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks |
 | Dice | `dice_rerolled`, `dice_edited`, `modifier_added` | `DieReplacement(Index, Die Old, Die New)`; `ModifierAdded(FrameId, Roll, RollModifier)` | resolution → Players roll their own dice; scheduler → Deployment ("every roll result is editable from the menu") |
 | Undo | `undone` | `Undone(long ToSeq)` | `architecture.md` → Undo; client shell → undo is local first |
@@ -645,11 +646,11 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 
 | Direction | Kinds |
 | --- | --- |
-| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit` |
-| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`) |
+| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`) |
+| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds)`) |
 | Both | `presence`, `ping` |
 
-Thirteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
+Sixteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
 which is what lets a kind be added to the union without a lockstep release of the client, the viewer
 and the simulator.
 
@@ -666,7 +667,7 @@ sent after the last frame that processing produced: the hydration frames on a co
 frame on an accepted command, the `refused` frame on a rejected one. Who receives it is the game
 server's rule and is settled in its design: the frame follows its batch, broadcast when the batch
 appended an event and sent to the provoking client alone when it did not. Presence and pings are
-relayed rather than processed and never produce one. `Seq` is the last sequence number in the log, so it repeats the previous value
+relayed rather than processed and never produce one, and a `sight_query` is answered without being processed into the log, so it produces none either. `Seq` is the last sequence number in the log, so it repeats the previous value
 when the round of processing appended nothing, and is `0` for a game whose log is empty. It is a
 rest point, not a receipt: `at_rest` says nothing more is coming, and never that anything happened.
 The cost is one small frame per participant per inbound frame, paid by every client whether or not

@@ -13,10 +13,12 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
   - `IDispatcher`: posts to the main thread; `ImmediateDispatcher` in tests, `GodotDispatcher` in `src/Screens/`.
   - `AskViewModel`: `LegalSet` to `AskMode`, and the first open Ask for my team.
   - `AnimationQueue`, `MoveRuler`, `DeployView`, `SelectionView`, `PendingDrops`, `PresenceTable`, `MenuModel`, `LogText`, `Names`.
+  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`.
   - `AssetCache` (content-addressed), `BuiltinContent`, `TerrainGenerators`, `ClientSettings`, `SessionStore`.
 - `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `UpdateRequiredScreen`, `GodotDispatcher`.
-- `src/Table/`: the 3D table: `TableView`, `TableInput`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
-- `src/Panels/`: `AskPanel`, `LobbyPanel`, `LogPanel`, `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
+- `src/Hud/`: the play Hud: `HeaderBar`, `StatSheet`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `EndMessage`, `KeyOverlay`.
+- `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `UndoMoveButton`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
+- `src/Panels/`: `LobbyPanel`, `LogPanel`, `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
 - `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (ten grouped `.glb` meshes). A missing file draws the piece's volumes.
 
@@ -30,9 +32,10 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
 - `Session.EventsApplied`, `GameChanged`, `BoardChanged`, `RefusedReceived` are what panels subscribe to. Session outlives panels: every subscription comes off in `_ExitTree`.
 - Commands: `SendCommandAsync(command, id)` takes the caller's message id so a `Refused` arriving before the send's continuation can still be matched. `SendEditAsync` is for setup edits.
 - Animation: `Animator` feeds `EventsApplied` into `AnimationQueue`. The projection is already current; the queue only paces playback. `Settings.Animate` false plays everything at once, true one event per call.
-- Ask: `AskViewModel.Mine` picks the lowest-id open Ask addressed to `MyTeamId` that the team has not answered; a watcher (no team) gets none. `ModeOf(LegalSet)` maps `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `TokenSpend`, `Confirmation` to `AskMode`. `AskPanel` is the one panel in a fixed place; it renders the mode and answers with `SendCommandAsync(new AnswerAsk(ask.Id, answer), id)`. A `Refused` for its last command shows as an orange refusal line and re-renders.
+- Ask: `AskViewModel.Mine` picks the lowest-id open Ask addressed to `MyTeamId` that the team has not answered; a watcher (no team) gets none. `ModeOf(LegalSet)` maps `Options`, `PieceSelection`, `Allocation`, `Assignment`, `MoveRegion`, `TokenSpend`, `Confirmation` to `AskMode`. `DecisionBox`, bottom centre over `DecisionView`, renders the mode and answers with `SendCommandAsync(new AnswerAsk(ask.Id, answer), id)`. A `Refused` for its last command shows as an orange refusal line and re-renders.
 - Input: `TableInput` turns mouse and keys into presence (20 Hz timer), commands and edits. Picking casts the camera ray and tests each piece's `Bounds` (`Aabb`) with its own slab-method `RayHit`; the table plane is `Plane(Vector3.Up, 0)`. Geometry (settling, containment, movement) is `Tabletop.Geometry`; Godot only casts the ray.
-- During a move Ask, `TableInput.Proposing` holds the models being positioned: dragging streams proposed ghosts, release sends nothing, and the Ask panel commits.
+- During a move Ask, `TableInput.Proposing` holds the models being positioned: dragging streams proposed ghosts, release sends nothing, and the decision box commits on Enter. Outside one a drag is a hand move, judged under the game's enforcement; under `strict` it does not start.
+- Play: `GameScreen.Play` builds the Hud over the table and the overlays in it; lobby and setup keep the side panel. Hud parts take keys in `_Input`, before the table's viewport; `TableInput` maps the rest through `Hotkeys.Of` and raises `IntentPressed`. Max wounds, sight and who can shoot come from the server (`ModelFacts`, `SightAnswer`); rule texts from `GET /v1/properties/{hash}/rules`.
 - `WorldFrame` converts the wire frame to Godot: x = X, y = Z, z = -Y; yaw 0 faces +Y (Godot -Z), positive yaw counter-clockwise from above.
 - `MeshLoader` fits meshes to a piece's volume. A glTF is Y-up and stands upright at pitch 90; a Z-up STL conversion at pitch 0.
 

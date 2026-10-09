@@ -22,11 +22,12 @@ In:
 | Login (password, email one-time code), remembered session, update-required screen | `client/src/Core/`, `client/src/Screens/` |
 | The game list, create game, join | `client/src/Screens/HomeScreen.cs` |
 | One session object: management client, socket, projection, draft, presence, undo prediction, reconnect, desync resync | `client/src/Core/Session.cs` |
-| One game screen over four statuses; lobby panel, setup toolbar, team panels | `client/src/Screens/`, `client/src/Panels/` |
+| One game screen over four statuses; the side panel (lobby panel, setup toolbar, team panels) in lobby and setup, the Hud in play | `client/src/Screens/`, `client/src/Panels/`, `client/src/Hud/` |
 | The table view: slab, hitbox-first pieces, terrain, markers, zones, camera | `client/src/Table/` |
 | Runtime GLB loading into a content-addressed disk cache | `client/src/Table/MeshLoader.cs`, `client/src/Core/AssetCache.cs` |
-| Input and presence: select, drag, drop, ruler, measure, ping, others' cursors and ghosts | `client/src/Table/TableInput.cs`, `PresenceOverlay.cs` |
-| The Ask panel, the declared move's region and ghost, containment | `client/src/Panels/AskPanel.cs`, `client/src/Core/MoveRuler.cs` |
+| Input and presence: select, picks, drag, formations, drop, ruler, measure, ping, hotkeys, others' cursors and ghosts | `client/src/Table/TableInput*.cs`, `PresenceOverlay.cs` |
+| Table overlays: hover labels, sight lines, target lines, the undo-move button | `client/src/Table/{HoverLabels,SightLines,TargetLines,UndoMoveButton}.cs` |
+| The Hud: header, stat sheet, decision box, dice, log drawer, end message, key overlay; the declared move's region and ghost, containment | `client/src/Hud/`, `client/src/Core/MoveRuler.cs` |
 | The log panel with undo-to-here, the right-click menu, the animation queue | `client/src/Panels/`, `client/src/Table/Animator.cs` |
 | Built-in terrain, textures, marker visuals, and the rulebook's four terrain generators | `client/src/Core/BuiltinContent.cs`, `TerrainGenerators.cs` |
 | The scripted boundary checks: no physics, no rules type, no Godot in `Core` | `scripts/check-client` |
@@ -172,9 +173,8 @@ flowchart TD
   gamescr["GameScreen<br/>lobby, setup, playing, ended"]
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
-  ask["AskPanel"]
-  log["LogPanel"]
-  table["TableView + TableInput + PresenceOverlay"]
+  hud["Hud: HeaderBar, StatSheet, DecisionBox, DiceTray,<br/>LogDrawer, EndMessage, KeyOverlay"]
+  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, UndoMoveButton"]
 
   main -- owns --> session
   main -- "one at a time, by Phase" --> login
@@ -183,8 +183,7 @@ flowchart TD
   main --> gamescr
   gamescr -- "by game.Status" --> lobby
   gamescr --> setup
-  gamescr --> ask
-  gamescr --> log
+  gamescr -- "playing, ended" --> hud
   gamescr -- "always" --> table
   login -- reads --> session
   home -- reads --> session
@@ -280,7 +279,7 @@ server accepts the edit. `MyTeamId` is
 null in two unrelated states, and nothing may treat them alike: a spectator has a `Game` whose
 participant row carries no team, while a client mid-reconnect has no `Game` at all. Both readers
 return early on a null `Game`. `GameScreen.Rebuild` tears the team panels down and rebuilds them
-from the `Welcome`, and `AskPanel.Render` draws nothing. A returning player is therefore shown as
+from the `Welcome`, and `DecisionBox.Render` draws nothing. A returning player is therefore shown as
 `Reconnecting…` and then as themselves, never as a watcher.
 
 Reconnect policy lives in three fields:
@@ -325,7 +324,7 @@ flowchart TD
   pred["ProjectTo(seq)<br/>undo prediction"]
   draft["Draft : TableState<br/>setup only"]
   presence["PresenceTable<br/>by participant"]
-  view["TableView, AskPanel, LogPanel, TeamPanel"]
+  view["TableView, the Hud parts, TeamPanel"]
 
   frames -- "events" --> applier
   applier --> proj
@@ -467,7 +466,7 @@ flowchart TD
   ontable --> node
   shelf --> none
   inside --> none
-  inside -. "AskPanel calls ShowExitGhosts" .-> ghost
+  inside -. "DecisionBox calls ShowExitGhosts" .-> ghost
   node --> mesh
   mesh -- "no, missing, deleted or downloading" --> proxy
   mesh -- yes --> both
@@ -487,7 +486,7 @@ A model that is not `OnTable` has no node. `TableView.Redraw()` diffs
 `Projection.Models.Values.Where(m => m.Location is OnTable)` against its node dictionary and frees
 the node as soon as an event moves a model to the shelf or inside a container. `OnShelf` and
 `Inside` carry no `Placement`, so there is no stale or default position to draw at. `PieceAt(id)`
-returning null keeps the ruler, the log's click-highlight and the Ask panel's highlights correct
+returning null keeps the ruler, the log's click-highlight and the decision box's highlights correct
 for an occupant.
 
 The one exception lasts as long as one Ask. `ShowExitGhosts(modelIds, containerId)` puts one
@@ -606,9 +605,20 @@ same click may select a terrain placement or a marker, and the drop sends the ma
 `MoveMarker`. Those four release paths are the only difference between a setup drag and a play
 drag.
 
-Hand moves arrange models and never end a turn, per the scheduler. That is the plain drag. The
-declared move belongs to the Ask panel. While one is open the panel fills `TableInput.Proposing`,
-so the same drag streams `proposed` ghosts and the release sends nothing. `M` toggles the measure
+A plain drag of a model outside a move step is a hand move: one `MoveModels` on release, which never ends a turn.
+The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit
+picked at a deploy Ask from the shelf is legal, and anything else is a breach that `silent` accepts, `warn` accepts
+with the warning on the event, and `strict` refuses. Under `strict` the drag does not start and the click only
+selects. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
+belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`
+ghosts, the release sends nothing, and Enter commits. While a unit is held, 1–5 arrange it in that many rows about
+the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
+
+A click selects a unit and Shift+click one model; a click on empty table or Esc clears. While a decision wants a
+pick (`TableInput.Eligible`), a click on an eligible piece answers through `TargetClicked` or `ModelClicked` and
+neither selects nor drags. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
+it; Space centres the active unit. Keys go through `Hotkeys.Of`; the table acts on its own and raises
+`IntentPressed` for the rest. `M` toggles the measure
 tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
 relayed as a `Measurement`. A base of diameter zero stands in for a bare table point, so
 piece-to-point is the same edge-to-edge call. `P` pings at the cursor. `PickNextPiece` and
@@ -657,14 +667,45 @@ their facing"*, and a unit exits by using an ordinary move action, so a placemen
 facing fits. `Admits` therefore tries `MoveRuler.ExitYaws` facings for a non-circular base and the
 drawn region is the union over those that fit; a circular base is yaw-invariant and tries one, which
 is every ordinary infantry model and so the whole common case. `MoveRuler.ExitYawAt` runs the same
-search for the answer, so what the panel sends is a placement `GfMoves.ExitPlacement` accepts. The
+search for the answer, so what the decision box sends is a placement `GfMoves.ExitPlacement` accepts. The
 server checks the proposed placement rather than imposing a facing, so the facing search lives only
 on the client.
 
-### The Ask panel
+### The play screen
 
-One panel, always in the same place, rendering whatever Ask is currently addressed to the player's
-team. It keys on the legal set, never on the question name, so a new ruleset question needs no new
+From `playing` on the side panel goes and the table fills the window (in-game UX spec → Layout). `GameScreen`
+keeps the side panel, the team panels and the selection line for lobby and setup. An overlay `Control` added after the
+table carries Home, the status and the toast in every status, and in play `GameScreen.Play` adds the Hud to it: each
+part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`, drawing a Godot-free model.
+
+| Part | Where | Draws |
+| --- | --- | --- |
+| `HeaderBar` | top centre | `HeaderView`: round, turn, scores; the active unit, its action and the step strip from the action frame's `Outline`; the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
+| `StatSheet` | lower left | *Stats* (`UnitSheet`: weapons, rules with their `rule_text`, *not automated* for a rule with no catalog entry, the models strip from `ModelFacts`) and *This round* (`RoundHistory`), for the unit `SheetFocus` names |
+| `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
+| `DiceTray` | above the decision box | the latest roll and its result until the next |
+| `LogDrawer` | lower right | `LogPanel`, each roll's dice inline on its row, and the Animate toggle; G opens it |
+| `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
+| `KeyOverlay` | centre | every hotkey; F1 or ? |
+
+The table overlays are children of the `TableView`. `HoverLabels`: the hovered unit's name in its team colour, the
+edge-to-edge distance from my selected unit with a line between the two closest bases (`HoverView`), wounds left over
+each multi-wound model, the Shift tag. `SightLines`: the server's `SightAnswer` while L is held over a unit, or while a
+target assignment is open; green clear, amber screened, red blocked with the blocker lit, a summary over the target,
+and under a target pick the models that cannot shoot dimmed. `TargetLines`: each assigned weapon group's shooters to
+its target, one colour per target. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
+move until any later event lands (`HandMoveUndo`).
+
+The Hud parts take keys in `_Input`, which runs before the `SubViewportContainer` hands a key to the table's
+viewport, and leave the digits and Esc to the table while a drag is in hand. Hud buttons give the GUI focus straight
+back, so Space never presses one. Max wounds, who can shoot and sight come from the server; the client names no
+rule.
+
+### The decision box
+
+One box, bottom centre over the table, rendering whatever Ask is currently addressed to the player's
+team through `DecisionView`, with the keys that apply in a hint line under it; with nothing addressed to me it
+shows the waiting line. It keys on the legal set, never on the question name, so a new ruleset question needs no new
 branch.
 
 ```mermaid
@@ -697,7 +738,7 @@ flowchart TD
 
 `AskViewModel.Mine` picks the first open Ask whose `Teams` contains my team and whose `Answers`
 does not. It returns null for a watcher, since a participant with no team is never addressed. It
-also computes `Highlights` and `AnsweredTeams`, so the panel's choices and the table's highlights
+also computes `Highlights` and `AnsweredTeams`, so the box's choices and the table's highlights
 come from one place. `Highlights` is the pieces the legal set names, plus any `Enterable` container
 and the container being exited, and less any spender model that is not my team's. Asks addressed to
 other teams render as a waiting indicator naming the team, never as controls.
@@ -709,23 +750,25 @@ reaches `Mine` with a null team and a returning player is never rendered as a wa
 
 Behaviour the specs demand, and where it lives:
 
-- Any team member may answer, and the panel shows who did. `AnsweredBy` reads the last
+- Any team member may answer, and the box shows who did. `AnsweredBy` reads the last
   `AskAnswered` for that ask id and names its actor.
 - Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
   `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
   as that player's own. It is a client convenience, not part of the model.
-- The simultaneous token spend renders as one private input per eligible model (p.13). The panel
+- The simultaneous token spend renders as one private input per eligible model (p.13). The box
   shows who has answered without showing what, then reveals every answer at once from
   `ask_closed`. This is the only consumer of the server's per-player filtered streams.
-- Confirm gates (wait-between-steps) are one button in the same panel, labelled by `ConfirmLabel`:
-  "Continue" for a step gate, "End the round" for the scheduler's `end_round` Ask.
-- `strict` refusals show in the panel. A `Refused` whose `MessageId` matches the panel's last
-  command prints "the server refused: outside the legal set".
+- A `Confirmation` Ask is its question and one button that Enter presses, labelled by `ConfirmLabel`:
+  "End the round" for the scheduler's `end_round` Ask, "Continue" for the interpreter's step gate. The step gate
+  (`WaitsBetweenSteps`) is a development flag: neither the create-game form nor the lobby offers it, both send
+  `false`, and players never meet it.
+- A refusal shows in the box as an orange line. A `Refused` whose `MessageId` matches the box's last
+  command prints "The server refused: {detail}".
 
 The round boundary has no control of its own. The scheduler stops at the boundary with one unframed
-`Confirmation` addressed to every team that has a participant, and the panel renders it as it
+`Confirmation` addressed to every team that has a participant, and the box renders it as it
 stands: `Highlights` is empty, `AutoPass` cannot fire because there is no `WindowKind`, and there
-is no Pass button. Whoever answers first ends the round. Every other player's panel is replaced by
+is no Pass button. Whoever answers first ends the round. Every other player's box is replaced by
 the next round's turn Ask on the same `EventsApplied` tick. A second control would be a second path
 to the same command, and the menu already has *Set the round* for a player who wants to jump.
 
@@ -750,7 +793,7 @@ second control for the same command.
 
 ### A spend over models and a pick of one model
 
-Both put models where the panel would otherwise hold one number and one unit.
+Both put models where the box would otherwise hold one number and one unit.
 
 A team's spell token spend is `TokenSpend(IReadOnlyDictionary<Guid,int> MaxByModel)`, `Sealed`,
 with a pass, answered by `TokensSpent(IReadOnlyDictionary<Guid,int> Counts)` (p.13: *"Models within
@@ -762,7 +805,7 @@ allocation is one total split exactly across its targets, and a spend has no tot
 allows any number up to each model's own holding, so spending one token of a possible five is a
 legal answer that an allocation would reject. And an allocation carries a single amount with no
 per-target bound, while five tokens across two models holding one and four is a different legal set
-from five across two holding three and two. So the panel renders one private `SpinBox` per entry of
+from five across two holding three and two. So the box renders one private `SpinBox` per entry of
 `MaxByModel`, prefixed with the model's name and bounded by that model's own value, and no total
 appears anywhere. The team's maximum is the sum of its own entries and is never rendered as a
 constraint. The map covers every addressed team's models at once, which discloses
@@ -781,9 +824,9 @@ the target unit as its individual target"*). The wound goes to the model it name
 through the defender's allocation. Nothing on the wire changed for it. Two things follow for the
 table. `Highlights` is that model list, and `TableView.PieceAt` takes a model id already, so the
 highlight lands on the models rather than on the unit. And a left click still selects the model's
-unit, because that is what a bare click means everywhere else in the client, so the panel answers
+unit, because that is what a bare click means everywhere else in the client, so the box answers
 from `TableInput.PieceLeftClicked`, which carries the clicked piece's own id and therefore a model,
-rather than from `Selected`. The panel calls `TableInput.CancelDrag()` on a click it consumed, so
+rather than from `Selected`. The box calls `TableInput.CancelDrag()` on a click it consumed, so
 answering an Ask is never also a drag. That matters most here, because the eligible models are the
 other team's, and a stray click would otherwise start a hand move of the unit being shot at.
 Shift-click, which narrows the selection to one model, is not needed to answer and does no harm.
@@ -807,9 +850,10 @@ eight characters. `EventApplier.EffectiveLog` decides which rows are struck thro
 range stays visible rather than disappearing. Presence never appears in the log. A replay is where
 things went, not what people pointed at.
 
-Clicking a row highlights `LogText.Touched(event)`. "Undo to here" on a row is the only undo
-affordance. It calls `UndoToAsync(seq)` and greys every row above the target until `PendingUndoTo`
-clears. There is no undo button, no undo stack UI and no redo. Undo is replay to a sequence number
+The panel lives in `LogDrawer`, a button lower right that G or a click opens upward; the Animate toggle is in it.
+Clicking a row highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every
+row above the target until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move
+(*The play screen*). There is no undo stack UI and no redo. Undo is replay to a sequence number
 rather than inverse events, so the log serves as the control.
 
 A row carrying rolls also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die…"
@@ -829,7 +873,7 @@ or `Text` item, borrows the next click for a `PieceId` or `TablePoint` item, and
 | right-click a model | `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
 | Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, grants, wounds-this-activation |
 | right-click a marker | `ForMarker`: move, remove |
-| right-click a team panel | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |
+| right-click a team name in the header | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |
 | Alt-right-click the table | drop a token here, leave the game |
 
 Each item is one ordinary command, logged with the actor, through the same path automation uses.
@@ -839,7 +883,7 @@ enforcement setting, since they are the override path.
 
 `ForFrame`'s `MenuInput.TablePoint` item ("Place on the table, here" / "Take out of the container,
 here") is the manual containment path beside the Ask-driven one. A model off the table has no node
-to right-click, so `OffTable` offers the same item from its team's panel, through the shared
+to right-click, so `OffTable` offers the same item from its team's menu, through the shared
 `BackOnTable` builder and `Names.TeamOfModel`. That item is the only path when no Ask is
 open: a transport deploying with units inside (p.14), a correction after a misclick, or a group
 playing under `warn`/`silent`. `KnownActionNames` exists because the pinned `Properties`' action
@@ -879,8 +923,9 @@ The art is fifteen files, not fifty. The 35 pieces group into ten meshes that di
 footprint, height, scale and yaw: `hill` (6 pieces), `woods` (5), `ruins` (4), `building` (3),
 `wall` (2), `rock` (2), `field` (2), `water` (5), `pad` (5, every flat ground hazard including the
 crater), `haze` (1, the toxic smog). Each of the ten is glTF 2.0 binary, under 2000 triangles, one
-colour-only material, and authored in the unit box in the table frame: x and y in [−0.5, 0.5], z in
-[0, 1], base at z = 0. `MeshLoader.LoadBuiltin` scales that box onto the placement's first
+colour-only material, and authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5], the height on
+y in [0, 1], base at y = 0. `BuiltinContent.MeshOrientation` (pitch 90) reads it into the table frame, z up, the value
+the web app writes for a Y-up asset, and `MeshLoader.LoadBuiltin` scales that box onto the placement's first
 volume, so `water` serves both a 4"-radius lake and a 3"×12" river. The five table textures are
 seamless 1024×1024 PNGs, authored as a 12"×12" tile because `SlabNode.Set` derives `Uv1Scale` from
 `width/12`. Markers and zones need no art: `MarkerNode` builds a disc and a `Label3D`, `ZoneNode`
@@ -908,7 +953,9 @@ and carries the rest as text nobody interprets.
 
 Zones are drawn for every ordinal during setup, in the team's colour when a team with that ordinal
 exists and grey otherwise, so a group can see and swap zones before every team has formed. From
-`playing` on, only zones with a team are drawn.
+`playing` on, only zones with a team are drawn, through round 0 (deployment and the phases before the first round),
+and none from round 1 (`TableView.ZonesShown`). A new game's draft starts with the Frontline style's zones
+(`GameSession.NewDraft`); setup may set another style.
 
 ### Animation
 
@@ -920,7 +967,7 @@ game's `waits_between_steps` is on the game row, because it changes what the ser
 `Take(animate)` returns everything at once when animating is off, and one event at a time when it
 is on. `Animator` tweens a `ModelsMoved` over 0.4 s, shows a roll as a transient `Label3D`
 over the actor unit for 1.5 s, then pumps the next. The queue may lag the projection and never
-delays an Ask. A player may answer while a roll's readout is still up, because the Ask panel reads
+delays an Ask. A player may answer while a roll's readout is still up, because the decision box reads
 the projection directly and the queue holds no lock. Presence is never animated, only drawn.
 
 A roll is a readout and not an object. The label carries the roll's name, its
@@ -945,7 +992,7 @@ Contested or re-decided:
 | Decision | Reason | Alternative rejected | Source |
 | --- | --- | --- | --- |
 | No social login. Email plus password, or email one-time code, on the client's own login screen | both methods are Basic-auth calls to Stytch through management and need no page to redirect back to | loopback listener and device code, both twice deferred by accounts and the web app to serve Google sign-in and magic links; neither method is wanted | client shell → No social login |
-| Enforcement is three positions, `strict` refuses, and the panel says so | action sequences and the scheduler both specify a refusing mode | identity and enumerations' boolean (warn or silent, never block) | whole-design review ruling 1 |
+| Enforcement is three positions, `strict` refuses, and the decision box says so | action sequences and the scheduler both specify a refusing mode | identity and enumerations' boolean (warn or silent, never block) | whole-design review ruling 1 |
 | Menu edits are accepted under every enforcement setting | they are the override path, visible to opponents and recorded with an actor | refusing them under `strict`, which would leave no way to fix a mistake | whole-design review ruling 1 |
 | Animation is the player's setting, waiting is the game's | animation is presentation only; waiting changes what the server does and what the log records | resolution's "both set at game setup", with no column for either | whole-design review ruling 3 |
 | One game screen for four statuses | all four are one socket and one hydrate path, and a status change happens inside the screen | a scene per status, which reloads the table on every change; one scene with panels toggled, which puts the game list and the table in one tree | client shell → Structure |
@@ -954,7 +1001,7 @@ Contested or re-decided:
 | One table frame, and the client converts nothing | the wire, `Tabletop.Geometry` and the client all use the corner frame | a `TableFrame` conversion layer in the client | geometry plan → Global Constraints |
 | A model that is not `OnTable` is not drawn at all | `OnShelf` and `Inside` carry no placement, so there is no position to draw at and `PieceAt` returning null keeps every consumer correct | drawing an occupant at the container's position, which makes it selectable and measurable when it is neither | client shell → The table view; game flow → Inside a container |
 | Two region functions, and `ExitRegion` returns a boundary | an occupant has no start to sweep rays from, so `Movement.Region` is meaningless; a boundary lets `MoveRegionNode` draw both with no change | a predicate (`BaseFullyWithin`) evaluated per candidate, which cannot express a ring of impassable terrain and needs a different node | plan Task 8; geometry plan Task 6 |
-| The round boundary gets no control of its own | the one Ask panel is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 |
+| The round boundary gets no control of its own | the one decision box is the whole affordance, and a second control would be a second path to the same command | an "End round" button on the game screen or team panel | plan Task 14 |
 | A `ProjectionDesyncException` resyncs the client, bounded at one attempt per sequence position | the fault is a divergence in this client's copy, which a rebuild from the log fixes; a fault that made no progress is in the server's log, which a rebuild cannot fix | skipping the change and carrying on, which diverges silently; a fixed retry count, which either strands an unrelated later fault or loops on a batched hydrate; a `Resyncing` phase, which renders identically to `Reconnecting` | client shell → The connection and the projection |
 | `MyTeamId` is derived from `Game.Participants` on every read, and a reconnect re-picks nothing | the participant row is the one record of a slot, and it outlives the socket; teams are locked from `playing` on, so a returning player's team cannot have changed while they were away | caching the team across `Reset()`, which would be a second source of truth for a value the `Welcome` already carries; treating a reconnecting player as teamless, which is what a spectator is and would cost a seat on every dropped connection | game flow → Teams are frozen at the flip, and a team is a slot |
 | The client drops `AtRest` | nothing here waits for the server to settle, and the only busy state ends at `Welcome` | stopping a busy indicator on it, which would be a second and weaker source of truth for a settled table | contracts plan ruling 3; plan → Interfaces needed item 12 |
@@ -985,7 +1032,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | --- | --- |
 | `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl)` | `static Default`, `static Load(path)`, `Save(path)`, `Mute(kind)`, `Unmute(kind)` |
 | `sealed class SessionStore(string path)` | `string? Read()`, `Write(jwt)`, `Clear()` |
-| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload` |
+| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload`, `GetRuleTexts(propertiesHash)` |
 | `interface IGameSocket : IAsyncDisposable` | `event Action<SocketMessage> FrameReceived`, `event Action<SocketClosed> Closed`, `ConnectAsync(Uri, ct)`, `SendAsync(SocketMessage)`, `CloseAsync()` |
 | `interface IGameSocketFactory` | `IGameSocket Create()` |
 | `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)` | |
@@ -993,7 +1040,8 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `sealed class PresenceTable` | `Set`, `Remove`, `Of`, `All`, `Clear` |
 | `interface IDispatcher { void Post(Action) }`, `ImmediateDispatcher` | |
 | `enum SessionPhase { LoggedOut, LoggedIn, Connecting, Connected, Reconnecting, UpdateRequired }` | |
-| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings>, IDispatcher, Func<int,TimeSpan>?, TimeProvider?)` | state `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection`, `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`; events `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IReadOnlyList<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool)`; methods `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync` |
+| `sealed class Session(ManagementClient, IGameSocketFactory, SessionStore, ClientSettings, Action<ClientSettings>, IDispatcher, Func<int,TimeSpan>?, TimeProvider?)` | state `Phase`, `Account`, `Settings`, `Management`, `GameId`, `ParticipantId`, `Game`, `Draft`, `Applier`, `Projection`, `Log`, `Others`, `PendingUndoTo`, `LastCloseReason`, `MyTeamId`, `IsCreator`, `Rules` (`RuleTexts`, empty until fetched for the game's hash), `MaxWounds` (from the latest `ModelFacts`; an absent id is 1); events `PhaseChanged`, `GameChanged`, `BoardChanged`, `EventsApplied(IReadOnlyList<GameEvent>)`, `PresenceChanged(Guid)`, `Pinged(Ping)`, `RefusedReceived(Refused)`, `ConnectionLost(SocketClosed, bool)`, `FactsChanged`, `SightAnswered(SightAnswer)`; methods `LoginWithPasswordAsync`, `SignUpAsync`, `SendOtpAsync`, `VerifyOtpAsync`, `TryResumeAsync`, `RefreshAsync`, `LogoutAsync`, `UpdateSettings`, `ConnectAsync(gameId)`, `DisconnectAsync`, `LeaveAsync`, `SendCommandAsync(Command) : Task<Guid>`, `SendEditAsync(Edit) : Task<Guid>`, `UndoToAsync(seq)`, `SendPresenceAsync`, `SendPingAsync`, `QuerySightAsync(observerUnitId, targetUnitId) : Task<Guid>` |
+| `sealed record RuleTextDto(Name, Kind, TakesParameter, RuleText)`, `sealed class RuleTexts` | `static From(rows)`, `static Empty`, `TextOf(name)`, `IsAutomated(name)` (a catalog entry exists) |
 | `sealed record BuiltinTerrain(string Name, string Label, Volume Volume, string? MeshFile)`, `static class BuiltinContent` | `Terrain`, `Textures`, `MarkerVisuals`, `ZoneStyleIds`, `Place(name, Point3, Yaw, scale)`, `VolumesOf(name)`, `TextureFile(name)`, `TerrainMeshFile(name)` |
 | `enum Planet { Generic, Hospitable, Wasteland, Death }`, `static class TerrainGenerators` | `Generate(Planet, TableSize, Random) : IReadOnlyList<AddTerrain>`, `Fixed(Planet)`, `Rolled(Planet, int twoD6)` |
 | `sealed class AssetCache(string root, HttpClient)`, `HashMismatchException(Expected, Actual)` | `PathFor(hash)`, `Has(hash)`, `FetchAsync(hash, url, ct)`, `static Sha256Hex` |
@@ -1009,9 +1057,10 @@ Godot layer, for completeness: `Main` (`static Instance`, `Session`, `Cache`, `H
 `Palette`, `TableView` (`Bind`, `Redraw`, `PieceAt`, `TerrainAt`, `MarkerAt`, `Pieces`, `Volumes`,
 `Size`, `Camera`, `ShowExitGhosts`, `ClearExitGhosts`, `IsExitGhost`), `MeshLoader`
 (`RefreshManifest`, `LoadAssetAsync`, `LoadBuiltin`), `TableInput` (`Bind`, `Tool`, `Selected`,
-`Proposing`, `Allowance`, `PieceRightClicked`, `TableRightClicked`, `SelectionChanged`,
-`PieceLeftClicked`, `ModelDragged`, `PickNextPiece`, `PickNextPoint`, `CancelDrag`), and the
-panels.
+`Proposing`, `Eligible`, `Holding`, `Allowance`, `Select`, `PieceRightClicked`, `TableRightClicked`, `SelectionChanged`,
+`PieceLeftClicked`, `UnitClicked`, `TargetClicked`, `ModelClicked`, `HoveredUnitChanged`, `HandMoved`, `IntentPressed`,
+`ModelDragged`, `PickNextPiece`, `PickNextPoint`, `CancelDrag`), the panels, the Hud parts and the table overlays, each
+of the last two with `Bind(Session, TableView, TableInput)`.
 
 ### Consumed from other modules
 
@@ -1215,7 +1264,7 @@ it. That happens when the flip to `playing` lands between the drag and the drop.
 
 ```mermaid
 sequenceDiagram
-  participant AP as AskPanel
+  participant AP as DecisionBox
   participant TV as TableView
   participant S as Session
   participant GS as game server
@@ -1243,7 +1292,7 @@ The exit ghosts are the one control surface the client draws that is not part of
 `Enterable` and `ExitingId` are never both set. That invariant lives on the server, and the client
 would render nonsense if it were broken. The exit ghosts are freed by `ClearExitGhosts` when the
 answer is sent. If the Ask is closed by something other than this player's answer, such as a
-teammate answering or the frame being abandoned, the panel must clear them on the next
+teammate answering or the frame being abandoned, the decision box must clear them on the next
 `EventsApplied`. `_renderedAsk` staleness checks exist for that case. A ghost dropped outside the
 drawn region still commits, and the server leaves that model inside. The offer is drawn, not
 enforced.
@@ -1314,7 +1363,7 @@ its own would mean the event spine had been broken.
 | Any other server-side `1000` after `welcome` | read as a replacement; the player goes to Home with no retry, and Home prints `LastCloseReason` | the inference is an accepted ambiguity, since no frame distinguishes the two |
 | `Rejected` with `InvalidSession` or `NotAParticipant` | no reconnect; `GameId` cleared; Home | yes |
 | Handshake window missed (10 s) | the server closes; the client reconnects, because no `Welcome` arrived | yes |
-| A command or edit refused | `RefusedReceived` toasts `{reason}: {detail}`; the Ask panel shows an in-panel line when the `MessageId` matches its last command; nothing is rolled back, because nothing was applied locally except a predicted undo | yes |
+| A command or edit refused | `RefusedReceived` toasts `{reason}: {detail}`; the decision box shows an orange line when the `MessageId` matches its last command; nothing is rolled back, because nothing was applied locally except a predicted undo | yes |
 | `ProjectionDesyncException` while applying an event | the projection is dropped, the socket is reopened and the log is replayed; `ConnectionLost(willReconnect: true)` toasts it as a rebuild | yes; client shell → The connection and the projection |
 | A resync faulting again at or before `_desyncFloor` | no further attempt; `Phase = LoggedIn`, `LastCloseReason` is the exception's message, and Home prints it | yes; the bad event is in the server's own log, and rejoining buys one more attempt |
 | A frame kind the client does not act on, `AtRest` included | dropped; `Handle`'s switch has no default arm and deserialization has already succeeded | yes; contracts plan ruling 3 |
@@ -1335,17 +1384,14 @@ Concurrency, ordering and lifecycle hazards:
   `SendCommandAsync`/`SendEditAsync`/`SendPresenceAsync` are unsynchronised. Every one of those is
   called from the main thread, but nothing enforces it. `ImmediateDispatcher` cannot test this
   hazard.
-- Screens subscribe to `Session` events and never unsubscribe. `Main.Show` calls `QueueFree` on the
-  outgoing screen without detaching its handlers, and `GameScreen`, `AskPanel`, `LogPanel`,
-  `PresenceOverlay` and `Animator` all subscribe in `_Ready`/constructors. A freed Godot object
-  invoked from a live event throws `ObjectDisposedException`. `Session` outlives every screen, so
-  the first screen swap while frames are in flight hits this. The fix is an `_ExitTree` detach on
-  each subscriber, and nothing in the plan has one.
+- `Session` outlives every screen, and a freed Godot object invoked from a live event throws
+  `ObjectDisposedException`. Every subscriber holds its handlers in fields and detaches them in `_ExitTree`
+  (`Animator` in `Dispose`, which `GameScreen.FreePlayPanels` calls), so a screen swap or the end of play leaves
+  no handler behind. A new subscriber that skips the detach reintroduces the fault.
 - `GameScreen.Rebuild` runs on every `GameChanged` and `PhaseChanged`, and frees and re-creates
   every `TeamPanel`, the `LobbyPanel` and the `SetupToolbar`. Any lobby edit by any participant
-  destroys the setup toolbar mid-interaction, losing its selection and any open field. The Ask
-  panel and the log panel are guarded (`if (_askPanel is not null) return`). The setup toolbar is
-  not.
+  destroys the setup toolbar mid-interaction, losing its selection and any open field. The play
+  Hud is built once (`ShowPlayPanels` returns while `_header` is set). The setup toolbar is not guarded.
 - `AskViewModel.Mine` orders open Asks by `Ask.Id`, a v7 GUID, so "the current Ask" is
   approximately the oldest-opened one rather than the innermost frame's. Under nested sequences the
   order that matters is the resolution stack's. The two agree only because ids happen to be
@@ -1405,7 +1451,7 @@ Gaps:
   plan states "a change to any of these here is a change there" and nothing enforces it. The
   client's tests serialise its own mirrors, so a renamed property on the server side fails at
   runtime in the client, not at build time in either.
-- The Ask panel's mode dispatch is tested at the view-model level, not the panel level. `ModeOf` is
+- The decision box's mode dispatch is tested at the view-model level (`AskViewModel`, `DecisionView`), not the box level. `ModeOf` is
   covered. That `RenderMove` swaps three things for a disembark is a manual step in Task 14.
 - The desync path is tested with an injected faulting event, and has no manual trigger: nothing a
   player can do makes the server emit an event the applier cannot apply. The two desync arms of the
@@ -1430,7 +1476,7 @@ The plan's ten rulings, the decision and reason of each, and what changes if a r
 | 7. Zones for ordinals with no team | **Drawn grey during setup**, so a four-zone style in a two-player lobby shows two coloured zones and two grey and the table shows what the style laid out | hiding them would have `TableView.ZoneColour` return transparent |
 | 8. The facing a disembarking model takes | **Any facing that fits**, since p.7 lets a model turn in any direction: `ExitRegion` unions over `ExitYaws` facings and `ExitYawAt` answers with one that fits | the container's yaw would be one facing tried; keeping the embarked facing means `Location.Inside` carries a yaw, a wire change in the contracts plan; per-model turning needs a rotate control no spec asks for |
 | 9. Whose base the disembark region is drawn for | **The lead model's** (`ModelIds[0]`), as `Region` already is; the server refuses an outlier individually | `MoveRegionNode.Show` takes a list of polygons |
-| 10. Is an offered container a click target or a button | **A click**, since the legal set already highlights it and the container's name is in the panel's note; one control for one command | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
+| 10. Is an offered container a click target or a button | **A click**, since the legal set already highlights it and the container's name is in the box's note; one control for one command | `OfferEmbark` adds a `Btn` per container and drops the `PieceLeftClicked` hook, leaving `TableInput.CancelDrag` unused |
 
 Deferred, with where it is recorded:
 

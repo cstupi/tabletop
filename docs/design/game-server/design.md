@@ -368,16 +368,17 @@ Three properties follow:
 Replaying to an arbitrary N is O(log), and this module does not memoise. `Undone` compounds: the
 log grows with every undo, and every hydrate re-applies all of it.
 
-### Three message kinds on one socket
+### Message kinds on one socket
 
-One socket carries every `SocketMessage` kind. The three inbound kinds have three different
-durability rules. `GameSession.ReceiveAsync` is the whole routing table:
+One socket carries every `SocketMessage` kind. Commands, edits and presence have three different
+durability rules, and a sight query has none: it is answered and forgotten. `GameSession.ReceiveAsync` is the whole routing table:
 
 | Frame | Handled by | Logged | Persisted | Broadcast | Valid at |
 | --- | --- | --- | --- | --- | --- |
 | `CommandMessage` | `HandleCommandAsync` → `CommandDispatcher` | **yes**, before broadcast | in the log | to everyone, filtered per viewer, then one `AtRest` | `playing`, `ended` |
 | `PresenceMessage` | `HandlePresence` → `PresenceTable.Set` | never | never | on the next 20 Hz tick, latest value only | every status |
 | `PingMessage` | relayed at once, sender stamped | never | never | immediately, except back to the sender | every status |
+| `SightQuery` | `HandleSightAsync` → `Sight.From(state, observer).Line` per model pair, `IGameRules.Shooters` | never | never | one `SightAnswer` to the asker alone, no `AtRest` | every status (empty lists before play) |
 | `EditMessage` with a `LobbyEdit` | `HandleLobbyEditAsync` | never | **management's rows** | `GameInfoMessage` | `lobby`, `setup` |
 | `EditMessage` with a `SetupEdit` | `HandleSetupEditAsync` → `DraftEditor` | never | the `table_state` tree | `BoardMessage` with the whole draft | `setup` |
 
@@ -406,6 +407,24 @@ session. It also owns two rules that are not edits. `OnSlab` is the corner frame
 Grimdark Future page 17's *"if it's impossible to place the terrain piece, simply remove it"* for
 generated pieces never dragged onto the table.
 
+### The sight query, model facts and the step outline
+
+Three additions serve the play screen, none of them in the log. A `SightQuery(QueryId, ObserverUnitId, TargetUnitId)`
+is answered from the current state with the same `Sight` the rules use: one `SightLine` per model pair, `BlockedBy`
+the obstructing volumes (a terrain volume's id or a model's), and `CanShoot` the observer's models that p.8's *Who can
+shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
+followed by `AtRest`. `ModelFacts(MaxWounds)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
+`Tough(X)`, else 1), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
+differs from the last facts sent. `SequenceStarted.Outline` lists a sequence's labelled steps (`IStep.Label`) in order;
+a step with no label is internal, a sequence with no labelled step writes none, and a log written before outlines
+replays with none.
+
+`Shooters` needs the game's `PropertySet` outside a running step, so `IRulesEngine.Properties` exposes the one
+`RulesEngine` holds. Grimdark Future answers it per ranged weapon group with `GfAttack.EligibleModels`, over the live
+set of `GfAttack.AttackInteraction`'s frame-optional core: the same core the fire groups use inside a sequence, called
+with no frame, so the range is the units' distance and there are no faces. Every `IGameRules` wrapper that forwards by
+hand (the tests' `WithSequences`) forwards `MaxWounds` and `Shooters`, or the wrapped ruleset answers 1 and nobody.
+
 ### Enforcement and the override path
 
 `game.enforcement` is `silent | warn | strict` (`architecture.md` → Rules enforcement). `silent`
@@ -421,15 +440,20 @@ sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting
 | `OutsideLegalSet` | accept silently | accept **with a warning on the event** | `Refuse(OutsideLegalSet)` |
 | `Illegal` | accept silently | accept with a warning | `Refuse(Illegal)` |
 
-**Menu edits are accepted under every setting.** They never reach the policy.
-`CommandDispatcher.Classify` puts the fifteen menu and hand-move commands in
-`CommandClass.Override`, and `Dispatch` sends that class straight to `MenuTranslation`.
-`Legality.AlwaysAccepted` exists in the enum and is exercised by `EnforcementPolicyTests`, but
-the dispatch path never constructs it. The invariant "the override path is unconditional" is
-therefore enforced by a `switch` arm rather than by a value flowing through the policy.
+**Menu edits are accepted under every setting; a hand move is judged.** `CommandDispatcher.Classify` puts the
+fifteen menu and hand-move commands in `CommandClass.Override`, and `Override` translates each through
+`MenuTranslation`, which refuses only a missing reference. A `MoveModels` then goes through
+`HandMoves.Judge(state, command, actor)` and `Decide(Enforcement, Breach?)`. A relocation that takes a model from the
+shelf to the table is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
+`deploy_scouts`, `deploy_ambusher`) whose answer the scheduler is waiting on, which holds while no Ask has opened since
+that one closed: that is the placement the scheduler waits for. Anything else is the breach `hand_move`, detail
+"{unit} moved by hand outside a move step", `StrictRefuses(Illegal)`: `silent` accepts, `warn` accepts with the
+warning on the event, `strict` refuses. The other override commands never reach the policy, by a `switch` arm rather
+than by a value flowing through it; `Legality.AlwaysAccepted` exists in the enum and is exercised by
+`EnforcementPolicyTests`, but the dispatch path never constructs it.
 
-A breach has a second form, raised by a system rather than a command. `Decide(Enforcement, Breach?)`
-reads it:
+A breach is the policy's second input, raised by a hand move or by the engine's own proposal. `Decide(Enforcement,
+Breach?)` reads it:
 
 | Breach | `silent` | `warn` | `strict` |
 | --- | --- | --- | --- |

@@ -14,7 +14,7 @@
 - `Content/Assets/`: `AssetEndpoints`, `AssetRepository`, `FolderEndpoints`, `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `StarterAssets`, `StarterMeshes`.
 - `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyEndpoints`, `ArmyRepository`, `CatalogKinds`.
 - `Content/Layouts/`: `LayoutEndpoints`, `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
-- `Games/`: `GameEndpoints`, `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`).
+- `Games/`: `GameEndpoints`, `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`, 404 for an unknown hash).
 - `Http/`: `ClientVersionMiddleware`, `Keyset` / `Page<T>`, `CurrentAccount`, `Problems`.
 - `Persistence/`: `Database` (one `NpgsqlDataSource`), `Migrator` (DbUp), `Migrations/NNN_*.sql` (embedded resources).
 

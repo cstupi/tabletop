@@ -118,7 +118,7 @@ public partial class TableView : Node3D
 
     /// <summary>
     /// A disembark's draggable stand-ins. An occupant has no placement and therefore no piece node (game flow → Inside a
-    /// container), so the Ask panel asks for one node per model, stacked on the container's own placement, in the ghost
+    /// container), so the decision box asks for one node per model, stacked on the container's own placement, in the ghost
     /// colour. They live in their own child, which <see cref="Redraw"/> never diffs, so a board event arriving mid-answer
     /// cannot delete them and their dragged positions survive until the player commits.
     /// </summary>

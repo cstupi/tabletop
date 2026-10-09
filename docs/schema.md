@@ -417,7 +417,8 @@ the row exists because an effect points at it.
 `catalog_entry` is every named rule in a ruleset, and `kind` says what sort:
 `unit | model | weapon | spell`. The first three are the property kinds
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
-set out — attachment points, with a name belonging to exactly one of them.
+set out — attachment points, with a name belonging to exactly one of them. `GET /v1/properties/{hash}/rules`
+serves a set's entries with their `rule_text`, the client's hover text; a rule with no entry is tagged *not automated*.
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is
@@ -623,7 +624,8 @@ is the override, and clearing them re-copies the source's volumes.
 shows. `enforcement` is `silent | warn | strict`, replacing `warns boolean`: the review reopened
 identity and enumerations' boolean and kept the refusing position two later designs had written.
 `waits_between_steps` is resolution's second setting, which had no column; its first, animate, is
-a per-player client setting and not here.
+a per-player client setting and not here. Neither the client's create-game form nor its lobby panel offers `waits_between_steps`;
+both send `false`, and the column serves development.
 
 The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
 
