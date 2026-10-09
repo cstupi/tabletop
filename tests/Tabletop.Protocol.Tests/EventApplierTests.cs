@@ -103,15 +103,27 @@ public class EventApplierTests
     }
 
     [Fact]
-    public void Moving_a_marker_placed_during_setup_is_a_desync()
+    public void Moving_a_setup_marker_puts_it_in_the_projection_at_the_new_spot_and_keeps_its_control()
     {
-        var board = Samples.Board;                                                  // its markers are the draft's, not the log's
+        var board = Samples.Board;
         var a = new EventApplier(board, Samples.Game);
-        var setupMarker = board.Table.Markers[0].Id;
-        var ex = Assert.Throws<ProjectionDesyncException>(
-            () => a.Apply(Ev(1, new MarkerMoved(setupMarker, new(2, 2, 0), new(90)))));
+        var setup = board.Table.Markers[0];
+        a.ApplyAll([Ev(1, new ObjectiveControlSet(setup.Id, Samples.Team1)), Ev(2, new MarkerMoved(setup.Id, new(2, 2, 0), new(90))),
+            Ev(3, new MarkerMoved(setup.Id, new(4, 4, 0), new(45)))]);
+        Assert.Equal(setup with { Position = new(4, 4, 0), Yaw = new(45) }, a.Projection.Markers[setup.Id]);
+        Assert.Equal(Samples.Team1, a.Projection.Control[setup.Id]);
+        Assert.Equal(setup, a.Projection.Board.Table.Markers[0]);                     // the board row itself is untouched
+        Assert.False(a.ProjectTo(1).Markers.ContainsKey(setup.Id));                    // replay from the board puts it back
+    }
+
+    [Fact]
+    public void Moving_a_marker_nothing_holds_is_a_desync()
+    {
+        var a = new EventApplier(Samples.Board, Samples.Game);
+        var unknown = Guid.CreateVersion7();
+        var ex = Assert.Throws<ProjectionDesyncException>(() => a.Apply(Ev(1, new MarkerMoved(unknown, new(2, 2, 0), new(90)))));
         Assert.Equal("marker_moved", ex.Kind);
-        Assert.Equal(setupMarker, ex.UnknownId);
+        Assert.Equal(unknown, ex.UnknownId);
     }
 
     [Fact]

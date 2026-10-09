@@ -369,9 +369,8 @@ client never withholds an answer on its own geometry, and never edits the log.
 ### Desync and resync
 
 `EventApplier` indexes its dictionaries directly, so an event naming an id the projection does not
-hold throws `ProjectionDesyncException` carrying the event kind and the unknown id. Two designed
-features reach it: moving a marker placed during setup, and editing the dice of a frame that has been
-popped. The client treats it as a fatal desync of its own copy rather than a change to skip, because
+hold throws `ProjectionDesyncException` carrying the event kind and the unknown id. One designed
+feature reaches it: editing the dice of a frame that has been popped. The client treats it as a fatal desync of its own copy rather than a change to skip, because
 a client that silently diverges from the server is worse than one that visibly resets.
 
 `Session` catches it at the two places that apply events: `Applier.ApplyAll` in the `EventsMessage`
@@ -602,8 +601,12 @@ Persistence and the log see one write per drop, not one per frame.
 Selection is presence and never a command. Clicking a unit does not activate it. During setup the
 same click may select a terrain placement or a marker, and the drop sends the matching setup edit
 (`MoveTerrain`, `MoveSetupMarker`) instead of a command. A token dropped in play sends
-`MoveMarker`. Those four release paths are the only difference between a setup drag and a play
-drag.
+`MoveMarker`, as does an unlocked setup objective dropped in play: its first `MarkerMoved` copies it
+into `Projection.Markers`, which `TableView` draws over the board row. Those four release paths are the
+only difference between a setup drag and a play drag. In play a terrain drag starts and sends nothing on
+release, so the piece snaps back. Objective markers are locked from play on (`MarkerLocks`): a drag on a
+locked objective does not start under any enforcement setting, the marker menu's Unlock and Lock items
+toggle it, and the state is local to the client. A setup marker is never removable.
 
 A plain drag of a model outside a move step is a hand move: one `MoveModels` on release, which never ends a turn.
 The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit
@@ -880,7 +883,7 @@ or `Text` item, borrows the next click for a `PieceId` or `TablePoint` item, and
 | --- | --- |
 | right-click a model | `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
 | Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, grants, wounds-this-activation |
-| right-click a marker | `ForMarker`: move, remove |
+| right-click a marker | `ForMarker`: remove a play marker, give an objective to a team or make it neutral; in play, Unlock or Lock an objective (local, `MarkerLocks`) |
 | right-click a team name in the header | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |
 | Alt-right-click the table | drop a token here, leave the game |
 

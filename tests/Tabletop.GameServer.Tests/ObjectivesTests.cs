@@ -37,6 +37,18 @@ public class ObjectivesTests
     }
 
     [Fact]
+    public void A_moved_setup_objective_is_judged_where_it_now_stands()
+    {
+        var s = Game();
+        Apply(s, new MarkerMoved(Objective(s), new Point3(10, 10, 0), new Yaw(0)));
+        Put(s, Red, 36, 28);
+        Assert.Empty(Seize(s));                                          // where it stood at setup: nothing there now
+        Put(s, Red, 10, 12);
+        Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team1)], Seize(s));
+        Assert.Single(GfObjectives.Markers(s), m => m.Id == Objective(s));   // counted once, at the moved spot
+    }
+
+    [Fact]
     public void A_unit_just_out_of_range_seizes_nothing()
     {
         var s = Game();

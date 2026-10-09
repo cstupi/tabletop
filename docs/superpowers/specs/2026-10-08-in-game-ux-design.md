@@ -131,6 +131,11 @@ and a thin line joins those two bases. Each model with more than one wound shows
   release, and an **Undo move** button appears beside the moved unit. It sends `Undo` to the last live event before that
   `ModelsMoved` (an `Undone` marker or an undone event is not a target) and stays until any later event lands in the log, since an undo to that point would take the later
   events with it. **Ctrl+Z** does the same.
+- From play on (`Playing` or `Ended`), every objective marker is locked: a drag on it does not start, under every
+  enforcement setting. Its right-click menu offers **Unlock**; unlocked, it drags and its drop sends `MoveMarker`, for
+  a setup objective as for one placed in play, until **Lock** is chosen. Objective control is judged where the marker
+  now stands. A setup objective is never removable. A click on a locked objective still selects it, and hovering it shows "Locked — right-click to unlock". The
+  lock is this client's alone and sends nothing. Tokens are never locked, and setup moves every marker freely.
 
 **Formations.** While a unit is held in a drag, **1–5** arranges it in that many rows around the cursor, the models
 split as evenly as they go (10 models in 3 rows is 4-3-3). Rows run across the screen as the camera sees it; **Q/E**

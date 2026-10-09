@@ -46,7 +46,11 @@ public partial class GameScreen
         _animator = new Animator(_session, Table, Input);
         _menu = new PieceMenu(_session, Toast); AddChild(_menu);
         _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
-        _onItem = item => { if (ReferenceEquals(item, _leave)) Guarded.Run(_session.LeaveAsync, Toast); };   // Leave is a management call, not a command
+        _onItem = item =>
+        {
+            if (ReferenceEquals(item, _leave)) Guarded.Run(_session.LeaveAsync, Toast);   // Leave is a management call, not a command
+            else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
+        };
         _menu.ItemChosen += _onItem;
         _onPieceRight = (id, at) => _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at);
         _onTableRight = at => _menu?.Open([Token(at), _leave], GetViewport().GetMousePosition());
@@ -100,7 +104,7 @@ public partial class GameScreen
             var known = MenuModel.KnownActionNames(p, _session.Log);
             return shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p)).ToList();
         }
-        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id) : [];
+        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id, Input.Locks) : [];
     }
 
     static MenuItem Token(Vector3 at) => new("Drop a token here", MenuInput.Text,

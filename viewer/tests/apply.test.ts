@@ -68,9 +68,7 @@ describe('the ported applier', () => {
       ev(6, { kind: 'spell_tokens_set', modelId: M1, tokens: 3 }),
       ev(7, { kind: 'wounds_this_activation_set', unitId: U1, wounds: 2 }),
       ev(8, { kind: 'score_set', teamId: T1, score: 4 }),
-      // A setup marker is not projection state — `initialProjection` seeds no markers, exactly as C#'s
-      // `Projection.Initial` does not — so a marker has to be placed by an event before it can be moved.
-      // `marker_moved` naming a setup marker is a desync, pinned in its own test.
+      // A marker placed in play, then moved. A setup marker's first move is pinned in its own test.
       ev(9, { kind: 'marker_placed', marker: { id: K1, kind: 'objective', position: { x: 1, y: 1, z: 0 },
         yaw: { degrees: 0 }, diameter: 2, visual: { builtin: 'chip' } } }),
       ev(10, { kind: 'marker_moved', markerId: K1, position: { x: 5, y: 5, z: 0 }, yaw: { degrees: 90 } }),
@@ -143,7 +141,7 @@ describe('the ported applier', () => {
 
   it('throws ProjectionDesyncError on an id it does not hold, and leaves the store untouched', () => {
     const a = new Applier(board, game);
-    // The canonical desync: a marker placed during setup, then moved. `{ ...undefined }` would
+    // The canonical desync: moving a marker neither the board nor the log holds. `{ ...undefined }` would
     // have written a marker with no id and carried on, so this is the test that the port faults instead.
     const move = ev(1, { kind: 'marker_moved', markerId: K9, position: { x: 1, y: 1, z: 0 }, yaw: { degrees: 0 } });
     expect(() => a.apply(move)).toThrow(ProjectionDesyncError);
@@ -293,6 +291,20 @@ describe('the ported board projection', () => {
       expect(line({ kind: 'objective_control_set', markerId: K1, teamId: T1 })).toBe('A to Team 1');   // the board's setup marker, labelled A
       expect(line({ kind: 'objective_control_set', markerId: K9 })).toBe(`${K9.slice(0, 8)} neutral`);
     });
+  });
+});
+
+describe('a setup marker moved in play', () => {
+  it('is copied into the play markers at the new spot, keeps its control, and the frame draws it once', () => {
+    const projector = new FrameProjector(board, game);
+    projector.add(ev(1, { kind: 'objective_control_set', markerId: K1, teamId: T1 }));
+    const frame = projector.add(ev(2, { kind: 'marker_moved', markerId: K1, position: { x: 10, y: 12, z: 0 }, yaw: { degrees: 30 } }));
+    expect(frame.markers.map((m) => m.id)).toEqual([K1]);
+    expect(frame.markers[0]!.controlledBy).toBe(T1);
+    const a = new Applier(board, game);
+    a.apply(ev(1, { kind: 'marker_moved', markerId: K1, position: { x: 10, y: 12, z: 0 }, yaw: { degrees: 30 } }));
+    expect(a.projection.markers.get(K1)).toMatchObject({ id: K1, kind: 'objective', label: 'A', position: { x: 10, y: 12, z: 0 }, yaw: { degrees: 30 } });
+    expect(board.table.markers[0]!.position.x).toBe(36);   // the board row is untouched
   });
 });
 

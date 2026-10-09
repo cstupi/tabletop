@@ -1,6 +1,7 @@
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
 using Refused = Tabletop.GameServer.Dispatch.Refused;
@@ -201,6 +202,19 @@ public class CommandDispatcherTests
             Assert.Null(neutral.TeamId);
         }
         Assert.Equal(CommandClass.Override, CommandDispatcher.Classify(new SetObjectiveControl(Guid.CreateVersion7(), null)));
+    }
+
+    [Fact]
+    public void A_setup_marker_moves_from_the_menu_and_is_not_removable()
+    {
+        foreach (var e in new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict })
+        {
+            var state = State(e);
+            var setup = state.Board.Table.Markers.First().Id;
+            var moved = Assert.IsType<MarkerMoved>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new MoveMarker(setup, new(5, 6, 0), new(30)), Clay)).Events));
+            Assert.Equal((setup, new Point3(5, 6, 0)), (moved.MarkerId, moved.Position));
+            Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new RemoveMarker(setup), Clay)).Reason);
+        }
     }
 
     [Fact]

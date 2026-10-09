@@ -119,7 +119,9 @@ export function applyChange(p: Projection, change: StateChange): void {
     case 'score_set': p.scores.set(change.teamId, change.score); return;
     case 'marker_placed': p.markers.set(change.marker.id, change.marker); return;
     case 'marker_moved': {
-      const marker = markerIn(p, change.kind, change.markerId);
+      // A setup marker's first move copies its board row into the play markers, which win on the shared id from then on.
+      const marker = p.markers.get(change.markerId) ?? p.board.table.markers.find((m) => m.id === change.markerId)
+        ?? markerIn(p, change.kind, change.markerId);
       p.markers.set(change.markerId, { ...marker, position: change.position, yaw: change.yaw });
       return;
     }

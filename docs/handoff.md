@@ -48,7 +48,8 @@ shooting targets (chips, two targets), casualties (clicks, Auto), **Undo move** 
 gone at round 1, the end message, F1.
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
-rule; the client holds none); terrain and marker drags in play are not gated under `strict`; the e2e sight check's
+rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
+menu unlocks them (client-local); a terrain drag in play starts under every setting, sends nothing and snaps back; the e2e sight check's
 observer has only melee weapons, so it never proves a non-empty `CanShoot` (the unit tests do).
 
 ### 2. Check the terrain fix in the client
