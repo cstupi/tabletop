@@ -44,9 +44,8 @@ public partial class LobbyPanel : VBoxContainer
         var name = new LineEdit { Text = game.Name }; config.AddChild(name);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(enforcement);
-        var waits = new CheckBox { Text = "Wait between steps", ButtonPressed = game.WaitsBetweenSteps }; config.AddChild(waits);
         config.AddChild(Btn("Apply configuration", () => Guarded.Send(s, new SetConfiguration(name.Text, game.PropertiesHash,
-            shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, waits.ButtonPressed))));
+            shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false))));
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {

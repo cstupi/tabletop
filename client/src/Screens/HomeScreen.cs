@@ -90,13 +90,13 @@ public partial class HomeScreen : Control
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(pack);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
-        var waits = new CheckBox { Text = "Wait between steps" }; form.AddChild(waits);
         var army = new OptionButton(); army.AddItem("No army (watch)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
         dialog.Confirmed += () => Run(async () =>
         {
             if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
+            // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
-                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
             Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
             if (armyId is { } id)
             {
