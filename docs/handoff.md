@@ -61,6 +61,23 @@ Scope: the game screen from deployment to the end of the game. Placeholder art. 
   (`CommandDispatcher.cs:23`), so this is a server change. Under `warn` and `silent` a plain drag outside a move step
   moves the unit, and on release an undo button for that move shows clearly on screen.
 - A plain click and drag acts on the whole unit; a held modifier acts on individual models (select and position one).
+- Layout: the table fills the window, everything floats over it. Header strip at the top: round, whose turn, score,
+  the active unit and its action, a step strip (done, current, next), and a "waiting on" line. Stat sheet lower left
+  with tabs Stats and This round (the unit's activation and what was done to it this round). The current decision
+  bottom centre, the latest dice above it until the next roll. The log minimized to a button lower right, expanding
+  with the full history, every roll's dice and undo-to-here. No side panel; right-click menus stay.
+- The stat sheet follows the activating unit when an activation begins; a click on another unit holds it there until
+  the next activation begins.
+- Sight check: hold L with a unit selected and hover a target (shown without L while picking shooting targets): a line
+  per model pair, clear, in cover or blocked, the blocker lit, and a summary. The server answers through a new
+  read-only socket question using `Sight`; nothing is logged.
+- Hover a unit: its name, its distance from your selected unit (closest models, p.5) with a line, and the wounds left
+  above each model with more than one wound. Click selects the unit; empty table or Esc clears; Shift+click one model,
+  Shift+drag moves one. While an Ask wants a target, eligible units glow and a click picks.
+- Stats tab: name and size, Quality, Defense; chips for activated (action), Shaken, Fatigued, spell tokens, grants; the
+  weapons table; special rules with their text on hover from the pinned catalog, a rule with no effect tagged "not
+  automated"; a models strip with wounds left, a click selects the model.
+- Mockups: `.superpowers/brainstorm/5808-1791512643/content/`.
 
 **Still to cover:**
 - the screen layout (offer the visual companion, as its own message, when the first layout question comes up)
@@ -116,6 +133,16 @@ woods and buildings stand upright with their bases flush on the table, and water
 - Management: a login blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment.
 
 ## Known rule gaps
+
+**Most army-book rules do nothing in play.** The official books put 313 rule names on units and upgrades. 231 of them
+have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile Attack, Agile, Armor, Unique, …), and
+`LiveProperties.Gather` skips a name the set lacks, so a unit carrying one plays without it and nobody is told. The
+spell-library spec recorded this ("the other 261 army-book rule names"); it is its own work item after the in-game UX:
+(1) the army-book generator writes a text-only entry (name, kind, aggregation, the book's `description` as
+`rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2) the client fetches
+the pinned set's rule texts by hash and tags rules with no effect "not automated"; (3) the effects are authored, many
+by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
+descriptions; the catalog, not the army, is where rule text lives.
 
 Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
 the -12" to attackers' range are. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
