@@ -7,6 +7,17 @@ public class MovementTests
     static readonly WorldVolume Forest = Fx.Cylinder(3, 0, 1, 0, 8, VolumeKind.Area, TerrainDeclarations.Difficult);
     static readonly TableSize Opr = new(72, 48);
 
+    [Fact] public void The_farthest_on_table_reach_is_the_inset_corner_farthest_from_the_start()
+    {
+        var model = Fx.Model(18, 18);
+        var (_, radius) = model.BaseOutline().BoundingCircle();
+        var (distance, to) = Movement.FarthestOnTable(model, new TableSize(36, 36));
+        Assert.Equal(radius, Math.Min(to.X, to.Y), 6);
+        Assert.Equal(Math.Sqrt(2) * (18 - radius), distance, 6);
+        Assert.False(Movement.Check(model, to, distance, [], [], null, new TableSize(36, 36)).LeavesTable);
+        Assert.Equal(Math.Sqrt((72 - radius) * (72 - radius) + (48 - radius) * (48 - radius)), Movement.FarthestOnTable(Fx.Model(0, 0), Opr).Distance, 6);
+    }
+
     [Fact] public void Open_ground_is_a_full_circle()
     {
         var r = Movement.Region(Start, 6, [], [], null, null);

@@ -74,16 +74,17 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         if (actor.TeamId is not { } team || !ask.Teams.Contains(team)) return new Refused(RefusalReason.NotPermitted, "this ask is not addressed to your team");
         if (open.Answers.ContainsKey(team)) return new Refused(RefusalReason.NotPermitted, "your team has already answered");
         var inSet = LegalSetMembership.Contains(ask, command.Answer);
-        // An answer inside the set can still break a rule only the table answers (IGameRules.AnswerBreach); it takes the same three positions.
-        var breach = inSet ? state.Rules.AnswerBreach(state, ask, command.Answer) : null;
         // An answer to a turn Ask that the ruleset cannot read (an option id that does not parse, a unit the log no longer has)
         // is outside the legal set as much as an unknown option is, so it takes the same three positions under the enforcement dial.
         // Passing is a real answer and is never probed; a framed Ask, an Ambusher Ask and the boundary confirmation are not turn Asks.
         var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
-        var detail = breach is not null ? $"answer to '{ask.Question}': {breach}"
-            : inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
+        var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
+        // An answer inside the set can still break a rule only the table answers (IGameRules.AnswerBreach): the ruleset names it, and strict refuses it.
+        var breach = inSet && readable ? state.Rules.AnswerBreach(state, ask, command.Answer) : null;
         var legal = inSet && readable && breach is null;
-        var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, legal ? Legality.Legal : Legality.OutsideLegalSet, detail);
+        var verdict = breach is not null
+            ? EnforcementPolicy.Decide(state.Info.Enforcement, new Breach(breach.Rule, $"answer to '{ask.Question}': {breach.Detail}", new StrictRefuses(RefusalReason.Illegal)))
+            : EnforcementPolicy.Decide(state.Info.Enforcement, legal ? Legality.Legal : Legality.OutsideLegalSet, detail);
         switch (verdict)
         {
             case Refuse r: return new Refused(r.Reason, r.Detail);

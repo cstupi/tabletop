@@ -30,7 +30,7 @@ public partial class DecisionBox
             (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
             _region!.Show(MoveRuler.ExitRegion(body, new PlacedModel(BodyOf(p, containerId), at.Placement), legal, _volumes, _size), Palette.Team(ordinal));
             _note.Text = $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
-            _input.Allowance = null;
+            _input.Allowance = null; _input.Minimum = null;
             void StartExit() { _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position); }
             StartExit();
             _onCancel = () => { StartExit(); return true; };
@@ -41,9 +41,13 @@ public partial class DecisionBox
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             var remaining = Math.Max(0, legal.Allowance - used);
-            _region!.Show(MoveRuler.Region(new PlacedModel(body, on.Placement), legal with { Allowance = remaining }, _view.Volumes, _view.Size), Palette.Team(ordinal));
-            _note.Text = $"Move up to {remaining:0.0}\" (used {used:0.0}\").";
-            _input.Allowance = remaining;
+            var start = new PlacedModel(body, on.Placement);
+            var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
+            // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.
+            var minimum = MoveRuler.Minimum(start, legal, _view.Size);
+            _region!.Show(boundary, Palette.Team(ordinal), minimum is { } least ? MoveRuler.Inner(on.Placement.Position.Horizontal, boundary, least) : null);
+            _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\")." : $"Move up to {remaining:0.0}\" (used {used:0.0}\").";
+            _input.Allowance = remaining; _input.Minimum = minimum;
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
             StartMove();

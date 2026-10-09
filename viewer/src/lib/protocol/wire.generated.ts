@@ -323,6 +323,7 @@ export interface MoveRegion {
   readonly difficultVolumeIds: readonly string[];
   readonly difficultCap?: number;
   readonly containment?: MoveContainment;
+  readonly minDistance?: number;
 }
 
 export interface ObjectiveControlSet {

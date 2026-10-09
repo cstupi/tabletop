@@ -138,7 +138,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var destination = destinations[id];
             if (destination is null)
             {
-                moves.Add(new ModelRelocation(id, from, from));   // stand still: always legal
+                moves.Add(new ModelRelocation(id, from, from));   // stand still: legal unless the region sets a minimum
                 continue;
             }
             sampled = true;
@@ -173,7 +173,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     }
 
     /// <summary>
-    /// A uniform bearing and a uniform distance inside the allowance, retried until Movement.Check likes it. The reach is
+    /// A uniform bearing and a uniform distance inside the allowance (and over its minimum), retried until Movement.Check likes it. The reach is
     /// the whole allowance: the difficult cap binds only a path that enters difficult ground, and Movement.Check, given
     /// the server-stated cap, rejects such a sample. Null when no sample passes: the caller stands still.
     /// With a <paramref name="target"/>, every sample is drawn and the passing one nearest the target wins.
@@ -182,11 +182,19 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null)
     {
         var origin = start.Placement.Position.Horizontal;
+        // A minimum (MoveRegion.MinDistance) the table has room for is sampled above; one it has no room for is met only at the farthest corner.
+        var least = 0.0;
+        if (m.MinDistance is { } minimum)
+        {
+            var (reach, corner) = Movement.FarthestOnTable(start, view.Table);
+            if (reach < minimum) return reach <= m.Allowance ? corner : null;
+            least = minimum;
+        }
         Point2? best = null;
         for (var i = 0; i < _o.MoveSamples; i++)
         {
             var bearing = chooser.Double() * Math.Tau;
-            var distance = chooser.Double() * m.Allowance;
+            var distance = least + chooser.Double() * (m.Allowance - least);
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
             if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) continue;

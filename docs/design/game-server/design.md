@@ -30,7 +30,7 @@ management's rows plus the event log.
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
   `Id`; the later plans add `JudgeAdvance`, `OnRoundEnded` and `AnswerBreach`, default members returning none. `InertEngine` judges nothing and advances nothing.
 - **Geometry adjudication.** `MoveRegion` answers are checked for model ids only, plus what the
-  ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: p.11's difficult-terrain cap). Distance,
+  ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: p.11's difficult-terrain cap, p.13's Aircraft minimum). Distance,
   containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
 - **HTTP resources.** The game server exposes commands and events and nothing else. Creating,
@@ -490,10 +490,14 @@ functions read it:
   `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
   against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
   An answer inside the set is then asked of `IGameRules.AnswerBreach(state, ask, answer)`, which
-  needs the table: Grimdark Future's `GfMoves.DifficultCapBreach` holds every model of a
-  `MoveRegion` with a `DifficultCap` to it once any model's straight path enters a listed difficult
-  volume (p.11: *"all models in the unit may not move more than 6" for that movement"*). A breach
-  is outside the legal set: refused under `strict`, flagged and warned under `warn`.
+  needs the table and returns `AnswerBreachFound(Rule, Detail)`. Grimdark Future's are
+  `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
+  is held to it once any model's straight path enters a listed difficult volume, or an earlier
+  segment of the move did; p.11: *"all models in the unit may not move more than 6" for that
+  movement"*) and `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least
+  `MinDistance`, p.13). The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
+  `AskAnswered.OutsideLegalSet` under `warn`.
   A spend divides the same way: whether the answering team owns the models it paid with is state
   the protocol cannot answer, so the spend step checks it.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for

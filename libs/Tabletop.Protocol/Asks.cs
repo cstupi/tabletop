@@ -54,9 +54,11 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// whole-move cap GameRules computed when any listed difficult volume is entered (OPR: 6"), null when the ruleset has none. It holds
 /// every listed model once any one of them enters (OPR p.11: "all models in the unit may not move more than 6"").
 /// Containment is non-null only when this move may embark or is disembarking; null is every move on open table.
+/// MinDistance, when set, is how far every listed model must move (OPR p.13 Aircraft: 30"), or as far as the table lets its whole
+/// base go (Tabletop.Geometry.Movement.FarthestOnTable) when that is less; the region is then an annulus. Null is no minimum.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
-    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null) : LegalSet;
+    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId

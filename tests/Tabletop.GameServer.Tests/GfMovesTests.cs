@@ -1,5 +1,8 @@
 using Tabletop.Content;
+using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
+using Tabletop.GameServer.Interpreter;
+using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Geometry;
@@ -41,8 +44,11 @@ public class GfMovesTests
         var sim = Rush(Enforcement.Strict, [], out var unit);
         var outcome = Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -9));
         var refused = Assert.IsType<Refused>(outcome);
-        Assert.Equal(RefusalReason.OutsideLegalSet, refused.Reason);
+        Assert.Equal(RefusalReason.Illegal, refused.Reason);
         Assert.Contains("6\"", refused.Detail);
+        var ask = sim.AskFor(Samples.Team1);
+        Assert.Equal(GfNames.DifficultCapRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, ask,
+            new Destinations([Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -9)]))!.Rule);
         Assert.IsType<Applied>(Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -6)));
     }
 
@@ -62,6 +68,67 @@ public class GfMovesTests
         Assert.IsType<Applied>(Move(open, Shifted(open, unit.Models[0].Id, -9), Shifted(open, unit.Models[1].Id, -9)));
         var strider = Rush(Enforcement.Strict, [P("Strider")], out var striders);
         Assert.IsType<Applied>(Move(strider, Shifted(strider, striders.Models[0].Id, 9), Shifted(strider, striders.Models[1].Id, -9)));
+    }
+
+    // ---- A move a cast splits (p.11 "for that movement") ------------------------------------------------------------------------------
+
+    static readonly EntryDocument Ward = new("Ward", CatalogKind.Spell, false, null, 1, "Test Book", "Target up to two friendly units within 24\" get Regeneration once.",
+        new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 2, 24),
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Regeneration", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);
+
+    /// <summary>A lone caster rushing under strict, with a bog at the given x; its casting die is a 1, so each cast fails and the move resumes.</summary>
+    static Sim CasterRush(double bogX, out Unit wizard)
+    {
+        wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = new Sim(State([wizard], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20, enforcement: Enforcement.Strict,
+            terrain: [Patch(TerrainDeclarations.Difficult, x: bogX, y: -18.5, width: 2, length: 2)]), GrimdarkFutureRules.Instance, TestProperties.WithSpells(Ward), new ScriptedDice(1));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.RushSeq, new SequenceContext(wizard.Id, [], [], GfNames.Rush));
+        return sim;
+    }
+
+    /// <summary>Answers the casting checkpoint with a Ward that fails, until the move Asks again.</summary>
+    static void CastAndFail(Sim sim)
+    {
+        for (var i = 0; i < 10 && sim.AskFor(Samples.Team1).Question != "move"; i++)
+        {
+            var ask = sim.AskFor(Samples.Team1);
+            sim.Answer(Samples.Team1, ask.Legal switch
+            {
+                Options o when ask.Question == "cast" => new Chosen(o.Choices.First(c => c.Id.StartsWith("Ward|")).Id),
+                Options o => new Chosen(o.Choices[0].Id),
+                _ => new Passed(),
+            });
+        }
+        Assert.Equal("move", sim.AskFor(Samples.Team1).Question);
+    }
+
+    [Fact]
+    public void After_a_cast_a_move_that_went_into_difficult_ground_has_only_what_is_left_of_six_inches()
+    {
+        // 5" into the bog, a cast, then at most 1" more: "all models in the unit may not move more than 6" for that movement".
+        var sim = CasterRush(-14, out var wizard);
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, wizard.Models[0].Id, 5)));
+        sim.Run();
+        CastAndFail(sim);
+        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal((1.0, 1.0), (region.Allowance, region.DifficultCap!.Value));
+        Assert.IsType<Refused>(Move(sim, Shifted(sim, wizard.Models[0].Id, -3)));                     // back out over open ground: still the same move
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, wizard.Models[0].Id, -1)));
+    }
+
+    [Fact]
+    public void After_a_cast_a_move_past_six_inches_on_open_ground_may_not_enter_difficult_ground()
+    {
+        // 9" on open ground, a cast, then 2" into the bog behind it: the move went in difficult terrain at 11".
+        var sim = CasterRush(-31.5, out var wizard);
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, wizard.Models[0].Id, -9)));
+        sim.Run();
+        CastAndFail(sim);
+        var region = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Equal((3.0, 0.0), (region.Allowance, region.DifficultCap!.Value));
+        Assert.IsType<Refused>(Move(sim, Shifted(sim, wizard.Models[0].Id, -2)));
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, wizard.Models[0].Id, 2)));
     }
 
     // ---- Aircraft (p.13) ---------------------------------------------------------------------------------------------------------------
@@ -84,6 +151,8 @@ public class GfMovesTests
         Assert.Empty(region.ImpassableVolumeIds);
         Assert.Empty(region.DifficultVolumeIds);
         Assert.Null(region.DifficultCap);
+        Assert.Equal(30, region.MinDistance);
+        Assert.False(sim.AskFor(Samples.Team1).AllowPass);                                           // "their mandatory move"
         sim.Answer(Samples.Team1, new Destinations([Shifted(sim, jet.Models[0].Id, 30)]));
         Assert.Contains(GfNames.Aircraft, sim.Steps("move").SelectMany(s => s.Applied ?? []));
     }
@@ -94,6 +163,38 @@ public class GfMovesTests
         var sim = Fly(Patch(TerrainDeclarations.Dangerous, x: -20, y: -18.5, width: 4, length: 4), out var jet, 1);
         sim.Answer(Samples.Team1, new Destinations([Shifted(sim, jet.Models[0].Id, 30)]));
         Assert.Empty(sim.Steps("test"));
+    }
+
+    [Fact]
+    public void Under_strict_an_aircraft_that_moves_less_than_thirty_inches_is_refused()
+    {
+        // p.13: "Aircraft can't move into the table edges to move less than 30"".
+        var jet = Unit("Jet", "4+", "4+", [P(GfNames.Aircraft)], 1, []);
+        var sim = Sim.Gf(State([jet], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict), 4);
+        var id = jet.Models[0].Id;
+        sim.Append([new ModelsMoved([new ModelRelocation(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(10, 24, 0), new Yaw(0))))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(jet.Id, [], [], GfNames.Advance));
+        var refused = Assert.IsType<Refused>(Move(sim, Shifted(sim, id, 20)));
+        Assert.Equal(RefusalReason.Illegal, refused.Reason);
+        Assert.Equal(GfNames.AircraftMinimumRule, GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations([Shifted(sim, id, 20)]))!.Rule);
+        Assert.IsType<Refused>(Move(sim));                                                            // left out: it did not move
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, id, 32)));
+    }
+
+    [Fact]
+    public void An_aircraft_the_table_has_no_room_for_must_move_as_far_as_the_table_lets_it()
+    {
+        // In the middle of a 30" square table the farthest inset corner is under 21" away: that is the minimum, not 30".
+        var jet = Unit("Jet", "4+", "4+", [P(GfNames.Aircraft)], 1, []);
+        var sim = Sim.Gf(State([jet], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict, size: new TableSize(30, 30)), 4);
+        var id = jet.Models[0].Id;
+        sim.Append([new ModelsMoved([new ModelRelocation(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(15, 15, 0), new Yaw(0))))])]);
+        var (reach, corner) = Movement.FarthestOnTable(Battlefield.Placed(sim.State, id)!.Value, sim.State.Board.Table.Size);
+        Assert.InRange(reach, 19, 21);
+        var region = new MoveRegion([id], 36, [], [], null, null, 30);
+        ModelRelocation To(Point2 p) => new(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(p.X, p.Y, 0), new Yaw(0))));
+        Assert.Null(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(corner)])));
+        Assert.NotNull(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(new Point2(20, 15))])));
     }
 
     [Fact]

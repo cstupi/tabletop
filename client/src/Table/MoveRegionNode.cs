@@ -7,14 +7,22 @@ namespace Tabletop.Client.Table;
 public partial class MoveRegionNode : Node3D
 {
     MeshInstance3D? _mesh;
-    public void Show(IReadOnlyList<Point2> boundaryWire, Color colour)
+    /// <summary>The region as a fan about its centre, or, with an inner edge (a minimum move, MoveRuler.Inner), the ring between the two.</summary>
+    public void Show(IReadOnlyList<Point2> boundaryWire, Color colour, IReadOnlyList<Point2>? innerWire = null)
     {
         Hide();
         if (boundaryWire.Count == 0) return;
         var verts = boundaryWire.Select(p => WorldFrame.ToGodot(new Point3(p.X, p.Y, 0.03))).ToArray();
         var centre = verts.Aggregate(Vector3.Zero, (a, v) => a + v) / verts.Length;
+        var inner = innerWire?.Select(p => WorldFrame.ToGodot(new Point3(p.X, p.Y, 0.03))).ToArray();
         var st = new SurfaceTool(); st.Begin(Mesh.PrimitiveType.Triangles);
-        for (var i = 0; i < verts.Length; i++) { st.AddVertex(centre); st.AddVertex(verts[(i + 1) % verts.Length]); st.AddVertex(verts[i]); }
+        for (var i = 0; i < verts.Length; i++)
+        {
+            var j = (i + 1) % verts.Length;
+            if (inner is null) { st.AddVertex(centre); st.AddVertex(verts[j]); st.AddVertex(verts[i]); continue; }
+            st.AddVertex(inner[i]); st.AddVertex(verts[j]); st.AddVertex(verts[i]);
+            st.AddVertex(inner[i]); st.AddVertex(inner[j]); st.AddVertex(verts[j]);
+        }
         _mesh = new MeshInstance3D { Mesh = st.Commit(), MaterialOverride = Palette.Translucent(colour with { A = 0.25f }) };
         AddChild(_mesh);
     }

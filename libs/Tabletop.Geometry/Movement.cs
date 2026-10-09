@@ -95,6 +95,22 @@ public static class Movement
     }
 
     /// <summary>
+    /// The farthest the base centre can go from its start in a straight line with the whole base still on the table: the corner of the
+    /// slab inset by the base's bounding radius that lies farthest from the start, and its distance. A minimum move the table has no room
+    /// for is held to this. The start itself, at distance zero, when the base is wider than the slab.
+    /// </summary>
+    public static (double Distance, Point2 To) FarthestOnTable(PlacedModel start, TableSize table)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
+        var radius = bound + centre.DistanceTo(origin);
+        if (2 * radius > table.Width || 2 * radius > table.Length) return (0, origin);
+        Point2[] corners = [new(radius, radius), new(table.Width - radius, radius), new(radius, table.Length - radius), new(table.Width - radius, table.Length - radius)];
+        var far = corners.MaxBy(c => origin.DistanceTo(c));
+        return (origin.DistanceTo(far), far);
+    }
+
+    /// <summary>
     /// Volumes whose footprint the base touches at any point of the straight path from start to destination, in input
     /// order. Rulebook p.11's "moves in or through" — a dangerous terrain test is owed for a piece crossed and left behind.
     /// </summary>

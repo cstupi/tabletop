@@ -25,7 +25,8 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
 - `AnswerPolicy` reads a `MoveRegion` as the server judges it: once any model's sampled path enters a difficult volume, every model
   sampled further than `DifficultCap` is sampled again within it (p.11); a disembark is sampled until the base is fully within
-  `ExitWithin` of the container and fully on the table.
+  `ExitWithin` of the container and fully on the table; a `MinDistance` is sampled above (or, where the table has no room for it, met at
+  `Movement.FarthestOnTable`'s corner).
 - `AnswerPolicy` reads only `PolicyView`'s geometry members. A policy that reads other state is a second `IAnswerSource`.
 - The one opt-in exception is a `MoveGoal` (`Scenario.Goal`, `ScenarioBuilder.Seeking`). It names a point per model and only ranks
   the destinations the uniform sampler already found legal: all `MoveSamples` are drawn and the passing one nearest the point wins.

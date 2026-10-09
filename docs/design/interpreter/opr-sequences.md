@@ -213,12 +213,14 @@ in both cases with a fresh history, so the window **reopens**. p.13 is *"spend a
 the spell's value to try casting one or more spells (only one try per spell)"*, and one window per
 activation would allow only one spell. That reopening is why the fifth step outcome exists.
 
-Phase 0's Ask is a `MoveRegion` carrying six parameters: the unit's models still in play,
-`allowance − used`, the impassable volume ids, the difficult volume ids, `GfNames.DifficultCap`
-of 6 inches, and `MoveStep.Containers(...)`. The cap is `null` for a `Strider`/`Flying`/`Aircraft` unit,
-which it does not bind. p.11 holds *every* model of the unit to the cap once any one moves in or through difficult
-ground; the answer is judged for that by `GfMoves.DifficultCapBreach` at dispatch (`IGameRules.AnswerBreach`), under
-the enforcement setting. The allowance is `StatReader.ActionDistance(live, side, action)`, so
+Phase 0's Ask is a `MoveRegion` carrying seven parameters: the unit's models still in play,
+`allowance − used`, the impassable volume ids, the difficult volume ids, what is left of `GfNames.DifficultCap`
+(6 inches less `used`), `MoveStep.Containers(...)`, and a minimum distance (an Aircraft's 30", else null). The cap is
+`null` for a `Strider`/`Flying`/`Aircraft` unit, which it does not bind. p.11's cap is *"for that movement"*, so it spans
+every segment a cast splits the move into: once a segment went in or through difficult ground the step records
+`Values["entered_difficult"]` and clamps every later segment's allowance to what is left of the cap. p.11 also holds
+*every* model of the unit to the cap once any one enters; the answer is judged for that by `GfMoves.DifficultCapBreach`
+at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the recorded flag for an earlier segment. The allowance is `StatReader.ActionDistance(live, side, action)`, so
 `Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
@@ -235,8 +237,11 @@ total move (even if Shaken). Aircraft ignore all units and terrain when moving a
 the allowance gains `GfNames.AircraftMove` (30), the Ask names no impassable or difficult volume and no cap,
 `ApplyMove` sweeps no terrain (so no dangerous terrain test), `activation-terrain` tests nothing, and the move is one
 segment (the casting checkpoint never returns it to phase 0), so each model moves in one straight line. The step lists
-`Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The mandatory move (*"can't move into the
-table edges to move less than 30""*) has no minimum in `MoveRegion` and is not enforced.
+`Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The move is mandatory (*"can't move into the
+table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
+`GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer
+left out. Where the table has no room for 30" (a small table), the minimum is as far as the whole base can go
+(`Movement.FarthestOnTable`); the rulebook does not cover that case.
 
 Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
@@ -452,7 +457,7 @@ Only the Ask's prompt and the client's decision not to flag it change.
 `ContainerMovesThisActivation` and returns `null` for the exit after an embark and `null` for the
 enterable list after a disembark. The legal set enforces it, the way every other rule here does.
 The answer is applied as sent, and `LegalSet.Contains` under `strict` checks a `move_region`
-answer's model ids only, plus p.11's cap (`IGameRules.AnswerBreach`).
+answer's model ids only, plus p.11's cap and an Aircraft's minimum (`IGameRules.AnswerBreach`).
 
 `ContainersInReach` lists **friendly** containers only, so no automated move puts a unit inside an
 enemy vehicle, while `Battlefield.InsideReach` implements p.14 as written. That asymmetry leaves

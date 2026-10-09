@@ -21,6 +21,8 @@ public partial class TableInput : Node
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
     public double? Allowance { get; set; }
+    /// <summary>The least the move step's models must move (MoveRegion.MinDistance, an Aircraft's 30"), held to the table: shorter shows red.</summary>
+    public double? Minimum { get; set; }
     /// <summary>What a click picks while a decision wants a unit or a model: unit ids, model ids, or both. Empty when nothing is being picked.</summary>
     public IReadOnlySet<Guid> Eligible { get => _eligible; set { _eligible = value; EligibleChanged?.Invoke(); } }
     public bool SightHeld { get; private set; }
