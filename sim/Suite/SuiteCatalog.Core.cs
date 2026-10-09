@@ -8,7 +8,9 @@ namespace Tabletop.Sim.Suite;
 
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(), CoreGames.CoverAndSight(), CoreGames.TransportRun(), CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment()];
+    private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround().Pinned("D2", "p.11: \"If any model in a unit moves in or through difficult terrain"),
+        CoreGames.CoverAndSight(), CoreGames.TransportRun().Pinned("D3", "invariants: NoModelInTwoPlacesOrOffTheSlab"),
+        CoreGames.Overkill().Pinned("D1", "stuck", "ended", "p.8: \"all weapons are fired simultaneously\""), CoreGames.HoldTheMarkers(), CoreGames.Deployment()];
 }
 
 /// <summary>

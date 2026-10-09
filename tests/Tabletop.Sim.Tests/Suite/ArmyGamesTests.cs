@@ -63,6 +63,13 @@ public class ArmyGamesTests
             Assert.Contains(r, Army.Where(x => x.Group == g.Group).SelectMany(x => x.Covers))));
     }
 
+    [Fact]
+    public void The_defect_tables_are_the_games_the_catalog_pins()
+    {
+        Assert.Equal(Defects.Keys.Order(), Army.Where(g => g.KnownOn(DriverKind.InProcess).Count > 0).Select(g => g.Name).Order());
+        Assert.Equal(Defects.Keys.Concat(SocketDefects.Keys).Order(), Army.Where(g => g.KnownOn(DriverKind.Socket).Count > 0).Select(g => g.Name).Order());
+    }
+
     public static TheoryData<string> Playable() => [.. Army.Where(g => !Defects.ContainsKey(g.Name)).Select(g => g.Name)];
 
     [Theory]

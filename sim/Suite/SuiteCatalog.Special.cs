@@ -21,6 +21,8 @@ static partial class SpecialGames
     public static IEnumerable<TestGame> All() =>
     [
         Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), Command(), Deployment(),
+        Aircraft().Pinned("D7", "p.13 Aircraft: \"May only use Advance").Pinned("D8", "p.13 Aircraft: \"can't be charged\""),
+        StealthAtNineAndAHalf().Pinned("D11", "fired", "p.14 Stealth:"),
     ];
 
     // ---- Building blocks ---------------------------------------------------------------------------------------------------------------

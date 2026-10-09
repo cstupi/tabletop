@@ -14,20 +14,16 @@ public class SpecialGamesTests
 {
     public static IReadOnlyList<TestGame> Games { get; } = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.SpecialGroup).ToList();
 
-    /// <summary>The game whose rules a sim scenario cannot bring into play yet (set-aside units, a Hero joined to a unit) or the engine does
-    /// not implement (Aircraft's move and "can't be charged"), and the checks that stand failing for it.</summary>
-    public const string Blocked = "special-scouts-and-ambushers";
-
-    /// <summary>Each standing failure: the start of its check's name and the reason it fails for today.</summary>
-    public static readonly (string Check, string Reason)[] BlockedChecks =
+    /// <summary>
+    /// Each game pinned to an engine defect, and its standing failures: the defect, the start of the check's name and part of the reason.
+    /// A fix turns up here as a change to make.
+    /// </summary>
+    public static readonly (string Game, string Defect, string Check, string Reason)[] BlockedChecks =
     [
-        ("fired", "never fired: Scout, Ambush, Hero"),
-        ("p.14 Scout:", "no Scout was deployed"),
-        ("p.13 Ambush:", "no Ambusher was offered"),
-        ("p.15 Tough: \"heroes must be assigned wounds last\"", "no a wound on the Hero's unit while another model lived happened"),
-        ("p.14 Hero:", "no a defense roll by the Hero's unit while another model lived happened"),
-        ("p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
-        ("p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
+        ("special-aircraft-overhead", "D7", "p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
+        ("special-aircraft-overhead", "D8", "p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
+        ("special-stealth-at-nine-and-a-half", "D11", "fired", "never fired: Stealth"),
+        ("special-stealth-at-nine-and-a-half", "D11", "p.14 Stealth:", "\" away: hit 4+ [] "),
     ];
 
     [Fact]
@@ -35,8 +31,8 @@ public class SpecialGamesTests
     {
         var rules = TestProperties.RulebookDocument.Entries.Select(e => e.Name).Order().ToList();
         Assert.Equal(33, rules.Count);
-        Assert.Equal(rules, Games.SelectMany(g => g.Covers).Order().ToList());
-        Assert.All(Games, g => Assert.InRange(g.Covers.Count, 3, 5));
+        Assert.Equal(rules, Games.SelectMany(g => g.Covers).Distinct().Order().ToList());
+        Assert.All(Games.Where(g => g.Known.Count == 0), g => Assert.InRange(g.Covers.Count, 3, 5));
     }
 
     [Fact]
@@ -47,7 +43,7 @@ public class SpecialGamesTests
     }
 
     [Fact]
-    public async Task The_special_games_pass_in_process_but_for_the_blocked_checks()
+    public async Task The_special_games_pass_in_process_but_for_their_known_defects()
     {
         var report = await new SuiteRunner(Games).RunAsync(new SuiteOptions([SuiteCatalog.SpecialGroup], DriverKind.InProcess, false, TempDir()), null, Ct);
         AssertPassesButForTheBlocked(report);
@@ -56,8 +52,16 @@ public class SpecialGamesTests
     internal static void AssertPassesButForTheBlocked(SuiteReport report)
     {
         Assert.Equal(Games.Select(g => g.Name), report.Games.Select(g => g.Name));
-        Assert.All(report.Games.Where(g => g.Name != Blocked), g => Assert.True(g.Passed, $"{g.Name}: {string.Join("\n", g.Failures)}"));
-        Assert.All(report.Games.Single(g => g.Name == Blocked).Failures, f => Assert.Contains(BlockedChecks, b => f.StartsWith(b.Check) && f.EndsWith(": " + b.Reason)));
+        var blocked = BlockedChecks.Select(b => b.Game).ToHashSet();
+        Assert.Equal(blocked.Order(), Games.Where(g => g.Known.Count > 0).Select(g => g.Name).Order());
+        Assert.All(report.Games.Where(g => !blocked.Contains(g.Name)), g => Assert.True(g.Passed, $"{g.Name}: {string.Join("\n", g.Failures)}"));
+        foreach (var g in report.Games.Where(g => blocked.Contains(g.Name)))
+        {
+            var expected = BlockedChecks.Where(b => b.Game == g.Name).ToList();
+            Assert.Equal(expected.Select(b => b.Defect).Distinct().Order(), (g.Known ?? []).Order());
+            Assert.All(g.Failures, f => Assert.Contains(expected, b => f.StartsWith($"known defect {b.Defect}: {b.Check}") && f.Contains(b.Reason)));
+            Assert.All(expected, b => Assert.Contains(g.Failures, f => f.StartsWith($"known defect {b.Defect}: {b.Check}") && f.Contains(b.Reason)));
+        }
     }
 }
 
@@ -76,7 +80,7 @@ public class SpecialGamesSocketTests(PostgresFixture pg) : IDisposable
     }
 
     [Fact]
-    public async Task The_special_games_pass_over_the_socket_but_for_the_blocked_checks()
+    public async Task The_special_games_pass_over_the_socket_but_for_their_known_defects()
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
         var socket = new SuiteSocket(pg.Db, (c, minted, _) =>

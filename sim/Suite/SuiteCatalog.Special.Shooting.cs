@@ -217,6 +217,36 @@ static partial class SpecialGames
             dice: [.. ArtilleryFixes]);
     }
 
+    /// <summary>
+    /// Stealth at 9-10": two thirty-model units that only Hold, in frontline zones 9.1" apart on a 33.1" table, so each unit's six rows
+    /// leave under 2" of play and the seed puts the closest bases between 9" and 10" apart. p.5: "When measuring the distance between two
+    /// units you always measure from/to the closest model in each unit", base to base; 9.6" is over 9" (D11: the engine floors it to 9).
+    /// </summary>
+    static TestGame StealthAtNineAndAHalf()
+    {
+        const string name = "special-stealth-at-nine-and-a-half";
+        return Game(name, new ScenarioBuilder(name, StealthSeed).RoundCap(1).Table(10, 33.1).Scripted(ShootAndStrike)
+                .Army("Red", 1, 30, modelRules: [new(1, "Immobile")], weapons: [Gun("Rifle", 24, 1)], unitStats: Stats(4, 4))
+                .Army("Blue", 1, 30, modelRules: [new(1, "Stealth"), new(1, "Immobile")], weapons: [Blade("Blade", 1)], unitStats: Stats(4, 4))
+                .Build(),
+            ["Stealth"],
+            [
+                Exact("p.14 Stealth: \"When units where all models have this rule are shot from over 9\" away, enemy units get -1 to hit rolls\" (shots from 9-10\")", ["Stealth"], run =>
+                {
+                    var all = Attacks(run).Where(a => a.Actor == "Red unit 1" && HitRoll(a) is not null)
+                        .Select(a => (Attack: a, Gap: Gap(run, a.Actor, a.Target, a.At) ?? 0)).ToList();
+                    var shots = all.Where(x => x.Gap > 9 && x.Gap < 10).ToList();
+                    if (shots.Count == 0) return $"no shot from 9-10\" (shots from {string.Join(", ", all.Select(x => $"{x.Gap:0.00}\""))})";
+                    return Each(shots, "a shot from 9-10\" at the Stealth unit", x =>
+                        HitRoll(x.Attack)!.Modifiers.Count(m => m.Source == "Stealth" && m.Amount == -1) == 1 ? null
+                            : $"{x.Gap:0.00}\" away: {Show(HitRoll(x.Attack)!)}");
+                }),
+            ]);
+    }
+
+    /// <summary>The seed whose placements put the two units' closest bases between 9" and 10" apart.</summary>
+    const ulong StealthSeed = 14;
+
     /// <summary>In the artillery's seed: the Artillery's first own hit roll (a raw 3 and a raw 2), a hit roll at it (a raw 5), and a Mortar roll after an Advance (5 and 4).</summary>
     static DiceFix[] ArtilleryFixes => [new("hit", 0, [3, 2]), new("hit", 2, [5]), new("hit", 7, [5, 4])];
 }

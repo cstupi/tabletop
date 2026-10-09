@@ -66,7 +66,7 @@ public static partial class SuiteCatalog
             // Fails on an engine defect: a dice edit (SetDice) re-judges the dice but never the per-die effects its step stored in Values
             // (opr-sequences.md: "dice_edited ... never rewrites a step_completed's Values"), so three 6s fixed onto the first hit roll deal
             // the extra hits of the faces the roll first showed.
-            Game(Sisters, "blessed-sisters-devout-edited-dice", Play.Shoots, [], [R(1, "Devout"), R(2, "Devout")], [Fix("hit", 6, 6, 6)], [EditedExtraHits("Devout", ExtraHit)]),
+            Game(Sisters, "blessed-sisters-devout-edited-dice", Play.Shoots, [], [R(1, "Devout"), R(2, "Devout")], [Fix("hit", 6, 6, 6)], [EditedExtraHits("Devout", ExtraHit)]).Pinned("D10", "Devout:"),
             Game(Orcs, "orc-marauders-ferocious", Play.Shoots, ["Ferocious"], [R(1, "Ferocious"), R(2, "Ferocious")], [],
                 [ExtraHits("Ferocious", "Ferocious Boost", [6], ExtraHit)]),
             Game(Orcs, "orc-marauders-ferocious-boost", Play.Shoots, ["Ferocious Boost"], [R(1, "Ferocious"), R(1, "Ferocious Boost"), R(2, "Ferocious"), R(2, "Ferocious Boost")], [],
@@ -82,11 +82,15 @@ public static partial class SuiteCatalog
             // Fails over the socket only, on the same family of defect: the socket server's property set comes back from Postgres without the
             // document's condition order, so the most_models opponent condition is judged first in activation-terrain's lone interaction.
             Game(Cults, "soul-snatcher-cults-slayers", Play.Shoots, ["Slayer"], [R(1, "Slayer"), R(2, "Slayer")], [],
-                [ApGrant("Slayer", 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
+                [ApGrant("Slayer", 2, "\"its weapons get AP(+2) if most models in the target have Tough(3) or higher\"")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
+                // D12 over the socket only: the property set read back from Postgres orders Slayer's conditions by row id, so its most_models
+                // opponent condition can be judged first in a lone interaction and throw as in D4.
+                with { Known = [.. new[] { "failed", "ended", "invariants", "fired", "Slayer:" }.Select(c => new KnownDefect("D12", c, DriverKind.Socket))] },
             // Fails on an engine defect: GfMelee.ChargeTargets settles a defender-less melee interaction, and Slayer's charge row reaches its
             // most_models opponent condition there, which throws "no defender in this interaction" when round 1 offers its first activation to
             // a unit that may charge (a holding unit, above, is never asked).
-            Game(Cults, "soul-snatcher-cults-slayers-charging", Play.Charges, [], [R(1, "Slayer")], [], [], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
+            Game(Cults, "soul-snatcher-cults-slayers-charging", Play.Charges, [], [R(1, "Slayer")], [], [], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
+                .Pinned("D4", "failed", "ended", "invariants: the driver's projection differs"),
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
                 [ApGrant("Tear", 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
@@ -146,7 +150,7 @@ public static partial class SuiteCatalog
             // Fails on a content defect: Scrapper Boost's row re-rolls every unmodified 5 (roll_result eq 5 raw), so under Shatter's AP(+2) the
             // fixed 5, which fails to block, is re-rolled, where the rule re-rolls only "successful unmodified defense results of 5-6".
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", null, [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]),
+                [Rerolls("Scrapper Boost", null, [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:"),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],
@@ -201,7 +205,7 @@ public static partial class SuiteCatalog
             var volley = play == Play.Shoots;
             enemy ??= volley ? [.. Enumerable.Range(1, enemyUnits).Select(u => R(u, "Tough", 3))] : [];
             var builder = new ScenarioBuilder(name, seed).Table(36, close ? 26 : 36).RoundCap(rounds ?? 4)
-                .Seeking(Closing).Scripted(ShootAndStrike)
+                .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits))
                 .Army(book.Army, count, models, modelRules: Still(rules, count, holds), armyBook: book.Uid,
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? []), Blade(1)] : [Blade(1, [.. weapon ?? []])])
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats,
@@ -213,11 +217,11 @@ public static partial class SuiteCatalog
         /// A wound-ignoring rule on three models, shot by one model with three attacks whose fixed hits and blocks deal three wounds. Where the
         /// policy's allocation gives one model more wounds than it can take while another model is left, the excess carries to that model:
         /// "roll one die for each" is read over every ignore die of the deal-wounds frame. Seed 4's allocation carries (engine defect: the carried
-        /// wounds' ignore dice are rolled again); about half of all seeds' allocations carry.
+        /// wounds' ignore dice are rolled again); about half of all seeds' allocations carry. Pinned to D5.
         /// </summary>
         static TestGame Carried((string Uid, string Army) book, string name, string entry, IReadOnlyList<ScenarioRule> rules, GameCheck check) =>
             Game(book, name, Play.Shot, [entry], rules, [Fix("hit", 6, 6, 6), Fix("defense", 1, 1, 1)], [check],
-                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4);
+                enemyUnits: 1, enemyModels: 1, enemyAttacks: 3, rounds: 2, seed: 4).Pinned("D5", check.Name);
 
         /// <summary>p.10: wounds that leave the unit at half or less of its starting size force a morale test. Fixed: two of three models fall to the first shooting.</summary>
         static TestGame Morale((string Uid, string Army) book, string name, string entry, IReadOnlyList<ScenarioRule> rules, int amount, string quote) =>
@@ -228,15 +232,28 @@ public static partial class SuiteCatalog
         static DiceFix RollOff => new("roll-off", 0, [6, 1]);
         static DiceFix Fix(string roll, params int[] faces) => new(roll, 0, faces);
 
-        /// <summary>Every shoot_or_not and strike_back Ask answered yes (the option ids are the server's fixed ones).</summary>
-        static AnswerScript ShootAndStrike
+        /// <summary>
+        /// Every shoot_or_not and strike_back Ask answered yes (the option ids are the server's fixed ones); the moving side's activations are
+        /// picked by name, so no seed decides which action a move or charge occasion comes from. Moves: each unit charges when it may, else the
+        /// first half of the units Advance and the rest Rush. Charges: the rule's units charge when they may, else Advance; Charged: the
+        /// opponent's do. Shoots, Shot and ShotWhileMoving leave activation to the policy (a holding side has one action, Hold).
+        /// </summary>
+        static AnswerScript Script(Play play, string army, int units, int enemyUnits)
         {
-            get
+            var script = AnswerScript.Build();
+            for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+            var (mover, count) = play == Play.Charged ? ("Opponents", enemyUnits) : (army, units);
+            Func<int, string>? otherwise = play switch
             {
-                var script = AnswerScript.Build();
-                for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
-                return script.Build();
-            }
+                Play.Moves => k => k <= (count + 1) / 2 ? "Advance" : "Rush",
+                Play.Charges or Play.Charged => _ => "Advance",
+                _ => null,
+            };
+            if (otherwise is not null)
+                script.Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, count)
+                    .Select(k => AskPicks.Activate(ask, $"{mover} unit {k}", "Charge") ?? AskPicks.Activate(ask, $"{mover} unit {k}", otherwise(k)))
+                    .FirstOrDefault(a => a is not null));
+            return script.Build();
         }
 
         static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules) =>

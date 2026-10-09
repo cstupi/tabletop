@@ -12,7 +12,7 @@ namespace Tabletop.Sim.Tests.Suite;
 
 /// <summary>
 /// The core group's games on both drivers (the socket one against the in-memory game server and the Docker Postgres). A game an engine defect
-/// or a missing sim capability blocks is pinned to exactly the failures it shows, so a fix turns up here as a change to make.
+/// blocks is pinned to exactly the failures it shows, so a fix turns up here as a change to make.
 /// </summary>
 [Collection("Postgres")]
 public class CoreGamesTests(PostgresFixture pg) : IDisposable
@@ -26,8 +26,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
         ["core-rough-ground"] = ["p.11: \"If any model in a unit moves in or through difficult terrain"],
         // A disembark is accepted with the model's base off the table edge (p.7).
         ["core-transport-run"] = ["NoModelInTwoPlacesOrOffTheSlab"],
-        // The sim cannot set a unit aside before deployment, so neither a Scout nor an Ambusher is ever held back (p.13, p.14).
-        ["core-deployment"] = ["never fired: Scout, Ambush", "no Scout was deployed", "no Ambusher was deployed"],
     };
 
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];
@@ -44,6 +42,10 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
         Assert.All(core, g => Assert.StartsWith("core-", g.Name));
         Assert.Equal(core.Count, core.Select(g => g.Name).Distinct().Count());
     }
+
+    [Fact]
+    public void The_blocked_games_are_the_ones_the_catalog_pins_to_a_known_defect() =>
+        Assert.Equal(Blocked.Keys.Order(), SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup && g.Known.Count > 0).Select(g => g.Name).Order());
 
     [Theory]
     [MemberData(nameof(Games))]

@@ -64,15 +64,15 @@ internal static partial class CoreGames
 
     /// <summary>
     /// p.6 deployment: the roll-off is fixed so Blue (team 2) wins, deploys first and takes the first turn. Red's third unit is a Scout and
-    /// Blue's third an Ambusher (p.13, p.14).
+    /// Blue's third an Ambusher (p.13, p.14); both are set aside before deployment.
     /// </summary>
     public static TestGame Deployment()
     {
         const string name = "core-deployment";
         var scenario = new ScenarioBuilder(name, seed: 1)
             .RoundCap(3).Table(48, 36)
-            .Army("Red", 3, 3, unitRules: [new ScenarioRule(3, "Scout")], weapons: [Rifle(), HandWeapon()])
-            .Army("Blue", 3, 3, unitRules: [new ScenarioRule(3, "Ambush")], weapons: [Rifle(), HandWeapon()])
+            .Army("Red", 3, 3, unitRules: [new ScenarioRule(3, "Scout")], weapons: [Rifle(), HandWeapon()], setAside: [3])
+            .Army("Blue", 3, 3, unitRules: [new ScenarioRule(3, "Ambush")], weapons: [Rifle(), HandWeapon()], setAside: [3])
             .Build();
         string Army(CoreLog log, Guid unit) => log.Run.Final.Units[unit].Definition.Name.Split(' ')[0];
         return Game(name, scenario,

@@ -1,5 +1,6 @@
 using Tabletop.Geometry;
 using Tabletop.Protocol;
+using Tabletop.Sim.Answers;
 using Tabletop.Sim.Scenarios;
 
 namespace Tabletop.Sim.Suite;
@@ -8,18 +9,18 @@ namespace Tabletop.Sim.Suite;
 static partial class SpecialGames
 {
     /// <summary>
-    /// Scout, Ambush, Aircraft, Hero. Scout and Ambush need a unit set aside before deployment, and Hero a hero joined to a unit without the
-    /// rule; a sim scenario can express neither yet, so their checks stand failing until it can. Aircraft's move and "can't be charged" are
-    /// engine defects. Red unit 1 scouts, Red unit 2 and Blue unit 2 ambush, Red unit 3 holds the Hero, Blue unit 1 is the Aircraft.
+    /// Scout, Ambush, Hero. Red unit 1 scouts and Red unit 2 and Blue unit 2 ambush, all three set aside before deployment; Red unit 3's
+    /// first model is a Tough(3) Hero on Defense 2+ in a unit on 4+.
     /// </summary>
     static TestGame Deployment()
     {
         const string name = "special-scouts-and-ambushers";
-        return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ShootAndStrike)
-                .Army("Red", 3, 3, unitRules: [new(1, "Scout"), new(2, "Ambush")], modelRules: [new(3, "Hero")], unitStats: Stats(4, 4))
-                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft"), new(2, "Ambush")], unitStats: Stats(4, 4))
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ShootTheHerosUnit)
+                .Army("Red", 3, 3, unitRules: [new(1, "Scout"), new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [1, 2],
+                    models: [new ScenarioModel(3, 1, [new(0, "Hero"), new(0, "Tough", 3)], Stats(4, 2))])
+                .Army("Blue", 2, 2, unitRules: [new(2, "Ambush")], unitStats: Stats(4, 4), setAside: [2])
                 .Build(),
-            ["Scout", "Ambush", "Aircraft", "Hero"],
+            ["Scout", "Ambush", "Hero"],
             [
                 Exact("p.14 Scout: \"After all other units are deployed, may be deployed anywhere fully within 12\" of their deployment zone\"", ["Scout"], run =>
                 {
@@ -52,20 +53,6 @@ static partial class SpecialGames
                         return gaps.Count == 0 || gaps.Min() > 9 ? null : $"{ModelName(run, a.Model)} placed {gaps.Min():0.00}\" from an enemy";
                     });
                 }),
-                Exact("p.13 Aircraft: \"May only use Advance actions ... adding 30\" to its total move\"", ["Aircraft"], run =>
-                {
-                    var offered = ActivateOptions(run).Where(o => o.Unit == "Blue unit 1").ToList();
-                    if (offered.Count == 0) return "the Aircraft never activated";
-                    if (offered.FirstOrDefault(o => !o.Actions.SequenceEqual(["Advance"])) is { } wrong) return $"the Aircraft was offered {string.Join(",", wrong.Actions)}";
-                    return Each(Moves(run).Where(m => m.Unit == "Blue unit 1"), "an Aircraft move", m =>
-                        m.Region.Allowance == 36 ? null : $"the Aircraft's Advance allowance is {m.Region.Allowance}, expected 36 (6 + 30)");
-                }),
-                Exact("p.13 Aircraft: \"can't be charged\"", ["Aircraft"], run =>
-                {
-                    var aircraft = run.Final.Units.Values.Single(u => u.Definition.Name == "Blue unit 1").Id;
-                    var targets = Payloads(run).OfType<AskOpened>().Where(a => a.Ask.Question == "charge_target").Select(a => a.Ask.Legal).OfType<PieceSelection>().ToList();
-                    return targets.Count == 0 ? "nobody charged" : targets.Any(t => t.Eligible.Contains(aircraft)) ? "the Aircraft was offered as a charge target" : null;
-                }),
                 Exact("p.15 Tough: \"heroes must be assigned wounds last\"", ["Hero"], run =>
                 {
                     var (heroes, others) = HeroSplit(run);
@@ -87,8 +74,70 @@ static partial class SpecialGames
                 // Scheduler and legality rules act where no step completes (TestGame.Evidence): the Ask the rule shapes is the evidence.
                 ["Scout"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployScouts }),
                 ["Ambush"] = log => log.Any(e => e.Payload is AskOpened { Ask.Question: AskQuestions.DeployAmbusher }),
-                ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance"),
             });
+    }
+
+    /// <summary>
+    /// Aircraft: Blue unit 1 is the Aircraft; both sides close in and Red charges whenever it may, picking the Aircraft when offered. Its
+    /// move (D7) and "can't be charged" (D8) are engine defects.
+    /// </summary>
+    static TestGame Aircraft()
+    {
+        const string name = "special-aircraft-overhead";
+        return Game(name, new ScenarioBuilder(name, 1).RoundCap(3).Table(36, 36).Scripted(ChargeTheAircraft).Seeking(NearestEnemy)
+                .Army("Red", 3, 3, unitStats: Stats(4, 4))
+                .Army("Blue", 2, 2, unitRules: [new(1, "Aircraft")], unitStats: Stats(4, 4))
+                .Build(),
+            ["Aircraft"],
+            [
+                Exact("p.13 Aircraft: \"May only use Advance actions ... adding 30\" to its total move\"", ["Aircraft"], run =>
+                {
+                    var offered = ActivateOptions(run).Where(o => o.Unit == "Blue unit 1").ToList();
+                    if (offered.Count == 0) return "the Aircraft never activated";
+                    if (offered.FirstOrDefault(o => !o.Actions.SequenceEqual(["Advance"])) is { } wrong) return $"the Aircraft was offered {string.Join(",", wrong.Actions)}";
+                    return Each(Moves(run).Where(m => m.Unit == "Blue unit 1"), "an Aircraft move", m =>
+                        m.Region.Allowance == 36 ? null : $"the Aircraft's Advance allowance is {m.Region.Allowance}, expected 36 (6 + 30)");
+                }),
+                Exact("p.13 Aircraft: \"can't be charged\"", ["Aircraft"], run =>
+                {
+                    var aircraft = run.Final.Units.Values.Single(u => u.Definition.Name == "Blue unit 1").Id;
+                    var targets = Payloads(run).OfType<AskOpened>().Where(a => a.Ask.Question == "charge_target").Select(a => a.Ask.Legal).OfType<PieceSelection>().ToList();
+                    return targets.Count == 0 ? "nobody charged" : targets.Any(t => t.Eligible.Contains(aircraft)) ? "the Aircraft was offered as a charge target" : null;
+                }),
+            ],
+            new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") });
+    }
+
+    /// <summary>ShootAndStrike, and every weapon group fires at Red unit 3, the Hero's unit, whenever it is a legal target.</summary>
+    static AnswerScript ShootTheHerosUnit
+    {
+        get
+        {
+            var script = AnswerScript.Build();
+            for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+            return script
+                .Match("declare_targets", (ask, p) => ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == "Red unit 3") is var t && t != Guid.Empty
+                    ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
+                .Build();
+        }
+    }
+
+    /// <summary>
+    /// ShootAndStrike, and Red charges whenever a charge is offered, picking the Aircraft when it is a target: p.13 says it can't be, so the
+    /// check needs the offer made.
+    /// </summary>
+    static AnswerScript ChargeTheAircraft
+    {
+        get
+        {
+            var script = AnswerScript.Build();
+            for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
+            return script
+                .Match(AskQuestions.Activate, (ask, _) => new[] { "Red unit 3", "Red unit 1", "Red unit 2" }
+                    .Select(unit => AskPicks.Activate(ask, unit, "Charge")).FirstOrDefault(a => a is not null))
+                .Match("charge_target", (ask, p) => AskPicks.Pieces(ask, p, "Blue unit 1"))
+                .Build();
+        }
     }
 
     /// <summary>Red unit 3's models with the Hero rule, and the rest of the unit.</summary>

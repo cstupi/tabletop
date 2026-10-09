@@ -16,6 +16,9 @@ public class SpellGamesTests
     static PropertySet Set => ScenarioCompiler.CoreProperties;
     static IReadOnlyList<TestGame> Spells => SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.SpellsPrefix, StringComparison.Ordinal)).ToList();
 
+    /// <summary>The per-book games: the group less its defect exhibit (SuiteCatalog.EditedCastingDieName).</summary>
+    static IReadOnlyList<TestGame> BookGames => Spells.Where(g => g.Name != SuiteCatalog.EditedCastingDieName).ToList();
+
     public static TheoryData<string> GameNames() => [.. Spells.Select(g => g.Name)];
 
     /// <summary>The games with exact checks: the ones whose dice fixes and log readings the socket run must reproduce.</summary>
@@ -25,10 +28,10 @@ public class SpellGamesTests
     public void Every_book_with_spells_has_one_game_that_covers_its_spells_in_the_books_order()
     {
         var books = Set.Books.Values.Where(b => b.Spells.Count > 0).OrderBy(b => b.Uid, StringComparer.Ordinal).ToList();
-        Assert.Equal(books.Select(b => SuiteCatalog.SpellsPrefix + b.Uid), Spells.Select(g => g.Group));
-        Assert.Equal(books.Select(b => b.Spells), Spells.Select(g => g.Covers));
-        Assert.Equal(Spells.Count, Spells.Select(g => g.Name).Distinct().Count());
-        Assert.All(Spells, g => Assert.StartsWith(SpellGames.NamePrefix, g.Name));
+        Assert.Equal(books.Select(b => SuiteCatalog.SpellsPrefix + b.Uid), BookGames.Select(g => g.Group));
+        Assert.Equal(books.Select(b => b.Spells), BookGames.Select(g => g.Covers));
+        Assert.Equal(BookGames.Count, BookGames.Select(g => g.Name).Distinct().Count());
+        Assert.All(BookGames, g => Assert.StartsWith(SpellGames.NamePrefix, g.Name));
     }
 
     [Fact]
@@ -41,7 +44,7 @@ public class SpellGamesTests
     [Fact]
     public void The_books_army_is_one_caster_on_that_book_per_spell_and_every_game_checks_its_spells_resolve_on_legal_casts()
     {
-        Assert.All(Spells, g =>
+        Assert.All(BookGames, g =>
         {
             var army = g.Scenario.Armies[0];
             Assert.Equal(g.Group[SuiteCatalog.SpellsPrefix.Length..], army.ArmyBook);
@@ -92,13 +95,17 @@ static class SpellDefects
     {
         // D9: Roller.Judge succeeds on modified >= threshold alone, so an unmodified 1 lifted to 4+ passes (p.5: "a roll of 1 always counts as a fail").
         ["spells-human-defense-force"] = [SuiteCatalog.NaturalCastingDieCheck],
+        // D10: the casting step stores "passed" when it rolls; a die edited to a raw 1 afterwards still resolves the spell.
+        [SuiteCatalog.EditedCastingDieName] = [SuiteCatalog.EditedCastCheck],
     };
 
     public static void AssertOnlyKnown(SuiteGameResult result)
     {
         var expected = Known.GetValueOrDefault(result.Name) ?? [];
-        var unexpected = result.Failures.Where(f => !expected.Any(c => f.StartsWith(c + ": ", StringComparison.Ordinal))).ToList();
-        var fixedChecks = expected.Where(c => !result.Failures.Any(f => f.StartsWith(c + ": ", StringComparison.Ordinal))).ToList();
+        var failures = result.Failures.Select(f => f.StartsWith("known defect ", StringComparison.Ordinal) ? f[(f.IndexOf(": ", StringComparison.Ordinal) + 2)..] : f).ToList();
+        var unexpected = failures.Where(f => !expected.Any(c => f.StartsWith(c + ": ", StringComparison.Ordinal))).ToList();
+        var fixedChecks = expected.Where(c => !failures.Any(f => f.StartsWith(c + ": ", StringComparison.Ordinal))).ToList();
+        Assert.Equal(expected.Length > 0, result.Known is not null);
         Assert.True(unexpected.Count == 0 && fixedChecks.Count == 0,
             $"{result.Name} seed {result.Seed}\nunexpected: {string.Join("\n", unexpected)}\nno longer failing: {string.Join("\n", fixedChecks)}");
     }

@@ -14,7 +14,36 @@ public static partial class SuiteCatalog
     private static partial IEnumerable<TestGame> Spells() =>
         SpellGames.Books(ScenarioCompiler.CoreProperties).Select(book => SpellGames.Game(book, seed: 1,
             ScenarioCompiler.CoreProperties, SpellTables.Setups.GetValueOrDefault(book.Uid), SpellTables.Dice.GetValueOrDefault(book.Uid),
-            SpellTables.Checks.GetValueOrDefault(book.Uid)));
+            SpellTables.Checks.GetValueOrDefault(book.Uid)) with { Known = SpellTables.Known.GetValueOrDefault(book.Uid) ?? [] })
+        .Append(EditedCastingDie());
+
+    public const string EditedCastingDieName = "spells-edited-casting-die";
+    public const string EditedCastCheck = "edited casting die (p.13: \"Roll one die, on 4+ resolve the effect\"; p.5: \"a roll of 1 always counts as a fail\")";
+
+    /// <summary>
+    /// The Orc Marauders' spell game with its first casting roll, a pass as rolled, set to a raw 1 by SetDice once the roll step has
+    /// completed: the cast now stands on a 1 and must not resolve. D10: the step decided "passed" when it rolled and the edit does not
+    /// reach it. Covers nothing of its own; the check reports against Caster.
+    /// </summary>
+    static TestGame EditedCastingDie()
+    {
+        var book = ScenarioCompiler.CoreProperties.Books["1wj1ysgxpuuz9bc7"];
+        var game = SpellGames.Game(book, seed: 1, ScenarioCompiler.CoreProperties, dice: [new DiceFix("casting", 0, [1])]);
+        return game with
+        {
+            Name = EditedCastingDieName,
+            Scenario = game.Scenario with { Name = EditedCastingDieName },
+            Covers = [],
+            Checks = [Checks.Ended(), Checks.Invariants(), new GameCheck(EditedCastCheck, run => EditedCasts(LogQueries.Of(run), book.Spells), ["Caster"])],
+            Known = [new KnownDefect("D10", EditedCastCheck)],
+        };
+    }
+
+    /// <summary>Every cast whose casting die an edit set to a raw 1 neither passed nor resolved its spell; at least one such cast.</summary>
+    static string? EditedCasts(LogQueries q, IReadOnlyList<string> spells) => LogQueries.Each(
+        spells.SelectMany(s => SpellGames.Casts(q, s).Select(c => (Spell: s, Cast: c))).Where(x => x.Cast.Roll.Edited && x.Cast.Die.Raw == 1),
+        "cast on an edited raw 1",
+        x => x.Cast.Passed || SpellGames.Resolved(q, x.Cast, x.Spell) ? $"{x.Spell} on an edited raw 1 (modified {x.Cast.Die.Modified}): passed {x.Cast.Passed}, resolved {SpellGames.Resolved(q, x.Cast, x.Spell)}" : null);
 
     /// <summary>
     /// The per-book tables, in a class of their own: SuiteCatalog.All is set by SuiteCatalog's static initializer, and the language fixes
@@ -63,6 +92,12 @@ public static partial class SuiteCatalog
             ["7o6om21wxlvvy3hq"] = [Exact(TerrainCheck, ["Cursed Stride"], CursedStride)],
             ["31xjrm9ivdimkjxp"] = [Exact(FatiguedCheck, ["Terrifying Fury"], TerrifyingFury)],
             ["zz3kp5ry7ks6mxcx"] = [Exact(MoveCheck, ["Deep Hypnosis"], DeepHypnosis)],
+        };
+
+        /// <summary>Per book uid: the engine defects its game is pinned to.</summary>
+        public static readonly Dictionary<string, IReadOnlyList<KnownDefect>> Known = new(StringComparer.Ordinal)
+        {
+            ["z65fgu0l29i4lnlu"] = [new KnownDefect("D9", NaturalCastingDieCheck)],
         };
 
         /// <summary>The unit after the caster's in the book's army, wrapping: "&lt;army&gt; unit k" → "&lt;army&gt; unit k+1".</summary>
