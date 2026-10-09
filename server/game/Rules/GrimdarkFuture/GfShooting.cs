@@ -7,7 +7,8 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfShooting
 {
-    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep(), new GfAttack.AttackStartStep(), new FireGroupsStep(), new GfMoves.PointWindowStep(GfNames.AfterShooting, "after-shooting")]);
+    /// <summary>Outline labels: p.8 (Picking targets, each group's target "declared before rolling"; "all weapons are fired simultaneously").</summary>
+    public static Sequence Shooting() => new(GfNames.Shooting, [new DeclareTargetsStep().Labelled("Pick targets"), new GfAttack.AttackStartStep(), new FireGroupsStep().Labelled("Fire"), new GfMoves.PointWindowStep(GfNames.AfterShooting, "after-shooting")]);
 
     /// <summary>
     /// One group per ranged weapon type over the living models (p.8), in GfGroups' order. A Limited weapon already fired is left out
