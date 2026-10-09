@@ -18,10 +18,16 @@ public class SpecialGamesTests
     /// not implement (Aircraft's move and "can't be charged"), and the checks that stand failing for it.</summary>
     public const string Blocked = "special-scouts-and-ambushers";
 
-    public static readonly string[] BlockedChecks =
+    /// <summary>Each standing failure: the start of its check's name and the reason it fails for today.</summary>
+    public static readonly (string Check, string Reason)[] BlockedChecks =
     [
-        "fired: never fired: Scout, Ambush, Hero",
-        "p.14 Scout:", "p.13 Ambush:", "p.14 Hero:", "p.13 Aircraft: \"May only use Advance actions", "p.13 Aircraft: \"can't be charged\"",
+        ("fired", "never fired: Scout, Ambush, Hero"),
+        ("p.14 Scout:", "no Scout was deployed"),
+        ("p.13 Ambush:", "no Ambusher was offered"),
+        ("p.15 Tough: \"heroes must be assigned wounds last\"", "no a wound on the Hero's unit while another model lived happened"),
+        ("p.14 Hero:", "no a defense roll by the Hero's unit while another model lived happened"),
+        ("p.13 Aircraft: \"May only use Advance actions", "the Aircraft's Advance allowance is 6, expected 36 (6 + 30)"),
+        ("p.13 Aircraft: \"can't be charged\"", "the Aircraft was offered as a charge target"),
     ];
 
     [Fact]
@@ -51,7 +57,7 @@ public class SpecialGamesTests
     {
         Assert.Equal(Games.Select(g => g.Name), report.Games.Select(g => g.Name));
         Assert.All(report.Games.Where(g => g.Name != Blocked), g => Assert.True(g.Passed, $"{g.Name}: {string.Join("\n", g.Failures)}"));
-        Assert.All(report.Games.Single(g => g.Name == Blocked).Failures, f => Assert.Contains(BlockedChecks, b => f.StartsWith(b)));
+        Assert.All(report.Games.Single(g => g.Name == Blocked).Failures, f => Assert.Contains(BlockedChecks, b => f.StartsWith(b.Check) && f.EndsWith(": " + b.Reason)));
     }
 }
 
