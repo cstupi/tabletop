@@ -67,6 +67,12 @@ public interface IGameRules
     GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => null;
     /// <summary>Changes written as one round_ended event when a player has ended <paramref name="round"/>, before the next round_started (OPR: objectives seized). Empty: no event.</summary>
     IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => [];
+
+    // Facts the client is told rather than reading a rule name.
+    /// <summary>Wounds the model takes before it is killed (OPR: Tough(X), else 1). Wrapping rulesets must forward it.</summary>
+    int MaxWounds(GameState state, Guid modelId) => 1;
+    /// <summary>The unit's models that may fire at the target unit now (OPR p.8, Who can shoot). Empty when either unit is unknown or off the table. Wrapping rulesets must forward it.</summary>
+    IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
 }
 
 public sealed class UnknownGameRulesException(string id) : Exception($"No GameRules named '{id}' ships with this build.");

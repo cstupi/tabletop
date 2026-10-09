@@ -64,4 +64,6 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public Scheduler.HookResult RoundBoundaryStep(GameState state, PropertySet properties, int round, IReadOnlyList<Guid> order) => inner.RoundBoundaryStep(state, properties, round, order);
     public GameEndingBreach? JudgeAdvance(GameState state, PropertySet properties, IReadOnlyList<EventPayload> proposed) => inner.JudgeAdvance(state, properties, proposed);
     public IReadOnlyList<StateChange> OnRoundEnded(GameState state, PropertySet properties, int round) => inner.OnRoundEnded(state, properties, round);
+    public int MaxWounds(GameState state, Guid modelId) => inner.MaxWounds(state, modelId);
+    public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => inner.Shooters(state, properties, unitId, targetUnitId);
 }

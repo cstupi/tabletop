@@ -12,6 +12,7 @@ namespace Tabletop.GameServer.Engine;
 public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler scheduler) : IRulesEngine
 {
     public SequenceInterpreter Interpreter { get; } = new(rules, properties, dice);
+    public PropertySet Properties => properties;
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
