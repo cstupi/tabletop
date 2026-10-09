@@ -13,8 +13,8 @@ public sealed partial class GrimdarkFutureRules
 
     /// <summary>
     /// p.8, Who can shoot: "All models in a unit with line of sight to the target, and that have a weapon that is within range of it, may fire
-    /// at it" — GfAttack.EligibleModels per ranged weapon group (p.8, Multiple weapon types), united. Each group's live set is settled as
-    /// GfAttack.AttackInteraction settles it with no frame: no charge range, no faces, under the action of the unit's running activation.
+    /// at it" — GfAttack.EligibleModels per ranged weapon group (p.8, Multiple weapon types), united. Each group's live set is
+    /// GfAttack.AttackInteraction's with no frame: no charge range, no faces, under the action of the unit's running activation.
     /// </summary>
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId)
     {
@@ -24,9 +24,7 @@ public sealed partial class GrimdarkFutureRules
         var action = p.Stack.FirstOrDefault(f => f.Context.ActorUnitId == unitId)?.Context.Action;
         return GfShooting.Groups(state, properties, unitId, null).SelectMany(group =>
         {
-            var models = p.Models.Values.Where(m => m.Slot.Weapons.Any(w => group.WeaponIds.Contains(w.Id))).Select(m => m.Id).ToList();
-            var live = LiveProperties.Settle(new Interaction(state, properties, Party.Of(state, unitId, models, group.WeaponIds), Party.Whole(state, targetUnitId),
-                AttackKind.Shooting, action, Battlefield.UnitDistance(state, unitId, targetUnitId), Battlefield.TerrainUnder(state, targetUnitId)));
+            var live = LiveProperties.Settle(GfAttack.AttackInteraction(state, properties, null, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting, action));
             return GfAttack.EligibleModels(state, live, unitId, targetUnitId, group.WeaponIds, AttackKind.Shooting);
         }).Distinct().ToList();
     }

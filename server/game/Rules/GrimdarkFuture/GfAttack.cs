@@ -9,18 +9,27 @@ public static partial class GfAttack
 {
     public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
 
-    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action)
+    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
+        AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
+            actor is { } a && kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
+
+    /// <summary>
+    /// The attack's interaction from state, properties and, inside a running sequence, its frame: the frame gives a charge's recorded range and the
+    /// nearest shooting or melee frame's faces. With no frame (a question asked outside Advance, such as who can shoot) the range is the units'
+    /// distance and there are no faces. `spellRules` is the spell's weapon rules, which only a step context can read.
+    /// </summary>
+    public static Interaction AttackInteraction(GameState state, PropertySet properties, FrameView? frame, Guid? actor, Guid target, IReadOnlyList<Guid> weapons,
+        AttackKind? kind, string? action, IReadOnlyList<(string Entry, int? Parameter)>? spellRules = null)
     {
-        var state = ctx.State;
-        if (actor is not { } a) return new Interaction(state, ctx.Properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
+        if (actor is not { } a) return new Interaction(state, properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
         var models = weapons.Count > 0 ? state.Projection.Models.Values.Where(m => m.Slot.Weapons.Any(w => weapons.Contains(w.Id))).Select(m => m.Id).ToList() : Lookup.LivingModels(state, a);
-        return new Interaction(state, ctx.Properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(ctx.Frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
-            Faces: FacesFor(ctx.Frame, a, target), SpellRules: kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
+        return new Interaction(state, properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
+            Faces: FacesFor(frame, a, target), SpellRules: spellRules);
     }
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded
     /// before the move (spell library, Grammar additions). Null outside a charge.</summary>
-    static double? ChargeRange(FrameView frame)
+    static double? ChargeRange(FrameView? frame)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence == GfNames.ChargeSeq && f.Values.TryGetValue(GfNames.ChargeRangeKey, out var hundredths)) return hundredths / 100.0;
