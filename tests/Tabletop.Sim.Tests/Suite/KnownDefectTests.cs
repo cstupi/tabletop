@@ -53,6 +53,27 @@ public class KnownDefectTests
         Assert.Equal(["D9: p.5 quoted"], result.Stale);
     }
 
+    /// <summary>A check that fails for several reasons reports each on its own line, so a pin naming one leaves the others unexpected.</summary>
+    [Fact]
+    public async Task A_second_reason_beside_a_pinned_one_is_unexpected()
+    {
+        var check = GameCheck.Each("p.5 quoted", _ => ["raw 1 judged a success", "a new failure"]);
+        var game = Game(checks: [check]) with { Known = [new KnownDefect("D9", "p.5 quoted", "raw 1 judged a success")] };
+        var result = Assert.Single((await RunAsync(game)).Games);
+        Assert.Null(result.Known);
+        Assert.Equal(["known defect D9: p.5 quoted: raw 1 judged a success", "p.5 quoted: a new failure"], result.Failures);
+    }
+
+    [Fact]
+    public async Task An_entry_going_silent_beside_a_pinned_silent_one_is_unexpected()
+    {
+        var game = Game(covers: ["Slayer", "Tear"]) with { Known = [new KnownDefect("D12", "fired", "never fired: Slayer")] };
+        var result = Assert.Single((await RunAsync(game)).Games);
+        Assert.Null(result.Known);
+        Assert.Contains("known defect D12: fired: never fired: Slayer", result.Failures);
+        Assert.Contains("fired: never fired: Tear", result.Failures);
+    }
+
     [Fact]
     public async Task A_pin_that_no_longer_fails_is_reported_while_the_others_still_do()
     {

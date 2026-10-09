@@ -84,13 +84,12 @@ public static partial class SuiteCatalog
         /// fails, so a seed that never brings the rule's number into play cannot pass for it.
         /// </summary>
         static GameCheck Exact(string entry, string quote, Func<SuiteGameRun, ArmyLog, IEnumerable<string?>> occasions) =>
-            new($"{entry}: {quote}", run =>
-            {
-                var verdicts = occasions(run, ArmyLog.Of(run.EffectiveLog)).ToList();
-                if (verdicts.Count == 0) return "no occasion in the log";
-                var failures = verdicts.OfType<string>().Distinct().ToList();
-                return failures.Count == 0 ? null : $"{failures.Count} of {verdicts.Count} occasions: {string.Join("; ", failures.Take(3))}";
-            }, [entry]);
+            GameCheck.Each($"{entry}: {quote}", run => Reasons(occasions(run, ArmyLog.Of(run.EffectiveLog)).ToList()), [entry]);
+
+        /// <summary>One failure line per distinct reason, each with the number of occasions that failed for it; "no occasion" when there were none.</summary>
+        static IEnumerable<string> Reasons(IReadOnlyList<string?> verdicts) =>
+            verdicts.Count == 0 ? ["no occasion in the log"]
+                : verdicts.OfType<string>().GroupBy(v => v).Select(g => $"{g.Count()} of {verdicts.Count} occasions: {g.Key}");
 
         static string Faces(IEnumerable<Die> dice) => $"[{string.Join(" ", dice.Select(d => d.Raw))}]";
         static int Count(IEnumerable<RollRecord> rolls, IReadOnlyCollection<int> faces, bool successOnly = true) =>

@@ -13,9 +13,21 @@ public sealed record DiceFix(string Roll, int Ordinal, IReadOnlyList<int> Faces)
 
 /// <summary>
 /// One check a game makes of its run: Failure returns null for a pass, else the reason. Entries: the catalog entries an exact check is
-/// about, reported against each entry's coverage; null for a check about no entry.
+/// about, reported against each entry's coverage; null for a check about no entry. A check built by <see cref="Each"/> can fail for several
+/// reasons at once; the runner reports each as its own failure line, so a pin matching one reason never covers another.
 /// </summary>
-public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IReadOnlyList<string>? Entries = null);
+public sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IReadOnlyList<string>? Entries = null)
+{
+    /// <summary>Every reason the check failed for, one per failure line; set by <see cref="Each"/>, else Failure's one reason.</summary>
+    public Func<SuiteGameRun, IReadOnlyList<string>>? Reasons { get; init; }
+
+    /// <summary>A check whose reasons are reported one per line: it passes when there is none. Failure joins them.</summary>
+    public static GameCheck Each(string name, Func<SuiteGameRun, IEnumerable<string>> reasons, IReadOnlyList<string>? entries = null) =>
+        new(name, run => reasons(run).ToList() is { Count: > 0 } all ? string.Join("; ", all) : null, entries) { Reasons = run => [.. reasons(run)] };
+
+    /// <summary>The reasons this run fails the check for, empty for a pass.</summary>
+    public IReadOnlyList<string> FailuresOf(SuiteGameRun run) => Reasons is { } reasons ? reasons(run) : Failure(run) is { } one ? [one] : [];
+}
 
 /// <summary>One exact check's verdict, as an entry's coverage lists it.</summary>
 public sealed record ExactResult(string Game, string Check, bool Passed);

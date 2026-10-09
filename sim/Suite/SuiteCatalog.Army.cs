@@ -95,8 +95,9 @@ public static partial class SuiteCatalog
             Game(Cults, "soul-snatcher-cults-slayers-charging", Play.Charges, [], [R(1, "Slayer")], [], [], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)])
                 .Pinned("D4", "failed:", "the engine threw in Advance: no defender in this interaction")
                 .Pinned("D4", "ended: failed:", "the engine threw in Advance: no defender in this interaction")
-                // In process the session faults mid-step, so the driver's projection runs ahead of the server's (deployment, round 0).
-                .Pinned("D4", "invariants: the driver's projection differs", "Scheduler.Phase: expected rounds, got deployment", DriverKind.InProcess),
+                // In process the session faults mid-step, so the driver's projection runs ahead of the server's (deployment, round 0): every
+                // field the throw left behind differs, one failure line each (sequence, round, phase, active team, the deployed models).
+                .Pinned("D4", "invariants: the driver's projection differs from the server's", " — ", DriverKind.InProcess),
             Game(Custodians, "custodian-brothers-tear", Play.Shoots, ["Tear"], [], [],
                 [ApGrant("Tear", 4, "\"Against units where most models have Tough(9) or higher, this weapon gets AP(+4)\"")],
                 weapon: [R(0, "Tear")], enemy: [R(1, "Tough", 9), R(2, "Tough", 9)], enemyModels: 1, units: 2),
@@ -156,7 +157,9 @@ public static partial class SuiteCatalog
             // Fails on a content defect: Scrapper Boost's row re-rolls every unmodified 5 (roll_result eq 5 raw), so under Shatter's AP(+2) the
             // fixed 5, which fails to block, is re-rolled, where the rule re-rolls only "successful unmodified defense results of 5-6".
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", null, [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]"),
+                [Rerolls("Scrapper Boost", null, [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3), R(2, "Tough", 3)]).Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,6,7] of [6 4 1 4 3 2 6 5], expected [0,6]")
+                .Pinned("D6", "Scrapper Boost:", "re-rolled dice [4,5,6] of [3 3 1 3 5 6 5 2 3], expected [5]")
+                .Pinned("D6", "Scrapper Boost:", "re-rolled dice [0,2] of [5 4 5], expected []"),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],

@@ -161,12 +161,12 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         var exact = new Dictionary<string, List<ExactResult>>();
         foreach (var check in Mandatory.Concat(game.Checks.Where(c => Mandatory.All(m => m.Name != c.Name))))
         {
-            string? failure;
-            try { failure = check.Failure(run); }
-            catch (Exception ex) { failure = $"threw {ex.GetType().Name}: {ex.Message}"; }
-            if (failure is not null) failures.Add($"{check.Name}: {failure}");
+            IReadOnlyList<string> reasons;
+            try { reasons = check.FailuresOf(run); }
+            catch (Exception ex) { reasons = [$"threw {ex.GetType().Name}: {ex.Message}"]; }
+            failures.AddRange(reasons.Select(r => $"{check.Name}: {r}"));     // one line per reason, so a pin covers only the reason it names
             foreach (var entry in (check.Entries ?? []).Distinct())
-                (exact.TryGetValue(entry, out var list) ? list : exact[entry] = []).Add(new ExactResult(game.Name, check.Name, failure is null));
+                (exact.TryGetValue(entry, out var list) ? list : exact[entry] = []).Add(new ExactResult(game.Name, check.Name, reasons.Count == 0));
         }
         return (failures, exact.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<ExactResult>)kv.Value));
     }

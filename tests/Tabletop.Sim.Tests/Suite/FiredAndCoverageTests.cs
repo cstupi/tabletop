@@ -90,8 +90,8 @@ public class FiredAndCoverageTests
     public void FiredAll_names_each_covered_entry_that_never_fired()
     {
         var run = Run("a", ["AP", "Furious", "Relentless"], Step(1, applied: ["Furious"]));
-        Assert.Equal("never fired: AP, Relentless", Checks.FiredAll().Failure(run));
-        Assert.Null(Checks.FiredAll().Failure(Run("b", ["Furious"], Step(1, applied: ["Furious"]))));
+        Assert.Equal(["never fired: AP", "never fired: Relentless"], Checks.FiredAll().FailuresOf(run));      // one reason per entry
+        Assert.Empty(Checks.FiredAll().FailuresOf(Run("b", ["Furious"], Step(1, applied: ["Furious"]))));
     }
 
     /// <summary>A rule that acts where no step completes (a scheduler or legality rule) is shown to fire by the game's own evidence.</summary>
@@ -107,7 +107,7 @@ public class FiredAndCoverageTests
 
         Assert.False(Fired.In(log, "Scout"));
         Assert.True(run.Game.FiredIn(log, "Scout"));
-        Assert.Equal("never fired: Furious", Checks.FiredAll().Failure(run));             // an entry without evidence still reads Fired.In
+        Assert.Equal(["never fired: Furious"], Checks.FiredAll().FailuresOf(run));        // an entry without evidence still reads Fired.In
         var coverage = Coverage.Of(ScenarioCompiler.CoreProperties, [run], fullRun: false);
         Assert.True(coverage.Single(c => c.Name == "Scout").Fired);
         Assert.False(coverage.Single(c => c.Name == "Furious").Fired);
