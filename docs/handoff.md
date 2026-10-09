@@ -39,8 +39,8 @@ Today: 113 of 128 games pass in-process (112 over the socket), every other game 
 (report line `KNOWN Dn`), 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1787 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
-GameServer 887, Management 94, Sim 372. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1789 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
+GameServer 887, Management 94, Sim 374. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
@@ -50,7 +50,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 Twelve defects, each pinned to a failing suite game (*Defects the rules suite found*, below). Fix each in
 `server/game/` test-first, then drop its pin (`.Pinned(...)` in `sim/Suite/SuiteCatalog.*.cs`, and the test tables in
-`tests/Tabletop.Sim.Tests/Suite/`); a pinned game that passes shows `(pinned Dn did not fail)` in the report. D9's fix
+`tests/Tabletop.Sim.Tests/Suite/`); a pinned game that passes shows `(pinned Dn did not fail: <check>)` in the report. D9's fix
 leaves five spells covered only by raw-1 passes (Psychic Stabilization, Cleaving Rune, Brain Infestation, Corrode Weapons,
 Mutating Inferno): their spell games' scripts must still bring a legal pass. Once D2 is fixed, `core-rough-ground`'s
 policy may need to keep a unit's moves within 6" under strict.
@@ -96,23 +96,26 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Flying is spent by the first leg of a split move; a granted Counter-Attack or Unwieldy on a
   unit with no melee weapon stays until next used.
+- A Scout unit keeps the `set-aside` condition after it deploys: `GfRules.Deployment.cs` clears it only for an Ambusher at the
+  round boundary. Nothing reads it once the unit is on the table (every reader also requires all its models shelved); clear it
+  when the Scout deploys.
 - Management: a login blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment.
 
 ## Defects the rules suite found
 
-Each defect fails the named suite game on both drivers unless noted. Fix directions are from the task reviews.
+Each defect fails the named suite game on both drivers unless noted; quoted evidence is the game's failure text.
 
 | | Rule | Code | Evidence game | Fix direction |
 | --- | --- | --- | --- | --- |
 | D1 | p.8: "all weapons are fired simultaneously"; a later weapon group whose target has no model left removes nothing | `GfAttack.AssignStep` (`Rules/GrimdarkFuture/GfAttack.cs:115-134`) opens `remove_casualties` as an `Allocation` over no eligible model, with no pass: the game sticks | `core-overkill` (seed 7) | Finish the group when no model is eligible (its wounds are lost); then also assert the second group removed nothing |
-| D2 | p.11: "If any model in a unit moves in or through difficult terrain ... then all models in the unit may not move more than 6"" | `GfMoves.ApplyMove` (`GfMoves.cs:199-245`) computes `crossedDifficult` only for `Applied`; each model's cap comes from its own `Movement.Check` | `core-rough-ground` (a model rushes 9.49") | Cap every model of the unit at 6" when any model's path enters difficult ground, under strict |
+| D2 | p.11: "If any model in a unit moves in or through difficult terrain ... then all models in the unit may not move more than 6"" | `GfMoves.ApplyMove` (`GfMoves.cs:199-245`) computes `crossedDifficult` only for `Applied`; each model's cap comes from its own `Movement.Check` | `core-rough-ground` ("a rush into the bog moved a model 9.49"") | Cap every model of the unit at 6" when any model's path enters difficult ground, under strict |
 | D3 | p.7: "models may also never move outside of the battlefield (no part of them, at any point)" | `GfMoves.ExitPlacement` (`GfMoves.cs:82`) checks the 6" exit distance, not the table; it also serves the destroyed-transport placement (`GfContainers.cs:67`) | `core-transport-run` (a disembarked model off a 24x36 table) | Check the base against the table in `ExitPlacement` |
 | D4 | Slayer (Soul Snatcher Cults): "its weapons get AP(+2) if most models in the target have Tough(3) or higher" | `GfMelee.ChargeTargets` (`GfMelee.cs:106-108`) settles a melee `Interaction` with no defender; an opponent-subject condition (`MostModels`, `HoldsProperty`, `ActorState`) calls `Interaction.Of`, which throws "no defender in this interaction": the engine faults | `soul-snatcher-cults-slayers-charging` | Make opponent-subject conditions false with no defender (as `PositionTerrain` already is), or settle per candidate target |
-| D5 | Resistance, Self-Repair, Plaguebound: "roll one die for each" wound; p.14 Regeneration the same | `GfAttack.AssignStep` (`GfAttack.cs:150-175`): wounds spilled past a dead model re-enter the step and take the ignore roll again | `havoc-brothers-resistance`, `robot-legions-self-repair`, `robot-legions-self-repair-boost`, `plague-disciples-plaguebound`, `plague-disciples-plaguebound-boost` (seed 4: 4 dice for 3 wounds) | Roll the ignore die once per wound; carried wounds keep their result |
+| D5 | Resistance, Self-Repair, Plaguebound: "roll one die for each" wound; p.14 Regeneration the same | `GfAttack.AssignStep` (`GfAttack.cs:150-175`): wounds spilled past a dead model re-enter the step and take the ignore roll again | `havoc-brothers-resistance`, `robot-legions-self-repair`, `robot-legions-self-repair-boost`, `plague-disciples-plaguebound`, `plague-disciples-plaguebound-boost` ("4 dice [3 2 1 1] for 3 wounds") | Roll the ignore die once per wound; carried wounds keep their result |
 | D6 | Scrapper Boost, Mischievous Boost: "must re-roll successful unmodified defense results of 5-6" | The Boost rows are `force_reroll` on `roll_result eq 5 [defense, raw]`; `Conditions.Holds` (`Effects/Conditions.cs:22-24`) compares raw or modified only, so a raw 5 that AP made fail is re-rolled | `jackals-scrapper-boost` | A roll-result predicate on the die's success, and the two rows authored with it |
 | D7 | p.13 Aircraft: "May only use Advance actions ... adding 30" to its total move" (straight line, ignoring units and terrain) | Not built: the Advance allowance has no Aircraft term | `special-aircraft-overhead` (allowance 6, expected 36) | Build the Aircraft move |
 | D8 | p.13 Aircraft: "can't be charged" | `GfMelee.ChargeTargets` (`GfMelee.cs:106-123`) filters by team, distance and impassable terrain only | `special-aircraft-overhead` (the Aircraft offered as a charge target) | Leave Aircraft out of the charge targets |
-| D9 | p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail, regardless of how much it is being modified by" | `Roller.Judge` (`Dice/Roller.cs:13`) judges `modified >= threshold` alone, for every roll, reroll and `SetDice` | `spells-human-defense-force` (casting raw 1 at +4 judged a success) | Raw 1 fails and raw 6 succeeds on thresholded rolls; leave threshold-1 spell-hit dice alone (the Sky Blaze check catches it) |
+| D9 | p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail, regardless of how much it is being modified by" | `Roller.Judge` (`Dice/Roller.cs:13`) judges a thresholded roll by `modified >= threshold` only (a `RequiredRaw` roll compares the raw face), at the roll, on a reroll and on `SetDice` | `spells-human-defense-force` (casting "raw 1, modified 5: judged a success") | Raw 1 fails and raw 6 succeeds on thresholded rolls |
 | D10 | Every roll result is editable (`docs/design/client/design.md`); p.13 casting "on 4+ resolve the effect"; p.14 Surge and Rending's extra hit "on unmodified results of 6" | Values a step stores when it rolls are not re-derived after `SetDice`: casting `passed` (`GfCasting.cs:172`, and a failed cast's frame ends in that step, so it cannot be corrected), `extra_hits` on attacks (`GfAttack.cs:434-444`) and spell hits (`GfCasting.cs:255-274`); morale finishes in the step that rolls | `spells-edited-casting-die` (a cast edited to a raw 1 still resolves), `blessed-sisters-devout-edited-dice` (extra hits frozen) | Derive these values in a later step from the dice as they stand (as `GfAttack.HitsFrom` does), or gate the decision behind its own step |
 | D11 | p.14 Stealth "shot from over 9" away"; also Relentless, Artillery, Piercing Hunter; p.5 measures base to base | `Conditions.Holds` `Range` (`Effects/Conditions.cs:21`) floors the distance: 9.41" counts as 9, not over 9 | `special-stealth-at-nine-and-a-half` (a 9.41" shot with no Stealth modifier) | Compare the measured distance, unrounded |
 | D12 | Socket only: the set read from Postgres must evaluate as the document does | `PostgresPropertiesStore` (`Properties/PostgresPropertiesStore.cs:21-23`) orders conditions by id (UUIDv7 minted in one loop, so random within a millisecond) and condition values by value; no condition ordinal is stored | `soul-snatcher-cults-slayers` over the socket (Slayer's opponent condition judged first, then D4's throw); may pass on a different seeding | Store a condition ordinal and order by it; the D4 fix removes the throw |

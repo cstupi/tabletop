@@ -59,9 +59,11 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `LogQueries.Of(run)` reads the effective log for checks: frames with parents and steps, rolls with dice as they stand after edits and
   rerolls, Asks with answers, removals, deployments, activations, moves. It reads the log; it never computes a rule.
 - Expected values in checks are literals from the rule text. `sim/` holds no second rules engine.
-- A game an engine defect blocks keeps its failing check and is pinned: `game.Pinned("D5", "<failure line start>")`, or
-  `KnownDefect(id, check, driver)` for one driver. The report marks those failures `known defect <id>: `, counts the game as
-  failing on a known defect, not unexpected, and flags a pinned game that passed. The defect ids are listed in
+- A game an engine defect blocks keeps its failing check and is pinned: `game.Pinned("D5", check, reason, driver?)`. A failure is the
+  defect's only when it starts with `check` and contains `reason`, text the defect itself produces, so the same check failing for
+  another reason is unexpected; `driver` limits a pin to one driver. The report marks matched failures `known defect <id>: `, counts
+  the game as failing on a known defect when every failure matched, and lists each pin no failure matched
+  (`(pinned Dn did not fail: <check>)`), pass or fail. The defect ids are listed in
   `docs/handoff.md` → Defects the rules suite found.
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
