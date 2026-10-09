@@ -73,12 +73,12 @@ public partial class DecisionBox
             foreach (var g in t.Groups)
             {
                 var id = g.Id;
-                var chip = new Button { Text = t.Assigned.TryGetValue(id, out var unit) ? $"{g.Label} → {names.Unit(unit)}" : g.Label,
+                var chip = new Button { Text = t.Assigned.TryGetValue(id, out var unit) ? $"{TargetAssignment.Chip(g)} → {names.Unit(unit)}" : TargetAssignment.Chip(g),
                     ToggleMode = true, ButtonPressed = t.Picked.Contains(id), FocusMode = FocusModeEnum.None };
                 chip.Pressed += () => { t.PickOnly(id); Callable.From(Show).CallDeferred(); };   // not inside the chip's own signal: Show frees it
                 chips.AddChild(chip);
             }
-            _input.Eligible = legal.Targets.Where(t.CanTarget).ToHashSet();          // two targets taken (p.8): nothing else glows
+            _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // two targets taken (p.8): nothing else glows
             fire.Disabled = t.Answer() is null;
             TargetsChanged?.Invoke();
         }

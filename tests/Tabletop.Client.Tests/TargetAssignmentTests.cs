@@ -65,4 +65,26 @@ public class TargetAssignmentTests
         Assert.Empty(t.Assigned);
         Assert.Equal(new HashSet<string> { "Rifles", "Plasma Gun" }, t.Picked);
     }
+    /// <summary>Spec → Shooting targets: with two targets taken (p.8: up to two), no other unit glows.</summary>
+    [Fact]
+    public void Two_targets_taken_leave_only_those_two_as_candidates()
+    {
+        var t = new TargetAssignment(Legal("Rifles", "Plasma Gun"));
+        Assert.Equal([T1, T2, T3], t.Candidates);
+        t.Aim(T1);
+        Assert.Equal([T1, T2, T3], t.Candidates);
+        t.PickOnly("Plasma Gun"); t.Aim(T2);
+        Assert.Equal([T1, T2], t.Candidates);
+        Assert.True(t.Aim(T1));                                         // re-aiming at a taken target stays open
+        Assert.Equal([T1, T2, T3], t.Candidates);                       // one target again
+    }
+
+    /// <summary>Spec → Shooting targets: chips read "Rifles ×4", the count of weapons in the group (its pieces).</summary>
+    [Fact]
+    public void A_chip_names_its_group_and_how_many_weapons_it_holds()
+    {
+        var rifles = new AskOption("Rifles", "Rifles", [Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7()]);
+        Assert.Equal("Rifles ×4", TargetAssignment.Chip(rifles));
+        Assert.Equal("Plasma Gun ×1", TargetAssignment.Chip(new AskOption("Plasma Gun", "Plasma Gun", [Guid.CreateVersion7()])));
+    }
 }

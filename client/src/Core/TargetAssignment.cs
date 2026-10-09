@@ -34,9 +34,23 @@ public sealed class TargetAssignment
         _picked.Count > 0 && _legal.Targets.Contains(unitId)
         && _assigned.Where(kv => !_picked.Contains(kv.Key)).Select(kv => kv.Value).Append(unitId).Distinct().Count() <= _legal.MaxDistinctTargets;
 
+    /// <summary>The units a click may aim at, which glow: with the Ask's maximum of distinct targets taken (p.8: up to two), only those
+    /// targets; otherwise every offered unit the picked groups may move onto.</summary>
+    public IReadOnlyList<Guid> Candidates
+    {
+        get
+        {
+            var taken = _assigned.Values.Distinct().ToList();
+            return taken.Count >= _legal.MaxDistinctTargets ? _legal.Targets.Where(taken.Contains).ToList() : _legal.Targets.Where(CanTarget).ToList();
+        }
+    }
+
+    /// <summary>A group's chip: its label and how many weapons it holds (its pieces are the weapon ids).</summary>
+    public static string Chip(AskOption group) => $"{group.Label} ×{group.Pieces.Count}";
+
     public bool Aim(Guid targetUnitId)
     {
-        if (!CanTarget(targetUnitId)) return false;
+        if (!Candidates.Contains(targetUnitId)) return false;
         foreach (var g in _picked) _assigned[g] = targetUnitId;
         return true;
     }
