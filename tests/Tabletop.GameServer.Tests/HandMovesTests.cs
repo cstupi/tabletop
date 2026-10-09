@@ -125,14 +125,38 @@ public class HandMovesTests
     }
 
     [Fact]
-    public void Only_shelf_to_table_is_placement()
+    public void Placing_the_picked_unit_inside_its_own_teams_container_is_placement()
+    {
+        var h = AtDeployment(Enforcement.Strict);
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[0]]));
+        var container = h.P.Units[a[1]].Definition.Models[0].Id;                              // p.15: units may deploy inside a Transport
+        var embark = new MoveModels(h.P.Units[a[0]].Definition.Models.Select(m => new ModelRelocation(m.Id, new OnShelf(), new Inside(container))).ToList());
+        Assert.Null(HandMoves.Judge(h.State, embark, TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void Placing_inside_an_enemy_or_unknown_container_or_the_units_own_model_is_a_breach()
+    {
+        var h = AtDeployment(Enforcement.Strict);
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[0]]));
+        var models = h.P.Units[a[0]].Definition.Models;
+        MoveModels Into(Guid container) => new([new ModelRelocation(models[0].Id, new OnShelf(), new Inside(container))]);
+        Assert.NotNull(HandMoves.Judge(h.State, Into(h.P.Units[h.Units(1)[0]].Definition.Models[0].Id), TeamOf(h, 0)));
+        Assert.NotNull(HandMoves.Judge(h.State, Into(Guid.CreateVersion7()), TeamOf(h, 0)));
+        Assert.NotNull(HandMoves.Judge(h.State, Into(models[1].Id), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void Only_shelf_to_table_or_container_is_placement()
     {
         var h = AtDeployment(Enforcement.Strict);
         var a = h.Units(0);
         h.Answer(0, new SelectedPieces([a[0]]));
         var first = h.P.Units[a[0]].Definition.Models[0].Id;
-        var intoContainer = new MoveModels([new ModelRelocation(first, new OnShelf(), new Inside(Guid.CreateVersion7()))]);
-        Assert.NotNull(HandMoves.Judge(h.State, intoContainer, TeamOf(h, 0)));
+        var back = new MoveModels([new ModelRelocation(first, new OnShelf(), new OnShelf())]);
+        Assert.NotNull(HandMoves.Judge(h.State, back, TeamOf(h, 0)));
     }
 
     [Fact]

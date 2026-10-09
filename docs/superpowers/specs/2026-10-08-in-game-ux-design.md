@@ -202,7 +202,8 @@ stays browsable, and the header's "Game over" reopens it.
 `MoveModels` stops bypassing `EnforcementPolicy`. The dispatcher judges a hand move and hands any breach to the
 policy, as it does for answers:
 
-- Legal: every relocation moves a model from the shelf to the table, and the model belongs to the unit the actor's
+- Legal: every relocation moves a model from the shelf to the table, or inside a model of another unit of the actor's
+  team (p.15: units may deploy inside a Transport), and the model belongs to the unit the actor's
   team last picked in a deploy answer (`deploy`, `deploy_scouts`, `deploy_ambusher`) while that unit still has models
   on the shelf; this is the state in which `GfRules.Deployment` waits (`HookWaiting`). It covers the client's
   *Deployment placement* and the sim's `HandPlacement`.

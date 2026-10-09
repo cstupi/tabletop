@@ -445,7 +445,8 @@ sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting
 fifteen menu and hand-move commands in `CommandClass.Override`, and `Override` translates each through
 `MenuTranslation`, which refuses only a missing reference. A `MoveModels` then goes through
 `HandMoves.Judge(state, command, actor)` and `Decide(Enforcement, Breach?)`. A relocation that takes a model from the
-shelf to the table is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
+shelf to the table, or inside a model of another unit of the actor's team (p.15: units may deploy inside a Transport),
+is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
 `deploy_scouts`, `deploy_ambusher`) whose answer the scheduler is waiting on, which holds while no Ask has opened since
 that one closed: that is the placement the scheduler waits for. Anything else is the breach `hand_move`, detail
 "{unit} moved by hand outside a move step", `StrictRefuses(Illegal)`: `silent` accepts, `warn` accepts with the
