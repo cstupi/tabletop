@@ -68,10 +68,12 @@ activation running and nothing selected, the sheet is hidden.
 - Team, unit name and model count; Quality and Defense.
 - Chips: activated this round (and the action), Shaken, Fatigued, spell tokens, each grant (`GrantAdded`) with its
   source and duration.
-- Weapons table: name, count, range, attacks, AP, weapon rules.
-- Special rules. Hovering a rule shows its `rule_text` from the game's pinned catalog (*Rule text*). A rule whose
-  catalog entry has no effect rows, or that has no entry, is tagged *not automated*.
-- Models strip: each model with wounds left; a removed model struck through. Clicking a model selects it.
+- Weapons table: name, count, range, attacks, weapon rules (AP among them).
+- Special rules. Hovering a rule shows its `rule_text` from the game's pinned catalog (*Rule text*). A rule with no
+  catalog entry is tagged *not automated*: `LiveProperties.Gather` skips it. An entry is taken as played, since many
+  rules are played by name in `Rules/GrimdarkFuture/` with no effect rows.
+- Models strip: each model with wounds left (`ModelFacts`); a removed model struck through. Clicking a model selects
+  it.
 
 **This round tab.** The unit's round, derived in the client from the effective log since the last `RoundStarted`:
 the action it took, then one line per result of every frame where it is the actor or a target, in order, each with
@@ -240,10 +242,24 @@ public sealed record OutlineStep(string Step, string Label);
 `StepCompleted.Step`, so the client ticks a step off when its `StepCompleted` arrives. Logs written before the change
 carry no outline, and the header then shows the action without a strip.
 
+### Model facts
+
+How many wounds a model takes before it is killed is the ruleset's (Grimdark Future: `Tough(X)`, else 1), so the
+client is told rather than reading a rule name:
+
+```csharp
+// Server → client
+public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds) : SocketMessage;
+```
+
+`IGameRules.MaxWounds(GameState, Guid modelId)` answers per model. The session sends `ModelFacts` for every model in
+play to a client on connect once the game is playing, and broadcasts it after a batch whenever any value differs
+from the last one sent. Hover wounds, the models strip and casualty pips read it.
+
 ### Rule text
 
 `GET /v1/properties/{hash}/rules` (management) returns the catalog entries of a pinned set: name, kind,
-`takes_parameter`, `rule_text`, and whether the entry has effect rows. A set never changes, so the client fetches it
+`takes_parameter`, `rule_text`. A set never changes, so the client fetches it
 once per hash when a game opens and caches it beside the asset cache. This is the source of every rule's hover text
 and of the *not automated* tag. Filling the catalog's missing army-book rules is a separate work item (handoff,
 *Known rule gaps*).

@@ -71,7 +71,8 @@ have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile 
 spell-library spec recorded this ("the other 261 army-book rule names"); it is its own work item after the in-game UX:
 (1) the army-book generator writes a text-only entry (name, kind, aggregation, the book's `description` as
 `rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2) the in-game UX spec's
-`GET /v1/properties/{hash}/rules` delivers the texts and the client tags rules with no effect "not automated";
+`GET /v1/properties/{hash}/rules` delivers the texts and the client tags rules with no entry "not automated"; a text-only entry then needs an explicit "played" flag so
+the tag stays true;
 (3) the effects are authored, many by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
 descriptions; the catalog, not the army, is where rule text lives.
 
