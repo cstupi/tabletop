@@ -134,6 +134,7 @@ public sealed partial class GameSession
         try { Play.Applier.ApplyAll(batch); }
         catch (ProjectionDesyncException ex) { await FaultAsync($"this server's own event does not apply to its own projection: {ex.Message}"); return; }
         foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
+        await BroadcastFactsIfChangedAsync();
         if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
     }
 
