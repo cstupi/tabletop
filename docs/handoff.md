@@ -72,8 +72,7 @@ spell-library spec recorded this ("the other 261 army-book rule names"); it is i
 (1) the army-book generator writes a text-only entry (name, kind, aggregation, the book's `description` as
 `rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2) the in-game UX spec's
 `GET /v1/properties/{hash}/rules` delivers the texts and the client tags rules with no effect "not automated";
-(3) the effects are authored, many
-by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
+(3) the effects are authored, many by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
 descriptions; the catalog, not the army, is where rule text lives.
 
 Aircraft movement (p.13: straight line, +30", ignores units and terrain) is not built; only its action restriction and
