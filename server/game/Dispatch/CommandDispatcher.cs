@@ -27,7 +27,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
 
     public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => Classify(command) switch
     {
-        CommandClass.Override => Override(state, command),
+        CommandClass.Override => Override(state, command, actor),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
             ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not a live event"),
         CommandClass.Abandon => Abandon(state, ((AbandonSequence)command).FrameId),
@@ -35,13 +35,23 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         _ => Engine(state, command, actor),
     };
 
-    /// <summary>The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round (enforcement spec → A menu round start).</summary>
-    private DispatchOutcome Override(GameState state, Command command)
+    /// <summary>
+    /// The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round
+    /// (enforcement spec → A menu round start). A hand move is judged and decided under the enforcement setting (in-game UX spec → Hand moves
+    /// under enforcement); every other menu edit is applied under every setting.
+    /// </summary>
+    private DispatchOutcome Override(GameState state, Command command, Actor actor)
     {
         if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
             return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
         if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };
-        return new Applied([payload], null);
+        var verdict = command is MoveModels move ? EnforcementPolicy.Decide(state.Info.Enforcement, HandMoves.Judge(state, move, actor)) : new Accept(null);
+        switch (verdict)
+        {
+            case Refuse refuse: return new Refused(refuse.Reason, refuse.Detail);
+            case EndGame: throw new UnreachableException("a hand move's breach is always StrictRefuses");
+        }
+        return new Applied([payload], ((Accept)verdict).Warning);
     }
 
     private static DispatchOutcome Abandon(GameState state, Guid frameId)
