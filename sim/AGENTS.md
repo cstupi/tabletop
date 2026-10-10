@@ -78,7 +78,10 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - A defect exhibit is a game whose only purpose is its pinned check; it covers nothing (`Covers` empty) and its check's `Entries`
   name the rule it shows.
 - Coverage: every entry of the shipped set, with the games that cover it, whether it fired in all of them, and its exact checks. A
-  run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does.
+  run fails on a covered entry that did not fire; a full run also fails on an uncovered one, an `--only` run never does. A text-only
+  entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
+  `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
+  they passed and its base is covered and fired.
 - A socket run holds an advisory lock, sweeps games an interrupted run left (named `suite-run <run id> <game>`), seeds and deletes each
   game's rows and minted accounts. `--keep` keeps them (`suite <run id> <game>`), writes each recording, and adds a spectator
   participant (no team) for the live feed.
