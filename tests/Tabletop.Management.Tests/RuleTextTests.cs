@@ -18,10 +18,11 @@ public class RuleTextTests : IClassFixture<ManagementFactory>
             insert into management.properties (content_hash, name, game_rules) values
                 (@Hash, 'Rule texts', 'grimdark-future'), (@Bare, 'Rule texts bare', 'grimdark-future')
             on conflict do nothing;
-            insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, rule_text) values
-                (@Hash, 'Tough', 'model', true, 'all', 'Must take X wounds before being killed.'),
-                (@Hash, 'AP', 'weapon', true, null, 'Targets get -X to Defense rolls when blocking hits.'),
-                (@Hash, 'Fearless', 'unit', false, null, 'Gets +1 to morale tests.')
+            insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, rule_text, played) values
+                (@Hash, 'Tough', 'model', true, 'all', 'Must take X wounds before being killed.', true),
+                (@Hash, 'AP', 'weapon', true, null, 'Targets get -X to Defense rolls when blocking hits.', true),
+                (@Hash, 'Fearless', 'unit', false, null, 'Gets +1 to morale tests.', true),
+                (@Hash, 'Precise', 'model', false, 'any', 'Gets +1 to hit when attacking.', false)
             on conflict do nothing;
             """, new { Hash, Bare });
     }
@@ -36,11 +37,12 @@ public class RuleTextTests : IClassFixture<ManagementFactory>
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var rows = json.RootElement.EnumerateArray().Select(e => (
             e.GetProperty("name").GetString(), e.GetProperty("kind").GetString(),
-            e.GetProperty("takesParameter").GetBoolean(), e.GetProperty("ruleText").GetString())).ToList();
+            e.GetProperty("takesParameter").GetBoolean(), e.GetProperty("ruleText").GetString(), e.GetProperty("played").GetBoolean())).ToList();
         Assert.Equal([
-            ("AP", "weapon", true, "Targets get -X to Defense rolls when blocking hits."),
-            ("Fearless", "unit", false, "Gets +1 to morale tests."),
-            ("Tough", "model", true, "Must take X wounds before being killed."),
+            ("AP", "weapon", true, "Targets get -X to Defense rolls when blocking hits.", true),
+            ("Fearless", "unit", false, "Gets +1 to morale tests.", true),
+            ("Precise", "model", false, "Gets +1 to hit when attacking.", false),
+            ("Tough", "model", true, "Must take X wounds before being killed.", true),
         ], rows);
     }
 

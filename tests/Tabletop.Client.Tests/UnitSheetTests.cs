@@ -99,4 +99,14 @@ public class UnitSheetTests
         var s = UnitSheet.Of(a.Projection, new Names(Game, a.Projection), Samples.Unit, RuleTexts.Empty, NoFacts);
         Assert.All(s.Rules.Concat(s.Weapons.SelectMany(w => w.Rules)), r => Assert.False(r.NotAutomated));
     }
+
+    [Fact]
+    public void An_unplayed_rule_shows_its_text_tagged_not_automated()
+    {
+        var catalog = RuleTexts.From([new RuleTextDto("Tough", "model", true, "Must take X wounds to be killed."),
+            new RuleTextDto("Fearless", "model", false, "Gets +1 to morale tests.", Played: false)]);
+        var a = Applier(Samples.Board);
+        var s = UnitSheet.Of(a.Projection, new Names(Game, a.Projection), Samples.Unit, catalog, new Dictionary<Guid, int> { [Samples.Model] = 3 });
+        Assert.Contains(("Fearless", (string?)"Gets +1 to morale tests.", true), s.Rules.Select(r => (r.Label, r.Text, r.NotAutomated)));
+    }
 }

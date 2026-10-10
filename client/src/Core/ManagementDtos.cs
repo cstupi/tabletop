@@ -12,8 +12,8 @@ public sealed record GameSummary(Guid Id, string Name, GameStatus Status, Guid C
 public sealed record CreateGameRequest(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps);
 public sealed record PropertiesSummary(string ContentHash, string Name, string GameRules);
 
-/// <summary>One catalog entry of a pinned property set (GET /v1/properties/{hash}/rules).</summary>
-public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText);
+/// <summary>One catalog entry of a pinned property set (GET /v1/properties/{hash}/rules). Played is false on a generated text-only entry; a row without it is played.</summary>
+public sealed record RuleTextDto(string Name, string Kind, bool TakesParameter, string RuleText, bool Played = true);
 public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
 public sealed record LayoutSummary(Guid Id, string Name, TableSize Size, int Terrain, int Markers);
 public enum AssetKind { Miniature, Terrain, Texture }
