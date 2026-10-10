@@ -38,8 +38,8 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 128 of 128 games pass on both drivers with no pin, 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1881 with the stack up: Geometry 158, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 186,
-GameServer 953, Management 94, Sim 392. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1900 with the stack up: Geometry 159, Content 17, ArmyBooks 25, Protocol 49, Viewer 9, Client 189,
+GameServer 964, Management 94, Sim 394. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
