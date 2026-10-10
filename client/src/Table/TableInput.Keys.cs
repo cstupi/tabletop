@@ -15,6 +15,7 @@ public partial class TableInput
     {
         if (k.Echo || Translate(k.Keycode) is not { } key || Hotkeys.Of(key, k.ShiftPressed, k.CtrlPressed) is not { } intent) return;
         if (intent == Intent.Sight) { SetSight(k.Pressed); return; }
+        if (intent == Intent.MeasureHeld) { SetMeasureHeld(k.Pressed); return; }
         if (k.Pressed && Act(intent)) GetViewport().SetInputAsHandled();
     }
 
@@ -23,8 +24,16 @@ public partial class TableInput
 
     void SetSight(bool held) { if (SightHeld == held) return; SightHeld = held; SightHeldChanged?.Invoke(); }
 
-    /// <summary>L released while the window was elsewhere never arrives: losing focus lets go of it.</summary>
-    public override void _Notification(int what) { if (what == NotificationApplicationFocusOut) SetSight(false); }
+    /// <summary>Ctrl held measures as the M tool does; letting go takes the line away, here and for everyone else. Not mid-drag: the drag owns the release.</summary>
+    void SetMeasureHeld(bool held)
+    {
+        if (_measureHeld == held || (held && _drag is not null)) return;
+        _measureHeld = held; _measureFrom = null;
+        if (!held) { _measurement = null; _ruler.Hide(); _presenceDirty = true; }
+    }
+
+    /// <summary>L or Ctrl released while the window was elsewhere never arrives: losing focus lets go of it.</summary>
+    public override void _Notification(int what) { if (what == NotificationApplicationFocusOut) { SetSight(false); SetMeasureHeld(false); } }
 
     /// <summary>True when the key was used. Option1–5, Q and E are the held unit's while one is held, the decision box's otherwise.</summary>
     bool Act(Intent intent)

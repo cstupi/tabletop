@@ -4,17 +4,18 @@ namespace Tabletop.Client.Core;
 public enum Intent
 {
     Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,
-    Measure, Ping, NextUnit, PreviousUnit, FocusCamera, UndoMove, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight,
+    Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, UndoMove, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight,
 }
 
 /// <summary>The keys the game screen binds, named as Godot.Key names them so the Godot side maps by name. Not `Key`: that would
 /// collide with Godot.Key in every file that imports both namespaces.</summary>
-public enum HotKey { Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Enter, KpEnter, Escape, Shift, Q, E, L, M, P, G, Z, Tab, Backtab, Space, Home, End, F1, Slash, Question }
+public enum HotKey { Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Enter, KpEnter, Escape, Shift, Q, E, L, M, P, G, Z, Tab, Backtab, Space, Home, End, F1, Slash, Question, Ctrl }
 
 public static class Hotkeys
 {
     public static Intent? Of(HotKey key, bool shift, bool ctrl) => (key, shift, ctrl) switch
     {
+        (HotKey.Ctrl, _, _) => Intent.MeasureHeld,
         (HotKey.Z, _, true) => Intent.UndoMove,
         (_, _, true) => null,
         (>= HotKey.Key1 and <= HotKey.Key9, _, _) => Intent.Option1 + (key - HotKey.Key1),

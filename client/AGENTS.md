@@ -13,11 +13,11 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
   - `IDispatcher`: posts to the main thread; `ImmediateDispatcher` in tests, `GodotDispatcher` in `src/Screens/`.
   - `AskViewModel`: `LegalSet` to `AskMode`, and the first open Ask for my team.
   - `AnimationQueue`, `MoveRuler`, `DeployView`, `SelectionView`, `PendingDrops`, `PresenceTable`, `MenuModel`, `LogText`, `Names`.
-  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`, `MarkerLocks`.
+  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `ShotLines`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`, `MarkerLocks`.
   - `AssetCache` (content-addressed), `BuiltinContent`, `TerrainGenerators`, `ClientSettings`, `SessionStore`.
 - `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `UpdateRequiredScreen`, `GodotDispatcher`.
 - `src/Hud/`: the play Hud: `HeaderBar`, `StatSheet`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `EndMessage`, `KeyOverlay`.
-- `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `UndoMoveButton`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
+- `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `Lasers`, `UndoMoveButton`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
 - `src/Panels/`: `LobbyPanel`, `LogPanel`, `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
 - `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (ten grouped `.glb` meshes). A missing file draws the piece's volumes.

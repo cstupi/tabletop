@@ -26,7 +26,7 @@ In:
 | The table view: slab, hitbox-first pieces, terrain, markers, zones, camera | `client/src/Table/` |
 | Runtime GLB loading into a content-addressed disk cache | `client/src/Table/MeshLoader.cs`, `client/src/Core/AssetCache.cs` |
 | Input and presence: select, picks, drag, formations, drop, ruler, measure, ping, hotkeys, others' cursors and ghosts | `client/src/Table/TableInput*.cs`, `PresenceOverlay.cs` |
-| Table overlays: hover labels, sight lines, target lines, the undo-move button | `client/src/Table/{HoverLabels,SightLines,TargetLines,UndoMoveButton}.cs` |
+| Table overlays: hover labels, sight lines, target lines, shooting lasers, the undo-move button | `client/src/Table/{HoverLabels,SightLines,TargetLines,Lasers,UndoMoveButton}.cs`, `client/src/Core/ShotLines.cs` |
 | The Hud: header, stat sheet, decision box, dice, log drawer, end message, key overlay; the declared move's region and ghost, containment | `client/src/Hud/`, `client/src/Core/MoveRuler.cs` |
 | The log panel with undo-to-here, the right-click menu, the animation queue | `client/src/Panels/`, `client/src/Table/Animator.cs` |
 | Built-in terrain, textures, marker visuals, and the rulebook's four terrain generators | `client/src/Core/BuiltinContent.cs`, `TerrainGenerators.cs` |
@@ -174,7 +174,7 @@ flowchart TD
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
   hud["Hud: HeaderBar, StatSheet, DecisionBox, DiceTray,<br/>LogDrawer, EndMessage, KeyOverlay"]
-  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, UndoMoveButton"]
+  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, UndoMoveButton"]
 
   main -- owns --> session
   main -- "one at a time, by Phase" --> login
@@ -626,7 +626,8 @@ selects it as any click does, and the decision box narrows to its options renumb
 it; Space centres the active unit. Keys go through `Hotkeys.Of`; the table acts on its own and raises
 `IntentPressed` for the rest. `M` toggles the measure
 tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
-relayed as a `Measurement`. A base of diameter zero stands in for a bare table point, so
+relayed as a `Measurement`; Ctrl held does the same while held, and letting go clears the measurement here and in presence.
+Between the first point and the second the line follows the cursor and is relayed as it moves. A base of diameter zero stands in for a bare table point, so
 piece-to-point is the same edge-to-edge call. `P` pings at the cursor. `PickNextPiece` and
 `PickNextPoint` let the menu borrow the next click for a `PieceId` or `TablePoint` item. Deployment placement has its
 own standing slot, `PlacementPoint`, which the decision box sets and clears; a menu pick armed meanwhile takes the next
@@ -706,7 +707,10 @@ target assignment is open; green clear, amber screened, red blocked with the blo
 verdict, which is the rules'), and under a target pick the models that cannot shoot the hovered target or their group's
 assigned one dimmed, each assigned target asked about in its own query. Each query's id is made before the send, so
 only the newest query's answer is drawn. `TargetLines`: each assigned weapon group's shooters to
-its target, one colour per target. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
+its target, one colour per target. `Lasers`: `Session.Fired` drawn for one second, a beam with bolts in the shooter's team
+colour from each shooter to the nearest model of its target. `Session` applies a batch one event at a time and, after each
+`SequenceStarted`, reads `ShotLines.Of`: an `attack-sequence` frame just pushed under a `shooting` frame, its shooters the actor's
+models on the table carrying one of the frame's weapons, read while the targets still stand. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
 move until any later event lands (`HandMoveUndo`), undoing to the last effective-log event below the move.
 
 The Hud parts take keys in `_Input`, which runs before the `SubViewportContainer` hands a key to the table's

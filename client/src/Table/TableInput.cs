@@ -17,6 +17,9 @@ public partial class TableInput : Node
     Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
     IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
+    bool _measureHeld;
+    /// <summary>Clicks measure: the M tool, or Ctrl held.</summary>
+    bool Measuring => Tool == TableTool.Measure || _measureHeld;
     public Selection? Selected { get; private set; }
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
@@ -162,6 +165,7 @@ public partial class TableInput : Node
         Hover(_drag is { Armed: true } ? null : piece);
         if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
         _cursor = new Cursor(point, piece is null ? null : IdOf(piece)); _presenceDirty = true;
+        if (Measuring && _measureFrom is not null) { Stretch(AnchorAt(point, piece)); return; }   // the line follows the cursor until the second click or the release
         if (_drag is null) return;
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
         _drag.Armed = true; _drag.Cursor = point;
@@ -205,7 +209,7 @@ public partial class TableInput : Node
         if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(OnPlane(screen, 0) ?? point); return; }   // a point pick is the table surface, never a box top
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
         if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
-        if (Tool == TableTool.Measure) { Measure(point, piece); return; }
+        if (Measuring) { Measure(point, piece); return; }
         if (piece is null) { ClearSelection(); return; }
         if (piece is PieceNode target && (Eligible.Contains(target.ModelId) || Eligible.Contains(target.UnitId)))
         {
@@ -290,7 +294,7 @@ public partial class TableInput : Node
 
     async Task OnLeftUp()
     {
-        if (Tool == TableTool.Measure)                                   // "two clicks or a drag" (client shell -> Input and presence)
+        if (Measuring)                                                   // "two clicks or a drag" (client shell -> Input and presence)
         {
             var (to, hit) = Pick(GetViewport().GetMousePosition());
             if (_measureFrom is { } from && from.Horizontal.DistanceTo(to.Horizontal) > 0.25) Measure(to, hit);
@@ -330,11 +334,20 @@ public partial class TableInput : Node
 
     void Measure(Point3 point, Node3D? piece)
     {
-        var anchor = piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
-            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+        var anchor = AnchorAt(point, piece);
         if (_measureFrom is null) { _measureFrom = point; _pendingAnchor = anchor; return; }
-        var (a, b) = Distance.ClosestPoints(_pendingAnchor!.Value, anchor);
-        _measurement = new Measurement(a, b); _measureFrom = null; _presenceDirty = true;
+        Stretch(anchor); _measureFrom = null;
+    }
+
+    /// <summary>A model measures from its base, anything else from the point.</summary>
+    PlacedModel AnchorAt(Point3 point, Node3D? piece) =>
+        piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
+            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+
+    void Stretch(PlacedModel to)
+    {
+        var (a, b) = Distance.ClosestPoints(_pendingAnchor!.Value, to);
+        _measurement = new Measurement(a, b); _presenceDirty = true;
         _ruler.Show(a, b, MoveRuler.Read(a.Horizontal, b.Horizontal, null), Colors.Yellow);
     }
     PlacedModel? _pendingAnchor;
