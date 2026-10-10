@@ -16,7 +16,7 @@ namespace Tabletop.Client.Screens;
 public partial class GameScreen
 {
     HeaderBar? _header; StatSheet? _sheet; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; EndMessage? _end; KeyOverlay? _keys;
-    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; CanvasLayer? _tableLayer;
+    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
@@ -40,6 +40,7 @@ public partial class GameScreen
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
+        Table.AddChild(_lasers = new Lasers()); _lasers.Bind(_session, Table, Input);
         Table.AddChild(_tableLayer = new CanvasLayer());
         var undo = new UndoMoveButton(); _tableLayer.AddChild(undo); undo.Bind(_session, Table, Input);
 
@@ -68,10 +69,10 @@ public partial class GameScreen
     {
         if (Input is not null && IsInstanceValid(Input)) { Input.PieceRightClicked -= _onPieceRight; Input.TableRightClicked -= _onTableRight; }
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _header, _sheet, _decision, _dice, _logDrawer, _end, _keys, _hover, _sight, _targets, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _header, _sheet, _decision, _dice, _logDrawer, _end, _keys, _hover, _sight, _targets, _lasers, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
         _header = null; _sheet = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
-        _hover = null; _sight = null; _targets = null; _tableLayer = null; _menu = null;
+        _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _menu = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
     }
 

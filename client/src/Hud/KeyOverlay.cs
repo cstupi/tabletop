@@ -17,6 +17,7 @@ public partial class KeyOverlay : PanelContainer
         ("Shift (held)", "one model: click selects, drag moves"),
         ("L (held)", "sight check on the hovered unit"),
         ("M", "measure tool"),
+        ("Ctrl (held)", "measure: click and drag; letting go removes the line"),
         ("P", "ping"),
         ("Tab / Shift+Tab", "next / previous of my units not yet activated"),
         ("Space", "camera to the active unit, else the selected one"),

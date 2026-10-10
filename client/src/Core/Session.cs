@@ -55,6 +55,8 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public event Action? GameChanged;
     public event Action? BoardChanged;
     public event Action<IReadOnlyList<GameEvent>>? EventsApplied;
+    /// <summary>The lasers a batch of events fired (ShotLines), raised after EventsApplied.</summary>
+    public event Action<IReadOnlyList<Shot>>? Fired;
     public event Action<Guid>? PresenceChanged;
     public event Action<Ping>? Pinged;
     public event Action<Refused>? RefusedReceived;
@@ -287,10 +289,16 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 BoardChanged?.Invoke();
                 break;
             case EventsMessage e when Applier is not null:
-                try { Applier.ApplyAll(e.Events); }
+                var shots = new List<Shot>();
+                try
+                {
+                    // One at a time, so a shooting group's lasers are read while its targets still stand.
+                    foreach (var x in e.Events) { Applier.Apply(x); if (x.Payload is SequenceStarted) shots.AddRange(ShotLines.Of(Applier.Projection)); }
+                }
                 catch (ProjectionDesyncException desync) { OnDesync(desync); return; }   // partially applied: unusable
                 if (PendingUndoTo is { } to && e.Events.Any(x => x.Payload is Undone u && u.ToSeq == to)) ClearPrediction();
                 EventsApplied?.Invoke(e.Events);
+                if (shots.Count > 0) Fired?.Invoke(shots);
                 break;
             case PresenceMessage p:
                 Others.Set(p.Presence); PresenceChanged?.Invoke(p.Presence.ParticipantId);
