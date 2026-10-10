@@ -8,6 +8,8 @@ public static class GfNames
     public const string Hit = "hit", DefenseRoll = "defense", Morale = "morale", Casting = "casting", RollOff = "roll-off";
     public const string Shaken = "shaken", Fatigued = "fatigued", Moved = "moved";
     public const string BeforeAttacking = "before-attacking";
+    /// <summary>Army-book rules spec → the pick: the sequence a Buff, Mark or Debuff's use pushes, its Ask's question and its one step.</summary>
+    public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleTargetStep = "rule-target";
     public const string QuickShot = "Quick Shot";   // army-rule hooks: a name check on the rush sequence's shooting
     public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";

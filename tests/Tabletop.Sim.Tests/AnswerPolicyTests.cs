@@ -138,4 +138,12 @@ public class AnswerPolicyTests
         ];
         foreach (var legal in all) Assert.NotNull(policy.Answer(With(legal), EmptyViewForOtherTests()));
     }
+
+    [Fact]
+    public void A_rule_target_ask_is_answered_with_one_eligible_unit()
+    {
+        var ask = new Ask(Guid.CreateVersion7(), "rule_target", "Stealth Buff: pick a target", [A], new PieceSelection([B, C], 1, 1), true, false, null, null);
+        var answer = Assert.IsType<SelectedPieces>(Policy().Answer(ask, EmptyViewForOtherTests()));
+        Assert.Contains(Assert.Single(answer.PieceIds), (Guid[])[B, C]);
+    }
 }

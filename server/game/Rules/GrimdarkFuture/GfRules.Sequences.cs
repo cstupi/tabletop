@@ -30,6 +30,7 @@ public sealed partial class GrimdarkFutureRules
         GfCasting.Casting(),
         GfCasting.SpellHits(),
         GfCasting.SpellTest(),
+        GfPick.PickRule(),
         GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 
