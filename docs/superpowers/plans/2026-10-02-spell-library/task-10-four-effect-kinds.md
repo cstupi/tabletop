@@ -217,8 +217,8 @@ In `GfMoves` (`GfMoves.Terrain.cs`), the forced move reads the target unit's ter
 Strider), as every move of that unit does. `ForcedMoveRegion` lists the impassable and difficult volumes and the cap that unit's
 own move would have; `ApplyForcedMove` applies the same settling, measured against the allowance with those rules, refuses a path
 through an impassable volume the unit may not pass, a landing touching one (not for an Aircraft) and a model carried off the
-table, and tests no dangerous terrain, since no rule asks it of a forced move. A granted Flying it moved with is held to the end
-of the activation (`ConsumeKeepingFlying`), so it returns the step's `Values` with its changes.
+table, and tests no dangerous terrain, since no rule asks it of a forced move. A granted Flying is read for the terrain but neither
+spent nor held, since the forced move is not the target's activation; the returned `Values` stay empty.
 
 - [ ] **Step 5: The idle activation and the registry**
 

@@ -263,7 +263,7 @@ attack rather than until its next 6. Concretely, a step consumes when:
 | a granted rule (`grant_property`) | the first step whose query returns any effect of the granted rule, under the same test |
 | a parameter modifier, a suppression | the step that settles the interaction it changed |
 | `count_as_terrain` | the step the terrain type would trigger (*Grammar additions*) |
-| a granted `Flying` | the end of the activation in which it first applied (owner ruling below) |
+| a granted `Flying` | the end of the holder's own activation in which it first applied; never a spell's forced move (owner ruling below) |
 
 `LiveSet` records which granted sources its queries returned, and the step that settled it emits
 `GrantRemoved` for each grant in their groups. **Reading a grant to build a legal set does not consume it**:
@@ -275,7 +275,8 @@ effects already ruled.
 activation"*. The first step that applies it (the activation-start dangerous terrain test it skips, or an applied move of
 the unit) keeps that spell's grants on the unit and names them in its `Values`; they stay live for every later leg of the
 move and its landing, and the turn-end hook removes them when that activation ends (`GfMoves.ConsumeKeepingFlying`,
-`GfMoves.FlyingHeldThisActivation`).
+`GfMoves.FlyingHeldThisActivation`). A spell's forced move of the unit flies with the grant but neither spends nor holds it:
+the forced move is not the unit's activation, so the grant waits for its own.
 
 ## Grammar additions
 

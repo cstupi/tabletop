@@ -131,15 +131,24 @@ public class GfForcedMoveTerrainTests
     }
 
     [Fact]
-    public void A_target_granted_flying_is_moved_over_the_wall_and_keeps_the_grant_until_the_activation_ends()
+    public void A_target_granted_flying_flies_in_the_forced_move_and_keeps_the_grant_for_its_own_activation()
     {
+        // Owner ruling: the forced move is not the target's activation, so its granted Flying is read for terrain but neither spent nor held.
         var sim = Hypnotised([], out var target, granted: "Wings");
         Assert.Empty(Region(sim).ImpassableVolumeIds);
         var m = target.Models[0].Id;
         Assert.IsType<Applied>(Move(sim, Shifted(sim, m, 5)));
         Assert.Equal(33, X(sim, m), 6);
-        Assert.Single(sim.Unit(target.Id).Grants);
+        Assert.DoesNotContain(sim.Emitted.OfType<StepCompleted>().SelectMany(s => s.Values?.Keys ?? []), k => k.StartsWith(GfNames.FlyingHeldPrefix));
+        while (sim.AskForOrNull(Samples.Team1) is not null) sim.Answer(Samples.Team1, new Passed());
         sim.Append(GrimdarkFutureRules.Instance.OnTurnEnded(sim.State, Props, new TurnContext(Samples.Team1, null, 0, sim.State.Projection.LastSeq)));
-        Assert.Empty(sim.Unit(target.Id).Grants);
+        Assert.Single(sim.Unit(target.Id).Grants);                                                              // the caster's activation ended: still held by the target
+        var since = sim.State.Projection.LastSeq;
+        sim.Start(GfNames.RushSeq, new SequenceContext(target.Id, [], [], GfNames.Rush));
+        sim.Answer(Samples.Team2, new Destinations([Shifted(sim, m, 2)]));
+        while (sim.AskForOrNull(Samples.Team2) is not null) sim.Answer(Samples.Team2, new Passed());
+        Assert.Single(sim.Unit(target.Id).Grants);
+        sim.Append(GrimdarkFutureRules.Instance.OnTurnEnded(sim.State, Props, new TurnContext(Samples.Team2, null, since, sim.State.Projection.LastSeq)));
+        Assert.Empty(sim.Unit(target.Id).Grants);                                                               // spent by its own activation
     }
 }

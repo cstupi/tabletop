@@ -254,8 +254,9 @@ A granted Flying lasts the whole activation (owner ruling: *"Granted flying appl
 It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:
 the step that used it removes nothing of that spell's grants and writes a `Values["flying_held_<unit>_<grant>"]` key instead
 (`GfMoves.ConsumeKeepingFlying`), so every later leg of a split move and the landing still read it. `GfHooks.OnTurnEnded`
-removes every grant so held since the activation was answered (`GfMoves.FlyingHeldThisActivation`). A forced move of the unit
-in another unit's activation uses it as well, and it goes at the end of that activation. This is the one granted rule held
+removes every grant so held since the activation was answered (`GfMoves.FlyingHeldThisActivation`). A spell's forced move of the unit
+reads it for terrain but neither spends nor holds it (owner ruling: the forced move is not the unit's activation), so the grant
+waits for the unit's own activation. This is the one granted rule held
 past the step that used it, and it is held by name.
 
 p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in a straight line, and adding 30" to its
