@@ -79,5 +79,8 @@ Server (`GfMovesTests`, alongside the split-move cases):
 Client core (`tests/Tabletop.Client.Tests`): `DecisionView` hint and buttons for a `Stoppable` move Ask, and the answer the
 stop sends.
 
-Socket e2e (`.superpowers/e2e/`): a caster Advances 3", stops, casts, moves the rest, and shoots. Then the same with a
-Charge into contact.
+Rules suite (`sim/Suite/SuiteCatalog.Special.Casting.cs`, `special-cast-mid-move`, both drivers): a Slow caster unit Advances
+and a Fast one Rushes. Each activation's first move Ask is a stop before moving, answered at the window with a cast. The next
+is a 1" stop, answered with a pass. Checks: the stop before moving opens *Before attacking*, moves nothing and keeps the whole
+allowance. A cast runs between a stop and the rest of the move. After the 1" stop and a pass, the next move Ask holds what is
+left.

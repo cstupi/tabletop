@@ -318,8 +318,7 @@ Logic goes in `client/src/Core/`, Godot-free and unit-tested; Godot nodes draw i
   answer to the asker only.
 - Step outline: interpreter tests that `SequenceStarted` carries the labelled steps; replay of a log without them.
 - Rule text endpoint: management tests for a seeded set; 404 for an unknown hash.
-- End to end over HTTP and the socket (`.superpowers/e2e/`): a game from deployment through an activation with a hand
-  move under each setting, a sight query, and the end message's data.
+- End to end over the socket: the sim's socket driver, including the `final-round` scenarios under each setting.
 - `./scripts/check-client` and a launch of the client before handing off.
 
 ## Out of scope

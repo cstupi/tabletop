@@ -21,7 +21,7 @@ static partial class SpecialGames
     public static IEnumerable<TestGame> All() =>
     [
         Regrowth(), BlastDeadly(), Gunline(), Artillery(), Charge(), Swift(), Command(), Deployment(),
-        Aircraft(),
+        Aircraft(), CastMidMove(),
         StealthAtNineAndAHalf(),
     ];
 

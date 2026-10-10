@@ -83,8 +83,8 @@ Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`,
 `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision box,
 dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
 the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New games start
-with Frontline deployment zones, drawn through round 0. The server side is checked by `.superpowers/e2e/`
-(`E2E_SCENARIO=ingame`, once per setting) and the sim.
+with Frontline deployment zones, drawn through round 0. The server side is checked by
+`tests/Tabletop.GameServer.Tests` and the sim.
 
 **The owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
 selection and the stat sheet's two tabs, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),

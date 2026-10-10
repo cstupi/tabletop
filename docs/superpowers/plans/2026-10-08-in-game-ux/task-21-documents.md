@@ -292,7 +292,7 @@ The in-game UX is built (spec `docs/superpowers/specs/2026-10-08-in-game-ux-desi
 `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision box,
 dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
 the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. The server side
-is checked by `.superpowers/e2e/` (`E2E_SCENARIO=ingame`, once per setting) and the sim's `final-round` scenarios.
+is checked by `tests/Tabletop.GameServer.Tests` and the sim's `final-round` scenarios.
 What needs the owner's eyes is the rendering and the input: the launch list in the plan's Task 19, Step 6."""),
  ("""
 `docs/design/client/design.md` still says the built-ins are authored Z-up; correct it to Y-up at pitch 90.""", ""),

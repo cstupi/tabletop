@@ -13,8 +13,8 @@ it. Admin is a Stytch role. The watcher connects on the game socket.
   user's roles differ from the ones it carries, so a granted or revoked role reaches the next refresh.
 - **Reading it.** Game server: `VerifiedSession` gains `IReadOnlySet<string> Roles`, read from the same claim by `StytchJwtVerifier`
   (`server/game/Auth/SessionVerification.cs`). A token without the claim has no roles.
-- **Dev sessions.** `POST /v1/dev/sessions` (Development only) takes an optional `roles` so tests and `.superpowers/e2e/`
-  mint an admin without Stytch.
+- **Dev sessions.** `POST /v1/dev/sessions` (Development only) takes an optional `roles` so tests mint an admin without
+  Stytch.
 - **Owner setup, outside the repository.** In the Stytch dashboard: add the `admin` role to the RBAC policy and assign it to
   the owner's user. Recorded in `docs/handoff.md` → Environment, beside the reset-password redirect.
 
@@ -50,8 +50,6 @@ participants' names (`ParticipantNames`). Management has no admin-only endpoint.
 - Management tests: the `roles` claim stamped from the user's roles and kept across a refresh; a dev session minted with `roles`.
 - Game server tests: an admin non-participant connects and receives welcome, board and the full log; a non-admin
   non-participant is refused; a watcher's command, answer, presence and ping are refused; a watcher is absent from game info.
-- `.superpowers/e2e/`: a scenario that plays a few moves as two players, then connects an admin dev session and receives
-  the whole log.
 - Viewer: Vitest for the game list model; the live feed's existing tests.
 
 ## Documents this changes

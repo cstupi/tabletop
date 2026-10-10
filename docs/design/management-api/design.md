@@ -377,8 +377,8 @@ belongs here.
 
 Because `external_id` is written when the user is created, `Complete` skips the link and stamps the
 account's `account_id` on the new session: one `StampAccount` call per mint. The request's optional
-`roles` (`{"name": "...", "roles": ["admin"]}`) is stamped in place of the Stytch user's, so tests and
-`.superpowers/e2e/` mint an admin without touching the Stytch project.
+`roles` (`{"name": "...", "roles": ["admin"]}`) is stamped in place of the Stytch user's, so tests mint an admin without touching the Stytch
+project.
 
 The derived email is the name lowercased, non-alphanumeric characters replaced by `-`, at
 `example.com`, reserved by RFC 2606 and undeliverable. No call on this path sends mail: creating a
