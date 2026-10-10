@@ -49,5 +49,30 @@ public static partial class SuiteCatalog
                 NoPenalty("Unstoppable when Shooting Aura", Carrying("Unstoppable when Shooting Aura", When.Shooting), "\"This model and its unit get Unstoppable when shooting.\": p.15 Unstoppable"),
                 enemy: [.. Each(2, "Stealth"), R(1, "Tough", 3), R(2, "Tough", 3)]),
         ];
+
+        static (string Uid, string Army) WarDaemons => ("prsajf5ot936qznk", "Wormhole Daemons of War");
+
+        public static IReadOnlyList<TestGame> NumberAuras =>
+        [
+            // p.10: the fixed hits leave the unit at half or less, so it tests morale; every model carries the Aura, so a casualty cannot take it away.
+            Morale(BattleBrothers, "battle-brothers-courage-aura", "Courage Aura", [R(1, "Courage Aura")], 1, "\"This model and its unit get +1 to morale test rolls.\""),
+            Game(Sisters, "blessed-sisters-fast-aura", Play.Moves, ["Fast Aura"], Each(4, "Fast Aura"), [],
+                [Allowance("Fast Aura", null, "\"This model and its unit moves +2\" when using Advance actions and +4\" when using Rush/Charge actions\"", ("advance", 8), ("rush", 16), ("charge", 16))]),
+            Game(Hives, "alien-hives-increased-shooting-range-aura", Play.Shoots, ["Increased Shooting Range Aura"], [], [],
+                [RangeBonus("Increased Shooting Range Aura", Carrying("Increased Shooting Range Aura", When.Shooting), 12, 6, "\"This model and its unit get +6\" range when shooting.\"")],
+                carriers: Carriers("Increased Shooting Range Aura", 2), units: 2, gunRange: 12),
+            Melee(Orcs, "orc-marauders-piercing-fighter-aura", "Piercing Fighter Aura",
+                ApGrant("Piercing Fighter Aura", Carrying("Piercing Fighter Aura", When.Charging), 1, "\"This model and its unit get AP(+1) in melee.\"")),
+            Shooting(WarDaemons, "wormhole-daemons-of-war-piercing-shooter-aura", "Piercing Shooter Aura",
+                ApGrant("Piercing Shooter Aura", Carrying("Piercing Shooter Aura", When.Shooting), 1, "\"This model and its unit get AP(+1) when shooting.\"")),
+            Melee(Orcs, "orc-marauders-precision-charge-aura", "Precision Charge Aura",
+                GrantedModifier("Precision Charge Aura", Carrying("Precision Charge Aura", When.Charging), "Precision Charge Aura", "hit", 1, "\"This model and its unit get +1 to hit rolls when charging.\"")),
+            Melee(Dynasty, "eternal-dynasty-precision-fighter-aura", "Precision Fighter Aura",
+                GrantedModifier("Precision Fighter Aura", Carrying("Precision Fighter Aura", When.Charging), "Precision Fighter Aura", "hit", 1, "\"This model and its unit get +1 to hit rolls in melee.\"")),
+            Shooting(Inquisition, "human-inquisition-precision-shooter-aura", "Precision Shooter Aura",
+                GrantedModifier("Precision Shooter Aura", Carrying("Precision Shooter Aura", When.Shooting), "Precision Shooter Aura", "hit", 1, "\"This model and its unit get +1 to hit rolls when shooting.\"")),
+            Game(Hives, "alien-hives-rapid-charge-aura", Play.Charges, ["Rapid Charge Aura"], Each(4, "Rapid Charge Aura"), [],
+                [Allowance("Rapid Charge Aura", null, "\"This model and its unit moves +4\" when using Charge actions\"", ("charge", 16))]),
+        ];
     }
 }

@@ -244,15 +244,6 @@
       ]
     },
     {
-      "name": "Courage Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B1 to morale test rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Courage Buff",
       "kind": "model",
       "takesParameter": false,
@@ -413,15 +404,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "After this model is deployed, it may be placed anywhere fully within 9\u201D of its position.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Fast Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit moves \u002B2\u0022 when using Advance actions and \u002B4\u0022 when using Rush/Charge actions.",
       "effects": [],
       "played": false
     },
@@ -847,15 +829,6 @@
       "played": false
     },
     {
-      "name": "Increased Shooting Range Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B6\u0022 range when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Increased Shooting Range Buff",
       "kind": "model",
       "takesParameter": false,
@@ -1193,15 +1166,6 @@
       "played": false
     },
     {
-      "name": "Piercing Fighter Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get AP(\u002B1) in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Piercing Frenzy",
       "kind": "model",
       "takesParameter": false,
@@ -1237,15 +1201,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Piercing Shooter Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get AP(\u002B1) when shooting.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Piercing Shooting Mark",
@@ -1331,29 +1286,11 @@
       "played": false
     },
     {
-      "name": "Precision Charge Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B1 to hit rolls when charging.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Precision Debuff",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which gets -1 to hit rolls when attacking once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Fighter Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B1 to hit rolls in melee.",
       "effects": [],
       "played": false
     },
@@ -1390,15 +1327,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Place one marker on this unit at the beginning of each round if it\u0027s on the table and isn\u0027t Shaken, up to a max. of four markers. For every two markers, models with this rule in this unit get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Shooter Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit get \u002B1 to hit rolls when shooting.",
       "effects": [],
       "played": false
     },
@@ -1715,15 +1643,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Rapid Charge Aura",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model and its unit moves \u002B4\u0022 when using Charge actions.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Rapid Rush Aura",
