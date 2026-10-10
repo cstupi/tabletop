@@ -613,15 +613,6 @@
       ]
     },
     {
-      "name": "Good Shot",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B1 to hit rolls when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Grounded Precision Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1109,22 +1100,23 @@
       "played": false
     },
     {
-      "name": "Melee Slayer",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model charges, its weapons get AP(\u002B2) if most models in the target have Tough(3) or higher.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Melee Slayer Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Melee Slayer.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Melee Slayer",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Mend",
@@ -1361,26 +1353,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Point-Blank Piercing.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Point-Blank Surge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model shoots at enemies within 12\u0022, unmodified results of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precise",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Gets \u002B1 to hit when attacking.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Point-Blank Piercing",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Precision Attacks Buff",
@@ -1509,22 +1493,23 @@
       "played": false
     },
     {
-      "name": "Predator Fighter",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "For each unmodified roll of 6 to hit in melee, this model may roll \u002B1 attack with that weapon. This rule doesn\u2019t apply to newly generated attacks.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Predator Shooter Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Predator Shooter.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Predator Shooter",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Primal Boost Buff",
@@ -1681,8 +1666,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Ranged Slayer.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Ranged Slayer",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Rapid Advance Aura",
@@ -2157,15 +2152,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Sergeant",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model attacks, unmodified results of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Shielded Aura",
