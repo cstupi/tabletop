@@ -88,15 +88,6 @@
       "played": false
     },
     {
-      "name": "Bane in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Bane in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bane in Melee Aura",
       "kind": "model",
       "takesParameter": false,
@@ -874,14 +865,6 @@
       "played": false
     },
     {
-      "name": "Ignores Cover",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "This weapon ignores cover.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Ignores Cover Aura",
       "kind": "model",
       "takesParameter": false,
@@ -891,37 +874,11 @@
       "played": false
     },
     {
-      "name": "Ignores Cover when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Ignores Cover when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Ignores Cover when Shooting Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Ignores Cover when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Ignores Regeneration",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "This weapon ignores Regeneration.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Ignores Regeneration in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Ignores Regeneration in melee.",
       "effects": [],
       "played": false
     },
@@ -2038,15 +1995,6 @@
       ]
     },
     {
-      "name": "Rending in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Rending in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Rending in Melee Aura",
       "kind": "model",
       "takesParameter": false,
@@ -2248,29 +2196,11 @@
       "played": false
     },
     {
-      "name": "Shred in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Shred in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Shred in Melee Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Shred in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Shred when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Shred when shooting.",
       "effects": [],
       "played": false
     },
@@ -2533,15 +2463,6 @@
       ]
     },
     {
-      "name": "Surge when Shooting",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Surge when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Surprise Attack",
       "kind": "model",
       "takesParameter": false,
@@ -2796,15 +2717,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Unstoppable in Melee",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets Unstoppable in melee.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Unstoppable in Melee Aura",
