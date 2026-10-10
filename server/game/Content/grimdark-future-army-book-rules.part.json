@@ -6,15 +6,6 @@
   "rolls": [],
   "entries": [
     {
-      "name": "Agile",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Moves \u002B1\u0022 when using Advance, and \u002B2\u201D when using Rush/Charge.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Ambush Aura",
       "kind": "model",
       "takesParameter": false,
@@ -695,22 +686,23 @@
       ]
     },
     {
-      "name": "Guerrilla",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per round, units where all models have this rule may move by up to 3\u0022 after shooting or being in melee.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Guerrilla Boost Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Guerrilla Boost.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Guerrilla Boost",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Harassing Boost Aura",
@@ -887,15 +879,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Ignores Cover when shooting.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Increased Shooting Range",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model gets \u002B6\u0022 range when shooting.",
       "effects": [],
       "played": false
     },
@@ -1779,15 +1762,6 @@
       ]
     },
     {
-      "name": "Rapid Charge",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model moves \u002B4\u0022 when using Charge actions.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Rapid Charge Aura",
       "kind": "model",
       "takesParameter": false,
@@ -2486,31 +2460,57 @@
       "played": false
     },
     {
-      "name": "Swift",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model may ignore the Slow rule.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Swift Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Swift.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Swift",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Swift Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Swift once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Swift",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Takedown Shot",

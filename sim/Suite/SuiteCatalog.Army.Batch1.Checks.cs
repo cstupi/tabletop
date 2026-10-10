@@ -35,6 +35,18 @@ public static partial class SuiteCatalog
                 let rolled = log.Steps.Count(s => s.Ancestors.Any(f => f.FrameId == a.Frame.FrameId) && s.Rolls(roll).Any())
                 select rolled == 0 ? null : $"{rolled} steps rolled {roll}");
 
+        /// <summary>
+        /// A range bonus: the occasion's attacks made at a target beyond the weapon's printed range (as the attack began) are within the printed
+        /// range plus the bonus. An attack beyond the printed range is the bonus's only evidence, so a game with none fails.
+        /// </summary>
+        static GameCheck RangeBonus(string entry, Occasion occasion, double printed, double bonus, string quote) =>
+            Exact(entry, $"{quote}: {printed}\" + {bonus}\"", (run, log) =>
+                from a in Of(run, log, occasion)
+                where a.Attacker is not null && a.Target is not null && PatternLog.For(run).Attacks.ContainsKey(a.Frame.FrameId)
+                let apart = UnitApart(run, PatternLog.For(run).Attacks[a.Frame.FrameId].At, a.Attacker!.Value, a.Target!.Value)
+                where apart > printed
+                select apart <= printed + bonus ? null : $"shot a unit {apart:0.##}\" away");
+
         /// <summary>Low ruins (a cover area, p.11) over the opponents' whole zone, so their units are in cover when shot.</summary>
         static ScenarioBuilder EnemyRuins(ScenarioBuilder b) => b
             .Terrain("ruin", new Point3(18, 6, 0), volumes:

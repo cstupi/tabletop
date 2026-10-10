@@ -20,8 +20,8 @@ public class ArmyGamesTests
     /// <summary>Games that fail on a defect the suite found, with the failure each keeps until the defect is fixed (the game's comment names it).</summary>
     public static readonly Dictionary<string, string> Defects = new();
 
-    /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"); they are not the army group's.</summary>
-    static readonly string[] Staging = ["Immobile"];
+    /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"; p.14 Slow, which Swift ignores); they are not the army group's.</summary>
+    static readonly string[] Staging = ["Immobile", "Slow"];
 
     static string RepoRoot()
     {
