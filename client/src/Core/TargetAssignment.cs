@@ -5,7 +5,8 @@ namespace Tabletop.Client.Core;
 /// <summary>
 /// The declare-targets pick (in-game UX spec → Shooting targets). p.8: each weapon group fires at one target it can shoot (the
 /// Ask's Assignment.TargetsOf), at most two targets in all. Every group starts picked; aiming points those picked groups that can
-/// shoot a unit at it, and the others keep their aim; a chip picks its group alone. The answer is Assigned, every group to one target.
+/// shoot a unit at it, and the others keep their aim; a chip picks its group alone. The answer is Assigned, each aimed group to its
+/// target; a group left unaimed holds fire (p.8: models "may" shoot).
 /// </summary>
 public sealed class TargetAssignment
 {
@@ -54,6 +55,9 @@ public sealed class TargetAssignment
     /// <summary>A group's chip: its label and how many weapons it holds (its pieces are the weapon ids).</summary>
     public static string Chip(AskOption group) => $"{group.Label} ×{group.Pieces.Count}";
 
+    /// <summary>A chip with its target's name, or "holds fire" while the group has none.</summary>
+    public static string Chip(AskOption group, string? target) => target is null ? $"{Chip(group)} · holds fire" : $"{Chip(group)} → {target}";
+
     public bool Aim(Guid targetUnitId)
     {
         if (!Candidates.Contains(targetUnitId)) return false;
@@ -67,7 +71,6 @@ public sealed class TargetAssignment
         _picked.Clear(); _picked.UnionWith(_legal.Items.Select(i => i.Id));
     }
 
-    /// <summary>Null until every group has a target: the legal set wants every item answered.</summary>
-    public AskAnswer? Answer() =>
-        _legal.Items.All(i => _assigned.ContainsKey(i.Id)) ? new Assigned(new Dictionary<string, Guid>(_assigned)) : null;
+    /// <summary>Null until some group has a target; the groups without one hold fire.</summary>
+    public AskAnswer? Answer() => _assigned.Count > 0 ? new Assigned(new Dictionary<string, Guid>(_assigned)) : null;
 }

@@ -56,11 +56,13 @@ public class TargetAssignmentTests
     }
 
     [Fact]
-    public void Every_group_needs_a_target_before_it_fires_and_clear_starts_over()
+    public void One_aimed_group_can_fire_while_the_others_hold_and_clear_starts_over()
     {
+        // p.8: models "may" shoot, so a group with no target holds fire; nothing aimed is no answer.
         var t = new TargetAssignment(Legal("Rifles", "Plasma Gun"));
-        t.PickOnly("Rifles"); t.Aim(T1);
         Assert.Null(t.Answer());
+        t.PickOnly("Rifles"); t.Aim(T1);
+        Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T1 }, Assert.IsType<Assigned>(t.Answer()).Targets);
         t.Clear();
         Assert.Empty(t.Assigned);
         Assert.Equal(new HashSet<string> { "Rifles", "Plasma Gun" }, t.Picked);
@@ -90,7 +92,7 @@ public class TargetAssignmentTests
         var t = new TargetAssignment(Split());
         Assert.True(t.Aim(T2));
         Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T2 }, t.Assigned);                        // the Pistols cannot reach T2
-        Assert.Null(t.Answer());
+        Assert.NotNull(t.Answer());                                                                         // the Pistols may hold fire
         Assert.True(t.Aim(T1));
         Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T1, ["Pistols"] = T1 }, t.Assigned);
         t.PickOnly("Rifles"); t.Aim(T2);
@@ -118,5 +120,14 @@ public class TargetAssignmentTests
         var rifles = new AskOption("Rifles", "Rifles", [Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7()]);
         Assert.Equal("Rifles ×4", TargetAssignment.Chip(rifles));
         Assert.Equal("Plasma Gun ×1", TargetAssignment.Chip(new AskOption("Plasma Gun", "Plasma Gun", [Guid.CreateVersion7()])));
+    }
+
+    /// <summary>Spec → Shooting targets: an aimed chip names its target; an unaimed one says it holds fire.</summary>
+    [Fact]
+    public void A_chip_names_its_target_or_says_it_holds_fire()
+    {
+        var rifles = new AskOption("Rifles", "Rifles", [Guid.CreateVersion7()]);
+        Assert.Equal("Rifles ×1 → Red unit 2", TargetAssignment.Chip(rifles, "Red unit 2"));
+        Assert.Equal("Rifles ×1 · holds fire", TargetAssignment.Chip(rifles, null));
     }
 }

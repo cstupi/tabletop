@@ -274,7 +274,8 @@ and push: the activation, the move, and transport destruction.
 MaxDistinctTargets = 2, TargetsByItem = each group's own valid targets)`. p.8: targets are declared
 *before any roll*, and up to two different targets; a target is valid for a group when a model can see
 it and has a weapon of that group in range (`GfShooting.ValidTargets` per group), so each group may be
-assigned only a unit on its own list. `GfShooting.Declared` drops any aim off that list. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
+assigned only a unit on its own list. `GfShooting.Declared` drops any aim off that list. A group the
+answer leaves out holds fire (p.8: models "may" shoot); `fire-groups` fires only the groups with a target. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
 `Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
 `Values["defender_models_<i>"]` and `Values["in_cover_<i>"]`, before it pushes anything, pushes
