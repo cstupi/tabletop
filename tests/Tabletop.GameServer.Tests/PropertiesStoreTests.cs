@@ -34,6 +34,24 @@ public class PropertiesStoreTests(PostgresFixture pg)
         await pg.DeletePropertiesAsync(hash);
     }
 
+    [Fact]
+    public async Task Played_round_trips_through_the_catalog_entry_table()
+    {
+        var name = "Played " + Guid.CreateVersion7().ToString("N")[24..32];
+        var doc = new PropertySetDocument(name, "played-" + name, [], [], ["hit"],
+            [new EntryDocument("Text Only", CatalogKind.Model, false, Aggregation.Any, null, null, "Text.", null, [], Played: false),
+             new EntryDocument("Played", CatalogKind.Model, false, Aggregation.All, null, null, "Played.", null, [])]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            var set = (await _store.LoadAsync(hash, CancellationToken.None))!;
+            Assert.False(set.Entry("Text Only")!.Played);
+            Assert.True(set.Entry("Played")!.Played);
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+    }
+
     /// <summary>
     /// The set with every id blanked, as canonical JSON, so two loads compare on content. Stats, rolls and entries are sorted (the
     /// hash sorts them: their order carries no meaning); actions, effects, conditions and condition values keep their order, because

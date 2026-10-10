@@ -184,7 +184,9 @@ public static class LiveProperties
         var state = ix.State;
         var unit = state.Projection.Units[party.UnitId];
         var result = new List<LiveProperty>();
-        foreach (var p in unit.Definition.Properties) if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
+        // A text-only entry (Played false) plays as an absent name does (army-book rules spec → Played flag).
+        CatalogEntry? Playing(string name) => ix.Properties.Entry(name) is { Played: true } e ? e : null;
+        foreach (var p in unit.Definition.Properties) if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
         // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant.
         foreach (var g in unit.Grants)
@@ -201,7 +203,7 @@ public static class LiveProperties
         var models = party.ModelIds.Count > 0 ? party.ModelIds : Lookup.LivingModels(state, party.UnitId);
         foreach (var group in Lookup.ModelProperties(state, party.UnitId, models).GroupBy(x => x.Property.Name))
         {
-            if (ix.Properties.Entry(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
+            if (Playing(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
             var count = group.Select(x => x.ModelId).Distinct().Count();
             var live = e.Aggregation switch { Aggregation.All => count == models.Count, Aggregation.Any => count > 0, Aggregation.Majority => count * 2 > models.Count, _ => true };
             if (!live) continue;
@@ -209,7 +211,7 @@ public static class LiveProperties
             else result.Add(new LiveProperty(side, e, group.First().Property.Parameter, null, null, null));
         }
         foreach (var (weaponId, modelId, p) in Lookup.WeaponProperties(state, party.WeaponIds))
-            if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
+            if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
         // A spell's weapon rules are the attacker's ordinary rules for these hits, so their pass-one rows and per-die rows act like a weapon's.
         if (side == Side.Attacker && ix.SpellRules is { } spellRules)
             foreach (var (name, parameter) in spellRules) if (ix.Properties.Entry(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));

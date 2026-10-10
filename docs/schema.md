@@ -294,6 +294,7 @@ erDiagram
         text target_grain
         int target_count
         float8 target_range
+        bool played
     }
     EFFECT {
         uuid id PK
@@ -423,6 +424,10 @@ the row exists because an effect points at it.
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
 set out — attachment points, with a name belonging to exactly one of them. `GET /v1/properties/{hash}/rules`
 serves a set's entries with their `rule_text`, the client's hover text; a rule with no entry is tagged *not automated*.
+
+**`played`** (boolean, default true) is false only on an entry `scripts/ArmyBooks` generated as text only: the Army Forge
+description as `rule_text`, no effects. The engine plays it as an absent name, and `GET /v1/properties/{hash}/rules`
+returns it so the stat sheet tags the rule *not automated* while showing its text. A spell is always played.
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is

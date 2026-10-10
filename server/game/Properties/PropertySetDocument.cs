@@ -12,8 +12,9 @@ public sealed record PropertySetDocument(string Name, string GameRules, IReadOnl
 public sealed record BookRecord(string Uid, string Name, string? Version, IReadOnlyList<string> Spells);
 /// <summary>A generated army-book file (`Content/army-books/&lt;uid&gt;.book.json`): the book's identity and its spells as entries.</summary>
 public sealed record BookDocument(string Uid, string Name, string? Version, string GameRules, IReadOnlyList<EntryDocument> Spells);
+/// <summary>Played: null when the entry is played (written only as `"played": false`, on a generated text-only entry).</summary>
 public sealed record EntryDocument(string Name, CatalogKind Kind, bool TakesParameter, Aggregation? Aggregation, int? Cost, string? Faction, string RuleText,
-    SpellTargeting? Targeting, IReadOnlyList<EffectDocument> Effects);
+    SpellTargeting? Targeting, IReadOnlyList<EffectDocument> Effects, bool? Played = null);
 public sealed record EffectDocument(EffectSubject Subject, int Ordinal, EffectKind Kind, string? TargetRoll, StatRef? TargetStat, string? TargetEntry, string? TargetAction,
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier, int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind,
     string? Replacement, EffectDuration Duration, IReadOnlyList<ConditionDocument> Conditions, IReadOnlyList<EffectDocument> Children,
@@ -31,7 +32,7 @@ public static class PropertiesJson
         return doc with
         {
             Stats = doc.Stats ?? [], Actions = doc.Actions ?? [], Rolls = doc.Rolls ?? [],
-            Entries = (doc.Entries ?? []).Select(e => e with { Effects = Fix(e.Effects) }).ToList(),
+            Entries = (doc.Entries ?? []).Select(e => e with { Effects = Fix(e.Effects), Played = e.Played == false ? false : null }).ToList(),
             Books = (doc.Books ?? []).Select(b => b with { Spells = b.Spells ?? [] }).ToList(),
         };
         static IReadOnlyList<EffectDocument> Fix(IReadOnlyList<EffectDocument>? effects) =>
@@ -72,6 +73,7 @@ public static class PropertiesJson
             var spell = e.Kind == CatalogKind.Spell;
             if (spell != (e.Cost is not null && e.Targeting is not null)) problems.Add($"{e.Name}: cost and targeting are set exactly when kind is spell");
             if (spell && e.TakesParameter) problems.Add($"{e.Name}: a spell takes no parameter");
+            if (e.Played == false && e.Effects.Count > 0) problems.Add($"{e.Name}: a text-only entry (played false) has no effects");
             // Spell effects (09-04) read forty-eight real spells as N hits or a grant that is "always with one duration: once".
             // Anything else on a spell would be applied nowhere, so it is an authoring error rather than a silent no-op.
             if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest && f.Duration != EffectDuration.Once))
@@ -156,7 +158,7 @@ public static class PropertiesJson
             f.Conditions.Select(c => new EffectCondition(newId(), c.Kind, c.Subject, c.Comparison, c.Number, c.Values)).ToList(), f.Children.Select(Build).ToList(),
             f.TargetTerrain, f.TargetCondition, f.AmountDice);
         return new PropertySet(Hash(d), d.Name, d.GameRules, d.Stats, d.Actions, d.Rolls.Select(r => new RollDefinition(r)).ToList(),
-            d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList())).ToList(),
+            d.Entries.Select(e => new CatalogEntry(e.Name, e.Kind, e.TakesParameter, e.Aggregation, e.Cost, e.Faction, e.RuleText, e.Targeting, e.Effects.Select(Build).ToList(), e.Played != false)).ToList(),
             d.Books ?? []);
     }
 }
