@@ -197,3 +197,4 @@ morale, 11-12 terrain, 13-15 special rules, 17-19 terrain placement and generato
 Army books: `https://army-forge.onepagerules.com/api/army-books?filters=official&gameSystemSlug=grimdark-future` lists
 books; `.../api/army-books/{uid}?gameSystem=2` returns one. A shared list is `GET /api/tts?id={id}`, which import reads.
 `./scripts/army-books fetch` and `generate` rebuild `server/game/Content/army-books/`.
+- The viewer's live log (`viewer/src/lib/live/logLines.ts:64`) ignores `AskAnswered.Breach`, so a breach-warned answer shows no label there.

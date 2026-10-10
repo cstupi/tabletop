@@ -519,7 +519,7 @@ functions read it:
   to where the model already is (an occupant answered `Inside` its own container) is standing still, not
   `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
-  `AskAnswered.OutsideLegalSet` under `warn`.
+  `AskAnswered.Breach` (the rule name) under `warn`; `OutsideLegalSet` marks only an answer outside the set.
   A spend divides the same way: whether the answering team owns the models it paid with is state
   the protocol cannot answer, so the spend step checks it.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for
