@@ -3,7 +3,7 @@
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
 after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (128 sim games over every catalog
-rule and spell) found twelve engine defects, listed below as the next work. The in-game client is built to the in-game UX
+rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX
 spec, merged to `main`, and waits for the owner's on-screen check (*Next* 2); polish follows.
 
 ## Get running
@@ -35,25 +35,34 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 games, with a spectator account for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 113 of 128 games pass in-process (112 over the socket), every other game fails only on a pinned known defect
-(report line `KNOWN Dn`), 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
+Today: 128 of 128 games pass on both drivers with no pin, 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1795 with the stack up: Geometry 157, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 179,
-GameServer 887, Management 94, Sim 380. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1875 with the stack up: Geometry 158, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 181,
+GameServer 952, Management 94, Sim 392. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
 
-### 1. Fix the engine defects the rules suite found
+### 1. Open items from the defect fixes
 
-Twelve defects, each pinned to a failing suite game (*Defects the rules suite found*, below). Fix each in
-`server/game/` test-first, then drop its pin (`.Pinned(...)` in `sim/Suite/SuiteCatalog.*.cs`, and the test tables in
-`tests/Tabletop.Sim.Tests/Suite/`); a pinned game that passes shows `(pinned Dn did not fail: <check>)` in the report. D9's fix
-leaves five spells covered only by raw-1 passes (Psychic Stabilization, Cleaving Rune, Brain Infestation, Corrode Weapons,
-Mutating Inferno): their spell games' scripts must still bring a legal pass. Once D2 is fixed, `core-rough-ground`'s
-policy may need to keep a unit's moves within 6" under strict.
+- **Deploy caution:** games `playing` with an open sequence frame must be ended or abandoned before running this server. The step
+  lists of attack-sequence, casting, spell-hits and morale-test changed (`SequenceInterpreter` indexes steps by position), so a
+  parked frame can resolve hits twice. Nothing guards it; a guard needs a sequence version.
+- **Owner decision:** dice edits cannot correct a cast, a morale test or score-hits in normal play (`WaitsBetweenSteps` off, so the
+  deciding step runs in the same advance as the roll; `SequenceInterpreter.cs:62-69`). Smallest fix: a "stop before" flag on the
+  `result`, `score-hits`, `override` and `consequence` steps reusing the Continue gate. Alternative: an atomic rewind-and-edit correction.
+- **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
+  Impact, attack-start faces, dice-distance moves.
+- **D13:** a player's `AddModifier` lands in `Projection.PendingModifiers` (`Projection.cs:94`) but nothing reads it into a roll plan.
+- **Standing ruling to confirm:** on a table without 30" of room the Aircraft minimum is as far as its base can go on the table
+  (`GfMoves.Minimum`, `Movement.FarthestOnTable`; p.6 smaller tables, p.7).
+- **Owner call:** a spell's forced move ignores the target's Flying/Strider (`GfCasting.cs:309`); p.36 "ignore all terrain effects" is unbuilt.
+- **Movement leftovers:** D8 suite evidence is weak; the client has no per-model cap region and no landing volumes for Flying; the
+  Aircraft landing exemption is keyed on `MinDistance` (`GfMoves.cs:166`), not on Aircraft; a forced move from inside a wall is a
+  silent zero move; the start-in-impassable exemption is per volume (lenient).
+- **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
 
 ### 2. The in-game UX: the owner's on-screen check
 
@@ -103,22 +112,7 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ## Defects the rules suite found
 
-Each defect fails the named suite game on both drivers unless noted; quoted evidence is the game's failure text.
-
-| | Rule | Code | Evidence game | Fix direction |
-| --- | --- | --- | --- | --- |
-| D1 | p.8: "all weapons are fired simultaneously"; a later weapon group whose target has no model left removes nothing | `GfAttack.AssignStep` (`Rules/GrimdarkFuture/GfAttack.cs:115-134`) opens `remove_casualties` as an `Allocation` over no eligible model, with no pass: the game sticks | `core-overkill` (seed 7) | Finish the group when no model is eligible (its wounds are lost); then also assert the second group removed nothing |
-| D2 | p.11: "If any model in a unit moves in or through difficult terrain ... then all models in the unit may not move more than 6"" | `GfMoves.ApplyMove` (`GfMoves.cs:199-245`) computes `crossedDifficult` only for `Applied`; each model's cap comes from its own `Movement.Check` | `core-rough-ground` ("a rush into the bog moved a model 9.49"") | Cap every model of the unit at 6" when any model's path enters difficult ground, under strict |
-| D3 | p.7: "models may also never move outside of the battlefield (no part of them, at any point)" | `GfMoves.ExitPlacement` (`GfMoves.cs:82`) checks the 6" exit distance, not the table; it also serves the destroyed-transport placement (`GfContainers.cs:67`) | `core-transport-run` (a disembarked model off a 24x36 table) | Check the base against the table in `ExitPlacement` |
-| D4 | Slayer (Soul Snatcher Cults): "its weapons get AP(+2) if most models in the target have Tough(3) or higher" | `GfMelee.ChargeTargets` (`GfMelee.cs:106-108`) settles a melee `Interaction` with no defender; an opponent-subject condition (`MostModels`, `HoldsProperty`, `ActorState`) calls `Interaction.Of`, which throws "no defender in this interaction": the engine faults | `soul-snatcher-cults-slayers-charging` | Make opponent-subject conditions false with no defender (as `PositionTerrain` already is), or settle per candidate target |
-| D5 | Resistance, Self-Repair, Plaguebound: "roll one die for each" wound; p.14 Regeneration the same | `GfAttack.AssignStep` (`GfAttack.cs:150-175`): wounds spilled past a dead model re-enter the step and take the ignore roll again | `havoc-brothers-resistance`, `robot-legions-self-repair`, `robot-legions-self-repair-boost`, `plague-disciples-plaguebound`, `plague-disciples-plaguebound-boost` ("4 dice [3 2 1 1] for 3 wounds") | Roll the ignore die once per wound; carried wounds keep their result |
-| D6 | Scrapper Boost, Mischievous Boost: "must re-roll successful unmodified defense results of 5-6" | The Boost rows are `force_reroll` on `roll_result eq 5 [defense, raw]`; `Conditions.Holds` (`Effects/Conditions.cs:22-24`) compares raw or modified only, so a raw 5 that AP made fail is re-rolled | `jackals-scrapper-boost` | A roll-result predicate on the die's success, and the two rows authored with it |
-| D7 | p.13 Aircraft: "May only use Advance actions ... adding 30" to its total move" (straight line, ignoring units and terrain) | Not built: the Advance allowance has no Aircraft term | `special-aircraft-overhead` (allowance 6, expected 36) | Build the Aircraft move |
-| D8 | p.13 Aircraft: "can't be charged" | `GfMelee.ChargeTargets` (`GfMelee.cs:106-123`) filters by team, distance and impassable terrain only | `special-aircraft-overhead` (the Aircraft offered as a charge target) | Leave Aircraft out of the charge targets |
-| D9 | p.5: "a roll of 6 always counts as a success and a roll of 1 always counts as a fail, regardless of how much it is being modified by" | `Roller.Judge` (`Dice/Roller.cs:13`) judges a thresholded roll by `modified >= threshold` only (a `RequiredRaw` roll compares the raw face), at the roll, on a reroll and on `SetDice` | `spells-human-defense-force` (casting "raw 1, modified 5: judged a success") | Raw 1 fails and raw 6 succeeds on thresholded rolls |
-| D10 | Every roll result is editable (`docs/design/client/design.md`); p.13 casting "on 4+ resolve the effect"; p.14 Surge and Rending's extra hit "on unmodified results of 6" | Values a step stores when it rolls are not re-derived after `SetDice`: casting `passed` (`GfCasting.cs:172`, and a failed cast's frame ends in that step, so it cannot be corrected), `extra_hits` on attacks (`GfAttack.cs:434-444`) and spell hits (`GfCasting.cs:255-274`); morale finishes in the step that rolls | `spells-edited-casting-die` (a cast edited to a raw 1 still resolves), `blessed-sisters-devout-edited-dice` (extra hits frozen) | Derive these values in a later step from the dice as they stand (as `GfAttack.HitsFrom` does), or gate the decision behind its own step |
-| D11 | p.14 Stealth "shot from over 9" away"; also Relentless, Artillery, Piercing Hunter; p.5 measures base to base | `Conditions.Holds` `Range` (`Effects/Conditions.cs:21`) floors the distance: 9.41" counts as 9, not over 9 | `special-stealth-at-nine-and-a-half` (a 9.41" shot with no Stealth modifier) | Compare the measured distance, unrounded |
-| D12 | Socket only: the set read from Postgres must evaluate as the document does | `PostgresPropertiesStore` (`Properties/PostgresPropertiesStore.cs:21-23`) orders conditions by id (UUIDv7 minted in one loop, so random within a millisecond) and condition values by value; no condition ordinal is stored | `soul-snatcher-cults-slayers` over the socket (Slayer's opponent condition judged first, then D4's throw); may pass on a different seeding | Store a condition ordinal and order by it; the D4 fix removes the throw |
+D1-D16 are fixed; the suite passes 128/128 on both drivers with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
@@ -137,7 +131,6 @@ What the suite does not check or report today.
   The failure lines still carry `known defect Dn:`.
 - **The 231 army-book rules outside the catalog are not reported.** The spec says the suite reports them as outside the catalog
   (*Known rule gaps*, below); the suite measures the catalog only.
-- The pinned checks for D1, D2, D7 and D11 stop at their first failing occasion, so while a pin holds, a later occasion failing for another reason in the same check is not reported.
 
 ## Known rule gaps
 
@@ -159,7 +152,7 @@ descriptions; the catalog, not the army, is where rule text lives.
 Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
 starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Assignment
 legal set carries one target list for every weapon group, so the server checks an answer's targets against the union
-and not per group: a split-fire target one group cannot legally shoot is accepted for that group. Aircraft movement and "can't be charged" are D7 and D8 above; the action restriction and the -12" to attackers' range
+and not per group: a split-fire target one group cannot legally shoot is accepted for that group. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
 are built. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets

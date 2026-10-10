@@ -515,7 +515,7 @@ its siblings in the document (an effect's siblings share its entry and parent), 
 `007_properties_positions.sql`. The game server reads every one of those lists in that order and nothing else orders them:
 ids are v7 uuids minted in one loop, random within a millisecond. The order is evaluated, not cosmetic: sibling effects that
 share an `ordinal` apply in document order, conditions are judged in order (`Slayer`'s `attack_kind`, judged first, keeps its
-`most_models` from reading a defender an interaction without an attack does not have), a `roll_result` condition's values are its roll then `raw | modified`,
+`most_models` from reading a defender an interaction without an attack does not have), a `roll_result` condition's values are its roll, then `raw | modified`, then the optional `success | fail`,
 and a turn's options list actions in document order.
 
 `position` is null on rows seeded before the column existed. Their order is not in the rows, so the game server's seeder,

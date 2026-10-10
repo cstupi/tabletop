@@ -39,8 +39,8 @@ public static class LogText
                 Passed => $"passed for {n.Team(a.TeamId)}",
                 Confirmed => $"confirmed for {n.Team(a.TeamId)}",
                 // An unsealed answer is in hand, so it is in words: a takedown's pick has to name the model it picked (p.13).
-                { } answer => $"answered for {n.Team(a.TeamId)}: {Answer(answer, n)}{(a.OutsideLegalSet ? " (outside the legal set)" : "")}",
-                null => $"answered for {n.Team(a.TeamId)}{(a.OutsideLegalSet ? " (outside the legal set)" : "")}",   // withheld: a sealed Ask reveals at ask_closed
+                { } answer => $"answered for {n.Team(a.TeamId)}: {Answer(answer, n)}{Flag(a)}",
+                null => $"answered for {n.Team(a.TeamId)}{Flag(a)}",   // withheld: a sealed Ask reveals at ask_closed
             },
             AskClosed a => a.Answers.Count == 0 ? "closed the question"
                 : $"closed the question: {string.Join(", ", a.Answers.Select(x => $"{n.Team(x.TeamId)} {Answer(x.Answer, n)}"))}",   // a sealed Ask's reveal
@@ -93,6 +93,8 @@ public static class LogText
     /// Names is taken because two answers have to name pieces (p.13 and p.14): a one-piece selection is
     /// a Takedown's chosen model, and a token spend is a count per model rather than one number.
     /// </summary>
+    static string Flag(AskAnswered a) => a.Breach is not null ? $" (breaks {a.Breach})" : a.OutsideLegalSet ? " (outside the legal set)" : "";
+
     public static string Answer(AskAnswer a, Names n) => a switch
     {
         Chosen c => $"chose {c.OptionId}",

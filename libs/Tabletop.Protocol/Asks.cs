@@ -50,8 +50,8 @@ public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount) : Legal
 public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets) : LegalSet;
 /// <summary>
 /// Anywhere within the allowance: parameters, not an enumeration. The client draws the region with Tabletop.Geometry.Movement.Region.
-/// ImpassableVolumeIds and DifficultVolumeIds name volumes on the Board (TerrainPlacement.WorldVolumes()); DifficultCap is the
-/// whole-move cap GameRules computed when any listed difficult volume is entered (OPR: 6"), null when the ruleset has none. It holds
+/// ImpassableVolumeIds and DifficultVolumeIds name volumes on the Board (TerrainPlacement.WorldVolumes()); DifficultCap is what is
+/// left of the ruleset's cap in this segment (OPR: the 6" less what an earlier segment of the move used), applied when any listed difficult volume is entered; null when the ruleset has none. It holds
 /// every listed model once any one of them enters (OPR p.11: "all models in the unit may not move more than 6"").
 /// Containment is non-null only when this move may embark or is disembarking; null is every move on open table.
 /// MinDistance, when set, is how far every listed model must move (OPR p.13 Aircraft: 30"), or as far as the table lets its whole

@@ -72,8 +72,8 @@ public sealed record SequenceAbandoned(Guid FrameId) : EventPayload;
 
 // Asks
 public sealed record AskOpened(Ask Ask) : EventPayload;
-/// <summary>Answer is null when withheld from this viewer (a sealed window still open).</summary>
-public sealed record AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet) : EventPayload;
+/// <summary>Answer is null when withheld from this viewer (a sealed window still open). Breach: the rule name when an answer inside the legal set broke a rule the table answers (IGameRules.AnswerBreach) and was accepted under warn or silent; OutsideLegalSet is then false. Omitted when null.</summary>
+public sealed record AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet, string? Breach = null) : EventPayload;
 public sealed record TeamAnswer(Guid TeamId, AskAnswer Answer);
 public sealed record AskClosed(Guid AskId, IReadOnlyList<TeamAnswer> Answers) : EventPayload;
 

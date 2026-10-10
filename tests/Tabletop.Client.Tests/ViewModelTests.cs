@@ -258,6 +258,16 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void An_answer_that_broke_a_named_rule_is_labelled_with_it()
+    {
+        var a = Applier();
+        var names = new Names(Game, a.Projection);
+        string Line(bool outside, string? breach) => LogText.Describe(new GameEvent(9, Samples.P1, new AskAnswered(Samples.AskId, Samples.Team1, null, outside, breach), null), names);
+        Assert.EndsWith(" (breaks difficult_cap)", Line(false, "difficult_cap"));
+        Assert.EndsWith(" (outside the legal set)", Line(true, null));
+    }
+
+    [Fact]
     public void Control_reads_as_taking_a_marker_or_making_it_neutral()
     {
         var a = Applier(new MarkerPlaced(Samples.Token));

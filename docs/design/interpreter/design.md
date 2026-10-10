@@ -280,8 +280,7 @@ loudly instead of applying nowhere.
 
 A `roll_result` condition's `condition_value` rows are the roll it reads, `raw` or `modified`, and
 optionally `success` or `fail` (`schema.md` → A condition is a row, and its values are rows).
-`number` is the face. `(condition_id, value)` is the primary key and carries no ordinal, so the
-loader re-orders them to roll name, then `raw`/`modified`, then the outcome, and `Validate`
+`number` is the face. `condition_value.position` carries each value's index (`schema.md` → Ordered child rows record their position); the loader's re-order to roll name, then `raw`/`modified`, then the outcome serves only rows seeded before that column, and `Validate`
 refuses a roll named `raw`, `modified`, `success` or `fail`.
 
 #### Store and seeder

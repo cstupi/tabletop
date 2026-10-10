@@ -148,6 +148,7 @@ erDiagram
     ACTION {
         string name
         units distance
+        int position
     }
     ROLL {
         string name
@@ -181,6 +182,7 @@ erDiagram
         enum cap_kind
         string replacement
         enum duration
+        int position
     }
     EFFECTCONDITION {
         enum kind
@@ -188,6 +190,7 @@ erDiagram
         enum comparison
         int number
         list values
+        int position
     }
     GAMEEVENT {
         uuid game_id

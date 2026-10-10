@@ -58,7 +58,9 @@ public class GfMovesTests
         var sim = Rush(Enforcement.Warn, [], out var unit);
         var applied = Assert.IsType<Applied>(Move(sim, Shifted(sim, unit.Models[0].Id, 5), Shifted(sim, unit.Models[1].Id, -9)));
         Assert.NotNull(applied.Warning);
-        Assert.True(applied.Events.OfType<AskAnswered>().Single().OutsideLegalSet);
+        var answered = applied.Events.OfType<AskAnswered>().Single();
+        Assert.False(answered.OutsideLegalSet);   // inside the legal set: it broke a named rule
+        Assert.Equal(GfNames.DifficultCapRule, answered.Breach);
     }
 
     [Fact]

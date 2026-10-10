@@ -90,7 +90,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
             case Refuse r: return new Refused(r.Reason, r.Detail);
             case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
         }
-        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !legal) };
+        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable, breach?.Rule) };
         var answered = new Dictionary<Guid, AskAnswer>(open.Answers.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value!)) { [team] = command.Answer };
         if (!ask.Sealed || ask.Teams.All(answered.ContainsKey))
             events.Add(new AskClosed(ask.Id, ask.Teams.Where(answered.ContainsKey).Select(t => new TeamAnswer(t, answered[t])).ToList()));

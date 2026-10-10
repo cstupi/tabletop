@@ -40,7 +40,8 @@ public partial class DecisionBox
             if (lead.Location is not OnTable on) { Unhook(); return; }
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
-            var remaining = Math.Max(0, legal.Allowance - used);
+            // The Ask's Allowance is already what this segment has left (GfMoves reduces it by the distance a cast-split move used): never subtract `used` again.
+            var remaining = Math.Max(0, legal.Allowance);
             var start = new PlacedModel(body, on.Placement);
             var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.

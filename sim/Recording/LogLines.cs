@@ -20,7 +20,7 @@ public static class LogLines
         SequenceFinished => "sequence finished",
         SequenceAbandoned => "sequence abandoned",
         AskOpened a => $"Asked {string.Join(", ", a.Ask.Teams.Select(t => Team(ordinals, t)))}: {a.Ask.Prompt}",
-        AskAnswered a => $"{Team(ordinals, a.TeamId)} answered {Answer(a.Answer)}{(a.OutsideLegalSet ? " (outside the legal set)" : "")}",
+        AskAnswered a => $"{Team(ordinals, a.TeamId)} answered {Answer(a.Answer)}{(a.Breach is not null ? $" (breaks {a.Breach})" : a.OutsideLegalSet ? " (outside the legal set)" : "")}",
         AskClosed => "ask closed",
         DiceRerolled d => $"rerolled {d.Replaced.Count} dice",
         DiceEdited d => $"edited {d.Replaced.Count} dice",

@@ -55,6 +55,7 @@ export interface AskAnswered {
   readonly teamId: string;
   readonly answer?: AskAnswer;
   readonly outsideLegalSet: boolean;
+  readonly breach?: string;
 }
 
 export interface AskClosed {
