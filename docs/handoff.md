@@ -60,8 +60,8 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
   unit moves"*): its region and its apply read the target's own Flying, Strider and Aircraft (`GfMoves.TerrainFor`). A granted
   Flying lasts the whole activation (*"Granted flying applies to the whole move - its per activation"*): once it applies it stays
   live for the activation-start test, every leg of a split move and the landing, and `GfHooks.OnTurnEnded` removes it when that
-  activation ends (`GfMoves.ConsumeKeepingFlying`, a name check in one place); a spell's forced move of the unit uses it too, and
-  it goes at the end of the caster's activation. On a table without 30" of room an Aircraft moves as
+  activation ends (`GfMoves.ConsumeKeepingFlying`, a name check in one place); a spell's forced move of the unit flies with it but
+  neither spends nor holds it, since that is not the unit's activation. On a table without 30" of room an Aircraft moves as
   far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`).
 - **Movement leftovers:** D8 suite evidence is weak; the client has no per-model cap region and no landing volumes for Flying; the
   client's Aircraft minimum ring (`MoveRuler.Minimum`) and the sim's `AnswerPolicy` still use the farthest-corner reach on a small table,

@@ -56,8 +56,9 @@ public static partial class GfMoves
     /// A move another team makes for this unit (a spell's move kind), judged as ForcedMoveRegion offered it: the same settling as an action's move,
     /// measured against the allowance with the unit's own terrain rules (TerrainFor); a path through an impassable volume the unit may not pass is
     /// refused, and so is a landing touching one, unless the unit is an Aircraft (p.13 "when moving and stopping"); one chosen by the opponent may not
-    /// carry a model off the table. Dangerous terrain crossed is not tested, since no rule asks it of a forced move. A granted Flying it moved with is
-    /// held to the end of the activation (ConsumeKeepingFlying), so the Values are the step's to write.
+    /// carry a model off the table. Dangerous terrain crossed is not tested, since no rule asks it of a forced move. A granted Flying is read for the
+    /// terrain but neither spent nor held (owner ruling: the forced move is not the target's activation, so the grant waits for its own); the Values
+    /// stay empty and are returned for the step to write.
     /// </summary>
     public static (IReadOnlyList<StateChange> Changes, IReadOnlyDictionary<string, int> Values) ApplyForcedMove(StepContext ctx, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed)
     {
@@ -76,18 +77,15 @@ public static partial class GfMoves
             if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable && !LandsInImpassable(ctx.State, m.ModelId, settled, landing))
                 moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
-        if (moves.Count == 0) return ([], new Dictionary<string, int>());
-        if (rules.Flying) live.Spend(Side.Attacker, GfNames.Flying);
-        var (spent, held) = ConsumeKeepingFlying(live);
-        return ([new ModelsMoved(moves), .. spent], held);
+        return (moves.Count == 0 ? [] : [new ModelsMoved(moves)], new Dictionary<string, int>());
     }
 
     /// <summary>
     /// Owner ruling: "Granted flying applies to the whole move - its per activation". RollEffects.Consume, less the grants of every spell that granted
     /// a Flying live on this set (a spell's grants go together: spell library → consumed together). Those are kept on the unit and named in the Values
     /// instead, one GfNames.FlyingHeldPrefix key per grant, so the Flying stays live for the rest of the activation (the activation-start test, every
-    /// leg of a split move, the landing) and FlyingHeldThisActivation removes it when the activation ends. This is the one place a granted rule is
-    /// held past the step that used it, and it is held by name.
+    /// leg of a split move, the landing) and FlyingHeldThisActivation removes it when the activation ends. A spell's forced move of the unit does not
+    /// call it: that is not the unit's activation. This is the one place a granted rule is held past the step that used it, and it is held by name.
     /// </summary>
     public static (List<StateChange> Changes, Dictionary<string, int> Values) ConsumeKeepingFlying(LiveSet live)
     {
