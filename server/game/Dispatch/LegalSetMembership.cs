@@ -13,7 +13,8 @@ public static class LegalSetMembership
                             && s.PieceIds.Distinct().Count() == s.PieceIds.Count && s.PieceIds.All(p.Eligible.Contains),
         Allocated a => ask.Legal is Allocation al && a.Counts.Keys.All(al.Targets.Contains) && a.Counts.Values.All(n => n >= 0) && a.Counts.Values.Sum() == al.Amount
                        && (al.MaxTargets is not { } most || a.Counts.Count(kv => kv.Value > 0) <= most),
-        Assigned g => ask.Legal is Assignment asg && asg.Items.All(i => g.Targets.ContainsKey(i.Id)) && g.Targets.Keys.All(k => asg.Items.Any(i => i.Id == k))
+        // An item may be left out (a weapon group holds fire, p.8: models "may" shoot); nothing assigned is a Passed, not an Assigned.
+        Assigned g => ask.Legal is Assignment asg && g.Targets.Count > 0 && g.Targets.Keys.All(k => asg.Items.Any(i => i.Id == k))
                       && g.Targets.All(kv => asg.TargetsOf(kv.Key).Contains(kv.Value)) && g.Targets.Values.All(asg.Targets.Contains)
                       && g.Targets.Values.Distinct().Count() <= asg.MaxDistinctTargets,
         // One relocation per named model, and a placement that is a point: a duplicate or a non-finite coordinate is not a move the set offers.

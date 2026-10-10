@@ -484,7 +484,7 @@ functions read it:
 - `LegalSetMembership.Contains(Ask, AskAnswer)` is rules-free set membership over the seven
   closed `LegalSet` shapes. `Options` by option id, `PieceSelection` by count bounds,
   distinctness and eligibility, `Allocation` by targets and a sum equal to `Amount`,
-  `Assignment` by total coverage, each item's target on its own list (`Assignment.TargetsOf`) and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
+  `Assignment` by offered items (at least one; one left out holds fire), each item's target on its own list (`Assignment.TargetsOf`) and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
   every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
   that key's own cap, with **no total**, because a spend is any number up to a maximum —
   `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**: every id is in

@@ -158,8 +158,9 @@ every enforcement setting.
 range of a weapon of that group), from the Ask's per-group list. An enemy glows only when a picked group can shoot it.
 Clicking an enemy aims every picked group that can shoot it; the other picked groups keep their assignment. A line in
 that target's colour runs from the group's shooters to it. Clicking a chip picks that group alone, to aim it at a second
-target; with two targets taken (p.8: up to two), no other unit glows. Models that cannot shoot the hovered or assigned target are
-dimmed, from the server's sight answer (*Sight check*). **Enter** fires; **Esc** clears the assignments.
+target; with two targets taken (p.8: up to two), no other unit glows. A group may hold fire (p.8: models "may" shoot):
+an aimed chip reads `Rifles ×4 → Red unit 2`, an unaimed one `Plasma Gun ×1 · holds fire`. Models that cannot shoot the hovered or assigned target are
+dimmed, from the server's sight answer (*Sight check*). **Enter** fires once at least one group has a target, and the unaimed groups hold fire; **Esc** clears the assignments.
 
 **Casualties** (`remove_casualties`). My hit unit lights. When every offered model has one wound left the box reads
 `Remove N models` (N capped at the models offered) and a click marks a model with a red ✕. Otherwise it reads `Assign N wounds`:

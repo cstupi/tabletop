@@ -103,16 +103,19 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         if (a.Items.Count == 0 || a.Targets.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
         if (Pass(ask) is { } passed) return passed;
         // A set of `size` targets in which every item finds one of its own (Assignment.TargetsOf), then each item aims within it.
+        // When no set covers every item, a set covering the most; an item with none of its targets in it holds fire (p.8: "may" shoot).
         var size = Math.Min(Math.Max(a.MaxDistinctTargets, 1), a.Targets.Count);
-        bool Covers(IReadOnlyList<Guid> set) => a.Items.All(i => a.TargetsOf(i.Id).Any(set.Contains));
+        int Covered(IReadOnlyList<Guid> set) => a.Items.Count(i => a.TargetsOf(i.Id).Any(set.Contains));
         var allowed = chooser.Subset(a.Targets, size);
-        if (!Covers(allowed))
+        if (Covered(allowed) < a.Items.Count)
         {
-            var covering = Combinations(a.Targets, size).Where(Covers).ToList();
-            if (covering.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
-            allowed = chooser.Pick(covering);
+            var sets = Combinations(a.Targets, size).ToList();
+            var most = sets.Max(Covered);
+            if (most == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
+            allowed = chooser.Pick(sets.Where(s => Covered(s) == most).ToList());
         }
-        return new Assigned(a.Items.ToDictionary(i => i.Id, i => chooser.Pick(allowed.Where(a.TargetsOf(i.Id).Contains).ToList())));
+        return new Assigned(a.Items.Where(i => a.TargetsOf(i.Id).Any(allowed.Contains))
+            .ToDictionary(i => i.Id, i => chooser.Pick(allowed.Where(a.TargetsOf(i.Id).Contains).ToList())));
     }
 
     private static IEnumerable<IReadOnlyList<T>> Combinations<T>(IReadOnlyList<T> items, int size, int from = 0)

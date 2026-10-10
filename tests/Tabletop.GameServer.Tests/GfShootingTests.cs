@@ -64,6 +64,20 @@ public class GfShootingTests
     }
 
     [Fact]
+    public void A_group_left_without_a_target_holds_fire()
+    {
+        // p.8: "all models in the unit may shoot at it"; a group the answer leaves out fires nothing, and the other group fires.
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifles", "24\"", 1), Gun("Pistols", "12\"", 1));
+        var near = Unit("Near", "4+", "4+", [], 1, []); var far = Unit("Far", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([shooter], [near, far], x1: -6, x2: 6, enforcement: Enforcement.Strict), 1, 1, 1, 1);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id }));        // strict accepts it: in set
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        Assert.Equal(shooter.Models[0].Weapons.Where(w => w.Name == "Rifles").Select(w => w.Id), Assert.Single(attacks).Context.WeaponIds);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
     public void A_takedown_weapon_type_splits_into_one_group_per_model()
     {
         // 3.5.1 p.14 gives the pick to "This model", so two models carrying one takedown weapon type are two groups, each

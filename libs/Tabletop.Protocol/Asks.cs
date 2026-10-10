@@ -48,7 +48,8 @@ public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int M
 /// MaxTargets targets get a count above zero (null: any number).</summary>
 public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount, int? MaxTargets = null) : LegalSet;
 /// <summary>
-/// Give each item one target, at most MaxDistinctTargets distinct targets in all (weapon groups, rulebook p.8: up to two).
+/// Give items one target each, at least one item and at most MaxDistinctTargets distinct targets in all (weapon groups, rulebook
+/// p.8: up to two); an item the answer leaves out takes none (a weapon group that holds fire, p.8: models "may" shoot).
 /// Targets is every target some item may take. TargetsByItem, when non-null, is the targets each item may take, keyed by item id
 /// (a weapon group to the units it can legally shoot); an item it does not name takes none. Null lets every item take any of Targets.
 /// </summary>

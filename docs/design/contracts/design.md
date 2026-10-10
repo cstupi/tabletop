@@ -525,7 +525,7 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 | `Options(IRL<AskOption> Choices)` | `Chosen(OptionId)` | activate (unit x action), act-or-end-phase, react, ruleset yes/no questions |
 | `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
 | `Allocation(Targets, Amount, MaxTargets?)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly, and at most `MaxTargets` targets get a count above zero (null: any) |
-| `Assignment(Items, Targets, MaxDistinctTargets, TargetsByItem?)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8); `TargetsByItem` is each group's own valid targets, `Targets` their union (null: every item may take any of `Targets`) |
+| `Assignment(Items, Targets, MaxDistinctTargets, TargetsByItem?)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8); `TargetsByItem` is each group's own valid targets, `Targets` their union (null: every item may take any of `Targets`); an answer names at least one item, and an item it leaves out holds fire |
 | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
 | `TokenSpend(MaxByModel)` | `TokensSpent(Counts)` | casting's simultaneous token spend, per spending model (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
