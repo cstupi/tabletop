@@ -51,20 +51,27 @@ switch (args.FirstOrDefault())
             catch (GenerationException ex) { return ex.Problems; }
         })).ToList();
         IReadOnlyList<BookDocument> built = [];
+        var content = Path.Combine(repo.FullName, "server", "game", "Content");
+        var core = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-core.properties.json")));
+        var hand = PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-army-rules.part.json")));
+        var (rules, report, ruleProblems) = RuleWriter.Build(books, core, hand);
+        problems.AddRange(ruleProblems);
         if (problems.Count == 0)
         {
             built = BookWriter.Build(books);
-            var content = Path.Combine(repo.FullName, "server", "game", "Content");
-            problems.AddRange(BookWriter.Check(built,
-                PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-core.properties.json"))),
-                PropertiesJson.Parse(File.ReadAllText(Path.Combine(content, "grimdark-future-army-rules.part.json")))));
+            problems.AddRange(BookWriter.Check(built, core, hand, rules));
         }
         if (problems.Count > 0) { foreach (var p in problems) Console.Error.WriteLine(p); return 1; }
-        BookWriter.Write(built, Arg("--out", Path.Combine(repo.FullName, "server", "game", "Content", "army-books")));
+        BookWriter.Write(built, Arg("--out", Path.Combine(content, "army-books")));
+        var rulesPath = Arg("--rules", Path.Combine(content, PropertiesSeeder.GeneratedPart));
+        File.WriteAllText(rulesPath, RuleWriter.Serialize(rules!));
         Console.WriteLine($"wrote {built.Count} books, {built.SelectMany(b => b.Spells).Select(s => s.Name).Distinct().Count()} spells");
+        Console.WriteLine($"wrote {rulesPath}: {report!.Generated} generated, {rules!.Entries.Count - report.Generated} text-only");
+        foreach (var (group, count) in report.Groups) Console.WriteLine($"  {group}: {count}");
+        if (report.NoDescription.Count > 0) Console.WriteLine($"  no description: {string.Join(", ", report.NoDescription)}");
         return 0;
     }
     default:
-        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR]");
+        Console.Error.WriteLine("usage: army-books fetch [--to DIR] | generate [--from DIR] [--out DIR] [--rules FILE]");
         return 2;
 }

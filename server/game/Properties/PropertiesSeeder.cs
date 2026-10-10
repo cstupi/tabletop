@@ -3,6 +3,9 @@ namespace Tabletop.GameServer.Properties;
 /// <summary>Authored content reaches the tables here: every embedded *.properties.json is seeded once, by hash, when the server starts.</summary>
 public sealed class PropertiesSeeder(IPropertiesStore store, ILogger<PropertiesSeeder> log)
 {
+    /// <summary>The part scripts/ArmyBooks generates (army-book rules spec → Generator): template wrappers and text-only entries. Never edited by hand.</summary>
+    public const string GeneratedPart = "grimdark-future-army-book-rules.part.json";
+
     /// <summary>One composed document per embedded `*.properties.json`: that document, every `*.part.json` and every `*.book.json` of its
     /// game rules folded in (spell library spec → One set holds every book).</summary>
     public static IReadOnlyList<PropertySetDocument> EmbeddedDocuments()
