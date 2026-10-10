@@ -108,6 +108,7 @@ static partial class SpecialGames
                     {
                         var picked = (a.Pick?.Answer as SelectedPieces)?.PieceIds.SingleOrDefault();
                         var hit = WoundsSet(a.Assigns).Select(w => w.ModelId).Distinct().ToList();
+                        if (picked is null && Living(run, a.Target, a.At) == 1 && hit.Count == 1) return null;   // one model left: nothing to pick, the allocation reaches it
                         return picked is not null && hit.All(m => m == picked) ? null
                             : $"picked {(picked is { } p ? ModelName(run, p) : "none")}, wounded {string.Join(",", hit.Select(m => ModelName(run, m)))}";
                     })),
@@ -124,7 +125,7 @@ static partial class SpecialGames
     static TestGame Gunline()
     {
         const string name = "special-long-range-gunline";
-        return Game(name, new ScenarioBuilder(name, 41).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 42).RoundCap(4).Table(24, 48).Scripted(ShootAndStrike)
                 .Army("Red", 1, 3, modelRules: [new(1, "Relentless"), new(1, "Tough", 3)],
                     weapons: [Gun("Surge Gun", 48, 2, Rule("Surge")), Gun("Reliable Gun", 48, 2, Rule("Reliable"))], unitStats: Stats(5, 4))
                 .Army("Blue", 1, 5, modelRules: [new(1, "Stealth")], weapons: [Gun("Rifle", 48, 1)], unitStats: Stats(4, 5))

@@ -68,4 +68,33 @@ public class CasualtyPickTests
         Assert.Equal(new Dictionary<Guid, int> { [M1] = 1, [M2] = 4 }, answer.Counts);
         Assert.Equal(2, c.Chosen);            // the pick itself still shows what was clicked
     }
+
+    /// <summary>p.15 through the Ask's MaxTargets of one: wounds go on one Tough model, a click on another moves the pick there, and
+    /// the surplus past that model's wounds left is answered on it for the server to carry over.</summary>
+    [Fact]
+    public void Under_a_max_of_one_target_a_click_on_another_model_moves_the_pick_and_the_surplus_stays_on_it()
+    {
+        var c = new CasualtyPick(new Allocation([M1, M2], 4, MaxTargets: 1), new Dictionary<Guid, int> { [M1] = 3, [M2] = 3 });
+        Assert.Equal((3, "Assign 4 wounds to one model"), (c.Required, c.Title));
+        c.Add(M1); c.Add(M1); c.Add(M2);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 1 }, c.Counts);
+        c.Add(M2); c.Add(M2); c.Add(M2);
+        Assert.True(c.Complete);
+        Assert.Equal(new Dictionary<Guid, int> { [M2] = 4 }, Assert.IsType<Allocated>(c.Answer()).Counts);
+        var auto = new CasualtyPick(new Allocation([M1, M2], 2, MaxTargets: 1), new Dictionary<Guid, int> { [M1] = 3, [M2] = 3 });
+        auto.Auto();
+        Assert.Equal(new Dictionary<Guid, int> { [M1] = 2 }, auto.Counts);
+    }
+
+    /// <summary>p.8: "For each wound that the unit has taken, the defending player must remove one model as a casualty." One-wound
+    /// models read as models to remove, counted up to the models there are.</summary>
+    [Fact]
+    public void One_wound_models_read_as_models_to_remove()
+    {
+        var c = new CasualtyPick(new Allocation([M1, M2, M3], 7), new Dictionary<Guid, int> { [M1] = 1, [M2] = 1, [M3] = 1 });
+        Assert.Equal((true, "Remove 3 models", "0 of 3 chosen"), (c.OneEach, c.Title, c.Status));
+        Assert.StartsWith("Click a model to remove it", c.Hint);
+        var tough = new CasualtyPick(new Allocation([M1, M2], 2), new Dictionary<Guid, int> { [M1] = 1, [M2] = 3 });
+        Assert.Equal((false, "Assign 2 wounds"), (tough.OneEach, tough.Title));
+    }
 }

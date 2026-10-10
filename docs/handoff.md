@@ -38,8 +38,8 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 128 of 128 games pass on both drivers with no pin, 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1878 with the stack up: Geometry 158, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 184,
-GameServer 952, Management 94, Sim 392. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1881 with the stack up: Geometry 158, Content 17, ArmyBooks 25, Protocol 47, Viewer 9, Client 186,
+GameServer 953, Management 94, Sim 392. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
@@ -75,7 +75,7 @@ with Frontline deployment zones, drawn through round 0. The server side is check
 
 **The owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
 selection and the stat sheet's two tabs, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
-shooting targets (chips, two targets), casualties (clicks, Auto), **Undo move** and Ctrl+Z, zones during deployment and
+shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and
 gone at round 1, the end message, F1, the shooting lasers (one second, shooter to nearest target model, none in melee),
 Ctrl held to measure (live for the other player, gone on release).
 

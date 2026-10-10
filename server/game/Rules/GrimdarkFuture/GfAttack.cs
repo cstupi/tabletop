@@ -92,12 +92,13 @@ public static partial class GfAttack
         // wounded Tough hero waits for every other model rather than soaking the next wound.
         var notHeroes = living.Where(m => !state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero)).ToList();
         var pool = notHeroes.Count > 0 ? notHeroes : living;
-        bool IsTough(Guid m) => (Lookup.ModelParameter(state, m, "Tough") ?? 1) > 1;
-        var plain = pool.Where(m => !IsTough(m)).ToList();
+        var plain = pool.Where(m => !IsTough(state, m)).ToList();
         if (plain.Count > 0) return plain;
         var woundedTough = pool.Where(m => state.Projection.Models[m].Wounds > 0).OrderByDescending(m => state.Projection.Models[m].Wounds).ToList();
         return woundedTough.Count > 0 ? [woundedTough[0]] : pool;
     }
+
+    static bool IsTough(GameState state, Guid modelId) => (Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1) > 1;
 
     /// <summary>p.15's "heroes must be assigned wounds last": a living hero and a living model that is not one, so the hero was held back from this wound.</summary>
     static bool HeroDeferred(GameState state, Guid unit)
@@ -131,11 +132,20 @@ public static partial class GfAttack
             if (takedown is null && eligible.Count == 0) return new Finish([]);
             if (takedown is not null) ctx.Applied.Add(GfNames.Takedown);
             else if (HeroDeferred(ctx.State, target)) ctx.Applied.Add(GfNames.Hero);
+            // p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
+            // the next tough model". Offered only Tough models (none wounded), the defender names one, which takes every wound it can; the
+            // rest carry to the next segment, which offers the survivors again. A spread answer (out of set, warned) reads as its first model.
+            var toughOnly = eligible.All(m => IsTough(ctx.State, m));
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
             else if (eligible.Count == 1) allocation = new Dictionary<Guid, int> { [eligible[0]] = wounds };   // nothing to choose
-            else if (ctx.History.LastClosed() is { Single: Allocated } closed) allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
-            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
+            else if (ctx.History.LastClosed() is { Single: Allocated } closed)
+            {
+                allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
+                if (toughOnly && allocation.Keys.FirstOrDefault() is var first && first != Guid.Empty)
+                    allocation = new Dictionary<Guid, int> { [first] = wounds };
+            }
+            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
 
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);

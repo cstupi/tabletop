@@ -94,12 +94,13 @@ public partial class DecisionBox
     {
         var left = legal.Targets.ToDictionary(id => id, id => Math.Max(0, _s.MaxWounds.GetValueOrDefault(id, 1) - (p.Models.GetValueOrDefault(id)?.Wounds ?? 0)));
         var pick = new CasualtyPick(legal, left);
+        _title.Text = pick.Title; _hint.Text = pick.Hint;
         var count = new Label(); Add(count);
         var confirm = Btn("Confirm (Enter)", Confirm);
         void Confirm() { if (pick.Answer() is { } answer) Send(ask, answer); }
         void Show()
         {
-            count.Text = $"Remove {legal.Amount}: {pick.Chosen} chosen";
+            count.Text = pick.Status;
             confirm.Disabled = !pick.Complete;
             ClearMarks();
             foreach (var (id, n) in pick.Counts)

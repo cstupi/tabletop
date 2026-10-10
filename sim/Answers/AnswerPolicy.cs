@@ -73,9 +73,10 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         if (a.Targets.Count == 0 || a.Amount <= 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
         if (Pass(ask) is { } passed) return passed;
         var counts = new Dictionary<Guid, int>();
+        var pool = a.MaxTargets is { } most && most < a.Targets.Count ? chooser.Subset(a.Targets, Math.Max(1, most)) : a.Targets;
         for (var i = 0; i < a.Amount; i++)
         {
-            var target = chooser.Pick(a.Targets);
+            var target = chooser.Pick(pool);
             counts[target] = counts.GetValueOrDefault(target) + 1;
         }
         return new Allocated(counts);

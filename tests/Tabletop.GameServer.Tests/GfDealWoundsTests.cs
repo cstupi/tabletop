@@ -60,6 +60,30 @@ public class GfDealWoundsTests
         Assert.Equal((1, 1), (sim.Alive(t.Id), sim.Model(x).Wounds));                                                  // two wounds killed y, the third goes to the next Tough model
     }
 
+    /// <summary>p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
+    /// the next tough model". With none wounded the defender picks which one, and a spread answer puts every wound on the first model it names.</summary>
+    [Fact]
+    public void Among_unwounded_Tough_models_the_wounds_go_on_the_first_one_named_until_it_dies_and_the_defender_picks_the_next()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
+        var (x, y, z) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
+        var sim = Start(a, t, 4, [1]);
+        var legal = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);
+        Assert.Equal([x, y, z], legal.Targets);
+        Assert.Equal(1, legal.MaxTargets);                                                                              // one Tough model at a time
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [y] = 1, [x] = 1, [z] = 2 }));             // spread: out of set, warned, read as its first model
+        Assert.IsType<OnShelf>(sim.Model(y).Location);                                                                // three wounds killed y
+        Assert.Equal((0, 0), (sim.Model(x).Wounds, sim.Model(z).Wounds));
+        var next = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);                                         // the fourth: neither left is wounded, so the defender picks
+        Assert.Equal(1, next.Amount);
+        Assert.Equal([x, z], next.Targets);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [z] = 1 }));
+        Assert.Equal((2, 0, 1), (sim.Alive(t.Id), sim.Model(x).Wounds, sim.Model(z).Wounds));
+        Assert.Equal(4, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
     [Fact]
     public void Wounds_carry_over_a_wounded_Tough_model_that_dies_and_a_joined_one_waits_for_the_plain_models_even_under_strict_enforcement()
     {

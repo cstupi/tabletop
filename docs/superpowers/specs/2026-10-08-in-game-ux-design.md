@@ -93,7 +93,7 @@ me it shows the waiting line instead.
 | `move`, `disembark` (MoveRegion) | "Drag to move", **Enter** commits, **Esc** resets | the move-range circle and ghosts, as today |
 | `deploy`, `deploy_scouts`, `deploy_ambusher` (PieceSelection of shelved units) | the shelved units as numbered entries | *Deployment placement* |
 | `declare_targets` (Assignment) | weapon-group chips (*Shooting targets*) | click targets |
-| `remove_casualties` (Allocation) | "Remove N: k chosen", **Auto**, **Enter** | click models (*Casualties*) |
+| `remove_casualties` (Allocation) | "Remove N models" or "Assign N wounds", "k of N chosen", **Auto**, **Enter** | click models (*Casualties*) |
 | `charge_target`, `takedown_target`, `spell_targets` (PieceSelection) | the prompt | eligible units glow; clicking one picks it |
 | `spend_tokens` (TokenSpend) | a stepper per caster, sealed, as today | — |
 
@@ -159,9 +159,11 @@ runs from the group's shooters to it. Clicking a chip picks that group alone, to
 targets taken (p.8: up to two), no other unit glows. Models that cannot shoot the hovered or assigned target are
 dimmed, from the server's sight answer (*Sight check*). **Enter** fires; **Esc** clears the assignments.
 
-**Casualties** (`remove_casualties`). My hit unit lights. Clicking a model marks it with a red ✕; on a model with
-more than one wound each click adds one wound pip and a right-click takes one away. **Auto** fills what is left in
-the Ask's default order. **Enter** confirms and is disabled until the allocation matches the count.
+**Casualties** (`remove_casualties`). My hit unit lights. When every offered model has one wound left the box reads
+`Remove N models` (N capped at the models offered) and a click marks a model with a red ✕. Otherwise it reads `Assign N wounds`:
+on a model with more than one wound each click adds one wound pip and a right-click takes one away; under the Ask's
+`MaxTargets` of one (`Assign N wounds to one model`, p.15's Tough order) a click on another model moves the pick there. **Auto**
+fills what is left in the Ask's default order. **Enter** confirms and is disabled until the allocation matches the count.
 
 ## Sight check
 

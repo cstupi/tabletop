@@ -138,7 +138,7 @@ suppression of `Regeneration`, are live), `Action` = the attacker's.
 completed steps. When the parent rolled none it is the parent's `Values["wounds"]`, which is the
 dangerous-terrain path.
 
-`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds)` to the
+`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds, MaxTargets)` to the
 target's team, and any member of that team may answer it. p.8 gives the defending player free
 choice of removal order. p.15 constrains it twice, and the two clauses are ordered. Heroes are
 assigned wounds last *even if already wounded*. Among the models that are not heroes, a wounded
@@ -148,8 +148,12 @@ after: a wounded `Tough` hero waits for every other model instead of soaking the
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
-That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*. The answer is applied as given. An out-of-set allocation under
-`warn`/`silent` is applied too, because nothing is an invariant.
+That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*.
+When every eligible model is `Tough` (none wounded, or only heroes left), `MaxTargets` is 1: p.15's *"continue to put wounds on
+the tough model with most wounds in the unit until it is killed, before starting to put them on the next tough model"* means the
+defender names one model, it takes every wound it can, and the rest carry to the next segment, which offers the survivors again.
+Otherwise `MaxTargets` is null and the answer is applied as given. An out-of-set allocation under `warn`/`silent` is applied too,
+because nothing is an invariant; a spread over `Tough` models reads as all its wounds on the first model it names.
 
 A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
 target, every wound this group deals is assigned to that one model and the defender is not asked

@@ -44,8 +44,9 @@ public sealed record Options(IReadOnlyList<AskOption> Choices) : LegalSet;
 /// (a model-grain spell, a Takedown's target model — rulebook p.14); nothing here distinguishes the two grains.
 /// </summary>
 public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int Max) : LegalSet;
-/// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount.</summary>
-public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount) : LegalSet;
+/// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount, and at most
+/// MaxTargets targets get a count above zero (null: any number).</summary>
+public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount, int? MaxTargets = null) : LegalSet;
 /// <summary>Give each item one target (weapon groups to up to N targets).</summary>
 public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets) : LegalSet;
 /// <summary>
