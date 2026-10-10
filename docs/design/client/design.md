@@ -614,7 +614,8 @@ picked at a deploy Ask from the shelf is legal, and anything else is a breach th
 with the warning on the event, and `strict` refuses. Under `strict` the drag does not start and the click only
 selects. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`
-ghosts, the release sends nothing, and Enter commits. While a unit is held, 1–5 arrange it in that many rows about
+ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask, C (**Stop here**) sends the same ghosts
+with `Destinations.Continues`: the move goes on after the before-attacking window. While a unit is held, 1–5 arrange it in that many rows about
 the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
 
 A click selects a unit and Shift+click one model; a click on empty table or Esc clears. While a decision wants a

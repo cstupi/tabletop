@@ -69,9 +69,11 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// MinDistance, when set, is how far every listed model must move (OPR p.13 Aircraft: 30"), or as far as the table lets its whole
 /// base go (Tabletop.Geometry.Movement.FarthestOnTable) when that is less; the region is then an annulus. Null is no minimum. The "when
 /// that is less" is a standing ruling until the owner rules: p.13 assumes the room, p.6 allows "smaller areas", p.7 keeps every base on the table.
+/// Stoppable: the move may stop here and go on after the window that follows a segment (OPR p.13 Caster(X) "at any point before
+/// attacking"), answered by Destinations.Continues. True only when that window has something to offer the mover now.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
-    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null) : LegalSet;
+    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId
@@ -104,7 +106,8 @@ public sealed record Chosen(string OptionId) : AskAnswer;
 public sealed record SelectedPieces(IReadOnlyList<Guid> PieceIds) : AskAnswer;
 public sealed record Allocated(IReadOnlyDictionary<Guid, int> Counts) : AskAnswer;
 public sealed record Assigned(IReadOnlyDictionary<string, Guid> Targets) : AskAnswer;
-public sealed record Destinations(IReadOnlyList<ModelRelocation> Moves) : AskAnswer;
+/// <summary>Continues: a stop, not the whole move — after the window that follows the segment the move goes on with what is left (MoveRegion.Stoppable).</summary>
+public sealed record Destinations(IReadOnlyList<ModelRelocation> Moves, bool Continues = false) : AskAnswer;
 /// <summary>Tokens paid per model. A model absent from Counts paid nothing; an empty map says what Passed says.</summary>
 public sealed record TokensSpent(IReadOnlyDictionary<Guid, int> Counts) : AskAnswer;
 public sealed record Confirmed : AskAnswer;

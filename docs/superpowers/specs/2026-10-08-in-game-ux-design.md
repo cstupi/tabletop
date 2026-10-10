@@ -90,7 +90,7 @@ me it shows the waiting line instead.
 | --- | --- | --- |
 | `confirm`, `end_round` (Confirmation) | the question, **Enter** confirms | — |
 | `activate`, `act_or_end_phase`, `shoot_or_not`, `react`, `strike_back`, `cast` (Options) | numbered options, **1–9** picks | `activate`: eligible units glow; clicking one selects it and narrows the box to its options, numbered from 1; an option's only unit answers on a click |
-| `move`, `disembark` (MoveRegion) | "Drag to move", **Enter** commits, **Esc** resets | the move-range circle and ghosts, as today |
+| `move`, `disembark` (MoveRegion) | "Drag to move", **Enter** commits, **C** stops here to cast or pick when the Ask is `Stoppable` (casting during a move spec), **Esc** resets | the move-range circle and ghosts, as today |
 | `deploy`, `deploy_scouts`, `deploy_ambusher` (PieceSelection of shelved units) | the shelved units as numbered entries | *Deployment placement* |
 | `declare_targets` (Assignment) | weapon-group chips (*Shooting targets*) | click targets |
 | `remove_casualties` (Allocation) | "Remove N models" or "Assign N wounds", "k of N chosen", **Auto**, **Enter** | click models (*Casualties*) |
@@ -125,7 +125,7 @@ and a thin line joins those two bases. Each model with more than one wound shows
 **Moves.** A plain drag moves the whole unit; **Shift**+drag moves one model.
 
 - During my move step (MoveRegion Ask), a drag positions ghosts inside the move-range circle and **Enter** commits,
-  as today.
+  as today. **C** (**Stop here**) sends them as a stop instead when the Ask is `Stoppable`.
 - Outside a move step, a drag is a hand move (`MoveModels`) and follows the game's enforcement setting. Under
   `strict` the drag does not start and the server refuses the command. Under `warn` and `silent` the move is sent on
   release, and an **Undo move** button appears beside the moved unit. It sends `Undo` to the last live event before that
@@ -188,6 +188,7 @@ The answer is the same `Sight` the rules use, so the check tests the server.
 | 1–5, while holding a unit | arrange it in that many rows |
 | Q / E, while holding a unit | turn the arrangement |
 | Enter | confirm the decision: commit, fire, remove |
+| C | stop the move here (cast or pick), when the move box offers it |
 | Esc | cancel, innermost first: a drag, the target assignments, the selection |
 | Shift (held) | one model: click selects, drag moves |
 | L (held) | sight check on the hovered unit |

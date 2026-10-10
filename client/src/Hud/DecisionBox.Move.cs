@@ -57,13 +57,21 @@ public partial class DecisionBox
             _onCancel = () => { StartMove(); return true; };
             OfferEmbark(ask, legal, p, names);
         }
-        void Commit()
+        // A stop (p.13 Caster(X) "at any point before attacking") sends the ghosts as they stand: with no drag, that is a stop before moving.
+        void Relocate(bool continues)
         {
             if (_proposed is not { } proposed) return;
-            Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList()));
+            Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList(), continues));
         }
+        void Commit() => Relocate(false);
         _onEnter = Commit;
         Add(Btn("Commit move (Enter)", Commit));
+        if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
+        {
+            void Stop() => Relocate(true);
+            _onStop = Stop;
+            Add(Btn("Stop here (C)", Stop));
+        }
     }
 
     /// <summary>p.15: "only one model needs to reach the Transport for everyone to embark". A click on a listed container answers the

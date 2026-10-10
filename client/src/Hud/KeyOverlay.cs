@@ -13,6 +13,7 @@ public partial class KeyOverlay : PanelContainer
         ("1–5, while holding a unit", "arrange it in that many rows"),
         ("Q / E, while holding a unit", "turn the arrangement"),
         ("Enter", "confirm the decision: commit, fire, remove"),
+        ("C", "stop the move here (cast or pick), when the move box offers it"),
         ("Esc", "cancel, innermost first: a drag, the target assignments, the selection"),
         ("Shift (held)", "one model: click selects, drag moves"),
         ("L (held)", "sight check on the hovered unit"),

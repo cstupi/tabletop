@@ -143,6 +143,7 @@ export interface DeploymentZone {
 export interface Destinations {
   readonly kind: 'destinations';
   readonly moves: readonly ModelRelocation[];
+  readonly continues: boolean;
 }
 
 export interface DiceEdited {
@@ -327,6 +328,7 @@ export interface MoveRegion {
   readonly difficultCap?: number;
   readonly containment?: MoveContainment;
   readonly minDistance?: number;
+  readonly stoppable: boolean;
 }
 
 export interface ObjectiveControlSet {

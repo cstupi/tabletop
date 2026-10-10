@@ -201,7 +201,11 @@ pushes `shooting`.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Phase0
+    [*] --> Before: Aircraft
+    [*] --> Phase0: any other unit
+    Before: before the move - casting checkpoint (Aircraft only)
+    Before --> Before: a cast or pick finished
+    Before --> Phase0: pass, or nothing offered
     Phase0: phase 0 - move a segment
     Phase1: phase 1 - dangerous terrain
     Phase2: phase 2 - casting checkpoint
@@ -210,7 +214,7 @@ stateDiagram-v2
     Phase1 --> Phase2: no dangerous volume entered or crossed
     Phase1 --> Phase1: Push dangerous-terrain, then resume
     Phase2 --> Phase2: Windows.Run(before-attacking) offers a cast, then resume
-    Phase2 --> Phase0: a cast finished and move budget remains
+    Phase2 --> Phase0: a cast finished, or the segment was a stop, and move budget remains
     Phase2 --> [*]: no reaction left: the step completes
 ```
 
@@ -219,9 +223,18 @@ in both cases with a fresh history, so the window **reopens**. p.13 is *"spend a
 the spell's value to try casting one or more spells (only one try per spell)"*, and one window per
 activation would allow only one spell. That reopening is why the fifth step outcome exists.
 
-Phase 0's Ask is a `MoveRegion` carrying seven parameters: the unit's models still in play,
+p.13 is also *"at any point before attacking"*, so a move may stop anywhere. `MoveRegion.Stoppable` is true when
+`ReactionsAt(before-attacking)` offers the mover's team something at the Ask, for any unit but an Aircraft. An answer with
+`Destinations.Continues` is a stop, recorded in `Values["continues"]`: after the checkpoint the step goes back to phase 0
+when budget remains, whether the window was answered, passed or offered nothing. A plain answer followed by a pass ends
+the step. A stop drops every relocation that leaves a model where it stands, facing as it faces (`MoveStep.Unmoved`), so a
+stop with no drag sets nothing `moved`, uses no distance and is how a unit casts before it moves. An Aircraft cannot stop
+(its move is one mandatory segment), so it gets the checkpoint once before phase 0 as well, in `Values["before_move"]`.
+The window's Ask is titled with the point's own words (`Windows.Prompt`: `before-attacking` → *Before attacking*).
+
+Phase 0's Ask is a `MoveRegion` carrying eight parameters: the unit's models still in play,
 `allowance − used`, the impassable volume ids, the difficult volume ids, what is left of `GfNames.DifficultCap`
-(6 inches less `used`), `MoveStep.Containers(...)`, and a minimum distance (an Aircraft's 30", else null). The cap is
+(6 inches less `used`), `MoveStep.Containers(...)`, a minimum distance (an Aircraft's 30", else null), and `Stoppable`. The cap is
 `null` for a `Strider`/`Flying`/`Aircraft` unit, which it does not bind. p.11's cap is *"for that movement"*, so it spans
 every segment a cast splits the move into: once a segment went in or through difficult ground the step records
 `Values["entered_difficult"]` and clamps every later segment's allowance to what is left of the cap. p.11 also holds
@@ -263,7 +276,8 @@ p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in 
 total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping"*. For an Aircraft unit
 the allowance gains `GfNames.AircraftMove` (30), the Ask names no impassable or difficult volume and no cap,
 `ApplyMove` sweeps no terrain (so no dangerous terrain test), `activation-terrain` tests nothing, and the move is one
-segment (the casting checkpoint never returns it to phase 0), so each model moves in one straight line. The step lists
+segment (the casting checkpoint never returns it to phase 0, and a `Continues` from it is not a stop), so each model
+moves in one straight line; it is offered the checkpoint before that segment and after it. The step lists
 `Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The move is mandatory (*"can't move into the
 table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
 `GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer

@@ -57,6 +57,8 @@ public class DecisionViewTests
     {
         Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset",
             Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null)), Samples.Team1).Hint);
+        Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to cast or pick · Esc: reset",
+            Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null, Stoppable: true)), Samples.Team1).Hint);
         Assert.Equal("Click a target · Click a chip: that group alone · Enter: fire · Esc: clear",
             Of(AskOf("declare_targets", new Assignment([new AskOption("Rifles", "Rifles", [])], [Samples.Unit], 2)), Samples.Team1).Hint);
         var casualties = Of(AskOf("remove_casualties", new Allocation([Samples.Model], 3), "Assign 3 wound(s)"), Samples.Team1);
