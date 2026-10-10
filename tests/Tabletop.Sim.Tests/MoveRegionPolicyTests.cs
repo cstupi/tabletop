@@ -147,6 +147,23 @@ public class MoveRegionPolicyTests
         Assert.IsType<Passed>(new AnswerPolicy(new Chooser(1), none).Answer(ask with { AllowPass = true }, view));
     }
 
+    [Fact]
+    public void A_disembark_never_lands_in_impassable_terrain()
+    {
+        var (view, ask, rider, _) = Inside();
+        var block = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(6, 20), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(34, 20, 0), new Yaw(0), 1));
+        var walled = new PolicyView(view.Projection, view.Board, [block]);
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled));
+            if (answer.Moves.SingleOrDefault()?.To is not OnTable to) continue;
+            var landed = new PlacedModel(walled.BodyOf(rider), to.Placement);
+            Assert.False(Movement.Check(landed, to.Placement.Position.Horizontal, 0, [block], [], null, null).CrossesImpassable, $"seed {seed}");
+        }
+    }
+
     /// <summary>A rider inside a wreck standing at (30, 20), and the survivors' Ask (no pass).</summary>
     static (PolicyView View, Ask Ask, Guid Rider, Point3 At) Inside()
     {

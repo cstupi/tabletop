@@ -496,7 +496,7 @@ functions read it:
   needs the table and returns `AnswerBreachFound(Rule, Detail)`. Grimdark Future's are, in order:
   `move_not_offered` (`GfMoves.NotOfferedBreach`: a relocation `GfAnswers.Moves` does not read, so
   strict never accepts an answer as a silent zero move); `move_exit` (a disembark not fully within
-  `ExitWithin` of the container and on the table, p.15 and p.7, `GfMoves.ExitPlacement`);
+  `ExitWithin` of the container, on the table and clear of impassable terrain, p.15, p.7 and p.11, `GfMoves.ExitPlacement`);
   `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move's
   straight path against the Ask's own parameters: p.7 *"never move outside of the battlefield (no part
   of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of

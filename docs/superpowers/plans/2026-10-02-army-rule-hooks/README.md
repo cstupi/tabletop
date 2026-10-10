@@ -86,7 +86,7 @@ This plan starts after the library plan's Task 14 merged the enforcement branch,
 
 1. **`activation-start` is a step of its own**, `GfMoves.ActivationStartStep`, second in every action sequence and in `idle`, because `Windows.Run` counts the step's children to know which reaction it pushed, and `activation-terrain`'s dangerous terrain child would be counted among them.
 2. **A window reopens after any child it pushed**, not only after a cast: `MoveStep`'s window phase and `CastingWindowStep` repeat when `ctx.History.Children.Count > 0`, so *Teleport* and casting share the checkpoint in either order.
-3. **A placement is validated at the landing only**: displacement at most the distance, the centre outside impassable volumes. The table edge and p.7's 1" from other units stay client-flagged, as they are for every move (`MoveStep` reports `Movement.Check`'s `LeavesTable` and refuses nothing for it; `architecture.md` → *Rules enforcement*).
+3. **A placement is validated at the landing only**: displacement at most the distance, the base touching no impassable volume (p.11 *"may not end their move partially overhanging gaps or terrain"*; `GfMoves.LandsInImpassable`). Under strict, dispatch also refuses a landing off the table (`GfMoves.PathBreach`, p.7); p.7's 1" from other units stays client-flagged, as it is for every move (`architecture.md` → *Rules enforcement*).
 4. **The Boost of a `move` rule counts its own uses.** Its base is suppressed while it is live, so the unit still moves once per round.
 
 ## Self-review

@@ -157,13 +157,14 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     /// <summary>
     /// A disembark: the models are Inside, so there is no start to walk from. A point within the stated exit distance of
     /// the container's placed position, retried until the base lies fully within it (Containment.BaseFullyWithin, which
-    /// MoveContainment names) and fully on the table, as every move's region is. Null when the container has no table
+    /// MoveContainment names), fully on the table and clear of impassable terrain, as every move's landing is. Null when the container has no table
     /// position or no sample passes.
     /// </summary>
     private Point2? SampleExit(Guid modelId, MoveRegion m, PolicyView view)
     {
         if (m.Containment is not { ExitingId: { } exiting, ExitWithin: { } within }) return null;
         if (_o.MoveSamples <= 0 || view.PlacedOf(exiting) is not { } container) return null;
+        var landing = view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var origin = container.Placement.Position.Horizontal;
         for (var i = 0; i < _o.MoveSamples; i++)
         {
@@ -171,7 +172,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var distance = chooser.Double() * within;
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var placed = new PlacedModel(view.BodyOf(modelId), new Placement(new Point3(candidate.X, candidate.Y, 0), new Yaw(0)));
-            if (Containment.BaseFullyWithin(placed, container, within) && Table.ContainsBase(view.Table, placed)) return candidate;
+            if (Containment.BaseFullyWithin(placed, container, within) && Table.ContainsBase(view.Table, placed) && !Lands(placed, candidate, landing)) return candidate;
         }
         return null;
     }

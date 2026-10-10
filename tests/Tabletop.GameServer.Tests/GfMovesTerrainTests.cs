@@ -126,4 +126,38 @@ public class GfMovesTerrainTests
         Assert.IsType<OnTable>(sim.Model(a).Location);
         Assert.Equal(new Inside(container), sim.Model(b).Location);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Under_strict_a_disembark_may_not_land_in_impassable_terrain(bool flying)
+    {
+        // p.11 "may not end their move partially overhanging gaps or terrain", p.7 "physically impossible locations": an exit is a move's end too.
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11)]);
+        var riders = Unit("Riders", "4+", "4+", flying ? [P("Flying")] : [], 1, []);
+        var sim = Sim.Gf(State([bus, riders], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict, terrain: [Wall(40, 24)]), 4);
+        var container = bus.Models[0].Id;
+        Place(sim, container, 36, 24);
+        sim.Append([new ModelsMoved([new ModelRelocation(riders.Models[0].Id, sim.Model(riders.Models[0].Id).Location, new Inside(container))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(riders.Id, [], [], GfNames.Advance));
+        ModelRelocation Out(double x) => new(riders.Models[0].Id, new Inside(container), new OnTable(new Placement(new Point3(x, 24, 0), new Yaw(0))));
+        RefusedFor(sim, Samples.Team1, GfNames.MoveExitRule, Out(40));                                    // inside the wall, 4" out
+        Assert.IsType<Applied>(Move(sim, Samples.Team1, Out(32)));
+        sim.Run();
+        Assert.IsType<OnTable>(sim.Model(riders.Models[0].Id).Location);
+    }
+
+    [Fact]
+    public void Under_warn_a_disembark_into_impassable_terrain_is_not_applied_and_the_model_stays_inside()
+    {
+        var bus = Unit("Bus", "4+", "4+", [], 1, [P("Transport", 11)]);
+        var riders = Unit("Riders", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([bus, riders], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Warn, terrain: [Wall(40, 24)]), 4);
+        var container = bus.Models[0].Id;
+        Place(sim, container, 36, 24);
+        sim.Append([new ModelsMoved([new ModelRelocation(riders.Models[0].Id, sim.Model(riders.Models[0].Id).Location, new Inside(container))])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(riders.Id, [], [], GfNames.Advance));
+        sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(riders.Models[0].Id, new Inside(container), new OnTable(new Placement(new Point3(40, 24, 0), new Yaw(0))))]));
+        Assert.Equal(new Inside(container), sim.Model(riders.Models[0].Id).Location);
+    }
 }

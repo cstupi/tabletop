@@ -103,8 +103,9 @@ place the holder's models that carry the entry *"anywhere fully within"* the dis
 With `amount_dice` the distance is rolled when the placement is chosen: `amount` dice, each a D6 halved and
 rounded up (p.4), summed, recorded as a `RollRecord` named for the entry. A placement is not a move: nothing is
 swept, so it crosses impassable terrain and units, and only the landing is checked: each model's displacement is
-at most the distance, and its centre is outside impassable volumes. The table edge and p.7's 1" from other units
-are client-flagged, as they are for every move the engine measures. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
+at most the distance, and its base touches no impassable volume (p.11: units *"may not end their move partially
+overhanging gaps or terrain"*; `GfMoves.LandsInImpassable`). Under strict, dispatch also refuses a landing off the
+table (`GfMoves.PathBreach`, p.7); p.7's 1" from other units is client-flagged, as it is for every move the engine measures. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
 difficult lists are empty, which is how the client is told nothing will be swept; `GfMoves` validates it with a
 landing check instead of `Movement.Check`. No wire type changes.
 

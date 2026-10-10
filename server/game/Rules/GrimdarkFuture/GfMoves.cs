@@ -98,16 +98,19 @@ public static class GfMoves
     }
 
     /// <summary>
-    /// p.15 and p.21: "must stay fully within 6" of it when exiting", and p.7: "models may also never move outside of the battlefield (no part
-    /// of them, at any point)". The settled placement when the whole base is inside the radius of the container's base and on the table, null
-    /// otherwise — the one containment constraint that is geometry, so it is checked on the server rather than trusted from the client, and a
-    /// model whose placement is refused simply stays inside (a destroyed transport's survivor is destroyed instead: GfContainers).
+    /// p.15 and p.21: "must stay fully within 6" of it when exiting", p.7: "models may also never move outside of the battlefield (no part
+    /// of them, at any point), or be placed in physically impossible locations", and p.11: units "may not end their move partially overhanging
+    /// gaps or terrain". The settled placement when the whole base is inside the radius of the container's base, on the table and touching no
+    /// impassable volume (LandsInImpassable, whatever the Ask lists: a Flying occupant's lists none), null otherwise. Checked on the server
+    /// rather than trusted from the client; a model whose placement is refused simply stays inside (a destroyed transport's survivor is
+    /// destroyed instead: GfContainers).
     /// </summary>
     public static Placement? ExitPlacement(GameState state, Guid modelId, Guid container, Placement proposed, double within)
     {
         var settled = Battlefield.Settle(state, proposed);
         var at = Battlefield.At(state, modelId, settled);
-        return Battlefield.Placed(state, container) is { } c && Containment.BaseFullyWithin(at, c, within) && Table.ContainsBase(state.Board.Table.Size, at) ? settled : null;
+        return Battlefield.Placed(state, container) is { } c && Containment.BaseFullyWithin(at, c, within) && Table.ContainsBase(state.Board.Table.Size, at)
+            && !LandsInImpassable(state, modelId, settled, Declared(Battlefield.Terrain(state), TerrainDeclarations.Impassable)) ? settled : null;
     }
 
     /// <summary>
@@ -169,7 +172,7 @@ public static class GfMoves
             if (m.From is Inside from)
             {
                 if (ExitPlacement(state, m.ModelId, from.ContainerId, to.Placement, region.Containment?.ExitWithin ?? GfNames.ExitWithin) is null)
-                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport and on the table (p.15, p.7)");
+                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport, on the table and clear of impassable terrain (p.15, p.7, p.11)");
                 continue;
             }
             if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
@@ -517,8 +520,8 @@ public static class GfMoves
     }
 
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
-    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Nothing between is swept. A landing that fails stays where it was. The table edge
-    /// and p.7's 1" are client-flagged, as for every move (MoveStep reports Movement.Check's LeavesTable and does not refuse it).</summary>
+    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Nothing between is swept. A landing that fails stays where it was. Under strict,
+    /// dispatch also refuses a landing off the table (PathBreach, p.7); p.7's 1" is client-flagged, as for every move.</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
         var impassable = Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);
