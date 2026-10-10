@@ -305,13 +305,14 @@ public static class GfCasting
             var changes = children.Where(c => c.Kind == EffectKind.SetCondition)
                 .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
             if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
+            // Owner ruling: "Spells move as however that unit moves": the region and the apply read the target's own terrain rules (GfMoves.TerrainFor).
             if (ctx.History.LastClosed("move") is { } moved)
-                return new Complete([.. changes, .. GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved))]);
-            var terrain = Battlefield.Terrain(ctx.State);
+            {
+                var (forced, values) = GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved));
+                return new Complete([.. changes, .. forced], values.Count > 0 ? values : null);
+            }
             return new OpenAsks([ctx.Ask("move", $"Move up to {move.EffectiveAmount(null)}\" in a straight line", ctx.ActorTeam!.Value,
-                new MoveRegion(Lookup.AliveModels(ctx.State, target), move.EffectiveAmount(null),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+                GfMoves.ForcedMoveRegion(ctx, target, move.EffectiveAmount(null)), allowPass: true)]);
         }
 
         /// <summary>The morale test this frame pushed failed: its consequence step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
