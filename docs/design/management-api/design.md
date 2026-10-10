@@ -326,8 +326,8 @@ when absent, and, when the minted JWT's `account_id` is not the account id, call
 `POST /v1/sessions/authenticate` and returns that JWT. `roles` is the Stytch user's RBAC role ids, the
 authenticate response's `user.roles` (`StytchUser.Roles`; `stytch_user` on every user, plus any role
 assigned in the dashboard). The game server admits a session whose `roles` holds `admin` as a watcher of
-any game (admin watch spec). A role change takes effect at the next login; a refresh keeps the claims the
-session has. Every new session pays this call: signup, password
+any game (admin watch spec). A refresh stamps the session again when the user's Stytch roles differ from
+the ones it carries, so a granted or revoked role reaches the next refresh; an open watcher socket stays open. Every new session pays this call: signup, password
 login, OTP login, password-reset completion and the dev session mint. A refresh
 (`/v1/auth/session/refresh`, `/v1/sessions/authenticate` with no claims) carries the claim already.
 Linking earlier does not work: the code is single-use, so the session must be minted by the call that

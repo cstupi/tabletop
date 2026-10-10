@@ -9,8 +9,8 @@ it. Admin is a Stytch role. The watcher connects on the game socket.
   repository holds no role table and no admin list.
 - **How it reaches the servers.** `Sessions.Complete` (`server/management/Identity/Sessions.cs`) already stamps `account_id`
   on each new session as a session custom claim (`StytchClient`'s refresh with custom claims). It stamps `roles` beside it:
-  the Stytch user's role ids from the authenticate response's user object. Every JWT the session mints carries both. A role
-  change takes effect at the next login; a refresh keeps the claims it has.
+  the Stytch user's role ids from the authenticate response's user object. Every JWT the session mints carries both. A refresh stamps the session again when the
+  user's roles differ from the ones it carries, so a granted or revoked role reaches the next refresh.
 - **Reading it.** Game server: `VerifiedSession` gains `IReadOnlySet<string> Roles`, read from the same claim by `StytchJwtVerifier`
   (`server/game/Auth/SessionVerification.cs`). A token without the claim has no roles.
 - **Dev sessions.** `POST /v1/dev/sessions` (Development only) takes an optional `roles` so tests and `.superpowers/e2e/`

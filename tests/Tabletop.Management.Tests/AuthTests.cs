@@ -56,19 +56,20 @@ public class AuthTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
-    public async Task The_session_carries_the_users_stytch_roles_and_a_refresh_keeps_them()
+    public async Task The_session_carries_the_users_stytch_roles_and_a_refresh_follows_a_change()
     {
         var c = _f.CreateClient();
         await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "boss@example.com", password = "long enough password" });
         _f.Stytch.Users["boss@example.com"].Roles = ["stytch_user", "admin"];
         var login = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "boss@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
         Assert.Equal(["stytch_user", "admin"], Roles(login!.SessionJwt));
+        var same = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = login.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(["stytch_user", "admin"], Roles(same!.SessionJwt));
 
-        _f.Stytch.Users["boss@example.com"].Roles = ["stytch_user"];                       // a role change waits for the next login
-        var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = login.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(["stytch_user", "admin"], Roles(refreshed!.SessionJwt));
-        var next = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "boss@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
-        Assert.Equal(["stytch_user"], Roles(next!.SessionJwt));
+        _f.Stytch.Users["boss@example.com"].Roles = ["stytch_user"];                       // admin revoked in Stytch: gone at the next refresh
+        var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = same.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(["stytch_user"], Roles(refreshed!.SessionJwt));
+        Assert.Equal(login.Account.Id.ToString(), Claim(refreshed.SessionJwt));
     }
 
     private static List<string> Roles(string jwt) =>

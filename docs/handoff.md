@@ -201,7 +201,7 @@ The admin role (admin watch spec): the viewer watches any game as an admin, and 
 Management stamps the user's role ids (`user.roles`) into the session's `roles` claim at login; the game server admits an
 admin non-participant as a watcher. Setup: in the Stytch dashboard, Roles & Permissions (RBAC policy), create a role with
 id `admin` (it needs no permissions) and save the policy; then, under Users, open the owner's user and assign it the `admin`
-role (or `PUT /v1/users/{user_id}` with `{"roles": ["admin"]}`). It takes effect at the owner's next login, not on a
+role (or `PUT /v1/users/{user_id}` with `{"roles": ["admin"]}`). It reaches the session at the next login or
 refresh. `POST /v1/dev/sessions` with `"roles": ["admin"]` mints an admin without the dashboard.
 
 **The rulebooks.** The skill `grimdark-future-rules` (local plugin `licensed`, not committed) holds Grimdark Future
