@@ -10,9 +10,11 @@ export type SuiteGameResult = {
   readonly spectator: string | null;
 };
 export type ExactResult = { readonly game: string; readonly check: string; readonly passed: boolean };
+/** The runner writes the C# `CoverageState` in snake_case: a text-only entry is `not_automated`, a generated wrapper `pattern`. */
+export type CoverageState = 'own' | 'pattern' | 'not_automated';
 export type CoverageEntry = {
   readonly name: string; readonly kind: string; readonly games: readonly string[]; readonly fired: boolean;
-  readonly exact: readonly ExactResult[];
+  readonly exact: readonly ExactResult[]; readonly state: CoverageState;
 };
 export type SuiteReport = {
   readonly runId: string; readonly games: readonly SuiteGameResult[]; readonly coverage: readonly CoverageEntry[];

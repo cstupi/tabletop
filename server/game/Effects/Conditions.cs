@@ -39,7 +39,9 @@ public static class Conditions
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
             case ConditionKind.UsageCount: return c.Compare(Usage(ix, source, c));
-            case ConditionKind.AtPoint: return ix.Point is { } point && Membership(c, point);
+            // A grant row's at_point said when its rule was used; the grant is that use, so wherever the grant is read the point has passed
+            // (army-book rules spec → the pick). Any other row holds only at its point.
+            case ConditionKind.AtPoint: return source.GrantRow is not null || (ix.Point is { } point && Membership(c, point));
             // The side holds the entry under its own aggregation, a granted instance included; a suppression does not unhold (spell library spec).
             case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.UnitHas(ix.State, ix.Properties, ix.Of(side).UnitId, c.Values[0]);
             case ConditionKind.MostModels: return c.Values.Count == 1 && MostModels(ix, side, c);

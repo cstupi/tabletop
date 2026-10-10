@@ -343,6 +343,12 @@ too, or a granted hook-name rule would never fire.
   carries one reference. A grant carries three, so it is not a condition either. The rule is not
   written into the unit's property list, because that list is the frozen army snapshot's copy.
 
+**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`) whose
+rows are all `once` rows with `at_point before-attacking` is an army-book Buff, Mark or Debuff. Carried, it exposes no
+rows; the `pick-rule` sequence writes one `GrantAdded` per row on the unit it picks, and the grant is read and consumed
+as a spell's is. A granted row's `at_point` holds wherever the grant is read: it said when the rule was used. Each
+carrying model has one use per activation, counted by `GfPick.Uses`.
+
 ## Name checks handled by `GameRules`
 
 Some entries carry no effects at all. They are names `GrimdarkFutureRules` checks for at hooks it
@@ -364,6 +370,9 @@ unit's own properties, the aggregated model properties **and** the grants store.
 This is name-matching. The alternative is inventing grammar for deployment timing, movement
 exemption and a token economy, most of which would be used by one property each. That is where
 effects-as-data stops paying.
+
+`Lookup.UnitHas` also reads a carried Aura (an `any` model entry whose unconditional subject-self `grant_property` row
+names the rule) off the unit's definition, so *"This model and its unit get Scout"* is a Scout unit at deployment.
 
 **A property may be in both places.** `Indirect` carries one effect row, its −1 to hit after
 moving, *and* is checked by name for *"may target enemies that are not in line of sight"* and

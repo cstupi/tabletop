@@ -5,8 +5,9 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Management.Games;
 
-/// <summary>One catalog entry's player-facing text (spec: in-game UX → Rule text). Dapper maps by constructor parameter name.</summary>
-public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText);
+/// <summary>One catalog entry's player-facing text (spec: in-game UX → Rule text). Played is false on a generated text-only entry
+/// (army-book rules spec → Played flag). Dapper maps by constructor parameter name.</summary>
+public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
 
 public sealed class GameRepository(Database db)
 {
@@ -34,7 +35,7 @@ public sealed class GameRepository(Database db)
         await using var c = await db.Open();
         if (await c.ExecuteScalarAsync<int>("select count(*) from properties where content_hash = @hash", new { hash }) == 0) return null;
         return (await c.QueryAsync<CatalogRuleText>("""
-            select name as Name, kind as Kind, takes_parameter as TakesParameter, rule_text as RuleText
+            select name as Name, kind as Kind, takes_parameter as TakesParameter, rule_text as RuleText, played as Played
             from catalog_entry where properties_hash = @hash order by name
             """, new { hash })).ToList();
     }

@@ -3,10 +3,11 @@ using Tabletop.GameServer.Properties;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
-/// effect row) exposes only the row its grant holds, and that row's children; every other instance exposes its entry's effects.</summary>
+/// effect row) exposes only the row its grant holds, and that row's children. A carried pick entry (one with targeting) exposes none: its once
+/// rows act only through the grants its pick writes (army-book rules spec → the pick). Every other instance exposes its entry's effects.</summary>
 public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null)
 {
-    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Effects);
+    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Entry.Effects);
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
@@ -184,7 +185,9 @@ public static class LiveProperties
         var state = ix.State;
         var unit = state.Projection.Units[party.UnitId];
         var result = new List<LiveProperty>();
-        foreach (var p in unit.Definition.Properties) if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
+        // A text-only entry (Played false) plays as an absent name does (army-book rules spec → Played flag).
+        CatalogEntry? Playing(string name) => ix.Properties.Entry(name) is { Played: true } e ? e : null;
+        foreach (var p in unit.Definition.Properties) if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
         // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant.
         foreach (var g in unit.Grants)
@@ -201,7 +204,7 @@ public static class LiveProperties
         var models = party.ModelIds.Count > 0 ? party.ModelIds : Lookup.LivingModels(state, party.UnitId);
         foreach (var group in Lookup.ModelProperties(state, party.UnitId, models).GroupBy(x => x.Property.Name))
         {
-            if (ix.Properties.Entry(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
+            if (Playing(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
             var count = group.Select(x => x.ModelId).Distinct().Count();
             var live = e.Aggregation switch { Aggregation.All => count == models.Count, Aggregation.Any => count > 0, Aggregation.Majority => count * 2 > models.Count, _ => true };
             if (!live) continue;
@@ -209,10 +212,10 @@ public static class LiveProperties
             else result.Add(new LiveProperty(side, e, group.First().Property.Parameter, null, null, null));
         }
         foreach (var (weaponId, modelId, p) in Lookup.WeaponProperties(state, party.WeaponIds))
-            if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
+            if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
         // A spell's weapon rules are the attacker's ordinary rules for these hits, so their pass-one rows and per-die rows act like a weapon's.
         if (side == Side.Attacker && ix.SpellRules is { } spellRules)
-            foreach (var (name, parameter) in spellRules) if (ix.Properties.Entry(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
+            foreach (var (name, parameter) in spellRules) if (Playing(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
         // A rule instance doesn't stack with another of the same kind unless it declares a parameter. Per-model rules (aggregation none) keep one
         // instance per model; a weapon rule is one rule per weapon *type*, so three of the same weapon's AP(1) are one AP(1), not three summed.
         string WeaponName(Guid? id) => id is { } w ? state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(x => x.Id == w).Name : "";

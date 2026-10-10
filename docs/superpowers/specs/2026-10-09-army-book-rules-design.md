@@ -57,15 +57,18 @@ One mechanism, three targets:
 | Debuff | an enemy unit (*"with Caster"* where written) | 18", line of sight | the picked unit | against it (`self`, a penalty) |
 
 - **The entry.** A `model` entry with `targeting` (side, range, line of sight, an optional required property), an
-  `at_point` of `before-attacking`, a `usage_count` of one per `activation`, and its effect rows with duration `once`.
+  `at_point` of `before-attacking`, its use counted per carrying model and activation by the mechanism (`usage_count`
+  counts per unit), and its effect rows with duration `once`.
   `PropertiesJson.Validate` (`server/game/Properties/PropertySetDocument.cs:73`, `:77`) admits `targeting` and `once` rows
   on a `model` entry that has a `before-attacking` `at_point`; today only spells may carry them.
-- **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:79-94`) offers at
+- **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:82-100`) offers at
   `before-attacking` the cast reaction and the live Move/Place rows. It also offers one `use` reaction per carrying model
-  whose pick entry has not been used this activation. A Shaken unit is offered none (`GfHooks.cs:88`). The point runs only
-  when the unit attacks (`GfMoves.cs:258`, `:321`), which is *"before attacking"*.
+  whose pick entry has not been used this activation (`GfPick.Uses`) and has a target (`GfPick.Offers`). A Shaken unit is
+  offered none (`GfHooks.cs:89`). A pick is offered at the casting window's timing, the `before-attacking` point as the
+  code runs it: `MoveStep` opens it on every move action, Rush included, and again after a cast while move budget remains
+  (`GfMoves.cs:274`, `:342`), and `CastingWindowStep` (`GfMoves.cs:268-274`) opens it for Hold.
 - **What it does.** A new sequence `pick-rule`: an Ask `rule_target` with `PieceSelection` over the eligible units (the
-  spell-targeting reading, `GfCasting.SpellTargets`, measured from the carrying model), pass allowed; then one `GrantAdded`
+  spell-targeting reading, `GfCasting.Targets`, measured from the carrying model), pass allowed; then one `GrantAdded`
   per `once` row on the picked unit (`Grant(Id, EffectId, EntryName, CasterUnitId, 1)`, as `GfCasting.cs:227`), and the use
   counted.
 - **How it is spent.** By the existing grant reading and consumption (`LiveProperties.cs:188-196`, `RollEffects.Consume`),
@@ -75,33 +78,40 @@ One mechanism, three targets:
 
 ## Authored rules
 
-Authored entries go in `grimdark-future-army-rules.part.json` (hand-authored, as the 73 there now) with the Army Forge text
-as `ruleText`. Each needs a suite game, as every hand-authored entry does (*Coverage*). They are built in batches, each its
-own plan, ordered so that each batch's mechanisms are in place before it:
+Authored entries go in `grimdark-future-army-rules.part.json` (hand-authored) with the Army Forge text as `ruleText`.
+Each needs a suite game, as every hand-authored entry does (*Coverage*). They are built in batches, each its own plan,
+ordered so that each batch's mechanisms are in place before it:
 
-1. **Grammar only.** Rules the current effect kinds express: Agile, Armor, Bane in Melee, Fortified, Good Shot, Grounded
-   Stealth, Heavy Impact, Ignores Cover, Ignores Cover when Shooting, Ignores Regeneration, Ignores Regeneration in Melee,
-   Increased Shooting Range, Melee Shrouding, Melee Slayer, Point-Blank Surge, Precise, Predator Fighter, Protected, Rapid
-   Charge, Rending in Melee, Sergeant, Shred in Melee, Shred when Shooting, Steadfast, Surge when Shooting, Swift,
-   Unstoppable in Melee; the bases that only template wrappers name (Precision Shooter, Piercing Fighter, Ranged Shrouding,
-   Screened, Thrust in Melee, …); and the 21 written-out Auras. A rule that turns out to need a new effect kind moves to
+1. **Grammar only.** Rules the current effect kinds express: Agile, Bad Shot, Bane in Melee, Bloodborn, Brutal Fighter,
+   Fortified, Good Shot, Grounded Stealth, Guerrilla, Ignores Cover, Ignores Cover when Shooting, Ignores Regeneration,
+   Ignores Regeneration in Melee, Increased Shooting Range, Knightborn, Melee Slayer, Point-Blank Surge, Precise, Predator
+   Fighter, Protected, Rapid Charge, Rending in Melee, Sergeant, Shred in Melee, Shred when Shooting, Surge when Shooting,
+   Swift, Unique, Unpredictable, Unstoppable in Melee, Wolfborn, Banner, Musician; the bases that only template wrappers
+   name (Guarded, Guerrilla Boost, Point-Blank Piercing, Predator Shooter, Ranged Slayer, Screened); and the 21 written-out Auras. A rule that turns out to need a new effect kind moves to
    the batch that builds it.
 2. **The pick.** The mechanism above, the 10 template Buffs and 9 template Marks, the 8 written-out Buffs and 6 written-out Marks, and the
    10 Debuffs; and the before-attacking actives that share it: Mend, Mind Control, Breath Attack, Storm of Change, Storm of
    Lust, Storm of Plague, Storm of War.
-3. **Deployment.** Infiltrate, Rapid Ambush, Ambush Beacon, Repel Ambushers, Vanguard, Re-Deployment, Ambush Re-Deployment,
-   Ambushing Piercing Shot, Surprise Attack.
+3. **Deployment.** Fanatic, Infiltrate, Rapid Ambush, Ambush Beacon, Repel Ambushers, Vanguard, Re-Deployment, Ambush
+   Re-Deployment, Ambushing Piercing Shot, Surprise Attack.
 4. **Activation.** Bounding, Dash, Coordinate, Delayed Action, Instinctive, Versatile Attack, Hit & Run, Re-Position
-   Artillery.
+   Artillery, Inquisitorial Agent, Martial Prowess, Watchborn, Speed Feat, Versatile Defense, Versatile Reach.
 5. **Wounds and melee.** Deathstrike, Retaliate, Self-Destruct, Ravage, Crossing Attack, Strafing, Takedown Shot, Takedown
    Strike, Protection Feat, Regenerative Strength.
-6. **Unit markers.** One marker count on a unit, placed by a trigger and read by a row: Defensive Frenzy, Piercing Frenzy,
-   Precision Frenzy, Fortified Growth, Piercing Growth, Precision Growth, Piercing Spotter, Precision Spotter, Piercing Tag,
+6. **Round start and unit markers.** Steadfast, Battleborn, Honor Code (a die at the round's start that clears Shaken);
+   one marker count on a unit, placed by a trigger and read by a row: Defensive Frenzy, Piercing Frenzy, Precision
+   Frenzy, Fortified Growth, Piercing Growth, Precision Growth, Piercing Spotter, Precision Spotter, Piercing Tag,
    Precision Tag, Piercing Target, Precision Target, Vengeance.
-7. **New units and casting.** Spawn, Split, Reinforcement, Spell Accumulator, Spell Conduit, Extended Buff Range.
+7. **New units and casting.** Spawn, Split, Reinforcement, Spell Accumulator, Spell Conduit, Extended Buff Range, Caster
+   Group.
+8. **Grammar additions.** Armor (a stat set from the parameter), Heavy Impact (AP on Impact's hits), Melee Shrouding,
+   Ranged Shrouding, Darkborn (a floor on a modified distance), Grounded Precision (the attacker's terrain), Entrenched,
+   Mobile Artillery (a move this round), Quick Readjustment (one row of a rule suppressed), No Retreat (wounds after a
+   passed test).
 
-Banner and Musician have no description in the dump. Their text comes from the books' upgrade entries, found while
-planning batch 1.
+Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the
+same rule ids as the books' upgrade gains): Banner *"This model and its unit get +1 to morale test rolls."*, Musician
+*"This model and its unit moves +1" when using move actions."*
 
 ## Generator
 
@@ -112,10 +122,12 @@ edited by hand. The server embeds and composes every `*.part.json` already (`ser
 - **Input.** Each book's `specialRules` (name, description), read beside the spells it reads now. Two books giving one name
   different descriptions fail the run and write nothing, as spells do.
 - **Names in scope.** Every rule name on a unit or an upgrade in the official books. A name core or the hand-authored part
-  defines is skipped: hand-authoring wins.
+  defines is skipped: hand-authoring wins. Names come from a unit's rules, its weapons' rules and its items' rules, and
+  from every upgrade gain (a rule, a weapon's rules, an item's rules).
 - **A wrapper is generated** when its name ends in Aura, Buff, Mark or Debuff, its description is that pattern's template
   with X equal to the name less the suffix, and X is a catalog entry. The entry's rows point at X.
-- **Every other name is a text-only entry**: kind `model`, aggregation `any`, the description as `ruleText`, no effects,
+- **Every other name is a text-only entry**: kind `model` (`weapon` when the books print the name only on weapons, so its
+  authored entry keeps the kind), aggregation `any` on a model entry, the description as `ruleText`, no effects,
   `played: false`.
 - **Report.** The run prints the counts of the table in *The gap*: generated, text-only by group.
 

@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Log;
+using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
 
@@ -35,7 +36,8 @@ public static class Invariants
     /// <summary>
     /// Invariant 8 (spell library spec → Testing). p.13: "the Caster's spells must be picked from their own faction": every closed
     /// pick-spell names a spell the caster model's own army book lists in the pinned set, and every grant a step wrote carries the name
-    /// of a spell some caster's book in the scenario lists. Grants are checked by name, not effect id: over the socket the server
+    /// of a spell some caster's book in the scenario lists, unless the set holds that name as another kind (an army-book Buff, Mark or
+    /// Debuff, a model rule picked before attacking). Grants are checked by name, not effect id: over the socket the server
     /// seeds Postgres with its own ids. Reads the log, the board and the pinned set; names no rule.
     /// </summary>
     public static InvariantResult SpellsComeFromTheCastersBook(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
@@ -54,7 +56,8 @@ public static class Invariants
                 if (scenario.Properties.SpellsOf(slot.ArmyBook).All(s => s.Name != id[..cut]))
                     return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: caster {caster:N} of book {slot.ArmyBook ?? "none"} picked '{id[..cut]}'");
             }
-            foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)))
+            foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)
+                && scenario.Properties.Entry(g.Grant.EntryName) is null or { Kind: CatalogKind.Spell }))
                 return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: grant {g.Grant.Id:N} is '{g.Grant.EntryName}', which no caster's book lists");
         }
         return new InvariantResult(nameof(SpellsComeFromTheCastersBook), true, null);

@@ -5,7 +5,8 @@ namespace Tabletop.ArmyBooks;
 // The subset of Army Forge's army-book API this tool reads. Field names are the API's. A parameter's value is a string or an object
 // ({id, name, rating?}), so it stays a JsonElement until the translator reads it.
 public sealed record AfIndexEntry(string Uid, string Name, string? VersionString);
-public sealed record AfBook(string Uid, string Name, string? VersionString, List<AfSpell> Spells);
+public sealed record AfBook(string Uid, string Name, string? VersionString, List<AfSpell> Spells,
+    List<AfRuleText>? SpecialRules = null, List<AfUnit>? Units = null, List<AfPackage>? UpgradePackages = null);
 public sealed record AfSpell(string Id, string Name, int Threshold, string Effect, AfGeneration Generation);
 public sealed record AfGeneration(AfGenPart Effect, AfGenPart Assignment);
 public sealed record AfGenPart(string Id, List<AfParam> Parameters)
@@ -16,6 +17,17 @@ public sealed record AfGenPart(string Id, List<AfParam> Parameters)
             ? (v.GetProperty("name").GetString()!, v.TryGetProperty("rating", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetInt32() : null) : null;
 }
 public sealed record AfParam(string Name, JsonElement Value);
+
+/// <summary>A book's rule glossary entry: the name and Army Forge's description (army-book rules spec → Generator).</summary>
+public sealed record AfRuleText(string Name, string? Description);
+public sealed record AfRuleRef(string Name);
+public sealed record AfWeapon(List<AfRuleRef>? SpecialRules);
+/// <summary>An upgrade gain or an item's content: an ArmyBookRule (Name), an ArmyBookWeapon (SpecialRules) or an ArmyBookItem (Content).</summary>
+public sealed record AfGain(string? Name, string? Type, List<AfRuleRef>? SpecialRules, List<AfGain>? Content);
+public sealed record AfUnit(List<AfRuleRef>? Rules, List<AfWeapon>? Weapons, List<AfGain>? Items);
+public sealed record AfOption(List<AfGain>? Gains);
+public sealed record AfSection(List<AfOption>? Options);
+public sealed record AfPackage(List<AfSection>? Sections);
 
 public static class ArmyForgeJson
 {

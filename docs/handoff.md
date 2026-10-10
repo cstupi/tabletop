@@ -2,7 +2,7 @@
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
-after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (128 sim games over every catalog
+after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (192 sim games over every catalog
 rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX
 spec, merged to `main`, and waits for the owner's on-screen check (*Next* 2); polish follows.
 
@@ -35,11 +35,11 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 games, with a spectator account for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 128 of 128 games pass on both drivers with no pin, 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
+Today: 192 of 192 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1907 with the stack up: Geometry 159, Content 17, ArmyBooks 25, Protocol 49, Viewer 9, Client 189,
-GameServer 969, Management 96, Sim 394. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 2058 with the stack up: Geometry 159, Content 17, ArmyBooks 36, Protocol 49, Viewer 9, Client 192,
+GameServer 1035, Management 96, Sim 465. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
@@ -124,7 +124,7 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ## Defects the rules suite found
 
-D1-D16 are fixed; the suite passes 128/128 on both drivers with no pin. What stays open is in *Next* 1.
+D1-D16 are fixed; the suite passes 192/192 on both drivers with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
@@ -141,25 +141,28 @@ What the suite does not check or report today.
 - **The viewer's Tests page shows no known or stale status.** `SuiteGameResult` in `viewer/src/lib/suite/client.ts` has no `known`,
   `pinned` or `stale`; `counts` (`model.ts`) counts a known failure as failed, the verdict is always FAIL, and stale pins never show.
   The failure lines still carry `known defect Dn:`.
-- **The 231 army-book rules outside the catalog are not reported.** The spec says the suite reports them as outside the catalog
-  (*Known rule gaps*, below); the suite measures the catalog only.
 
 ## Known rule gaps
+
+`Lookup.AuraGrants` reads `Definition.Models`, so a dead carrier still grants its rule by name. Harmless while only Scout Aura and
+Ambush Aura (read at deployment) use it; it must read living carriers before an Aura of another name read through `Lookup.UnitHas`
+is authored.
 
 Passengers can deploy into a transport later than the transport: p.15 says *"units inside Transports are deployed at
 the same time as the Transport"*, but deployment accepts placing a picked unit inside any friendly transport already on
 the table.
 
-**Most army-book rules do nothing in play.** The official books put 313 rule names on units and upgrades. 231 of them
-have no `catalog_entry` (Precise, Fortified, Regeneration Aura, Mend, Versatile Attack, Agile, Armor, Unique, …), and
-`LiveProperties.Gather` skips a name the set lacks, so a unit carrying one plays without it and nobody is told. The
-spell-library spec recorded this ("the other 261 army-book rule names"); it is its own work item after the in-game UX:
-(1) the army-book generator writes a text-only entry (name, kind, aggregation, the book's `description` as
-`rule_text`) for every rule the books define, all 361 descriptions being in the Army Forge dump; (2)
-`GET /v1/properties/{hash}/rules` delivers the texts and the stat sheet tags a rule with no entry "not automated", so a
-text-only entry needs an explicit "played" flag for the tag to stay true;
-(3) the effects are authored, many by pattern (Aura, Buff, Mark, Boost), under their own design and plan. Army import drops the export's `specialRules`
-descriptions; the catalog, not the army, is where rule text lives.
+**Army-book rules not yet played.** Every rule name the official books put on a unit, a weapon, an item or an upgrade
+has a catalog entry. 71 are generated template wrappers (Aura, Buff, Mark) and play; 108 are generated text-only
+entries (`played: false`): the stat sheet shows their Army Forge text tagged "not automated" and the engine plays them
+as absent. The rules suite lists them and does not fail on them. They are the spec's batches 2–8
+(`docs/superpowers/specs/2026-10-09-army-book-rules-design.md`) and the wrappers of bases those batches author.
+
+**Unit-level names on armies imported before generation stay silent.** A pick entry or a carried Aura held as a
+unit-level property, as armies imported before the generated part hold them, is offered by no `GfPick.Offers` and
+granted by no `Lookup.AuraGrants`, which read model slots; nothing tags it "not automated".
+
+**Unique is a list-building rule.** The engine judges no army list, so Unique's suite game only plays to its end.
 
 Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
 starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range

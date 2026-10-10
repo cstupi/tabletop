@@ -25,8 +25,9 @@ public static class BookWriter
             t.Spells.Select(s => s with { Name = rename[PropertiesJson.EntryCanonical(s)] }).ToList())).ToList();
     }
 
-    /// <summary>Every rule a spell names exists in the core document or the part, and the composition validates.</summary>
-    public static IReadOnlyList<string> Check(IReadOnlyList<BookDocument> books, PropertySetDocument core, PropertySetDocument part)
+    /// <summary>Every rule a spell names exists in the core document or the hand-authored part (a generated text-only entry plays nothing, so it
+    /// is no target), and the composition with the generated part, when given, validates.</summary>
+    public static IReadOnlyList<string> Check(IReadOnlyList<BookDocument> books, PropertySetDocument core, PropertySetDocument part, PropertySetDocument? generated = null)
     {
         var rules = core.Entries.Concat(part.Entries).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
         static IEnumerable<EffectDocument> All(EffectDocument f) => new[] { f }.Concat(f.Children.SelectMany(All));
@@ -34,7 +35,7 @@ public static class BookWriter
                 .Where(f => f.TargetEntry is not null && !rules.Contains(f.TargetEntry))
                 .Select(f => $"{b.Name}: {s.Name} names no rule '{f.TargetEntry}'"))).Distinct().ToList();
         if (problems.Count > 0) return problems;
-        try { return PropertiesJson.Validate(PropertiesSeeder.Compose(core, [part], books)).ToList(); }
+        try { return PropertiesJson.Validate(PropertiesSeeder.Compose(core, generated is null ? [part] : [part, generated], books)).ToList(); }
         catch (InvalidDataException ex) { return [ex.Message]; }
     }
 

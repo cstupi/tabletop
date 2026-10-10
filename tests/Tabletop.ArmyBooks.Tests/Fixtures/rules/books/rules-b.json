@@ -1,0 +1,8 @@
+{ "uid": "rules-b", "name": "Rules B", "versionString": "1", "spells": [],
+  "specialRules": [
+    { "name": "Stealth Aura", "description": "This model and its unit get Stealth." },
+    { "name": "Swift Buff", "description": "Once per activation, before attacking, pick one friendly unit within 12\", which gets Swift once (next time the effect would apply)." }
+  ],
+  "units": [ { "rules": [ { "name": "Stealth Aura" }, { "name": "Swift Buff" } ] } ],
+  "upgradePackages": []
+}

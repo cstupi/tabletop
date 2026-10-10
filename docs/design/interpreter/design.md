@@ -189,6 +189,8 @@ erDiagram
         text target_grain
         int target_count
         float8 target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         uuid id PK
@@ -1100,7 +1102,7 @@ produces reaches `game.game_event` through the skeleton's session, never through
 | `management.action` | `properties_hash`, `name`, `distance` | the same |
 | `management.roll` | `properties_hash`, `name` | the same |
 | `management.stat_definition` | `properties_hash`, `level`, `name`, `kind` | the same |
-| `management.catalog_entry` | `properties_hash`, `name`, `kind`, `takes_parameter`, `aggregation`, `cost`, `faction`, `rule_text`, `target_side`, `target_grain`, `target_count`, `target_range` | the same |
+| `management.catalog_entry` | `properties_hash`, `name`, `kind`, `takes_parameter`, `aggregation`, `cost`, `faction`, `rule_text`, `target_side`, `target_grain`, `target_count`, `target_range`, `played`, `target_line_of_sight` | the same |
 | `management.effect` | `id`, `properties_hash`, `entry_name`, `parent_effect_id`, `subject`, `ordinal`, `kind`, `target_roll`, `target_stat`, `target_entry`, `target_action`, `target_quantity`, `target_result`, `target_modifier`, `amount`, `amount_from_parameter`, `threshold`, `cap_kind`, `replacement`, `duration` | the same |
 | `management.effect_condition` | `id`, `effect_id`, `kind`, `subject`, `comparison`, `number` | the same |
 | `management.condition_value` | `condition_id`, `value` | the same |

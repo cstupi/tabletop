@@ -115,7 +115,7 @@ public partial class StatSheet : PanelContainer
             });
     }
 
-    /// <summary>One label per rule; hovering shows its catalog text. A rule with no catalog entry reads "not automated".</summary>
+    /// <summary>One label per rule; hovering shows its catalog text. A rule the engine does not play reads "not automated", its text still shown.</summary>
     static HFlowContainer Rules(IReadOnlyList<SheetRule> rules)
     {
         var flow = new HFlowContainer();
@@ -123,7 +123,7 @@ public partial class StatSheet : PanelContainer
             flow.AddChild(new Label
             {
                 Text = r.NotAutomated ? $"{r.Label} (not automated)" : r.Label,
-                TooltipText = r.Text ?? (r.NotAutomated ? "Not automated: no catalog entry." : ""),
+                TooltipText = !string.IsNullOrEmpty(r.Text) ? r.Text : r.NotAutomated ? "Not automated: no rule text." : "",
                 MouseFilter = MouseFilterEnum.Stop,
                 Modulate = r.NotAutomated ? Dim : Colors.White,
             });

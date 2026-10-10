@@ -93,25 +93,30 @@ public static class GfCasting
         return spenders;
     }
 
+    /// <summary>A spell's targets from its caster model (Targets).</summary>
+    public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell) => Targets(ctx.State, casterModel, spell.Targeting!);
+
     /// <summary>
     /// p.15 first: containment answers before range and sight, so no spell crosses a container's wall either way, and a caster inside
     /// one reaches the units in there with it and the container itself with nothing to measure. Otherwise a unit is a target when one
-    /// of its models is within the spell's range of the caster model and in its line of sight (p.13). A model-grain spell offers those models.
+    /// of its models is within range of the caster model and in its line of sight (p.13), or within range alone when the targeting
+    /// says so (a Buff: "pick one friendly unit within 12""). A model-grain targeting offers those models. Spells and pick entries share it.
     /// </summary>
-    public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell)
+    public static IReadOnlyList<Guid> Targets(GameState state, Guid casterModel, SpellTargeting t)
     {
-        var t = spell.Targeting!; var casterUnit = ctx.Projection.Models[casterModel].UnitId; var team = ctx.TeamOf(casterUnit);
-        var candidates = ctx.Projection.Units.Values.Where(u => (ctx.TeamOf(u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
+        var casterUnit = state.Projection.Models[casterModel].UnitId; var team = Teams.Of(state, casterUnit);
+        var candidates = state.Projection.Units.Values.Where(u => (Teams.Of(state, u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
         var result = new List<Guid>();
-        var sight = new Lazy<Sight>(() => Sight.From(ctx.State, casterUnit));                                        // built once for every candidate model
+        var sight = new Lazy<Sight>(() => Sight.From(state, casterUnit));                                            // built once for every candidate model
         foreach (var unit in candidates)
         {
-            var reaches = Battlefield.InsideReach(ctx.State, casterUnit, unit);
+            var reaches = Battlefield.InsideReach(state, casterUnit, unit);
             var models = reaches switch
             {
-                true => Lookup.AliveModels(ctx.State, unit),
+                true => Lookup.AliveModels(state, unit),
                 false => [],
-                null => Lookup.LivingModels(ctx.State, unit).Where(m => Battlefield.Distance(ctx.State, casterModel, m) <= t.Range && (m == casterModel || sight.Value.CanSee(casterModel, m))).ToList(),
+                null => Lookup.LivingModels(state, unit).Where(m => Battlefield.Distance(state, casterModel, m) <= t.Range
+                    && (m == casterModel || t.LineOfSight == false || sight.Value.CanSee(casterModel, m))).ToList(),
             };
             if (models.Count == 0) continue;
             if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);

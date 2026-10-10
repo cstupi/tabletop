@@ -47,14 +47,14 @@ public partial class ArmyRuleHookTests
         Assert.Single(Now().AtPoint(Side.Attacker, GfNames.AfterShooting));
     }
 
-    static EffectDocument Row(EffectKind kind, string? entry = null) =>
-        new(EffectSubject.Self, 10, kind, null, null, entry, null, null, null, null, 1, false, null, null, null, EffectDuration.Once, [], []);
+    static EffectDocument Row(EffectKind kind, string? entry = null, EffectDuration duration = EffectDuration.Once) =>
+        new(EffectSubject.Self, 10, kind, null, null, entry, null, null, null, null, 1, false, null, null, null, duration, [], []);
 
     [Fact]
     public void A_granted_rules_own_pass_one_rows_run_so_a_granted_boost_suppresses_its_base()
     {
         var grantBoost = new EntryDocument("Boost It", CatalogKind.Spell, false, null, 1, null, "Boost it.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Boosted")]);
-        var boosted = new EntryDocument("Boosted", CatalogKind.Model, false, Aggregation.All, null, null, "Boosted.", null, [Row(EffectKind.SuppressProperty, "Base")]);
+        var boosted = new EntryDocument("Boosted", CatalogKind.Model, false, Aggregation.All, null, null, "Boosted.", null, [Row(EffectKind.SuppressProperty, "Base", EffectDuration.Interaction)]);
         var baseRule = new EntryDocument("Base", CatalogKind.Model, false, Aggregation.All, null, null, "Base.", null, []);
         var props = TestProperties.WithSpells(grantBoost, boosted, baseRule);
         var a = Unit("A", "4+", "4+", [], 1, [P("Base")]);
@@ -71,7 +71,7 @@ public partial class ArmyRuleHookTests
     [Fact]
     public void Pass_one_stops_when_a_rule_grants_itself()
     {
-        var loop = new EntryDocument("Loop", CatalogKind.Model, false, Aggregation.All, null, null, "Loop.", null, [Row(EffectKind.GrantProperty, "Loop")]);
+        var loop = new EntryDocument("Loop", CatalogKind.Model, false, Aggregation.All, null, null, "Loop.", null, [Row(EffectKind.GrantProperty, "Loop", EffectDuration.Interaction)]);
         var props = TestProperties.WithSpells(loop);
         var a = Unit("A", "4+", "4+", [], 1, [P("Loop")]);
         var s = State([a], [Unit("B", "4+", "4+", [], 1, [])]);

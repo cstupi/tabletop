@@ -48,4 +48,22 @@ public class RuleTextsTests
         var rules = RuleTexts.From([Tough, Tough with { RuleText = "other" }]);
         Assert.Equal("Must take X wounds to be killed.", rules.TextOf("Tough"));
     }
+
+    [Fact]
+    public void An_unplayed_entry_keeps_its_text_and_is_not_automated()
+    {
+        var rules = RuleTexts.From([Tough, new RuleTextDto("Precise", "model", false, "Gets +1 to hit when attacking.", Played: false)]);
+        Assert.Equal("Gets +1 to hit when attacking.", rules.TextOf("Precise"));
+        Assert.False(rules.IsAutomated("Precise"));
+        Assert.True(rules.NotAutomated("Precise"));
+        Assert.True(rules.IsAutomated("Tough"));
+    }
+
+    [Fact]
+    public void A_row_without_played_reads_as_played()
+    {
+        var row = System.Text.Json.JsonSerializer.Deserialize<RuleTextDto>("""{"name":"Tough","kind":"model","takesParameter":true,"ruleText":"T."}""",
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        Assert.True(row.Played);
+    }
 }

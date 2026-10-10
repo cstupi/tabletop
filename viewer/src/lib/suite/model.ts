@@ -74,3 +74,12 @@ export const counts = (page: Page) => {
   const all = [...page.results.values()];
   return { passed: all.filter((r) => r.passed).length, failed: all.filter((r) => !r.passed).length };
 };
+
+export type CoverageCell = { readonly text: string; readonly tone: 'ok' | 'error' | 'muted' };
+
+/** The coverage table's status cell: a text-only entry is not an error, a wrapper is covered by its pattern's games. */
+export function coverageCell(c: CoverageEntry): CoverageCell {
+  if (c.state === 'not_automated') return { text: 'not automated', tone: 'muted' };
+  if (c.state === 'pattern') return { text: c.fired ? 'by pattern' : 'by pattern: not fired', tone: c.fired ? 'ok' : 'error' };
+  return { text: c.fired ? 'yes' : 'no', tone: c.fired ? 'ok' : 'error' };
+}

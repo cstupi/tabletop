@@ -294,6 +294,8 @@ erDiagram
         text target_grain
         int target_count
         float8 target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         uuid id PK
@@ -423,6 +425,10 @@ the row exists because an effect points at it.
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
 set out — attachment points, with a name belonging to exactly one of them. `GET /v1/properties/{hash}/rules`
 serves a set's entries with their `rule_text`, the client's hover text; a rule with no entry is tagged *not automated*.
+
+**`played`** (boolean, default true) is false only on an entry `scripts/ArmyBooks` generated as text only: the Army Forge
+description as `rule_text`, no effects. The engine plays it as an absent name, and `GET /v1/properties/{hash}/rules`
+returns it so the stat sheet tags the rule *not automated* while showing its text. A spell is always played.
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is
@@ -651,9 +657,11 @@ The game server writes `game.status = 'ended'` from `playing` on a strict end, a
 
 ### The catalog's per-kind check
 
-`cost`, `target_side`, `target_grain`, `target_count` and `target_range` are non-null only when
-`kind = spell`; `aggregation` only when `kind = model`; `takes_parameter` is false for a spell.
-Stated in one place since 09-04.
+`cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
+on a spell and on a pick entry (a `model` entry an army-book Buff, Mark or Debuff writes); `target_line_of_sight` is null
+(in sight) or false (range alone, a Buff), and set only with a target; `aggregation` only when `kind = model`;
+`takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and `once` rows at
+`before-attacking`.
 
 ### A game records its creator
 

@@ -20,8 +20,8 @@ public class ArmyGamesTests
     /// <summary>Games that fail on a defect the suite found, with the failure each keeps until the defect is fixed (the game's comment names it).</summary>
     public static readonly Dictionary<string, string> Defects = new();
 
-    /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"); they are not the army group's.</summary>
-    static readonly string[] Staging = ["Immobile"];
+    /// <summary>Core rules a game gives a side only to stage the play (p.14 Immobile: "may only use Hold actions"; p.14 Slow, which Swift ignores); they are not the army group's.</summary>
+    static readonly string[] Staging = ["Immobile", "Slow"];
 
     static string RepoRoot()
     {
@@ -35,7 +35,9 @@ public class ArmyGamesTests
     {
         var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-army-rules.part.json")));
         var covered = Army.SelectMany(g => g.Covers).ToList();
-        Assert.Equal(part.Entries.Select(e => e.Name).Order(), covered.Order());
+        var generated = PropertiesSeeder.EmbeddedPart(PropertiesSeeder.GeneratedPart)!.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet();
+        Assert.Equal(part.Entries.Select(e => e.Name).Order(), covered.Where(c => !generated.Contains(c)).Order());
+        Assert.All(covered.Where(generated.Contains), c => Assert.Contains(Army, g => g.Pattern is not null && g.Covers.Contains(c)));   // a wrapper only by its pattern's game
         var books = Directory.GetFiles(Path.Combine(RepoRoot(), "server/game/Content/army-books"), "*.book.json")
             .Select(f => Path.GetFileName(f)[..^".book.json".Length]).ToHashSet();
         Assert.All(Army, g => Assert.Contains(g.Group[SuiteCatalog.ArmyPrefix.Length..], books));
@@ -309,7 +311,8 @@ public class ArmyGamesTests
 static class ScenarioArmyRules
 {
     public static IEnumerable<string> Rules(this ScenarioArmy army) =>
-        army.ModelRules.Select(r => r.Name).Concat(army.Weapons.SelectMany(w => w.Rules).Select(r => r.Name)).Distinct();
+        army.ModelRules.Select(r => r.Name).Concat(army.Models.SelectMany(m => m.Rules ?? []).Select(r => r.Name))
+            .Concat(army.Weapons.SelectMany(w => w.Rules).Select(r => r.Name)).Distinct();
 }
 
 /// <summary>Every army game over the socket, against the in-memory game server and the Docker Postgres, as SuiteSocketTests runs the sample.</summary>

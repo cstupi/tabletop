@@ -368,9 +368,9 @@ Warbound, … (instead of only on 1)"*), so 73 entries go into `grimdark-future-
 its book's `description` as `rule_text`. Kind and aggregation follow the text as the core document reads it:
 *"units where all models have this rule"* is a model rule with aggregation `all`, a weapon rule is `weapon`.
 Authoring them also makes them work on every imported unit that carries them, which today they silently do not
-(`LiveProperties.Gather` skips a name the set lacks). **The other 261 army-book rule names** (361 in the books,
-less 27 core names and these 73) still have no entry, so on an imported unit they still do nothing. Each is a
-later authoring task in this same part file.
+(`LiveProperties.Gather` skips a name the set lacks). **The other army-book rule names** are the army-book rules spec's
+(`2026-10-09-army-book-rules-design.md`): generated wrappers and text-only entries, authored batch by batch into
+this same part file.
 
 | Rules | Written as |
 |---|---|

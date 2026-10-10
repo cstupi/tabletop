@@ -87,6 +87,15 @@ public class InvariantTests
     }
 
     [Fact]
+    public void A_grant_of_an_army_book_pick_rule_is_not_a_spell_and_holds_invariant_eight()
+    {
+        var scenario = ScenarioCompiler.Compile(ScenarioCatalog.Get("casting"));
+        var unit = scenario.Board.Armies[0].Snapshot.Units[0].Id;
+        var picked = StepWith("rule-target", new SelectedPieces([unit]), new GrantAdded(unit, new Grant(Guid.CreateVersion7(), Guid.CreateVersion7(), "Defense Debuff", unit, 1)));
+        Assert.True(Invariants.Invariants.SpellsComeFromTheCastersBook([picked], scenario).Held);
+    }
+
+    [Fact]
     public async Task The_round_invariant_fails_on_a_round_that_started_with_no_boundary_ask()
     {
         var (scenario, loop, _, driver) = await Played();

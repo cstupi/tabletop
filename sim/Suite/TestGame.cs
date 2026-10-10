@@ -36,6 +36,7 @@ public sealed record ExactResult(string Game, string Check, bool Passed);
 /// A themed sim scenario with what it covers (catalog entry names: rules and spells), the dice it fixes and the checks it makes.
 /// Group is core, special, army:&lt;book uid&gt; or spells:&lt;book uid&gt;. Evidence: for an entry that acts where no step completes (in the
 /// scheduler or in action legality), the game's own predicate over the effective log stands in for Fired.In.
+/// Pattern: the Army Forge pattern whose generated wrappers this game covers.
 /// </summary>
 public sealed record TestGame(string Name, string Group, Scenario Scenario, IReadOnlyList<string> Covers,
     IReadOnlyList<DiceFix> Dice, IReadOnlyList<GameCheck> Checks,
@@ -49,6 +50,9 @@ public sealed record TestGame(string Name, string Group, Scenario Scenario, IRea
 
     /// <summary>The engine defects this game is pinned to; empty for a game expected to pass.</summary>
     public IReadOnlyList<KnownDefect> Known { get; init; } = [];
+
+    /// <summary>The pattern this game plays for every generated wrapper of it (army-book rules spec → Coverage): Aura, Buff, Mark or Debuff.</summary>
+    public string? Pattern { get; init; }
 
     /// <summary>This game pinned to defect <paramref name="id"/> for failures that start with <paramref name="check"/> and contain <paramref name="reason"/>.</summary>
     public TestGame Pinned(string id, string check, string reason, DriverKind? driver = null) =>

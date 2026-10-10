@@ -55,6 +55,8 @@ public static class StatReader
     {
         var distance = live.Interaction.Properties.Action(action).Distance;
         foreach (var (src, e) in live.Effects(side, EffectKind.ModifyStat).Where(x => x.Effect.TargetAction == action)) { distance += e.EffectiveAmount(src.Parameter); live.Read(src); }
+        // A suppressed distance row (Swift's Slow) was read here: the suppressor acted on this distance (LiveSet.ReadRemoved, as RollEffects.Plan reads one).
+        live.ReadRemoved(side, EffectKind.ModifyStat, e => e.TargetAction == action);
         return Math.Max(0, distance);
     }
 }

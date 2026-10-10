@@ -25,6 +25,11 @@ public sealed record SuiteOptions(IReadOnlyList<string> Only, DriverKind Driver,
 /// <param name="properties">The pinned set coverage is measured against; the shipped set by default.</param>
 public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSocket? socket = null, PropertySet? properties = null)
 {
+    /// <summary>The wrappers scripts/ArmyBooks generated (the generated part's entries with effects), which coverage counts by pattern.</summary>
+    static readonly IReadOnlySet<string> Generated =
+        PropertiesSeeder.EmbeddedPart(PropertiesSeeder.GeneratedPart)?.Entries.Where(e => e.Effects.Count > 0).Select(e => e.Name).ToHashSet(StringComparer.Ordinal)
+        ?? new HashSet<string>();
+
     public IReadOnlyList<TestGame> Games { get; } = games ?? SuiteCatalog.All;
 
     public async Task<SuiteReport> RunAsync(SuiteOptions options, IProgress<SuiteGameResult>? progress, CancellationToken ct)
@@ -57,9 +62,10 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             if (sock is not null && sock != socket) await sock.DisposeAsync();
         }
 
-        var coverage = Coverage.Of(properties ?? ScenarioCompiler.CoreProperties, runs, fullRun: options.Only.Count == 0);
+        var coverage = Coverage.Of(properties ?? ScenarioCompiler.CoreProperties, runs, fullRun: options.Only.Count == 0, Generated,
+            results.Where(r => r.Passed).Select(r => r.Name).ToHashSet(StringComparer.Ordinal));
         return new SuiteReport(runId, results, coverage,
-            results.All(r => r.Passed) && Coverage.Complete(coverage) && coverage.All(c => c.Uncovered || c.Fired));
+            results.All(r => r.Passed) && Coverage.Complete(coverage) && coverage.Where(c => c.Counts).All(c => c.Uncovered || c.Fired));
     }
 
     /// <summary>A fresh session for a kept game's spectator account (SuiteGameResult.Spectator).</summary>

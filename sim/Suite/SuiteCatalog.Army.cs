@@ -14,7 +14,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => ArmyGames.All;
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched];
 
     private static partial class ArmyGames
     {
@@ -183,10 +183,15 @@ public static partial class SuiteCatalog
         /// </summary>
         enum Play { Shoots, Shot, ShotWhileMoving, Charges, Charged, Moves }
 
+        /// <summary>
+        /// One army game. Carriers: models with their own rules (an Aura or a pick entry on one model). GunRange: the rule side's rifle range.
+        /// Length: the table's length. More: further script answers.
+        /// </summary>
         static TestGame Game((string Uid, string Army) book, string name, Play play, IReadOnlyList<string> covers, IReadOnlyList<ScenarioRule> rules,
             IReadOnlyList<DiceFix> dice, IReadOnlyList<GameCheck> checks, IReadOnlyList<ScenarioRule>? weapon = null, int models = 3,
             IReadOnlyList<ScenarioRule>? enemy = null, Dictionary<string, string>? enemyStats = null, int enemyUnits = 2, int? enemyModels = null,
-            int enemyAttacks = 2, IReadOnlyList<ScenarioRule>? enemyWeapon = null, int? rounds = null, Func<ScenarioBuilder, ScenarioBuilder>? board = null, int? units = null, ulong seed = 1)
+            int enemyAttacks = 2, IReadOnlyList<ScenarioRule>? enemyWeapon = null, int? rounds = null, Func<ScenarioBuilder, ScenarioBuilder>? board = null, int? units = null, ulong seed = 1,
+            IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged, play is not Play.Charged);
@@ -197,10 +202,10 @@ public static partial class SuiteCatalog
             // A shooting side rolls many dice at a target that lasts (Tough(3), five models a unit), so every face a rule reads comes up whatever the seed.
             var volley = play == Play.Shoots;
             enemy ??= volley ? [.. Enumerable.Range(1, enemyUnits).Select(u => R(u, "Tough", 3))] : [];
-            var builder = new ScenarioBuilder(name, seed).Table(36, close ? 26 : 36).RoundCap(rounds ?? 4)
-                .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits))
+            var builder = new ScenarioBuilder(name, seed).Table(36, length ?? (close ? 26 : 36)).RoundCap(rounds ?? 4)
+                .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits, more))
                 .Army(book.Army, count, models, modelRules: Still(rules, count, holds), armyBook: book.Uid,
-                    weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? []), Blade(1)] : [Blade(1, [.. weapon ?? []])])
+                    weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats,
                     weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? []), Blade(1)] : [Blade(1)]);
             return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
@@ -231,7 +236,7 @@ public static partial class SuiteCatalog
         /// first half of the units Advance and the rest Rush. Charges: the rule's units charge when they may, else Advance; Charged: the
         /// opponent's do. Shoots, Shot and ShotWhileMoving leave activation to the policy (a holding side has one action, Hold).
         /// </summary>
-        static AnswerScript Script(Play play, string army, int units, int enemyUnits)
+        static AnswerScript Script(Play play, string army, int units, int enemyUnits, Action<ScriptBuilder>? more = null)
         {
             var script = AnswerScript.Build();
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
@@ -246,11 +251,12 @@ public static partial class SuiteCatalog
                 script.Match(AskQuestions.Activate, (ask, _) => Enumerable.Range(1, count)
                     .Select(k => AskPicks.Activate(ask, $"{mover} unit {k}", "Charge") ?? AskPicks.Activate(ask, $"{mover} unit {k}", otherwise(k)))
                     .FirstOrDefault(a => a is not null));
+            more?.Invoke(script);
             return script.Build();
         }
 
-        static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules) =>
-            new("Rifle", new Dictionary<string, string> { ["Range"] = "60\"", ["Attacks"] = $"{attacks}" }, rules);
+        static ScenarioWeapon Gun(int attacks, IReadOnlyList<ScenarioRule> rules, int range = 60) =>
+            new("Rifle", new Dictionary<string, string> { ["Range"] = $"{range}\"", ["Attacks"] = $"{attacks}" }, rules);
         static ScenarioWeapon Blade(int attacks, IReadOnlyList<ScenarioRule>? rules = null) =>
             new("Blade", new Dictionary<string, string> { ["Attacks"] = $"{attacks}" }, rules ?? []);
         static ScenarioRule R(int unit, string name, int? parameter = null) => new(unit, name, parameter);

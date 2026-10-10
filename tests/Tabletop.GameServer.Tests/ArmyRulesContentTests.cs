@@ -16,10 +16,9 @@ public class ArmyRulesContentTests
     static readonly string[] NamesOnly = ["Quick Shot"];
 
     [Fact]
-    public void The_part_holds_seventy_three_rules_and_composes_valid()
+    public void The_part_composes_valid_and_every_entry_is_in_the_set()
     {
         var part = PropertiesJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "server/game/Content/grimdark-future-army-rules.part.json")));
-        Assert.Equal(73, part.Entries.Count);
         Assert.Empty(PropertiesJson.Validate(TestProperties.CoreDocument));
         Assert.All(part.Entries, e => Assert.NotNull(Core.Entry(e.Name)));
         Assert.All(NamesOnly, n => Assert.Empty(Core.Entry(n)!.Effects));
@@ -65,6 +64,26 @@ public class ArmyRulesContentTests
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
         Assert.Equal(0, sim.Model(b.Models[0].Id).Wounds);                                             // hit, failed block, a 5 ignores the wound
         Assert.Equal(5, sim.Steps("assign").Single().Rolls.Single().Threshold);
+    }
+
+    [Fact]
+    public void Defense_debuff_picks_an_enemy_within_18_whose_next_defense_roll_gets_minus_one_once()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [P("Defense Debuff")], Gun("Rifle", "24\"", 1)); var b = Unit("B", "4+", "4+", [], 1, [P("Tough", 6)]);
+        var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Core, new ScriptedDice(Enumerable.Repeat(5, 20).ToArray()));
+        sim.Start(GfNames.HoldSeq, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen(GfPick.Key("Defense Debuff", a.Models[0].Id)));
+        Assert.Equal([b.Id], Assert.IsType<PieceSelection>(sim.AskFor(Samples.Team1).Legal).Eligible);
+        sim.Answer(Samples.Team1, new SelectedPieces([b.Id]));
+        Assert.Equal("Defense Debuff", Assert.Single(sim.Unit(b.Id).Grants).EntryName);
+        static bool Debuffed(StepCompleted s) => s.Rolls.SelectMany(r => r.Modifiers).Any(m => m.Source == "Defense Debuff" && m.Amount == -1);
+        sim.Answer(Samples.Team1, new Chosen("shoot"));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.True(Debuffed(sim.Steps("roll-to-block").Single()));
+        Assert.Empty(sim.Unit(b.Id).Grants);
+        sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = b.Id }));
+        Assert.False(Debuffed(sim.Steps("roll-to-block").Last()));
     }
 
     [Fact]
