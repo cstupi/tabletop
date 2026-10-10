@@ -91,7 +91,8 @@ dotnet run --project sim -- suite --list                       # games and what 
 
 - **In-process** (default) writes nothing unless `--keep`, which writes each game's recording to `--out`.
 - **Socket** seeds each game's rows, plays it over the game server and deletes the rows when the game finishes, pass
-  or fail (`SocketRowSeeder.DeleteAsync`, `DeleteAccountsAsync`). Every game a run seeds carries the run id in its
+  or fail (`SocketRowSeeder.DeleteAsync`). Every game plays on the fixed accounts `sim-player-<i>` and a kept game's
+  spectator is `sim-spectator`; no run deletes an account. Every game a run seeds carries the run id in its
   name; a run first sweeps games left by an interrupted run. With `--keep` the rows stay, so the game opens in the
   client and the viewer's live feed, and the recording is written.
 - **Report:** a table per game (pass/fail, failed checks with their reason, seed, the command that replays that game

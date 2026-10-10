@@ -80,11 +80,7 @@ public class SpecialGamesSocketTests(PostgresFixture pg) : IDisposable
     public async Task The_special_games_pass_over_the_socket_but_for_their_known_defects()
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-        var socket = new SuiteSocket(pg.Db, (c, minted, _) =>
-        {
-            foreach (var p in c.Info.Participants) minted.Add(p.AccountId);
-            return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
-        }, () => new FactoryConnector(_factory));
+        var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
 
         var report = await new SuiteRunner(SpecialGamesTests.Games, socket).RunAsync(new SuiteOptions([SuiteCatalog.SpecialGroup], DriverKind.Socket, false, TempDir()), null, Ct);
 

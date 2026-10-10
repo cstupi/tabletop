@@ -25,7 +25,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];
 
     readonly GameServerFactory _factory = new();
-    readonly List<Guid> _minted = [];
     public void Dispose() => _factory.Dispose();
 
     [Fact]
@@ -73,10 +72,6 @@ public class CoreGamesTests(PostgresFixture pg) : IDisposable
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
             PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-        return new SuiteSocket(pg.Db, (c, minted, _) =>
-        {
-            foreach (var p in c.Info.Participants) { _minted.Add(p.AccountId); minted.Add(p.AccountId); }
-            return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
-        }, () => new FactoryConnector(_factory));
+        return new TestPool(pg).Socket(() => new FactoryConnector(_factory));
     }
 }

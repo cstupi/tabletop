@@ -16,8 +16,8 @@ public sealed class SuiteRows(NpgsqlDataSource db)
 
     public static string GameName(Guid runId, string game, bool keep) => $"{(keep ? Kept : Transient)} {runId:N} {game}";
 
-    /// <summary>The name of a kept game's spectator account: the run and game it belongs to.</summary>
-    public static string SpectatorName(Guid runId, string game) => $"suite-spectator {runId:N} {game}";
+    /// <summary>The account every kept game's spectator participant names, beside the pool its players share.</summary>
+    public const string Spectator = "sim-spectator";
 
     /// <summary>A participant with no team and no army for the account: what the live feed's spectator socket needs. Idempotent.</summary>
     public async Task SeedSpectatorAsync(Guid gameId, Guid accountId, string name, CancellationToken ct)
@@ -69,8 +69,7 @@ public sealed class SuiteRows(NpgsqlDataSource db)
     }
 
     /// <summary>
-    /// Deletes the transient games of every other run that no live session holds the lock of, with their logs and the accounts nothing
-    /// else uses. Returns the games' ids.
+    /// Deletes the transient games of every other run that no live session holds the lock of, with their logs. Returns the games' ids.
     /// </summary>
     public async Task<IReadOnlyList<Guid>> SweepAsync(Guid runId, CancellationToken ct)
     {
@@ -95,7 +94,7 @@ public sealed class SuiteRows(NpgsqlDataSource db)
             if (!await ProbeAsync(probe, "select pg_try_advisory_lock($1)", run, ct)) continue;     // a live run
             try
             {
-                foreach (var game in games) await DeleteGameAsync(game, await AccountsOfAsync(game, ct), ct);
+                foreach (var game in games) await DeleteGameAsync(game, ct);
                 swept.AddRange(games);
             }
             finally { await ProbeAsync(probe, "select pg_advisory_unlock($1)", run, CancellationToken.None); }
@@ -110,29 +109,10 @@ public sealed class SuiteRows(NpgsqlDataSource db)
         return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
-    /// <summary>The game's log and rows (the tree cascades), then those of the accounts no game or participant still names.</summary>
-    public async Task DeleteGameAsync(Guid gameId, IReadOnlyList<Guid> accounts, CancellationToken ct)
-    {
-        await new SocketRowSeeder(db, new PostgresGameRows(db)).DeleteAsync(gameId, ct);
-        // An account a kept game names stays: deleting it would cascade into that game's participants.
-        await using var command = db.CreateCommand(
-            """
-            delete from management.account a where a.id = any($1)
-              and not exists (select 1 from management.game g where g.created_by = a.id)
-              and not exists (select 1 from management.participant p where p.account_id = a.id)
-            """);
-        command.Parameters.AddWithValue(accounts.ToArray());
-        await command.ExecuteNonQueryAsync(ct);
-    }
-
-    private async Task<IReadOnlyList<Guid>> AccountsOfAsync(Guid gameId, CancellationToken ct)
-    {
-        var accounts = new List<Guid>();
-        await using var command = db.CreateCommand(
-            "select account_id from management.participant where game_id = $1 union select created_by from management.game where id = $1");
-        command.Parameters.AddWithValue(gameId);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) accounts.Add(reader.GetGuid(0));
-        return accounts;
-    }
+    /// <summary>
+    /// The game's log and rows: team, participant and the table_state tree cascade from the game. The accounts stay: they are the pool
+    /// every game shares, and deleting one would cascade into the participants of games still running.
+    /// </summary>
+    public Task DeleteGameAsync(Guid gameId, CancellationToken ct) =>
+        new SocketRowSeeder(db, new PostgresGameRows(db)).DeleteAsync(gameId, ct);
 }

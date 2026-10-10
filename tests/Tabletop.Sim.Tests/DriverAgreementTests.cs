@@ -48,10 +48,10 @@ public class DriverAgreementTests(PostgresFixture pg)
         await seeder.SeedAsync(c, credentials, Ct);
     }
 
-    static async Task Clean(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
+    async Task Clean(SocketRowSeeder seeder, CompiledScenario c, SocketCredentials credentials)
     {
         try { await seeder.DeleteAsync(c.Info.Id, Ct); }
-        finally { await seeder.DeleteAccountsAsync(credentials, Ct); }
+        finally { await TestPool.DeleteAccountsAsync(pg.Db, credentials); }
     }
 
     static RunLoop LoopFor(IGameDriver driver, CompiledScenario c, ulong seed, AnswerScript? script = null, RunSettings? settings = null) =>

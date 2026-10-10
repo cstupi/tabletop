@@ -127,11 +127,7 @@ public class SpellGamesSocketTests(PostgresFixture pg) : IDisposable
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(
             PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-        var socket = new SuiteSocket(pg.Db, (c, minted, _) =>
-        {
-            foreach (var p in c.Info.Participants) minted.Add(p.AccountId);
-            return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
-        }, () => new FactoryConnector(_factory));
+        var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
         var game = SuiteCatalog.All.Single(g => g.Name == name);
         var report = await new SuiteRunner([game], socket).RunAsync(new SuiteOptions([name], DriverKind.Socket, false, TempDir()), null, Ct);
         SpellDefects.AssertOnlyKnown(report.Games.Single());
