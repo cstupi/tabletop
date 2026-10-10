@@ -51,5 +51,23 @@ public static partial class SuiteCatalog
         static ScenarioBuilder EnemyRuins(ScenarioBuilder b) => b
             .Terrain("ruin", new Point3(18, 6, 0), volumes:
                 [new Volume(VolumeKind.Area, Footprint.Rect(34, 12), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Cover, null)]);
+
+        /// <summary>The attacks of a unit while a model carrying the entry stands (an Aura: "this model and its unit"), as the attack began.</summary>
+        static Occasion Carrying(string entry, When when = When.Attacking) => (run, a) =>
+            Made(a, when) && a.Attacker is { } u && PatternLog.For(run).Attacks.TryGetValue(a.Frame.FrameId, out var s)
+            && run.Final.Units[u].Definition.Models.Any(m => m.Properties.Any(p => p.Name == entry) && s.At.ContainsKey(m.Id));
+
+        /// <summary>A granted rule's modifier: every roll of the kind in the occasion's attacks carries the granted rule's modifier at the stated
+        /// size (its source is the granted rule's name); a fatigued unit's melee roll (p.9, unmodified 6s only) is left out.</summary>
+        static GameCheck GrantedModifier(string entry, Occasion occasion, string source, string roll, int amount, string quote) =>
+            Exact(entry, $"{quote}: {source} {roll} {amount:+0;-0}", (run, log) =>
+                from a in Of(run, log, occasion)
+                where a.Hit is not null
+                from r in a.Hit!.Rolls(roll)
+                where !(r.Threshold == 6 && r.Modifiers.Count == 0)
+                select r.Modifiers.Any(m => m.Source == source && m.Amount == amount) ? null : $"a {roll} roll without {source} {amount:+0;-0}");
+
+        /// <summary>Model 1 of each of the first units carries the rule.</summary>
+        static IReadOnlyList<ScenarioModel> Carriers(string rule, int units) => [.. Enumerable.Range(1, units).Select(u => new ScenarioModel(u, 1, [R(u, rule)]))];
     }
 }
