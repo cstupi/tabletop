@@ -11,7 +11,8 @@ public static class LegalSetMembership
         Chosen c => ask.Legal is Options o && o.Choices.Any(x => x.Id == c.OptionId),
         SelectedPieces s => ask.Legal is PieceSelection p && s.PieceIds.Count >= p.Min && s.PieceIds.Count <= p.Max
                             && s.PieceIds.Distinct().Count() == s.PieceIds.Count && s.PieceIds.All(p.Eligible.Contains),
-        Allocated a => ask.Legal is Allocation al && a.Counts.Keys.All(al.Targets.Contains) && a.Counts.Values.All(n => n >= 0) && a.Counts.Values.Sum() == al.Amount,
+        Allocated a => ask.Legal is Allocation al && a.Counts.Keys.All(al.Targets.Contains) && a.Counts.Values.All(n => n >= 0) && a.Counts.Values.Sum() == al.Amount
+                       && (al.MaxTargets is not { } most || a.Counts.Count(kv => kv.Value > 0) <= most),
         Assigned g => ask.Legal is Assignment asg && asg.Items.All(i => g.Targets.ContainsKey(i.Id)) && g.Targets.Keys.All(k => asg.Items.Any(i => i.Id == k))
                       && g.Targets.Values.All(asg.Targets.Contains) && g.Targets.Values.Distinct().Count() <= asg.MaxDistinctTargets,
         // One relocation per named model, and a placement that is a point: a duplicate or a non-finite coordinate is not a move the set offers.

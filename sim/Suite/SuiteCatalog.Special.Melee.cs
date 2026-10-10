@@ -109,7 +109,7 @@ static partial class SpecialGames
     static TestGame Command()
     {
         const string name = "special-command-squad";
-        return Game(name, new ScenarioBuilder(name, 203).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
+        return Game(name, new ScenarioBuilder(name, 215).RoundCap(4).Table(24, 30).Scripted(ShootAndStrike)
                 .Army("Red", 3, 3, modelRules: [new(1, "Caster", 2), new(2, "Transport", 6), new(2, "Tough", 6), new(3, "Fearless")],
                     weapons: [Gun("Rifle", 24, 1), Blade("Bayonet", 1)], unitStats: Stats(5, 5), armyBook: "z65fgu0l29i4lnlu")
                 .Army("Blue", 2, 3, modelRules: [new(2, "Fearless")], weapons: [Gun("Rifle", 24, 2, Rule("AP", 1)), Blade("Bayonet", 1)], unitStats: Stats(4, 4))

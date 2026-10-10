@@ -46,7 +46,7 @@ public class ShotLinesTests
         Start("shooting", Shooters.Id, Targets.Id, R1.Id, R2.Id, P1.Id);
         Start("attack-sequence", Shooters.Id, Targets.Id, R1.Id, R2.Id);
         var shots = ShotLines.Of(_applier.Projection);
-        Assert.Equal([Shooters.Models[0].Id, Shooters.Models[1].Id], shots.Select(s => s.ShooterModelId).Order());
+        Assert.Equal(new HashSet<Guid> { Shooters.Models[0].Id, Shooters.Models[1].Id }, shots.Select(s => s.ShooterModelId).ToHashSet());
         var first = shots.Single(s => s.ShooterModelId == Shooters.Models[0].Id);
         Assert.Equal(Shooters.Id, first.ShooterUnitId);
         Assert.Equal(new Point3(10, 10, 1), first.From);

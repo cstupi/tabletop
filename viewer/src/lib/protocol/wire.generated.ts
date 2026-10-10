@@ -21,6 +21,7 @@ export interface Allocation {
   readonly kind: 'allocation';
   readonly targets: readonly string[];
   readonly amount: number;
+  readonly maxTargets?: number;
 }
 
 export interface ArmyInPlay {

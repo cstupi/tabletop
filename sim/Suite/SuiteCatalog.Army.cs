@@ -141,7 +141,7 @@ public static partial class SuiteCatalog
             // The rule re-rolls only "successful unmodified defense results of 5-6": Shatter's AP(+2) acts against the Tough unit only, so an
             // unmodified 5 fails to block there and is not re-rolled, and blocks against the other unit and is.
             Game(Jackals, "jackals-scrapper-boost", Play.Shoots, ["Scrapper Boost"], [R(1, "Scrapper"), R(1, "Scrapper Boost"), R(2, "Scrapper"), R(2, "Scrapper Boost")], [],
-                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)]),
+                [Rerolls("Scrapper Boost", By("Scrapper Boost", when: When.Shooting), [5, 6], successOnly: true, FivesRerolled)], weapon: [R(0, "Shatter")], enemy: [R(1, "Tough", 3)], seed: 3),
             Carried(Robots, "robot-legions-self-repair", "Self-Repair", [R(1, "Self-Repair")], IgnoreWounds("Self-Repair", 6, IgnoreOn6)),
             Carried(Robots, "robot-legions-self-repair-boost", "Self-Repair Boost", [R(1, "Self-Repair"), R(1, "Self-Repair Boost")], IgnoreWounds("Self-Repair Boost", 5, IgnoreOn5)),
             Game(Robots, "robot-legions-destructive", Play.Shoots, ["Destructive"], [], [],

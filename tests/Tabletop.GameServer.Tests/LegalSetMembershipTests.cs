@@ -24,6 +24,9 @@ public class LegalSetMembershipTests
         Assert.True(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [A] = 2, [B] = 1 })));
         Assert.False(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [A] = 3, [B] = 1 })));
         Assert.False(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [C] = 3 })));
+        var one = With(new Allocation([A, B], 3, MaxTargets: 1));
+        Assert.True(LegalSetMembership.Contains(one, new Allocated(new Dictionary<Guid, int> { [B] = 3, [A] = 0 })));
+        Assert.False(LegalSetMembership.Contains(one, new Allocated(new Dictionary<Guid, int> { [A] = 2, [B] = 1 })));
     }
     [Fact] public void Assignment_covers_every_item_with_at_most_n_distinct_targets()
     {
