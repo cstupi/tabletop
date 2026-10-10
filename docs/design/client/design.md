@@ -692,7 +692,7 @@ part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`,
 | Part | Where | Draws |
 | --- | --- | --- |
 | `HeaderBar` | top centre | `HeaderView`: round, turn, scores; the active unit, its action and the step strip from the action frame's `Outline`; the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
-| `StatSheet` | lower left | *Stats* (`UnitSheet`: weapons, rules with their `rule_text`, *not automated* for a rule with no catalog entry, the models strip from `ModelFacts`) and *This round* (`RoundHistory`), for the unit `SheetFocus` names |
+| `StatSheet` | lower left | *Stats* (`UnitSheet`: weapons, rules with their `rule_text`, *not automated* for a rule with no catalog entry or a `played: false` one, the models strip from `ModelFacts`) and *This round* (`RoundHistory`), for the unit `SheetFocus` names |
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll and its result until the next |
 | `LogDrawer` | lower right | `LogPanel`, each roll's dice inline on its row, and the Animate toggle; G opens it |

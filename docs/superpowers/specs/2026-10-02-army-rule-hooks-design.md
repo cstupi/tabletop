@@ -60,6 +60,11 @@ row without it is never returned at a point. Asking at a point is `GfHooks.React
 attack-start step for the fifth. **A Shaken unit is offered nothing at any point**, p.10's *"re-positioning"* and
 *"active special rules"*; `ReactionsAt` already returns nothing for a Shaken actor and keeps that for every point.
 
+**A pick is offered at `before-attacking` too.** An army-book Buff, Mark or Debuff is a pick entry (army-book rules
+spec → the pick): each carrying model offers a `use` reaction (`GfPick.Offers`) while it has not used it this
+activation and has a target, and the reaction pushes `pick-rule`, whose `rule_target` Ask picks the unit that gets
+the grants. The use is counted per model by `GfPick.Uses`, not by `usage_count`, which counts per unit.
+
 **`usage_count` gains a scope.** Today it counts the sequences that used the holding weapon, over the game, which
 is `Limited`'s *"once per game"*. A `usage_count` condition's first value may now be `round` or `activation`, and a
 use of a non-weapon rule is a sequence started by it, whose `SequenceContext.Action` is the entry's name. *"Once

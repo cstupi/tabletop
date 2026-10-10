@@ -170,6 +170,8 @@ erDiagram
         enum target_grain
         int target_count
         units target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         enum subject
