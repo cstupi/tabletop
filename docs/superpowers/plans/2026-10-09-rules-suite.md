@@ -28,7 +28,7 @@ the implementer writes the code test-driven against the repo's existing patterns
   `Recorded*` type: `TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests`, `cd viewer && npm run check
   && npm test`. A change to `EventApplier`, `FrameProjector` or `LogLines` ports to `viewer/src/lib/live/`.
 - Every suite game passes on both drivers. Socket runs need the compose stack up; never `docker compose down -v`.
-- A suite run leaves nothing behind unless `--keep`: no rows, no accounts, no recordings.
+- A suite run leaves nothing behind unless `--keep`: no rows, no recordings. The accounts are the fixed pool every run shares.
 - Test-driven; xUnit under `tests/`. Commit per task with `Co-Authored-By: Claude <Model> <noreply@anthropic.com>`.
 
 ## Waves
@@ -154,7 +154,7 @@ Tests in `tests/Tabletop.Sim.Tests/Suite/`.
 - [ ] Tests: `--only` selects by game name and by group (`core`, `special`, `army:<book>`, `spells:<book>`);
   `DiceFix` applies `SetDice` to the right roll on both drivers and the outcome follows; Review Focus 1–4;
   `Fired.In` reads `Applied` and `RollModifier.Source`; `Coverage.Of` marks uncovered entries and catalog entries with
-  no effect in play; the report's exit code; a socket run deletes its rows and accounts unless `--keep`; `--keep`
+  no effect in play; the report's exit code; a socket run deletes its rows unless `--keep`; `--keep`
   writes recordings; each result's `Replay` is a command line that reruns that game alone with `--keep`.
 - [ ] One sample game in a test fixture (not in the catalog) exercises the whole path on both drivers.
 - [ ] Implement; Sim suite passes; commit.

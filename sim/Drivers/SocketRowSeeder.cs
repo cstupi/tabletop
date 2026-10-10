@@ -67,17 +67,6 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows)
         await Execute(connection, null, ct, "delete from management.game where id = $1", gameId);   // the tree cascades
     }
 
-    /// <summary>
-    /// The accounts a test minted for its tokens. Only for accounts this run inserted: a console run's
-    /// minted accounts are stable by name across runs and are left alone.
-    /// </summary>
-    public async Task DeleteAccountsAsync(SocketCredentials credentials, CancellationToken ct)
-    {
-        await using var connection = await db.OpenConnectionAsync(ct);
-        foreach (var session in credentials.Sessions)
-            await Execute(connection, null, ct, "delete from management.account where id = $1", session.AccountId);
-    }
-
     private static string Wire<T>(T value) where T : struct, Enum => WireJson.Serialize(value).Trim('"');
 
     private static async Task Execute(NpgsqlConnection connection, NpgsqlTransaction? transaction, CancellationToken ct,

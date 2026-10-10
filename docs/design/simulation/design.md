@@ -457,9 +457,13 @@ JWT, which keeps the socket driver on the production verification path. It lives
 API because management holds the Stytch project secret; the game server holds no credential and
 could mint nothing real. It is gated on `IHostEnvironment.IsDevelopment()`.
 
-`SocketCredentials.MintAsync(scenario, http, ct)` is the whole consumer side. `NameFor(scenario,
-index)` is `sim-{scenario name}-{index}`, stable across runs and distinct within a scenario, so a
-re-run mints for the accounts it used last time. The response carries `account.id` beside the
+`SocketCredentials.MintAsync(scenario, http, ct)` is the whole consumer side. The accounts are a
+fixed pool: `NameFor(index)` is `sim-player-{index}`, the same for every scenario and every run,
+and `PoolSize` (4) is the most participants any scenario has, the recorder included. A session JWT
+names an account and `FindParticipantAsync` keys on game and account, so one account plays any
+number of games at once; the CLI suite and the runner service share the pool. The mint makes an
+account on its first use; two first uses at once race on the Stytch create, and `MintOneAsync`
+asks again once on the loser's 409. The response carries `account.id` beside the
 token, so `AccountOf` is a lookup rather than a base64 decode of a claim. `SocketRowSeeder` keeps
 its `insert ... on conflict (id) do nothing` for `management.account`, which is a no-op for a
 minted account and remains the path for a test-minted one, so the seeder creates its own accounts
@@ -468,7 +472,8 @@ development environment, and `MintAsync` says so rather than letting a bad token
 handshake.
 
 The cost is network access. A console socket run reaches Stytch's test project once per
-participant. The in-process driver reaches nothing, and neither does `DriverAgreementTests`.
+participant, and the test project holds the pool's four users and `sim-spectator`, however many
+games the suite has. The in-process driver reaches nothing, and neither does `DriverAgreementTests`.
 
 ### The run loop and its outcomes
 
@@ -781,8 +786,9 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
 - **Coverage.** Every entry of the shipped property set, with the games covering it, whether it fired in each, and its
   exact checks. A full run fails on an uncovered entry; any run fails on a covered entry that never fired.
 - **Socket hygiene.** A socket run takes an advisory lock, sweeps games an interrupted run left, and deletes each game's
-  rows and minted accounts after judging it. `--keep` keeps them, writes the recording, and adds a spectator participant
-  so a live feed can open the game.
+  rows (its log and the game; team, participant and the table_state tree cascade) after judging it. It never deletes an
+  account: the pool and `sim-spectator` are shared by every run and by concurrent games. `--keep` keeps the game, writes
+  the recording, and adds `sim-spectator` as a participant so a live feed can open the game.
 
 ## Key decisions
 
@@ -883,8 +889,8 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed`, `WebSocketCloseStatus? CloseStatus`, `string? CloseReason` |
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
-| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static NameFor(CompiledScenario, int)`, `string For(int)`, `Guid AccountOf(int)` |
-| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)`, `Task DeleteAccountsAsync(SocketCredentials, CancellationToken)` |
+| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `const PoolSize = 4`, `static Pool`, `static NameFor(int)`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static MintOneAsync(HttpClient, string, CancellationToken)`, `string For(int)`, `Guid AccountOf(int)` |
+| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
 | `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
 ### Produced: `Tabletop.Sim.Run`

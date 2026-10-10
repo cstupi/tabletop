@@ -82,9 +82,15 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
   entry (`played: false`, generated) is listed as not automated and never counted. A generated wrapper (an entry with effects in
   `grimdark-future-army-book-rules.part.json`) is covered by pattern: by the games whose `Pattern` is its name's last word, when
   they passed and its base is covered and fired.
+- Socket games play on a fixed account pool: participant i of any game is `sim-player-<i>` (`SocketCredentials.NameFor`,
+  `PoolSize` 4: three armies and the recorder), and every kept game's spectator is `sim-spectator` (`SuiteRows.Spectator`).
+  Every run and every concurrent game (the CLI suite beside `sim-runner`) shares them; the dev mint gives a name the same account
+  every time, and a 409 from two first mints at once is asked again.
 - A socket run holds an advisory lock, sweeps games an interrupted run left (named `suite-run <run id> <game>`), seeds and deletes each
-  game's rows and minted accounts. `--keep` keeps them (`suite <run id> <game>`), writes each recording, and adds a spectator
-  participant (no team) for the live feed.
+  game's rows: its log and the game, which cascades team, participant and the table_state tree. It never deletes an account: the
+  pool outlives every run, and deleting one would cascade into the participants of games still running. A failed delete is that
+  game's failure. `--keep` keeps the game (`suite <run id> <game>`), writes each recording, and adds `sim-spectator` as a participant
+  (no team) for the live feed.
 - `serve` hosts the runner on `127.0.0.1:5180` (compose service `sim-runner`, socket driver at `ws://game:5200/ws`): `GET /suite`,
   `POST /runs {only, driver, keep}` (409 while one runs), `GET /runs/{id}/events` (server-sent `game` per result, then `done`),
   `GET /runs/{id}/recordings/{game}`, `POST /runs/{id}/games/{game}/spectate` (a fresh session for the kept game's spectator).
@@ -109,7 +115,7 @@ dotnet test tests/Tabletop.Sim.Tests
 
 - Options: `--seed N`, `--seeds A..B`, `--driver in-process|socket`, `--out DIR`, `--rounds N`, `--no-recording`, `--list`.
 - `--driver socket` needs Postgres, the game server and management running, with management in the Development environment.
-- Sessions come from `POST /v1/dev/sessions`, which exists only in Development.
+- Sessions come from `POST /v1/dev/sessions`, which exists only in Development, for the pool accounts above.
 - Socket environment, from the process or the nearest `.env`: `TABLETOP_DB_CONNECTION` (required), `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`), `TABLETOP_SIM_MANAGEMENT` (default `http://127.0.0.1:5100`).
 
 ## Conventions and pitfalls

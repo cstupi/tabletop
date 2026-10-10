@@ -332,11 +332,7 @@ public class ArmyGamesSocketTests(PostgresFixture pg) : IDisposable
     public async Task Every_army_game_gives_its_in_process_verdict_over_the_socket()
     {
         await new PostgresPropertiesStore(pg.Db).SeedAsync(PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
-        var socket = new SuiteSocket(pg.Db, (c, minted, _) =>
-        {
-            foreach (var p in c.Info.Participants) minted.Add(p.AccountId);
-            return Task.FromResult(new SocketCredentials(c.Info.Participants.Select(p => new MintedSession(TestKeys.Mint(p.AccountId), p.AccountId)).ToList()));
-        }, () => new FactoryConnector(_factory));
+        var socket = new TestPool(pg).Socket(() => new FactoryConnector(_factory));
         var army = SuiteCatalog.All.Where(g => g.Group.StartsWith(SuiteCatalog.ArmyPrefix)).ToList();
         var report = await new SuiteRunner(army, socket).RunAsync(new SuiteOptions([.. army.Select(g => g.Name)], DriverKind.Socket, false, TempDir()), null, Ct);
         Assert.All(report.Games, g =>

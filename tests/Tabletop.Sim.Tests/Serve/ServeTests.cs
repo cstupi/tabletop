@@ -97,7 +97,7 @@ public sealed class ServeTests : IAsyncLifetime
     {
         await app.DisposeAsync();
         var db = Npgsql.NpgsqlDataSource.Create("Host=127.0.0.1;Port=1;Timeout=1;Database=x;Username=x;Password=x");
-        await StartAsync(new SuiteRunner([SuiteFixtures.Game()], new SuiteSocket(db, (_, _, _) => throw new InvalidOperationException(), () => throw new InvalidOperationException())));
+        await StartAsync(new SuiteRunner([SuiteFixtures.Game()], new SuiteSocket(db, (_, _) => throw new InvalidOperationException(), () => throw new InvalidOperationException())));
     }
 
     [Fact]

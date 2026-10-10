@@ -93,13 +93,12 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         SuiteGameRun? run = null;
         string? recordingPath = null, spectator = null;
         SocketCredentials? credentials = null;
-        var minted = new List<Guid>();
         try
         {
             IGameDriver inner;
             if (sock is not null)
             {
-                credentials = await sock.CredentialsAsync(compiled, minted, ct);
+                credentials = await sock.CredentialsAsync(compiled, ct);
                 await new SocketRowSeeder(sock.Db, new PostgresGameRows(sock.Db)).SeedAsync(compiled, credentials, ct);
                 inner = await SocketDriver.StartAsync(compiled, sock.Connector(), credentials, ct);
             }
@@ -123,9 +122,8 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             // After the play, so the extra participant cannot touch the game's setup or its log.
             if (sock is not null && options.Keep)
             {
-                spectator = SuiteRows.SpectatorName(runId, game.Name);
+                spectator = SuiteRows.Spectator;
                 var session = await sock.SessionAsync(spectator, ct);
-                minted.Add(session.AccountId);
                 await new SuiteRows(sock.Db).SeedSpectatorAsync(compiled.Info.Id, session.AccountId, spectator, ct);
             }
 
@@ -143,7 +141,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
         {
             // A failed cleanup is this game's failure; the run and its report go on.
             if (sock is not null && !options.Keep)
-                try { await new SuiteRows(sock.Db).DeleteGameAsync(compiled.Info.Id, minted, CancellationToken.None); }
+                try { await new SuiteRows(sock.Db).DeleteGameAsync(compiled.Info.Id, CancellationToken.None); }
                 catch (Exception ex) { failures.Add($"cleanup: {ex.Message}"); }
         }
 

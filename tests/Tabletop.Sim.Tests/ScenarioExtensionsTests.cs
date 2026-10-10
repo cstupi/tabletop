@@ -59,7 +59,7 @@ public class ScenarioExtensionsTests(PostgresFixture pg)
         finally
         {
             try { await seeder.DeleteAsync(c.Info.Id, Ct); }
-            finally { await seeder.DeleteAccountsAsync(credentials, Ct); }
+            finally { await TestPool.DeleteAccountsAsync(pg.Db, credentials); }
         }
     }
 
