@@ -400,7 +400,7 @@ export interface PropertyInstance {
   readonly parameter?: number;
 }
 
-export type RefusalReason = 'outside_legal_set' | 'illegal' | 'wrong_status' | 'not_permitted' | 'unknown';
+export type RefusalReason = 'outside_legal_set' | 'illegal' | 'wrong_status' | 'not_permitted' | 'unknown' | 'watcher';
 
 export interface Refused {
   readonly kind: 'refused';

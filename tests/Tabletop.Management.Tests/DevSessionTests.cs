@@ -31,4 +31,18 @@ public class DevSessionTests(ManagementFactory f) : IClassFixture<ManagementFact
         c.DefaultRequestHeaders.Authorization = new("Bearer", second.SessionJwt);
         Assert.Equal(first.Account.Id, (await c.GetFromJsonAsync<AccountRow>("/v1/account"))!.Id);
     }
+
+    [Fact]
+    public async Task The_mint_stamps_the_roles_it_is_given_in_place_of_the_users()
+    {
+        var c = _dev.CreateClient();
+        var admin = await c.PostJson<SessionResponse>("/v1/dev/sessions", new { name = "watcher-1", roles = new[] { "admin" } });
+        var plain = await c.PostJson<SessionResponse>("/v1/dev/sessions", new { name = "watcher-1" });
+        Assert.Equal(["admin"], Roles(admin.SessionJwt));
+        Assert.Equal(["stytch_user"], Roles(plain.SessionJwt));                                       // no roles given: the Stytch user's
+        Assert.Equal(["stytch_user"], _dev.Stytch.Users.Single().Value.Roles);                         // nothing written to Stytch
+    }
+
+    private static List<string> Roles(string jwt) =>
+        new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt).Claims.Where(x => x.Type == StytchAuthentication.RolesClaim).Select(x => x.Value).ToList();
 }

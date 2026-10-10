@@ -32,7 +32,7 @@ checked-in fixtures.
 | Producing recordings | `sim/`, simulation plan |
 | Deployment-zone shape resolution | `Tabletop.Geometry.ZoneStyles`, C# only, not ported |
 | The resolution frame stack | `Tabletop.Protocol.Projection.Stack`, not ported |
-| Joining a game as a spectator | `POST /v1/games/{id}/join`, management API |
+| Joining a game | not built: the viewer watches as an admin without joining |
 | 3D, meshes, WebGL, any drawing library, a router, SvelteKit, persistence | not built |
 
 **Code lands in** two places. `viewer/` holds its own `package.json` and lockfile, twenty-eight
@@ -100,14 +100,22 @@ error rather than a silent `undefined`. Three of the schema's fields exist for t
 They are listed under *Interfaces*.
 
 **The socket.** The live feed follows the connect sequence the game-server plan states, sends
-`Connect` and reads six frame kinds. It is a participant with no team. Presence, the scheduler and
-the interpreter already treat such a participant as a spectator who is never Asked, so watching a
-real game needs no new server concept and no new identity. Joining is the management API's, not the
-viewer's.
+`Connect` and reads six frame kinds. It connects as an admin watcher (admin watch spec): a session
+whose `roles` claim holds `admin` and which is no participant of the game gets the frames a
+participant with no team gets, `Welcome.ParticipantId` `Guid.Empty`, and every frame it could send
+that changes the game is `Refused` with reason `watcher`. A participant with no team connects the same
+way and is never Asked.
 
-**The management API.** Two routes, read for one property. `logIn` and `refreshSession` return a
-body and the viewer reads `sessionJwt` from it. Development is same-origin through Vite's `/v1`
-proxy, so management needs no CORS entry.
+**The management API.** Three routes. `logIn` and `refreshSession` return a body and the viewer
+reads `sessionJwt` from it; `listGames` (`src/lib/live/games.ts`) pages `GET /v1/games` with that JWT.
+Development is same-origin through Vite's `/v1` proxy, so management needs no CORS entry.
+
+**The game list.** One login per page session (email and password, or a pasted JWT), held in
+`SourcePicker`'s state and refreshed before each use, since a JWT lasts five minutes. After login the
+picker lists the games: name, status, players (`GameSummary.ParticipantNames`), created time in UTC
+(`rowOf`). Clicking a row opens the live feed on that game: the log replays from the start on the
+timeline and a running game follows live. Recording files and URLs and the Tests page's Watch and
+Open live are unchanged.
 
 **Code generation, not a build step.** `tests/Tabletop.Viewer.Tests` holds the emitter and the
 fixture writer. `viewer/` stays a pure npm project with no .NET dependency, and `npm ci && npm run
@@ -552,8 +560,8 @@ The score is not geometry. `Scene` is unchanged by it.
 | The emitter lives in `tests/Tabletop.Viewer.Tests`, not in `viewer/` and not in a new directory | keeps `viewer/` a pure npm project and adds no top-level directory | a `tools/` project, or an MSBuild task | **(plan)** plan → *File Structure* |
 | Canvas, not SVG | whole-state frames invalidate every model per step, so retained-mode diffing buys nothing; picking is a point test in inches | SVG, which pays layout for the whole document at pointer rate; WebGL and drawing libraries, which the workload does not need | plan Task 5; spec → *`viewer/` is a developer web app* |
 | Playback only; `Feed.control` declared and `null` | building on the seam makes the viewer a second thin client | shipping interactive control in version one | spec → *Interactive debugging is a door, not a room* |
-| A spectator is a participant with no team | the server already treats such a participant as never Asked; no new server concept | a spectator identity, or a third team | spec → *Two feeds*; whole-design review ruling 5; presence spec → *The presence value* |
-| A session JWT is the whole of the live feed's auth | the server already matches the JWT's account against a `participant` row and answers `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | spec → *Still open* |
+| The viewer watches as an admin, without joining | the viewer is an admin tool; an admin watches any game, finished or running; admin is a Stytch role carried in the session's `roles` claim | joining each game as a participant with no team | admin watch spec |
+| A session JWT is the whole of the live feed's auth | the server matches the JWT's account against a `participant` row, admits an admin non-participant as a watcher, and answers anyone else `rejected: not_a_participant` | a spectator token, or a viewer-specific grant | admin watch spec → *The watcher* |
 | Deployment-zone rings are resolved in C# and recorded | `ZoneStyles` is C# geometry and the frontline inset is absolute, so a browser cannot recover it from the shape id and the table size | porting `ZoneStyles`, a second geometry implementation | plan → *Interfaces needed*, item 1; simulation plan → *Applied from the viewer plan*, item 1 |
 | A marker's definition rides on every frame state | a marker placed during play is in no board block, and the live feed writes the board before any event | a board block covering every marker that ever appears | simulation plan → *Applied from the viewer plan*, item 2 |
 | A model with no position is listed, not drawn | inventing a position is the viewer deciding something | drawing it beside or on its container | spec → *Deliberately not decided* |
@@ -623,6 +631,7 @@ The score is not geometry. `Scene` is unchanged by it.
 | `libs/Tabletop.Geometry` | `Bodies.BaseOutline`, `Bodies.OvalVertices`, `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains` | ported by hand into `board/frame.ts`, `board/transform.ts`, `board/pick.ts` |
 | `server/game/` | the connect sequence: `Connect` first within 10 s, then `Welcome`, `BoardMessage` from `setup` on, `EventsMessage` batches, then live frames | `liveFeed.ts` |
 | `server/management/` | `POST /v1/auth/password`, `POST /v1/auth/session/refresh`, each answering a body with `sessionJwt` | `management.ts` |
+| `server/management/` | `GET /v1/games` (keyset pages of `GameSummary`: `id`, `name`, `status`, `createdAt`, `participantNames`) | `games.ts` |
 
 ### Required of others
 
@@ -687,12 +696,12 @@ sequenceDiagram
     V->>S: open ws
     V->>S: Connect(sessionJwt, gameId, clientVersion 1)
     Note over V: 10 s timer armed
-    alt not a participant
+    alt not a participant and not an admin
         S-->>V: Rejected(not_a_participant)
         V-->>A: status error, detail rejected: not_a_participant
         S-->>V: close
     else accepted
-        S-->>V: Welcome(participantId, game)
+        S-->>V: Welcome(participantId, or Guid.Empty for a watcher, game)
         V->>V: clear timer, build meta from GameInfo
         V-->>A: status open, no frames
         S-->>V: BoardMessage(board)
@@ -974,6 +983,7 @@ threshold for the same reason.
 | Spec | What this module takes from it |
 | --- | --- |
 | [`2026-09-06-simulation-design.md`](../../superpowers/specs/2026-09-06-simulation-design.md) | primary: the recording as a projection per event, `viewer/` as a fifth deliverable separate from `web/`, the two feeds, interactive debugging as a door, what is tested |
+| [`2026-10-09-admin-watch-design.md`](../../superpowers/specs/2026-10-09-admin-watch-design.md) | the viewer as an admin tool: one login, the game list, watching any game as an admin watcher |
 | [`2026-09-04-whole-design-review.md`](../../superpowers/specs/2026-09-04-whole-design-review.md) | a participant with no team is a spectator |
 | [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md) | a participant with no team is never addressed by an Ask, which is what a spectator is |
 | [`2026-08-29-setup-content-design.md`](../../superpowers/specs/2026-08-29-setup-content-design.md) | the closed six terrain declarations the palette colours |
@@ -1006,8 +1016,7 @@ it as resolved `RecordedPoint` rings in `RecordedZone.Polygons`.
 - `docs/design/contracts/`: `Tabletop.Protocol`'s `SocketMessage`, `EventPayload`, `StateChange`,
   `Ask`, `LegalSet`, and `EventApplier`, which `src/lib/live/apply.ts` ports.
 - `docs/design/geometry/`: the corner frame and the two outline functions ported here.
-- `docs/design/game-server/`: the socket, the connect sequence, the participant rows a spectator
-  needs.
-- `docs/design/management-api/`: the two auth routes.
+- `docs/design/game-server/`: the socket, the connect sequence, the admin watcher.
+- `docs/design/management-api/`: the two auth routes, the `roles` claim, `GET /v1/games`.
 - `docs/design/web-app/`: the Svelte and Vite conventions; no code edge to this module.
 - `docs/design/client/`, `docs/design/interpreter/`, `docs/design/scheduler/`: no edge.

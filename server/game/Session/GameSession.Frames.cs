@@ -6,7 +6,7 @@ namespace Tabletop.GameServer.Session;
 public sealed partial class GameSession
 {
     /// <summary>Every inbound frame after Connect lands here, on the mailbox. A faulted session is done: every frame kind, including presence and ping, is dropped.</summary>
-    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => Faulted ? Task.CompletedTask : frame switch
+    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => Faulted ? Task.CompletedTask : _watchers.Contains(from) ? HandleWatcherFrameAsync(from, frame) : frame switch
     {
         CommandMessage c => HandleCommandAsync(from, c),
         PresenceMessage p => HandlePresence(from, p.Presence),
@@ -15,6 +15,21 @@ public sealed partial class GameSession
         SightQuery q => HandleSightAsync(from, q),
         _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
     });
+
+    /// <summary>A watcher changes nothing (admin watch spec): a sight query is answered; a command (answers and undo included), an edit,
+    /// presence or a ping is refused with reason watcher and nothing else follows, no rest frame included.</summary>
+    private Task HandleWatcherFrameAsync(ISessionClient from, SocketMessage frame)
+    {
+        const string Detail = "a watcher sends nothing that changes the game";
+        return frame switch
+        {
+            SightQuery q => HandleSightAsync(from, q),
+            CommandMessage c => from.SendAsync(new Protocol.Refused(c.CommandId, RefusalReason.Watcher, Detail)).AsTask(),
+            EditMessage e => from.SendAsync(new Protocol.Refused(e.EditId, RefusalReason.Watcher, Detail)).AsTask(),
+            PresenceMessage or PingMessage => from.SendAsync(new Protocol.Refused(Guid.Empty, RefusalReason.Watcher, Detail)).AsTask(),
+            _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
+        };
+    }
 
     /// <summary>Every command ends at rest. The frame follows its batch: broadcast when the batch appended something, to the sender alone when it did not.</summary>
     private async Task HandleCommandAsync(ISessionClient from, CommandMessage message)
@@ -45,6 +60,9 @@ public sealed partial class GameSession
     {
         if (Faulted) return;
         foreach (var value in _presence.TakeDirty())
+        {
             foreach (var c in _clients.ToList()) if (c.ParticipantId != value.ParticipantId) await c.SendAsync(new PresenceMessage(value));
+            foreach (var w in _watchers.ToList()) await w.SendAsync(new PresenceMessage(value));
+        }
     });
 }

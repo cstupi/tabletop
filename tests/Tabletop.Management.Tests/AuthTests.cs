@@ -55,6 +55,25 @@ public class AuthTests : IClassFixture<ManagementFactory>
         Assert.Equal(again.Account.Id.ToString(), Claim(refreshed!.SessionJwt));
     }
 
+    [Fact]
+    public async Task The_session_carries_the_users_stytch_roles_and_a_refresh_keeps_them()
+    {
+        var c = _f.CreateClient();
+        await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = "boss@example.com", password = "long enough password" });
+        _f.Stytch.Users["boss@example.com"].Roles = ["stytch_user", "admin"];
+        var login = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "boss@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(["stytch_user", "admin"], Roles(login!.SessionJwt));
+
+        _f.Stytch.Users["boss@example.com"].Roles = ["stytch_user"];                       // a role change waits for the next login
+        var refreshed = await (await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = login.SessionJwt })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(["stytch_user", "admin"], Roles(refreshed!.SessionJwt));
+        var next = await (await c.PostAsJsonAsync("/v1/auth/password", new { email = "boss@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
+        Assert.Equal(["stytch_user"], Roles(next!.SessionJwt));
+    }
+
+    private static List<string> Roles(string jwt) =>
+        new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt).Claims.Where(x => x.Type == StytchAuthentication.RolesClaim).Select(x => x.Value).ToList();
+
     private static string Claim(string jwt) =>
         new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt).Claims.Single(x => x.Type == StytchAuthentication.AccountClaim).Value;
 

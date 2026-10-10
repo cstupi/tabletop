@@ -8,7 +8,8 @@ using Tabletop.Management.Configuration;
 namespace Tabletop.Management.Identity;
 
 public sealed record StytchEmail(string Email);
-public sealed record StytchUser(string UserId, string? ExternalId, IReadOnlyList<StytchEmail> Emails);
+/// <summary>Roles: the user's RBAC role ids, the authenticate response's user.roles (stytch_user on every user, plus any assigned).</summary>
+public sealed record StytchUser(string UserId, string? ExternalId, IReadOnlyList<StytchEmail> Emails, IReadOnlyList<string> Roles);
 public sealed record StytchSession(string SessionJwt, StytchUser User);
 public sealed record OtpSent(string MethodId, string UserId, bool UserCreated);
 
@@ -43,10 +44,10 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
     /// <summary>Extends the session and mints a fresh JWT. The session keeps the custom claims set on it, so a refresh passes none.</summary>
     public Task<StytchSession> RefreshSession(string sessionJwt) =>
         Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes });
-    /// <summary>As RefreshSession, adding account_id to the session's custom claims; every JWT the session mints from here on carries it.</summary>
-    public Task<StytchSession> StampAccount(string sessionJwt, Guid accountId) =>
+    /// <summary>As RefreshSession, adding account_id and roles to the session's custom claims; every JWT the session mints from here on carries them.</summary>
+    public Task<StytchSession> StampAccount(string sessionJwt, Guid accountId, IReadOnlyList<string> roles) =>
         Session(HttpMethod.Post, "/v1/sessions/authenticate", new { session_jwt = sessionJwt, session_duration_minutes = options.SessionMinutes,
-            session_custom_claims = new Dictionary<string, string> { [StytchAuthentication.AccountClaim] = accountId.ToString() } });
+            session_custom_claims = new Dictionary<string, object> { [StytchAuthentication.AccountClaim] = accountId.ToString(), [StytchAuthentication.RolesClaim] = roles } });
     public Task RevokeSession(string sessionJwt) => Call(HttpMethod.Post, "/v1/sessions/revoke", new { session_jwt = sessionJwt });
     public Task SetExternalId(string userId, string externalId) => Call(HttpMethod.Put, $"/v1/users/{userId}", new { external_id = externalId });
     public Task DeleteUser(string externalId) => Call(HttpMethod.Delete, $"/v1/users/{externalId}", null);
@@ -72,7 +73,8 @@ public sealed class StytchClient(HttpClient http, ManagementOptions options)
         var user = r.GetProperty("user");
         var emails = user.TryGetProperty("emails", out var e) ? e.EnumerateArray().Select(x => new StytchEmail(x.GetProperty("email").GetString()!)).ToList() : [];
         var externalId = user.TryGetProperty("external_id", out var ext) && ext.ValueKind == JsonValueKind.String ? ext.GetString() : null;
-        return new StytchSession(r.GetProperty("session_jwt").GetString()!, new StytchUser(user.GetProperty("user_id").GetString()!, string.IsNullOrEmpty(externalId) ? null : externalId, emails));
+        var roles = user.TryGetProperty("roles", out var ro) && ro.ValueKind == JsonValueKind.Array ? ro.EnumerateArray().Select(x => x.GetString()!).ToList() : [];
+        return new StytchSession(r.GetProperty("session_jwt").GetString()!, new StytchUser(user.GetProperty("user_id").GetString()!, string.IsNullOrEmpty(externalId) ? null : externalId, emails, roles));
     }
 
     private async Task<JsonElement> Call(HttpMethod method, string path, object? body)

@@ -15,7 +15,7 @@ public sealed class GameRepository(Database db)
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
-    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants);
+    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -61,9 +61,10 @@ public sealed class GameRepository(Database db)
         await using var c = await db.Open();
         // A named record, not a ValueTuple: Dapper maps to constructor parameters by column name and cannot map tuple element names.
         var rows = await c.QueryAsync<SummaryRow>(@"select g.id as Id, g.name as Name, g.status as Status, g.created_by as CreatedBy, g.created_at as CreatedAt,
-            (select count(*) from participant p where p.game_id = g.id)::int as Participants
+            (select count(*) from participant p where p.game_id = g.id)::int as Participants,
+            array(select a.name from participant p join account a on a.id = p.account_id where p.game_id = g.id order by p.id) as ParticipantNames
             from game g where (@after::uuid is null or g.id < @after::uuid) order by g.id desc limit @limit", new { after = page.After, limit = page.Limit });
-        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants)).ToList();
+        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList())).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)

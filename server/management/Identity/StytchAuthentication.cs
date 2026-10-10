@@ -8,6 +8,8 @@ public static class StytchAuthentication
 {
     /// <summary>Our account UUID. Sessions.Complete adds it to each new session as a session custom claim; refreshes keep it.</summary>
     public const string AccountClaim = "account_id";
+    /// <summary>The Stytch user's RBAC role ids, stamped beside account_id by the same call. The game server reads it to admit an admin watcher.</summary>
+    public const string RolesClaim = "roles";
     public const string SessionClaim = "https://stytch.com/session";
     /// <summary>Named client so tests can swap its handler; the cache must be a singleton, which a typed client is not.</summary>
     public const string JwksClient = "stytch-jwks";
