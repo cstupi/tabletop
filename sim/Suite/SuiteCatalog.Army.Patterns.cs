@@ -12,6 +12,8 @@ public static partial class SuiteCatalog
         const string BuffQuote = "\"pick one friendly unit within 12\", which gets Stealth once (next time the effect would apply)\"";
         const string MarkQuote = "\"pick one enemy unit within 18\" in line of sight, which friendly units gets Rending against once\"";
         const string DebuffQuote = "\"pick one enemy unit within 18\" in line of sight, which gets -1 to defense rolls once\"";
+        const string QuickShotQuote = "\"which friendly units gets Quick Shot against once\": Quick Shot, \"This model may shoot after using Rush actions\"";
+        static (string Uid, string Army) LustDaemons => ("9qvy1oufoangt2gl", "Wormhole Daemons of Lust");
 
         public static IReadOnlyList<TestGame> Patterns =>
         [
@@ -35,6 +37,11 @@ public static partial class SuiteCatalog
                  Once("Defense Debuff", $"{DebuffQuote}: defense -1", a => a.Blocks.SelectMany(b => b.Rolls("defense")).ToList() is { Count: > 0 } rolls
                      ? rolls.Any(r => r.Modifiers.Any(m => m.Source == "Defense Debuff" && m.Amount == -1)) : null)],
                 carriers: [Carrier("Defense Debuff")], units: 2, enemyUnits: 1, length: 26, more: UnitOneFirst(Ratmen.Army)) with { Pattern = "Debuff" },
+            // Moves: unit 1 Advances, unit 2 (the carrier's) Rushes 12" toward the one enemy unit, which puts it within 18", is offered the Mark
+            // before attacking, and may then shoot the marked unit after its Rush; the script answers every shoot_or_not "shoot".
+            Game(LustDaemons, "pattern-mark-quick-shot", Play.Moves, ["Quick Shot Mark"], [], [],
+                [PickWithin("Quick Shot Mark", 18, friendly: false, QuickShotQuote), RushShotMarked("Quick Shot Mark", QuickShotQuote)],
+                carriers: [new ScenarioModel(2, 1, [R(2, "Quick Shot Mark")])], units: 2, enemyUnits: 1) with { Pattern = "Mark" },
         ];
 
         /// <summary>The first model of unit 1 carries the rule.</summary>

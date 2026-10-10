@@ -128,5 +128,20 @@ public static partial class SuiteCatalog
                 let ours = run.Final.Units[unit].ParticipantId == run.Final.Units[run.Final.Models[p.Carrier].UnitId].ParticipantId
                 let apart = Apart(run, p.At, p.Carrier, unit)
                 select ours != friendly ? $"offered {(ours ? "a friendly" : "an enemy")} unit" : apart > inches ? $"offered a unit {apart:0.##}\" away" : null);
+
+        /// <summary>
+        /// Quick Shot through a Mark: every attack made in a shooting after Rush is at a unit that held the entry's grant as the shooting began
+        /// (p.7: "Rush - Moves 12" but can't shoot", so the Mark is what let it shoot), and the grant is gone as the attack begins: that shooting
+        /// spent it, once. A game with no shooting after Rush fails.
+        /// </summary>
+        static GameCheck RushShotMarked(string entry, string quote) =>
+            Exact(entry, quote, (run, log) =>
+                from a in log.Attacks
+                let shooting = a.Hit?.Nearest(ShootingSequence)
+                where a.Shooting && a.Target is not null && a.Hit?.Nearest("rush") is not null && shooting is not null
+                let p = PatternLog.For(run)
+                let before = p.Shootings.GetValueOrDefault(shooting.FrameId)?.GetValueOrDefault(a.Target!.Value)?.Any(g => g.EntryName == entry) == true
+                let after = p.Attacks.TryGetValue(a.Frame.FrameId, out var s) && s.TargetGrants.Any(g => g.EntryName == entry)
+                select !before ? "shot after Rush at a unit the Mark was not on" : after ? "the Mark outlived the shooting it allowed" : null);
     }
 }
