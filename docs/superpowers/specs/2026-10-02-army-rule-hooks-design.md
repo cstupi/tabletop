@@ -70,7 +70,7 @@ count is per entry, so *Harassing*'s two rows share one use.
 ## A move after attacking: *Hit & Run* and *Harassing*
 
 The library's kind 16, `move`, already says *"a team may move a unit up to `amount` inches"*, with a `MoveRegion`
-over the unit's alive models, the move's usual impassable and difficult volumes, and a pass. On a spell the team
+over the unit's alive models, the impassable and difficult volumes and cap the moving unit's own move has (`GfMoves.TerrainFor`), and a pass. On a spell the team
 is the caster's and the unit the target's. **On a property, the team is the holder's and the unit is the
 holder's own.** The three rules are `move` rows on a model rule with aggregation `all` (*"units where all models
 have this rule"*):

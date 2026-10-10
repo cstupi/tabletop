@@ -6,7 +6,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-public static class GfMoves
+public static partial class GfMoves
 {
     /// <summary>Outline labels: p.7's words for the action ("Hold - Doesn't move, can shoot"; "Advance - Moves 6” and can shoot after moving";
     /// "Rush - Moves 12” but can’t shoot", so Rush's shoot-or-not, reached only through Quick Shot, is not a player step). The dangerous terrain
@@ -36,7 +36,7 @@ public static class GfMoves
     /// (LandsInImpassable). Read from the unit's live set, since Flying can be granted.
     /// </summary>
     public static bool Flies(GameState state, PropertySet props, Guid unit) =>
-        LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, null, null, Battlefield.TerrainUnder(state, unit))).Has(Side.Attacker, "Flying");
+        LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, null, null, Battlefield.TerrainUnder(state, unit))).Has(Side.Attacker, GfNames.Flying);
 
     /// <summary>The impassable volumes a move of this unit may not sweep: none for a Flying unit (Flies).</summary>
     public static IReadOnlyList<Guid> ImpassableFor(GameState state, bool flying) =>
@@ -135,8 +135,22 @@ public static class GfMoves
             : null;
     }
 
-    /// <summary>The least this model must move under a minimum (MinimumBreach): the minimum, or as far as the table lets its whole base go when less.</summary>
-    public static double Minimum(GameState state, PlacedModel start, double minimum) => Math.Min(minimum, Movement.FarthestOnTable(start, state.Board.Table.Size).Distance);
+    /// <summary>
+    /// The least this model must move under a minimum (MinimumBreach). Where the table has room for the minimum in some direction, the minimum:
+    /// p.13 "Aircraft can't move into the table edges to move less than 30"". Where it has room in none (p.6 allows "smaller areas", p.7 keeps
+    /// every base on the table), owner ruling: it moves as far as it can in the direction taken, the room towards `toward` (Movement.RoomAlong);
+    /// with no direction taken, as far as the table lets its whole base go (Movement.FarthestOnTable).
+    /// </summary>
+    public static double Minimum(GameState state, PlacedModel start, double minimum, Point2? toward = null)
+    {
+        var size = state.Board.Table.Size;
+        var farthest = Movement.FarthestOnTable(start, size).Distance;
+        if (farthest >= minimum) return minimum;
+        return toward is { } t && t.DistanceTo(start.Placement.Position.Horizontal) > 1e-6 ? Movement.RoomAlong(start, t, size) : farthest;
+    }
+
+    /// <summary>The table has room for this model's minimum in some direction (Minimum).</summary>
+    static bool HasRoomFor(GameState state, PlacedModel start, double minimum) => Movement.FarthestOnTable(start, state.Board.Table.Size).Distance >= minimum;
 
     /// <summary>
     /// A relocation of a listed model that the move steps do not read (GfAnswers.Unread): an Inside the Ask did not offer, a move out of a container
@@ -194,9 +208,9 @@ public static class GfMoves
 
     /// <summary>
     /// p.13 Aircraft: "Aircraft can't move into the table edges to move less than 30"" — the move is mandatory. The region's MinDistance is that 30";
-    /// every listed model on the table must move at least that far. Where the table has no room for it, the model must go as far as its whole base
-    /// can (Movement.FarthestOnTable): p.13 assumes 30" of room, which p.6's 6'x4' table always has, but p.6 allows "smaller areas" and p.7 keeps
-    /// every base on the table; a standing ruling until the owner rules. The answer is read as the move step applies it (GfAnswers.Moves): a model
+    /// every listed model on the table must move at least that far. Where the table has no room for it in any direction, the model must go as far
+    /// as it can in the direction taken (Minimum): p.13 assumes 30" of room, which p.6's 6'x4' table always has, but p.6 allows "smaller areas"
+    /// and p.7 keeps every base on the table. The answer is read as the move step applies it (GfAnswers.Moves): a model
     /// it leaves out, or whose relocation that reading drops, has not moved. Null when every model went far enough.
     /// </summary>
     public static AnswerBreachFound? MinimumBreach(GameState state, MoveRegion region, Destinations answer)
@@ -207,7 +221,7 @@ public static class GfMoves
         {
             if (Battlefield.Placed(state, id) is not { } start) continue;
             var to = moves.FirstOrDefault(m => m.ModelId == id)?.To is OnTable on ? on.Placement.Position.Horizontal : start.Placement.Position.Horizontal;
-            var required = Minimum(state, start, minimum);
+            var required = Minimum(state, start, minimum, to);
             var moved = start.Placement.Position.Horizontal.DistanceTo(to);
             if (moved < required - 1e-6)
                 return new(GfNames.AircraftMinimumRule, $"an Aircraft must move at least {required:0.#}\" (p.13), and {state.Projection.Models[id].Slot.Name} moved {moved:0.##}\"");
@@ -231,14 +245,16 @@ public static class GfMoves
         {
             if (ctx.History.Children.Count > 0) return new Complete([]);                               // the test has been run
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
-            if (IsAircraft(ctx, unit)) return new Complete([]);                                       // p.13: Aircraft "ignore all units and terrain when moving and stopping"
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
-            // p.13: Flying ignores terrain effects. A granted Flying is spent when there was a test to skip.
-            if (live.Has(Side.Attacker, "Flying"))
+            var rules = TerrainFor(ctx, unit, live);
+            if (rules.Aircraft) return new Complete([]);                                                 // p.13: Aircraft "ignore all units and terrain when moving and stopping"
+            // p.13: Flying ignores terrain effects. A granted Flying applies when there was a test to skip, and is kept to the activation's end (ConsumeKeepingFlying).
+            if (rules.IgnoresDangerous)
             {
                 var tested = CountsAsIn(live, TargetTerrain.Dangerous) || StandingInDangerous(ctx.State, unit).Count > 0;
-                if (tested) live.Use(Side.Attacker, "Flying");
-                return new Complete(RollEffects.Consume(live));
+                if (tested) live.Use(Side.Attacker, GfNames.Flying);
+                var (spent, held) = ConsumeKeepingFlying(live);
+                return new Complete(spent, held);
             }
             // Write the dice count first, then push: the child reads dangerous_dice off this frame, so it must be settled before the push.
             // The repeat run checks it before re-reading who stands: the first run spent a count_as_terrain grant, so nobody would stand now.
@@ -280,11 +296,11 @@ public static class GfMoves
         {
             var unit = ctx.Frame.Context.ActorUnitId!.Value;
             var live = Lone(ctx, unit, action);
-            var aircraft = IsAircraft(ctx, unit);
+            var rules = TerrainFor(ctx, unit, live);
+            var aircraft = rules.Aircraft;
             var allowance = StatReader.ActionDistance(live, Side.Attacker, action) + (aircraft ? GfNames.AircraftMove : 0);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
-            var flying = live.Has(Side.Attacker, "Flying");
-            var strider = aircraft || live.Has(Side.Attacker, "Strider") || flying;
+            var strider = rules.IgnoresDifficult;
             if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);
             var used = ctx.Frame.Value("distance_used_tenths") / 10.0;
             // p.11 "for that movement": the cap spans every segment of the move a cast splits. What is left of it is this segment's cap, and once an
@@ -296,24 +312,29 @@ public static class GfMoves
             switch (ctx.Frame.Value("phase"))
             {
                 case 0 when ctx.History.LastClosed("move") is not { } moved:
-                    // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (Flies); PathBreach still judges where Flying ends.
-                    var impassable = ImpassableFor(ctx.State, aircraft || flying);
-                    List<Guid> difficult = aircraft ? [] : terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList();
-                    var containment = Containers(ctx, unit, action, remaining, aircraft || flying ? [] : Declared(terrain, TerrainDeclarations.Impassable));
+                    // p.13: an Aircraft ignores all terrain, and a Flying unit moves through it (TerrainFor); PathBreach still judges where Flying ends.
+                    var (impassable, difficult) = RegionVolumes(ctx.State, rules);
+                    var containment = Containers(ctx, unit, action, remaining, rules.PassesImpassable ? [] : Declared(terrain, TerrainDeclarations.Impassable));
                     var prompt = containment?.ExitingId is not null ? $"Disembark: place every model fully within {GfNames.ExitWithin:0.#}\" of the transport"
-                        : ignoreSeparation ? "Charge: move into contact" : aircraft ? $"Move {AircraftLeast(ctx, unit)} to {remaining:0.#}\" in a straight line" : $"Move up to {remaining:0.#}\"";
+                        : ignoreSeparation ? "Charge: move into contact" : aircraft ? AircraftPrompt(ctx, unit, remaining) : $"Move up to {remaining:0.#}\"";
                     // p.13: an Aircraft's move is mandatory, so it may not pass and must go at least 30" (MinimumBreach judges the answer).
                     return new OpenAsks([ctx.Ask("move", prompt, ctx.ActorTeam!.Value,
                         new MoveRegion(Lookup.AliveModels(ctx.State, unit), remaining, impassable, difficult, cap, containment, aircraft ? GfNames.AircraftMove : null), allowPass: !aircraft)]);
                 case 0:
                 {
                     var (changes, segment, dangerousDice, entered) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, ctx.History.LastClosed("move")!));
-                    if (segment > 0) changes.AddRange(RollEffects.Consume(live));
-                    return new Complete(changes, new Dictionary<string, int>
+                    var values = new Dictionary<string, int>
                     {
                         ["distance_used_tenths"] = ctx.Frame.Value("distance_used_tenths") + segment, ["dangerous_dice"] = dangerousDice, ["phase"] = dangerousDice > 0 ? 1 : 2,
                         [GfNames.EnteredDifficultKey] = entered || ctx.Frame.Value(GfNames.EnteredDifficultKey) > 0 ? 1 : 0,
-                    }, Repeat: true);
+                    };
+                    if (segment > 0)
+                    {
+                        var (spent, held) = ConsumeKeepingFlying(live);
+                        changes.AddRange(spent);
+                        foreach (var (key, value) in held) values[key] = value;
+                    }
+                    return new Complete(changes, values, Repeat: true);
                 }
                 case 1 when ctx.History.Children.Count == 0: return new Push(GfNames.DangerousTerrain, new SequenceContext(unit, [], [], action));
                 case 1: return new Complete([], new Dictionary<string, int> { ["phase"] = 2 }, Repeat: true);
@@ -326,13 +347,10 @@ public static class GfMoves
             }
         }
 
-        /// <summary>The prompt's minimum: what MinimumBreach will require, which the table can hold below 30" (one figure, or the range over the unit's models).</summary>
-        static string AircraftLeast(StepContext ctx, Guid unit)
-        {
-            var least = Lookup.AliveModels(ctx.State, unit).Select(m => Battlefield.Placed(ctx.State, m)).OfType<PlacedModel>()
-                .Select(p => Math.Round(Minimum(ctx.State, p, GfNames.AircraftMove), 1)).Distinct().Order().ToList();
-            return least.Count switch { 0 => $"{GfNames.AircraftMove:0.#}\"", 1 => $"{least[0]:0.#}\"", _ => $"{least[0]:0.#}\"–{least[^1]:0.#}\"" };
-        }
+        /// <summary>The prompt states what MinimumBreach will require: 30", or, where the table has no room for 30" for some model, as far as the table allows in the direction taken.</summary>
+        static string AircraftPrompt(StepContext ctx, Guid unit, double remaining) =>
+            Lookup.AliveModels(ctx.State, unit).Select(m => Battlefield.Placed(ctx.State, m)).OfType<PlacedModel>().All(p => HasRoomFor(ctx.State, p, GfNames.AircraftMove))
+                ? $"Move {GfNames.AircraftMove:0.#}\" to {remaining:0.#}\" in a straight line" : $"Move as far as the table allows, up to {remaining:0.#}\", in a straight line";
 
         /// <summary>
         /// p.15: what containment this segment allows. Inside a container → the exit, unless the unit embarked earlier in this
@@ -362,14 +380,15 @@ public static class GfMoves
     public static (List<StateChange> Changes, int SegmentTenths, int DangerousDice, bool EnteredDifficult) ApplyMove(StepContext ctx, Guid unit, LiveSet live, double allowance, IReadOnlyList<ModelRelocation> proposed)
     {
         // p.13: an Aircraft ignores all terrain when moving, so no volume is swept for it.
-        var aircraft = IsAircraft(ctx, unit);
-        IReadOnlyList<WorldVolume> terrain = aircraft ? [] : Battlefield.Terrain(ctx.State);
+        var rules = TerrainFor(ctx, unit, live);
+        var aircraft = rules.Aircraft;
+        var terrain = SweptTerrain(ctx.State, rules);
         var changes = new List<StateChange>(); var used = 0.0; var moves = new List<ModelRelocation>(); var exposed = new List<Guid>(); var crossedDifficult = false;
         var impassable = Declared(terrain, TerrainDeclarations.Impassable);
         var difficult = Declared(terrain, TerrainDeclarations.Difficult);
         var dangerous = Declared(terrain, TerrainDeclarations.Dangerous);
-        var strider = live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying");   // p.14: Strider ignores difficult terrain, Flying all terrain effects
-        var flying = live.Has(Side.Attacker, "Flying");                                          // Strider does *not* skip a dangerous terrain test; only Flying does
+        var strider = rules.IgnoresDifficult;   // p.14: Strider ignores difficult terrain, Flying all terrain effects
+        var flying = rules.Flying;              // Strider does *not* skip a dangerous terrain test; only Flying does
         foreach (var m in proposed)
         {
             // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
@@ -397,14 +416,14 @@ public static class GfMoves
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         if (aircraft && moves.Any(m => m.From is OnTable && m.To is OnTable)) ctx.Applied.Add(GfNames.Aircraft);
-        if (flying && moves.Count > 0) live.Spend(Side.Attacker, "Flying");   // spent by the holder's next applied move, whatever it crosses
+        if (flying && moves.Count > 0) live.Spend(Side.Attacker, GfNames.Flying);   // used by any applied move, whatever it crosses; a granted one is kept to the activation's end (ConsumeKeepingFlying)
         // Applied, recorded without spending: Flying when it skipped a dangerous test (p.13) or a difficult cap that would have bound, Strider when it
         // skipped that cap (p.14). The cap binds only when the allowance is over it, so an Advance across difficult ground lists neither.
         var capSkipped = crossedDifficult && allowance > GfNames.DifficultCap;
-        if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, "Flying");
-        if (capSkipped) live.Record(Side.Attacker, "Strider");
+        if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, GfNames.Flying);
+        if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
         if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
-        return (changes, (int)Math.Round(used * 10), flying ? 0 : DangerousDice(ctx.State, exposed), crossedDifficult && !strider);
+        return (changes, (int)Math.Round(used * 10), rules.IgnoresDangerous ? 0 : DangerousDice(ctx.State, exposed), crossedDifficult && !strider);
     }
 
     /// <summary>p.7–8: Hold and Advance may shoot; a Rush reaches this step too and is offered only what ValidTargets admits (p.7 "can't shoot", unless Quick Shot). p.10: a Shaken unit spends the activation idle and stops being Shaken.</summary>
@@ -467,17 +486,18 @@ public static class GfMoves
             var allowance = row.EffectiveAmount(null);
             if (ctx.History.LastClosed("move") is not { } closed)
             {
-                var terrain = Battlefield.Terrain(ctx.State);
+                var rules = TerrainFor(ctx, unit, live);
+                var (impassable, difficult) = RegionVolumes(ctx.State, rules);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, ImpassableFor(ctx.State, live.Has(Side.Attacker, "Flying")),
-                        Declared(terrain, TerrainDeclarations.Difficult).Select(v => v.Id).ToList(),
-                        live.Has(Side.Attacker, "Strider") || live.Has(Side.Attacker, "Flying") ? null : GfNames.DifficultCap), allowPass: true)]);   // the cap ApplyMove holds the move to
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
             live.Read(source);
-            changes.AddRange(RollEffects.Consume(live));
-            return new Complete(changes, new Dictionary<string, int> { ["dangerous_dice"] = dice }, Repeat: dice > 0);
+            var (spent, held) = ConsumeKeepingFlying(live);
+            changes.AddRange(spent);
+            held["dangerous_dice"] = dice;
+            return new Complete(changes, held, Repeat: dice > 0);
         }
 
         /// <summary>Phase 0: roll the distance when the row has dice (p.4's D3: a D6 halved, rounded up), recorded in tenths on the frame; then ask; then apply.
@@ -535,23 +555,6 @@ public static class GfMoves
             if (displaced > distance + 1e-6) continue;
             if (LandsInImpassable(ctx.State, m.ModelId, settled, impassable)) continue;
             moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
-        }
-        return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
-    }
-
-    /// <summary>A move another team makes for this unit (a spell's move kind): the same settling, impassable and difficult checks as an action's
-    /// move, measured against the allowance; one chosen by the opponent may not carry a model off the table; dangerous terrain crossed is not tested, since no rule asks it of a forced move.</summary>
-    public static IReadOnlyList<StateChange> ApplyForcedMove(StepContext ctx, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed)
-    {
-        var terrain = Battlefield.Terrain(ctx.State);
-        var impassable = Declared(terrain, TerrainDeclarations.Impassable); var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-        var moves = new List<ModelRelocation>();
-        foreach (var m in proposed.Where(m => m.To is OnTable && ctx.Projection.Models.TryGetValue(m.ModelId, out var mm) && mm.UnitId == unit))
-        {
-            if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
-            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size);
-            if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable) moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
         }
         return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
     }

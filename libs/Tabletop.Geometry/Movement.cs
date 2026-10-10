@@ -111,6 +111,25 @@ public static class Movement
     }
 
     /// <summary>
+    /// How far the base centre can go from its start in a straight line towards `toward` with the whole base still on the table (the slab
+    /// inset as FarthestOnTable insets it). Zero when `toward` is the start or the base is wider than the slab.
+    /// </summary>
+    public static double RoomAlong(PlacedModel start, Point2 toward, TableSize table)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
+        var radius = bound + centre.DistanceTo(origin);
+        var delta = toward - origin;
+        if (delta.Length <= Tolerance.Distance || 2 * radius > table.Width || 2 * radius > table.Length) return 0;
+        double dx = delta.X / delta.Length, dy = delta.Y / delta.Length, room = double.PositiveInfinity;
+        if (dx > 1e-12) room = Math.Min(room, (table.Width - radius - origin.X) / dx);
+        if (dx < -1e-12) room = Math.Min(room, (radius - origin.X) / dx);
+        if (dy > 1e-12) room = Math.Min(room, (table.Length - radius - origin.Y) / dy);
+        if (dy < -1e-12) room = Math.Min(room, (radius - origin.Y) / dy);
+        return Math.Max(0, room);
+    }
+
+    /// <summary>
     /// Volumes whose footprint the base touches at any point of the straight path from start to destination, in input
     /// order. Rulebook p.11's "moves in or through" — a dangerous terrain test is owed for a piece crossed and left behind.
     /// </summary>

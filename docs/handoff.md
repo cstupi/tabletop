@@ -56,12 +56,19 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 - **Six rolls still decide in the rolling step:** defence `extra_wounds` (`GfAttack.cs:44`), wound-ignore, dangerous terrain,
   Impact, attack-start faces, dice-distance moves.
 - **D13:** a player's `AddModifier` lands in `Projection.PendingModifiers` (`Projection.cs:94`) but nothing reads it into a roll plan.
-- **Standing ruling to confirm:** on a table without 30" of room the Aircraft minimum is as far as its base can go on the table
-  (`GfMoves.Minimum`, `Movement.FarthestOnTable`; p.6 smaller tables, p.7).
-- **Owner call:** a spell's forced move ignores the target's Flying/Strider (`GfCasting.cs:309`); p.36 "ignore all terrain effects" is unbuilt.
+- **Owner rulings on movement:** a spell's forced move moves the unit however that unit moves (*"Spells move as however that
+  unit moves"*): its region and its apply read the target's own Flying, Strider and Aircraft (`GfMoves.TerrainFor`). A granted
+  Flying lasts the whole activation (*"Granted flying applies to the whole move - its per activation"*): once it applies it stays
+  live for the activation-start test, every leg of a split move and the landing, and `GfHooks.OnTurnEnded` removes it when that
+  activation ends (`GfMoves.ConsumeKeepingFlying`, a name check in one place); a spell's forced move of the unit flies with it but
+  neither spends nor holds it, since that is not the unit's activation. On a table without 30" of room an Aircraft moves as
+  far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`).
 - **Movement leftovers:** D8 suite evidence is weak; the client has no per-model cap region and no landing volumes for Flying; the
-  Aircraft landing exemption is keyed on `MinDistance` (`GfMoves.cs:166`), not on Aircraft; a forced move from inside a wall is a
-  silent zero move; the start-in-impassable exemption is per volume (lenient).
+  client's Aircraft minimum ring (`MoveRuler.Minimum`) and the sim's `AnswerPolicy` still use the farthest-corner reach on a small table,
+  stricter than the server's direction-taken minimum; the Aircraft landing exemption is keyed on `MinDistance` (`GfMoves.PathBreach`), not
+  on Aircraft, so under strict a spell's forced move of an Aircraft may not land in impassable terrain; a forced move from inside a wall is a
+  silent zero move; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
+  effects" is unbuilt.
 - **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
 
 ### 2. The in-game UX: the owner's on-screen check
@@ -104,8 +111,7 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
   `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
   (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`, `agent-a926f6b5bf678900a`).
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
-  spends the use; a granted Flying is spent by the first leg of a split move; a granted Counter-Attack or Unwieldy on a
-  unit with no melee weapon stays until next used.
+  spends the use; a granted Counter-Attack or Unwieldy on a unit with no melee weapon stays until next used.
 - A Scout unit keeps the `set-aside` condition after it deploys: `GfRules.Deployment.cs` clears it only for an Ambusher at the
   round boundary. Nothing reads it once the unit is on the table (every reader also requires all its models shelved); clear it
   when the Scout deploys.
@@ -151,9 +157,7 @@ text-only entry needs an explicit "played" flag for the tag to stay true;
 descriptions; the catalog, not the army, is where rule text lives.
 
 Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
-starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Assignment
-legal set carries one target list for every weapon group, so the server checks an answer's targets against the union
-and not per group: a split-fire target one group cannot legally shoot is accepted for that group. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
+starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
 are built. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets

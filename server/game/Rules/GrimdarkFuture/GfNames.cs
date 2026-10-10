@@ -38,6 +38,10 @@ public static class GfNames
     public const string Rounds = Scheduler.SchedulerBase.RoundsPhase;
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
+    /// <summary>p.13 Flying and p.14 Strider: the movement rules a move reads from the unit's live set (GfMoves.TerrainFor).</summary>
+    public const string Flying = "Flying", Strider = "Strider";
+    /// <summary>The Values key prefix a step writes for a granted Flying it used and kept (GfMoves.ConsumeKeepingFlying): "flying_held_{unit:N}_{grant:N}".</summary>
+    public const string FlyingHeldPrefix = "flying_held_";
     public const string Artillery = "Artillery";                                                                        // p.13: "May only use Hold actions"; not in the core catalog, so read off a unit's own properties
     public const string Transport = "Transport";                                                                        // p.15; its (X) is carried and never read — game flow: capacity is not enforced
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover

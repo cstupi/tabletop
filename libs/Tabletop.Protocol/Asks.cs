@@ -47,8 +47,19 @@ public sealed record PieceSelection(IReadOnlyList<Guid> Eligible, int Min, int M
 /// <summary>Distribute Amount over Targets, exactly (wound assignment, casualty removal): the counts sum to Amount, and at most
 /// MaxTargets targets get a count above zero (null: any number).</summary>
 public sealed record Allocation(IReadOnlyList<Guid> Targets, int Amount, int? MaxTargets = null) : LegalSet;
-/// <summary>Give each item one target (weapon groups to up to N targets).</summary>
-public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets) : LegalSet;
+/// <summary>
+/// Give items one target each, at least one item and at most MaxDistinctTargets distinct targets in all (weapon groups, rulebook
+/// p.8: up to two); an item the answer leaves out takes none (a weapon group that holds fire, p.8: models "may" shoot).
+/// Targets is every target some item may take. TargetsByItem, when non-null, is the targets each item may take, keyed by item id
+/// (a weapon group to the units it can legally shoot); an item it does not name takes none. Null lets every item take any of Targets.
+/// </summary>
+public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Guid> Targets, int MaxDistinctTargets,
+    IReadOnlyDictionary<string, IReadOnlyList<Guid>>? TargetsByItem = null) : LegalSet
+{
+    /// <summary>The targets one item may take.</summary>
+    public IReadOnlyList<Guid> TargetsOf(string itemId) =>
+        TargetsByItem is null ? Targets : TargetsByItem.TryGetValue(itemId, out var own) ? own : [];
+}
 /// <summary>
 /// Anywhere within the allowance: parameters, not an enumeration. The client draws the region with Tabletop.Geometry.Movement.Region.
 /// ImpassableVolumeIds and DifficultVolumeIds name volumes on the Board (TerrainPlacement.WorldVolumes()); DifficultCap is what is

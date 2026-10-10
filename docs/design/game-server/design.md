@@ -484,7 +484,7 @@ functions read it:
 - `LegalSetMembership.Contains(Ask, AskAnswer)` is rules-free set membership over the seven
   closed `LegalSet` shapes. `Options` by option id, `PieceSelection` by count bounds,
   distinctness and eligibility, `Allocation` by targets and a sum equal to `Amount`,
-  `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
+  `Assignment` by offered items (at least one; one left out holds fire), each item's target on its own list (`Assignment.TargetsOf`) and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
   every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
   that key's own cap, with **no total**, because a spend is any number up to a maximum —
   `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**: every id is in
@@ -513,9 +513,10 @@ functions read it:
   `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
   charges, the defender's close-in and consolidation (whose Asks list the impassable volumes), a
   disembark and a destroyed transport's survivors, rule repositions and placements, and a spell's forced
-  move. A Flying unit's action move, charge, close-in, consolidation and reposition Asks list no impassable
+  move. A Flying unit's action move, charge, close-in, consolidation, reposition and forced move Asks list no impassable
   volume (p.13 Flying *"may move through units and terrain"*; p.11 *"unless they have any rules that allow
-  them to ignore it"*; `GfMoves.Flies`, read from the live set), so only its landing is judged. A relocation
+  them to ignore it"*; read from the live set), so only its landing is judged. A spell's forced move reads the target's
+  own terrain rules (`GfMoves.TerrainFor`, owner ruling *"Spells move as however that unit moves"*). A relocation
   to where the model already is (an occupant answered `Inside` its own container) is standing still, not
   `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and

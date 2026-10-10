@@ -86,6 +86,7 @@ export interface Assignment {
   readonly items: readonly AskOption[];
   readonly targets: readonly string[];
   readonly maxDistinctTargets: number;
+  readonly targetsByItem?: { readonly [key: string]: readonly string[] };
 }
 
 export interface Base {

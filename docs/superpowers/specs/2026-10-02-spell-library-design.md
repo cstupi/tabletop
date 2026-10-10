@@ -263,12 +263,20 @@ attack rather than until its next 6. Concretely, a step consumes when:
 | a granted rule (`grant_property`) | the first step whose query returns any effect of the granted rule, under the same test |
 | a parameter modifier, a suppression | the step that settles the interaction it changed |
 | `count_as_terrain` | the step the terrain type would trigger (*Grammar additions*) |
+| a granted `Flying` | the end of the holder's own activation in which it first applied; never a spell's forced move (owner ruling below) |
 
 `LiveSet` records which granted sources its queries returned, and the step that settled it emits
 `GrantRemoved` for each grant in their groups. **Reading a grant to build a legal set does not consume it**:
 `GfMelee.ChargeTargets` reads *Shock Speed*'s Charge row to decide whether Charge is offered, and only the
 charge move's measuring step consumes it. A grant whose conditions never hold is never consumed, as spell
 effects already ruled.
+
+**A granted Flying lasts the activation.** The owner's ruling: *"Granted flying applies to the whole move - its per
+activation"*. The first step that applies it (the activation-start dangerous terrain test it skips, or an applied move of
+the unit) keeps that spell's grants on the unit and names them in its `Values`; they stay live for every later leg of the
+move and its landing, and the turn-end hook removes them when that activation ends (`GfMoves.ConsumeKeepingFlying`,
+`GfMoves.FlyingHeldThisActivation`). A spell's forced move of the unit flies with the grant but neither spends nor holds it:
+the forced move is not the unit's activation, so the grant waits for its own.
 
 ## Grammar additions
 
@@ -341,7 +349,8 @@ top-level effects are `add_hit`, `duration = once`, or `take_test`.
 the subject's unit. *Terrifying Fury*: *"If failed, it becomes fatigued"*.
 
 **Kind 16, `move`**, with `amount` in inches: the caster's team gets one `move` Ask, a `MoveRegion` over the
-subject unit's alive models with that allowance and the move's usual impassable and difficult volumes, and
+subject unit's alive models with that allowance and the impassable and difficult volumes and cap that unit's own move has
+(the owner's ruling: *"Spells move as however that unit moves"*, so a Flying, Strider or Aircraft target keeps its rules), and
 may pass. *Deep Hypnosis*: *"If failed you may move it by up to 6" in a straight line in any direction"*. Every
 move the engine measures is a straight path per model (`GfMoves`), and `LegalSetMembership` checks a
 `Destinations` answer's model ids only, so moving another team's unit needs no new legal set.

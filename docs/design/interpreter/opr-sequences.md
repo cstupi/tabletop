@@ -237,11 +237,27 @@ unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved thi
 Indirect's *"shooting after moving"* reads. Under the enforcement setting, dispatch judges the answer's allowance, impassable
 terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
 (`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
-terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask (read
-from the live set, `GfMoves.Flies`) lists no impassable volume; p.11 *"may not end their move partially overhanging gaps or
-terrain"* and p.7 *"physically impossible locations"* still hold its landing (`GfMoves.LandsInImpassable`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
+terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask lists no
+impassable volume; p.11 *"may not end their move partially overhanging gaps or terrain"* and p.7 *"physically impossible
+locations"* still hold its landing (`GfMoves.LandsInImpassable`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
 `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
 prompt for a charge.
+
+How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no
+cap, no dangerous terrain test), Flying (p.13 *"may move through units and terrain, and ignore terrain effects whilst moving"*:
+no impassable volume, no cap, no dangerous terrain test) and Strider (p.14 *"May ignore the effects of difficult terrain when
+moving"*: no cap). The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
+reposition, and a spell's forced move: the owner's ruling is *"Spells move as however that unit moves"*, so `take_test`'s
+`move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
+
+A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
+It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:
+the step that used it removes nothing of that spell's grants and writes a `Values["flying_held_<unit>_<grant>"]` key instead
+(`GfMoves.ConsumeKeepingFlying`), so every later leg of a split move and the landing still read it. `GfHooks.OnTurnEnded`
+removes every grant so held since the activation was answered (`GfMoves.FlyingHeldThisActivation`). A spell's forced move of the unit
+reads it for terrain but neither spends nor holds it (owner ruling: the forced move is not the unit's activation), so the grant
+waits for the unit's own activation. This is the one granted rule held
+past the step that used it, and it is held by name.
 
 p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in a straight line, and adding 30" to its
 total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping"*. For an Aircraft unit
@@ -251,9 +267,9 @@ segment (the casting checkpoint never returns it to phase 0), so each model move
 `Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The move is mandatory (*"can't move into the
 table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
 `GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer
-left out. Where the table has no room for 30" (a small table), the minimum is as far as the whole base can go
-(`Movement.FarthestOnTable`); the rulebook does not cover that case (p.6 allows "smaller areas", p.7 keeps every base on the
-table), so this is a standing ruling until the owner rules.
+left out. Where the table has no room for 30" in any direction (a small table: p.6 allows "smaller areas", p.7 keeps every
+base on the table), the owner's ruling is that it moves as far as it can in the direction taken: the minimum is the room
+towards where the model went (`GfMoves.Minimum`, `Movement.RoomAlong`).
 
 Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
@@ -271,8 +287,11 @@ and push: the activation, the move, and transport destruction.
 ## Shooting
 
 `declare-targets` opens `Assignment(Items = GfShooting.Groups(...), Targets = valid target units,
-MaxDistinctTargets = 2)`. p.8: targets are declared *before any roll*, and up to two different
-targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
+MaxDistinctTargets = 2, TargetsByItem = each group's own valid targets)`. p.8: targets are declared
+*before any roll*, and up to two different targets; a target is valid for a group when a model can see
+it and has a weapon of that group in range (`GfShooting.ValidTargets` per group), so each group may be
+assigned only a unit on its own list. `GfShooting.Declared` drops any aim off that list. A group the
+answer leaves out holds fire (p.8: models "may" shoot); `fire-groups` fires only the groups with a target. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
 `Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
 `Values["defender_models_<i>"]` and `Values["in_cover_<i>"]`, before it pushes anything, pushes
