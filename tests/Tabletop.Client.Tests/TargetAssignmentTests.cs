@@ -79,6 +79,38 @@ public class TargetAssignmentTests
         Assert.Equal([T1, T2, T3], t.Candidates);                       // one target again
     }
 
+    /// <summary>Rifles reach T1 and T2, Pistols only T1 (p.8: a target is valid for a group with a weapon of it in range).</summary>
+    static Assignment Split() => new([new AskOption("Rifles", "Rifles", []), new AskOption("Pistols", "Pistols", [])], [T1, T2], 2,
+        new Dictionary<string, IReadOnlyList<Guid>> { ["Rifles"] = [T1, T2], ["Pistols"] = [T1] });
+
+    /// <summary>Spec → Shooting targets: a click aims only the picked groups that can shoot the unit; the others keep their aim.</summary>
+    [Fact]
+    public void A_click_aims_only_the_picked_groups_that_can_shoot_the_unit()
+    {
+        var t = new TargetAssignment(Split());
+        Assert.True(t.Aim(T2));
+        Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T2 }, t.Assigned);                        // the Pistols cannot reach T2
+        Assert.Null(t.Answer());
+        Assert.True(t.Aim(T1));
+        Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T1, ["Pistols"] = T1 }, t.Assigned);
+        t.PickOnly("Rifles"); t.Aim(T2);
+        Assert.Equal(new Dictionary<string, Guid> { ["Rifles"] = T2, ["Pistols"] = T1 }, t.Assigned);
+        Assert.NotNull(t.Answer());
+    }
+
+    /// <summary>Spec → Shooting targets: a unit glows only when a picked group can shoot it.</summary>
+    [Fact]
+    public void A_unit_no_picked_group_can_shoot_is_not_a_candidate()
+    {
+        var t = new TargetAssignment(Split());
+        Assert.Equal([T1, T2], t.Candidates);
+        t.PickOnly("Pistols");
+        Assert.False(t.CanTarget(T2));
+        Assert.Equal([T1], t.Candidates);
+        Assert.False(t.Aim(T2));
+        Assert.Empty(t.Assigned);
+    }
+
     /// <summary>Spec → Shooting targets: chips read "Rifles ×4", the count of weapons in the group (its pieces).</summary>
     [Fact]
     public void A_chip_names_its_group_and_how_many_weapons_it_holds()

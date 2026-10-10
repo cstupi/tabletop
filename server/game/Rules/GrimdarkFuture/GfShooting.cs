@@ -46,13 +46,17 @@ public static class GfShooting
         return RollEffects.Consume(live);
     }
 
-    /// <summary>The declare-targets answer cut to what the Ask offered: only a group it listed, aimed at a unit it offered. Null when nothing was answered with an Assigned.</summary>
+    /// <summary>The declare-targets answer cut to what the Ask offered: only a group it listed, aimed at a unit it offered that group (p.8). Null when nothing was answered with an Assigned.</summary>
     public static Assigned? Declared(StepContext ctx)
     {
         if (ctx.Frame.Frame.Steps.FirstOrDefault(s => s.Step == "declare-targets")?.Answer is not Assigned answered || FrameReader.Recorded(ctx.State, ctx.Frame.Id, "declare_targets")?.Legal is not Assignment offer) return null;
-        return answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.Targets.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
+        return answered with { Targets = answered.Targets.Where(kv => offer.Items.Any(i => i.Id == kv.Key) && offer.TargetsOf(kv.Key).Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value) };
     }
 
+    /// <summary>
+    /// p.8: "Each group may be fired at a different target, however you may fire only at up to two different targets". The Ask offers
+    /// each group only its own valid targets (TargetsByItem): a unit some model can see with a weapon of that group in range of it.
+    /// </summary>
     sealed class DeclareTargetsStep : IStep
     {
         public string Name => "declare-targets";
@@ -69,7 +73,8 @@ public static class GfShooting
             var groups = all.Select(g => (Group: g, Targets: ValidTargets(ctx, unit, g))).Where(x => x.Targets.Count > 0).ToList();
             if (groups.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("declare_targets", "Declare weapon groups and up to two targets", ctx.ActorTeam!.Value,
-                new Assignment(groups.Select(x => new AskOption(x.Group.Name, x.Group.Name, x.Group.WeaponIds)).ToList(), groups.SelectMany(x => x.Targets).Distinct().ToList(), 2))]);
+                new Assignment(groups.Select(x => new AskOption(x.Group.Name, x.Group.Name, x.Group.WeaponIds)).ToList(), groups.SelectMany(x => x.Targets).Distinct().ToList(), 2,
+                    groups.ToDictionary(x => x.Group.Name, x => x.Targets)))]);
         }
     }
 

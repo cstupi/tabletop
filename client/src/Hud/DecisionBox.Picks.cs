@@ -59,7 +59,7 @@ public partial class DecisionBox
     }
 
     /// <summary>declare_targets: weapon groups as chips, all picked to start (p.8: one group per weapon type). A click on an enemy aims
-    /// every picked group at it; a chip picks its group alone. Enter fires, Esc clears the assignments.</summary>
+    /// every picked group that can shoot it (p.8); a chip picks its group alone. Enter fires, Esc clears the assignments.</summary>
     void RenderTargets(Ask ask, Assignment legal, Names names)
     {
         var t = Targets = new TargetAssignment(legal);
@@ -78,7 +78,7 @@ public partial class DecisionBox
                 chip.Pressed += () => { t.PickOnly(id); Callable.From(Show).CallDeferred(); };   // not inside the chip's own signal: Show frees it
                 chips.AddChild(chip);
             }
-            _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // two targets taken (p.8): nothing else glows
+            _input.Eligible = t.Candidates.ToHashSet(); Glow(t.Candidates);          // only units a picked group can shoot; two targets taken (p.8): nothing else glows
             fire.Disabled = t.Answer() is null;
             TargetsChanged?.Invoke();
         }

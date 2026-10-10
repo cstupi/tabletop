@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Dispatch;
 using Tabletop.Content;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -37,6 +38,29 @@ public class GfShootingTests
         Assert.Equal(GfNames.Advance, attacks[0].Context.Action);
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [a.Models[0].Id] = 3 }));
         Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void Each_group_is_offered_only_the_targets_it_can_shoot_and_a_group_aimed_elsewhere_fires_nothing()
+    {
+        // p.8: a target is valid when a model "has a weapon that is within range of that model", and "Each group may be fired at a
+        // different target". Near stands 12" off (Rifles and Pistols reach it); Far about 17" (only the Rifles).
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifles", "24\"", 1), Gun("Pistols", "12\"", 1));
+        var near = Unit("Near", "4+", "4+", [], 1, []); var far = Unit("Far", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([shooter], [near, far], x1: -6, x2: 6), 1, 1, 1, 1);                           // every hit misses: only the aims are under test
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        var ask = sim.AskFor(Samples.Team1);
+        var declare = Assert.IsType<Assignment>(ask.Legal);
+        Assert.Equal(new HashSet<Guid> { near.Id, far.Id }, declare.Targets.ToHashSet());
+        Assert.Equal(new HashSet<Guid> { near.Id, far.Id }, declare.TargetsOf("Rifles").ToHashSet());
+        Assert.Equal([near.Id], declare.TargetsOf("Pistols"));
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = far.Id })));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = near.Id })));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = far.Id }));   // warn accepts it; the Pistols' aim is dropped
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        var rifles = shooter.Models[0].Weapons.Where(w => w.Name == "Rifles").Select(w => w.Id).ToList();
+        Assert.Equal(rifles, Assert.Single(attacks).Context.WeaponIds);
+        Assert.Equal(far.Id, attacks[0].Context.TargetUnitIds[0]);
     }
 
     [Fact]

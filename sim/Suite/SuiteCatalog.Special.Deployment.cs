@@ -114,7 +114,7 @@ static partial class SpecialGames
             new Dictionary<string, Func<IReadOnlyList<GameEvent>, bool>> { ["Aircraft"] = log => OnlyOffered(log, "Blue unit 1", "Advance") });
     }
 
-    /// <summary>ShootAndStrike, and every weapon group fires at Red unit 3, the Hero's unit, whenever it is a legal target.</summary>
+    /// <summary>ShootAndStrike, and every weapon group fires at Red unit 3, the Hero's unit, whenever it is a legal target of every group.</summary>
     static AnswerScript ShootTheHerosUnit
     {
         get
@@ -123,7 +123,7 @@ static partial class SpecialGames
             for (var i = 0; i < 80; i++) script.At("shoot_or_not", i, new Chosen("shoot")).At("strike_back", i, new Chosen("strike"));
             return script
                 .Match("declare_targets", (ask, p) => ask.Legal is Assignment a && a.Targets.FirstOrDefault(t => AskPicks.UnitNameOf(p, t) == "Red unit 3") is var t && t != Guid.Empty
-                    ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
+                    && a.Items.All(i => a.TargetsOf(i.Id).Contains(t)) ? new Assigned(a.Items.ToDictionary(i => i.Id, _ => t)) : null)
                 .Build();
         }
     }

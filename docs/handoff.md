@@ -151,9 +151,7 @@ text-only entry needs an explicit "played" flag for the tag to stay true;
 descriptions; the catalog, not the army, is where rule text lives.
 
 Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
-starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Assignment
-legal set carries one target list for every weapon group, so the server checks an answer's targets against the union
-and not per group: a split-fire target one group cannot legally shoot is accepted for that group. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
+starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
 are built. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets
