@@ -513,9 +513,10 @@ functions read it:
   `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
   charges, the defender's close-in and consolidation (whose Asks list the impassable volumes), a
   disembark and a destroyed transport's survivors, rule repositions and placements, and a spell's forced
-  move. A Flying unit's action move, charge, close-in, consolidation and reposition Asks list no impassable
+  move. A Flying unit's action move, charge, close-in, consolidation, reposition and forced move Asks list no impassable
   volume (p.13 Flying *"may move through units and terrain"*; p.11 *"unless they have any rules that allow
-  them to ignore it"*; `GfMoves.Flies`, read from the live set), so only its landing is judged. A relocation
+  them to ignore it"*; read from the live set), so only its landing is judged. A spell's forced move reads the target's
+  own terrain rules (`GfMoves.TerrainFor`, owner ruling *"Spells move as however that unit moves"*). A relocation
   to where the model already is (an occupant answered `Inside` its own container) is standing still, not
   `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and

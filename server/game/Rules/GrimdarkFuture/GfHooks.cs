@@ -26,6 +26,8 @@ public static class GfHooks
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
         // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
+        // Owner ruling: a granted Flying "applies to the whole move - its per activation": what this activation used and kept is spent now.
+        changes.AddRange(GfMoves.FlyingHeldThisActivation(state, turn.AnsweredAtSeq));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
         // p.13: an Aircraft "may only use Advance actions … (even if Shaken)" and "their mandatory move doesn't break the staying idle requirement
         // to stop being Shaken" — so a Shaken Aircraft's Advance counts as having idled.

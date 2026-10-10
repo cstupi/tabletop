@@ -2,6 +2,7 @@ using Tabletop.Content;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Properties;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.GameServer.Scheduler;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -27,6 +28,10 @@ public class GrantConsumptionTests
         sim.Append([new GrantAdded(unit, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), Props.Entry(spell)!.Effects[0].Id, spell, unit, 1))]);
 
     static ScriptedDice Twos => new(Enumerable.Repeat(2, 60).ToArray());
+
+    /// <summary>The scheduler's end of the activation that began at seq 0: its turn-end hook.</summary>
+    static void EndActivation(Sim sim) =>
+        sim.Append(GrimdarkFutureRules.Instance.OnTurnEnded(sim.State, Props, new TurnContext(Samples.Team1, null, 0, sim.State.Projection.LastSeq)));
 
     static SequenceContext MeleeOf(Tabletop.Content.Unit charger, Tabletop.Content.Unit target) =>
         new(charger.Id, [target.Id], charger.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Charge);
@@ -82,13 +87,15 @@ public class GrantConsumptionTests
         [new TerrainVolume(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(2, 2), new Point2(0, 0), new Yaw(0), 0, 1, TerrainDeclarations.Dangerous, null))]);
 
     [Fact]
-    public void A_granted_Flying_skips_the_activation_test_in_dangerous_terrain_and_is_spent_there()
+    public void A_granted_Flying_skips_the_activation_test_in_dangerous_terrain_and_is_spent_when_the_activation_ends()
     {
         var u = Unit("U", "4+", "4+", [], 1, []);
         var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12, terrain: [Lava(-12, -18.5)]), GrimdarkFutureRules.Instance, Props, Twos);
         Grant(sim, u.Id, "Wings");
         sim.Start(GfNames.HoldSeq, new SequenceContext(u.Id, [], [], GfNames.Hold));
         Assert.Empty(sim.Steps("test"));
+        Assert.Single(sim.Unit(u.Id).Grants);
+        EndActivation(sim);
         Assert.Empty(sim.Unit(u.Id).Grants);
     }
 
@@ -99,11 +106,12 @@ public class GrantConsumptionTests
         var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12), GrimdarkFutureRules.Instance, Props, Twos);
         Grant(sim, u.Id, "Wings");
         sim.Start(GfNames.HoldSeq, new SequenceContext(u.Id, [], [], GfNames.Hold));
+        EndActivation(sim);
         Assert.Single(sim.Unit(u.Id).Grants);
     }
 
     [Fact]
-    public void A_granted_Flying_crosses_dangerous_terrain_untested_and_is_spent_by_that_move()
+    public void A_granted_Flying_crosses_dangerous_terrain_untested_and_is_spent_when_the_activation_ends()
     {
         var u = Unit("U", "4+", "4+", [], 1, []);
         var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12, terrain: [Lava(-8, -18.5)]), GrimdarkFutureRules.Instance, Props, Twos);
@@ -112,6 +120,8 @@ public class GrantConsumptionTests
         var m = u.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
         sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 8 } }))]));
         Assert.Empty(sim.Steps("test"));
+        Assert.Single(sim.Unit(u.Id).Grants);
+        EndActivation(sim);
         Assert.Empty(sim.Unit(u.Id).Grants);
     }
 
@@ -141,7 +151,7 @@ public class GrantConsumptionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void A_granted_Flying_is_spent_by_the_next_applied_move_whatever_it_crosses(bool difficult)
+    public void A_granted_Flying_used_by_an_applied_move_whatever_it_crosses_is_spent_when_the_activation_ends(bool difficult)
     {
         var u = Unit("U", "4+", "4+", [], 1, []);
         var sim = new Sim(State([u], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12, terrain: difficult ? [Rough(-8, -18.5)] : null), GrimdarkFutureRules.Instance, Props, Twos);
@@ -149,6 +159,8 @@ public class GrantConsumptionTests
         sim.Start(GfNames.RushSeq, new SequenceContext(u.Id, [], [], GfNames.Rush));
         var m = u.Models[0].Id; var at = ((OnTable)sim.Model(m).Location).Placement;
         sim.Answer(Samples.Team1, new Destinations([new ModelRelocation(m, sim.Model(m).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + 8 } }))]));
+        Assert.Single(sim.Unit(u.Id).Grants);
+        EndActivation(sim);
         Assert.Empty(sim.Unit(u.Id).Grants);
     }
 
@@ -172,5 +184,61 @@ public class GrantConsumptionTests
         sim.Start(GfNames.HoldSeq, new SequenceContext(u.Id, [], [], GfNames.Hold));
         Assert.Empty(sim.Steps("test"));
         Assert.Empty(sim.Unit(u.Id).Grants);
+    }
+
+    // ---- Owner ruling: "Granted flying applies to the whole move - its per activation" -------------------------------------------------------
+
+    static ModelRelocation Shifted(Sim sim, Guid model, double dx)
+    {
+        var at = ((OnTable)sim.Model(model).Location).Placement;
+        return new ModelRelocation(model, sim.Model(model).Location, new OnTable(at with { Position = at.Position with { X = at.Position.X + dx } }));
+    }
+
+    /// <summary>Answers the casting checkpoint with a Fog that fails (every die is a 2), until the move Asks again.</summary>
+    static void CastAndFail(Sim sim)
+    {
+        for (var i = 0; i < 10 && sim.AskFor(Samples.Team1).Question != "move"; i++)
+        {
+            var ask = sim.AskFor(Samples.Team1);
+            sim.Answer(Samples.Team1, ask.Legal switch
+            {
+                Options o when ask.Question == "cast" => new Chosen(o.Choices.First(c => c.Id.StartsWith("Fog|")).Id),
+                Options o => new Chosen(o.Choices[0].Id),
+                _ => new Passed(),
+            });
+        }
+        Assert.Equal("move", sim.AskFor(Samples.Team1).Question);
+    }
+
+    static int DangerousTests(Sim sim) => sim.Emitted.OfType<SequenceStarted>().Count(s => s.Sequence == GfNames.DangerousTerrain);
+
+    [Fact]
+    public void A_granted_Flying_lasts_the_whole_activation_through_the_activation_test_and_every_leg_of_a_split_move_and_is_gone_by_the_next()
+    {
+        // Activated in lava; the first leg crosses a second lava, a cast splits the move, and the second leg crosses a third, past 6" of movement.
+        var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 3)]);
+        var sim = new Sim(State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -20, x2: 20, terrain: [Lava(-20, -18.5), Lava(-16.5, -18.5), Lava(-11, -18.5), Rough(-11, -18.5)]),
+            GrimdarkFutureRules.Instance, Props, Twos);
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        Grant(sim, wizard.Id, "Wings");
+        var m = wizard.Models[0].Id;
+        sim.Start(GfNames.RushSeq, new SequenceContext(wizard.Id, [], [], GfNames.Rush));
+        Assert.Equal(0, DangerousTests(sim));                                                               // the activation-start test skipped
+        Assert.Single(sim.Unit(wizard.Id).Grants);
+        sim.Answer(Samples.Team1, new Destinations([Shifted(sim, m, 6)]));
+        Assert.Single(sim.Unit(wizard.Id).Grants);
+        CastAndFail(sim);
+        var second = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
+        Assert.Null(second.DifficultCap);                                                                   // still flying on the second leg
+        sim.Answer(Samples.Team1, new Destinations([Shifted(sim, m, 5)]));
+        Assert.Equal(0, DangerousTests(sim));                                                               // neither leg's lava tested
+        Assert.Single(sim.Unit(wizard.Id).Grants);
+        while (sim.AskForOrNull(Samples.Team1) is not null) sim.Answer(Samples.Team1, new Passed());       // no second cast: the rush ends
+        Assert.Empty(sim.State.Projection.Stack);
+        EndActivation(sim);
+        Assert.Empty(sim.Unit(wizard.Id).Grants);
+        sim.Append([new ModelsMoved([new ModelRelocation(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(-20, -18.5, 0), new Yaw(0))))])]);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(wizard.Id, [], [], GfNames.Hold));
+        Assert.Equal(1, DangerousTests(sim));                                                               // the next activation in lava tests
     }
 }

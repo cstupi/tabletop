@@ -18,6 +18,17 @@ public class MovementTests
         Assert.Equal(Math.Sqrt((72 - radius) * (72 - radius) + (48 - radius) * (48 - radius)), Movement.FarthestOnTable(Fx.Model(0, 0), Opr).Distance, 6);
     }
 
+    [Fact] public void The_room_along_a_direction_is_how_far_the_base_centre_goes_that_way_with_the_whole_base_on_the_table()
+    {
+        var model = Fx.Model(18, 18);
+        var (_, radius) = model.BaseOutline().BoundingCircle();
+        var table = new TableSize(36, 36);
+        Assert.Equal(18 - radius, Movement.RoomAlong(model, new Point2(20, 18), table), 6);                    // east, to the inset edge
+        Assert.Equal(Math.Sqrt(2) * (18 - radius), Movement.RoomAlong(model, new Point2(19, 19), table), 6);   // to the inset corner
+        Assert.Equal(Movement.FarthestOnTable(model, table).Distance, Movement.RoomAlong(model, Movement.FarthestOnTable(model, table).To, table), 6);
+        Assert.Equal(0, Movement.RoomAlong(model, new Point2(18, 18), table));                                 // no direction taken
+    }
+
     [Fact] public void Open_ground_is_a_full_circle()
     {
         var r = Movement.Region(Start, 6, [], [], null, null);

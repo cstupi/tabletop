@@ -197,6 +197,23 @@ public class GfMovesTests
         ModelRelocation To(Point2 p) => new(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(p.X, p.Y, 0), new Yaw(0))));
         Assert.Null(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(corner)])));
         Assert.NotNull(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(new Point2(20, 15))])));
+        // Owner ruling: on a table without room it moves as far as it can in the direction taken: east to the edge is far enough.
+        var east = Movement.RoomAlong(Battlefield.Placed(sim.State, id)!.Value, new Point2(20, 15), sim.State.Board.Table.Size);
+        Assert.Null(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(new Point2(15 + east, 15))])));
+        Assert.NotNull(GfMoves.MinimumBreach(sim.State, region, new Destinations([To(new Point2(15 + east - 1, 15))])));
+    }
+
+    [Fact]
+    public void On_a_table_with_room_for_thirty_inches_an_aircraft_may_not_stop_short_at_the_edge_it_flew_towards()
+    {
+        // p.13: "Aircraft can't move into the table edges to move less than 30"": the direction-taken minimum is only for a table with no room at all.
+        var jet = Unit("Jet", "4+", "4+", [P(GfNames.Aircraft)], 1, []);
+        var sim = Sim.Gf(State([jet], [Unit("B", "4+", "4+", [], 1, [])], enforcement: Enforcement.Strict), 4);
+        var id = jet.Models[0].Id;
+        sim.Append([new ModelsMoved([new ModelRelocation(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(10, 24, 0), new Yaw(0))))])]);
+        var region = new MoveRegion([id], 36, [], [], null, null, 30);
+        var west = Movement.RoomAlong(Battlefield.Placed(sim.State, id)!.Value, new Point2(0, 24), sim.State.Board.Table.Size);
+        Assert.NotNull(GfMoves.MinimumBreach(sim.State, region, new Destinations([new ModelRelocation(id, sim.Model(id).Location, new OnTable(new Placement(new Point3(10 - west, 24, 0), new Yaw(0))))])));
     }
 
     [Fact]
