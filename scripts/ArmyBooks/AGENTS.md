@@ -6,7 +6,9 @@ Writes `server/game/Content/army-books/<uid>.book.json`, which the game server c
 ## Layout
 
 - `Program.cs`: the `fetch` and `generate` commands.
-- `ArmyForgeBook.cs`: `AfIndexEntry`, `AfBook`, `AfSpell` and `ArmyForgeJson` (reads Army Forge's JSON).
+- `ArmyForgeBook.cs`: `AfIndexEntry`, `AfBook` (spells, rule texts, units, upgrade packages), `AfSpell` and `ArmyForgeJson` (reads Army Forge's JSON).
+- `RuleTemplates.cs`: the Aura, Buff and Mark template texts and the wrapper entry each becomes.
+- `RuleWriter.cs`: `NamesInScope`, the rule names the units and upgrades carry.
 - `SpellTranslator.cs`: Army Forge's `generation` to a spell entry.
 - `TextCheck.cs`: every fact the translation took from `generation` must appear in the spell's printed `effect`.
 - `BookWriter.cs`: makes spell names unique across the corpus, checks against the core document and the army-rules part, writes the books.
