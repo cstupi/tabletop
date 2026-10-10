@@ -14,7 +14,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched];
 
     private static partial class ArmyGames
     {
