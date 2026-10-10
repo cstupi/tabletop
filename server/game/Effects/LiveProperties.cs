@@ -215,7 +215,7 @@ public static class LiveProperties
             if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
         // A spell's weapon rules are the attacker's ordinary rules for these hits, so their pass-one rows and per-die rows act like a weapon's.
         if (side == Side.Attacker && ix.SpellRules is { } spellRules)
-            foreach (var (name, parameter) in spellRules) if (ix.Properties.Entry(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
+            foreach (var (name, parameter) in spellRules) if (Playing(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
         // A rule instance doesn't stack with another of the same kind unless it declares a parameter. Per-model rules (aggregation none) keep one
         // instance per model; a weapon rule is one rule per weapon *type*, so three of the same weapon's AP(1) are one AP(1), not three summed.
         string WeaponName(Guid? id) => id is { } w ? state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(x => x.Id == w).Name : "";

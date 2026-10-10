@@ -61,11 +61,12 @@ One mechanism, three targets:
   counts per unit), and its effect rows with duration `once`.
   `PropertiesJson.Validate` (`server/game/Properties/PropertySetDocument.cs:73`, `:77`) admits `targeting` and `once` rows
   on a `model` entry that has a `before-attacking` `at_point`; today only spells may carry them.
-- **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:79-94`) offers at
+- **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:82-100`) offers at
   `before-attacking` the cast reaction and the live Move/Place rows. It also offers one `use` reaction per carrying model
   whose pick entry has not been used this activation (`GfPick.Uses`) and has a target (`GfPick.Offers`). A Shaken unit is
-  offered none (`GfHooks.cs:88`). The point runs only when the unit attacks (`GfMoves.cs:258`, `:321`), which is
-  *"before attacking"*.
+  offered none (`GfHooks.cs:89`). A pick is offered at the casting window's timing, the `before-attacking` point as the
+  code runs it: `MoveStep` opens it on every move action, Rush included, and again after a cast while move budget remains
+  (`GfMoves.cs:274`, `:342`), and `CastingWindowStep` (`GfMoves.cs:268-274`) opens it for Hold.
 - **What it does.** A new sequence `pick-rule`: an Ask `rule_target` with `PieceSelection` over the eligible units (the
   spell-targeting reading, `GfCasting.Targets`, measured from the carrying model), pass allowed; then one `GrantAdded`
   per `once` row on the picked unit (`Grant(Id, EffectId, EntryName, CasterUnitId, 1)`, as `GfCasting.cs:227`), and the use
@@ -86,8 +87,7 @@ ordered so that each batch's mechanisms are in place before it:
    Ignores Regeneration in Melee, Increased Shooting Range, Knightborn, Melee Slayer, Point-Blank Surge, Precise, Predator
    Fighter, Protected, Rapid Charge, Rending in Melee, Sergeant, Shred in Melee, Shred when Shooting, Surge when Shooting,
    Swift, Unique, Unpredictable, Unstoppable in Melee, Wolfborn, Banner, Musician; the bases that only template wrappers
-   name (Fortified, Guarded, Guerrilla Boost, Melee Slayer, Point-Blank Piercing, Predator Shooter, Protected, Ranged
-   Slayer, Screened, Swift); and the 21 written-out Auras. A rule that turns out to need a new effect kind moves to
+   name (Guarded, Guerrilla Boost, Point-Blank Piercing, Predator Shooter, Ranged Slayer, Screened); and the 21 written-out Auras. A rule that turns out to need a new effect kind moves to
    the batch that builds it.
 2. **The pick.** The mechanism above, the 10 template Buffs and 9 template Marks, the 8 written-out Buffs and 6 written-out Marks, and the
    10 Debuffs; and the before-attacking actives that share it: Mend, Mind Control, Breath Attack, Storm of Change, Storm of
@@ -122,8 +122,8 @@ edited by hand. The server embeds and composes every `*.part.json` already (`ser
 - **Input.** Each book's `specialRules` (name, description), read beside the spells it reads now. Two books giving one name
   different descriptions fail the run and write nothing, as spells do.
 - **Names in scope.** Every rule name on a unit or an upgrade in the official books. A name core or the hand-authored part
-  defines is skipped: hand-authoring wins. A unit's rules, its weapons' rules and its items' rules, and every upgrade
-  gain (a rule, a weapon's rules, an item's rules).
+  defines is skipped: hand-authoring wins. Names come from a unit's rules, its weapons' rules and its items' rules, and
+  from every upgrade gain (a rule, a weapon's rules, an item's rules).
 - **A wrapper is generated** when its name ends in Aura, Buff, Mark or Debuff, its description is that pattern's template
   with X equal to the name less the suffix, and X is a catalog entry. The entry's rows point at X.
 - **Every other name is a text-only entry**: kind `model` (`weapon` when the books print the name only on weapons, so its

@@ -141,10 +141,12 @@ What the suite does not check or report today.
 - **The viewer's Tests page shows no known or stale status.** `SuiteGameResult` in `viewer/src/lib/suite/client.ts` has no `known`,
   `pinned` or `stale`; `counts` (`model.ts`) counts a known failure as failed, the verdict is always FAIL, and stale pins never show.
   The failure lines still carry `known defect Dn:`.
-- **The viewer's Tests page shows no coverage state.** `CoverageEntry` in `viewer/src/lib/suite/client.ts` has no `state`, so
-  a not-automated entry shows as "fired: no"; the CLI report prints the not-automated list.
 
 ## Known rule gaps
+
+`Lookup.AuraGrants` reads `Definition.Models`, so a dead carrier still grants its rule by name. Harmless while only Scout Aura and
+Ambush Aura (read at deployment) use it; it must read living carriers before an Aura of another name read through `Lookup.UnitHas`
+is authored.
 
 Passengers can deploy into a transport later than the transport: p.15 says *"units inside Transports are deployed at
 the same time as the Transport"*, but deployment accepts placing a picked unit inside any friendly transport already on

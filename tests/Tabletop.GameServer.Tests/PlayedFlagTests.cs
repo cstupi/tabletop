@@ -52,4 +52,15 @@ public class PlayedFlagTests
         var live = LiveProperties.Settle(new Interaction(s, props, Party.Whole(s, a.Id), null, null, null, null, []));
         Assert.False(live.Has(Side.Attacker, "Not Yet"));
     }
+
+    [Fact]
+    public void Gather_skips_an_unplayed_weapon_rule_named_by_a_spell()
+    {
+        var unplayed = new EntryDocument("Not Yet", CatalogKind.Model, false, Aggregation.Any, null, null, "Not yet.", null, [], Played: false);
+        var props = TestProperties.WithSpells(unplayed);
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var s = State([a], [Unit("B", "4+", "4+", [], 1, [])]);
+        var live = LiveProperties.Settle(new Interaction(s, props, Party.Whole(s, a.Id), null, null, null, null, [], SpellRules: [("Not Yet", null)]));
+        Assert.False(live.Has(Side.Attacker, "Not Yet"));
+    }
 }

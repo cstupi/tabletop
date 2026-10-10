@@ -6,7 +6,7 @@
   import { fromUrl } from '../recording/source';
   import { fetchSuite, recordingUrl, runEvents, spectate, startRun, type SuiteGameResult } from '../suite/client';
   import {
-    applyEvent, canRun, counts, failed, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup,
+    applyEvent, canRun, counts, coverageCell, failed, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup,
     type Page,
   } from '../suite/model';
 
@@ -112,9 +112,10 @@
         <thead><tr><th>entry</th><th>kind</th><th>fired</th><th>games</th><th>exact checks</th></tr></thead>
         <tbody>
           {#each page.coverage as c (c.kind + c.name)}
+            {@const cell = coverageCell(c)}
             <tr>
               <td>{c.name}</td><td class="muted">{c.kind}</td>
-              <td class={c.fired ? 'ok' : 'error'}>{c.fired ? 'yes' : 'no'}</td>
+              <td class={cell.tone}>{cell.text}</td>
               <td class="muted">{c.games.join(', ')}</td>
               <td>{#each c.exact as x (x.game + x.check)}<div class={x.passed ? 'ok' : 'error'}>{x.game}: {x.check}</div>{/each}</td>
             </tr>

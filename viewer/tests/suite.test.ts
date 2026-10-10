@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fetchSuite, recordingUrl, runEvents, spectate, startRun, SuiteError, type RunEvent, type SuiteGameResult } from '../src/lib/suite/client';
-import { applyEvent, canRun, counts, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup } from '../src/lib/suite/model';
+import { applyEvent, canRun, counts, coverageCell, groupsOf, initial, requestOf, setDriver, setKeep, started, toggleGame, toggleGroup } from '../src/lib/suite/model';
 
 const games = [
   { name: 'core-a', group: 'core', covers: ['Rending'] },
@@ -9,7 +9,7 @@ const games = [
 ];
 const result = (name: string, passed = true): SuiteGameResult =>
   ({ name, group: 'core', passed, failures: passed ? [] : ['no'], seed: 1, replay: 'r', recordingPath: 'p', gameId: null, spectator: null });
-const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [] }], passed: true };
+const report = { runId: 'x', games: [result('core-a')], coverage: [{ name: 'Rending', kind: 'rule', games: ['core-a'], fired: true, exact: [], state: 'own' as const }], passed: true };
 
 const stream = (chunks: string[]) => new Response(new ReadableStream({
   start(c) { for (const s of chunks) c.enqueue(new TextEncoder().encode(s)); c.close(); },
@@ -96,5 +96,19 @@ describe('page model', () => {
     let p = applyEvent(started(initial(games), 'r'), { type: 'game', result: result('core-a') });
     p = applyEvent(p, { type: 'error', message: 'boom' });
     expect([p.status, p.message, p.results.size]).toEqual(['error', 'boom', 1]);
+  });
+});
+
+describe('coverage cell', () => {
+  const entry = (state: 'own' | 'pattern' | 'not_automated', fired: boolean) => ({ name: 'X', kind: 'rule', games: [], fired, exact: [], state });
+  it('shows a text-only entry as muted, not as a failure', () => {
+    expect(coverageCell(entry('not_automated', false))).toEqual({ text: 'not automated', tone: 'muted' });
+  });
+  it('shows a wrapper as covered by pattern', () => {
+    expect(coverageCell(entry('pattern', true))).toEqual({ text: 'by pattern', tone: 'ok' });
+  });
+  it('shows an own entry by whether it fired', () => {
+    expect(coverageCell(entry('own', false))).toEqual({ text: 'no', tone: 'error' });
+    expect(coverageCell(entry('own', true))).toEqual({ text: 'yes', tone: 'ok' });
   });
 });
