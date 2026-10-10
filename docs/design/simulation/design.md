@@ -305,7 +305,7 @@ hole rather than a runtime one.
 | `Options` | `Chosen(optionId)` | `Chooser.Pick` over `Choices`; empty set passes if it may, else `NoLegalAnswerException` |
 | `PieceSelection` | `SelectedPieces` | a size uniform in `[Min, min(Max, Eligible.Count)]`, then `Chooser.Subset` |
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
-| `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets`, then one pick per item |
+| `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets` in which every item has one of its own targets (`TargetsOf`), then one pick per item within it |
 | `MoveRegion` | `Destinations` | see below |
 | `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in the server's order |
 | `Confirmation` | `Confirmed` | always |

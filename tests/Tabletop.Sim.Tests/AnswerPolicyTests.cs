@@ -58,6 +58,21 @@ public class AnswerPolicyTests
     }
 
     [Fact]
+    public void Assignment_aims_every_item_within_its_own_targets()
+    {
+        // p.8: each group only at a target it can shoot. g3 reaches only C and g2 only B, so the two targets must be B and C.
+        var byItem = new Dictionary<string, IReadOnlyList<Guid>> { ["g1"] = [A, B, C], ["g2"] = [B], ["g3"] = [C] };
+        var ask = With(new Assignment([new AskOption("g1", "", []), new AskOption("g2", "", []), new AskOption("g3", "", [])], [A, B, C], 2, byItem));
+        for (var seed = 0UL; seed < 20; seed++)
+        {
+            var answer = Assert.IsType<Assigned>(new AnswerPolicy(new Chooser(seed)).Answer(ask, EmptyViewForOtherTests()));
+            Assert.Equal(["g1", "g2", "g3"], answer.Targets.Keys.Order());
+            Assert.All(answer.Targets, kv => Assert.Contains(kv.Value, byItem[kv.Key]));
+            Assert.True(answer.Targets.Values.Distinct().Count() <= 2);
+        }
+    }
+
+    [Fact]
     public void A_token_spend_stays_within_every_model_own_cap_and_confirmation_confirms()
     {
         // p.13: any number of tokens up to what each model holds, so the bound is per model and not a total.

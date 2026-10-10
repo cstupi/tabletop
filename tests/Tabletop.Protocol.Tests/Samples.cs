@@ -30,7 +30,10 @@ public static class Samples
     [
         new Options([new AskOption("a", "Advance", [Unit])]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
         new PieceSelection([Model], 1, 1),                                                                  // model grain: a Takedown's target (p.14)
-        new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2), new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
+        new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2),
+        new Assignment([new AskOption("g1", "Rifles", [Model]), new AskOption("g2", "Pistols", [Model])], [Unit, Container], 2,
+            new Dictionary<string, IReadOnlyList<Guid>> { ["g1"] = [Unit, Container], ["g2"] = [Unit] }),      // per-group targets (p.8)
+        new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([Container], null, null)),                 // may embark
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([], Container, 6)),                        // is disembarking
         new TokenSpend(new Dictionary<Guid, int> { [Model] = 2 }), new Confirmation(),

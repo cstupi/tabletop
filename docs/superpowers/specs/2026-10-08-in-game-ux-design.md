@@ -154,9 +154,11 @@ them with one `MoveModels` from the shelf. Nothing reaches the server before Ent
 every enforcement setting.
 
 **Shooting targets** (`declare_targets`). Weapon groups (p.8: one per weapon type) show as chips, `Rifles ×4`,
-`Plasma Gun ×1`, all picked to start. Clicking an enemy aims every picked group at it; a line in that target's colour
-runs from the group's shooters to it. Clicking a chip picks that group alone, to aim it at a second target; with two
-targets taken (p.8: up to two), no other unit glows. Models that cannot shoot the hovered or assigned target are
+`Plasma Gun ×1`, all picked to start. Each group may take only a target it can shoot (p.8: in line of sight and in
+range of a weapon of that group), from the Ask's per-group list. An enemy glows only when a picked group can shoot it.
+Clicking an enemy aims every picked group that can shoot it; the other picked groups keep their assignment. A line in
+that target's colour runs from the group's shooters to it. Clicking a chip picks that group alone, to aim it at a second
+target; with two targets taken (p.8: up to two), no other unit glows. Models that cannot shoot the hovered or assigned target are
 dimmed, from the server's sight answer (*Sight check*). **Enter** fires; **Esc** clears the assignments.
 
 **Casualties** (`remove_casualties`). My hit unit lights. When every offered model has one wound left the box reads
