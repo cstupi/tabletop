@@ -6,10 +6,11 @@ namespace Tabletop.Management.Identity;
 public sealed record SessionResponse(string SessionJwt, AccountRow Account);
 public sealed record OtpSentResponse(string MethodId);
 
-/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, has its starter miniatures, and rides in the session's account_id claim.</summary>
+/// <summary>After any Stytch authenticate: make sure the account exists, is linked to the Stytch user, has its starter miniatures, and rides in the session's account_id claim beside the user's roles.</summary>
 public sealed class Sessions(StytchClient stytch, AccountRepository accounts, StarterAssets starter, ILogger<Sessions> log)
 {
-    public async Task<SessionResponse> Complete(StytchSession session)
+    /// <param name="roles">The roles to stamp; null stamps the Stytch user's. Only the Development dev-session mint passes them.</param>
+    public async Task<SessionResponse> Complete(StytchSession session, IReadOnlyList<string>? roles = null)
     {
         var name = session.User.Emails.FirstOrDefault()?.Email.Split('@')[0] ?? "player";
         Guid accountId;
@@ -31,10 +32,10 @@ public sealed class Sessions(StytchClient stytch, AccountRepository accounts, St
         // Starter content never blocks a login: on failure starter_seeded_at stays null and the next login tries again.
         try { await starter.SeedIfNeeded(accountId); }
         catch (Exception e) { log.LogError(e, "cannot seed the starter miniatures for {AccountId}", accountId); }
-        // A new session carries no account_id until it is stamped; a refreshed one keeps its stamp, so this skips.
+        // A new session carries no account_id until it is stamped; a refreshed one keeps its stamp (roles included), so this skips.
         var jwt = AccountClaim(session.SessionJwt) == accountId.ToString()
             ? session.SessionJwt
-            : (await stytch.StampAccount(session.SessionJwt, accountId)).SessionJwt;
+            : (await stytch.StampAccount(session.SessionJwt, accountId, roles ?? session.User.Roles)).SessionJwt;
         var account = await accounts.Get(accountId) ?? throw new InvalidOperationException("account vanished");
         return new SessionResponse(jwt, account);
     }

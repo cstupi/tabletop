@@ -32,11 +32,18 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         { log.LogError(ex, "cannot verify the session for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
         if (session is null) { await RejectAsync(socket, RejectReason.InvalidSession); return; }
 
+        // A participant connects as itself. An admin who is not one watches (admin watch spec); a game that does not exist is
+        // refused to the admin exactly as to anyone else.
         Guid? participantId;
-        try { participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted); }
+        bool watcher;
+        try
+        {
+            participantId = await rows.FindParticipantAsync(connect.GameId, session.AccountId, aborted);
+            watcher = participantId is null && session.IsAdmin && await rows.ReadGameAsync(connect.GameId, aborted) is not null;
+        }
         catch (Exception ex)
         { log.LogError(ex, "cannot look up the participant for {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot verify the session"); return; }
-        if (participantId is null) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
+        if (participantId is null && !watcher) { await RejectAsync(socket, RejectReason.NotAParticipant); return; }
 
         if (registry.Draining) { await CloseAsync(socket, WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
 
@@ -47,11 +54,12 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         catch (Exception ex) when (ex is GameNotFoundException or GameRowsInconsistentException or Rules.UnknownGameRulesException or Engine.PropertiesNotFoundException or ProjectionDesyncException)
         { log.LogError(ex, "cannot hydrate {GameId}", connect.GameId); await CloseAsync(socket, WebSocketCloseStatus.InternalServerError, "cannot hydrate this game"); return; }
 
-        var connection = new SocketConnection(socket, participantId.Value, log);
+        var connection = new SocketConnection(socket, participantId ?? Guid.Empty, log);
         var sending = connection.RunSendLoopAsync(CancellationToken.None);
+        Task Join(GameSession g) => watcher ? g.WatchAsync(connection) : g.ConnectAsync(connection);
         try
         {
-            try { await game.ConnectAsync(connection); }
+            try { await Join(game); }
             // ReleaseIfEmptyAsync can take the registry's gate between the hydrate above and this connect — the previous
             // socket's departure emptying the session under this one. Nothing is lost, because the log and the rows hold
             // everything: hydrating again returns the instance that replaced it. Once more only, and not while shutting down.
@@ -59,7 +67,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
             {
                 if (registry.Draining) { await connection.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "shutting down"); return; }
                 game = await registry.GetOrHydrateAsync(connect.GameId, aborted);
-                await game.ConnectAsync(connection);
+                await Join(game);
             }
             while (await SocketConnection.ReadFrameAsync(socket, aborted) is { } frame) await game.ReceiveAsync(connection, frame);
         }

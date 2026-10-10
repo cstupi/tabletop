@@ -34,7 +34,7 @@ public sealed class SessionRegistry(SessionServices services)
         await _gate.WaitAsync();
         try
         {
-            if (session.Clients.Count > 0 && !session.Faulted) return;
+            if (session.Clients.Count + session.Watchers.Count > 0 && !session.Faulted) return;
             lock (_live) if (_live.TryGetValue(session.GameId, out var s) && s == session) _live.Remove(session.GameId);
             await session.DrainAsync("released");
         }

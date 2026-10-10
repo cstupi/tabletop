@@ -104,7 +104,9 @@ it to each new session with `session_custom_claims`, and Stytch keeps it on the 
 refreshes (the management plan's ruling 1); this server passes no claims. There is no M2M call, no shared signing
 key and no session row. Verification happens once, at connect. The socket lives hours and the JWT
 five minutes, so re-checking it would kill live games on a five-minute clock.
-`VerifiedSession.ExpiresAt` is recorded and not enforced.
+`VerifiedSession.ExpiresAt` is recorded and not enforced. `VerifiedSession.Roles` is the top-level
+custom claim `roles`, the Stytch user's role ids, stamped by management beside `account_id` (an array,
+or a lone string; absent is no roles). `IsAdmin` is `Roles` containing `admin`.
 
 **The row seam.** One database, two schemas, no joins across the line. The game server reads
 `management.game`, `management.team`, `management.participant`, the `management.table_state`
@@ -698,6 +700,25 @@ never filtered. It is the reveal. Three properties:
   `ConnectAsync`'s log delivery. The log itself is never filtered, which keeps one canonical
   history.
 
+### Watchers
+
+An account that is not a participant of the game and whose session has the `admin` role joins as a
+watcher (admin watch spec); anyone else is `Rejected(NotAParticipant)`, and so is an admin naming a game
+that does not exist. A watcher is an admin tool: the viewer reads any game, finished or running, without
+joining it.
+
+- `GameSession.WatchAsync` runs the connect sequence a participant with no team gets: `Welcome` with
+  `ParticipantId` `Guid.Empty`, the board, the log from the start filtered as for no team, `ModelFacts`
+  once playing, every participant's presence value, `AtRest`. It writes no row: the watcher is in no
+  participant list, lobby or presence.
+- `GameSession` holds watchers in `_watchers`, apart from `_clients`, so lobby edits, presence, Asks and
+  `ActorOf` never meet one. Watchers receive every broadcast, each batch filtered as for no team, and
+  every relayed presence value and ping. Leaving sends no `PresenceEnded`. `SessionRegistry` keeps a game
+  in memory while it has a participant or a watcher.
+- What a watcher sends: a `SightQuery` is answered. A command (answers and undo included), an edit,
+  presence or a ping is answered `Refused` with reason `watcher` (`RefusalReason.Watcher`; `MessageId`
+  the command or edit id, `Guid.Empty` for presence and ping) and nothing else follows, no `AtRest`.
+
 ### Presence and the drain
 
 `PresenceTable` keeps the latest value per participant plus a dirty set. `HandlePresence` stamps
@@ -808,7 +829,7 @@ Decisions this module settles itself:
 | `interface IEventLog` | `AppendAsync(Guid, IReadOnlyList<GameEvent>, CancellationToken)`, `ReadAsync(Guid, long afterSeq, CancellationToken)`, `LastSeqAsync(Guid, CancellationToken)`; `DuplicateSequenceException(Guid GameId, long Seq)` |
 | `static class Replay` | `Projection To(Board, GameInfo, IReadOnlyList<GameEvent>, long seq)`, `bool IsValidUndoTarget(EventApplier, long toSeq)` |
 | `interface IGameRows` | six reads: `ReadGameAsync`, `FindParticipantAsync`, `ReadDraftAsync`, `ReadSnapshotsAsync`, `ReadArmyAsync`, `PropertiesExistAsync`; seven writes: `CreateTeamAsync`, `SetParticipantTeamAsync`, `SetParticipantArmyAsync`, `SetConfigurationAsync`, `StartSetupAsync`, `WriteDraftAsync`, `EndSetupAsync`; `sealed record OwnedArmy(Army Army, Guid OwnerId)` |
-| `interface ISessionVerifier` | `Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken)`; `sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt)`; `const string StytchJwtVerifier.AccountClaim = "account_id"` |
+| `interface ISessionVerifier` | `Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken)`; `sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt, IReadOnlySet<string> Roles)` with `IsAdmin`; `const string StytchJwtVerifier.AccountClaim = "account_id"`, `RolesClaim = "roles"` |
 | `static class DraftEditor` | `TableState? Apply(TableState, SetupEdit, out string? missing)`, `TableState DropOffSlab(TableState)`, `bool OnSlab(TableState, Point3)` |
 | `sealed class GameServerOptions` | `DbConnection`, `StytchProjectId`, `StytchJwksUrl`, `MinimumClientVersion`, `PresenceRelayHz = 20`, `HandshakeTimeout = 10 s`, `KeepAliveInterval = 20 s`, `KeepAliveTimeout = 60 s`, `DefaultTableWidth = 72`, `DefaultTableLength = 48`, `DefaultTextureBuiltin = "grass"`; `static FromEnvironment(IConfiguration)` |
 
@@ -845,6 +866,10 @@ waits for `at_rest` instead of timing a quiet window.
 
 ### Connect and hydrate
 
+An admin watcher takes the same path: `FindParticipantAsync` answers null, the session `IsAdmin` and
+`ReadGameAsync` finds the game, so the handshake calls `WatchAsync` instead of `ConnectAsync` (see
+*Watchers*).
+
 ```mermaid
 sequenceDiagram
     participant C as Client
@@ -861,7 +886,7 @@ sequenceDiagram
     V->>V: RS256, issuer, audience, account_id claim
     V-->>H: VerifiedSession, or null giving Rejected(InvalidSession)
     H->>DB: FindParticipantAsync(gameId, accountId)
-    DB-->>H: participantId, or null giving Rejected(NotAParticipant)
+    DB-->>H: participantId, or null giving a watcher for an admin and Rejected(NotAParticipant) for anyone else
     H->>R: GetOrHydrateAsync(gameId)
     R->>DB: rows, draft, snapshots, whole log
     R->>S: new GameSession, StartAsync, Advance if playing

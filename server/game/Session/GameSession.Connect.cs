@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.Protocol;
 
@@ -14,17 +15,33 @@ public sealed partial class GameSession
         // session has never seen re-reads them first: Welcome carries their row (client shell → Welcome names the connecting
         // participant), TeamOf finds their team, and the lobby edits that look themselves up find them too.
         if (Info.Participants.All(p => p.Id != client.ParticipantId)) await ReloadInfoAsync();
-        await client.SendAsync(new Welcome(client.ParticipantId, Info));
+        await SendStateAsync(client, client.ParticipantId, TeamOf(client.ParticipantId));
+        await AttachCoreAsync(client);
+        await client.SendAsync(Rest());
+    });
+
+    /// <summary>An admin watcher (admin watch spec): the frames a participant with no team gets, with no participant id, then held
+    /// apart from the participants so nothing that reads a client's ParticipantId (lobby, presence, asks) meets it.</summary>
+    public Task WatchAsync(ISessionClient client) => RunAsync(async () =>
+    {
+        if (Faulted) { await client.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted"); return; }
+        await SendStateAsync(client, Guid.Empty, null);
+        _watchers.Add(client);
+        foreach (var value in _presence.All) await client.SendAsync(new PresenceMessage(value));
+        await client.SendAsync(Rest());
+    });
+
+    private async Task SendStateAsync(ISessionClient client, Guid participantId, Guid? team)
+    {
+        await client.SendAsync(new Welcome(participantId, Info));
         if (Draft is not null) await client.SendAsync(new BoardMessage(new Board(Draft, [])));
         if (Play is not null)
         {
             await client.SendAsync(new BoardMessage(Play.Board));
-            var log = EventFilter.ForViewer(Play.Applier.Log, TeamOf(client.ParticipantId), new HashSet<Guid>());
+            var log = EventFilter.ForViewer(Play.Applier.Log, team, new HashSet<Guid>());
             for (var i = 0; i < log.Count; i += EventsPerMessage) await client.SendAsync(new EventsMessage(log.Skip(i).Take(EventsPerMessage).ToList()));
             if (log.Count == 0) await client.SendAsync(new EventsMessage([]));
             await SendFactsAsync(client);
         }
-        await AttachCoreAsync(client);
-        await client.SendAsync(Rest());
-    });
+    }
 }

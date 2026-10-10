@@ -19,6 +19,17 @@ public class SessionVerifierTests
         Assert.StartsWith("user-test-", session.StytchUserId);
     }
 
+    [Fact]
+    public async Task The_roles_claim_yields_the_roles_and_its_absence_none()
+    {
+        var account = Guid.CreateVersion7();
+        Assert.Equal(new HashSet<string> { "stytch_user", "admin" }, (await Verifier().VerifyAsync(TestKeys.Mint(account, roles: new[] { "stytch_user", "admin" }), CancellationToken.None))!.Roles);
+        Assert.Equal(new HashSet<string> { "admin" }, (await Verifier().VerifyAsync(TestKeys.Mint(account, roles: "admin"), CancellationToken.None))!.Roles);
+        Assert.Empty((await Verifier().VerifyAsync(TestKeys.Mint(account), CancellationToken.None))!.Roles);
+        Assert.True((await Verifier().VerifyAsync(TestKeys.Mint(account, roles: new[] { "admin" }), CancellationToken.None))!.IsAdmin);
+        Assert.False((await Verifier().VerifyAsync(TestKeys.Mint(account, roles: new[] { "stytch_user" }), CancellationToken.None))!.IsAdmin);
+    }
+
     [Theory]
     [InlineData("issuer")] [InlineData("audience")] [InlineData("expired")] [InlineData("no-claim")] [InlineData("garbage")]
     public async Task Bad_tokens_yield_null(string flaw)
