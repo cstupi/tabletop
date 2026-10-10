@@ -343,6 +343,12 @@ too, or a granted hook-name rule would never fire.
   carries one reference. A grant carries three, so it is not a condition either. The rule is not
   written into the unit's property list, because that list is the frozen army snapshot's copy.
 
+**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`) whose
+rows are all `once` rows with `at_point before-attacking` is an army-book Buff, Mark or Debuff. Carried, it exposes no
+rows; the `pick-rule` sequence writes one `GrantAdded` per row on the unit it picks, and the grant is read and consumed
+as a spell's is. A granted row's `at_point` holds wherever the grant is read: it said when the rule was used. Each
+carrying model has one use per activation, counted by `GfPick.Uses`.
+
 ## Name checks handled by `GameRules`
 
 Some entries carry no effects at all. They are names `GrimdarkFutureRules` checks for at hooks it

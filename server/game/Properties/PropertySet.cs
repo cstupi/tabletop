@@ -15,7 +15,9 @@ public enum CatalogKind { Unit, Model, Weapon, Spell }
 public enum Aggregation { All, Any, Majority, None }
 public enum TargetSide { Friendly, Enemy }
 public enum TargetGrain { Unit, Model }
-public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range);
+/// <summary>Who a spell or a pick entry may target. LineOfSight null: the target must be in sight (p.13, and a Mark's or Debuff's "in line of
+/// sight"); false: range alone (a Buff's "pick one friendly unit within 12"").</summary>
+public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null);
 
 /// <summary>One named rule. Effects may be empty: then it is a name GameRules checks for at a hook it owns. Played is false only on a generated
 /// text-only entry (army-book rules spec → Played flag): the stat sheet shows its text, and LiveProperties.Gather skips it.</summary>

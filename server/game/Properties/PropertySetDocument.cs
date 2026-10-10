@@ -32,7 +32,11 @@ public static class PropertiesJson
         return doc with
         {
             Stats = doc.Stats ?? [], Actions = doc.Actions ?? [], Rolls = doc.Rolls ?? [],
-            Entries = (doc.Entries ?? []).Select(e => e with { Effects = Fix(e.Effects), Played = e.Played == false ? false : null }).ToList(),
+            Entries = (doc.Entries ?? []).Select(e => e with
+            {
+                Effects = Fix(e.Effects), Played = e.Played == false ? false : null,
+                Targeting = e.Targeting is { LineOfSight: true } t ? t with { LineOfSight = null } : e.Targeting,
+            }).ToList(),
             Books = (doc.Books ?? []).Select(b => b with { Spells = b.Spells ?? [] }).ToList(),
         };
         static IReadOnlyList<EffectDocument> Fix(IReadOnlyList<EffectDocument>? effects) =>
@@ -78,6 +82,17 @@ public static class PropertiesJson
             // Anything else on a spell would be applied nowhere, so it is an authoring error rather than a silent no-op.
             if (spell) foreach (var f in e.Effects.Where(f => f.Kind is not EffectKind.AddHit and not EffectKind.TakeTest && f.Duration != EffectDuration.Once))
                 problems.Add($"{e.Name}: a spell's effect is add_hit, take_test or has duration once; {f.Kind} with duration {f.Duration} applies nowhere");
+            if (spell && e.Targeting?.LineOfSight == false) problems.Add($"{e.Name}: a spell's target is in line of sight (p.13)");
+            // A pick entry (army-book rules spec → the pick): a model entry whose once rows are granted to the unit it picks before attacking.
+            if (!spell && e.Targeting is { } pick)
+            {
+                if (e.Kind != CatalogKind.Model) problems.Add($"{e.Name}: targeting is set on a spell or a pick entry (kind model)");
+                if (pick.Count != 1) problems.Add($"{e.Name}: a pick entry picks one");
+                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration != EffectDuration.Once)) problems.Add($"{e.Name}: a pick entry's rows have duration once");
+                if (e.Effects.Any(f => !f.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values is [PickPoint])))
+                    problems.Add($"{e.Name}: a pick entry's row has an at_point naming {PickPoint}");
+            }
+            if (!spell && e.Targeting is null && e.Effects.Any(f => f.Duration == EffectDuration.Once)) problems.Add($"{e.Name}: a once row belongs to a spell or a pick entry");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
         var books = d.Books ?? [];
@@ -94,6 +109,8 @@ public static class PropertiesJson
         return problems;
     }
 
+    /// <summary>The point a pick entry is used at (army-book rules spec: "Once per activation, before attacking, pick …").</summary>
+    const string PickPoint = "before-attacking";
     static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)

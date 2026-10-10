@@ -295,6 +295,7 @@ erDiagram
         int target_count
         float8 target_range
         bool played
+        bool target_line_of_sight
     }
     EFFECT {
         uuid id PK
@@ -656,9 +657,11 @@ The game server writes `game.status = 'ended'` from `playing` on a strict end, a
 
 ### The catalog's per-kind check
 
-`cost`, `target_side`, `target_grain`, `target_count` and `target_range` are non-null only when
-`kind = spell`; `aggregation` only when `kind = model`; `takes_parameter` is false for a spell.
-Stated in one place since 09-04.
+`cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
+on a spell and on a pick entry (a `model` entry an army-book Buff, Mark or Debuff writes); `target_line_of_sight` is null
+(in sight) or false (range alone, a Buff), and set only with a target; `aggregation` only when `kind = model`;
+`takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and `once` rows at
+`before-attacking`.
 
 ### A game records its creator
 

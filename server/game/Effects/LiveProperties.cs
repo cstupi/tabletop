@@ -3,10 +3,11 @@ using Tabletop.GameServer.Properties;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
-/// effect row) exposes only the row its grant holds, and that row's children; every other instance exposes its entry's effects.</summary>
+/// effect row) exposes only the row its grant holds, and that row's children. A carried pick entry (one with targeting) exposes none: its once
+/// rows act only through the grants its pick writes (army-book rules spec → the pick). Every other instance exposes its entry's effects.</summary>
 public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null)
 {
-    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Effects);
+    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Entry.Effects);
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
