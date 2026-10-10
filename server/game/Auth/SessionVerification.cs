@@ -7,7 +7,13 @@ namespace Tabletop.GameServer.Auth;
 /// <summary>Is this session valid, and whose is it. Null means no: the socket is rejected with invalid_session.</summary>
 public interface ISessionVerifier { Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken ct); }
 
-public sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt);
+/// <param name="Roles">The Stytch role ids management stamped in the roles claim; empty when the token has none.</param>
+public sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt, IReadOnlySet<string> Roles)
+{
+    public const string AdminRole = "admin";
+    /// <summary>An admin may watch any game it is not a participant of.</summary>
+    public bool IsAdmin => Roles.Contains(AdminRole);
+}
 
 public interface IJwksSource { Task<JsonWebKeySet> GetAsync(CancellationToken ct); }
 
@@ -33,6 +39,7 @@ public sealed class HttpJwksSource(HttpClient http, GameServerOptions options) :
 public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions options) : ISessionVerifier
 {
     public const string AccountClaim = "account_id";
+    public const string RolesClaim = "roles";
     private readonly JsonWebTokenHandler _handler = new();
 
     public async Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken ct)
@@ -66,8 +73,14 @@ public sealed class StytchJwtVerifier(IJwksSource keys, GameServerOptions option
         }
         var token = (JsonWebToken)result.SecurityToken;
         if (!token.TryGetPayloadValue<string>(AccountClaim, out var accountText) || !Guid.TryParse(accountText, out var accountId)) return null;
-        return new VerifiedSession(accountId, token.Subject, token.ValidTo);
+        return new VerifiedSession(accountId, token.Subject, token.ValidTo, Roles(token));
     }
+
+    /// <summary>A JSON array of role ids, or a lone string; anything else is no roles.</summary>
+    private static IReadOnlySet<string> Roles(JsonWebToken token) =>
+        token.TryGetPayloadValue<string[]>(RolesClaim, out var many) && many is not null ? many.ToHashSet()
+        : token.TryGetPayloadValue<string>(RolesClaim, out var one) && one is not null ? new HashSet<string> { one }
+        : new HashSet<string>();
 
     private async Task<TokenValidationParameters> ParametersAsync(CancellationToken ct) => new()
     {

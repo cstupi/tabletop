@@ -44,7 +44,7 @@ export function isServerFrame(value: unknown): value is SocketMessage {
 }
 
 /**
- * A live game, over the socket, attached as a participant with no team — a spectator who is never Asked
+ * A live game, over the socket, as an admin watcher (or a participant with no team) — never Asked, refused any change
  * (spec → Two feeds). It sends Connect and nothing else, ever.
  */
 export function liveFeed(

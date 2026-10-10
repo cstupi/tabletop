@@ -1,7 +1,6 @@
 // viewer/src/lib/live/management.ts
-// The only thing the viewer wants from the management API: a session JWT to put in Connect.
-// POST /v1/auth/password and POST /v1/auth/session/refresh (management plan Task 5). Nothing else
-// is called — the viewer never touches /v1/games, /v1/armies or /v1/assets.
+// The session JWT for Connect and for the game list (games.ts): POST /v1/auth/password and
+// POST /v1/auth/session/refresh. The viewer never touches /v1/armies or /v1/assets.
 
 export class ManagementError extends Error {}
 

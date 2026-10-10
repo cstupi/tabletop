@@ -38,14 +38,19 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 128 of 128 games pass on both drivers with no pin, 296 of 296 entries covered. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 1900 with the stack up: Geometry 159, Content 17, ArmyBooks 25, Protocol 49, Viewer 9, Client 189,
-GameServer 964, Management 94, Sim 394. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+`dotnet test` passes 1907 with the stack up: Geometry 159, Content 17, ArmyBooks 25, Protocol 49, Viewer 9, Client 189,
+GameServer 969, Management 96, Sim 394. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
 
 ### 1. Open items from the defect fixes
+
+- **Owner decision (admin watch):** the spec has `GET /v1/games` list only the caller's games for a non-admin, but the client's Home
+  screen is the public game browser players join from (`HomeScreen.LoadPage`, web-app spec → *Games are public, listed in the
+  client*). The list stays public, so it already lists every game for an admin, and no `Admin` policy exists in management. Restricting
+  it needs another way for a player to find a game to join.
 
 - **Deploy caution:** games `playing` with an open sequence frame must be ended or abandoned before running this server. The step
   lists of attack-sequence, casting, spell-hits and morale-test changed (`SequenceInterpreter` indexes steps by position), so a
@@ -189,8 +194,15 @@ rulebook's diagrams are read by extracting images with `pypdf` (`./venv`) and Pi
 Stytch: test project `project-test-7a0ad7e7-906a-434a-a3d2-bf90668f9f43`, project domain
 `https://serious-chicory-4478.customers.stytch.dev`, public token
 `public-token-test-198e0eff-b710-4c13-8258-1187add70b1d`. The code calls the Consumer API at `https://test.stytch.com`.
-One piece of configuration lives in the Stytch dashboard, not the repo: `http://localhost:5173/reset-password`
-registered as a `RESET_PASSWORD` redirect URL. The test project refuses mail to unverified domains.
+Two pieces of configuration live in the Stytch dashboard, not the repo: `http://localhost:5173/reset-password`
+registered as a `RESET_PASSWORD` redirect URL, and the admin role. The test project refuses mail to unverified domains.
+
+The admin role (admin watch spec): the viewer watches any game as an admin, and admin is the Stytch RBAC role `admin`.
+Management stamps the user's role ids (`user.roles`) into the session's `roles` claim at login; the game server admits an
+admin non-participant as a watcher. Setup: in the Stytch dashboard, Roles & Permissions (RBAC policy), create a role with
+id `admin` (it needs no permissions) and save the policy; then, under Users, open the owner's user and assign it the `admin`
+role (or `PUT /v1/users/{user_id}` with `{"roles": ["admin"]}`). It reaches the session at the next login or
+refresh. `POST /v1/dev/sessions` with `"roles": ["admin"]` mints an admin without the dashboard.
 
 **The rulebooks.** The skill `grimdark-future-rules` (local plugin `licensed`, not committed) holds Grimdark Future
 v3.5.1 one file per printed page (`pages/p07.md` is p.7). The PDFs are in `/mnt/c/Users/clays/Downloads/`

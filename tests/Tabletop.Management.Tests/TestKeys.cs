@@ -30,12 +30,13 @@ public static class TestKeys
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    /// <summary>As Mint, but for FakeStytch: sub is the Stytch user id, and the account_id claim is present only when the session has it.</summary>
-    public static string MintForUser(string userId, Guid? accountId)
+    /// <summary>As Mint, but for FakeStytch: sub is the Stytch user id, and the account_id and roles claims are present only when the session has them.</summary>
+    public static string MintForUser(string userId, Guid? accountId, IReadOnlyList<string>? roles = null)
     {
         var exp = DateTimeOffset.UtcNow.AddMinutes(5);
         List<Claim> claims = [new Claim("sub", userId)];
         if (accountId is { } id) claims.Add(new Claim(Identity.StytchAuthentication.AccountClaim, id.ToString()));
+        foreach (var role in roles ?? []) claims.Add(new Claim(Identity.StytchAuthentication.RolesClaim, role));
         var token = new JwtSecurityToken(
             issuer: $"stytch.com/{ProjectId}", audience: ProjectId,
             claims: claims,

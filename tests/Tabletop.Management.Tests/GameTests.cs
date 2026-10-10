@@ -63,7 +63,7 @@ public class GameTests : IClassFixture<ManagementFactory>
         var a = await _f.AuthenticatedClient(Guid.CreateVersion7(), "A");
         var b = await _f.AuthenticatedClient(Guid.CreateVersion7(), "B");
         var game = await a.PostJson<GameInfo>("/v1/games", Friday());
-        Assert.Contains((await b.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.Participants == 1);
+        Assert.Contains((await b.GetJson<Page<GameSummary>>("/v1/games?limit=200")).Items, g => g.Id == game.Id && g.Participants == 1 && g.ParticipantNames.SequenceEqual(["A"]));
         Assert.Equal(HttpStatusCode.NoContent, (await a.PostAsync($"/v1/games/{game.Id}/end", null)).StatusCode);
         var joined = await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { });
         Assert.Equal(GameStatus.Ended, joined.Status);

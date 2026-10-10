@@ -8,7 +8,7 @@ namespace Tabletop.Management.Tests;
 public sealed class FakeStytch : HttpMessageHandler
 {
     public const string Code = "123456";
-    public sealed class User { public string Id = "user-test-" + Guid.NewGuid().ToString("N")[..8]; public string Email = ""; public string? ExternalId; public string? Password; }
+    public sealed class User { public string Id = "user-test-" + Guid.NewGuid().ToString("N")[..8]; public string Email = ""; public string? ExternalId; public string? Password; public List<string> Roles = ["stytch_user"]; }
     public readonly Dictionary<string, User> Users = new();   // by email
     public readonly List<string> Revoked = new();
     public readonly List<string> Deleted = new();
@@ -62,7 +62,8 @@ public sealed class FakeStytch : HttpMessageHandler
             {
                 var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(S("session_jwt"));
                 var u = Users.Values.First(x => x.Id == jwt.Subject);
-                return Session(u, body, jwt.Claims.FirstOrDefault(c => c.Type == Identity.StytchAuthentication.AccountClaim)?.Value);
+                var carriedRoles = jwt.Claims.Where(c => c.Type == Identity.StytchAuthentication.RolesClaim).Select(c => c.Value).ToList();
+                return Session(u, body, jwt.Claims.FirstOrDefault(c => c.Type == Identity.StytchAuthentication.AccountClaim)?.Value, carriedRoles);
             }
             case "/v1/sessions/revoke": Revoked.Add(S("session_jwt")); return Json(200, new { });
             case "/v1/users":
@@ -106,13 +107,16 @@ public sealed class FakeStytch : HttpMessageHandler
     /// <summary>By Stytch user id or by external id, which the get, the delete and the embeddable magic link all accept interchangeably.</summary>
     private User? Find(string key) => Users.Values.FirstOrDefault(x => x.Id == key || x.ExternalId == key);
 
-    /// <summary>A session's account_id is whatever session_custom_claims set on it, carried over from the incoming JWT on a refresh.</summary>
-    private HttpResponseMessage Session(User u, JsonObject body, string? carried = null)
+    /// <summary>A session's account_id and roles are whatever session_custom_claims set on it, carried over from the incoming JWT on a refresh.
+    /// The user object lists the user's RBAC role ids in roles, as Stytch's authenticate responses do.</summary>
+    private HttpResponseMessage Session(User u, JsonObject body, string? carried = null, List<string>? carriedRoles = null)
     {
-        var claim = body["session_custom_claims"]?[Identity.StytchAuthentication.AccountClaim]?.GetValue<string>() ?? carried;
-        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(claim, out var stamped) ? stamped : null);
+        var custom = body["session_custom_claims"];
+        var claim = custom?[Identity.StytchAuthentication.AccountClaim]?.GetValue<string>() ?? carried;
+        var roles = custom?[Identity.StytchAuthentication.RolesClaim] is JsonArray stamped ? stamped.Select(x => x!.GetValue<string>()).ToList() : carriedRoles;
+        var jwt = TestKeys.MintForUser(u.Id, Guid.TryParse(claim, out var account) ? account : null, roles);
         return Json(200, new { user_id = u.Id, session_jwt = jwt, session_token = "tok-" + u.Id,
-            user = new { user_id = u.Id, external_id = u.ExternalId, emails = new[] { new { email_id = "email-" + u.Id, email = u.Email, verified = true } } } });
+            user = new { user_id = u.Id, external_id = u.ExternalId, emails = new[] { new { email_id = "email-" + u.Id, email = u.Email, verified = true } }, roles = u.Roles } });
     }
 
     private static HttpResponseMessage Json(int status, object o) =>

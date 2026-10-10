@@ -4,7 +4,8 @@ using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Identity;
 
-public sealed record DevSessionRequest(string Name);
+/// <summary>Roles, when given, are stamped in place of the Stytch user's, so a test mints an admin without touching the Stytch project.</summary>
+public sealed record DevSessionRequest(string Name, IReadOnlyList<string>? Roles = null);
 
 /// <summary>Development only. A real Stytch session JWT for a named account, so the simulator's socket driver runs the real verification path.</summary>
 public sealed class DevSessions(StytchClient stytch, AccountRepository accounts, Sessions sessions)
@@ -24,14 +25,14 @@ public sealed class DevSessions(StytchClient stytch, AccountRepository accounts,
     public static string EmailFor(string name) =>
         new string([.. name.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-')]).Trim('-') + "@example.com";
 
-    public async Task<SessionResponse> Mint(string name)
+    public async Task<SessionResponse> Mint(string name, IReadOnlyList<string>? roles = null)
     {
         var accountId = AccountIdFor(name);
         await accounts.Insert(accountId, name);                                              // no-op when the row exists
         var externalId = accountId.ToString();
         var userId = await stytch.FindUserId(externalId) ?? await stytch.CreateUser(EmailFor(name), externalId);
         var token = await stytch.CreateEmbeddableToken(userId);
-        return await sessions.Complete(await stytch.AuthenticateMagicLink(token));
+        return await sessions.Complete(await stytch.AuthenticateMagicLink(token), roles);
     }
 }
 
@@ -42,7 +43,7 @@ public static class DevSessionEndpoint
         app.MapPost("/v1/dev/sessions", async (DevSessionRequest r, DevSessions dev) =>
         {
             if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Trim().Length > 64) return Problems.Unprocessable("A name of 1 to 64 characters is required.");
-            try { return Results.Ok(await dev.Mint(r.Name.Trim())); }
+            try { return Results.Ok(await dev.Mint(r.Name.Trim(), r.Roles)); }
             catch (StytchException e) { return Sessions.Problem(e); }
         });
 }
