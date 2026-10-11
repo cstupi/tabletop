@@ -53,7 +53,7 @@ public partial class TableInput
             case Intent.NextUnit: Cycle(1); return true;
             case Intent.PreviousUnit: Cycle(-1); return true;
             case Intent.FocusCamera: FocusActive(); return true;
-            case Intent.CameraTop or Intent.CameraLevel or Intent.SingleModel: return false;
+            case Intent.CameraTop or Intent.CameraLevel or Intent.SingleModel or Intent.CameraForward or Intent.CameraBack or Intent.CameraLeft or Intent.CameraRight: return false;   // the camera polls WASD
             default: IntentPressed?.Invoke(intent); return true;
         }
     }
@@ -93,11 +93,5 @@ public partial class TableInput
         if ((active ?? Selected?.PieceId) is { } unit) Focus(unit);
     }
 
-    void Focus(Guid unitId)
-    {
-        if (_session.Projection is not { } p) return;
-        var at = p.Models.Values.Where(m => m.UnitId == unitId).Select(m => m.Location).OfType<OnTable>().Select(o => o.Placement.Position).ToList();
-        if (at.Count == 0) return;
-        _view.Camera.Centre(WorldFrame.ToGodot(new Point3(at.Average(q => q.X), at.Average(q => q.Y), at.Average(q => q.Z))));
-    }
+    public void Focus(Guid unitId) { if (_session.Projection is { } p && CameraFocus.Centroid(p, unitId) is { } c) _view.Camera.Centre(WorldFrame.ToGodot(c)); }
 }

@@ -79,6 +79,7 @@ public partial class TableInput : Node
     public void Bind(TableView view, Session session)
     {
         _view = view; _session = session;
+        view.Camera.Holding = () => HoldingModels;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
         view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a proposed placement
         session.RefusedReceived += OnRefused;
