@@ -2,7 +2,8 @@
 
 Design session, 2026-10-10. The play screen's second pass: a unit card that shows the unit you are working with, a combat
 log that shows every roll with its target number and modifiers, selectable themes (fantasy and sci-fi), an army roster,
-table markers, range rings, turn banners, camera follow and WASD camera movement. Builds on the in-game UX spec
+table markers, range rings, turn banners, camera follow, WASD camera movement, and physical collision of models and
+terrain. Builds on the in-game UX spec
 (`2026-10-08-in-game-ux-design.md`); where the two differ, this one settles it.
 
 ## The owner's requirements
@@ -13,6 +14,7 @@ table markers, range rings, turn banners, camera follow and WASD camera movement
 - Overall UX for players of these games: a roster with activations left, status markers on the table, weapon range
   rings, a turn banner, camera follow.
 - The camera moves with WASD, not only orbits one fixed point.
+- Models and terrain collide: nothing is ever inside anything else, models stand on hills, terrain rests on terrain.
 
 ## Parts
 
@@ -28,6 +30,7 @@ table markers, range rings, turn banners, camera follow and WASD camera movement
 | Turn banner | centre, transient | — |
 | Camera | `OrbitCamera` | its pan and focus |
 | Themes | every screen | hard-coded colours |
+| Physical collision | every drag; the server's placements | centre-point settling, flagged overlap |
 
 Each part is built on a Godot-free model in `src/Core/`, unit-tested in `tests/Tabletop.Client.Tests`; the Godot node only
 renders the model.
@@ -193,6 +196,72 @@ focus. `Hotkeys` gains `CameraForward`, `CameraBack`, `CameraLeft`, `CameraRight
 **Follow.** When my team's or another team's action frame starts, the focus glides to the actor unit's centroid, unless
 the player moved the camera in the last 2 s or is holding a unit. Off by the follow setting.
 
+## Physical collision
+
+**The requirement.** Nothing on the table is ever inside anything else. Every model and every terrain piece is a solid
+body: dropped over something, it rests on top of it; dragged into the side of something, it stops at contact and slides
+along it. A wood dropped on a hill sits on the hill; a model dragged onto a hill stands on it; two models' bases never
+share space.
+
+**Today.** Nothing collides. A model on the table never climbs a hill: the drag settles only onto a top within 0.5" above
+the model's current height (`TableInput.Hold.cs:50`), and the server settles only at or below the height the client sent
+(`Battlefield.Settle`), so a model at Z 0 stays at Z 0 inside the hill. Settling tests the base's centre point, not the
+base. Hand moves and deployment are not settled by the server at all. Terrain pieces are never settled: a piece dropped
+on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged, never prevented (`Overlap`,
+`docs/architecture.md`).
+
+**Bodies.** Collision reads the geometry the rules already use: a model is its base outline extruded to its height
+(`PlacedModel`); a terrain piece is its volumes (`WorldVolume`). Each mesh is fitted to its piece's volumes
+(`MeshLoader`), so what is drawn is what collides.
+
+- A **Solid** volume is solid to everything: models and terrain rest on its top and stop at its sides.
+- An **Area** volume (woods, ruins, fields, water) is ground a model stands *in*: models enter it and rest on what is
+  under it; terrain dropped on it rests on what is under it. Its own floor, when its piece is lifted onto a hill, is the
+  piece's base height.
+- **Hill meshes are flat-topped.** The built-in hill, steep-hill, small-hill, dunes and lair meshes are rebuilt as
+  plateaus at their volume's top with a sloped rim inside the footprint, so a model on the hill stands on the drawn
+  surface.
+
+**`Tabletop.Geometry.Collision`** (new; pure values, tested):
+
+- `RestHeight(outline, volumes, ignore)`: the highest Solid top under any part of the outline, else 0. No step-up
+  limit; whether a climb is allowed is the server's terrain judgement (p.11), not physics. Replaces the centre-point
+  `Settling.SurfaceHeightAt` at every caller.
+- `Slide(moving, from, to, obstacles)`: the farthest point toward `to` the moving outline reaches without its interior
+  entering an obstacle's outline at an overlapping height, then the remainder of the drag projected along the contact
+  edge. Obstacles are other models' bases and the sides of Solid volumes whose top is above the mover's rest height plus
+  its own height (a body it cannot rest on top of); a Solid it can rest on is climbed, not slid along.
+- `Separate(bodies)`: for a group drag, each dragged body slides against the stationary ones and against the dragged
+  bodies already placed, in drag order, so a formation compresses against an obstacle instead of overlapping.
+
+**Client.**
+
+- Every drag of a model (a unit's move, deployment, a hand move) slides and rests through `Collision`. Holding **Alt**
+  while dragging places freely, for corrections; the dropped position still rests on what is under it.
+- Every drag of a terrain piece during setup rests the piece on the Solid tops under its footprint (`TerrainTransform`
+  Z) and slides it against Solid pieces it cannot rest on. Alt places it freely. Models are not on the table in setup.
+- The move-range circle (`Movement.Region`) takes other models' bases as obstacles, as it takes impassable volumes, so
+  the reach drawn goes around models.
+
+**Server.**
+
+- `Battlefield.Settle` rests every placement it applies through `Collision.RestHeight` over the model's base and ignores
+  the client's Z. Hand moves (`MoveModels`) and deployment placements are settled the same way, so a stored position is
+  never inside terrain whatever the client sent. Setup terrain edits rest the piece the same way (`DraftEditor`).
+- `GfMoves.PathBreach` gains p.7's clauses, decided by the enforcement setting like every other breach:
+  - `move_through_models`: *"may never move through other models or units (friendly or enemy), even if they are taking
+    a Charge action"*: the straight path from start to destination crosses another model's base.
+  - `move_overlap`: *"or be placed in physically impossible locations"*: the destination overlaps another model's base.
+  - `move_separation`: *"Models may never be within 1\" of models from other units, unless they are taking a Charge
+    action"*: the destination is within 1" of another unit's model, except on a Charge (`MoveStep.ignoreSeparation`).
+- `HandMoves.Judge` adds `move_overlap` to a hand move's breach, so `warn` names it and `strict` refuses it.
+- `docs/architecture.md`'s "base overlap, terrain intersection … flagged rather than prevented" becomes: the client
+  prevents them while dragging, Alt overrides, and the server judges them under the enforcement setting.
+
+**Out of scope.** p.11's climb cost (*"instead of having to climb up 1\" and down 1\""*): a climb is not charged against
+the move distance. Collision of models with the trees or walls drawn inside an Area volume: an Area is entered as a
+whole, as p.11 plays it.
+
 ## Settings
 
 A **Settings** dialog, opened from a gear button in the header and on the Home screen:
@@ -255,6 +324,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 | `HudLayout` | `Screens/GameScreen.Play` places parts by it |
 | `UiTheme`, `UiThemes` | `Theme/ThemeBuilder`, `Screens/SettingsDialog` |
 | `Hotkeys` (new intents), `CameraFocus` (pan clamp, glide, follow rule) | `Table/OrbitCamera` |
+| `Tabletop.Geometry.Collision` (shared with the server) | `Table/TableInput.Hold` drags, `Panels/SetupToolbar` terrain drags |
 
 `RoundHistory` is removed with the *This round* tab. `LogPanel` stays for lobby and setup.
 
@@ -267,6 +337,10 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 - Server: `GfRolls` tests assert `Basis` on hit, defense and morale records, including a `modify_stat` row, a
   `replace_stat` row, a joined hero's own Defense and the morale best-of; `Roller` writes it; JSON round trip in
   `Tabletop.Protocol.Tests`; the viewer's generated types regenerated.
+- Geometry: `Collision` rest height under a base half over a hill, slide along a model and a wall, a climbable top
+  climbed, a group compressing against an obstacle; terrain resting on terrain.
+- Server: a hand move, a deployment and a move answer sent at Z 0 over a hill are stored on the hill; the three new
+  breaches under each enforcement setting, the Charge exemption for separation.
 - End to end: a sim socket game (`dotnet run --project sim -- suite --driver socket --only core`) and a check that its
   records carry `Basis`.
 - `./scripts/check-client`, and the owner's on-screen check of both themes.
