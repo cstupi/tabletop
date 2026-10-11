@@ -12,6 +12,7 @@ public partial class HeaderBar : PanelContainer
 {
     Session _s = null!;
     readonly HBoxContainer _top = new(), _activation = new();
+    readonly HFlowContainer _teams = new();
     readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning };
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false };
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
@@ -26,7 +27,7 @@ public partial class HeaderBar : PanelContainer
     {
         _s = session;
         var lines = new VBoxContainer(); AddChild(lines);
-        lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
+        lines.AddChild(_top); lines.AddChild(_teams); lines.AddChild(_activation); lines.AddChild(_waiting);
         _top.AddChild(_gameOver); _top.AddChild(_settings);
         _settings.Pressed += () => SettingsRequested?.Invoke();
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
@@ -50,7 +51,8 @@ public partial class HeaderBar : PanelContainer
         if (!Visible) return;
         var names = new Names(game!, p);
         var m = HeaderView.Of(p!, game!, names);
-        Clear(_top, _gameOver, _settings); Clear(_activation);
+        Clear(_top, _gameOver, _settings); Clear(_teams); Clear(_activation);
+        var waiting = HeaderView.NotActivated(p!, game!);
 
         _top.AddChild(new Label { Text = $"Round {m.Round} · {m.Turn}" });
         foreach (var team in game!.Teams.OrderBy(t => t.Ordinal))
@@ -61,7 +63,21 @@ public partial class HeaderBar : PanelContainer
             label.AddThemeColorOverride("font_color", Palette.Team(team.Ordinal));
             var id = team.Id;
             label.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) TeamMenuRequested?.Invoke(id, b.GlobalPosition); };
-            _top.AddChild(label);
+            var cell = new HBoxContainer(); cell.AddChild(label);
+            cell.AddChild(new Label { Text = $" · {waiting.GetValueOrDefault(team.Id)} not activated", ThemeTypeVariation = Variation.Dim });
+            _teams.AddChild(cell);
+        }
+        foreach (var (_, owner) in HeaderView.Objectives(p!))
+        {
+            var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, TooltipText = "Objective" };
+            chip.AddChild(Roster.Icon("objective"));
+            if (owner is { } t && Ui.Theme.GetStylebox("panel", Variation.Chip).Duplicate() is StyleBoxFlat box)
+            {
+                var colour = Palette.Team(game.Teams.First(x => x.Id == t).Ordinal);
+                box.BorderColor = colour; box.BgColor = colour.Lightened(0.6f); box.SetBorderWidthAll(2);
+                chip.AddThemeStyleboxOverride("panel", box);
+            }
+            _teams.AddChild(chip);
         }
         _gameOver.Visible = m.Result is not null;
         _gameOver.Text = m.Result is { } result ? $"  {result}" : "";
@@ -72,7 +88,7 @@ public partial class HeaderBar : PanelContainer
         _activation.Visible = m.ActiveUnit is not null;
         if (m.ActiveUnit is { } unit)
         {
-            _activation.AddChild(new Label { Text = m.Action is { } action ? $"{unit} · {action}" : unit });
+            _activation.AddChild(new Label { Text = HeaderView.ActivationLine(p!, game!, names, _s.MyTeamId) ?? unit });
             foreach (var item in m.Outline)
                 _activation.AddChild(new Label
                 {
