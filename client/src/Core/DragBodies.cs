@@ -10,9 +10,12 @@ public sealed record HeldBody(Guid Id, PlacedModel At, Point2 To);
 /// <summary>What a drag collides with (client UX spec → Physical collision → Client). Alt places freely; the drop still rests.</summary>
 public static class DragBodies
 {
-    public static IReadOnlyList<PlacedModel> Stationary(Projection p, IReadOnlyCollection<Guid> held) =>
-        p.Models.Values.Where(m => !held.Contains(m.Id) && m.Location is OnTable)
-            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+    /// <summary>Every model not held, where it stands: a ghost (a proposed placement, a disembark ghost) where it is drawn, any other model on the table.</summary>
+    public static IReadOnlyList<PlacedModel> Stationary(Projection p, IReadOnlyCollection<Guid> held, IReadOnlyDictionary<Guid, Placement>? ghosts = null) =>
+        p.Models.Values.Where(m => !held.Contains(m.Id))
+            .Select(m => (m, At: ghosts is not null && ghosts.TryGetValue(m.Id, out var g) ? g : (m.Location as OnTable)?.Placement))
+            .Where(x => x.At is not null)
+            .Select(x => new PlacedModel(new ModelBody(x.m.Slot.Base, x.m.Slot.Height), x.At!.Value)).ToList();
 
     /// <summary>What a body slides along: inside a move Ask the volumes it lists as impassable, otherwise every volume declared Impassable. Collision keeps the Solid ones.</summary>
     public static IReadOnlyList<WorldVolume> Walls(IReadOnlyList<WorldVolume> volumes, MoveRegion? region) => region is not null

@@ -1,5 +1,6 @@
 using Tabletop.Client.Core;
 using Tabletop.Content;
+using Tabletop.Content.Tests;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 
@@ -52,5 +53,45 @@ public class DragBodiesTests
         var region = new MoveRegion([A], 6, [], [], null);
         Assert.True(MoveRuler.Region(M(10, 10), region, [], new TableSize(72, 48), [M(13, 10)])[0].X <= 11.74 + 1e-6);
         Assert.Equal(16, MoveRuler.Region(M(10, 10), region with { PassesModels = true }, [], new TableSize(72, 48), [M(13, 10)])[0].X, 6);
+    }
+
+    static readonly Unit Squad = new(Guid.CreateVersion7(), 1, "Squad", new Dictionary<string, string>(), [],
+        Enumerable.Range(1, 3).Select(i => new ModelSlot(Guid.CreateVersion7(), i, "Trooper", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, [])).ToList());
+    static Guid S(int i) => Squad.Models[i].Id;
+    /// <summary>The squad's first two models on the table at (10, 10) and (20, 10); the third on the shelf.</summary>
+    static Projection Squads()
+    {
+        var pa = Guid.CreateVersion7(); var team = Guid.CreateVersion7();
+        var game = new GameInfo(Guid.CreateVersion7(), "Friday", GameStatus.Playing, pa, "grimdark-future", "sha256:abc", SchedulerShape.AlternatingActivation,
+            Enforcement.Strict, false, 1, [new Team(team, 1)], [new Participant(pa, Guid.CreateVersion7(), "Clay", team, null)]);
+        var a = new EventApplier(new Board(TableStateTests.Sample(), [new ArmyInPlay(pa, ArmySnapshot.Of(new Army(Guid.CreateVersion7(), "Squad", "grimdark-future", "test", [Squad]), Guid.CreateVersion7()))]), game);
+        ModelRelocation Put(int i, double x) => new(S(i), new OnShelf(), new OnTable(new Placement(new Point3(x, 10, 0), new Yaw(0))));
+        a.ApplyAll([new GameEvent(1, pa, new ModelsMoved([Put(0, 10), Put(1, 20)]), null)]);
+        return a.Projection;
+    }
+
+    [Fact]
+    public void The_stationary_bodies_leave_out_the_held_and_the_off_table_models()
+    {
+        var p = Squads();
+        Assert.Equal([new Point3(20, 10, 0)], DragBodies.Stationary(p, [S(0)]).Select(b => b.Placement.Position));
+    }
+
+    [Fact]
+    public void A_proposed_model_collides_where_its_ghost_stands()
+    {
+        var p = Squads();
+        var ghosts = new Dictionary<Guid, Placement> { [S(1)] = new(new Point3(30, 12, 0), new Yaw(0)), [S(2)] = new(new Point3(40, 12, 0), new Yaw(0)) };
+        Assert.Equal([new Point3(30, 12, 0), new Point3(40, 12, 0)],
+            DragBodies.Stationary(p, [S(0)], ghosts).Select(b => b.Placement.Position).OrderBy(q => q.X));      // a disembark ghost, off the table, is still a body
+    }
+
+    [Fact]
+    public void Each_held_model_gets_its_own_end()
+    {
+        Guid x = Guid.CreateVersion7(), y = Guid.CreateVersion7();
+        var ends = DragBodies.Models([new HeldBody(x, M(0, 0), new(5, 0)), new HeldBody(y, M(0, 10), new(5, 10))], [M(4, 10)], [], null, free: false);
+        Assert.Equal(new Point3(5, 0, 0), ends[x]);
+        Assert.True(ends[y].X < 4 - 1.25);                                               // y alone meets the model at (4, 10)
     }
 }

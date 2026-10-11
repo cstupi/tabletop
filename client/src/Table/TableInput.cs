@@ -240,7 +240,9 @@ public partial class TableInput : Node
             var starts = models.ToDictionary(m => m, m => Position(m));
             var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
             _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
-            _stationary = projection is null ? [] : DragBodies.Stationary(projection, models);
+            // The Ask's other models are ghosts: they collide where they are drawn, a disembark ghost included.
+            _stationary = projection is null ? [] : DragBodies.Stationary(projection, models, Proposing.Where(m => !models.Contains(m) && _view.PieceAt(m) is not null)
+                .ToDictionary(m => m, m => new Placement(WorldFrame.FromGodot(_view.PieceAt(m)!.Position), WorldFrame.YawFrom(_view.PieceAt(m)!.Rotation.Y))));
             _drag = new Drag(id, models, point, screen, starts, CurrentYaw(id));
         }
         // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's
