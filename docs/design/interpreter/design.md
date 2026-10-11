@@ -64,7 +64,7 @@ scheduler. Three modules must land first:
 | Module | What this one consumes |
 | --- | --- |
 | Contracts | Every `EventPayload`, `Command`, `Ask`, `LegalSet`, `StateChange`, `Projection`, `Frame`, `EventApplier.EffectiveLog`, `StepCompleted.Values`, and `GameInfo.RngSeed` |
-| Geometry | `Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Settling` |
+| Geometry | `Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Collision` |
 | Game server skeleton | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`, `CommandDispatcher`, `Legality`, `InMemoryEventLog`, `PostgresFixture`, `GrimdarkFutureRules` as a `partial` |
 
 Nothing of this module exists yet. The repository is at scaffold stage: only `client/` has code,
@@ -877,7 +877,7 @@ what it held.
 | `sealed class StepContext` | `State`, `Properties`, `Rules`, `Frame`, `History`, `Projection`, `ActorTeam`, `TeamOf`, `Roll`, `Rolls`, `ForcedRerolls`, `Plan`, `Ask`, `SealedAsk` |
 | `sealed class SequenceInterpreter(IGameRules, PropertySet, IDiceSource) : ISequenceStarter` | `Advance(GameState)`, `Start(...)` |
 | `static class Windows` | `ReactionOrder`, `Run`, `SimultaneousSpend`, `Spends` |
-| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle` |
+| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle(state, modelId, placement)` (ignores the client's Z; rests on `Collision.RestHeight`) |
 | `static class Teams` | `Of(GameState, Guid unitId)`, `Others(GameState, Guid? team)` |
 
 `Tabletop.GameServer.Rules`, the nine members added to `IGameRules` beside the scheduler's
@@ -922,7 +922,7 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_ca
 | From | Exact names |
 | --- | --- |
 | Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog`, `GameInfo.RngSeed : long` |
-| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed`, `Footprint.IsValid(scale)`, `Table.IsValid` (for `DraftEditor.Degenerate`) |
+| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Collision.RestHeight`, `Collision.Crosses`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed`, `Footprint.IsValid(scale)`, `Table.IsValid` (for `DraftEditor.Degenerate`) |
 | Skeleton (`server/game/`) | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult` (`Emit`, `RefuseCommand`), `Legality`, `CommandDispatcher`, `RowMapping.EnumText/EnumFrom`, `IEventLog`, `InMemoryEventLog`, `PostgresFixture`, `RecordingClient`, `FixedAskEngine`, `GrimdarkFutureRules` as `sealed partial` |
 | Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
 | Management | `GET /v1/properties` already lists the seeded sets, and the Army Forge import's stat names `Quality`, `Defense`, `Range`, `Attacks` must match `grimdark-future-core.properties.json`. Its joined hero is a model of the unit it joined, which obliges this module in two places: the document declares `Quality` and `Defense` at `model` level as well as `unit` level, so a joined hero's `slot_stat` rows are declared ones, and a `unit`-kind entry on a model slot is read as the unit's rule in both readers. The hero attacks at its own Quality and blocks on the unit's Defense until it is alone, so the model-level `Quality` is read; `StatReader.TargetNumber` resolves either level for a named model and the split lives in `GfRolls.HitQuality`, `GfAttack.Attacks` and `GfRolls.DefensePlan` (the plan's ruling 13) |
@@ -1173,8 +1173,10 @@ a *current* column means the event spine has been broken.
   cannot cross.
 - **Capacity is never enforced.** `Transport(X)`'s parameter is carried by the catalog entry and
   read by nothing. Game flow rules it explicitly.
-- **The 1-inch separation and unit coherency are never enforced.** The client flags them.
-  `MoveStep`'s `ignoreSeparation` changes only the Ask's prompt.
+- **Unit coherency is never enforced.** The client flags it. The 1-inch separation, base overlap and a path through a model are
+  judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
+  `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's
+  move-step; PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask).
 - **Missions beyond the core one do not exist here.** Objective seizing and the round-4 winner are the ruleset's `OnRoundEnded` and `JudgeAdvance`, not interpreter steps; players keep their own counters.
 
 ### Concurrency

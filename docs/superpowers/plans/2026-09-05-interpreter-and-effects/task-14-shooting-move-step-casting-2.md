@@ -181,7 +181,7 @@ public static class GfMoves
             foreach (var m in proposed)
             {
                 // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
-                // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
+                // everyone to embark", and the 1" restriction is ignored (GfMoves.ContactBreach judges only a landing on the table; architecture.md → Rules enforcement).
                 if (m.To is Inside into)
                 {
                     if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) moves.Add(m);          // never point Inside at something that is not on the table

@@ -58,7 +58,7 @@ before one exists. What must land first: the contracts plan's `Tabletop.Protocol
 skeleton's `GameSession`, `Hydrator`, `SessionServices`, `InMemoryEventLog`, `IGameRows`,
 `ISessionClient` and `Replay`; the interpreter's `RulesEngineFactory`, `IPropertiesStore`,
 `PropertiesSeeder` and `DiceSource`; the scheduler's `SchedulerFactory`; and the geometry
-plan's `Movement.Check`, `ZoneStyles` and `Settling.SurfaceHeightAt`.
+plan's `Movement.Check`, `ZoneStyles`, `Collision.RestHeight` and `Collision.Crosses`.
 
 ## Context
 
@@ -330,12 +330,14 @@ opponent that plays well.
 `MoveRegion` is the one shape that reads the view, because it is the one shape whose answer is
 not expressible from the set alone. `MoveRegion` names model ids, an allowance and volume ids
 and says nothing about where those models stand. `PlacedOf`, `BodyOf`, `VolumesById` and
-`SurfaceAt` are how a destination gets computed at all. Per model the policy samples a uniform
+`RestOf` are how a destination gets computed at all. Per model the policy samples a uniform
 bearing and a uniform distance inside the allowance, up to `PolicyOptions.MoveSamples` (24)
 times, and accepts the first destination `Movement.Check` likes. With a `MoveGoal` that names a
 point for the model, it draws all the samples and takes the passing one nearest that point; with
 none, or a null point, the draws and the answer are the uniform ones. Every parameter of that check
-comes from the legal set itself. Standing still is the fallback and is always legal, because it
+comes from the legal set itself. `AnswerPolicy.Clear` then mirrors `GfMoves.Contact`: the landing is on no other
+base, does not cross a model (`Collision.Crosses`) unless the region `PassesModels`, and keeps the region's `Separation`;
+a repair pass after the sample cap redraws any landing no longer Clear, so a sampled move does not breach under `strict`. Standing still is the fallback and is always legal, because it
 is where the model already is. The retry budget is per model rather than per Ask, so a unit of
 five gets five independent budgets and one model that cannot find a destination does not freeze
 the others.
@@ -524,14 +526,12 @@ ordinary `MoveModels` command, not an Ask: the scheduler spec's *The turn is an 
 models by hand never ends one. So after a `deploy` answer the loop puts that unit's models on
 the table itself, inside the team's own zone, resolving the shape with `ZoneStyles.Resolve`.
 That is geometry from a library, not a rules outcome the engine should have computed. Nothing
-checks whether the placement is good. `architecture.md` → Rules enforcement makes placement free
-under every enforcement setting, with base overlap, terrain intersection and broken coherency
-flagged rather than prevented.
+checks whether the placement is good, except that an anchor is chosen where no base touches a model already on the table:
+a hand placement is judged for overlap (`IGameRules.PlacementBreach`, `move_overlap`; `architecture.md` → Rules
+enforcement), and broken coherency stays flagged.
 
-`HandPlacement.IntoZone` writes `Z = 0` and lets the server settle it. The interpreter's move
-step calls `Settling.SurfaceHeightAt`, and hand moves are copied as sent including the client's
-`Z`, so a model deployed onto a hill sits at `0` until it next moves. That is a cosmetic wrong
-the simulator does not exist to fix.
+`HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` ignores the client's
+`Z`), so a model deployed onto a hill stands on it.
 
 ### The projection recording
 
@@ -865,7 +865,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 
 | Type | Members |
 | --- | --- |
-| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double SurfaceAt(Point2)`, `IRL<Marker> ObjectiveMarkers`, `static IRL<Marker> ObjectiveMarkersOf(Projection)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
+| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double RestOf(Guid modelId, Point2 at, Yaw? yaw = null)`, `IRL<Marker> ObjectiveMarkers`, `static IRL<Marker> ObjectiveMarkersOf(Projection)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
 | `sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24)` | |
 | `sealed class AnswerPolicy(Chooser, PolicyOptions? = null, MoveGoal? goal = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
 | `delegate Point2? MoveGoal(Guid modelId, PolicyView view)`; `static class ObjectiveGoal` | `static Point2? Nearest(Guid, PolicyView)` |
@@ -968,7 +968,7 @@ The viewer's whole input.
 | --- | --- |
 | `Tabletop.Protocol` | `GameInfo` (with `RngSeed`), `Board`, `Team`, `Participant`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `Frame`, `OpenAsk`, `Ask`, `AskQuestions`, `LegalSet` and its seven members, `AskAnswer` and its eight members, `Location`/`OnTable`/`OnShelf`/`Inside`, `ModelRelocation`, `Command`, `MoveModels`, `AnswerAsk`, `Undo`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `RollRecord`, `Die`, `Grant`, `EventApplier`, `RefusalReason`, `SocketMessage` and every kind, `WireJson`, `ProtocolVersion` |
 | `Tabletop.Content` | `Army`, `ArmySnapshot`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `MarkerKind`, `DeploymentZone`, `VisualRef`, `ContentJson` |
-| `Tabletop.Geometry` | `Base`, `TableSize`, `Point2`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `TerrainDeclarations`, `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Polygon`, `Movement.Check`, `MoveCheck`, `Settling.SurfaceHeightAt`, `ZoneStyles.ShapesOf`/`Resolve`/`Contains`/`Frontline`/`FreeForAll`, `Distance` |
+| `Tabletop.Geometry` | `Base`, `TableSize`, `Point2`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `TerrainDeclarations`, `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Polygon`, `Movement.Check`, `MoveCheck`, `Collision.RestHeight`, `Collision.Crosses`, `ZoneStyles.ShapesOf`/`Resolve`/`Contains`/`Frontline`/`FreeForAll`, `Distance` |
 | `server/game/` | `GameSession`, `SessionServices`, `Hydrator`, `Replay`, `IEventLog`, `InMemoryEventLog`, `IGameRows`, `PostgresGameRows`, `OwnedArmy`, `ISessionClient`, `GameServerOptions`, `RulesEngineFactory`, `IPropertiesStore`, `InMemoryPropertiesStore`, `PropertiesSeeder`, `PropertiesJson`, `PropertySet`, `IDiceSource`, `DiceSource`, `SchedulerFactory`, `GrimdarkFutureRules.RulesId` |
 | Test project only | `PostgresFixture`, `GameServerFactory`, `TestKeys` from `tests/Tabletop.GameServer.Tests` |
 
@@ -980,7 +980,7 @@ The viewer's whole input.
 | Interpreter | `PropertiesSeeder.EmbeddedDocuments()` and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` public. `InMemoryPropertiesStore.Add(PropertySet)` returning `this`. `DiceSource()` parameterless. `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public. |
 | Scheduler | `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. |
 | Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. |
-| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Settling.SurfaceHeightAt`. |
+| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Collision.RestHeight`, `Collision.Crosses`. |
 | Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. |
 | Viewer | consumes `Tabletop.Sim.Recording` verbatim as its input format and `RecordingJson.SchemaVersion` as the number to check. It generates its TypeScript types from these C# records. |
 
@@ -1394,8 +1394,8 @@ documentation edits.
   what the socket driver exercises.
 - `docs/architecture.md` → Contracts to freeze: nobody instantiates a game session, which is why
   the in-process driver goes through `Hydrator`.
-- `docs/architecture.md` → Rules enforcement: free placement, with base overlap, terrain
-  intersection and broken coherency flagged rather than prevented.
+- `docs/architecture.md` → Rules enforcement: the client prevents base overlap, terrain
+  intersection and a path through a model, the server judges them, and broken coherency is flagged.
 - `docs/architecture.md` → Undo: replay to sequence N from the initial state, and the RNG as part
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.

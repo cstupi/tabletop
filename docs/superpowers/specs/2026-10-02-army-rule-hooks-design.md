@@ -110,7 +110,7 @@ rounded up (p.4), summed, recorded as a `RollRecord` named for the entry. A plac
 swept, so it crosses impassable terrain and units, and only the landing is checked: each model's displacement is
 at most the distance, and its base touches no impassable volume (p.11: units *"may not end their move partially
 overhanging gaps or terrain"*; `GfMoves.LandsInImpassable`). Under strict, dispatch also refuses a landing off the
-table (`GfMoves.PathBreach`, p.7); p.7's 1" from other units is client-flagged, as it is for every move the engine measures. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
+table (`GfMoves.PathBreach`, p.7); p.7's 1" from other units is judged by `GfMoves.ContactBreach` (`move_separation`, the region's `Separation`), as it is for every move the engine measures. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
 difficult lists are empty, which is how the client is told nothing will be swept; `GfMoves` validates it with a
 landing check instead of `Movement.Check`. No wire type changes.
 

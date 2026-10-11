@@ -138,7 +138,7 @@ An empty impassable and difficult list on the `MoveRegion` is how the client kno
 ```csharp
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
     /// stood and its base touches no impassable volume (LandsInImpassable). Nothing between is swept. A landing that fails stays where it was. The table edge
-    /// and p.7's 1" are client-flagged, as for every move (MoveStep reports Movement.Check's LeavesTable and does not refuse it).</summary>
+    /// is client-flagged (MoveStep reports Movement.Check's LeavesTable and does not refuse it); p.7's 1" is judged by GfMoves.ContactBreach (move_separation), as for every move.</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
         var impassable = Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);

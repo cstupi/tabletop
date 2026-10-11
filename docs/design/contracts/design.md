@@ -4,7 +4,7 @@ This module is the three shared libraries under `libs/` (`Tabletop.Geometry`,
 `Tabletop.Content`, `Tabletop.Protocol`), their three xUnit test projects, and the local
 development environment: Postgres and MinIO in Docker plus the thirty-three-table schema as init
 SQL. It owns every type more than one deliverable must agree on. That is the geometry value types
-and the declared distance / line-of-sight / settling API, the army snapshot and table-state
+and the declared distance / line-of-sight / collision API, the army snapshot and table-state
 records, and the whole socket vocabulary: commands, events, Asks, presence, setup edits, the
 envelope, the JSON rules, `EventApplier`, and the `Projection` it builds.
 
@@ -22,7 +22,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 
 | Deliverable | Where | What it is |
 | --- | --- | --- |
-| `Tabletop.Geometry` | `libs/Tabletop.Geometry/` | `Points.cs`, `Bases.cs`, `Volumes.cs`, `Placements.cs` hold the value types. `Api.cs` declares `Distance`, `LineOfSight`, `Settling`, `Containment`, `Overlap` with throwing bodies |
+| `Tabletop.Geometry` | `libs/Tabletop.Geometry/` | `Points.cs`, `Bases.cs`, `Volumes.cs`, `Placements.cs` hold the value types. `Api.cs` declares `Distance`, `LineOfSight`, `Collision`, `Containment`, `Overlap` with throwing bodies |
 | `Tabletop.Content` | `libs/Tabletop.Content/` | `Stats.cs`, `Army.cs`, `TableState.cs`, `ContentJson.cs` |
 | `Tabletop.Protocol` | `libs/Tabletop.Protocol/` | `ProtocolVersion.cs`, `Game.cs`, `State.cs`, `StateChanges.cs`, `Asks.cs`, `Events.cs`, `Commands.cs`, `Presence.cs`, `Edits.cs`, `Wire.cs`, `Projection.cs`, `EventApplier.cs` |
 | Tests | `tests/Tabletop.{Geometry,Content,Protocol}.Tests/` | xUnit 2.9, one project per library; `tests/` is a fourth top-level directory of the repo-level-support kind |
@@ -34,7 +34,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 - **Every geometry body.** `Api.cs` and `Polygon.Contains` throw `NotImplementedException("Implemented
   by the geometry plan.")`. The geometry module fills them in. It may not change a signature or a
   documented contract without first changing the spec. It also *adds* members this module does not
-  declare: `Settling.SurfaceHeightAt(Point3 from, …)`, `Containment.VolumesFullyContaining`,
+  declare: `Collision.Slide`, `Collision.Separate`, `Collision.Crosses`, `Containment.VolumesFullyContaining`,
   `Containment.BaseFullyWithin`, `Movement`, `Table`, `ZoneStyles`.
 - **`Properties` types.** The catalog, effect and condition rows are interpreted only by the game
   server. The eight tables exist in SQL here. The C# for them belongs to the game server and
@@ -197,9 +197,9 @@ comments are the contract, and they encode decisions rather than descriptions.
 | `Distance.EdgeToEdge(PlacedModel, PlacedModel)` | horizontal inches, edge to edge between bases, never centre to centre; `0` when the outlines overlap |
 | `Distance.EdgeToEdge(PlacedModel, Point2)` | same, to a bare point |
 | `LineOfSight.Check(from, to, volumes)` | only volumes declaring `BlocksLineOfSight` obstruct; a `SeeInAndOut` volume obstructs a line passing through but not one starting or ending inside it; the mesh is never consulted |
-| `Settling.SurfaceHeightAt(Point2, volumes)` | raycast down: the highest `Solid` top under the point, or `0` (the slab) |
+| `Collision.RestHeight(Point2, volumes)` | the highest `Solid` top under the point, or `0` (the slab); the model and piece overloads rest on any part of the base or footprint |
 | `Containment.VolumesContaining(model, volumes)` | ids of volumes whose footprint and vertical range contain the base centre, `Area` or `Solid` |
-| `Overlap.Bases`, `Overlap.WithSolid` | flagged, never prevented (`architecture.md` → Rules enforcement) |
+| `Overlap.Bases`, `Overlap.WithSolid` | prevented by the client's drag and judged by the server (`architecture.md` → Rules enforcement) |
 | `Polygon.Contains(Point2)` | point in polygon |
 
 The signatures are declared here rather than by the geometry module because `architecture.md` lists
@@ -311,7 +311,7 @@ Four decisions are carried in this shape.
   "Clearing" re-sends the source's own volumes (`OverrideTerrainVolumes`). `schema.md` → A terrain
   placement names a built-in or an asset states the same.
 - **Objectives and tokens are one `Marker` with a `Kind`**, sized by a diameter. Markers ignore
-  terrain: no settling, no collision (setup content → Markers; table domain model). Where a marker
+  terrain: no resting, no collision (setup content → Markers; table domain model). Where a marker
   lives differs by origin. Setup markers are rows in `TableState.Markers`. A token dropped in play is
   a logged `MarkerPlaced` and lands in `Projection.Markers`. A setup marker's first `MarkerMoved`
   copies its row into `Projection.Markers` at the new position, and that entry wins on the shared id
@@ -1123,7 +1123,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)` |
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | |
 | `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
-| `static class Settling` | `double SurfaceHeightAt(Point2, IRL<WorldVolume>)` |
+| `static class Collision` | `double RestHeight(Point2, IRL<WorldVolume>)` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 
@@ -1205,7 +1205,7 @@ written in this module and kept in another.
 
 | Module | Obligation |
 | --- | --- |
-| Geometry | implement every body in `Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests; add `ZoneStyles`, `Movement`, `Table`, `Containment.BaseFullyWithin`, `Settling.SurfaceHeightAt(Point3, …)` |
+| Geometry | implement every body in `Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests; add `ZoneStyles`, `Movement`, `Table`, `Containment.BaseFullyWithin`, `Collision` (`RestHeight`, `Slide`, `Separate`, `Crosses`) |
 | Game server | read `game.rng_seed` with the rest of the game's row at hydration, pass it into `GameInfo.RngSeed`, and never write it; emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` (whole draft) after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; overwrite `Presence.ParticipantId`, `Ping.Sender` and `GameEvent.Actor` from the socket's identity. The `Properties` catalog types are the interpreter plan's, not the skeleton's |
 | Management API | adopt `001_schema.sql` as migration 001 and baseline a compose-built database; generate `game.rng_seed` in application code when inserting the game row, never update it, and return it in the game representation; read the `TABLETOP_*` names; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing |
 | Client shell | add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/`; marshal socket-thread applier writes onto Godot's main thread; render `MoveRegion.Containment`, where a click on an `Enterable` container answers `Destinations` with `Inside(container)` for every model and a non-null `ExitingId` draws the exit region with `Containment.BaseFullyWithin` |
@@ -1319,9 +1319,9 @@ sequenceDiagram
     S-->>C: AskOpened(Ask, MoveRegion(modelIds, allowance, impassableIds, difficultIds, cap, containment))
     C->>G: Movement.Region(start, allowance, volumes, cap, tableSize)
     G-->>C: boundary polygon
-    Note over C: drag streams PresencePlacement(held);<br/>the client settles Z locally with Settling
+    Note over C: drag streams PresencePlacement(held);<br/>the client slides and rests Z locally with Collision
     C->>S: AnswerAsk(askId, Destinations([ModelRelocation(model, from, to)]))
-    S->>G: re-check distance, settle Z authoritatively
+    S->>G: re-check distance, rest Z authoritatively
     S-->>C: StepCompleted(frame, "move", answer, rolls, [ModelsMoved(...)])
     Note over C: the event's To overwrites the client's predicted Z
 ```
@@ -1576,8 +1576,9 @@ every type in the tree stays immutable. Nothing enforces that.
 
 ### Left to break
 
-- **Base overlap, terrain intersection and broken coherency are flagged, never prevented**
-  (`architecture.md` → Rules enforcement). `Overlap` returns a bool that nothing acts on.
+- **Base overlap, terrain intersection and a path through a model are prevented by the client's drag and judged by the
+  server; broken coherency is flagged** (`architecture.md` → Rules enforcement). `Overlap` returns a bool the server's
+  `move_overlap` breach reads.
 - **Nothing recorded is an invariant.** A dead model can stand on the table, a unit that has moved
   can move again, a score can be any integer, `Transport(X)` capacity is not checked and a building's
   capacity is not recorded at all. The applier will copy every one of those states without complaint,

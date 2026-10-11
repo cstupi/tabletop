@@ -252,9 +252,10 @@ terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_
 (`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
 terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask lists no
 impassable volume; p.11 *"may not end their move partially overhanging gaps or terrain"* and p.7 *"physically impossible
-locations"* still hold its landing (`GfMoves.LandsInImpassable`). It does **not** enforce the 1-inch separation or coherency. The client flags those, per
-`architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
-prompt for a charge.
+locations"* still hold its landing (`GfMoves.LandsInImpassable`). p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
+`move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, 1 except the Charge
+move, the close-in, consolidation and an Aircraft's move-step; a disembark keeps it). It does **not** enforce coherency; the client flags it, per
+`architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
 
 How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no
 cap, no dangerous terrain test), Flying (p.13 *"may move through units and terrain, and ignore terrain effects whilst moving"*:

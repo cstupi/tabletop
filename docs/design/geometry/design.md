@@ -20,7 +20,7 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 | The one internal convex shape | `Outline`, `CircleOutline`, `PolygonOutline` | 2 |
 | Values to world outlines | `Bodies`, `WorldVolumes` | 3 |
 | Edge-to-edge measurement | `Distance` | 4 |
-| Surface settling | `Settling` | 5 |
+| Collision: rest, slide, separate | `Collision` | 5 |
 | Standing in and on terrain | `Containment` | 6 |
 | Base overlap, terrain intersection | `Overlap` | 7 |
 | Line of sight | `LineOfSight`, `LineOfSightResult` | 8 |
@@ -34,8 +34,7 @@ Not in scope:
 
 - **The rules.** No legality decision, no majority-of-models rule, not p.11's cover
   majority, no `+1 to Defense`, no 6" difficult cap of its own. Facts are returned
-  per model and the caller counts. `architecture.md` → Rules enforcement: flagged, never
-  prevented.
+  per model and the caller counts. `architecture.md` → Rules enforcement.
 - **The terrain generators and the built-in terrain inventory.** The setup phase spec ships the
   four planet tables with the client, and the server never reads them. The client shell plan
   owns `TerrainGenerators` and `BuiltinContent` in `client/src/Core/`. The zone styles are the
@@ -82,7 +81,7 @@ flowchart TD
     PG[("Postgres")]
     WEB["web/ (volume editor)"]
 
-    TV -->|"predicts: region, ruler, settling, LoS"| GEO
+    TV -->|"predicts: region, ruler, collision, LoS"| GEO
     GR -->|"adjudicates: the same calls, authoritatively"| GEO
     BD -->|"Table.ContainsPoint at end-setup"| GEO
     PROTO -->|"value types on the wire"| GEO
@@ -123,7 +122,7 @@ allowance is applied to every cross-elevation pair without it; see section 10.
 
 **Geometry to the client.** The client draws consequences, never answers. It resolves the id
 lists to `WorldVolume`s, calls `Movement.Region`, and draws `.Boundary` as a polygon. It calls
-`Settling.SurfaceHeightAt(new Point3(x, y, currentZ), volumes)` on every drag frame. It builds
+`Collision.Slide` and `Collision.Separate` on every drag frame (the client's `DragBodies` names the walls and the other models). It builds
 a presence `Measurement(From, To)` from `Distance.ClosestPoints`. When a server event disagrees
 with any of it, the model snaps. That is the entire cost (`architecture.md` → Geometry).
 
@@ -156,7 +155,7 @@ The dependent conventions, all in the plan's Global Constraints:
 | Convention | Consequence in code |
 | --- | --- |
 | One world unit = one inch, angles in degrees | No conversion anywhere; millimetres never enter |
-| Yaw only, always upright | `Outline` is 2D; settling sets height, never tilt |
+| Yaw only, always upright | `Outline` is 2D; rest sets height, never tilt |
 | An oval's `A` (length) lies along the facing axis | `BaseOutline` builds `(B/2 cos t, A/2 sin t)` then rotates |
 | A rect footprint's `A` is local X, `B` local Y | Matches `Footprint.Rect(width, length)` |
 | `Scale` multiplies footprint dimensions, offset, `Bottom` and `Top` | `WorldBottom` = `Position.Z + Bottom * Scale` |
@@ -267,7 +266,7 @@ otherwise call it collinear with every point in the plane.
 **Boundary inclusion is uniform: on the boundary is inside.** Every `Contains`, every
 `ContainsPoint`, `Table.ContainsPoint`, `Polygon.Contains` and the vertical range test are
 inclusive to within `Tolerance.Distance`. The bias is toward admitting a placement, consistent
-with `flagged, never prevented`.
+with the client's drag, which prefers a placement to a refusal.
 
 ### 4. From values to outlines: `Bodies` and `WorldVolumes`
 
@@ -293,7 +292,7 @@ flowchart TD
 A model's Z never enters its outline; it is the vertical range. A volume's yaw is the **sum** of
 the piece's yaw and the volume's own.
 
-`Bodies` also supplies the three vertical facts a body has. `Bottom()` is the settled Z,
+`Bodies` also supplies the three vertical facts a body has. `Bottom()` is the resting Z,
 `Top()` is `Bottom + Height`, and `Eye()` is `(X, Y, Bottom + Height / 2)`, the centre of the
 body. It supplies one adapter,
 `AsBlockingVolume(Guid id, PlacedModel m)`, which expresses rulebook p.11's *"other units are
@@ -335,29 +334,31 @@ Distance is **horizontal**. Height never enters it; `Height_does_not_enter_horiz
 is a test. Vertical separation is a second, separate number, matching how the rulebook writes
 melee reach on p.9. A single 3D distance would collapse two rules into one and match neither.
 
-### 6. Settling: a raycast down through Solid volumes
+### 6. Collision: rest, slide, separate
 
-`Settling.SurfaceHeightAt` is the whole of `architecture.md`'s *"settling a model onto the
-surface it lands on by raycasting down through terrain volumes"*. It is a linear scan, not a
-physics query. The answer is the highest `WorldTop()` of a **Solid** volume whose footprint
-contains the point and whose top is at or below the drop height. It defaults to `0`, the slab.
+`Collision` is *Nothing on the table is inside anything else* (client UX spec → Physical collision). It is a linear scan, not
+a physics query, and names no rule: what a body may climb, and what it may not cross, arrive as parameters.
 
-Two overloads:
-
-- `SurfaceHeightAt(Point2, volumes)` drops from **infinity**: the highest Solid top under the
-  point. This is the declared contract and the right answer for placing a model.
-- `SurfaceHeightAt(Point3 from, volumes)` drops from `from.Z`: the highest Solid top **at or
-  below** it. A model dragged along the ground of a ruin therefore passes *under* its second
-  storey instead of teleporting onto it. The server uses the client's `To.Z` as the drop height
-  when settling a `Destinations` answer.
-
-The scan skips anything that is not `Solid`, skips a top already beaten or above the drop
-height, and only then does the footprint test. Area volumes are passed straight through
-(*solid tops are standable, area volumes are stood inside*, geometry values → Collision
-volumes). The slab at Z = 0 is the floor of the answer rather than a volume in the list.
+- `RestHeight(PlacedModel, volumes)` is the highest `WorldTop()` of a **Solid** volume whose footprint interior meets the
+  base outline, or the base height `WorldBottom()` of an Area lifted onto something (its floor); else `0`, the slab. There is
+  no step-up limit. Touching a side is not standing on it (`InteriorsIntersect`), so a base flush against a building stays on
+  the table. `RestHeight(IReadOnlyList<WorldVolume> piece, volumes)` rests a terrain piece: Solid tops under any of its
+  footprints, its own volumes and every Area ignored. `RestHeight(Point2, volumes)` rests a marker, boundary inclusive.
+- `Slide(PlacedModel, to, models, walls, volumes)` moves the base from its placement toward `to`, sampled every `Step` (0.1")
+  and bisected to contact, so a 0.5" wall cannot be stepped over. It stops at the first contact with a wall's footprint or a
+  model's base, slides once along the contact tangent, and returns the landing with its `RestHeight`. **The caller names the
+  walls**: during a move Ask the Ask's `ImpassableVolumeIds`, otherwise every Solid declared `Impassable`; every other Solid is
+  climbed. A body that starts inside a wall or on another base can leave it. `Slide(piece, to, walls, volumes)` does the same
+  for a terrain piece and returns its `TerrainTransform`.
+- `Separate(held, stationary, walls, volumes)` slides each held body in drag order against the stationary models and the held
+  bodies already placed.
+- `Crosses(PlacedModel, to, models)` is the 2D swept-base test against true base outlines (models overlapped at the start
+  excluded; touching is not crossing). The server's `move_through_models` and the sim's `Clear` use it. `Bodies.AsBlockingVolume`
+  remains the line-of-sight body only.
+- `Movement.Region(…, models)` leaves out the sectors a model's base blocks, so the drawn boundary stops at the other models.
 
 **"What it is resting on" is not stored.** The table domain model listed it as part of a
-placement; geometry values does not carry it: settling re-derives it on demand, and terrain is locked
+placement; geometry values does not carry it: `RestHeight` re-derives it on demand, and terrain is locked
 after setup, so nothing a model stands on ever moves. There is no cached surface anywhere.
 
 ### 7. Containment and overlap
@@ -557,7 +558,7 @@ outline separation per pair. For a 20-model unit of ovals that is roughly 190 pa
 
 **The elevation allowance and what it deliberately omits.** 3.5.1 added to p.11: *"If not all
 models in a unit can fit on elevation, then a coherency of 3" is allowed to models at different
-elevation."* The pair test is cheap — settling has already resolved every model's Z, so
+elevation."* The pair test is cheap — rest has already resolved every model's Z, so
 `Distance.Vertical(a, b) > Tolerance.Distance` is the whole of *at different elevation*, and the
 measurement itself stays horizontal like every other distance here. The **precondition** is not
 implemented: *can fit* is undefined in the book, and testing it would need a ruleset judgement
@@ -697,7 +698,7 @@ read here:
 
 Which classes read a flag at all: `LineOfSight` and `Cover` filter on declarations themselves.
 `Movement` does **not**. It is handed two pre-filtered lists, because the server already
-decided which volumes count for this move. `Containment`, `Overlap`, `Settling` and `Distance`
+decided which volumes count for this move. `Containment`, `Overlap`, `Collision` (but for the walls its caller names) and `Distance`
 read no declaration at all; they read `VolumeKind` (Solid or Area) or nothing. `Impassable` is
 orthogonal to Solid-versus-Area, so all four combinations are real: a climbable hill, an
 impassable building, a walkable forest, an impassable lake. Neither axis implies the other.
@@ -827,7 +828,7 @@ Contested decisions first.
 | **No convex hull volumes** | Every test becomes a 2D intersection plus a vertical range; no hull math, and moving a model through terrain stays cheap | Boxes, cylinders **and convex hulls** | geometry values → Collision volumes |
 | **Blocking is declared, not derived** | A chain-link fence is solid and transparent. The declaration says *opaque*; geometry answers whether a line passes through | Solid volumes blocking sight geometrically | geometry values → Declarations |
 | **`impassable` is a declaration of its own** | Without it a hill and a building are indistinguishable | A five-declaration set without it | geometry values → Declarations |
-| **"What it is resting on" is not stored** | Settling re-derives it; terrain is locked after setup, so nothing a model stands on ever moves | The table domain model's stored surface reference | geometry values → Height, position, facing |
+| **"What it is resting on" is not stored** | `RestHeight` re-derives it; terrain is locked after setup, so nothing a model stands on ever moves | The table domain model's stored surface reference | geometry values → Height, position, facing |
 | **Enforcement is advisory here** | Every result is a measurement, a flag or a region; `strict` refusal lives in the server | Geometry returning legality | `architecture.md` → Rules enforcement; whole-design review → Five rulings, 1 |
 | **`LineOfSight.VisibleModels`**, one boolean per model of a unit | Which of a unit's models a set of observers sees is a per-model fact over a unit. p.11's cover is not read from it: its sight half is `Check` with `SightBlockersBetween` per pair | A single boolean for the unit, or a member taking the 50% fraction, which would put a threshold in the library | The plan's ruling 3; Task 8, section 9 |
 
@@ -862,7 +863,7 @@ plan.
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | unchanged |
 | `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`; *added:* `IRL<bool> VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)`, `const int RimSamples = 8` |
 | `static class Cover` *added* | `IRL<Guid> InsideCoverVolumes(PlacedModel, IRL<WorldVolume>)`, `IRL<Guid> SightBlockersBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
-| `static class Settling` | `double SurfaceHeightAt(Point2, IRL<WorldVolume>)`; *added:* `double SurfaceHeightAt(Point3 from, IRL<WorldVolume>)` |
+| `static partial class Collision` | `double RestHeight(PlacedModel, IRL<WorldVolume>)`, `RestHeight(IRL<WorldVolume> piece, IRL<WorldVolume>)`, `RestHeight(Point2, IRL<WorldVolume>)`; `Point3 Slide(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume> walls, IRL<WorldVolume>)`, `TerrainTransform Slide(IRL<WorldVolume> piece, Point2, walls, volumes)`, `IRL<Point3> Separate(...)`, `bool Crosses(PlacedModel, Point2, IRL<PlacedModel>)`, `const double Step = 0.1` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)`; *added:* `IRL<Guid> VolumesFullyContaining(PlacedModel, IRL<WorldVolume>)`, `bool BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 | `sealed record CoherencyResult(bool Coherent, IRL<int> OutOfCoherency)` *added* | indices into the input |
@@ -894,8 +895,8 @@ Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
 | Module | Obligation |
 | --- | --- |
 | Protocol (contracts plan Task 8) | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, MoveContainment? Containment = null)` and `MoveContainment(Enterable, ExitingId, ExitWithin)`. `Movement.Region` takes the first five as plain parameters, so the library does not reference the record |
-| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); settle a `Destinations` answer with the `Point3` overload using the client's `To.Z`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
-| Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `Movement.Region(...).Boundary`; show `Movement.Check(...).Distance` as the readout and `EffectiveAllowance - Distance` as the remainder; settle a dragged model with the `Point3` overload |
+| Game server | Resolve both id lists from `TerrainPlacement.WorldVolumes()`; pass other units through `Bodies.AsBlockingVolume`, leaving out the shooter's own unit (p.8); rest a `Destinations` answer with `Collision.RestHeight`, ignoring the client's `To.Z` (`Battlefield.Settle`); judge a landing on another base with `Overlap.Bases`, a path through a model with `Collision.Crosses`; owe a dangerous-terrain test from `Movement.VolumesCrossed`, not from the landing position; delete off-slab terrain with `Table.ContainsPoint`; apply p.11's one cover majority itself, over the union of models with `Cover.InsideCoverVolumes` non-empty and models behind a sight blocker (`Check` clear with `SightBlockersBetween` non-empty, or not seen) from every attacking model; check `Footprint.IsValid(scale)` and `Table.IsValid` before building an outline from edited data; supply every OPR constant from `GameRules` |
+| Client shell | Draw a disembark region from `Containment.BaseFullyWithin` rather than `Movement.Region`; send `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`; draw `ZoneStyles.Resolve(zone.Shape, table.Size)`; build `Measurement(From, To)` from `Distance.ClosestPoints`; draw `Movement.Region(...).Boundary`; show `Movement.Check(...).Distance` as the readout and `EffectiveAllowance - Distance` as the remainder; slide and rest a dragged model with `Collision.Separate` (`DragBodies`) |
 
 ## Sequences
 
@@ -915,18 +916,17 @@ sequenceDiagram
     C->>C: Movement.Region(start, allowance, impassable, difficult, cap, size)
     C-->>P: draw Boundary as a polygon
     P->>C: drag a model
-    C->>C: Settling.SurfaceHeightAt(Point3(x, y, currentZ), volumes)
+    C->>C: DragBodies, Collision.Separate (slide, rest); Alt places freely
     C->>C: Movement.Check(...) for the ruler and the remainder
-    C->>S: Destinations answer, To carries the client's settled Z
-    S->>S: Movement.Check + Settling + Table.ContainsBase, authoritatively
+    C->>S: Destinations answer, To carries the client's rested Z
+    S->>S: Movement.Check + Collision.RestHeight + Table.ContainsBase, authoritatively
     S->>S: Movement.VolumesCrossed for dangerous and difficult
     S-->>C: ModelMoved events with the server's Z
     C->>C: apply events; the model snaps if it disagreed
 ```
 
-Two hazards. The client's `To.Z` is *input* to the server's settling, not a claim. A client
-that sends a Z under a second storey gets a model settled beneath the slab and drawn on the
-ground floor. That is the intended behaviour and also the exploit surface. The second is
+Two hazards. The client's `To.Z` is ignored: `Battlefield.Settle` rests the server's own placement, so a
+client that sends another Z gets the rested one. The second is
 staleness: the region was drawn from volume ids resolved at Ask time, and this is safe only
 because terrain is locked from `playing` on.
 
@@ -956,27 +956,24 @@ shooting model. Two hazards. The cost is quadratic in models when every model
 of every other unit is converted to a blocking volume, and the three calls multiply it. And
 `SightBlockersBetween` is permissive, so scatter terrain near the line grants cover.
 
-### Settling during a drag
+### A drag
 
 ```mermaid
 sequenceDiagram
     participant P as Player
     participant C as Client
     participant Geo as Tabletop.Geometry
-    P->>C: drag frame at (x, y), model currently at z
-    C->>Geo: SurfaceHeightAt(Point3(x, y, z), volumes)
-    Geo->>Geo: Solid volumes only; top at or below z; footprint contains x, y
-    Geo-->>C: highest such top, else 0
-    C-->>P: model drawn at that height
-    Note over C,Geo: dragging along the ground under a 4-8 slab keeps z = 0
-    Note over C,Geo: dragging from above the slab keeps z = 8
+    P->>C: drag frame to (x, y)
+    C->>Geo: Collision.Separate(held, stationary, walls, volumes)
+    Geo->>Geo: slide to first contact with a wall or a base, rest on the terrain under the base
+    Geo-->>C: a Point3 per held model
+    C-->>P: models drawn there
+    Note over C,Geo: Alt skips Separate: the cursor's point rests on the terrain, nothing stops it
 ```
 
-The drop height is the model's *current* Z, which has two consequences. A model dragged off a
-roof falls only once its path leaves the roof footprint, not while still above it. And a model
-dragged onto the side of a hill from below will not climb it, because the hill's top is above
-the drop height. Whether a model *can* get up there is a movement rule the pack owns (geometry
-values: `climbable` is not a declaration).
+`walls` is what `DragBodies` names: the Ask's `ImpassableVolumeIds` during a move Ask, otherwise every Solid declared
+`Impassable`. A model dragged onto a hill climbs it (no step-up limit); a model dragged at a building's side stops at it.
+Whether a model *can* get up there is a movement rule the pack owns (geometry values: `climbable` is not a declaration).
 
 ### Setting a zone style and checking a deployment against it
 
@@ -1017,7 +1014,7 @@ model to move.
 
 **The library holds no state.** Every class is `static` and every method is a pure function of
 its arguments. There is no cache, no spatial index and no mutable field. `Tolerance.Distance`,
-`Bodies.OvalVertices`, `LineOfSight.RimSamples`, `Movement.Rays` and `Movement.Step` are the
+`Bodies.OvalVertices`, `LineOfSight.RimSamples`, `Movement.Rays`, `Movement.Step` and `Collision.Step` are the
 only public constants; `ZoneStyles`' two Side Battle fractions are private, and `ZoneStyles.All`
 is the only static collection. The event log rebuilds the
 *placements* that this library then measures.
@@ -1077,7 +1074,7 @@ value in both. `(A, B)` is always the extent. `deployment_zone.shape` holds a **
 
 Two columns absent from these tables because of this module:
 
-- **No `resting_on` column.** Settling derives it (geometry values → Height, position, facing).
+- **No `resting_on` column.** `Collision.RestHeight` derives it (geometry values → Height, position, facing).
 - **No containment table.** *Containment is computed, never stored* (table domain model). The
   stored containment, `Location.Inside`, is a different concept with the same word, annotated
   as such by the whole-design review.
@@ -1098,7 +1095,7 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
-| Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list. The server warns under `warn` and refuses only under `strict` | Yes, flagged never prevented |
+| Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list; the client's drag prevents the first three (Alt overrides), the server judges them under the enforcement setting (coherency stays flagged) | Yes |
 | A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, straight-line reach (the plan's ruling 4) |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
@@ -1141,7 +1138,7 @@ What the tests are for, by class:
 | `OutlineTests` | exact circle separation, circle-to-rect, rect-to-rect vertex/edge pairs, touching-is-not-intersecting, SAT on a rotated diamond, clockwise reordering, segment tests, whole-outline containment |
 | `BodyTests` | the two transform chains: yaw on a rect base, an oval's length along the facing axis, scale × yaw × offset × Z on a volume, a segment clipped to a prism's vertical range |
 | `DistanceTests` | edge-to-edge on every base pair, height not entering, the marker overload, witness points carrying their own Z, inclusive range |
-| `SettlingTests` | Area passed through, highest Solid from above, **dropping from below a slab landing beneath it**, scale and Z raising the top, a rotated footprint |
+| `CollisionTests` | rest on the highest Solid under any part of the base, an Area floor, touching a side is not standing on it, a long frame not tunnelling a thin wall, a body starting inside an obstacle leaving it, `Separate` in drag order, `Crosses` |
 | `ContainmentTests` | centre versus whole base, a model on a hill under a canopy in both, ground beneath a second storey in neither, `BaseFullyWithin` measured from the container's *edge* |
 | `OverlapTests` | touching is not overlapping, different storeys, standing on a hill, a tall model reaching a slab, Area never intersecting |
 | `LineOfSightTests` | a low wall shot over, blocking declared not derived, a forest blocking through but not in/out/within, the first of two forests, a wall off the line, tall versus short bodies, another unit as a blocker, partly hidden still clear, the 27/15 sample counts with the centre among them, `VisibleModels` reporting one boolean per model, a second observer seeing what the first cannot |

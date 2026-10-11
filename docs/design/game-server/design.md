@@ -31,7 +31,7 @@ management's rows plus the event log.
   `Id`; the later plans add `JudgeAdvance`, `OnRoundEnded` and `AnswerBreach`, default members returning none. `InertEngine` judges nothing and advances nothing.
 - **Geometry adjudication.** `MoveRegion` answers are checked for model ids (each at most once) and finite placements only, plus what the
   ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: the allowance, impassable terrain, the table edge, a disembark's
-  6", p.11's difficult-terrain cap, p.13's Aircraft minimum). Applying, containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
+  6", p.11's difficult-terrain cap, p.13's Aircraft minimum, p.7's contact clauses). Applying, containment and resting belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
 - **HTTP resources.** The game server exposes commands and events and nothing else. Creating,
   joining, leaving, ending and deleting a game are management endpoints, and layouts stay
@@ -405,7 +405,8 @@ whole contradicts free-for-all editing.
 missing`. The setup phase is therefore headless logic: fourteen edit kinds, no I/O, no clock, no
 session. It also owns two rules that are not edits. `OnSlab` is the corner frame,
 `0 <= x <= width` and `0 <= y <= length`. `OnSlab` re-implements `Tabletop.Geometry`'s
-`Table.ContainsPoint` rather than calling it, without that method's `Tolerance.Distance` margin.
+`Table.ContainsPoint` rather than calling it, without that method's `Tolerance.Distance` margin. `Add`, `Move`, `Scale` and
+`OverrideTerrainVolumes` rest the edited piece with `Collision.RestHeight`.
 `DropOffSlab` is used once, by end-setup, to implement
 Grimdark Future page 17's *"if it's impossible to place the terrain piece, simply remove it"* for
 generated pieces never dragged onto the table.
@@ -454,7 +455,7 @@ table belonging to another unit of the actor's team), is legal when its unit is 
 `deploy_scouts`, `deploy_ambusher`) whose answer the scheduler is waiting on, which holds while no Ask has opened since
 that one closed: that is the placement the scheduler waits for. Anything else is the breach `hand_move`, detail
 "{unit} moved by hand outside a move step", `StrictRefuses(Illegal)`: `silent` accepts, `warn` accepts with the
-warning on the event, `strict` refuses. The other override commands never reach the policy, by a `switch` arm rather
+warning on the event, `strict` refuses. `HandMoves.Judge` also asks `IGameRules.PlacementBreach` (default none; `WithSequences` forwards it; Grimdark Future: `GfMoves.OverlapBreach`): a legal placement that overlaps another base is `move_overlap`, and the overlap detail is appended to a `hand_move` breach. The other override commands never reach the policy, by a `switch` arm rather
 than by a value flowing through it; `Legality.AlwaysAccepted` exists in the enum and is exercised by
 `EnforcementPolicyTests`, but the dispatch path never constructs it.
 
@@ -520,7 +521,7 @@ functions read it:
   them to ignore it"*; read from the live set), so only its landing is judged. A spell's forced move reads the target's
   own terrain rules (`GfMoves.TerrainFor`, owner ruling *"Spells move as however that unit moves"*). A relocation
   to where the model already is (an occupant answered `Inside` its own container) is standing still, not
-  `move_not_offered`. The 1" separation and coherency stay client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  `move_not_offered`. p.7's contact clauses are `GfMoves.ContactBreach`, chained last in `AnswerBreach`: `move_overlap` (a landing on another model's base), `move_through_models` (`Collision.Crosses` against the models the answer does not move, unless the region `PassesModels`: the Flying and Aircraft pass-impassable rule, including the terrain reposition Ask) and `move_separation` (within the region's `Separation`: 1 except the Charge move, the close-in, consolidation and an Aircraft's move-step; a disembark keeps it). Coherency stays client-flagged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
   that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
   `AskAnswered.Breach` (the rule name) under `warn`; `OutsideLegalSet` marks only an answer outside the set.
   A spend divides the same way: whether the answering team owns the models it paid with is state
@@ -1273,8 +1274,8 @@ edge back to `absent` is recovered by hydrating again.
 - **`GameRules` is not pinned.** Only `Properties` is content-addressed. Restarting an ended
   game after a deploy that changed a step list may replay differently. Pinning a build version
   was rejected: every deploy would become a wall old games cannot cross.
-- **Hand-move positions are copied as sent, `Z` included.** The skeleton does no settling, so
-  the authoritative log records a position a client chose. Accepted under "anyone can move
+- **Hand-move positions are rested.** `MenuTranslation` rests each hand move with `Battlefield.Settle`, which ignores the
+  client's `Z`; the `X`/`Y` the client chose are recorded. Accepted under "anyone can move
   anything, and the record says who".
 - **No rate limiting anywhere.** A client may send presence at any rate. The relay is capped at
   20 Hz outbound. The inbound side is not capped.
@@ -1353,7 +1354,7 @@ Deferred, with where it is recorded:
 | Deferred | Where |
 | --- | --- |
 | Every rule: scheduler, interpreter, `Properties`, dice, legality beyond set membership | [scheduler](../scheduler/design.md), [interpreter](../interpreter/design.md) |
-| Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, settling `Z` | the interpreter's move step over `Tabletop.Geometry` |
+| Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, resting `Z` (`Battlefield.Settle(state, modelId, placement)`) | the interpreter's move step over `Tabletop.Geometry` |
 | Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment |
 | Terrain as event-driven state, which unlocks army terrain, buildings as targets and mid-game terrain edits | setup content → Still open |
 | How authored `Properties` content reaches the eight tables | `architecture.md` → Rules as data |

@@ -57,7 +57,7 @@ What already exists: `client/Tabletop.csproj` (`Godot.NET.Sdk/4.7.2`, `net10.0`,
 Position in the build order: step 5, in parallel with step 4 (the game server skeleton), once step
 1's contracts exist (`architecture.md` → Build order). Prerequisites: `Tabletop.Protocol`
 (commands, events, Asks, presence, setup edits, `EventApplier`, `WireJson`, `ProtocolVersion`),
-`Tabletop.Geometry` (`Table`, `ZoneStyles`, `Movement`, `Containment`, `Settling`, `Distance`),
+`Tabletop.Geometry` (`Table`, `ZoneStyles`, `Movement`, `Containment`, `Collision`, `Distance`),
 `Tabletop.Content` (`Army`, `TableState`, `ContentJson`), management's `/v1/*` surface, and the
 game server's connect sequence. The plan is ordered after all four so Task 9's "run it" steps have
 something to talk to. Tasks 1–8 need no server.
@@ -112,7 +112,7 @@ and keys the on-disk cache by that hash. The same mesh in two games is one downl
 or substituted body cannot enter the cache.
 
 `Tabletop.Geometry` is shared with the game server so the two agree on distance, line of sight and
-settling. The client runs it for a different reason: only the server's answer counts. Client
+collision. The client runs it for a different reason: only the server's answer counts. Client
 geometry is a prediction for responsiveness. A disagreement is resolved by resyncing, never by
 reconciling. Bit-exact cross-platform determinism between the client's desktop build and the
 server's Linux container is therefore not a requirement here.
@@ -502,8 +502,9 @@ on the right button, pans on the middle, zooms on the wheel, snaps top-down on `
 table level on `End`, giving the placement and line-of-sight views the spec asks for.
 
 Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AABBs and the slab
-plane (`Plane(Vector3.Up, 0).IntersectsRay`). Settling is
-`Settling.SurfaceHeightAt(new Point3(x, y, currentZ), volumes)`. Distance is
+plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `Stationary`, `Walls`, `Models`, `Piece`) through
+`Collision.Separate`, which slides each model along the walls and other bases and rests it; Alt places freely, and
+the server judges the landing. Distance is
 `Distance.ClosestPoints`. The engine is never asked a question the rules depend on, so there is no
 second geometry implementation to diverge from the server's and no collision layer to configure.
 `WorldFrame` is the only place the two coordinate systems meet: `x = X`, `y = Z`, `z = −Y`,
@@ -584,7 +585,7 @@ sequenceDiagram
   TI->>TI: select unit (Shift narrows to the model)
   loop while dragging, 20 Hz timer
     P->>TI: mouse motion
-    TI->>TI: displace every selected model, Settling.SurfaceHeightAt
+    TI->>TI: displace every selected model, DragBodies + Collision.Separate (Alt: RestHeight only)
     TI->>SE: SendPresenceAsync(held placements + cursor)
     SE->>GS: presence
     GS->>O: relay, never logged
@@ -612,7 +613,9 @@ A plain drag of a model outside a move step is a hand move: one `MoveModels` on 
 The server judges it under the game's enforcement setting (`HandMoves.Judge`, rule `hand_move`): placing the unit
 picked at a deploy Ask from the shelf is legal, and anything else is a breach that `silent` accepts, `warn` accepts
 with the warning on the event, and `strict` refuses. Under `strict` the drag does not start and the click only
-selects. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
+selects. The drag slides along impassable terrain and stops at other models' bases (`DragBodies`, `Collision.Separate`); holding Alt
+places freely, and the F1 overlay and the move hint say so. A placement that overlaps another base is `move_overlap` under the
+same setting. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`
 ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask, C (**Stop here**) sends the same ghosts
 with `Destinations.Continues`: the move goes on after the before-attacking window. While a unit is held, 1–5 arrange it in that many rows about
@@ -1037,7 +1040,7 @@ Decisions the plan took where a spec was silent:
 | A disembarking model takes any facing that fits | p.7 lets a model turn in any direction, so a placement is legal if some facing fits; `ExitRegion` unions over `MoveRuler.ExitYaws` and a circular base tries one | the plan's ruling 8 |
 | The disembark region is the lead model's (`ModelIds[0]`) | matches what `Region` already does, and the server refuses outliers individually | the plan's ruling 9 |
 | An enterable container is a click target, not a button | it is already highlighted because the legal set names it | the plan's ruling 10 |
-| Ten grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | the plan's ruling 3 |
+| Eleven grouped meshes and five textures ship as built-in art | 35 meshes is not minimal, and the pieces differ by footprint, height, scale and yaw rather than by shape; a missing file still draws the hitbox | the plan's ruling 3 |
 
 ## Interfaces
 
@@ -1109,7 +1112,8 @@ semantics.
 | `Movement.Check(...)` → `Distance`, `EffectiveAllowance`, `CrossesImpassable`, `LeavesTable` | the ruler readout, and single-placement legality of a disembark candidate (distance 0) |
 | `Movement.Rays` (180), `Movement.Step` (0.25) | `ExitRegion`'s march-and-bisect loop |
 | `Containment.BaseFullyWithin(model, container, inches)` | the disembark region, edge to edge from the container's base rather than a circle about its centre |
-| `Settling.SurfaceHeightAt(Point3 from, volumes)` | settling a dragged model by raycast down |
+| `Collision.Slide`, `Collision.Separate`, `Collision.RestHeight(…)` | sliding and resting a dragged model or terrain piece; `DragBodies` names the walls and the other models |
+| `Movement.Region(…, models)` | the move region's boundary around the other models (`MoveRuler.Region(…, others)`) |
 | `Distance.ClosestPoints(PlacedModel, PlacedModel)` | a measurement's two points |
 | `Point2`, `Point3`, `Yaw`, `Orientation`, `TableSize`, `Base`, `BaseShape`, `ModelBody`, `PlacedModel`, `Placement`, `Volume`, `VolumeKind`, `Footprint`, `FootprintKind`, `TerrainDeclarations`, `WorldVolume`, `Polygon` | values throughout |
 
@@ -1487,7 +1491,7 @@ The plan's ten rulings, the decision and reason of each, and what changes if a r
 | --- | --- | --- |
 | 1. Presence sample rate | **20 Hz**, matching the server's relay rate and `architecture.md`'s figure | one `Timer.WaitTime`. The game server plan's relay rate is the same figure, and one answer settles both |
 | 2. Where the remembered session lives | **Not an OS keystore.** `user://session.bin`, created owner-only where the platform has file modes; DPAPI is Windows-only, which the client's platform position excludes | a keystore replaces `SessionStore`, three methods with one call site |
-| 3. Built-in art | **A minimal set ships**, so a generated table looks like a table. Ten grouped `.glb` meshes and five `.png` textures, authored by hand and not produced by the plan; a missing file still draws the hitbox | more art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
+| 3. Built-in art | **A minimal set ships**, so a generated table looks like a table. Eleven grouped `.glb` meshes (generated by `scripts/terrain-meshes`; `hill` round, `hill-rect` square) and five `.png` textures; a missing file still draws the hitbox | more art is more files in `content/builtin/`, or a per-name mesh for a piece that outgrows its group, both without a code change |
 | 4. Generator entries with alternatives ("Hill, Forest, or Field") | **The client's RNG picks one**, so rolling a planet table produces a finished board in one action, and a player who dislikes a piece swaps or deletes it during setup | asking the player would have `TerrainGenerators.Generate` return the alternatives and the toolbar prompt |
 | 5. Dice on the table | **A readout, not dice objects.** Text beside the unit gives the faces, the threshold, the modifiers and which dice passed, for every roll on the step rather than the first; nothing tumbles, and models still fall by tween | visible dice would give `Animator` a dice scene with a canned tumble, and `Animator` is the only file that changes |
 | 6. The game list's filters | **Status, name and "created by me"**, all three off the `GameSummary` the browser already returns | "Games I am in" is not built because the summary carries no participants: it would need a new field on `GameSummary` or a `GET /v1/games/{id}` per row |
