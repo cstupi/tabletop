@@ -97,7 +97,8 @@ public partial class GameScreen
     }
 
     /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
-    /// corner and the toasts exist. The dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
+    /// corner and the toasts exist. The unit card starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
+    /// column back; the dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
     void Layout()
     {
         _layoutQueued = false;
@@ -108,7 +109,7 @@ public partial class GameScreen
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
         if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
         if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
-        if (Shows(_card)) _card!.Place(r[HudPart.UnitCard]);
+        if (Shows(_card)) _card!.Place(Shows(_roster) ? HudLayout.Below(r[HudPart.UnitCard], _roster!.Position.Y + _roster.Size.Y) : r[HudPart.UnitCard]);
         if (Shows(_decision)) HudPlacement.Bottom(_decision!, r[HudPart.Decision]);
         if (Shows(_dice))
         {

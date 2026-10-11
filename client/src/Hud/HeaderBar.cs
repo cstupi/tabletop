@@ -11,8 +11,8 @@ namespace Tabletop.Client.Hud;
 public partial class HeaderBar : PanelContainer
 {
     Session _s = null!;
-    readonly HBoxContainer _top = new(), _activation = new();
-    readonly HFlowContainer _teams = new();
+    readonly HBoxContainer _top = new();
+    readonly HFlowContainer _teams = new(), _activation = new();   // both wrap inside the header's slot
     readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning };
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false };
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };

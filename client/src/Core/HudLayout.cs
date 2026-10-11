@@ -46,4 +46,11 @@ public static class HudLayout
         r[HudPart.EndMessage] = new(w / 2 - EndW / 2, h / 2 - EndH / 2, EndW, EndH);
         return r;
     }
+
+    /// <summary>A slot started M below another part's actual bottom, down to the slot's own bottom: the unit card below the roster as it is.</summary>
+    public static HudRect Below(HudRect slot, float aboveBottom)
+    {
+        var top = aboveBottom + M;
+        return slot with { Y = top, H = Math.Max(0, slot.Bottom - top) };
+    }
 }

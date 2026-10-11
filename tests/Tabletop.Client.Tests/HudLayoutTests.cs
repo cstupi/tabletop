@@ -39,6 +39,15 @@ public class HudLayoutTests
     }
 
     [Fact]
+    public void A_collapsed_roster_gives_the_unit_card_the_column_below_it()
+    {
+        var r = HudLayout.Of(1280, 720, new HudVisible(Roster: true, UnitCard: true, Decision: false, Dice: false, LogOpen: false));
+        Assert.Equal(new HudRect(8, 112, 420, 600), HudLayout.Below(r[HudPart.UnitCard], aboveBottom: 104));   // roster's headers end at 104
+        Assert.Equal(r[HudPart.UnitCard], HudLayout.Below(r[HudPart.UnitCard], r[HudPart.Roster].Bottom));     // a full roster keeps the half
+        Assert.Equal(0, HudLayout.Below(r[HudPart.UnitCard], 800).H);
+    }
+
+    [Fact]
     public void Below_1280_every_visibility_still_lays_out()
     {
         foreach (var v in All()) Assert.NotEmpty(HudLayout.Of(800, 600, v));
