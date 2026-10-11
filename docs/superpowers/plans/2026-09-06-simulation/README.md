@@ -174,7 +174,7 @@ Later plans — the viewer's above all — copy these names verbatim. `IRL<T>` a
 | --- | --- |
 | `static class ProjectionComparer` | `IRL<string> Differences(Projection expected, Projection actual)` |
 | `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `sealed class InvariantViolatedException` | `IRL<InvariantResult> Failures` |
-| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoAndRedoReproduceTheDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
+| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoKeepsTheEarlierDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
 | `static class MidRun` | `void Assert(Projection, IRL<GameEvent>, CompiledScenario)` |
 
 ### `Tabletop.Sim.Recording` — the viewer's whole input
