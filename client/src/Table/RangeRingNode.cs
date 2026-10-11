@@ -5,20 +5,20 @@ namespace Tabletop.Client.Table;
 public partial class RangeRingNode : Node3D
 {
     Session _s = null!; TableInput _input = null!; readonly MeshInstance3D _lines = new() { MaterialOverride = LineMesh.Material() }; readonly Node3D _labels = new();
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Intent>? _onIntent;
+    Action<RenderCause>? _onFrame; Action? _onChanged; Action<Intent>? _onIntent;
 
     public void Bind(Session session, TableInput input)
     {
         _s = session; _input = input; AddChild(_lines); AddChild(_labels);
-        _onEvents = _ => Draw(); _onChanged = Draw;
+        _onFrame = c => { if ((c & RenderCause.Events) != 0) Draw(); }; _onChanged = Draw;
         _onIntent = i => { if (i == Intent.ToggleRangeRings) _s.UpdateSettings(x => x with { RangeRings = !x.RangeRings }); };   // SettingsChanged redraws
-        session.EventsApplied += _onEvents; session.SettingsChanged += _onChanged; Ui.Changed += _onChanged;                    // the Settings dialog's toggle; the themed team colour
+        session.Frame.Render += _onFrame; session.SettingsChanged += _onChanged; Ui.Changed += _onChanged;                    // the Settings dialog's toggle; the themed team colour
         input.SelectionChanged += _onChanged; input.IntentPressed += _onIntent; Draw();
     }
     public override void _ExitTree()
     {
         Ui.Changed -= _onChanged;
-        if (_s is null) return; _s.EventsApplied -= _onEvents; _s.SettingsChanged -= _onChanged;
+        if (_s is null) return; _s.Frame.Render -= _onFrame; _s.SettingsChanged -= _onChanged;
         if (IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.IntentPressed -= _onIntent; }
     }
 

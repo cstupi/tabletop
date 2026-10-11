@@ -14,7 +14,7 @@ public partial class UndoButton : Button
 {
     Session _s = null!; TableInput _input = null!;
     UndoPlan? _plan; ConfirmationDialog? _asking;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard; Action<Intent>? _onIntent;
+    Action<RenderCause>? _onFrame; Action<Intent>? _onIntent;
 
     /// <summary>A failed undo, for the screen's toast.</summary>
     public event Action<string>? Reported;
@@ -24,29 +24,26 @@ public partial class UndoButton : Button
         _s = session; _input = input;
         Text = "Undo (Ctrl+Z)"; FocusMode = FocusModeEnum.None;
         Pressed += Press;
-        _onEvents = _ => Render(); _onBoard = Render;
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
         _onIntent = intent => { if (intent == Intent.Undo && !Disabled) Press(); };
-        session.EventsApplied += _onEvents; session.BoardChanged += _onBoard; input.IntentPressed += _onIntent;
+        session.Frame.Render += _onFrame; input.IntentPressed += _onIntent;
         Render();
     }
 
     public override void _ExitTree()
     {
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard;
+        _s.Frame.Render -= _onFrame;
         if (IsInstanceValid(_input)) _input.IntentPressed -= _onIntent;
     }
 
-    /// <summary>While an undo travels the log still holds what it undoes: plan as if its marker had landed, so each press steps back one more.</summary>
+    /// <summary>While an undo travels the log still holds what it undoes: the shared combat log plans as if its marker had landed, so each press steps back one more.</summary>
     void Render()
     {
-        _plan = _s.Game is { } game ? UndoPlan.Of(Pending(), new Names(game, _s.Projection)) : null;
+        _plan = _s.CombatLog?.Undo;
         Disabled = _plan is null;
         TooltipText = _plan?.Tooltip ?? "Nothing to undo";
     }
-
-    IReadOnlyList<GameEvent> Pending() => _s.PendingUndoTo is not { } to ? _s.Log
-        : [.. _s.Log, new GameEvent((_s.Log.Count == 0 ? 0 : _s.Log[^1].Seq) + 1, null, new Undone(to), null)];
 
     void Press()
     {

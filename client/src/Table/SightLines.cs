@@ -19,21 +19,21 @@ public partial class SightLines : Node3D
     readonly Dictionary<Guid, Guid> _assignedQueries = new();                         // assigned target → its newest query
     readonly Dictionary<Guid, SightAnswer> _assignedAnswers = new();
     IReadOnlyList<AskOption> _groups = []; IReadOnlyDictionary<string, Guid> _assigned = new Dictionary<string, Guid>();
-    Action<Guid?>? _onHover; Action? _onChanged; Action<IReadOnlyList<GameEvent>>? _onEvents; Action<SightAnswer>? _onAnswer;
+    Action<Guid?>? _onHover; Action? _onChanged; Action<RenderCause>? _onFrame; Action<SightAnswer>? _onAnswer;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view; _input = input;
         AddChild(_lines); AddChild(_marks); AddChild(_summary);
-        _onHover = id => { _hovered = id; Ask(); }; _onChanged = Ask; _onEvents = _ => { Ask(); AskAssigned(refresh: true); }; _onAnswer = OnAnswer;
+        _onHover = id => { _hovered = id; Ask(); }; _onChanged = Ask; _onFrame = c => { if ((c & RenderCause.Events) == 0) return; Ask(); AskAssigned(refresh: true); }; _onAnswer = OnAnswer;
         input.HoveredUnitChanged += _onHover; input.SightHeldChanged += _onChanged; input.SelectionChanged += _onChanged;
-        session.EventsApplied += _onEvents; session.SightAnswered += _onAnswer;
+        session.Frame.Render += _onFrame; session.SightAnswered += _onAnswer;
     }
 
     public override void _ExitTree()
     {
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.SightAnswered -= _onAnswer;
+        _s.Frame.Render -= _onFrame; _s.SightAnswered -= _onAnswer;
         if (IsInstanceValid(_input)) { _input.HoveredUnitChanged -= _onHover; _input.SightHeldChanged -= _onChanged; _input.SelectionChanged -= _onChanged; }
     }
 

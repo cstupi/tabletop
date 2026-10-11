@@ -25,7 +25,7 @@ public partial class DecisionBox : PanelContainer
     /// <summary>What glows on the table for the open Ask: model ids, unit ids, or both. A unit id lights every model of the unit.</summary>
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Refused>? _onRefused;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
     Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
@@ -40,7 +40,7 @@ public partial class DecisionBox : PanelContainer
         var box = new VBoxContainer(); AddChild(box);
         foreach (var c in new Control[] { _title, _note, _controls, _refusalLabel, _hint }) box.AddChild(c);
         view.AddChild(_region = new MoveRegionNode());
-        _onEvents = events => { Reveal(events); Render(); }; _onChanged = Render;
+        _onEvents = Reveal; _onFrame = _ => Render();   // the batch for the sealed reveal; the render once per frame, on every cause
         _onRefused = r =>
         {
             if (r.MessageId != _lastCommand) return;
@@ -49,7 +49,7 @@ public partial class DecisionBox : PanelContainer
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
         _onUnitClicked = id => _onUnit?.Invoke(id);
-        s.EventsApplied += _onEvents; s.GameChanged += _onChanged; s.BoardChanged += _onChanged; s.FactsChanged += _onChanged; s.RefusedReceived += _onRefused;
+        s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
         input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked;
         Render();
     }
@@ -57,7 +57,7 @@ public partial class DecisionBox : PanelContainer
     public override void _ExitTree()
     {
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; _s.RefusedReceived -= _onRefused;
+        _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();

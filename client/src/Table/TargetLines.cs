@@ -11,17 +11,17 @@ public partial class TargetLines : Node3D
     Session _s = null!; TableView _view = null!;
     readonly MeshInstance3D _lines = new() { MaterialOverride = LineMesh.Material() };
     IReadOnlyList<AskOption> _groups = []; IReadOnlyDictionary<string, Guid> _assigned = new Dictionary<string, Guid>();
-    Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action<RenderCause>? _onFrame;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view;
         AddChild(_lines);
-        _onEvents = _ => Draw();                     // a model removed or moved mid-pick
-        session.EventsApplied += _onEvents;
+        _onFrame = c => { if ((c & RenderCause.Events) != 0) Draw(); };   // a model removed or moved mid-pick
+        session.Frame.Render += _onFrame;
     }
 
-    public override void _ExitTree() { if (_s is not null) _s.EventsApplied -= _onEvents; }
+    public override void _ExitTree() { if (_s is not null) _s.Frame.Render -= _onFrame; }
 
     /// <summary>The decision box's assignment: its weapon groups and group id → target unit. Empty draws nothing.</summary>
     public void Show(IReadOnlyList<AskOption> groups, IReadOnlyDictionary<string, Guid> assigned) { _groups = groups; _assigned = assigned; Draw(); }

@@ -17,7 +17,7 @@ public partial class CombatLogPanel : VBoxContainer
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [];
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _onTheme;
+    Action<RenderCause>? _onFrame; Action? _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
     public Guid? FocusUnit
@@ -34,8 +34,8 @@ public partial class CombatLogPanel : VBoxContainer
         _filter.Selected = (int)s.Settings.LogFilter;
         _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
         AddChild(_filter); AddChild(_scroll); _scroll.AddChild(_rows);
-        _onEvents = _ => Render(true); _onBoard = () => Render(true);
-        s.EventsApplied += _onEvents; s.BoardChanged += _onBoard;
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(true); };
+        s.Frame.Render += _onFrame;
         _onTheme = () => Render(false); Ui.Changed += _onTheme;   // the rows' dice faces are the theme's
         Render(true);
     }
@@ -43,7 +43,7 @@ public partial class CombatLogPanel : VBoxContainer
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
-        if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
+        if (_s is not null) _s.Frame.Render -= _onFrame;
     }
 
     /// <summary>Whether the drawer shows the panel. Closed, a render only marks the rows stale; opening renders them.</summary>
@@ -62,9 +62,9 @@ public partial class CombatLogPanel : VBoxContainer
         _stale = false;
         foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }
         _revealed = null; _toEnd = toEnd;
-        if (_s.Projection is not { } p || _s.Game is not { } game) return;
-        var n = new Names(game, p);
-        foreach (var e in CombatLog.Filter(CombatLog.Build(_s.Log, n), _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus))
+        if (_s.Projection is null || _s.CombatLog is not { } log) return;
+        var n = log.Names;
+        foreach (var e in CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus))
             Add(_rows, e);
         _reveal = null;
         CallDeferred(nameof(Scroll));

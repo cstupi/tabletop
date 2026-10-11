@@ -13,7 +13,7 @@ public partial class EndMessage : Control
     readonly PanelContainer _panel = new();
     readonly Label _result = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _reason = new();
     readonly VBoxContainer _scores = new();
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
+    Action<RenderCause>? _onFrame; Action? _onTheme;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -28,8 +28,8 @@ public partial class EndMessage : Control
         top.AddChild(_result);
         var close = new Button { Text = "✕", Flat = true, ThemeTypeVariation = Variation.FlatButton }; close.Pressed += Close; top.AddChild(close);
         box.AddChild(_reason); box.AddChild(_scores);
-        _onEvents = _ => Render(); _onChanged = Render;
-        session.EventsApplied += _onEvents; session.GameChanged += _onChanged;
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game)) != 0) Render(); };
+        session.Frame.Render += _onFrame;
         _onTheme = Render; Ui.Changed += _onTheme;
         Render();
     }
@@ -38,7 +38,7 @@ public partial class EndMessage : Control
     {
         Ui.Changed -= _onTheme;
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged;
+        _s.Frame.Render -= _onFrame;
     }
 
     public void Open() { if (Fill()) Visible = true; }

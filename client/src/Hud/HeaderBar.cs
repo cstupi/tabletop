@@ -17,7 +17,7 @@ public partial class HeaderBar : PanelContainer
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false };
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
+    Action<RenderCause>? _onFrame; Action? _onTheme;
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
@@ -31,8 +31,8 @@ public partial class HeaderBar : PanelContainer
         _top.AddChild(_gameOver); _top.AddChild(_settings);
         _settings.Pressed += () => SettingsRequested?.Invoke();
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
-        _onEvents = _ => Render(); _onChanged = Render;
-        session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged;
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game | RenderCause.Board)) != 0) Render(); };
+        session.Frame.Render += _onFrame;
         _onTheme = Render; Ui.Changed += _onTheme;
         Render();
     }
@@ -41,7 +41,7 @@ public partial class HeaderBar : PanelContainer
     {
         Ui.Changed -= _onTheme;
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged;
+        _s.Frame.Render -= _onFrame;
     }
 
     void Render()
