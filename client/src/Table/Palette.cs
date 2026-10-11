@@ -1,12 +1,12 @@
 using Godot;
+using Tabletop.Client.Theming;
 using Tabletop.Geometry;
 
 namespace Tabletop.Client.Table;
 
 public static class Palette
 {
-    static readonly Color[] Teams = [new(0.85f, 0.25f, 0.2f), new(0.2f, 0.45f, 0.9f), new(0.25f, 0.7f, 0.3f), new(0.9f, 0.75f, 0.2f), new(0.6f, 0.3f, 0.8f), new(0.2f, 0.75f, 0.75f)];
-    public static Color Team(int ordinal) => Teams[(Math.Max(1, ordinal) - 1) % Teams.Length];
+    public static Color Team(int ordinal) => Ui.Team(ordinal);
     public static readonly Color Proxy = new(0.3f, 0.9f, 0.4f, 0.45f);       // semi-transparent green (asset library)
     public static readonly Color Selected = new(1f, 1f, 1f);
     public static readonly Color Picked = new(1f, 0.85f, 0.2f, 0.7f);        // the selected unit's models
