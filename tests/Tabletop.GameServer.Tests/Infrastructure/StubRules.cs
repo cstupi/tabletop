@@ -68,4 +68,5 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => inner.Shooters(state, properties, unitId, targetUnitId);
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => inner.MayDeployInside(state, unitId, containerModelId);
     public AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => inner.AnswerBreach(state, ask, answer);
+    public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => inner.PlacementBreach(state, moves);
 }

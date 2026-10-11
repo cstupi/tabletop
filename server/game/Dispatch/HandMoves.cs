@@ -9,7 +9,8 @@ namespace Tabletop.GameServer.Dispatch;
 /// placement: every relocation takes a model from the shelf to the table or into a container the rules allow, and the model's unit is one the actor's team picked in the
 /// deploy-family Ask the scheduler is waiting on. The scheduler waits for placement without opening another Ask (a deploy activation is
 /// incomplete while a model is on the shelf; the Ambusher boundary step waits likewise), so the pick is live exactly while the newest
-/// AskOpened in the effective log is that deploy Ask and it has closed. Everything else is the hand_move breach, which strict refuses.
+/// AskOpened in the effective log is that deploy Ask and it has closed. Everything else is the hand_move breach, which strict refuses. A placement
+/// the ruleset judges physically impossible (IGameRules.PlacementBreach) breaches too, legal or not.
 /// </summary>
 public static class HandMoves
 {
@@ -21,13 +22,17 @@ public static class HandMoves
     {
         var p = state.Projection;
         var placing = actor.TeamId is { } team ? Placing(state, team) : new HashSet<Guid>();
+        Breach? outside = null;
         foreach (var move in command.Moves)
         {
             if (!p.Models.TryGetValue(move.ModelId, out var model)) continue;
             if (model.Location is OnShelf && placing.Contains(model.UnitId) && Placed(state, move.To, model.UnitId)) continue;
-            return new Breach(Rule, $"{p.Units[model.UnitId].Definition.Name} moved by hand outside a move step", new StrictRefuses(RefusalReason.Illegal));
+            outside = new Breach(Rule, $"{p.Units[model.UnitId].Definition.Name} moved by hand outside a move step", new StrictRefuses(RefusalReason.Illegal));
+            break;
         }
-        return null;
+        var overlap = state.Rules.PlacementBreach(state, command.Moves);
+        if (outside is { } b) return overlap is null ? b : b with { Detail = $"{b.Detail}; {overlap.Detail}" };
+        return overlap is null ? null : new Breach(overlap.Rule, overlap.Detail, new StrictRefuses(RefusalReason.Illegal));
     }
 
     /// <summary>Onto the table, or inside a container the rules allow (IGameRules.MayDeployInside).</summary>

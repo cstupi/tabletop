@@ -13,9 +13,9 @@ namespace Tabletop.GameServer.Tests;
 public class HandMovesTests
 {
     /// <summary>A: two units of two models; B: one unit of two. A wins the roll-off (6 against 1), so A's deploy Ask is open.</summary>
-    static SchedulerHarness AtDeployment(Enforcement enforcement, Army? a = null, Army? b = null)
+    static SchedulerHarness AtDeployment(Enforcement enforcement, Army? a = null, Army? b = null, IGameRules? rules = null)
     {
-        var h = new SchedulerHarness([a ?? TestArmies.Build("A", 2, 2), b ?? TestArmies.Build("B", 1, 2)], enforcement: enforcement);
+        var h = new SchedulerHarness([a ?? TestArmies.Build("A", 2, 2), b ?? TestArmies.Build("B", 1, 2)], enforcement: enforcement, rules: rules);
         h.Dice.Enqueue(6); h.Dice.Enqueue(1);
         h.Run(); h.ConfirmRollOff();
         Assert.Equal((AskQuestions.Deploy, h.Teams[0]), (h.Open.Question, h.Open.Teams.Single()));
@@ -245,5 +245,15 @@ public class HandMovesTests
         var moved = h.Log.Single(e => e.Seq == seq + 1);
         Assert.IsType<ModelsMoved>(moved.Payload);
         Assert.Equal(enforcement == Enforcement.Warn ? detail : null, moved.Warning);
+    }
+
+    [Fact]
+    public void Strict_refuses_placing_the_picked_unit_on_its_own_model()
+    {
+        var h = AtDeployment(Enforcement.Strict, rules: GrimdarkFutureRules.Instance);   // FakeRules leaves PlacementBreach at null
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[0]]));
+        var all = TestGames.Relocations(h.State, a[0]);
+        Assert.Equal(MoveOverlapRule, HandMoves.Judge(h.State, new MoveModels([all[0], all[1] with { To = all[0].To }]), TeamOf(h, 0))!.Rule);
     }
 }

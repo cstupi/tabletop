@@ -36,4 +36,61 @@ public class GfContactTests
         Assert.Null(Region(charge).Separation);
         Assert.True(Region(Advancing(Enforcement.Strict, out _, out _, 3, P("Flying"))).PassesModels);
     }
+
+    static DispatchOutcome Move(Sim sim, params ModelRelocation[] moves) => sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, new Destinations(moves)), Samples.P1, Samples.Team1);
+    static string? Breach(Sim sim, params ModelRelocation[] moves) => GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations(moves))?.Rule;
+
+    [Fact]
+    public void Under_strict_landing_on_crossing_or_within_an_inch_of_another_unit_is_refused()
+    {
+        var sim = Advancing(Enforcement.Strict, out var a, out _);                       // B at x 3
+        var m = a.Models[0].Id;
+        foreach (var (x, rule) in new[] { (3.5, GfNames.MoveOverlapRule), (5.5, GfNames.MoveThroughModelsRule), (1.5, GfNames.MoveSeparationRule) })
+        {
+            Assert.Equal(rule, Breach(sim, To(sim, m, x)));
+            Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(Move(sim, To(sim, m, x))).Reason);
+        }
+        Assert.IsType<Applied>(Move(sim, To(sim, m, 0.5)));                              // 1.24" edge to edge
+    }
+
+    [Fact]
+    public void Under_warn_an_overlap_is_applied_with_a_warning()
+    {
+        var sim = Advancing(Enforcement.Warn, out var a, out _);
+        Assert.NotNull(Assert.IsType<Applied>(Move(sim, To(sim, a.Models[0].Id, 3.5))).Warning);
+    }
+
+    [Fact]
+    public void A_charge_ends_in_base_contact_but_not_on_the_base()
+    {
+        var sim = Game(Enforcement.Strict, out var a, out var b, x2: 12);
+        sim.Start(GfNames.ChargeSeq, new SequenceContext(a.Id, [], [], GfNames.Charge));
+        sim.Answer(Samples.Team1, new SelectedPieces([b.Id]));
+        Assert.Equal(GfNames.MoveOverlapRule, Breach(sim, To(sim, a.Models[0].Id, 11)));
+        Assert.IsType<Applied>(Move(sim, To(sim, a.Models[0].Id, 10.74)));             // touching: within 1" is the Charge's
+    }
+
+    [Fact]
+    public void A_flyer_moves_through_a_model_but_not_onto_it()
+    {
+        var sim = Advancing(Enforcement.Strict, out var a, out _, 3, P("Flying"));
+        Assert.Null(Breach(sim, To(sim, a.Models[0].Id, 5.5)));
+        Assert.Equal(GfNames.MoveOverlapRule, Breach(sim, To(sim, a.Models[0].Id, 3.5)));
+    }
+
+    [Fact]
+    public void Leaving_a_model_it_overlaps_is_not_moving_through_it()
+    {
+        var sim = Game(Enforcement.Strict, out var a, out _);
+        sim.Append([new ModelsMoved([To(sim, a.Models[0].Id, 2.5)])]);                   // left on B's base by a silent hand move
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+        Assert.Null(Breach(sim, To(sim, a.Models[0].Id, -2)));
+    }
+
+    [Fact]
+    public void A_wrapped_Grimdark_Future_still_judges_a_placement_overlap()
+    {
+        var sim = Game(Enforcement.Strict, out var a, out _);
+        Assert.Equal(GfNames.MoveOverlapRule, new WithSequences(GrimdarkFutureRules.Instance).PlacementBreach(sim.State, [To(sim, a.Models[0].Id, 3)])!.Rule);
+    }
 }

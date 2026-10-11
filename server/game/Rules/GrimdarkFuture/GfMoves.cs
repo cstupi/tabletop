@@ -170,8 +170,8 @@ public static partial class GfMoves
     /// with p.7 "physically impossible locations" (LandsInImpassable, against every impassable volume on the table, whether or not the Ask lists it:
     /// a Flying unit's Ask lists none, p.13). The Aircraft move, the one Ask with a MinDistance (MoveStep), is exempt from the landing: p.13 "Aircraft
     /// ignore all units and terrain when moving and stopping". A model answered where it stands has not moved and is not judged. A disembark is
-    /// judged by ExitPlacement instead: p.15 "must stay fully within 6" of it when exiting" and p.7's table edge. The 1" separation and coherency
-    /// stay client-flagged.
+    /// judged by ExitPlacement instead: p.15 "must stay fully within 6" of it when exiting" and p.7's table edge. p.7's contact
+    /// clauses are ContactBreach's; coherency stays client-flagged.
     /// </summary>
     public static AnswerBreachFound? PathBreach(GameState state, MoveRegion region, Destinations answer)
     {
@@ -301,7 +301,7 @@ public static partial class GfMoves
         foreach (var m in proposed)
         {
             // p.15: embarking costs no measured distance and sweeps no path — "only one model needs to reach the Transport for
-            // everyone to embark", and the 1" restriction is ignored (it is client-flagged here anyway; architecture.md → Rules enforcement).
+            // everyone to embark", and the 1" restriction is ignored (ContactBreach judges only a landing on the table).
             if (m.To is Inside into)
             {
                 if (ctx.Projection.Models.TryGetValue(into.ContainerId, out var container) && container.Location is OnTable) { moves.Add(m); ctx.Applied.Add(GfNames.Transport); }   // never point Inside at something that is not on the table
@@ -450,7 +450,7 @@ public static partial class GfMoves
 
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
     /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Nothing between is swept. A landing that fails stays where it was. Under strict,
-    /// dispatch also refuses a landing off the table (PathBreach, p.7); p.7's 1" is client-flagged, as for every move.</summary>
+    /// dispatch also refuses a landing off the table (PathBreach, p.7); p.7's contact clauses are ContactBreach's, as for every move.</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
         var impassable = Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);
