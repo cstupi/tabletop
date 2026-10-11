@@ -28,30 +28,39 @@ public sealed class Animator : IDisposable
     {
         if (_disposed || generation != _generation) return;
         _generation++; _busy = false;
-        if (GodotObject.IsInstanceValid(_view)) Pump();
+        if (GodotObject.IsInstanceValid(_view)) Pump(glided: true);
     }
 
-    void Pump()
+    /// <summary>
+    /// The table redraws itself on each batch before this runs (it subscribes first), so the pump redraws only what that pass
+    /// could not know: a glide that has ended (<paramref name="glided"/>), or the player's own drops whose holds it consumed.
+    /// </summary>
+    void Pump(bool glided = false)
     {
         if (_disposed || _busy || !GodotObject.IsInstanceValid(_view)) return;
+        var redraw = glided;
         while (!_busy && _queue.Count > 0)
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
             Played?.Invoke(e);
             List<ModelsMoved> moves = e.Payload switch { ModelsMoved m => [m], StepCompleted s => [.. s.Changes.OfType<ModelsMoved>()], _ => [] };
             // The player's own drops are already on the table where they put them: consume the holds, and glide only the rest.
-            foreach (var relocation in moves.SelectMany(m => m.Moves).Where(r => !_input.ConsumeOwn(r)).ToList())
+            var relocations = moves.SelectMany(m => m.Moves).ToList();
+            var others = relocations.Where(r => !_input.ConsumeOwn(r)).ToList();
+            if (others.Count != relocations.Count) redraw = true;
+            foreach (var relocation in others)
                 if (_s.Settings.Animate && relocation.To is OnTable to && _view.PieceAt(relocation.ModelId) is { } node && node.IsInsideTree())
                 {
+                    if (redraw) { _view.Redraw(); redraw = false; }   // first, so it does not put the gliding piece back at its destination
                     // The table has already redrawn the piece at its destination, so the glide starts from where it was.
                     if (relocation.From is OnTable from) node.Position = WorldFrame.ToGodot(from.Placement.Position);
                     var target = WorldFrame.ToGodot(to.Placement.Position);
                     _busy = true; var generation = _generation;
-                    var tween = node.CreateTween(); tween.TweenProperty(node, "position", target, 0.4); tween.TweenCallback(Callable.From(() => { if (GodotObject.IsInstanceValid(_view)) _view.Redraw(); Done(generation); }));
+                    var tween = node.CreateTween(); tween.TweenProperty(node, "position", target, 0.4); tween.TweenCallback(Callable.From(() => Done(generation)));
                     _view.GetTree().CreateTimer(0.6).Timeout += () => Done(generation);
                     return;   // one at a time while animating
                 }
         }
-        _view.Redraw();
+        if (redraw) _view.Redraw();
     }
 }
