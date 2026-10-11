@@ -24,10 +24,6 @@ public partial class LogDrawer : VBoxContainer
         GrowHorizontal = GrowDirection.Begin; GrowVertical = GrowDirection.Begin;
         Alignment = AlignmentMode.End;
         var inner = new VBoxContainer(); _drawer.AddChild(inner);
-        // Animate stays here until plan 04's Settings dialog takes it.
-        var animate = new CheckBox { Text = "Animate", ButtonPressed = session.Settings.Animate };
-        animate.Toggled += on => _s.UpdateSettings(x => x with { Animate = on });
-        inner.AddChild(animate);
         inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
         AddChild(_drawer); AddChild(_toggle);
         _toggle.Pressed += Toggle;

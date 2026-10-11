@@ -63,6 +63,7 @@ public partial class GameScreen
         // The parts die with the screen, so their own events need no unsubscribing.
         _header.TeamMenuRequested += OpenTeamMenu;
         _header.GameOverPressed += _end.Open;
+        _header.SettingsRequested += () => SettingsDialog.Open(this, _session);
         _card.ModelPicked += SelectModel;
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;

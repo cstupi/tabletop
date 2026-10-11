@@ -16,6 +16,7 @@ public partial class HomeScreen : Control
         var top = new HBoxContainer(); root.AddChild(top);
         top.AddChild(new Label { Text = $"Signed in as {Main.Instance.Session.Account?.Name}" });
         top.AddChild(Btn("Create game", () => Run(CreateDialog)));
+        top.AddChild(Btn("Settings", () => SettingsDialog.Open(this, Main.Instance.Session)));
         top.AddChild(Btn("Sign out", () => Run(Main.Instance.Session.LogoutAsync)));
         var filters = new HBoxContainer(); root.AddChild(filters);
         filters.AddChild(_status = new OptionButton());

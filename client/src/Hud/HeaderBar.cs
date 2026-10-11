@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
@@ -14,11 +15,13 @@ public partial class HeaderBar : PanelContainer
     readonly HBoxContainer _top = new(), _activation = new();
     readonly Label _waiting = new() { Modulate = new Color(1f, 0.8f, 0.4f) };
     readonly Button _gameOver = new() { Flat = true, Visible = false };
+    readonly Button _settings = new() { Flat = true, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session outlives the header: the subscriptions are fields and come off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged;
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
+    public event Action? SettingsRequested;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -27,7 +30,8 @@ public partial class HeaderBar : PanelContainer
         GrowHorizontal = GrowDirection.Both;
         var lines = new VBoxContainer(); AddChild(lines);
         lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
-        _top.AddChild(_gameOver);
+        _top.AddChild(_gameOver); _top.AddChild(_settings);
+        _settings.Pressed += () => SettingsRequested?.Invoke();
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onEvents = _ => Render(); _onChanged = Render;
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged;
@@ -47,7 +51,7 @@ public partial class HeaderBar : PanelContainer
         if (!Visible) return;
         var names = new Names(game!, p);
         var m = HeaderView.Of(p!, game!, names);
-        Clear(_top, keep: _gameOver); Clear(_activation, keep: null);
+        Clear(_top, _gameOver, _settings); Clear(_activation);
 
         _top.AddChild(new Label { Text = $"Round {m.Round} · {m.Turn}" });
         foreach (var team in game!.Teams.OrderBy(t => t.Ordinal))
@@ -61,7 +65,8 @@ public partial class HeaderBar : PanelContainer
         }
         _gameOver.Visible = m.Result is not null;
         _gameOver.Text = m.Result is { } result ? $"  {result}" : "";
-        _top.MoveChild(_gameOver, -1);
+        _top.MoveChild(_gameOver, -1); _top.MoveChild(_settings, -1);
+        _settings.Icon = Ui.Icon("settings");
 
         _activation.Visible = m.ActiveUnit is not null;
         if (m.ActiveUnit is { } unit)
@@ -79,5 +84,5 @@ public partial class HeaderBar : PanelContainer
         _waiting.Visible = m.Waiting is not null;
     }
 
-    static void Clear(Node box, Node? keep) { foreach (var c in box.GetChildren()) if (c != keep) { box.RemoveChild(c); c.QueueFree(); } }
+    static void Clear(Node box, params Node[] keep) { foreach (var c in box.GetChildren()) if (!keep.Contains(c)) { box.RemoveChild(c); c.QueueFree(); } }
 }
