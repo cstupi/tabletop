@@ -336,7 +336,8 @@ ratio)`. Die *i* of a game is a pure function of `(seed, i)` with no sequential 
 sequence test uses it to script a whole engagement as one array of faces in draw order.
 
 `RollPlan` is the settled roll: `Roll`, `Threshold`, `Modifiers`, `Convention`, `RequiredRaw`,
-`RerollRaw`, `RerollSuccessfulRaw` and `Basis`, the threshold's `ThresholdBasis` from `StatReader`'s `TargetRead`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
+`RerollRaw`, `RerollSuccessfulRaw` and `Basis`, the threshold's `ThresholdBasis` from
+`StatReader`'s `TargetRead`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
 modifiers, then clamps to `±Convention.ModifierCap` when the ruleset set one. OPR never clamps.
 40k clamps hit and wound at ±1. Summing is generic and clamping is the ruleset's: constraint 4.
 Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Raw != AlwaysFails && (Raw ==
@@ -346,7 +347,7 @@ spell's *"Roll as many dice as hits"*, Unpredictable's table roll) and 40k's cri
 why a die carries both raw and modified.
 
 Every roll is recorded per die: `RollRecord(Guid Id, string Roll, int? Threshold,
-IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw)` with `Die(int Raw, int Modified,
+IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw, ThresholdBasis? Basis = null)` with `Die(int Raw, int Modified,
 bool Success)`. A reroll or `SetDice` re-judges a die under the record's own threshold, modifiers and `RequiredRaw`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
 so a threshold recomputed after a deploy could disagree with what the players rolled (resolution →
 Rerolling does not break undo).

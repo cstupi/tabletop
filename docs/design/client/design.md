@@ -999,7 +999,7 @@ the projection directly and the queue holds no lock. Presence is never animated,
 
 A roll is a readout and not an object. The label carries the roll's name, its
 threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
-`RollRecord` already holds, and the `Basis` of its threshold. The dice tray and the combat log show the same roll as a
+`RollRecord` already holds. The dice tray and the combat log show the same roll as a
 `RollEntry`; with Animate on the tray's dice tumble for 0.4 s. No die is placed on the table.
 
 **A step may carry several rolls, and the readout carries all of them**, one block each, stacked.
