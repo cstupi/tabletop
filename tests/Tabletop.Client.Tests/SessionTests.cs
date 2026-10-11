@@ -90,6 +90,20 @@ public class SessionTests : IDisposable
     }
 
     [Fact]
+    public async Task The_combat_log_is_shared_until_the_log_or_a_pending_undo_changes()
+    {
+        var sock = await ConnectedAtPlaying();
+        var state = _s.CombatLog!;
+        Assert.Same(state, _s.CombatLog);
+        await _s.UndoToAsync(1);
+        var pending = _s.CombatLog!;
+        Assert.NotSame(state, pending);
+        Assert.Equal((1L, 0L), (state.Undo!.ToSeq, pending.Undo!.ToSeq));   // the next press steps back one more
+        sock.Deliver(new EventsMessage([new GameEvent(3, Samples.P1, new Undone(1), null)]));
+        Assert.NotSame(pending, _s.CombatLog);
+    }
+
+    [Fact]
     public async Task Undo_is_predicted_locally_until_the_server_answers()
     {
         var sock = await ConnectedAtPlaying();

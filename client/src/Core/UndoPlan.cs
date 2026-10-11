@@ -10,20 +10,23 @@ namespace Tabletop.Client.Core;
 /// </summary>
 public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IReadOnlyList<string> LostRolls)
 {
-    public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n)
+    public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n) => Of(log, n, null);
+
+    /// <summary>With the combat log already built over this log (CombatLogState), so the plan does not build it again.</summary>
+    public static UndoPlan? Of(IReadOnlyList<GameEvent> log, Names n, IReadOnlyList<LogEntry>? entries)
     {
         var live = EventApplier.EffectiveLog(log);
         var at = -1;
         for (var i = live.Count - 1; i >= 0 && at < 0; i--) if (live[i].Actor is not null && live[i].Payload is not Undone) at = i;
         if (at < 0) return null;
         var to = at == 0 ? 0 : live[at - 1].Seq;
-        return new UndoPlan(to, live[at], "Undo: " + LogText.Describe(live[at], n), Lost(log, n, to));
+        return new UndoPlan(to, live[at], "Undo: " + LogText.Describe(live[at], n), Lost(entries ?? CombatLog.Build(log, n), to));
     }
 
-    static IReadOnlyList<string> Lost(IReadOnlyList<GameEvent> log, Names n, long to)
+    static IReadOnlyList<string> Lost(IReadOnlyList<LogEntry> entries, long to)
     {
         var lost = new List<(long Seq, string Text)>();
-        foreach (var e in CombatLog.Build(log, n).SelectMany(e => e is ActivationBlock b ? b.Entries : (IEnumerable<LogEntry>)[e]))
+        foreach (var e in entries.SelectMany(e => e is ActivationBlock b ? b.Entries : (IEnumerable<LogEntry>)[e]))
         {
             if (e.Undone) continue;
             if (e is RollEntry r)
