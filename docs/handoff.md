@@ -50,17 +50,28 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
-### 0. Architectural review of the server (owner's request, 2026-10-11)
+### 0. Performance
 
-The owner asked for a principal-engineer review of the server code for simplification and efficiency, changing no
-intended behaviour: "the code base has become unmaintainable". Measured before the review: `server/game` is 8,007 lines
-in about 70 files, only `Rules/GrimdarkFuture/GfAttack.cs` (560) over 500; the Grimdark Future rules are 27 partials;
-`server/management` 2,078; `libs/Tabletop.Protocol` 880; `libs/Tabletop.Geometry` 1,220. Size is not the problem, so
-the review should read structure: how `Interpreter/`, `Effects/`, `Scheduler/`, `Dispatch/` and the `Gf*` partials fit,
-where a step, a hook and an effect row each decide the same thing, and what a reader must hold in mind to change one
-rule. Output: a findings document under `docs/superpowers/specs/` with each proposal's behaviour guarantee (the rules
-suite 193/193 on both drivers, `dotnet test` green) before any code moves. The owner's weekly budget was at 90% when
-this was asked; run the reading on `opus` after the reset, Fable coordinates only.
+`docs/superpowers/specs/2026-10-11-performance-review.md` traces one player action end to end and ranks what costs time.
+Its "do first" set is built: charge targets check distance before walking paths; the move region skips unreachable
+bases; sight lines reject by bounding box before the exact test (`SightBlockers`); one Postgres transaction per command
+(`GameSession.RunToRestAsync`, broadcast only after the commit); the Hud renders once per frame (`Session.Frame`,
+`RenderScheduler`) and builds the combat log once per log state (`CombatLogCache`); `TableView.Redraw` diffs the board
+(`BoardDiff`) and `MeshLoader` parses each GLB once off the main thread. Measured, Release, 15 units of 5 a side,
+2,879 events: command mean with Postgres 116 ms → 15 ms (p90 322 → 25 ms, max 1.7 s → 193 ms), appends per game
+2,196 → 369, turn-boundary `Advance` 38–46 ms → 2–2.6 ms. The dev stack's `dotnet watch` (Debug, hot reload) is
+12.8× slower than Release; production builds Release.
+
+**Owner's on-screen checks for this set** (nothing ran in Godot): terrain, markers and zones correct after every setup
+edit, a refused drag snaps back, undo and reconnect redraw the table, models and built-in meshes load at the right scale
+and facing, several copies of one model all show, no flicker per batch; an activation leaves header, roster, unit card,
+markers, decision box and dice tray showing what they did before; dice tumble then settle; the drawer appends and
+scrolls; Undo tooltip and dialog, Ctrl+Z twice; a sealed Ask's "Revealed:" line shows when the next Ask opens in the same
+frame; a long engine run shows all at once after the commit rather than batch by batch.
+
+**Open from the review:** range rings (24 ms per redraw, ~1.5M distance calls), an incremental combat-log panel, a by-id
+index for grant rows, `Animator.cs` glides only the first model of a multi-model move (the rest jump). Risks to watch:
+GLB parsing off the main thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
 
