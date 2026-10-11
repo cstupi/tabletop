@@ -23,12 +23,15 @@ public static class WorldVolumes
     internal static bool ContainsPoint(this WorldVolume v, Point3 p) => v.VerticalRangeContains(p.Z) && v.WorldOutline().Contains(p.Horizontal);
 
     /// <summary>Does the 3D segment pass through the prism: clip to the vertical range, then a 2D segment test.</summary>
-    internal static bool IntersectsSegment(this WorldVolume v, Point3 a, Point3 b)
+    internal static bool IntersectsSegment(this WorldVolume v, Point3 a, Point3 b) =>
+        ClipToRange(v.WorldBottom(), v.WorldTop(), a, b, out var p, out var q) && v.WorldOutline().IntersectsSegment(p, q);
+
+    /// <summary>The part of the segment between two heights, projected onto the table plane; false when no part is.</summary>
+    internal static bool ClipToRange(double bottom, double top, Point3 a, Point3 b, out Point2 p, out Point2 q)
     {
-        var bottom = v.WorldBottom();
-        var top = v.WorldTop();
         double t0 = 0, t1 = 1;
         var dz = b.Z - a.Z;
+        (p, q) = (default, default);
         if (Math.Abs(dz) < Tolerance.Distance)
         {
             if (a.Z < bottom - Tolerance.Distance || a.Z > top + Tolerance.Distance) return false;
@@ -41,8 +44,8 @@ public static class WorldVolumes
             t1 = Math.Min(1, Math.Max(tb, tt));
             if (t0 > t1) return false;
         }
-        var p = new Point2(a.X + (b.X - a.X) * t0, a.Y + (b.Y - a.Y) * t0);
-        var q = new Point2(a.X + (b.X - a.X) * t1, a.Y + (b.Y - a.Y) * t1);
-        return v.WorldOutline().IntersectsSegment(p, q);
+        p = new Point2(a.X + (b.X - a.X) * t0, a.Y + (b.Y - a.Y) * t0);
+        q = new Point2(a.X + (b.X - a.X) * t1, a.Y + (b.Y - a.Y) * t1);
+        return true;
     }
 }
