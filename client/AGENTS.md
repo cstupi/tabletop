@@ -58,7 +58,7 @@ dotnet test tests/Tabletop.Client.Tests   # the Godot-free core
 ## Conventions and pitfalls
 
 - `src/Core/` is compiled into `tests/Tabletop.Client.Tests` by `<Compile Include="../../client/src/Core/**/*.cs">`. A `using Godot` there breaks the tests; `check-client` fails on it. Core may reference only the three libs and the BCL.
-- `check-client` also fails on a colour literal (`new Color(`, `Colors.`) under `src/Hud`, `src/Panels` or `src/Screens`: use `Ui` or a `Variation`. It also fails on: a physics body or collision shape in `client/scenes`; Godot physics types in `client/src`; a rules-engine type (`Tabletop.GameServer`, `IRulesEngine`, `CommandDispatcher`, `Legality`, and similar) in `client/src`.
+- `check-client` also fails on a colour literal (`new Color(`, `Colors.`, `Color.FromHtml`, a target-typed `Modulate = new(`, and similar) under `src/Hud`, `src/Panels` or `src/Screens`: use `Ui` or a `Variation` (a `Flat` button sets `Variation.FlatButton`; the check does not test that). It also fails on: a physics body or collision shape in `client/scenes`; Godot physics types in `client/src`; a rules-engine type (`Tabletop.GameServer`, `IRulesEngine`, `CommandDispatcher`, `Legality`, and similar) in `client/src`.
 - No Godot physics; picking is ray versus AABB.
 - Godot's import step wipes `client/.godot/mono/temp/bin/`. Build after an import; otherwise every script fails with "class could not be found". `./scripts/client` builds in WSL first.
 - `Directory.Build.props` gives each OS its own `obj/Unix` or `obj/Windows_NT`; a shared `obj/` breaks restore. `TabletopBuildSlot` adds a suffix to `obj/` and `bin/` for the compose server containers; the client does not set it.

@@ -47,12 +47,13 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 | `Corner` | top left | 420 x 40: Home and the status |
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
-| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show |
+| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; `Roster` is computed but not placed yet (plan 05) |
 | `Decision` | bottom, centred, left of the log button | 480 x 200 |
 | `Dice` | stacked above the decision box | 480 x 96 |
 | `LogButton` | bottom right | 140 x 36 |
 | `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button | 640 wide, up to 720 tall |
-| `Banner`, `EndMessage` | centre bands | overlays |
+| `Banner` | full-width band at the upper third | overlay; computed but not placed yet (plan 05) |
+| `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
 
 `HudLayout.Overlays` (`Banner`, `EndMessage`) are exempt from the no-overlap rule: they draw over the frame.
 
@@ -62,10 +63,12 @@ outgrows its slot grows upward and not off the screen, and `Fill` takes the whol
 
 `GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it once per frame. Its triggers are
 the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, unit
-card, decision box and dice tray, `VisibilityChanged` on the last four, the log opening or closing, and a rebuild. It
+card, decision box and dice tray, `VisibilityChanged` on the last four, the log opening or closing, and building the play Hud. It
 subtracts the side panel's width outside play. Because the decision box and dice grow upward past their slots, `Layout`
 moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
-the actual decision box and dice tray when the panel's columns span theirs. `UnitCard.Place` sizes the card to its
+the actual decision box and dice tray when the panel's columns span theirs. Likewise the panel starts 8 px below the
+header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
+panel's height never goes negative. `UnitCard.Place` sizes the card to its
 content, capped by its slot, and anchors it to the slot's bottom.
 
 `Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
