@@ -20,19 +20,19 @@ public static class Movement
     public const double Step = 0.25;
 
     /// <summary>A volume's world outline, hoisted once, with the bounding circle used to reject it cheaply.</summary>
-    readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
+    internal readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
 
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
         IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null)
     {
         var origin = start.Placement.Position.Horizontal;
         var baseOutline = start.BaseOutline();
-        var (_, baseRadius) = baseOutline.BoundingCircle();
+        var (baseCentre, baseRadius) = baseOutline.BoundingCircle();
         var reach = allowance + baseRadius;
         var impassableNear = Prefilter(impassable, origin, reach);
         var difficultNear = Prefilter(difficult, origin, reach);
         var slab = table is { } t ? Table.Outline(t) : null;
-        var bodies = (models ?? []).Select(m => m.BaseOutline()).Where(o => !Outline.InteriorsIntersect(baseOutline, o)).ToList();
+        var bodies = NearBodies(start, allowance, models ?? []);
 
         var boundary = new List<Point2>(Rays);
         var capped = false;
@@ -53,7 +53,7 @@ public static class Movement
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(at, baseRadius, atOutline, impassableNear) || bodies.Any(o => Outline.InteriorsIntersect(atOutline, o))
+                if (Touches(at, baseRadius, atOutline, impassableNear) || Touches(baseCentre + dir * d, baseRadius, atOutline, bodies)
                     || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
@@ -165,6 +165,28 @@ public static class Movement
             var outline = v.WorldOutline();
             var (centre, radius) = outline.BoundingCircle();
             if (origin.DistanceTo(centre) <= reach + radius + Tolerance.Distance) result.Add(new NearVolume(v.Id, outline, centre, radius));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The other models' bases the moving base could touch within the allowance: those whose bounding circle lies within
+    /// `allowance` plus both radii of the start, less those it already overlaps (a model is not stopped by a base it starts on).
+    /// The base centre never travels farther than the allowance, so a base outside that ring can never touch it.
+    /// </summary>
+    internal static List<NearVolume> NearBodies(PlacedModel start, double allowance, IReadOnlyList<PlacedModel> models)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var baseOutline = start.BaseOutline();
+        var (centre, bound) = baseOutline.BoundingCircle();
+        var reach = allowance + bound + centre.DistanceTo(origin);
+        var result = new List<NearVolume>();
+        foreach (var m in models)
+        {
+            var outline = m.BaseOutline();
+            var (c, radius) = outline.BoundingCircle();
+            if (origin.DistanceTo(c) > reach + radius + Tolerance.Distance || Outline.InteriorsIntersect(baseOutline, outline)) continue;
+            result.Add(new NearVolume(Guid.Empty, outline, c, radius));
         }
         return result;
     }
