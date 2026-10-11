@@ -93,5 +93,5 @@ public partial class TableInput
         if ((active ?? Selected?.PieceId) is { } unit) Focus(unit);
     }
 
-    public void Focus(Guid unitId) { if (_session.Projection is { } p && CameraFocus.Centroid(p, unitId) is { } c) _view.Camera.Centre(WorldFrame.ToGodot(c)); }
+    public void Focus(Guid unitId) { if (_session.Projection is { } p && CameraFocus.Centroid(p, unitId) is { } c) _view.Camera.Centre(WorldFrame.ToGodot(c), byPlayer: true); }
 }

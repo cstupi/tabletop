@@ -15,8 +15,13 @@ public partial class OrbitCamera : Camera3D
     public float Pitch => _pitch;
 
     public void FocusOn(TableSize size) { _size = size; _target = WorldFrame.ToGodot(new Point3(size.Width / 2, size.Length / 2, 0)); _distance = (float)Math.Max(size.Width, size.Length) * 0.9f; Apply(); }
-    /// <summary>Look at a point, keeping the distance and angle: Tab and Space bring a unit to the centre of the screen.</summary>
-    public void Centre(Vector3 target) { _glideFrom = WorldFrame.FromGodot(_target); _glideTo = WorldFrame.FromGodot(target); _glide = 0; }
+    /// <summary>Look at a point, keeping the distance and angle: Tab, Space and the roster bring a unit to the centre of the screen.
+    /// The player's own focus (byPlayer) counts as a camera move for follow but does not stop its own glide.</summary>
+    public void Centre(Vector3 target, bool byPlayer = false)
+    {
+        if (byPlayer) _movedAt = Time.GetTicksMsec();
+        _glideFrom = WorldFrame.FromGodot(_target); _glideTo = WorldFrame.FromGodot(target); _glide = 0;
+    }
     public void Follow(Vector3 target, bool enabled) { if (CameraFocus.Follows(enabled, (Time.GetTicksMsec() - _movedAt) / 1000.0, Holding())) Centre(target); }
     void Moved() { _movedAt = Time.GetTicksMsec(); _glide = double.MaxValue; }   // the player's own move stops a glide and holds follow off
     void Pan(Point2 to) { _target = new Vector3((float)to.X, _target.Y, (float)-to.Y); Apply(); }   // WorldFrame: Godot z = −wire Y
@@ -34,12 +39,17 @@ public partial class OrbitCamera : Camera3D
         Pan(CameraFocus.Pan(WorldFrame.FromGodot(_target).Horizontal, new Point2(-Mathf.Sin(_yaw), Mathf.Cos(_yaw)), forward, right, _distance, delta, _size));
     }
 
-    /// <summary>A text field has focus anywhere: the root viewport (Hud, settings) or any dialog, embedded or not, since a Window is its own viewport with its own focus. A SpinBox counts whether it or its inner LineEdit owns focus.</summary>
+    /// <summary>A text field has focus in the root viewport (Hud, settings) or a dialog: the root's embedded subwindows, wherever
+    /// they sit in the tree, and any Window directly under the root; a Window is its own viewport with its own focus. A SpinBox
+    /// counts whether it or its inner LineEdit owns focus.</summary>
     bool Typing()
     {
         static bool In(Viewport v) => v.GuiGetFocusOwner() is LineEdit or TextEdit or SpinBox;
         var root = GetTree().Root;
-        return In(root) || root.FindChildren("*", nameof(Window), true, false).OfType<Window>().Any(w => w.Visible && In(w));
+        if (In(root)) return true;
+        foreach (var w in root.GetEmbeddedSubwindows()) if (w.Visible && In(w)) return true;
+        foreach (var c in root.GetChildren()) if (c is Window { Visible: true } w && In(w)) return true;
+        return false;
     }
 
     public override void _UnhandledInput(InputEvent e)
