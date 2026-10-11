@@ -93,4 +93,19 @@ public class GfContactTests
         var sim = Game(Enforcement.Strict, out var a, out _);
         Assert.Equal(GfNames.MoveOverlapRule, new WithSequences(GrimdarkFutureRules.Instance).PlacementBreach(sim.State, [To(sim, a.Models[0].Id, 3)])!.Rule);
     }
+
+    [Fact]
+    public void A_model_touching_an_oval_base_near_its_diagonal_moves_away()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, [], Melee("Claws", 1));
+        var b = Unit("B", "4+", "6+", [], 1, []);
+        b = b with { Models = [b.Models[0] with { Base = Base.Oval(4, 2) }] };           // x 2..4, y -20.5..-16.5 at (3, -18.5)
+        var sim = Sim.Gf(State([a], [b], x1: 0, x2: 3, enforcement: Enforcement.Strict), 6, 6, 6, 6, 6, 6);
+        var m = a.Models[0].Id;
+        ModelRelocation At(double x, double y) => new(m, sim.Model(m).Location, new OnTable(new Placement(new Point3(x, y, 0), new Yaw(0))));
+        // The oval's point at 45° is (3.707, -17.086), its normal (0.894, 0.447): A's base touches it there, inside the oval's rectangle.
+        sim.Append([new ModelsMoved([At(3.707 + 0.894 * 0.635, -17.086 + 0.447 * 0.635)])]);
+        sim.Start(GfNames.AdvanceSeq, new SequenceContext(a.Id, [], [], GfNames.Advance));
+        Assert.IsType<Applied>(Move(sim, At(6.5, -15.5)));
+    }
 }
