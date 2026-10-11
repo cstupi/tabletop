@@ -37,8 +37,8 @@ public class BuiltinContentTests
         Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
-        // Every piece names one of the ten group meshes, so the art set is ten files and not 35.
-        Assert.Equal(10, BuiltinContent.TerrainMeshGroups.Count);
+        // Every piece names one of the eleven group meshes, so the art set is eleven files and not 35.
+        Assert.Equal(11, BuiltinContent.TerrainMeshGroups.Count);
         Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(t.MeshFile, BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
         Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
         Assert.Equal("res://content/builtin/terrain/water.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));
@@ -100,5 +100,13 @@ public class BuiltinContentTests
                 for (var i = 0; i < 3; i++) { min[i] = Math.Min(min[i], a.GetProperty("min")[i].GetDouble()); max[i] = Math.Max(max[i], a.GetProperty("max")[i].GetDouble()); }
             }
         return (min, max);
+    }
+
+    [Fact]
+    public void Rect_hills_draw_the_square_plateau()
+    {
+        Assert.EndsWith("hill-rect.glb", BuiltinContent.TerrainMeshFile("hill-small"));
+        Assert.EndsWith("hill-rect.glb", BuiltinContent.TerrainMeshFile("small-dunes"));
+        Assert.Contains("hill-rect", BuiltinContent.TerrainMeshGroups);
     }
 }

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Regenerate the flat-topped hill meshes in client/content/builtin/terrain/.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec dotnet run --project scripts/TerrainMeshes -- "$@"

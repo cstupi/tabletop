@@ -937,10 +937,10 @@ server never writes an owner-side row.
 textures, two marker visuals, and the zone style ids. A minimal art set ships with it, so that a
 generated table looks like a table.
 
-The art is fifteen files, not fifty. The 35 pieces group into ten meshes that differ only by
-footprint, height, scale and yaw: `hill` (6 pieces), `woods` (5), `ruins` (4), `building` (3),
+The art is sixteen files, not fifty. The 35 pieces group into eleven meshes that differ only by
+footprint, height, scale and yaw: `hill` (4 pieces, round), `hill-rect` (2, square), `woods` (5), `ruins` (4), `building` (3),
 `wall` (2), `rock` (2), `field` (2), `water` (5), `pad` (5, every flat ground hazard including the
-crater), `haze` (1, the toxic smog). Each of the ten is glTF 2.0 binary, under 2000 triangles, one
+crater), `haze` (1, the toxic smog). Each of the eleven is glTF 2.0 binary, under 2000 triangles, one
 colour-only material, and authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5], the height on
 y in [0, 1], base at y = 0. `BuiltinContent.MeshOrientation` (pitch 90) reads it into the table frame, z up, the value
 the web app writes for a Y-up asset, and `MeshLoader.LoadBuiltin` scales that box onto the placement's first
@@ -1438,7 +1438,7 @@ What is covered:
 | the management client | `FakeManagement : HttpMessageHandler` scripting responses | the version header and bearer on every request, the exact paths and verbs, `426` → `UpdateRequiredException`, problem+json title and detail, contract types round-tripping under `ContentJson` |
 | the socket seam and presence | `FakeGameSocket`, `FakeSocketFactory` | frames delivered, sends recorded, closes injected; presence set, removed and cleared |
 | the session object | the two fakes plus `ImmediateDispatcher` | the connect sequence, the projection, local undo and its two clear paths, presence and pings bypassing the projection, reconnect with backoff, a reconnect rejoining the same team with no re-pick, a replaced socket not reconnecting, `Rejected` stickiness, Home keeping the seat while Leave calls management, a desync dropping the projection and rebuilding it from the log, the bound sending the player to Home with a reason, an `AtRest` frame ignored |
-| built-in content and generators | seeded `Random` | 35 built-ins present, each naming one of the ten group meshes, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
+| built-in content and generators | seeded `Random` | 35 built-ins present, each naming one of the eleven group meshes, volumes copied on `Place`, the four planet tables' fixed and rolled entries, pieces landing off the slab |
 | the asset cache | temp directory, `HttpMessageHandler` | hash verification, `HashMismatchException`, a cached hash never touching the network |
 | the view models | protocol samples | log wording, `Touched`, `AskMode` per legal-set kind, `SpendableBy` keeping only my team's spender models, the reveal naming who spent what, a one-model pick naming the model, `Mine` skipping answered and other teams, auto-pass on a muted window kind, `ConfirmLabel`, menu items building the right commands, the ruler's displacement and remaining allowance, `UsedInFrame`, `Region` and `ExitRegion` boundaries, `IsDisembark`, the animation queue's two modes |
 
