@@ -16,10 +16,10 @@ by running the game.
 | File | Sections |
 | --- | --- |
 | [overview.md](overview.md) | Scope, Context |
-| [core-and-screens.md](core-and-screens.md) | Core and the Godot layer, Screens and the session object |
+| [core-and-screens.md](core-and-screens.md) | Core and the Godot layer, Screens and the session object, Themes and settings |
 | [connection.md](connection.md) | The connection, The projection, Desync and resync, Presence |
 | [table-view.md](table-view.md) | The table view, Mesh loading and the content-addressed cache, Input, presence and a drag, The ruler and the movement region |
-| [play-screen.md](play-screen.md) | The play screen, The decision box, A spend over models and a pick of one model, The combat log, The right-click menu |
+| [play-screen.md](play-screen.md) | The play screen, The Hud frame, The decision box, A spend over models and a pick of one model, The combat log, The right-click menu |
 | [setup-and-animation.md](setup-and-animation.md) | Setup: the lobby panel, the toolbar, built-in content and the generators; Animation |
 | [decisions-and-interfaces.md](decisions-and-interfaces.md) | Key decisions, Interfaces (produced for and consumed from other modules) |
 | [sequences.md](sequences.md) | Connect and hydrate, Undo to here, A desync and its resync, A setup edit, Embark then disembark |

@@ -4,7 +4,7 @@
 
 From `playing` on the side panel goes and the table fills the window (in-game UX spec → Layout). `GameScreen`
 keeps the side panel, the team panels and the selection line for lobby and setup. An overlay `Control` added after the
-table carries Home, the status and the toast in every status, and in play `GameScreen.Play` adds the Hud to it: each
+table carries Home, the status and the toasts in every status, and in play `GameScreen.Play` adds the Hud to it: each
 part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`, drawing a Godot-free model.
 
 | Part | Where | Draws |
@@ -13,7 +13,7 @@ part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`,
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
-| `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; the Animate toggle until the Settings dialog; G opens it |
+| `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
 
@@ -35,6 +35,41 @@ The Hud parts take keys in `_Input`, which runs before the `SubViewportContainer
 viewport, and leave the digits and Esc to the table while a drag is in hand. Hud buttons give the GUI focus straight
 back, so Space never presses one. Max wounds, who can shoot and sight come from the server; the client names no
 rule.
+
+## The Hud frame
+
+`HudLayout.Of(width, height, HudVisible)` (Core) returns a `HudRect` per `HudPart`, and nothing else in the client
+decides where a Hud part goes. Every part keeps an 8 px margin (`HudLayout.M`) to the window and to its neighbours,
+anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overlaps` is what the tests assert).
+
+| Slot | Where | Size |
+| --- | --- | --- |
+| `Corner` | top left | 420 x 40: Home and the status |
+| `Toasts` | top right | 360 x 120 |
+| `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
+| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show |
+| `Decision` | bottom, centred, left of the log button | 480 x 200 |
+| `Dice` | stacked above the decision box | 480 x 96 |
+| `LogButton` | bottom right | 140 x 36 |
+| `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button | 640 wide, up to 720 tall |
+| `Banner`, `EndMessage` | centre bands | overlays |
+
+`HudLayout.Overlays` (`Banner`, `EndMessage`) are exempt from the no-overlap rule: they draw over the frame.
+
+`HudPlacement` puts a control in a slot, anchored top left. `Top` takes the slot's top edge and the control's minimum
+height capped by the slot, `Bottom` takes the slot's bottom edge by the control's actual height, so a part whose minimum
+outgrows its slot grows upward and not off the screen, and `Fill` takes the whole slot.
+
+`GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it once per frame. Its triggers are
+the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, unit
+card, decision box and dice tray, `VisibilityChanged` on the last four, the log opening or closing, and a rebuild. It
+subtracts the side panel's width outside play. Because the decision box and dice grow upward past their slots, `Layout`
+moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
+the actual decision box and dice tray when the panel's columns span theirs. `UnitCard.Place` sizes the card to its
+content, capped by its slot, and anchors it to the slot's bottom.
+
+`Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
+the window and sits outside the frame. `EndMessage` stays a full-screen backdrop.
 
 ## The decision box
 
@@ -197,7 +232,7 @@ entries are struck through, so an undone range stays visible. Presence never app
 
 Filters are All, Rolls, My units and This unit; the last two keep blocks and roll entries whose actor or a target matches. The
 filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a
-button lower right that G or a click opens upward; the Animate toggle is in it until the Settings dialog. Clicking an entry
+button lower right that G or a click opens upward. Clicking an entry
 highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above the target
 until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move (*The play screen*). There is no
 undo stack UI and no redo. Undo is replay to a sequence number rather than inverse events, so the log serves as the control.

@@ -14,11 +14,14 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
   - `AskViewModel`: `LegalSet` to `AskMode`, and the first open Ask for my team.
   - `AnimationQueue`, `MoveRuler`, `DeployView`, `SelectionView`, `PendingDrops`, `PresenceTable`, `MenuModel`, `LogText`, `Names`.
   - The play screen's models: `HeaderView`, `EnemyStrip`, `UnitSheet`, `SheetFocus`, `CombatLog` (`RollEntry`, `ActivationBlock`, `LogEntry`, `LineEntry`), `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `ShotLines`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`, `MarkerLocks`.
+  - `UiTheme` (palette, fonts, `PanelShape`, `DiceStyle`, icons as data; `Rgba`), `UiThemes` (`Fantasy`, `SciFi`, `Resolve`), `HudLayout` (the Hud's slots per `HudPart`, 8 px margin, `Overlays` exempt).
   - `AssetCache` (content-addressed), `BuiltinContent`, `TerrainGenerators`, `ClientSettings`, `SessionStore`.
-- `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `UpdateRequiredScreen`, `GodotDispatcher`.
-- `src/Hud/`: the play Hud: `HeaderBar`, `UnitCard`, `CardColours`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `CombatLogPanel`, `EndMessage`, `KeyOverlay`, `Toasts`; `HudPlacement` puts each part in its `HudLayout` slot (`GameScreen.Layout`).
+- `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `SettingsDialog`, `UpdateRequiredScreen`, `GodotDispatcher`.
+- `src/Theme/` (namespace `Tabletop.Client.Theming`): `ThemeBuilder` (`UiTheme` to a Godot `Theme`), `Ui` (the current theme, colours and icons as Godot types, `Changed`; `Variation` type-variation names), `DiceFaces`. `Main` applies the theme to the tree root and each screen, since `Main` is a `Node`.
+- `src/Hud/`: the play Hud: `HeaderBar`, `UnitCard`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `CombatLogPanel`, `EndMessage`, `KeyOverlay`, `Toasts`; `HudPlacement` puts each part in its `HudLayout` slot (`GameScreen.Layout`).
 - `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `Lasers`, `UndoMoveButton`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
 - `src/Panels/`: `LobbyPanel`, `LogPanel` (no caller), `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
+- `content/themes/<id>/`: per theme `fonts/`, `icons/` and `LICENSES.md`; `fantasy` also has `panel.svg`, `button.svg` and `dice/`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
 - `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (eleven grouped `.glb` meshes from `scripts/terrain-meshes`; `hill` is round, `hill-rect` square). A missing file draws the piece's volumes.
 
@@ -55,11 +58,11 @@ dotnet test tests/Tabletop.Client.Tests   # the Godot-free core
 ## Conventions and pitfalls
 
 - `src/Core/` is compiled into `tests/Tabletop.Client.Tests` by `<Compile Include="../../client/src/Core/**/*.cs">`. A `using Godot` there breaks the tests; `check-client` fails on it. Core may reference only the three libs and the BCL.
-- `check-client` also fails on: a physics body or collision shape in `client/scenes`; Godot physics types in `client/src`; a rules-engine type (`Tabletop.GameServer`, `IRulesEngine`, `CommandDispatcher`, `Legality`, and similar) in `client/src`.
+- `check-client` also fails on a colour literal (`new Color(`, `Colors.`) under `src/Hud`, `src/Panels` or `src/Screens`: use `Ui` or a `Variation`. It also fails on: a physics body or collision shape in `client/scenes`; Godot physics types in `client/src`; a rules-engine type (`Tabletop.GameServer`, `IRulesEngine`, `CommandDispatcher`, `Legality`, and similar) in `client/src`.
 - No Godot physics; picking is ray versus AABB.
 - Godot's import step wipes `client/.godot/mono/temp/bin/`. Build after an import; otherwise every script fails with "class could not be found". `./scripts/client` builds in WSL first.
 - `Directory.Build.props` gives each OS its own `obj/Unix` or `obj/Windows_NT`; a shared `obj/` breaks restore. `TabletopBuildSlot` adds a suffix to `obj/` and `bin/` for the compose server containers; the client does not set it.
-- The Godot editor runs on the Windows host, so the client reads and writes under `OS.GetUserDataDir()` there: `settings.json` (`ClientSettings`: `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`, `LogFilter`, `LogOpen`), `session.bin` (the remembered JWT, `SessionStore`) and `cache/` (`AssetCache`). Settings are presentation only and never reach the server.
+- The Godot editor runs on the Windows host, so the client reads and writes under `OS.GetUserDataDir()` there: `settings.json` (`ClientSettings`: `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`, `LogFilter`, `LogOpen`, `Theme`, `CameraFollow`, `TurnBanner`, `RangeRings`), `session.bin` (the remembered JWT, `SessionStore`) and `cache/` (`AssetCache`). Settings are presentation only and never reach the server.
 - `ClientSettings.Default` URLs use `127.0.0.1`, not `localhost`: Windows tries `::1` first, which does not reach WSL, and .NET waits 21 s before falling back.
 - `Session` raises events on the main thread only through `IDispatcher`; tests use `ImmediateDispatcher`.
 - `SessionStore.Read` returns null for anything that is not three non-empty dot-separated segments, so a corrupt file never reaches an Authorization header.
