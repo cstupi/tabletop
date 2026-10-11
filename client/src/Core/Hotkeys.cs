@@ -5,11 +5,12 @@ public enum Intent
 {
     Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,
     Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, UndoMove, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight, StopHere,
+    CameraForward, CameraBack, CameraLeft, CameraRight, ToggleRoster, ToggleRangeRings,
 }
 
 /// <summary>The keys the game screen binds, named as Godot.Key names them so the Godot side maps by name. Not `Key`: that would
 /// collide with Godot.Key in every file that imports both namespaces.</summary>
-public enum HotKey { Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Enter, KpEnter, Escape, Shift, Q, E, C, L, M, P, G, Z, Tab, Backtab, Space, Home, End, F1, Slash, Question, Ctrl }
+public enum HotKey { Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Enter, KpEnter, Escape, Shift, Q, E, C, L, M, P, G, Z, Tab, Backtab, Space, Home, End, F1, Slash, Question, Ctrl, W, A, S, D, R, V }
 
 public static class Hotkeys
 {
@@ -35,6 +36,12 @@ public static class Hotkeys
         (HotKey.Q, _, _) => Intent.TurnLeft,
         (HotKey.E, _, _) => Intent.TurnRight,
         (HotKey.C, _, _) => Intent.StopHere,
+        (HotKey.W, _, _) => Intent.CameraForward,
+        (HotKey.S, _, _) => Intent.CameraBack,
+        (HotKey.A, _, _) => Intent.CameraLeft,
+        (HotKey.D, _, _) => Intent.CameraRight,
+        (HotKey.R, _, _) => Intent.ToggleRoster,
+        (HotKey.V, _, _) => Intent.ToggleRangeRings,
         _ => null,
     };
 }
