@@ -4,7 +4,8 @@ The game is built end to end and playable from the server's side: a Grimdark Fut
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
 after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (193 sim games over every catalog
 rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
-the client UX spec (branch `client-ux`), and waits for the owner's on-screen check (*Next* 2); polish follows.
+the client UX spec, both merged to `main` (`1a4ae07`, PR #1), and waits for the owner's on-screen check (*Next* 2).
+An undone roll's dice stay spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
 
@@ -48,6 +49,18 @@ Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `ob
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
+
+### 0. Architectural review of the server (owner's request, 2026-10-11)
+
+The owner asked for a principal-engineer review of the server code for simplification and efficiency, changing no
+intended behaviour: "the code base has become unmaintainable". Measured before the review: `server/game` is 8,007 lines
+in about 70 files, only `Rules/GrimdarkFuture/GfAttack.cs` (560) over 500; the Grimdark Future rules are 27 partials;
+`server/management` 2,078; `libs/Tabletop.Protocol` 880; `libs/Tabletop.Geometry` 1,220. Size is not the problem, so
+the review should read structure: how `Interpreter/`, `Effects/`, `Scheduler/`, `Dispatch/` and the `Gf*` partials fit,
+where a step, a hook and an effect row each decide the same thing, and what a reader must hold in mind to change one
+rule. Output: a findings document under `docs/superpowers/specs/` with each proposal's behaviour guarantee (the rules
+suite 193/193 on both drivers, `dotnet test` green) before any code moves. The owner's weekly budget was at 90% when
+this was asked; run the reading on `opus` after the reset, Fable coordinates only.
 
 ### 1. Open items from the defect fixes
 
