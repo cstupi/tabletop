@@ -9,8 +9,8 @@ namespace Tabletop.Sim.Run;
 /// Deployment's Ask names a unit; putting its models on the table is an ordinary MoveModels command, not an
 /// Ask (scheduler → The turn is an Ask: "moving models by hand never ends one"). This is where the simulator
 /// does that. It computes no rules outcome: the zone comes from the deployment_zone rows and
-/// Tabletop.Geometry resolves the shape, and nothing here judges whether a placement is good —
-/// placement is free under every enforcement setting (architecture.md → Rules enforcement).
+/// Tabletop.Geometry resolves the shape. A hand placement is judged for overlap only (IGameRules.PlacementBreach,
+/// move_overlap, p.7 "physically impossible locations"), so an anchor is skipped where any base would touch a model on the table.
 /// </summary>
 public static class HandPlacement
 {
@@ -39,15 +39,20 @@ public static class HandPlacement
         var spacing = widest + 0.5;
 
         var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
-        var anchor = ChooseAnchor(shelved, offsets, shape, table, chooser);
+        var occupied = projection.Models.Values.Where(m => m.Location is OnTable)
+            .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
+        var anchor = ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
     }
 
-    /// <summary>A random anchor at which every base of the grid is fully inside the zone; the zone-centre-ish fallback otherwise.</summary>
-    private static Point2 ChooseAnchor(
-        IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table, Chooser chooser)
+    /// <summary>
+    /// A random anchor at which every base of the grid is fully inside the zone and touches no model on the table (2D: the server rests
+    /// the new base on what is under it); the zone-centre-ish fallback otherwise.
+    /// </summary>
+    private static Point2 ChooseAnchor(IReadOnlyList<ModelSlot> models, IReadOnlyList<Point2> offsets, string? shape, TableSize table,
+        IReadOnlyList<PlacedModel> occupied, Chooser chooser)
     {
         // Candidates are drawn from the zone's bounding box, so a thin zone is not missed 39 times in 40.
         var vertices = shape is null ? [] : ZoneStyles.Resolve(shape, table).SelectMany(p => p.Vertices).ToList();
@@ -58,6 +63,7 @@ public static class HandPlacement
             var candidate = new Point2(minX + chooser.Double() * (maxX - minX), minY + chooser.Double() * (maxY - minY));
             var placed = models.Select((m, i) => Placed(m, new Point2(candidate.X + offsets[i].X, candidate.Y + offsets[i].Y))).ToList();
             if (!placed.All(pm => Geometry.Table.ContainsBase(table, pm))) continue;
+            if (placed.Any(pm => occupied.Any(o => Distance.EdgeToEdge(pm, o) <= 1e-6))) continue;
             if (shape is null || placed.All(pm => ZoneStyles.BaseFullyWithin(shape, table, pm))) return candidate;
         }
         return new Point2((minX + maxX) / 2, (minY + maxY) / 2);

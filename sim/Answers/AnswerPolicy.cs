@@ -22,8 +22,9 @@ public delegate Point2? MoveGoal(Guid modelId, PolicyView view);
 /// An Ask in, an answer out, from the legal set's shape alone. This is the default policy and it stays
 /// ignorant of state on purpose: a cleverer policy explores a narrower, more plausible region and finds
 /// fewer bugs (spec → Two ways to answer an Ask). It never narrows the set either — every choice is uniform over
-/// exactly what the server said was legal. It reads only PolicyView's geometry members, never UnitOf,
-/// ModelOf, TeamOf or Properties; a policy that wants those is a second IAnswerSource, named as such.
+/// exactly what the server said was legal. It reads only PolicyView's geometry members and a model's unit (ModelOf, for the
+/// region's Separation, which spares the moving unit's own models), never UnitOf, TeamOf or Properties; a policy that wants those
+/// is a second IAnswerSource, named as such.
 /// Deterministic for a seed, given the same run: one chooser stream advanced in Ask order.
 ///
 /// The one opt-in exception is a <see cref="MoveGoal"/> (a scenario's <c>Goal</c>, e.g. <see cref="ObjectiveGoal.Nearest"/>): with one,
@@ -141,16 +142,36 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         var difficult = view.VolumesById(m.DifficultVolumeIds);
         // An Ask may list no impassable volume to sweep and still not let a model end in one, so every sample lands clear of them all.
         var landing = view.Volumes.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
-        var destinations = m.ModelIds.ToDictionary(id => id, id => view.PlacedOf(id) is { } placed
-            ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view), landing)
-            : SampleExit(id, m, view));
+        // Models are sampled in ModelIds order, each Clear of the landings already taken and of the models standing (p.7). A model not yet
+        // sampled holds its own placement in `taken`, so no landing is put on a base that may yet stand still.
+        var taken = m.ModelIds.Select(id => (id, At: view.PlacedOf(id))).Where(x => x.At is not null).ToDictionary(x => x.id, x => x.At!.Value);
+        var destinations = new Dictionary<Guid, Point2?>();
+        void Record(Guid id, Point2? at, PlacedModel? start)
+        {
+            destinations[id] = at;
+            if (at is { } d) taken[id] = Landing(id, start, d, view);
+            else if (start is { } s) taken[id] = s;
+            else taken.Remove(id);
+        }
+        foreach (var id in m.ModelIds)
+        {
+            var start = view.PlacedOf(id);
+            Func<Point2, bool> clear = at => Clear(id, start, at, m, view, taken);
+            Record(id, start is { } placed
+                ? Sample(placed, m, impassable, difficult, view, goal?.Invoke(id, view), landing, clear)
+                : SampleExit(id, m, view, clear), start);
+        }
         // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model sampled
         // further than it is sampled again within the cap. Nothing is redrawn when no path enters.
         if (m.DifficultCap is { } cap && cap < m.Allowance && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && destinations[id] is { } d
                 && Movement.Check(p, d, m.Allowance, impassable, difficult, cap, view.Table).EntersDifficult))
             foreach (var id in m.ModelIds)
                 if (view.PlacedOf(id) is { } p && destinations[id] is { } d && p.Placement.Position.Horizontal.DistanceTo(d) > cap)
-                    destinations[id] = Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view), landing);
+                {
+                    taken.Remove(id);
+                    Record(id, Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view), landing,
+                        at => Clear(id, p, at, m, view, taken)), p);
+                }
         var moves = new List<ModelRelocation>();
         var sampled = false;
         foreach (var id in m.ModelIds)
@@ -166,9 +187,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
                 continue;
             }
             sampled = true;
-            var yaw = start?.Placement.Yaw ?? new Yaw(0);
-            moves.Add(new ModelRelocation(id, from, new OnTable(new Placement(
-                new Point3(destination.Value.X, destination.Value.Y, view.SurfaceAt(destination.Value)), yaw))));
+            moves.Add(new ModelRelocation(id, from, new OnTable(Landing(id, start, destination.Value, view).Placement)));
         }
         // Nothing sampled for any model: pass when the Ask allows it, else the stand-still answer above.
         return !sampled && ask.AllowPass ? new Passed() : new Destinations(moves);
@@ -180,7 +199,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     /// MoveContainment names), fully on the table and clear of impassable terrain, as every move's landing is. Null when the container has no table
     /// position or no sample passes.
     /// </summary>
-    private Point2? SampleExit(Guid modelId, MoveRegion m, PolicyView view)
+    private Point2? SampleExit(Guid modelId, MoveRegion m, PolicyView view, Func<Point2, bool>? clear = null)
     {
         if (m.Containment is not { ExitingId: { } exiting, ExitWithin: { } within }) return null;
         if (_o.MoveSamples <= 0 || view.PlacedOf(exiting) is not { } container) return null;
@@ -192,7 +211,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var distance = chooser.Double() * within;
             var candidate = new Point2(origin.X + Math.Cos(bearing) * distance, origin.Y + Math.Sin(bearing) * distance);
             var placed = new PlacedModel(view.BodyOf(modelId), new Placement(new Point3(candidate.X, candidate.Y, 0), new Yaw(0)));
-            if (Containment.BaseFullyWithin(placed, container, within) && Table.ContainsBase(view.Table, placed) && !Lands(placed, candidate, landing)) return candidate;
+            if (Containment.BaseFullyWithin(placed, container, within) && Table.ContainsBase(view.Table, placed) && !Lands(placed, candidate, landing)
+                && (clear is null || clear(candidate))) return candidate;
         }
         return null;
     }
@@ -212,7 +232,8 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     }
 
     private Point2? Sample(PlacedModel start, MoveRegion m, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null, IReadOnlyList<WorldVolume>? landing = null)
+        IReadOnlyList<WorldVolume> difficult, PolicyView view, Point2? target = null, IReadOnlyList<WorldVolume>? landing = null,
+        Func<Point2, bool>? clear = null)
     {
         var origin = start.Placement.Position.Horizontal;
         // A minimum (MoveRegion.MinDistance) the table has room for is sampled above; one it has no room for is met only at the farthest corner.
@@ -236,9 +257,34 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
             var check = Movement.Check(start, candidate, m.Allowance, impassable, difficult, m.DifficultCap, view.Table);
             if (check is not { WithinAllowance: true, CrossesImpassable: false, LeavesTable: false }) continue;
             if (landing is { Count: > 0 } && Lands(start, candidate, landing)) continue;
+            if (clear is not null && !clear(candidate)) continue;
             if (target is not { } goal) return candidate;
             if (best is null || candidate.DistanceTo(goal) < best.Value.DistanceTo(goal)) best = candidate;
         }
         return best ?? fallback;
+    }
+
+    /// <summary>The model's body landed at a point: its start's yaw, rested on what is under its base, as the server settles it.</summary>
+    private static PlacedModel Landing(Guid id, PlacedModel? start, Point2 at, PolicyView view)
+    {
+        var yaw = start?.Placement.Yaw ?? new Yaw(0);
+        return new PlacedModel(view.BodyOf(id), new Placement(new Point3(at.X, at.Y, view.RestOf(id, at, yaw)), yaw));
+    }
+
+    /// <summary>
+    /// The region's own contact fields, as the server reads them (p.7, GfMoves.ContactBreach): the landing on no base, the swept path across
+    /// no model standing (unless PassesModels; one it already overlaps is left, Collision.Crosses), and Separation from every other unit's
+    /// model. A geometry test, as Lands is.
+    /// </summary>
+    private static bool Clear(Guid id, PlacedModel? start, Point2 at, MoveRegion m, PolicyView view, IReadOnlyDictionary<Guid, PlacedModel> taken)
+    {
+        var landing = Landing(id, start, at, view);
+        var standing = view.Projection.Models.Keys.Where(x => x != id && !m.ModelIds.Contains(x)).Select(x => (Id: x, At: view.PlacedOf(x)))
+            .Where(x => x.At is not null).Select(x => (x.Id, At: x.At!.Value)).ToList();
+        var everyone = standing.Concat(taken.Where(kv => kv.Key != id).Select(kv => (Id: kv.Key, At: kv.Value))).ToList();
+        if (everyone.Any(o => Overlap.Bases(landing, o.At))) return false;
+        if (start is { } s && !m.PassesModels && Collision.Crosses(s, at, standing.Select(o => o.At).ToList())) return false;
+        var unit = view.ModelOf(id).UnitId;
+        return m.Separation is not { } gap || everyone.All(o => view.ModelOf(o.Id).UnitId == unit || Distance.EdgeToEdge(landing, o.At) >= gap + 1e-6);
     }
 }

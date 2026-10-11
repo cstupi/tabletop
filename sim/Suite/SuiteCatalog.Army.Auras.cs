@@ -9,8 +9,8 @@ public static partial class SuiteCatalog
     private static partial class ArmyGames
     {
         static (string Uid, string Army) BattleBrothers => ("78qp9l5alslt6yj8", "Battle Brothers");
-        static TestGame Melee((string Uid, string Army) book, string name, string aura, GameCheck check, IReadOnlyList<ScenarioRule>? enemy = null) =>
-            Game(book, name, Play.Charges, [aura], [], [], [check], carriers: Carriers(aura, 3), units: 3, enemy: enemy);
+        static TestGame Melee((string Uid, string Army) book, string name, string aura, GameCheck check, IReadOnlyList<ScenarioRule>? enemy = null, ulong seed = 1) =>
+            Game(book, name, Play.Charges, [aura], [], [], [check], carriers: Carriers(aura, 3), units: 3, enemy: enemy, seed: seed);
         static TestGame Shooting((string Uid, string Army) book, string name, string aura, GameCheck check, IReadOnlyList<ScenarioRule>? enemy = null,
             Func<Tabletop.Sim.Scenarios.ScenarioBuilder, Tabletop.Sim.Scenarios.ScenarioBuilder>? board = null, Play play = Play.Shoots) =>
             Game(book, name, play, [aura], [], [], [check], carriers: Carriers(aura, 2), units: 2, enemy: enemy, board: board);
@@ -18,7 +18,7 @@ public static partial class SuiteCatalog
         public static IReadOnlyList<TestGame> GrantAuras =>
         [
             Melee(BattleBrothers, "battle-brothers-bane-in-melee-aura", "Bane in Melee Aura",
-                Rerolls("Bane in Melee Aura", Carrying("Bane in Melee Aura", When.Charging), [6], successOnly: false, "\"This model and its unit get Bane in melee.\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")),
+                Rerolls("Bane in Melee Aura", Carrying("Bane in Melee Aura", When.Charging), [6], successOnly: false, "\"This model and its unit get Bane in melee.\": p.13 Bane, \"re-roll unmodified Defense results of 6\""), seed: 2),
             Shooting(BattleBrothers, "battle-brothers-bane-when-shooting-aura", "Bane when Shooting Aura",
                 Rerolls("Bane when Shooting Aura", Carrying("Bane when Shooting Aura", When.Shooting), [6], successOnly: false, "\"This model and its unit get Bane when shooting.\": p.13 Bane, \"re-roll unmodified Defense results of 6\"")),
             Shooting(Dynasty, "eternal-dynasty-ignores-cover-aura", "Ignores Cover Aura",
