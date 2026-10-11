@@ -2,6 +2,7 @@ using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Projection = Tabletop.Protocol.Projection;
@@ -15,7 +16,7 @@ public partial class DecisionBox : PanelContainer
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _controls = new();
     readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
-        _refusalLabel = new() { Modulate = Colors.Orange, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { Modulate = new Color(1, 1, 1, 0.6f) };
+        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim };
     MoveRegionNode? _region;
     Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly HashSet<Guid> _sealed = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];

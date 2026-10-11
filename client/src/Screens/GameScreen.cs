@@ -2,6 +2,7 @@ using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Screens;
@@ -14,7 +15,7 @@ public partial class GameScreen : Control
     Label _status = null!, _toast = null!, _selection = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
     Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme;
 
     public override void _Ready()
     {
@@ -35,7 +36,7 @@ public partial class GameScreen : Control
         var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; corner.AddChild(top);
         var home = new Button { Text = "Home", FocusMode = FocusModeEnum.None }; home.Pressed += () => Guarded.Run(_session.DisconnectAsync, Toast); top.AddChild(home);
         top.AddChild(_status = new Label());
-        corner.AddChild(_toast = new Label { Modulate = Colors.Orange });
+        corner.AddChild(_toast = new Label { ThemeTypeVariation = Variation.Warning });
         // A Hud button that keeps the focus would be pressed by Space, the camera key: buttons give it straight back.
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
         GetViewport().GuiFocusChanged += _onFocus;
@@ -49,11 +50,13 @@ public partial class GameScreen : Control
             : will ? $"Connection lost ({c.Reason}); reconnecting…" : $"Disconnected: {c.Reason}");
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.BoardChanged += RefreshAll; _session.EventsApplied += _onEvents;
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
+        _onTheme = OnTheme; Ui.Changed += _onTheme;
         Rebuild();
     }
 
     public override void _ExitTree()
     {
+        Ui.Changed -= _onTheme;
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.BoardChanged -= RefreshAll; _session.EventsApplied -= _onEvents;
@@ -83,6 +86,14 @@ public partial class GameScreen : Control
         if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel());
         if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this));
         ShowPlayPanels(playing);
+    }
+
+    /// <summary>A theme switch: the panels and the team colours on the table again, and the undo button's theme, which its CanvasLayer does not inherit.</summary>
+    void OnTheme()
+    {
+        Rebuild();
+        if (_session.GameId is not null) Table.Redraw();   // the table is bound only for a game
+        if (_undo is not null && IsInstanceValid(_undo)) _undo.Theme = Ui.Theme;
     }
 
     /// <summary>Teams now; the selection once every other handler of this change has run, since the decision box clears highlights when it renders.</summary>

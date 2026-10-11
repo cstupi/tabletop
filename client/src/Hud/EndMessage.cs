@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
@@ -12,7 +13,7 @@ public partial class EndMessage : Control
     readonly PanelContainer _panel = new();
     readonly Label _result = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _reason = new();
     readonly VBoxContainer _scores = new();
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -29,11 +30,13 @@ public partial class EndMessage : Control
         box.AddChild(_reason); box.AddChild(_scores);
         _onEvents = _ => Render(); _onChanged = Render;
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged;
+        _onTheme = Render; Ui.Changed += _onTheme;
         Render();
     }
 
     public override void _ExitTree()
     {
+        Ui.Changed -= _onTheme;
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged;
     }

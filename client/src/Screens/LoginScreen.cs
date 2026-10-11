@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Screens;
 
@@ -26,7 +27,7 @@ public partial class LoginScreen : Control
         row.AddChild(Button("Email me a code", () => Run(async s => { _methodId = await s.SendOtpAsync(_email.Text); _code.Visible = true; _error.Text = "Code sent."; })));
         box.AddChild(_code = new LineEdit { PlaceholderText = "one-time code", Visible = false });
         _code.TextSubmitted += _ => Run(s => s.VerifyOtpAsync(_methodId!, _code.Text));
-        box.AddChild(_error = new Label { Modulate = Colors.Orange });
+        box.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
     }
 
     static Button Button(string text, Action onPressed) { var b = new Button { Text = text }; b.Pressed += onPressed; return b; }

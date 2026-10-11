@@ -2,6 +2,7 @@ using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
@@ -9,8 +10,6 @@ namespace Tabletop.Client.Hud;
 /// <summary>The play log (client UX spec → Combat log): a filter over CombatLog's blocks, rolls and lines. Renders only; every word is CombatLog's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
-    static readonly Color Struck = new(0.5f, 0.5f, 0.5f), Pending = new(0.6f, 0.6f, 0.6f), Lit = Colors.Yellow, Plain = Colors.White,
-        Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.85f, 0.4f, 0.4f);
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
@@ -73,7 +72,7 @@ public partial class CombatLogPanel : VBoxContainer
         };
         var row = new HBoxContainer(); into.AddChild(row);
         var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
-        if (e.Undone) button.Modulate = Struck; else if (_s.PendingUndoTo is { } to && e.Seq > to) button.Modulate = Pending;
+        if (e.Undone || _s.PendingUndoTo is { } to && e.Seq > to) button.Modulate = Ui.Faded;
         button.Pressed += () => { Highlight(e); if (e is LineEntry) return; if (!_open.Remove(Key(e))) _open.Add(Key(e)); Render(false); };
         row.AddChild(button);
         if (e is RollEntry shown && shown.Record.Id == _reveal) _revealed = button;
@@ -88,8 +87,14 @@ public partial class CombatLogPanel : VBoxContainer
     void Details(VBoxContainer into, RollEntry r)
     {
         foreach (var line in r.Basis.Concat(r.Modifiers)) into.AddChild(new Label { Text = line });
-        foreach (var d in r.Dice) into.AddChild(new Label { Text = $"{CombatLog.Pip(d.Raw)}  {d.Text}", Modulate = !d.Judged ? Plain : d.Success ? Pass : Fail });
-        foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, Modulate = a.Undone ? Struck : Plain });
+        foreach (var d in r.Dice)
+        {
+            // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
+            var line = new HBoxContainer(); into.AddChild(line);
+            line.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+            line.AddChild(new Label { Text = d.Text, ThemeTypeVariation = !d.Judged ? "" : d.Success ? Variation.Success : Variation.Failure });
+        }
+        foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
         var chips = new HFlowContainer(); into.AddChild(chips);   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (r.Undone) return;
@@ -105,7 +110,7 @@ public partial class CombatLogPanel : VBoxContainer
     {
         if (!IsInstanceValid(_view)) return;
         foreach (var piece in _view.Pieces.OfType<PieceNode>()) piece.SetHighlight(null);
-        foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Lit);
+        foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
     }
 
     void Send(Command command) => Guarded.Command(_s, command, _report);

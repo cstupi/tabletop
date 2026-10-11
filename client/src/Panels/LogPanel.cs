@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
@@ -43,13 +44,13 @@ public partial class LogPanel : PanelContainer
             var isLive = live.Contains(e.Seq);
             var line = $"#{e.Seq}  {LogText.Describe(e, names)}";
             var text = new Button { Text = !isLive && e.Payload is not Undone ? Strike(line) : line, Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-            if (!live.Contains(e.Seq) && e.Payload is not Undone) text.Modulate = new Color(0.5f, 0.5f, 0.5f);
-            if (_s.PendingUndoTo is { } to && e.Seq > to) text.Modulate = new Color(0.6f, 0.6f, 0.6f);
+            // A Button takes no Label variation: struck and pending rows fade instead.
+            if (!isLive && e.Payload is not Undone || _s.PendingUndoTo is { } to && e.Seq > to) text.Modulate = Ui.Faded;
             text.Pressed += () =>
             {
                 if (!IsInstanceValid(_view)) return;
                 foreach (var n in _view.Pieces.OfType<PieceNode>()) n.SetHighlight(null);
-                foreach (var id in LogText.Touched(e)) _view.PieceAt(id)?.SetHighlight(Colors.Yellow);
+                foreach (var id in LogText.Touched(e)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
             };
             row.AddChild(text);
             if (e.Payload is StepCompleted { Rolls.Count: > 0 } rolled)   // each roll's dice inline (in-game UX spec → Log)

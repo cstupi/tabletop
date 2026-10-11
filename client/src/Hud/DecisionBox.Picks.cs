@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 using Projection = Tabletop.Protocol.Projection;
 
@@ -107,7 +108,7 @@ public partial class DecisionBox
             foreach (var (id, n) in pick.Counts)
                 if (n > 0 && _view.PieceAt(id) is { } node && IsInstanceValid(node) && p.Models.GetValueOrDefault(id) is { } model)
                 {
-                    var mark = new Label3D { Text = left[id] > 1 ? $"✕ {n}/{left[id]}" : "✕", Modulate = Colors.Red, FontSize = 64, PixelSize = 0.01f,
+                    var mark = new Label3D { Text = left[id] > 1 ? $"✕ {n}/{left[id]}" : "✕", Modulate = Ui.Failure, FontSize = 64, PixelSize = 0.01f,
                         Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, Position = new Vector3(0, (float)model.Slot.Height + 0.5f, 0) };
                     node.AddChild(mark); _marks.Add(mark);
                 }

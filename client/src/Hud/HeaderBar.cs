@@ -10,14 +10,13 @@ namespace Tabletop.Client.Hud;
 /// line. After the end the first line carries "Game over", which reopens the end message.</summary>
 public partial class HeaderBar : PanelContainer
 {
-    static readonly Color Dim = new(1, 1, 1, 0.45f), Lit = new(1f, 0.85f, 0.2f), Ticked = new(0.6f, 0.85f, 0.6f);
     Session _s = null!;
     readonly HBoxContainer _top = new(), _activation = new();
-    readonly Label _waiting = new() { Modulate = new Color(1f, 0.8f, 0.4f) };
+    readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning };
     readonly Button _gameOver = new() { Flat = true, Visible = false };
     readonly Button _settings = new() { Flat = true, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
-    // Session outlives the header: the subscriptions are fields and come off in _ExitTree.
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged;
+    // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
 
     public event Action<Guid, Vector2>? TeamMenuRequested;
     public event Action? GameOverPressed;
@@ -35,11 +34,13 @@ public partial class HeaderBar : PanelContainer
         _gameOver.Pressed += () => GameOverPressed?.Invoke();
         _onEvents = _ => Render(); _onChanged = Render;
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged;
+        _onTheme = Render; Ui.Changed += _onTheme;
         Render();
     }
 
     public override void _ExitTree()
     {
+        Ui.Changed -= _onTheme;
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged;
     }
@@ -76,7 +77,7 @@ public partial class HeaderBar : PanelContainer
                 _activation.AddChild(new Label
                 {
                     Text = item.State == OutlineState.Done ? $"  ✓ {item.Label}" : $"  {item.Label}",
-                    Modulate = item.State switch { OutlineState.Done => Ticked, OutlineState.Current => Lit, _ => Dim },
+                    ThemeTypeVariation = item.State switch { OutlineState.Done => Variation.Success, OutlineState.Current => Variation.Accent, _ => Variation.Dim },
                 });
         }
 

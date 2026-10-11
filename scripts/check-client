@@ -17,4 +17,7 @@ fi
 if grep -rlns 'using Godot' client/src/Core; then
     echo "check-client: client/src/Core must be Godot-free" >&2; status=1
 fi
+if grep -rnE 'new Color\(|\bColors\.|\bColor\s+\w+\s*=\s*new\(' client/src/Hud client/src/Panels client/src/Screens; then
+    echo "check-client: a colour literal in Hud, Panels or Screens; use Ui or Variation" >&2; status=1
+fi
 exit $status

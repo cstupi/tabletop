@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
@@ -9,10 +10,10 @@ namespace Tabletop.Client.Hud;
 /// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling.</summary>
 public partial class DiceTray : PanelContainer
 {
-    static readonly Color Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.5f, 0.5f, 0.5f), Neutral = new(0.85f, 0.85f, 0.85f), Tumbling = Colors.White;
     const double TumbleSeconds = 0.4;
     Session _s = null!; Control? _below;
     readonly Button _line = new() { Flat = true };
+    readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
     RollEntry? _shown; double _tumble;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _place;
@@ -27,6 +28,9 @@ public partial class DiceTray : PanelContainer
         GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Begin;
         MouseFilter = MouseFilterEnum.Ignore;
         AddChild(_line);
+        _line.AddChild(_row);   // a Button lays out no children: the row fills it and sets its minimum size
+        _row.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        _row.MinimumSizeChanged += () => _line.CustomMinimumSize = _row.GetCombinedMinimumSize();
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onEvents = _ => Render(); _onBoard = Render;
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
@@ -77,7 +81,24 @@ public partial class DiceTray : PanelContainer
     {
         if (_shown is not { } r) return;
         var settled = _tumble <= 0;
-        _line.Text = r.Collapsed(face => CombatLog.Pip(settled ? face : _faces.Next(1, 7)));
-        _line.Modulate = !settled ? Tumbling : !r.Judged ? Neutral : r.Successes > 0 ? Pass : Fail;
+        foreach (var c in _row.GetChildren()) { _row.RemoveChild(c); c.QueueFree(); }
+        Add(new Label { Text = r.Title });
+        foreach (var d in r.Dice)
+        {
+            var face = settled ? d.Raw : _faces.Next(1, 7);
+            // An unjudged die shows neither pass nor fail, so it is drawn as a plain (unfaded) face.
+            Add(DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success)));
+        }
+        // An unjudged roll has no pass or fail, so no result label.
+        if (settled && r.Judged) Add(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Dim });
+    }
+
+    void Add(Control c) { Ignore(c); _row.AddChild(c); }
+
+    /// <summary>The click belongs to the button: nothing in the row takes the mouse.</summary>
+    static void Ignore(Control c)
+    {
+        c.MouseFilter = MouseFilterEnum.Ignore;
+        foreach (var child in c.GetChildren()) if (child is Control k) Ignore(k);
     }
 }

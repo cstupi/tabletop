@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
@@ -30,7 +31,7 @@ public partial class LobbyPanel : VBoxContainer
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
-        AddChild(_error = new Label { Modulate = Colors.Orange });
+        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
