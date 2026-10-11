@@ -12,6 +12,9 @@ public partial class StatSheet : PanelContainer
     static readonly Color Dim = new(1, 1, 1, 0.55f);
     Session _s = null!; TableInput _input = null!;
     readonly SheetFocus _focus = new();
+    Guid? _told;
+    public Guid? UnitId => _focus.UnitId;
+    public event Action<Guid?>? FocusChanged;
     readonly TabContainer _tabs = new() { CustomMinimumSize = new Vector2(420, 320) };
     readonly VBoxContainer _stats = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _round = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     Guid? _activation;
@@ -62,6 +65,7 @@ public partial class StatSheet : PanelContainer
 
     void Render()
     {
+        if (_told != _focus.UnitId) { _told = _focus.UnitId; FocusChanged?.Invoke(_told); }
         var p = _s.Projection; var game = _s.Game; var unit = _focus.UnitId;
         Visible = p is not null && game is not null && game.Status is GameStatus.Playing or GameStatus.Ended
             && unit is { } u && p.Units.ContainsKey(u);

@@ -9,7 +9,9 @@ namespace Tabletop.Client.Hud;
 public partial class LogDrawer : VBoxContainer
 {
     Session _s = null!;
-    readonly PanelContainer _drawer = new() { Visible = false, CustomMinimumSize = new Vector2(480, 420) };
+    readonly PanelContainer _drawer = new() { Visible = false, CustomMinimumSize = new Vector2(640, 420) };
+    readonly CombatLogPanel _log = new();
+    public CombatLogPanel CombatLog => _log;
     readonly Button _toggle = new() { Text = "Log (G)", SizeFlagsHorizontal = SizeFlags.ShrinkEnd };
 
     /// <summary>A failed undo or dice edit from the log, for the screen's toast.</summary>
@@ -22,19 +24,22 @@ public partial class LogDrawer : VBoxContainer
         GrowHorizontal = GrowDirection.Begin; GrowVertical = GrowDirection.Begin;
         Alignment = AlignmentMode.End;
         var inner = new VBoxContainer(); _drawer.AddChild(inner);
+        // Animate stays here until plan 04's Settings dialog takes it.
         var animate = new CheckBox { Text = "Animate", ButtonPressed = session.Settings.Animate };
         animate.Toggled += on => _s.UpdateSettings(x => x with { Animate = on });
         inner.AddChild(animate);
-        var log = new LogPanel(); inner.AddChild(log); log.Bind(session, view, message => Reported?.Invoke(message));
+        inner.AddChild(_log); _log.Bind(session, view, message => Reported?.Invoke(message));
         AddChild(_drawer); AddChild(_toggle);
         _toggle.Pressed += Toggle;
+        SetOpen(session.Settings.LogOpen);
     }
 
-    public void Toggle()
-    {
-        _drawer.Visible = !_drawer.Visible;
-        _toggle.Text = _drawer.Visible ? "Close log (G)" : "Log (G)";
-    }
+    public void Toggle() { SetOpen(!_drawer.Visible); _s.UpdateSettings(x => x with { LogOpen = _drawer.Visible }); }
+
+    /// <summary>The dice tray's click: open the log at that roll.</summary>
+    public void OpenAt(Guid rollId) { if (!_drawer.Visible) Toggle(); _log.Reveal(rollId); }
+
+    void SetOpen(bool open) { _drawer.Visible = open; _toggle.Text = open ? "Close log (G)" : "Log (G)"; }
 
     public override void _Input(InputEvent e)
     {
