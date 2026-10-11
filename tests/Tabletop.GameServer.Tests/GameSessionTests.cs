@@ -237,6 +237,63 @@ public class GameSessionTests
         Assert.DoesNotContain(late, session.Clients);
     }
 
+    /// <summary>One command, four batches (its own and three Advance batches): one append holds them all, and every viewer gets
+    /// each batch as its own message, in order, only once the log holds it.</summary>
+    [Fact]
+    public async Task A_commands_batches_are_appended_once_and_no_client_receives_one_before_it_is_stored()
+    {
+        var stored = new InMemoryEventLog();
+        var log = new CountingLog(stored);
+        var session = await Hydrate(Info with { Status = GameStatus.Playing }, log, Services(log, new ChainEngineFactory(3)));
+        bool Stored(long seq) => stored.ReadAsync(Info.Id, seq - 1, CancellationToken.None).Result.Any(e => e.Seq == seq);
+        var clients = new[] { new DurabilityClient(Samples.P1, Stored), new DurabilityClient(P2, Stored), new DurabilityClient(Watcher, Stored) };
+        foreach (var c in clients) await session.AttachAsync(c);
+
+        await session.ReceiveAsync(clients[0], new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+
+        Assert.Equal(1, log.Appends);
+        Assert.Equal([1L, 2L, 3L, 4L], (await stored.ReadAsync(Info.Id, 0, CancellationToken.None)).Select(e => e.Seq));
+        foreach (var c in clients)
+        {
+            Assert.Equal([[1L], [2L], [3L], [4L]], c.Received.OfType<EventsMessage>().Select(m => m.Events.Select(e => e.Seq).ToArray()));
+            Assert.All(c.StoredWhenSent, Assert.True);
+            Assert.Equal(4L, Assert.IsType<AtRest>(c.Received[^1]).Seq);
+        }
+    }
+
+    /// <summary>The projection runs ahead of the log inside one command. A failed append faults the session before anything is sent,
+    /// so no client saw the unstored events, and a fresh hydration rebuilds from the log and plays the command again from there.</summary>
+    [Fact]
+    public async Task A_failed_append_faults_the_session_sends_none_of_the_command_and_hydration_rebuilds_from_the_log()
+    {
+        var stored = new InMemoryEventLog();
+        var log = new FailingLog(stored);
+        var session = await Hydrate(Info with { Status = GameStatus.Playing }, log, Services(log, new ChainEngineFactory(3)));
+        var (clay, opponent) = (new RecordingClient(Samples.P1), new RecordingClient(P2));
+        await session.AttachAsync(clay); await session.AttachAsync(opponent);
+        log.Fail = true;
+
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+
+        Assert.True(session.Faulted);
+        foreach (var c in new[] { clay, opponent })
+        {
+            Assert.Equal(WebSocketCloseStatus.InternalServerError, c.Closed!.Value.Status);
+            Assert.Empty(c.Received.OfType<EventsMessage>());
+            Assert.Empty(c.Received.OfType<AtRest>());
+        }
+        Assert.Empty(await stored.ReadAsync(Info.Id, 0, CancellationToken.None));
+
+        log.Fail = false;
+        var again = await Hydrate(Info with { Status = GameStatus.Playing }, log, Services(log, new ChainEngineFactory(3)));
+        Assert.Equal(0, again.Play!.Projection.LastSeq);
+        var retry = new RecordingClient(Samples.P1);
+        await again.AttachAsync(retry);
+        await again.ReceiveAsync(retry, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
+        Assert.Equal([1L, 2L, 3L, 4L], (await stored.ReadAsync(Info.Id, 0, CancellationToken.None)).Select(e => e.Seq));
+        Assert.Equal(4, again.Play.Projection.LastSeq);
+    }
+
     /// <summary>Teardown on a drained session is a no-op. The handshake's finally detaches outside every catch, and two
     /// routine paths reach it after the mailbox is gone: the SIGTERM drain with a socket still unwinding, and the
     /// re-hydration that supersedes a faulted session. A throw here escapes the /ws endpoint and skips the send loop and
@@ -286,4 +343,50 @@ public sealed class ThrowingEngine(bool always) : IRulesEngine
 public sealed class ThrowingEngineFactory(bool always = false) : IRulesEngineFactory
 {
     public IRulesEngine Create(IGameRules rules, GameInfo game) => new ThrowingEngine(always);
+}
+
+/// <summary>After the first event, emits one event per Advance until the log holds batches + 1: one command, several batches.</summary>
+public sealed class ChainEngine(int batches) : IRulesEngine
+{
+    public Tabletop.GameServer.Dispatch.Legality Judge(GameState state, Command command, Actor actor) => Tabletop.GameServer.Dispatch.Legality.Legal;
+    public EngineResult Execute(GameState state, Command command, Actor actor) => new RefuseCommand(RefusalReason.Unknown, "test engine");
+    public Emit Advance(GameState state) => state.Applier.Log.Count is var n && n >= 1 && n <= batches ? new Emit([new PhaseStarted($"link {n}")]) : Emit.None;
+}
+
+public sealed class ChainEngineFactory(int batches) : IRulesEngineFactory
+{
+    public IRulesEngine Create(IGameRules rules, GameInfo game) => new ChainEngine(batches);
+}
+
+public sealed class CountingLog(IEventLog inner) : IEventLog
+{
+    public int Appends { get; private set; }
+    public Task AppendAsync(Guid gameId, IReadOnlyList<GameEvent> events, CancellationToken ct) { Appends++; return inner.AppendAsync(gameId, events, ct); }
+    public Task<IReadOnlyList<GameEvent>> ReadAsync(Guid gameId, long afterSeq, CancellationToken ct) => inner.ReadAsync(gameId, afterSeq, ct);
+    public Task<long> LastSeqAsync(Guid gameId, CancellationToken ct) => inner.LastSeqAsync(gameId, ct);
+}
+
+/// <summary>Throws from every append while Fail is set, storing nothing.</summary>
+public sealed class FailingLog(IEventLog inner) : IEventLog
+{
+    public bool Fail { get; set; }
+    public Task AppendAsync(Guid gameId, IReadOnlyList<GameEvent> events, CancellationToken ct) => Fail ? throw new InvalidOperationException("the database is gone") : inner.AppendAsync(gameId, events, ct);
+    public Task<IReadOnlyList<GameEvent>> ReadAsync(Guid gameId, long afterSeq, CancellationToken ct) => inner.ReadAsync(gameId, afterSeq, ct);
+    public Task<long> LastSeqAsync(Guid gameId, CancellationToken ct) => inner.LastSeqAsync(gameId, ct);
+}
+
+/// <summary>Records, for every event it is sent, whether the log already held it at the moment of sending.</summary>
+public sealed class DurabilityClient(Guid participantId, Func<long, bool> stored) : ISessionClient
+{
+    public Guid ConnectionId { get; } = Guid.CreateVersion7();
+    public Guid ParticipantId { get; } = participantId;
+    public List<SocketMessage> Received { get; } = new();
+    public List<bool> StoredWhenSent { get; } = new();
+    public ValueTask SendAsync(SocketMessage message)
+    {
+        if (message is EventsMessage m) StoredWhenSent.AddRange(m.Events.Select(e => stored(e.Seq)));
+        Received.Add(message);
+        return ValueTask.CompletedTask;
+    }
+    public ValueTask CloseAsync(WebSocketCloseStatus status, string reason) => ValueTask.CompletedTask;
 }

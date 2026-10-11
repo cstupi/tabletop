@@ -35,11 +35,12 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `GameSession` is one game in memory. All mutation runs on its mailbox loop (a `Channel`), so there is no lock. A newer socket for a participant replaces the older.
 - A command frame goes to `CommandDispatcher.Dispatch`, which returns `Applied(events, warning)` or `Refused`. It never appends or broadcasts.
 - `Classify` sorts commands: `Override` (menu edits: moves, markers, wounds, conditions, score, round), `Undo`, `Abandon`, `Answer`, `Engine` (dice commands).
-- The session appends the events to the log first, then broadcasts, then calls `AdvanceAsync`: `IRulesEngine.Advance` runs repeatedly, each batch appended, until it returns nothing (cap 10000 iterations).
-- An exception in `Advance` faults the session: every socket closes 1011.
+- `GameSession.RunToRestAsync` is the write path for a command, the catch-up at start and the end of setup: the command's events, then `IRulesEngine.Advance` repeatedly until it returns nothing (cap 10000 iterations), each batch applied to the projection as it comes; then one `IEventLog.AppendAsync` of every batch (one transaction, one `NpgsqlBatch`), then each batch broadcast as its own `EventsMessage`, in order. Nothing is sent before the append returns.
+- A failed append faults the session before anything is sent; the projection, ahead of the log, is discarded with it. An `Advance` exception or a `ProjectionDesyncException` appends what was staged, then faults.
+- A fault closes every socket 1011.
 - `RulesEngine.Advance` is `SequenceInterpreter.Advance` while frames are on the stack; the `IScheduler` runs only when no framed Ask is open and the stack is empty.
 - Undo is `Undone(toSeq)`: events are never removed. `EventApplier.EffectiveLog` is the live log; `Replay.To` rebuilds a projection to a seq.
-- Hydration decides from the log, not the row: an ended log over a `playing` row writes the row and advances nothing; any other log catches up through `AdvanceAsync`.
+- Hydration decides from the log, not the row: an ended log over a `playing` row writes the row and advances nothing; any other log catches up through `RunToRestAsync`.
 - Rows written: in `lobby` and `setup`, teams, participant team/army, configuration, `StartSetupAsync` (draft tree, status to `setup`), `WriteDraftAsync` (one write per drop), `EndSetupAsync` (final tree, `army_snapshot` per participant, status to `playing`).
 - From `playing` on, the only row write is `EndGameAsync` (`playing` to `ended`, guarded on `playing`), after the log ends the game. A failed write is logged and the next hydration retries it.
 - The engine holds no state between calls. A step reads position, values and history from the log (`FrameReader`) and returns one outcome: `Complete`, `Finish`, `OpenAsks`, or `Push`.

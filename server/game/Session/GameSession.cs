@@ -15,7 +15,7 @@ public sealed class SessionDrainedException() : InvalidOperationException("sessi
 
 /// <summary>
 /// One game in memory. Every mutation runs on the mailbox loop, so there is no lock: connections post frames, the loop handles
-/// them one at a time. The log is appended before anything is broadcast; a row is written after the broadcast (setup's rows, and the end of the game).
+/// them one at a time. A command's events are appended in one call before any of them is broadcast; a row is written after the broadcast (setup's rows, and the end of the game).
 /// </summary>
 public sealed partial class GameSession
 {
@@ -60,7 +60,7 @@ public sealed partial class GameSession
             if (Play is null) return 0;
             if (Play.Projection.Ended is not null) { if (Info.Status == GameStatus.Playing) await MarkEndedAsync(); return 0; }
             if (Info.Status != GameStatus.Playing && Play.Projection.LastSeq == 0) return 0;   // ended during setup: never played, nothing to advance
-            await AdvanceAsync();
+            await RunToRestAsync([], null, null);
             return 0;
         });
     }
@@ -122,44 +122,72 @@ public sealed partial class GameSession
         foreach (var c in _clients.Concat(_watchers).ToList()) if (c != except) await c.SendAsync(message);
     }
 
-    /// <summary>The log path: seq assigned here, appended first, applied, then broadcast with each viewer's sealed answers withheld.</summary>
-    internal async Task AppendAsync(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
+    /// <summary>One command's batches, applied to the projection and not yet in the log: each with the sealed asks open before it.</summary>
+    private readonly List<(IReadOnlyList<GameEvent> Batch, IReadOnlySet<Guid> SealedBefore)> _staged = new();
+
+    /// <summary>
+    /// The log path for one command (or the catch-up at start, or the end of setup): the command's own events, if any, then the engine run
+    /// until it rests, every batch applied as it comes so the next Advance reads it. Then one append of every batch, one transaction, and only
+    /// then each batch broadcast as its own message, in order, with each viewer's sealed answers withheld. Nothing is sent before it is stored.
+    /// A failed append faults the session: the projection is ahead of the log, and only a fresh hydration from the log is trusted again.
+    /// An Advance that throws, or an event the projection cannot take, stores what was staged (the failing batch included) and then faults.
+    /// </summary>
+    internal async Task RunToRestAsync(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
     {
-        if (payloads.Count == 0 || Play is null) return;
-        var sealedBefore = EventFilter.SealedOpenAsks(Play.Projection);
+        if (Play is null || Faulted) return;
         var endedBefore = Play.Projection.Ended is not null;
-        var next = Play.Projection.LastSeq;
-        var batch = payloads.Select((p, i) => new GameEvent(next + i + 1, actor, p, i == 0 ? warning : null)).ToList();
-        try { await _services.Log.AppendAsync(GameId, batch, CancellationToken.None); }
-        catch (DuplicateSequenceException ex) { await FaultAsync($"another writer holds this game (seq {ex.Seq})"); return; }
-        catch (Exception ex) { await FaultAsync($"the append at seq {batch[0].Seq} failed: {ex.Message}"); return; }
-        // The batch is durable and the projection cannot take it: the server's own event names an id nothing created.
-        // Faulting is the whole response. A resync would replay the same event from the same log and fault again.
-        try { Play.Applier.ApplyAll(batch); }
-        catch (ProjectionDesyncException ex) { await FaultAsync($"this server's own event does not apply to its own projection: {ex.Message}"); return; }
-        foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
-        foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, null, sealedBefore)));
+        var fault = Stage(payloads, actor, warning) ?? Advance();
+        var staged = _staged.ToList();
+        _staged.Clear();
+        if (staged.Count > 0)
+        {
+            var events = staged.SelectMany(s => s.Batch).ToList();
+            try { await _services.Log.AppendAsync(GameId, events, CancellationToken.None); }
+            catch (DuplicateSequenceException ex) { await FaultAsync($"another writer holds this game (seq {ex.Seq})"); return; }
+            catch (Exception ex) { await FaultAsync($"the append at seq {events[0].Seq} failed: {ex.Message}"); return; }
+        }
+        if (fault is not null) { await FaultAsync(fault); return; }
+        foreach (var (batch, sealedBefore) in staged)
+        {
+            foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
+            foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, null, sealedBefore)));
+        }
+        if (staged.Count == 0) return;
         await BroadcastFactsIfChangedAsync();
         if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
+    }
+
+    /// <summary>Seq assigned here, the batch applied and staged. Returns the fault reason when the server's own event does not apply to its own
+    /// projection; the batch stays staged, so it is stored as before and the next hydration faults on it too.</summary>
+    private string? Stage(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
+    {
+        if (payloads.Count == 0 || Play is null) return null;
+        var sealedBefore = EventFilter.SealedOpenAsks(Play.Projection);
+        var next = Play.Projection.LastSeq;
+        var batch = payloads.Select((p, i) => new GameEvent(next + i + 1, actor, p, i == 0 ? warning : null)).ToList();
+        _staged.Add((batch, sealedBefore));
+        try { Play.Applier.ApplyAll(batch); }
+        catch (ProjectionDesyncException ex) { return $"this server's own event does not apply to its own projection: {ex.Message}"; }
+        return null;
     }
 
     /// <summary>The rest frame for the log as it stands: nothing further is coming right now, and the log ends at Seq (0 before it opens).</summary>
     internal AtRest Rest() => new(Play?.Projection.LastSeq ?? 0);
 
-    /// <summary>Runs the engine until it has nothing to say. Every iteration reads the projection afresh.</summary>
-    internal async Task AdvanceAsync()
+    /// <summary>Runs the engine until it has nothing to say, staging each batch. Every iteration reads the projection afresh. Returns a fault reason or null.</summary>
+    private string? Advance()
     {
-        if (Play is null || Engine is null || Faulted) return;
+        if (Play is null || Engine is null) return null;
         for (var i = 0; i < 10_000; i++)
         {
             Emit emit;
             try { emit = Engine.Advance(Play); }
-            catch (Exception ex) { await FaultAsync($"the engine threw in Advance: {ex.Message}"); return; }
-            if (emit.Events.Count == 0) return;
-            await AppendAsync(emit.Events, null, emit.Warning);
-            if (Faulted) return;
+            catch (Exception ex) { return $"the engine threw in Advance: {ex.Message}"; }
+            if (emit.Events.Count == 0) return null;
+            if (Stage(emit.Events, null, emit.Warning) is { } fault) return fault;
         }
         _log.LogError("Game {GameId}: the engine advanced 10000 times without resting; stopping.", GameId);
+        return null;
     }
 
     private async Task FaultAsync(string reason)
