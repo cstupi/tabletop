@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Hud;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
@@ -12,10 +13,10 @@ public partial class GameScreen : Control
     Session _session = null!;
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
-    Label _status = null!, _toast = null!, _selection = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; HBoxContainer _bottom = null!;
+    Label _status = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
     Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
     public override void _Ready()
     {
@@ -28,15 +29,17 @@ public partial class GameScreen : Control
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
         _side = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; root.AddChild(_side);
         _side.AddChild(_selection = new Label());
-        // Over the table in every status, after the root so it draws on top and hears keys first: Home, the status and the
-        // toast in the corner. GameScreen.Play adds the play Hud to it.
+        // Over the table in every status, after the root so it draws on top and hears keys first: Home and the status in the
+        // corner, the toasts top right. GameScreen.Play adds the play Hud to it; Layout places all of it.
         _hud = new Control { MouseFilter = MouseFilterEnum.Ignore }; _hud.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(_hud);
-        var corner = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; _hud.AddChild(corner);
-        corner.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft, LayoutPresetMode.Minsize, 8);
-        var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; corner.AddChild(top);
+        _hud.AddChild(_corner = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore });
+        var top = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; _corner.AddChild(top);
         var home = new Button { Text = "Home", FocusMode = FocusModeEnum.None }; home.Pressed += () => Guarded.Run(_session.DisconnectAsync, Toast); top.AddChild(home);
         top.AddChild(_status = new Label());
-        corner.AddChild(_toast = new Label { ThemeTypeVariation = Variation.Warning });
+        _hud.AddChild(_toasts = new Toasts());
+        _onLayout = QueueLayout;
+        _hud.Resized += _onLayout; _side.Resized += _onLayout; _side.VisibilityChanged += _onLayout;
+        _corner.MinimumSizeChanged += QueueLayout; _toasts.MinimumSizeChanged += QueueLayout;   // children of the screen: they die with it
         // A Hud button that keeps the focus would be pressed by Space, the camera key: buttons give it straight back.
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
         GetViewport().GuiFocusChanged += _onFocus;
@@ -52,11 +55,14 @@ public partial class GameScreen : Control
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;
         Rebuild();
+        QueueLayout();
     }
 
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
+        if (IsInstanceValid(_hud)) _hud.Resized -= _onLayout;
+        if (IsInstanceValid(_side)) { _side.Resized -= _onLayout; _side.VisibilityChanged -= _onLayout; }
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.BoardChanged -= RefreshAll; _session.EventsApplied -= _onEvents;
@@ -65,12 +71,7 @@ public partial class GameScreen : Control
         FreePlayPanels();
     }
 
-    public void Toast(string text)
-    {
-        if (!IsInstanceValid(_toast) || !IsInsideTree()) return;
-        _toast.Text = text;
-        GetTree().CreateTimer(4).Timeout += () => { if (IsInstanceValid(_toast) && _toast.Text == text) _toast.Text = ""; };
-    }
+    public void Toast(string text) { if (IsInstanceValid(_toasts)) _toasts.Show(text); }
 
     void Rebuild()
     {

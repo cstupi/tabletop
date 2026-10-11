@@ -26,12 +26,12 @@ public static class HudLayout
         var corner = r[HudPart.Corner] = new(M, M, Column, CornerH);
         var toasts = r[HudPart.Toasts] = new(w - M - ToastW, M, ToastW, ToastH);
         float bandL = M + Column + M, bandR = toasts.X - M, hw = Math.Min(HeaderW, bandR - bandL);
-        var header = r[HudPart.Header] = new(Math.Clamp(w / 2 - hw / 2, bandL, bandR - hw), M, hw, HeaderH);
+        var header = r[HudPart.Header] = new(Math.Max(bandL, Math.Min(w / 2 - hw / 2, bandR - hw)), M, hw, HeaderH);
         float top = corner.Bottom + M, colH = h - M - top, half = (colH - M) / 2;
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - LogButtonH, LogButtonW, LogButtonH);
-        float left = v.Roster || v.UnitCard ? bandL : M, x = Math.Clamp(w / 2 - DecisionW / 2, left, button.X - M - DecisionW), floor = h - M;
+        float left = v.Roster || v.UnitCard ? bandL : M, x = Math.Max(left, Math.Min(w / 2 - DecisionW / 2, button.X - M - DecisionW)), floor = h - M;
         if (v.Decision) { r[HudPart.Decision] = new(x, floor - DecisionH, DecisionW, DecisionH); floor -= DecisionH + M; }
         if (v.Dice) { r[HudPart.Dice] = new(x, floor - DiceH, DecisionW, DiceH); floor -= DiceH + M; }
         if (v.LogOpen)

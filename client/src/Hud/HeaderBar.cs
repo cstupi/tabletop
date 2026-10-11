@@ -25,8 +25,6 @@ public partial class HeaderBar : PanelContainer
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session;
-        SetAnchorsAndOffsetsPreset(LayoutPreset.CenterTop, LayoutPresetMode.Minsize, 8);
-        GrowHorizontal = GrowDirection.Both;
         var lines = new VBoxContainer(); AddChild(lines);
         lines.AddChild(_top); lines.AddChild(_activation); lines.AddChild(_waiting);
         _top.AddChild(_gameOver); _top.AddChild(_settings);

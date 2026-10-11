@@ -18,7 +18,7 @@ public partial class GameScreen
 {
     HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; EndMessage? _end; KeyOverlay? _keys;
     HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer; UndoMoveButton? _undo;
-    Animator? _animator; PieceMenu? _menu;
+    Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
     readonly MenuItem _leave = new("Leave the game", MenuInput.None, _ => null);
@@ -32,7 +32,7 @@ public partial class GameScreen
         _hud.AddChild(_header = new HeaderBar()); _header.Bind(_session, Table, Input);
         _hud.AddChild(_card = new UnitCard()); _card.Bind(_session, Table, Input);
         _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
-        _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input); _dice.Follow(_decision);
+        _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input);
         _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
         _dice.RollClicked += _logDrawer.OpenAt;
         _card.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
@@ -69,7 +69,43 @@ public partial class GameScreen
         _card.ModelPicked += SelectModel;
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;
+        foreach (var part in new Control[] { _header, _card, _decision, _dice }) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
+        _logDrawer.OpenChanged += QueueLayout;
+        QueueLayout();
     }
+
+    /// <summary>Lay the Hud out once, at the end of this frame, however many changes asked for it.</summary>
+    void QueueLayout()
+    {
+        if (_layoutQueued) return;
+        _layoutQueued = true;
+        Callable.From(Layout).CallDeferred();
+    }
+
+    /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
+    /// corner and the toasts exist. The dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
+    void Layout()
+    {
+        _layoutQueued = false;
+        if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
+        var w = _hud.Size.X - (IsInstanceValid(_side) && _side.Visible ? _side.Size.X : 0);
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(false, Shows(_card), Shows(_decision), Shows(_dice), _logDrawer is { } l && IsInstanceValid(l) && l.Open));
+        HudPlacement.Top(_corner, r[HudPart.Corner]);
+        HudPlacement.Top(_toasts, r[HudPart.Toasts]);
+        if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
+        if (Shows(_card)) _card!.Place(r[HudPart.UnitCard]);
+        if (Shows(_decision)) HudPlacement.Bottom(_decision!, r[HudPart.Decision]);
+        if (Shows(_dice))
+        {
+            var slot = r[HudPart.Dice];
+            if (Shows(_decision)) slot = slot with { Y = _decision!.Position.Y - HudLayout.M - slot.H };
+            HudPlacement.Bottom(_dice!, slot);
+        }
+        if (_logDrawer is { } log && IsInstanceValid(log))
+            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? panel : null);
+    }
+
+    static bool Shows(Control? c) => c is not null && IsInstanceValid(c) && c.Visible;
 
     void FreePlayPanels()
     {

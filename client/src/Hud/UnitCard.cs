@@ -7,14 +7,14 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Lower left (client UX spec → Unit card): the unit SheetFocus names, and above it, inside the left column, the hovered enemy's strip. Hidden when it names none.</summary>
+/// <summary>Lower left (client UX spec → Unit card), placed by GameScreen.Layout: the unit SheetFocus names, and above it, inside the left column, the hovered enemy's strip. Hidden when it names none.</summary>
 public partial class UnitCard : VBoxContainer
 {
     Session _s = null!; TableInput _input = null!;
-    readonly ScrollContainer _card = new() { CustomMinimumSize = new Vector2(440, 360), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ShrinkEnd };
+    readonly ScrollContainer _card = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _stripBody = new();
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
-    Guid? _unit, _hovered;
+    Guid? _unit, _hovered; HudRect? _slot; bool _fitQueued;
     UnitSheetModel? _sheet; Names? _names;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme; Action<Guid?>? _onHover;
     public Guid? UnitId => _unit;
@@ -24,11 +24,11 @@ public partial class UnitCard : VBoxContainer
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _input = input;
-        SetAnchorsAndOffsetsPreset(LayoutPreset.BottomLeft, LayoutPresetMode.Minsize, 8);
-        GrowVertical = GrowDirection.Begin;
         // The strip stacks above the card, not beside it, so the card never leaves the left column (the spec's Unit card → Hovered enemy).
         AddChild(_strip); _strip.AddChild(_stripBody);
         var panel = new PanelContainer { SizeFlagsVertical = SizeFlags.ShrinkEnd }; AddChild(panel); panel.AddChild(_card); _card.AddChild(_body);
+        // A ScrollContainer reports no content height: the card takes the body's, capped by the slot, whenever the body's changes.
+        _body.MinimumSizeChanged += QueueFit;
         _onEvents = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged;
         input.SelectionChanged += _onChanged; input.HoveredUnitChanged += _onHover;
@@ -41,6 +41,30 @@ public partial class UnitCard : VBoxContainer
         Ui.Changed -= _onTheme;
         if (_s is not null) { _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; }
         if (_input is not null && IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.HoveredUnitChanged -= _onHover; }
+    }
+
+    /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
+    public void Place(HudRect slot)
+    {
+        _slot = slot;
+        Fit();
+        HudPlacement.Bottom(this, slot);
+    }
+
+    void QueueFit()
+    {
+        if (_fitQueued) return;
+        _fitQueued = true;
+        Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred();
+    }
+
+    /// <summary>The card's height: the body's, or what the slot leaves after the strip, the panel's chrome and the separation.
+    /// A change raises this part's MinimumSizeChanged, and the screen places it again.</summary>
+    void Fit()
+    {
+        if (_slot is not { } slot || !IsInstanceValid(_card)) return;
+        var chrome = GetCombinedMinimumSize().Y - _card.GetCombinedMinimumSize().Y;
+        _card.CustomMinimumSize = new Vector2(0, Math.Max(0, Math.Min(_body.GetCombinedMinimumSize().Y, slot.H - chrome)));
     }
 
     void Render()

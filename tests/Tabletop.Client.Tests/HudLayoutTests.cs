@@ -37,4 +37,10 @@ public class HudLayoutTests
             (new HudRect(436, 512, 480, 200), new HudRect(632, 136, 640, 264), new HudRect(8, 56, 420, 324)),
             (r[HudPart.Decision], r[HudPart.LogPanel], r[HudPart.Roster]));
     }
+
+    [Fact]
+    public void Below_1280_every_visibility_still_lays_out()
+    {
+        foreach (var v in All()) Assert.NotEmpty(HudLayout.Of(800, 600, v));
+    }
 }

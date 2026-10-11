@@ -36,8 +36,6 @@ public partial class DecisionBox : PanelContainer
     public void Bind(Session s, TableView view, TableInput input)
     {
         _s = s; _view = view; _input = input;
-        SetAnchorsAndOffsetsPreset(LayoutPreset.CenterBottom, LayoutPresetMode.Minsize, 8);
-        GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Begin;
         CustomMinimumSize = new Vector2(420, 0);
         var box = new VBoxContainer(); AddChild(box);
         foreach (var c in new Control[] { _title, _note, _controls, _refusalLabel, _hint }) box.AddChild(c);

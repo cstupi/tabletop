@@ -6,17 +6,17 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Bottom centre, above the decision box: the latest roll as the combat log's collapsed entry (client UX spec → Dice tray).
+/// <summary>Bottom centre, above the decision box (GameScreen.Layout places it): the latest roll as the combat log's collapsed entry (client UX spec → Dice tray).
 /// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling.</summary>
 public partial class DiceTray : PanelContainer
 {
     const double TumbleSeconds = 0.4;
-    Session _s = null!; Control? _below;
+    Session _s = null!;
     readonly Button _line = new() { Flat = true };
     readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
     RollEntry? _shown; double _tumble;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _place;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
 
     /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
     public event Action<Guid>? RollClicked;
@@ -24,8 +24,6 @@ public partial class DiceTray : PanelContainer
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session;
-        SetAnchorsAndOffsetsPreset(LayoutPreset.CenterBottom, LayoutPresetMode.Minsize, 8);
-        GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Begin;
         MouseFilter = MouseFilterEnum.Ignore;
         AddChild(_line);
         _line.AddChild(_row);   // a Button lays out no children: the row fills it and sets its minimum size
@@ -37,25 +35,9 @@ public partial class DiceTray : PanelContainer
         Render();
     }
 
-    /// <summary>Sit above the decision box, whatever its height: re-placed when it resizes or shows or hides.</summary>
-    public void Follow(Control below)
-    {
-        _below = below; _place = Place;
-        below.Resized += _place; below.VisibilityChanged += _place;
-        Place();
-    }
-
     public override void _ExitTree()
     {
         if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
-        if (_below is not null && IsInstanceValid(_below)) { _below.Resized -= _place; _below.VisibilityChanged -= _place; }
-    }
-
-    void Place()
-    {
-        var lift = _below is not null && IsInstanceValid(_below) && _below.Visible ? _below.Size.Y + 16 : 8;
-        OffsetBottom = -lift;
-        OffsetTop = OffsetBottom - GetCombinedMinimumSize().Y;
     }
 
     void Render()
@@ -67,7 +49,6 @@ public partial class DiceTray : PanelContainer
         if (latest is null) return;
         if (changed) _tumble = _s.Settings.Animate ? TumbleSeconds : 0;
         Paint();
-        Place();
     }
 
     public override void _Process(double delta)
