@@ -14,6 +14,7 @@ public partial class UnitCard : VBoxContainer
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _stripBody = new();
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     Guid? _unit, _hovered;
+    UnitSheetModel? _sheet; Names? _names;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Guid?>? _onHover;
     public Guid? UnitId => _unit;
     public event Action<Guid>? ModelPicked;
@@ -27,7 +28,7 @@ public partial class UnitCard : VBoxContainer
         // The strip stacks above the card, not beside it, so the card never leaves the left column (the spec's Unit card → Hovered enemy).
         AddChild(_strip); _strip.AddChild(_stripBody);
         var panel = new PanelContainer { SizeFlagsVertical = SizeFlags.ShrinkEnd }; AddChild(panel); panel.AddChild(_card); _card.AddChild(_body);
-        _onEvents = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; Render(); };
+        _onEvents = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged;
         input.SelectionChanged += _onChanged; input.HoveredUnitChanged += _onHover;
         Render();
@@ -46,11 +47,19 @@ public partial class UnitCard : VBoxContainer
             ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId) : null;
         if (unit != _unit) { _unit = unit; FocusChanged?.Invoke(unit); }
         Visible = unit is not null;
-        if (unit is not { } u) return;
+        if (unit is not { } u) { _sheet = null; _names = null; return; }
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
+        _sheet = sheet; _names = names;
         RenderCard(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0);
         RenderStrip(p!, game!, names, sheet);
+    }
+
+    /// <summary>A hovered-unit change redraws only the strip, so the card keeps its scroll position and open tooltip.</summary>
+    void OnHover()
+    {
+        if (!Visible || _sheet is null || _names is null || _s.Projection is not { } p || _s.Game is not { } game) { Render(); return; }
+        RenderStrip(p, game, _names, _sheet);
     }
 
     void RenderCard(UnitSheetModel m, int team)
