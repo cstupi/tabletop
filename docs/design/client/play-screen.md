@@ -234,7 +234,7 @@ picked.
 
 ## The combat log
 
-`CombatLog` builds the play log from `Session.Log`, and `CombatLogPanel` renders it, newest at the bottom, auto-scrolled. A
+`CombatLog` builds the play log from `Session.Log`, and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled. A
 block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
 frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. A live block closes only
 at a live finish (a dead one stays inside the block, struck through); a block whose start is undone closes at its own undone

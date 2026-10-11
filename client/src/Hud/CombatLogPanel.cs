@@ -16,7 +16,7 @@ public partial class CombatLogPanel : VBoxContainer
     readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [];
-    Guid? _reveal, _focus; Control? _revealed; bool _toEnd;
+    Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
@@ -46,11 +46,20 @@ public partial class CombatLogPanel : VBoxContainer
         if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
     }
 
+    /// <summary>Whether the drawer shows the panel. Closed, a render only marks the rows stale; opening renders them.</summary>
+    public bool Shown
+    {
+        get => _shown;
+        set { _shown = value; if (value && _stale) Render(true); }
+    }
+
     /// <summary>Expand the block and the roll holding this RollRecord and scroll to it.</summary>
     public void Reveal(Guid rollId) { _reveal = rollId; Render(false); }
 
     void Render(bool toEnd)
     {
+        if (!_shown) { _stale = true; return; }
+        _stale = false;
         foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }
         _revealed = null; _toEnd = toEnd;
         if (_s.Projection is not { } p || _s.Game is not { } game) return;

@@ -44,7 +44,7 @@ public partial class LogDrawer : Control
         if (panel is { } r && _drawer.Visible) HudPlacement.Fill(_drawer, r);
     }
 
-    void SetOpen(bool open) { _drawer.Visible = open; _toggle.Text = open ? "Close log (G)" : "Log (G)"; OpenChanged?.Invoke(); }
+    void SetOpen(bool open) { _drawer.Visible = open; _log.Shown = open; _toggle.Text = open ? "Close log (G)" : "Log (G)"; OpenChanged?.Invoke(); }
 
     public override void _Input(InputEvent e)
     {
