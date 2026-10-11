@@ -22,7 +22,7 @@ In scope, all of it inside `libs/Tabletop.Geometry`:
 | Edge-to-edge measurement | `Distance` | 4 |
 | Collision: rest, slide, separate | `Collision` | 5 |
 | Standing in and on terrain | `Containment` | 6 |
-| Base overlap, terrain intersection | `Overlap` | 7 |
+| Base overlap, a body inside a Solid | `Overlap` | 7 |
 | Line of sight | `LineOfSight`, `LineOfSightResult` | 8 |
 | The geometric half of the cover rule | `Cover` | 9 |
 | Unit coherency | `Coherency`, `CoherencyResult` | 10 |
@@ -375,8 +375,8 @@ except through `BaseFullyWithin`.
 | `Containment.VolumesContaining` | footprint contains the base **centre**, vertical range contains the base height | p.11 *mostly inside* (single models); *is activated in it* |
 | `Containment.VolumesFullyContaining` | footprint contains the **whole base** | p.11 *fully inside a piece of cover terrain* (multi-model units) |
 | `Containment.BaseFullyWithin(model, container, inches)` | every point of the base within `inches` of the container's base, edge to edge | p.15 `Transport(X)`, p.21 solid buildings: *"must stay fully within 6" of it when exiting"* |
-| `Overlap.Bases` | positive shared area **and** positive shared vertical extent | flagged base overlap |
-| `Overlap.WithSolid` | the same, against a Solid volume only | flagged terrain intersection |
+| `Overlap.Bases` | positive shared area **and** positive shared vertical extent | p.7 *physically impossible locations*: `move_overlap` (`GfMoves.ContactBreach`, `OverlapBreach`) |
+| `Overlap.WithSolid` | the same, against a Solid volume only | no production caller: a placement rests on the highest Solid top under its base (`Collision.RestHeight`) |
 
 The vertical range is **inclusive**, so standing on a hill counts as being in it. A hill
 declaring cover and difficult applies to the model on top of it, with no flag and no special
@@ -562,10 +562,10 @@ elevation."* The pair test is cheap — rest has already resolved every model's 
 `Distance.Vertical(a, b) > Tolerance.Distance` is the whole of *at different elevation*, and the
 measurement itself stays horizontal like every other distance here. The **precondition** is not
 implemented: *can fit* is undefined in the book, and testing it would need a ruleset judgement
-this library cannot make. Applying the allowance unconditionally is safe because coherency is
-flagged rather than prevented (`architecture.md` → Rules enforcement) and the precondition only
-ever widens the allowance, so omitting it can only suppress an advisory flag
-([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)). The
+this library cannot make. Applying the allowance unconditionally is safe because the precondition
+only ever widens the allowance
+([closing the open questions](../../superpowers/specs/2026-09-09-open-questions-design.md)), and
+coherency is not judged: `Coherency.Check` has no production caller. The
 spread stays at one distance: p.7's 9" has no elevation clause.
 
 ### 11. The slab
@@ -1001,11 +1001,16 @@ the failure surfaces as a rejected edit rather than a refused command. And rows 
 ordinals that may have no team yet (the whole-design review's ruling 5). A team created after
 `playing` has no zone at all.
 
-### Coherency and overlap after a move
+### Contact and coherency after a move
 
-After applying the move the server calls `Coherency.Check(unitModels, 1, 3, 9)`, `Overlap.Bases`
-pairwise and `Overlap.WithSolid` per Solid volume. It warns under `warn` and refuses only under
-`strict`. The client highlights the flagged models. Two hazards. `OutOfCoherency` holds
+The server judges a move answer at its rested landing (`GfMoves.ContactBreach`): `Overlap.Bases`
+against every other model is `move_overlap`, `Collision.Crosses` against the models the answer
+does not move is `move_through_models`, and `Distance.EdgeToEdge` under the region's `Separation`
+is `move_separation`. It warns under `warn` and refuses only under `strict`. Every placement the
+server appends is rested (`Battlefield.Settle` → `Collision.RestHeight`), so no stored model is
+inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
+Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is not judged:
+`Coherency.Check` has no production caller. Its two hazards: `OutOfCoherency` holds
 **positional indices**, so the caller must pass models in a stable order and zip the result
 back itself. And the spread test flags both ends of an over-long chain rather than naming the
 model to move.
@@ -1095,11 +1100,11 @@ move region computed at Ask time therefore stays valid until the answer arrives.
 | An unknown `BaseShape` or `FootprintKind` | `ArgumentOutOfRangeException` from the switch's default arm | Yes |
 | An unknown or malformed zone shape id | `ArgumentException` from `ShapesOf` or `Resolve` | Yes. A typo in a stored `deployment_zone.shape` must not draw nothing |
 | A move region computed against stale terrain | Cannot happen while `playing`, because terrain is locked. During setup there is no move Ask | Structurally prevented |
-| Base overlap, terrain intersection, broken coherency, a model off the slab | Reported as a flag or an index list; the client's drag prevents the first three (Alt overrides), the server judges them under the enforcement setting (coherency stays flagged) | Yes |
+| Base overlap, a path through a model, a model off the slab, broken coherency | The client's drag slides a body clear of other bases and Impassable Solids (Alt overrides); the server judges a move answer's overlap, path, separation and slab (`move_overlap`, `move_through_models`, `move_separation`, `move_off_table`) under the enforcement setting, and a hand placement's overlap only (`PlacementBreach`); coherency is not judged (`Coherency.Check` has no production caller) | Yes |
 | A move whose *path* was illegal but whose endpoint is fine | `Movement.Check` samples the straight segment only. A bent path is judged at its endpoint | Yes, straight-line reach (the plan's ruling 4) |
 | A blocker between two adjacent sight rays | Not detected. The target is called visible, which it is: every sample is a real point of the body, so `Clear` is never wrong. The error is one-sided, and `SightBlockersBetween` is what loses a thin blocker | Yes, sampling (the plan's ruling 2) |
 | A target visible only through a gap narrower than the sampling | Called hidden, which counts the model toward cover | Yes. Three rings bound the vertical gap by half the model's height; the horizontal gap is under 0.24" at mid-range |
-| A model dragged into a wall by the client | The client's region already excluded it, but nothing stops a hand-placed model overlapping a Solid. `Overlap.WithSolid` flags it | Yes |
+| A model dragged into a wall by the client | The drag slides along Impassable Solids, and an Alt drop rests on the highest Solid top under the base, as the server rests every placement (`Battlefield.Settle`), so no stored model is inside a Solid. A move answer crossing or landing on an Impassable volume is `move_impassable` (`GfMoves.PathBreach`); a hand placement is not judged against terrain | Yes |
 | Two structurally identical `Polygon` values compared with `==` | Unequal. `Polygon` is a record over `IReadOnlyList<Point2>`, so equality is reference equality on the list. `PolygonOutline` is the same shape over `Vertices` and shares the hazard | **Trap.** Nothing in this library compares polygons, but a consumer might |
 
 There is no shared mutable state, no I/O and no async, so every call is thread-safe and

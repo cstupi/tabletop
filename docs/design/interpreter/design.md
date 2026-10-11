@@ -1173,10 +1173,10 @@ a *current* column means the event spine has been broken.
   cannot cross.
 - **Capacity is never enforced.** `Transport(X)`'s parameter is carried by the catalog entry and
   read by nothing. Game flow rules it explicitly.
-- **Unit coherency is never enforced.** The client flags it. The 1-inch separation, base overlap and a path through a model are
+- **Unit coherency is never enforced.** Nothing judges it. The 1-inch separation, base overlap and a path through a model are
   judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
   `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's
-  move-step; PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask).
+  move (move step, forced move, reposition); PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask).
 - **Missions beyond the core one do not exist here.** Objective seizing and the round-4 winner are the ruleset's `OnRoundEnded` and `JudgeAdvance`, not interpreter steps; players keep their own counters.
 
 ### Concurrency

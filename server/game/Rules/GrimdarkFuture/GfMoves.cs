@@ -171,7 +171,7 @@ public static partial class GfMoves
     /// a Flying unit's Ask lists none, p.13). The Aircraft move, the one Ask with a MinDistance (MoveStep), is exempt from the landing: p.13 "Aircraft
     /// ignore all units and terrain when moving and stopping". A model answered where it stands has not moved and is not judged. A disembark is
     /// judged by ExitPlacement instead: p.15 "must stay fully within 6" of it when exiting" and p.7's table edge. p.7's contact
-    /// clauses are ContactBreach's; coherency stays client-flagged.
+    /// clauses are ContactBreach's; coherency is not judged.
     /// </summary>
     public static AnswerBreachFound? PathBreach(GameState state, MoveRegion region, Destinations answer)
     {

@@ -254,7 +254,7 @@ terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassab
 impassable volume; p.11 *"may not end their move partially overhanging gaps or terrain"* and p.7 *"physically impossible
 locations"* still hold its landing (`GfMoves.LandsInImpassable`). p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
 `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, 1 except the Charge
-move, the close-in, consolidation and an Aircraft's move-step; a disembark keeps it). It does **not** enforce coherency; the client flags it, per
+move, the close-in, consolidation and an Aircraft's move (move step, forced move, reposition); a disembark keeps it). Coherency is not judged, per
 `architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
 
 How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no

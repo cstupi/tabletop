@@ -528,7 +528,7 @@ the table itself, inside the team's own zone, resolving the shape with `ZoneStyl
 That is geometry from a library, not a rules outcome the engine should have computed. Nothing
 checks whether the placement is good, except that an anchor is chosen where no base touches a model already on the table:
 a hand placement is judged for overlap (`IGameRules.PlacementBreach`, `move_overlap`; `architecture.md` → Rules
-enforcement), and broken coherency stays flagged.
+enforcement), and coherency is not judged.
 
 `HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` ignores the client's
 `Z`), so a model deployed onto a hill stands on it.
@@ -1394,8 +1394,8 @@ documentation edits.
   what the socket driver exercises.
 - `docs/architecture.md` → Contracts to freeze: nobody instantiates a game session, which is why
   the in-process driver goes through `Hydrator`.
-- `docs/architecture.md` → Rules enforcement: the client prevents base overlap, terrain
-  intersection and a path through a model, the server judges them, and broken coherency is flagged.
+- `docs/architecture.md` → Rules enforcement: the client prevents base overlap, an Impassable
+  Solid and a path through a model, the server judges them, and coherency is not judged.
 - `docs/architecture.md` → Undo: replay to sequence N from the initial state, and the RNG as part
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.

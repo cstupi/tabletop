@@ -207,8 +207,8 @@ answer is accepted, with a logged warning when it falls outside the legal set. U
 an out-of-set answer or illegal command is refused.
 
 The menu is exempt at every setting. A right-click edit of any property is accepted, logged
-and visible to opponents. Base overlap, terrain intersection and a path through a model are
-prevented by the client while dragging (Alt overrides) and judged by the server; broken coherency is flagged.
+and visible to opponents. Base overlap, an Impassable Solid and a path through a model are
+prevented by the client while dragging (Alt overrides) and judged by the server; coherency is not judged.
 The override is what makes it a simulator rather than a referee, and it removes the
 need for an admin mode.
 

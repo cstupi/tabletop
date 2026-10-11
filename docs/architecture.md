@@ -138,8 +138,9 @@ command and every Ask answer, logging a warning under `warn` when one is outside
 Under `strict` an out-of-set Ask answer or an illegal command is refused. **The menu's edits are
 accepted under every setting** — they are the override path, visible to opponents and recorded
 in the event log, never silent. Model placement follows the same rule: the client prevents base
-overlap, terrain intersection and a path through a model while dragging (Alt overrides), and the server judges them under the
-enforcement setting (`move_overlap`, `move_through_models`, `move_separation`); broken coherency stays flagged.
+overlap, an Impassable Solid and a path through a model while dragging (Alt overrides), and the server judges a move answer under the
+enforcement setting: `move_overlap`, `move_through_models`, `move_impassable`, and `move_separation` for p.7's 1" between units. Every
+placement rests on the highest Solid top under its base, so no model stands inside a Solid. Coherency is not judged.
 
 **One policy behind the three positions.** Any system hands it a breach: what was broken, the sentence players read, and what `strict` does about it. The dispatcher hands it a command's legality; the engine hands it what Grimdark Future's judge finds in the engine's own proposal. Under `warn` the warning rides on the event; under `strict` a command breach is refused and a state-time breach ends the game. The first state-time breach is the end of round 4 (GF p.7): `silent` lets round 5 start, `warn` marks it, `strict` logs `game_ended` and the game server marks the row ended ([the enforcement engine](superpowers/specs/2026-10-02-enforcement-engine-design.md)).
 

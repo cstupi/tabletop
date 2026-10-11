@@ -199,7 +199,8 @@ comments are the contract, and they encode decisions rather than descriptions.
 | `LineOfSight.Check(from, to, volumes)` | only volumes declaring `BlocksLineOfSight` obstruct; a `SeeInAndOut` volume obstructs a line passing through but not one starting or ending inside it; the mesh is never consulted |
 | `Collision.RestHeight(Point2, volumes)` | the highest `Solid` top under the point, or `0` (the slab); the model and piece overloads rest on any part of the base or footprint |
 | `Containment.VolumesContaining(model, volumes)` | ids of volumes whose footprint and vertical range contain the base centre, `Area` or `Solid` |
-| `Overlap.Bases`, `Overlap.WithSolid` | prevented by the client's drag and judged by the server (`architecture.md` → Rules enforcement) |
+| `Overlap.Bases` | prevented by the client's drag and judged by the server as `move_overlap` (`architecture.md` → Rules enforcement) |
+| `Overlap.WithSolid` | no production caller: every placement the server appends rests on the highest Solid top under its base (`Battlefield.Settle`) |
 | `Polygon.Contains(Point2)` | point in polygon |
 
 The signatures are declared here rather than by the geometry module because `architecture.md` lists
@@ -1576,8 +1577,8 @@ every type in the tree stays immutable. Nothing enforces that.
 
 ### Left to break
 
-- **Base overlap, terrain intersection and a path through a model are prevented by the client's drag and judged by the
-  server; broken coherency is flagged** (`architecture.md` → Rules enforcement). `Overlap` returns a bool the server's
+- **Base overlap, an Impassable Solid and a path through a model are prevented by the client's drag and judged by the
+  server; coherency is not judged** (`architecture.md` → Rules enforcement). `Overlap.Bases` returns a bool the server's
   `move_overlap` breach reads.
 - **Nothing recorded is an invariant.** A dead model can stand on the table, a unit that has moved
   can move again, a score can be any integer, `Transport(X)` capacity is not checked and a building's
