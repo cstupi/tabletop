@@ -55,8 +55,8 @@ never changes a selection, and an enemy activation never takes the card: the hea
    column; `-` when absent. Hovering a rule shows its catalog text; *not automated* stays as today.
 6. Special rules as chips with hover text.
 
-**Hovered enemy.** With one of my units on the card and the pointer over an enemy unit, a compact strip appears beside
-the card: the enemy's name, Defense, models alive, the distance (`HoverView`'s, closest base to closest base) and each of
+**Hovered enemy.** With one of my units on the card and the pointer over an enemy unit, a compact strip appears above
+the card, inside the left column,: the enemy's name, Defense, models alive, the distance (`HoverView`'s, closest base to closest base) and each of
 my weapons' printed range, shown within or beyond that distance. The strip makes no claim about shooting; the sight
 check (L) answers that.
 
@@ -86,12 +86,12 @@ Expanded:
   that roll's modifiers.
 - `StepCompleted.Applied`: the rules that acted in the step, as chips with hover text.
 
-A roll's result word is the roll's name and count (`3 hits`, `2 saves`, `passed`, `failed`) from the dice; the roll
-names are the server's (`hit`, `defense`, `morale`, `casting`, …), capitalised.
+A roll's result word is the server's roll name and the count of successes (`3 hits`, `2 defenses`), or `passed` /
+`failed` for one die; the client maps no roll name to other words, since that would name a rule.
 
 **Activation block.** Entries from a `SequenceStarted` with `Context.Action` set through its `SequenceFinished` or
 `SequenceAbandoned` group under one header: `Round 2 · Team 1 · Assault Squad · Advance`. A collapsed block shows a
-chain summary of its rolls and changes in order, e.g. `Hit 3 → Defense failed 2 → 2 models removed → Morale passed`,
+chain summary of its rolls and changes in order, e.g. `Hit 3 → Defense 2 → 2 models removed → Morale passed`,
 built from the roll entries and the `StateChange`s (wounds, models to the shelf, conditions set). Events outside any
 action frame (round start, deployment, hand moves, edits) are single lines between blocks.
 
@@ -218,6 +218,10 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 - An **Area** volume (woods, ruins, fields, water) is ground a model stands *in*: models enter it and rest on what is
   under it; terrain dropped on it rests on what is under it. Its own floor, when its piece is lifted onto a hill, is the
   piece's base height.
+- **Elevated built-ins are impassable.** p.11: *"Terrain features that are over 3” tall count as elevated terrain, and
+  are impassable"*. The built-in Solids over 3" (`large-sight-blocker`, `ruin`) declare `Impassable`; a dragged model
+  stops at the sides of a Solid declared `Impassable` (or listed impassable by the open move Ask) and climbs every other
+  Solid. Uploaded terrain keeps its author's declarations.
 - **Hill meshes are flat-topped.** The built-in hill, steep-hill, small-hill, dunes and lair meshes are rebuilt as
   plateaus at their volume's top with a sloped rim inside the footprint, so a model on the hill stands on the drawn
   surface.
@@ -229,8 +233,8 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
   `Settling.SurfaceHeightAt` at every caller.
 - `Slide(moving, from, to, obstacles)`: the farthest point toward `to` the moving outline reaches without its interior
   entering an obstacle's outline at an overlapping height, then the remainder of the drag projected along the contact
-  edge. Obstacles are other models' bases and the sides of Solid volumes whose top is above the mover's rest height plus
-  its own height (a body it cannot rest on top of); a Solid it can rest on is climbed, not slid along.
+  edge. Obstacles are other models' bases and the sides of the Solid volumes the caller names as walls: during a
+  move Ask the Ask's impassable volumes, otherwise every Solid declared `Impassable`. Every other Solid is climbed.
 - `Separate(bodies)`: for a group drag, each dragged body slides against the stationary ones and against the dragged
   bodies already placed, in drag order, so a formation compresses against an obstacle instead of overlapping.
 
