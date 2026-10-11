@@ -19,15 +19,42 @@ public static class RangeRings
         return printed.Select(r => { var d = Inches(r)!.Value; return new RangeRing(d, r.Trim(), Union(models.Where(m => m.Ranges.Contains(d)).Select(m => m.Placed).ToList(), d)); }).ToList();
     }
 
-    /// <summary>Each ring sampled on Points rays from its model's centre; a segment stays when neither end is inside another carrier's ring.</summary>
+    /// <summary>Per ring, in angle: the crossings with every other carrier's ring are bisected; an interval between crossings stays when its middle lies
+    /// outside every other ring, sampled at about Points per full turn with the crossings as its ends, so neighbouring arcs meet.</summary>
     static IReadOnlyList<(Point2, Point2)> Union(IReadOnlyList<PlacedModel> models, double range)
     {
+        const int Scan = 8 * Points; const double Turn = 2 * Math.PI;
         var segments = new List<(Point2, Point2)>();
         for (var i = 0; i < models.Count; i++)
         {
-            var ring = Enumerable.Range(0, Points).Select(k => Reach(models[i], range, 2 * Math.PI * k / Points)).ToList();
-            bool Outside(Point2 q) => models.Where((_, j) => j != i).All(o => Distance.EdgeToEdge(o, q) >= range - 1e-6);
-            for (var k = 0; k < Points; k++) if (Outside(ring[k]) && Outside(ring[(k + 1) % Points])) segments.Add((ring[k], ring[(k + 1) % Points]));
+            var m = models[i]; var others = models.Where((_, j) => j != i).ToList();
+            var crossings = new List<double>();
+            var scan = Enumerable.Range(0, Scan + 1).Select(k => Reach(m, range, Turn * k / Scan)).ToList();
+            foreach (var o in others)
+            {
+                double F(double a) => Distance.EdgeToEdge(o, Reach(m, range, a)) - range;
+                for (var k = 0; k < Scan; k++)
+                {
+                    double lo = Turn * k / Scan, hi = Turn * (k + 1) / Scan, flo = Distance.EdgeToEdge(o, scan[k]) - range, fhi = Distance.EdgeToEdge(o, scan[k + 1]) - range;
+                    if (flo < 0 == fhi < 0) continue;
+                    for (var n = 0; n < 50; n++) { var mid = (lo + hi) / 2; if (F(mid) < 0 == flo < 0) lo = mid; else hi = mid; }
+                    crossings.Add((lo + hi) / 2 % Turn);
+                }
+            }
+            bool Outside(double a) { var q = Reach(m, range, a); return others.All(o => Distance.EdgeToEdge(o, q) >= range); }
+            void Arc(double from, double to, int count)
+            {
+                var pts = Enumerable.Range(0, count + 1).Select(k => Reach(m, range, from + (to - from) * k / count)).ToList();
+                if (to - from >= Turn) pts[count] = pts[0];                                                                     // a whole ring closes on itself
+                for (var k = 0; k < count; k++) segments.Add((pts[k], pts[k + 1]));
+            }
+            if (crossings.Count == 0) { if (Outside(0)) Arc(0, Turn, Points); continue; }
+            crossings.Sort();
+            for (var c = 0; c < crossings.Count; c++)
+            {
+                var from = crossings[c]; var to = c + 1 < crossings.Count ? crossings[c + 1] : crossings[0] + Turn;
+                if (to - from > 1e-9 && Outside((from + to) / 2)) Arc(from, to, Math.Max(1, (int)Math.Ceiling((to - from) / Turn * Points)));
+            }
         }
         return segments;
     }

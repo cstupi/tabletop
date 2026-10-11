@@ -15,6 +15,9 @@ public class RangeRingsTests
         Point2[] rifles = [new(10, 10), new(12, 10)];
         Assert.InRange(rings[1].Segments.Count, RangeRings.Points / 2, 2 * RangeRings.Points - 1);                      // the overlap is cut out
         Assert.All(rings[1].Segments, s => Assert.All(rifles, c => Assert.True(c.DistanceTo(s.A) >= 24.5 - 1e-3 && c.DistanceTo(s.B) >= 24.5 - 1e-3)));
+        Assert.All(rings[1].Segments.SelectMany(s => new[] { s.A, s.B }), q => Assert.Equal(24.5, rifles.Min(c => c.DistanceTo(q)), 3));  // carriers only: no 24" ring around the pistol
+        Assert.All(rings, r => Assert.All(r.Segments.SelectMany(s => new[] { s.A, s.B }),                                               // one closed outline: no holes
+            q => Assert.Equal(2, r.Segments.Sum(s => (s.A.DistanceTo(q) < 1e-3 ? 1 : 0) + (s.B.DistanceTo(q) < 1e-3 ? 1 : 0)))));
         Assert.Empty(RangeRings.Of(p, TableUx.Orcs.Id));                                                                 // melee only
         Assert.Equal(((double?)24.0, (double?)null, (double?)null), (RangeRings.Inches("24\""), RangeRings.Inches("-"), RangeRings.Inches("0")));
     }
