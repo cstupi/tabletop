@@ -15,6 +15,7 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
 | `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
+| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is not an `Undone` marker, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans on `EventsApplied` and `BoardChanged`, and while an undo travels as if its marker had landed; a failure is a toast |
 | `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
@@ -30,8 +31,7 @@ only the newest query's answer is drawn. `TargetLines`: each assigned weapon gro
 its target, one colour per target. `Lasers`: `Session.Fired` drawn for one second, a beam with bolts in the shooter's team
 colour from each shooter to the nearest model of its target. `Session` applies a batch one event at a time and, after each
 `SequenceStarted`, reads `ShotLines.Of`: an `attack-sequence` frame just pushed under a `shooting` frame, its shooters the actor's
-models on the table carrying one of the frame's weapons, read while the targets still stand. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
-move until any later event lands (`HandMoveUndo`), undoing to the last effective-log event below the move.
+models on the table carrying one of the frame's weapons, read while the targets still stand.
 
 `UnitMarkerNodes` and `FloatingText` draw in that canvas layer at projected anchors and take no clicks: `UnitMarkers`
 rows (activated, each condition by the server's name with the theme's icon or a text chip, a wounded multi-wound
@@ -64,9 +64,10 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
 | `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
-| `Decision` | bottom, centred, left of the log button | 480 x 200 |
+| `Decision` | bottom, centred, left of the undo button | 480 x 200 |
 | `Dice` | stacked above the decision box | 480 x 96 |
 | `LogButton` | bottom right | 140 x 36 |
+| `UndoButton` | bottom right, left of the log button | 140 x 36 |
 | `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button | 640 wide, up to 720 tall |
 | `Banner` | full-width band at the upper third | overlay; placed with `Fill` whether shown or not |
 | `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
@@ -255,7 +256,7 @@ Filters are All, Rolls, My units and This unit; the last two keep blocks and rol
 filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a
 button lower right that G or a click opens upward. Clicking an entry
 highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above the target
-until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move (*The play screen*). There is no
+until `PendingUndoTo` clears. The other undo affordance is the **Undo** button (*Undo*). There is no
 undo stack UI and no redo. Undo is replay to a sequence number rather than inverse events, so the log serves as the control.
 
 A roll entry also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die 1…" (`SetDice`) and "+1" (`AddModifier`) for

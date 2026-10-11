@@ -22,6 +22,7 @@ terrain. Builds on the in-game UX spec
 | --- | --- | --- |
 | Unit card | lower left | `StatSheet` (both tabs) |
 | Combat log | lower right drawer | `LogDrawer`'s `LogPanel` in play |
+| Undo | lower right, left of the log button | the floating **Undo move** button |
 | Dice tray | above the decision box | `DiceTray`'s rendering |
 | Army roster | left edge, above the unit card | — |
 | Header additions | top centre | — |
@@ -121,6 +122,23 @@ public sealed record RollRecord(..., int? RequiredRaw = null, ThresholdBasis? Ba
 - Null in logs written before it; the client then shows the threshold alone.
 - `EventApplier` does not read it. The viewer's generated types regenerate (`TABLETOP_WRITE_GENERATED=1`).
 - `ProtocolVersion.Current` does not change: the field is optional and older clients ignore it.
+
+## Undo
+
+An **Undo** button is always shown during play, lower right, left of the log button. It is disabled only when nothing is
+undoable. Ctrl+Z presses it.
+
+It undoes the last action in the game, whoever took it: the newest event of the effective log
+(`EventApplier.EffectiveLog`) that has an actor and is not an `Undone` marker. An actor marks a participant's command: an
+answer, a move, a deployment, a menu edit, a dice command. Engine events have no actor; they are never an action and are
+undone with the action they followed. The target is the live seq immediately before that event, 0 when there is none;
+the server accepts only a live seq (`Replay.IsValidUndoTarget`). Each press steps back one more action, and while an undo
+travels the next press plans as if its marker had landed. The tooltip reads `Undo: ` and `LogText.Describe` of the action.
+
+If any live event after the target is a `step_completed` with rolls, a `dice_rerolled` or a `dice_edited`, a dialog asks
+first: title "Undo dice rolls?", one line per lost roll (the combat log's collapsed roll line; for a reroll or edit of a
+roll at or before the target, the roll's title and the amendment's line), buttons **Undo** and **Cancel**. With no lost
+rolls the undo is sent at once. The undo is `Session.UndoToAsync`; a failure is a toast.
 
 ## Dice tray
 
@@ -314,7 +332,7 @@ Adding a theme is a `UiTheme` value in `UiThemes` and its asset folder.
 ## HUD frame
 
 One layout for every Hud part: an 8 px margin, the parts anchored to their corner or edge, and no two overlapping at
-1280×720 and up. The roster and the unit card share the left column and split its height; the log drawer and the
+1280×720 and up. The undo button sits in the log button's row, to its left. The roster and the unit card share the left column and split its height; the log drawer and the
 dice tray never cover the decision box. Toasts use one style and stack top right. `HudLayout` (Core) computes the
 rectangles from the viewport size and which parts are visible, and is tested at 1280×720, 1920×1080 and 2560×1440.
 
@@ -324,6 +342,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 | --- | --- |
 | `SheetFocus` (changed), `UnitSheet` (AP column, wound pips) | `Hud/UnitCard`, replacing `StatSheet` |
 | `CombatLog`, `RollEntry`, `ActivationBlock` | `Hud/CombatLogPanel` in `LogDrawer` |
+| `UndoPlan` | `Hud/UndoButton`, replacing `Table/UndoMoveButton` and `HandMoveUndo` |
 | `RosterView` | `Hud/Roster` |
 | `UnitMarkers` | `Table/UnitMarkerNodes`, `Table/FloatingText` |
 | `RangeRings` | `Table/RangeRingNode` |
@@ -338,7 +357,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 
 - Core models, each against projections and logs built in tests: which unit the card shows across selection and
   activations; `CombatLog` grouping, roll context, reroll and edit attachment, filters, chain summaries; roster counts;
-  marker lists and floating results; ring outlines; `HudLayout` at three sizes; `CameraFocus` clamp and follow rule;
+  marker lists and floating results; `UndoPlan` target, action and lost rolls; ring outlines; `HudLayout` at three sizes; `CameraFocus` clamp and follow rule;
   `UiThemes` resolution and that every theme's paths are set.
 - Server: `GfRolls` tests assert `Basis` on hit, defense and morale records, including a `modify_stat` row, a
   `replace_stat` row, a joined hero's own Defense and the morale best-of; `Roller` writes it; JSON round trip in

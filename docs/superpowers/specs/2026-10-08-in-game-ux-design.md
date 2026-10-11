@@ -128,9 +128,7 @@ and a thin line joins those two bases. Each model with more than one wound shows
   as today. **C** (**Stop here**) sends them as a stop instead when the Ask is `Stoppable`.
 - Outside a move step, a drag is a hand move (`MoveModels`) and follows the game's enforcement setting. Under
   `strict` the drag does not start and the server refuses the command. Under `warn` and `silent` the move is sent on
-  release, and an **Undo move** button appears beside the moved unit. It sends `Undo` to the last live event before that
-  `ModelsMoved` (an `Undone` marker or an undone event is not a target) and stays until any later event lands in the log, since an undo to that point would take the later
-  events with it. **Ctrl+Z** does the same.
+  release; the **Undo** button takes it back (client UX spec → Undo).
 - From play on (`Playing` or `Ended`), every objective marker is locked: a drag on it does not start, under every
   enforcement setting. Its right-click menu offers **Unlock**; unlocked, it drags and its drop sends `MoveMarker`, for
   a setup objective as for one placed in play, until **Lock** is chosen. Objective control is judged where the marker
@@ -197,7 +195,7 @@ The answer is the same `Sight` the rules use, so the check tests the server.
 | P | ping (existing) |
 | Tab / Shift+Tab | next / previous of my units not yet activated: select it, camera to it |
 | Space | camera to the active unit, else the selected one |
-| Ctrl+Z | undo my last hand move, as the **Undo move** button |
+| Ctrl+Z | press the **Undo** button (client UX spec → Undo) |
 | G | open or close the log |
 | Home / End | camera top-down / level (existing) |
 | F1 or ? | key overlay |
@@ -295,7 +293,7 @@ Logic goes in `client/src/Core/`, Godot-free and unit-tested; Godot nodes draw i
 | `Formation` | N rows around a point at a yaw, coherent spacing (geometry from `Tabletop.Geometry`) |
 | `HoverView` | name, unit-to-unit distance and its two closest points, per-model wounds |
 | `SightSummary` | the sight summary's counts, and the models that cannot shoot the hovered or an assigned target |
-| `HandMoveUndo` | the undoable hand move and when it expires |
+| `UndoPlan` | the last action, the undo's target and the rolls it would lose (client UX spec → Undo) |
 | `Hotkeys` | key to intent per context |
 | `RuleTexts` | the fetched catalog by name |
 

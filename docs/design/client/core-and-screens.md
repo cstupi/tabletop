@@ -47,7 +47,7 @@ flowchart TD
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
   hud["Hud: HeaderBar, Roster, UnitCard, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, TurnBanner, EndMessage, KeyOverlay, Toasts"]
-  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, RangeRingNode,<br/>UndoMoveButton, UnitMarkerNodes, FloatingText"]
+  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, RangeRingNode,<br/>UnitMarkerNodes, FloatingText"]
 
   main -- owns --> session
   main -- "one at a time, by Phase" --> login

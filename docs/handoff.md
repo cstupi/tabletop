@@ -85,7 +85,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 **In-game UX** (merged to `main`; spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
 `docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, decision box, dice, log drawer and
 end message over it; selection, hover, formations, and target and casualty picks on the table; the sight check, answered by
-the server; hand moves under the enforcement setting, with **Undo move**. New games start with Frontline deployment zones,
+the server; hand moves under the enforcement setting. New games start with Frontline deployment zones,
 drawn through round 0.
 
 **Client UX** (branch `client-ux`; spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`, plan
@@ -104,6 +104,9 @@ drawn through round 0.
   strip with distance and each weapon's range.
 - **Themes, settings, Hud frame.** Fantasy and Sci-fi (`UiThemes`, `ThemeBuilder`), a Settings dialog (theme, Animate, Camera
   follow, Turn banner, Range rings), and `HudLayout` slots so no two parts overlap at 1280×720 and up.
+- **Undo.** An always-shown **Undo** button left of the log button (`UndoButton` over `UndoPlan`) undoes the last action in
+  the game, whoever took it, one action per press, with the engine events after it; it warns before losing dice. Ctrl+Z
+  presses it.
 - **Table UX.** WASD/Q/E camera, Space/Tab/roster focus glide, camera follow, the army roster (R), the header's
   activation counts and objective chips, unit markers, floating results, range rings (V), turn banners.
 
@@ -112,7 +115,7 @@ drawn through round 0.
 *Layout and in-game UX*
 1. Layout, hover and distance, selection, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
    shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take
-   wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and gone at round 1, the end message, F1,
+   wounds one model at a time), zones during deployment and gone at round 1, the end message, F1,
    the shooting lasers (one second, shooter to nearest target model, none in melee), Ctrl held to measure (live for the
    other player, gone on release).
 2. At 1280×720 and 1920×1080, with the log open and a decision taken, nothing overlaps: the log sits above the decision and
@@ -171,6 +174,14 @@ drawn through round 0.
     persists and the Settings toggle redraws.
 27. "Round 2" and "Team k's turn" show once each, not again while the same team keeps the turn; clicks pass through; none
     with Animate off or the setting off.
+
+*Undo*
+28. **Undo** shows lower right, left of the log button, through all of play; disabled with nothing to undo; its tooltip reads
+    `Undo: ` and the action's log line.
+29. Each press steps back one action, including the opponent's (a move, a deploy, an answer, a menu edit), with the engine
+    events after it; Ctrl+Z does the same.
+30. An undo whose range holds a roll, a reroll or a dice edit first asks "Undo dice rolls?", listing each lost roll in the
+    log's collapsed words; Cancel keeps them, Undo undoes. An undo with no rolls in range goes at once.
 
 **Owner decisions:**
 - An Aircraft's Teleport-style placement (`RepositionStep.Place`, `GfMoves.cs` ~l.427) keeps the 1" separation and the
