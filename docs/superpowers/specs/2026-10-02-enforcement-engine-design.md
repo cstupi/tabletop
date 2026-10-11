@@ -403,9 +403,7 @@ Tests that hard-code `decided|round_limit` from a default `strict` run (`RunLoop
 
 The game server writing `game.status` from `playing` on contradicts the convention wherever it is
 stated. The plan corrects each: `CLAUDE.md` → *Conventions*; `docs/design/management-api/design.md` →
-*Rows by writer* (the column header and the `game.status` row); the management plan's *Rows by writer*
-(`docs/superpowers/plans/2026-09-05-management-api/README.md`); the game-server skeleton plan's
-*Interfaces needed* item 1; `docs/architecture.md` → *Game management data model*; `docs/data-model.md`;
+*Rows by writer* (the column header and the `game.status` row); `docs/architecture.md` → *Game management data model*; `docs/data-model.md`;
 `docs/schema.md`; `docs/design/README.md`; `docs/design/contracts/design.md`;
 `docs/design/game-server/design.md`; and the doc comments on `IGameRows` and `GameSession`.
 
