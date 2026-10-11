@@ -15,7 +15,7 @@ namespace Tabletop.Client.Screens;
 /// </summary>
 public partial class GameScreen
 {
-    HeaderBar? _header; StatSheet? _sheet; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; EndMessage? _end; KeyOverlay? _keys;
+    HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; EndMessage? _end; KeyOverlay? _keys;
     HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
@@ -29,13 +29,13 @@ public partial class GameScreen
 
         // Hud parts, bottom of the input order first: the end message and the key overlay are added last and hear keys first.
         _hud.AddChild(_header = new HeaderBar()); _header.Bind(_session, Table, Input);
-        _hud.AddChild(_sheet = new StatSheet()); _sheet.Bind(_session, Table, Input);
+        _hud.AddChild(_card = new UnitCard()); _card.Bind(_session, Table, Input);
         _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
         _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input); _dice.Follow(_decision);
         _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
         _dice.RollClicked += _logDrawer.OpenAt;
-        _sheet.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
-        _logDrawer.CombatLog.FocusUnit = _sheet.UnitId;
+        _card.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
+        _logDrawer.CombatLog.FocusUnit = _card.UnitId;
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
         _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
 
@@ -63,7 +63,7 @@ public partial class GameScreen
         // The parts die with the screen, so their own events need no unsubscribing.
         _header.TeamMenuRequested += OpenTeamMenu;
         _header.GameOverPressed += _end.Open;
-        _sheet.ModelPicked += SelectModel;
+        _card.ModelPicked += SelectModel;
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;
     }
@@ -72,9 +72,9 @@ public partial class GameScreen
     {
         if (Input is not null && IsInstanceValid(Input)) { Input.PieceRightClicked -= _onPieceRight; Input.TableRightClicked -= _onTableRight; }
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _header, _sheet, _decision, _dice, _logDrawer, _end, _keys, _hover, _sight, _targets, _lasers, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _header, _card, _decision, _dice, _logDrawer, _end, _keys, _hover, _sight, _targets, _lasers, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
-        _header = null; _sheet = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
+        _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
         _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _menu = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
     }
@@ -86,7 +86,7 @@ public partial class GameScreen
             _menu?.Open(MenuModel.ForTeam(game, p, teamId).Concat(MenuModel.OffTable(p, teamId, new Names(game, p))).ToList(), at);
     }
 
-    /// <summary>A model clicked in the stat sheet's strip selects that one model on the table (spec → Stat sheet).</summary>
+    /// <summary>A model clicked in the unit card's wound rows selects that one model on the table (spec → Unit card).</summary>
     void SelectModel(Guid modelId)
     {
         if (_session.Projection?.Models.GetValueOrDefault(modelId) is { } model) Input.Select(model.UnitId, modelId);
