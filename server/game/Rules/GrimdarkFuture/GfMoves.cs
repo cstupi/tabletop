@@ -398,7 +398,7 @@ public static partial class GfMoves
                 var rules = TerrainFor(ctx, unit, live);
                 var (impassable, difficult) = RegionVolumes(ctx.State, rules);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap), allowPass: true)]);   // the cap ApplyMove holds the move to
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: GfNames.Separation, PassesModels: rules.PassesImpassable), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point
@@ -424,7 +424,7 @@ public static partial class GfMoves
             var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(models, distance, [], [], null), allowPass: true)]);
+                    new MoveRegion(models, distance, [], [], null, Separation: GfNames.Separation), allowPass: true)]);
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);

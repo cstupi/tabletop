@@ -71,9 +71,12 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// that is less" is a standing ruling until the owner rules: p.13 assumes the room, p.6 allows "smaller areas", p.7 keeps every base on the table.
 /// Stoppable: the move may stop here and go on after the window that follows a segment (OPR p.13 Caster(X) "at any point before
 /// attacking"), answered by Destinations.Continues. True only when that window has something to offer the mover now.
+/// Separation: how far the moving models must stay from models of other units (OPR p.7: 1"); null is no limit.
+/// PassesModels: the unit may move through other models (OPR p.13 Flying, Aircraft); false is "may never move through other models".
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
-    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false) : LegalSet;
+    IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
+    double? Separation = null, bool PassesModels = false) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId

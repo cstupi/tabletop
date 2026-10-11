@@ -49,7 +49,8 @@ public static partial class GfMoves
     {
         var rules = TerrainFor(ctx, unit, Lone(ctx, unit, null));
         var (impassable, difficult) = RegionVolumes(ctx.State, rules);
-        return new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap);
+        return new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap,
+            Separation: GfNames.Separation, PassesModels: rules.PassesImpassable);
     }
 
     /// <summary>

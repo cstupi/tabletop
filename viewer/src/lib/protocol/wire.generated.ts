@@ -329,6 +329,8 @@ export interface MoveRegion {
   readonly containment?: MoveContainment;
   readonly minDistance?: number;
   readonly stoppable: boolean;
+  readonly separation?: number;
+  readonly passesModels: boolean;
 }
 
 export interface ObjectiveControlSet {

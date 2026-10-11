@@ -87,4 +87,13 @@ public class AskTests
         Assert.Equal((bus, 6.0), (disembark.Containment!.ExitingId!.Value, disembark.Containment.ExitWithin!.Value));
         Assert.Empty(disembark.Containment.Enterable);                                                      // never both in one activation
     }
+
+    [Fact]
+    public void A_move_region_carries_its_separation_and_whether_it_passes_models()
+    {
+        var plain = new MoveRegion([Guid.CreateVersion7()], 6, [], [], 6);
+        Assert.Equal(((double?)null, false), (plain.Separation, plain.PassesModels));
+        var back = Assert.IsType<MoveRegion>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(plain with { Separation = 1, PassesModels = true })));
+        Assert.Equal(((double?)1, true), (back.Separation, back.PassesModels));
+    }
 }
