@@ -72,7 +72,7 @@ public static partial class GfMoves
         foreach (var m in proposed.Where(m => m.To is OnTable && ctx.Projection.Models.TryGetValue(m.ModelId, out var mm) && mm.UnitId == unit))
         {
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
-            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
+            var settled = Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement);
             var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, rules.DifficultCap, ctx.State.Board.Table.Size);
             if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable && !LandsInImpassable(ctx.State, m.ModelId, settled, landing))
                 moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));

@@ -90,7 +90,7 @@ public static class GfMelee
     /// <summary>The settled move answer: every model that went on the table lands on the surface. Shared by the defender's close-in and consolidation.</summary>
     static StepOutcome Settled(StepContext ctx, AskRecord closed)
     {
-        var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement)))).ToList();
+        var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement)))).ToList();
         return new Complete(moves.Count > 0 ? [new ModelsMoved(moves)] : []);
     }
 

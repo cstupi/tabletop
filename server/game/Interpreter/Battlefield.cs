@@ -90,6 +90,7 @@ public static class Battlefield
         return names;
     }
 
-    public static Placement Settle(GameState state, Placement client) =>
-        new(client.Position with { Z = Settling.SurfaceHeightAt(client.Position, Terrain(state)) }, client.Yaw);
+    /// <summary>Client UX spec → Physical collision: rests the model over its whole base (Collision.RestHeight). The client's Z is not read.</summary>
+    public static Placement Settle(GameState state, Guid modelId, Placement client) =>
+        new(client.Position with { Z = Collision.RestHeight(At(state, modelId, client), Terrain(state)) }, client.Yaw);
 }

@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Interpreter;
 using Tabletop.GameServer.Rules;
 using Tabletop.Protocol;
 
@@ -27,7 +28,8 @@ public static class MenuTranslation
 
         EventPayload? payload = command switch
         {
-            MoveModels m when m.Moves.All(x => HasModel(x.ModelId)) => new ModelsMoved(m.Moves),
+            MoveModels m when m.Moves.All(x => HasModel(x.ModelId)) => new ModelsMoved(m.Moves.Select(x => x.To is OnTable t
+                ? new ModelRelocation(x.ModelId, x.From, new OnTable(Battlefield.Settle(state, x.ModelId, t.Placement))) : x).ToList()),
             PlaceMarker m when !p.Markers.ContainsKey(m.Marker.Id) || Missing(ref miss, $"marker {m.Marker.Id} already placed") => new MarkerPlaced(m.Marker),
             MoveMarker m when Movable(m.MarkerId) => new MarkerMoved(m.MarkerId, m.Position, m.Yaw),
             RemoveMarker m when Removable(m.MarkerId) => new MarkerRemoved(m.MarkerId),

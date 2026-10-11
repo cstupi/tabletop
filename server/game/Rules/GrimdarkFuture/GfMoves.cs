@@ -107,7 +107,7 @@ public static partial class GfMoves
     /// </summary>
     public static Placement? ExitPlacement(GameState state, Guid modelId, Guid container, Placement proposed, double within)
     {
-        var settled = Battlefield.Settle(state, proposed);
+        var settled = Battlefield.Settle(state, modelId, proposed);
         var at = Battlefield.At(state, modelId, settled);
         return Battlefield.Placed(state, container) is { } c && Containment.BaseFullyWithin(at, c, within) && Table.ContainsBase(state.Board.Table.Size, at)
             && !LandsInImpassable(state, modelId, settled, Declared(Battlefield.Terrain(state), TerrainDeclarations.Impassable)) ? settled : null;
@@ -317,7 +317,7 @@ public static partial class GfMoves
                 continue;
             }
             if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
-            var settled = Battlefield.Settle(ctx.State, to.Placement);
+            var settled = Battlefield.Settle(ctx.State, m.ModelId, to.Placement);
             used = Math.Max(used, Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, strider ? null : GfNames.DifficultCap, ctx.State.Board.Table.Size).Distance);
             // p.11 is "moves in or through", which the landing position alone does not answer (geometry plan → VolumesCrossed is the in-or-through test).
             if (Movement.VolumesCrossed(start, settled.Position.Horizontal, dangerous).Count > 0) exposed.Add(m.ModelId);
@@ -458,7 +458,7 @@ public static partial class GfMoves
         foreach (var m in proposed.Where(m => models.Contains(m.ModelId) && m.To is OnTable && ctx.Projection.Models[m.ModelId].Location is OnTable))
         {
             var from = ((OnTable)ctx.Projection.Models[m.ModelId].Location).Placement.Position;
-            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
+            var settled = Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement);
             var to = settled.Position;
             var displaced = Math.Sqrt((to.X - from.X) * (to.X - from.X) + (to.Y - from.Y) * (to.Y - from.Y));
             if (displaced > distance + 1e-6) continue;
