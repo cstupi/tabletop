@@ -293,4 +293,13 @@ public class SessionTests : IDisposable
         Assert.Equal(SessionPhase.LoggedOut, _s.Phase);
         Assert.Null(new SessionStore(Path.Combine(_dir, "session.bin")).Read());
     }
+
+    [Fact]
+    public void UpdateSettings_raises_SettingsChanged_after_persisting()
+    {
+        var seen = new List<string>();
+        _s.SettingsChanged += () => seen.Add(_persisted[^1].Theme);
+        _s.UpdateSettings(x => x with { Theme = "fantasy" });
+        Assert.Equal(new[] { "fantasy" }, seen);
+    }
 }

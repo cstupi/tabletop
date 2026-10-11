@@ -149,7 +149,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         Settings = change(Settings);
         persistSettings(Settings);
         if (!Settings.RememberMe) store.Clear(); else if (management.Jwt is { } jwt) store.Write(jwt);
+        SettingsChanged?.Invoke();
     }
+
+    public event Action? SettingsChanged;
 
     /// <summary>A login path: its response supersedes any refresh still in flight.</summary>
     async Task Complete(Func<Task<SessionResponse>> call)

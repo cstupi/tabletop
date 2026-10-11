@@ -72,4 +72,22 @@ public class SettingsTests : IDisposable
             Assert.Equal((LogFilter.All, false), (ClientSettings.Load(path).LogFilter, ClientSettings.Load(path).LogOpen));
         }
     }
+
+    [Fact]
+    public void Settings_round_trip_every_new_field()
+    {
+        var path = Path.Combine(_dir, "settings.json"); var d = ClientSettings.Default;
+        Assert.Equal(("scifi", true, true, false), (d.Theme, d.CameraFollow, d.TurnBanner, d.RangeRings));
+        Assert.NotEqual(d, d with { Theme = "fantasy" }); Assert.NotEqual(d, d with { CameraFollow = false }); Assert.NotEqual(d, d with { TurnBanner = false }); Assert.NotEqual(d, d with { RangeRings = true });
+        var s = d with { Theme = "fantasy", CameraFollow = false, TurnBanner = false, RangeRings = true }; s.Save(path);
+        var back = ClientSettings.Load(path);
+        Assert.Equal(("fantasy", false, false, true), (back.Theme, back.CameraFollow, back.TurnBanner, back.RangeRings)); Assert.Equal(s, back);
+    }
+
+    [Theory, InlineData("""{ "theme": "steampunk" }"""), InlineData("""{ "animate": false }""")]
+    public void Unknown_theme_in_settings_reads_scifi(string json)
+    {
+        var path = Path.Combine(_dir, "settings.json"); File.WriteAllText(path, json); var s = ClientSettings.Load(path);
+        Assert.Equal(("scifi", true, true, false), (s.Theme, s.CameraFollow, s.TurnBanner, s.RangeRings));
+    }
 }
