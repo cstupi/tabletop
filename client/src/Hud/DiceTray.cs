@@ -5,13 +5,20 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Bottom centre, above the decision box: the latest roll's dice and how many passed, until the next roll.</summary>
+/// <summary>Bottom centre, above the decision box: the latest roll as the combat log's collapsed entry (client UX spec → Dice tray).
+/// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling.</summary>
 public partial class DiceTray : PanelContainer
 {
-    static readonly Color Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.5f, 0.5f, 0.5f);
+    static readonly Color Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.5f, 0.5f, 0.5f), Tumbling = Colors.White;
+    const double TumbleSeconds = 0.4;
     Session _s = null!; Control? _below;
-    readonly VBoxContainer _rolls = new();
+    readonly Button _line = new() { Flat = true };
+    readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
+    RollEntry? _shown; double _tumble;
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _place;
+
+    /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
+    public event Action<Guid>? RollClicked;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
@@ -19,7 +26,8 @@ public partial class DiceTray : PanelContainer
         SetAnchorsAndOffsetsPreset(LayoutPreset.CenterBottom, LayoutPresetMode.Minsize, 8);
         GrowHorizontal = GrowDirection.Both; GrowVertical = GrowDirection.Begin;
         MouseFilter = MouseFilterEnum.Ignore;
-        AddChild(_rolls);
+        AddChild(_line);
+        _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onEvents = _ => Render(); _onBoard = Render;
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
         Render();
@@ -48,26 +56,28 @@ public partial class DiceTray : PanelContainer
 
     void Render()
     {
-        foreach (var c in _rolls.GetChildren()) { _rolls.RemoveChild(c); c.QueueFree(); }
-        var step = EventApplier.EffectiveLog(_s.Log).Select(e => e.Payload).OfType<StepCompleted>().LastOrDefault(x => x.Rolls.Count > 0);
-        Visible = step is not null;
-        if (step is null) return;
-        // A step may hold several rolls (one pool per Quality value, p.4): one row each, told apart by threshold.
-        foreach (var roll in step.Rolls)
-        {
-            var row = new HBoxContainer(); _rolls.AddChild(row);
-            row.AddChild(new Label { Text = roll.Threshold is { } t ? $"{roll.Roll} {t}+" : roll.Roll });
-            foreach (var die in roll.Dice) row.AddChild(Face(die));
-            var mods = roll.Modifiers.Count == 0 ? "" : "  " + string.Join(", ", roll.Modifiers.Select(m => $"{m.Amount:+#;-#;0} {m.Source}"));
-            row.AddChild(new Label { Text = $"  {roll.Dice.Count(d => d.Success)} of {roll.Dice.Count}{mods}" });
-        }
+        var latest = _s.Projection is { } p && _s.Game is { } g ? CombatLog.Latest(_s.Log, new Names(g, p)) : null;
+        Visible = latest is not null;
+        var changed = latest is not null && (_shown is null || _shown.Record.Id != latest.Record.Id || !_shown.Dice.SequenceEqual(latest.Dice));
+        _shown = latest;
+        if (latest is null) return;
+        if (changed) _tumble = _s.Settings.Animate ? TumbleSeconds : 0;
+        Paint();
         Place();
     }
 
-    static Control Face(Die d)
+    public override void _Process(double delta)
     {
-        var face = new PanelContainer { SelfModulate = d.Success ? Pass : Fail, CustomMinimumSize = new Vector2(28, 28) };
-        face.AddChild(new Label { Text = d.Modified == d.Raw ? $"{d.Raw}" : $"{d.Raw}→{d.Modified}", HorizontalAlignment = HorizontalAlignment.Center });
-        return face;
+        if (_tumble <= 0) return;
+        _tumble -= delta;
+        Paint();
+    }
+
+    void Paint()
+    {
+        if (_shown is not { } r) return;
+        var settled = _tumble <= 0;
+        _line.Text = r.Collapsed(face => CombatLog.Pip(settled ? face : _faces.Next(1, 7)));
+        _line.Modulate = !settled ? Tumbling : r.Successes > 0 ? Pass : Fail;
     }
 }

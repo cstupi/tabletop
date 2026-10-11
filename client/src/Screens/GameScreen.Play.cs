@@ -33,6 +33,7 @@ public partial class GameScreen
         _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
         _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input); _dice.Follow(_decision);
         _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
+        _dice.RollClicked += _logDrawer.OpenAt;
         _sheet.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
         _logDrawer.CombatLog.FocusUnit = _sheet.UnitId;
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
