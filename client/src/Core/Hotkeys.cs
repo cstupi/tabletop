@@ -4,7 +4,7 @@ namespace Tabletop.Client.Core;
 public enum Intent
 {
     Option1, Option2, Option3, Option4, Option5, Option6, Option7, Option8, Option9, Confirm, Cancel, SingleModel, Sight,
-    Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, UndoMove, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight, StopHere,
+    Measure, MeasureHeld, Ping, NextUnit, PreviousUnit, FocusCamera, Undo, ToggleLog, CameraTop, CameraLevel, KeyOverlay, TurnLeft, TurnRight, StopHere,
     CameraForward, CameraBack, CameraLeft, CameraRight, ToggleRoster, ToggleRangeRings,
 }
 
@@ -17,7 +17,7 @@ public static class Hotkeys
     public static Intent? Of(HotKey key, bool shift, bool ctrl) => (key, shift, ctrl) switch
     {
         (HotKey.Ctrl, _, _) => Intent.MeasureHeld,
-        (HotKey.Z, _, true) => Intent.UndoMove,
+        (HotKey.Z, _, true) => Intent.Undo,
         (_, _, true) => null,
         (>= HotKey.Key1 and <= HotKey.Key9, _, _) => Intent.Option1 + (key - HotKey.Key1),
         (HotKey.Enter or HotKey.KpEnter, _, _) => Intent.Confirm,

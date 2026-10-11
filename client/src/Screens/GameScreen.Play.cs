@@ -3,7 +3,6 @@ using Tabletop.Client.Core;
 using Tabletop.Client.Hud;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
-using Tabletop.Client.Theming;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -16,8 +15,8 @@ namespace Tabletop.Client.Screens;
 /// </summary>
 public partial class GameScreen
 {
-    HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; EndMessage? _end; KeyOverlay? _keys;
-    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer; UndoMoveButton? _undo;
+    HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; UndoButton? _undo; EndMessage? _end; KeyOverlay? _keys;
+    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
     Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; Action<IReadOnlyList<GameEvent>>? _onFollow;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
@@ -36,6 +35,7 @@ public partial class GameScreen
         _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
         _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input);
         _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
+        _hud.AddChild(_undo = new UndoButton()); _undo.Bind(_session, Input);
         _dice.RollClicked += _logDrawer.OpenAt;
         _card.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
         _logDrawer.CombatLog.FocusUnit = _card.UnitId;
@@ -43,15 +43,13 @@ public partial class GameScreen
         _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
         _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
 
-        // Table overlays: Node3D children of the table, and the undo button in a canvas layer of the table's own viewport.
+        // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
         Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
         Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
         Table.AddChild(_lasers = new Lasers()); _lasers.Bind(_session, Table, Input);
         Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input);
         Table.AddChild(_tableLayer = new CanvasLayer());
-        // A CanvasLayer in the table's viewport inherits no theme from the screen: the button takes Ui.Theme itself.
-        _tableLayer.AddChild(_undo = new UndoMoveButton { Theme = Ui.Theme }); _undo.Bind(_session, Table, Input);
 
         // The floating text subscribes before the Animator is made, so it hears each batch before the Animator plays it.
         _tableLayer.AddChild(_markers = new UnitMarkerNodes()); _markers.Bind(_session, Table);
@@ -77,6 +75,7 @@ public partial class GameScreen
         _card.ModelPicked += SelectModel;
         _decision.TargetsChanged += ShowTargets;
         _logDrawer.Reported += Toast;
+        _undo.Reported += Toast;
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
@@ -119,6 +118,7 @@ public partial class GameScreen
         }
         if (_logDrawer is { } log && IsInstanceValid(log))
             log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(BelowHeader(panel)) : null);
+        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Bottom(undo, r[HudPart.UndoButton]);
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
         if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
     }
@@ -150,7 +150,7 @@ public partial class GameScreen
         if (_onFollow is not null) _session.EventsApplied -= _onFollow;
         _onFollow = null;
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _markers, _floating, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _markers, _floating, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
         _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
         _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;

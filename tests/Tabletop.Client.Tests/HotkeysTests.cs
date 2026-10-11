@@ -14,7 +14,7 @@ public class HotkeysTests
             (HotKey.Shift, true, false, Intent.SingleModel), (HotKey.L, false, false, Intent.Sight), (HotKey.M, false, false, Intent.Measure),
             (HotKey.P, false, false, Intent.Ping), (HotKey.Tab, false, false, Intent.NextUnit), (HotKey.Tab, true, false, Intent.PreviousUnit),
             (HotKey.Backtab, true, false, Intent.PreviousUnit), (HotKey.Space, false, false, Intent.FocusCamera),
-            (HotKey.Z, false, true, Intent.UndoMove), (HotKey.G, false, false, Intent.ToggleLog),
+            (HotKey.Z, false, true, Intent.Undo), (HotKey.G, false, false, Intent.ToggleLog),
             (HotKey.Home, false, false, Intent.CameraTop), (HotKey.End, false, false, Intent.CameraLevel),
             (HotKey.F1, false, false, Intent.KeyOverlay), (HotKey.Question, true, false, Intent.KeyOverlay), (HotKey.Slash, true, false, Intent.KeyOverlay),
             (HotKey.Q, false, false, Intent.TurnLeft), (HotKey.E, false, false, Intent.TurnRight), (HotKey.C, false, false, Intent.StopHere),

@@ -47,6 +47,17 @@ public class HudLayoutTests
         Assert.Equal(0, HudLayout.Below(r[HudPart.UnitCard], 800).H);
     }
 
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_undo_button_sits_left_of_the_log_button_in_its_row(int w, int h)
+    {
+        foreach (var v in All())
+        {
+            var r = HudLayout.Of(w, h, v);
+            Assert.Equal(r[HudPart.LogButton].Y, r[HudPart.UndoButton].Y);
+            Assert.Equal(r[HudPart.LogButton].X - 8, r[HudPart.UndoButton].Right);
+        }
+    }
+
     [Fact]
     public void Below_1280_every_visibility_still_lays_out()
     {

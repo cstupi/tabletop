@@ -1,6 +1,6 @@
 namespace Tabletop.Client.Core;
 
-public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, LogPanel, Banner, EndMessage }
+public enum HudPart { Corner, Toasts, Header, Roster, UnitCard, Decision, Dice, LogButton, UndoButton, LogPanel, Banner, EndMessage }
 
 public readonly record struct HudRect(float X, float Y, float W, float H)
 {
@@ -16,7 +16,7 @@ public sealed record HudVisible(bool Roster, bool UnitCard, bool Decision, bool 
 public static class HudLayout
 {
     public const float M = 8, Column = 420, CornerH = 40, HeaderW = 760, HeaderH = 96, ToastW = 360, ToastH = 120, DecisionW = 480,
-        DecisionH = 200, DiceH = 96, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, BannerH = 96, EndW = 480, EndH = 360;
+        DecisionH = 200, DiceH = 96, LogW = 640, LogMaxH = 720, LogButtonW = 140, LogButtonH = 36, UndoButtonW = 140, BannerH = 96, EndW = 480, EndH = 360;
 
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 
@@ -31,7 +31,8 @@ public static class HudLayout
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
         var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - LogButtonH, LogButtonW, LogButtonH);
-        float left = v.Roster || v.UnitCard ? bandL : M, x = Math.Max(left, Math.Min(w / 2 - DecisionW / 2, button.X - M - DecisionW)), floor = h - M;
+        var undo = r[HudPart.UndoButton] = new(button.X - M - UndoButtonW, button.Y, UndoButtonW, LogButtonH);
+        float left = v.Roster || v.UnitCard ? bandL : M, x = Math.Max(left, Math.Min(w / 2 - DecisionW / 2, undo.X - M - DecisionW)), floor = h - M;
         if (v.Decision) { r[HudPart.Decision] = new(x, floor - DecisionH, DecisionW, DecisionH); floor -= DecisionH + M; }
         if (v.Dice) { r[HudPart.Dice] = new(x, floor - DiceH, DecisionW, DiceH); floor -= DiceH + M; }
         if (v.LogOpen)

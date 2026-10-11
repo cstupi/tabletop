@@ -26,7 +26,7 @@ public partial class KeyOverlay : PanelContainer
         ("Space", "glide the camera to the active unit, else the selected one"),
         ("R", "collapse or expand the roster"),
         ("V", "range rings for my selected unit"),
-        ("Ctrl+Z", "undo my last hand move"),
+        ("Ctrl+Z", "undo the last action, whoever took it"),
         ("G", "open or close the log"),
         ("Home / End", "camera top-down / level"),
         ("F1 or ?", "this overlay"),
