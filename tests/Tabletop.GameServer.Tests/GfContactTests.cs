@@ -54,6 +54,20 @@ public class GfContactTests
     }
 
     [Fact]
+    public void A_placement_has_no_path_so_crossing_a_model_is_not_judged_only_its_landing_is()
+    {
+        var sim = Game(Enforcement.Strict, out var a, out _, 2, P("Teleport"));                  // B at x 2; Teleport after a Rush: 6"
+        sim.Start(GfNames.RushSeq, new SequenceContext(a.Id, [], [], GfNames.Rush));
+        sim.Answer(Samples.Team1, new Passed());
+        sim.Answer(Samples.Team1, new Chosen($"Teleport|{a.Id:N}"));
+        var m = a.Models[0].Id;
+        Assert.Null(Breach(sim, To(sim, m, 5)));                                                 // the straight line crosses B; 1.74" clear
+        Assert.Equal(GfNames.MoveSeparationRule, Breach(sim, To(sim, m, 3.6)));                  // the landing is still judged
+        sim.Answer(Samples.Team1, new Destinations([To(sim, m, 5)]));                            // accepted under strict, then applied
+        Assert.Equal(5, ((OnTable)sim.Model(m).Location).Placement.Position.X, 3);
+    }
+
+    [Fact]
     public void Under_warn_an_overlap_is_applied_with_a_warning()
     {
         var sim = Advancing(Enforcement.Warn, out var a, out _);

@@ -424,7 +424,7 @@ public static partial class GfMoves
             var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(models, distance, [], [], null, Separation: GfNames.Separation), allowPass: true)]);
+                    new MoveRegion(models, distance, [], [], null, Separation: GfNames.Separation, PassesModels: true), allowPass: true)]);   // a placement has no path; its landing is still judged by move_overlap and move_separation
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);
@@ -449,7 +449,7 @@ public static partial class GfMoves
     }
 
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
-    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Nothing between is swept. A landing that fails stays where it was. Under strict,
+    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Terrain and models between are not swept. A landing that fails stays where it was. Under strict,
     /// dispatch also refuses a landing off the table (PathBreach, p.7); p.7's contact clauses are ContactBreach's, as for every move.</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
