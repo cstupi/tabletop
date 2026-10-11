@@ -5,11 +5,11 @@
 From `playing` on the side panel goes and the table fills the window (in-game UX spec → Layout). `GameScreen`
 keeps the side panel, the team panels and the selection line for lobby and setup. An overlay `Control` added after the
 table carries Home, the status and the toasts in every status, and in play `GameScreen.Play` adds the Hud to it: each
-part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`, drawing a Godot-free model.
+part a control in `client/src/Hud/` with a `Bind` over the session (and, for most, the `TableView` and `TableInput`), drawing a Godot-free model.
 
 | Part | Where | Draws |
 | --- | --- | --- |
-| `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour; the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
+| `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour, a plain chip while no team controls it; a wrapping row of the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
 | `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
@@ -63,7 +63,7 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 | `Corner` | top left | 420 x 40: Home and the status |
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
-| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show |
+| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
 | `Decision` | bottom, centred, left of the log button | 480 x 200 |
 | `Dice` | stacked above the decision box | 480 x 96 |
 | `LogButton` | bottom right | 140 x 36 |
@@ -84,7 +84,8 @@ subtracts the side panel's width outside play. Because the decision box and dice
 moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
 the actual decision box and dice tray when the panel's columns span theirs. Likewise the panel starts 8 px below the
 header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
-panel's height never goes negative. `UnitCard.Place` sizes the card to its
+panel's height never goes negative. The unit card's slot starts 8 px below the roster's actual bottom
+(`HudLayout.Below`), so a roster collapsed by R gives the card the column back; the roster's half stays its ceiling. `UnitCard.Place` sizes the card to its
 content, capped by its slot, and anchors it to the slot's bottom; `Roster.Place` sizes its scroll list to its content,
 capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height.
 

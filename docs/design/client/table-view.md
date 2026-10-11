@@ -60,7 +60,8 @@ table level on `End`, giving the placement and line-of-sight views the spec asks
 ignored while a text field has focus in the Hud or any dialog; with a unit in hand Q/E turn the unit instead. Pan speed
 scales with the camera's distance and the focus stays within the table plus 12" (`CameraFocus.Clamp`). `Centre` glides
 the focus to a point over 0.3 s (`CameraFocus.Glide`); `Follow` glides only when `CameraFocus.Follows`: follow on, no
-unit in hand, and no player camera move in the last 2 s. Any player move stops a glide.
+unit in hand, and no player camera move in the last 2 s. Any player move stops a glide. A player's focus (Space, Tab, a
+roster click: `TableInput.Focus`, `Centre(…, byPlayer: true)`) counts as a camera move for follow and keeps its own glide.
 
 Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AABBs and the slab
 plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `Stationary`, `Walls`, `Models`, `Piece`) through
