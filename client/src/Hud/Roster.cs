@@ -45,7 +45,7 @@ public partial class Roster : PanelContainer
             {
                 var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Stop }; var v = row.OffTable ? Variation.Dim : "";   // off the table: dimmed
                 line.AddChild(new Label { Text = row.Name, ThemeTypeVariation = v, ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill });
-                line.AddChild(row.Activated ? Icon("activated") : new Control { CustomMinimumSize = new Vector2(16, 16) });   // an empty spacer keeps the columns lined up
+                line.AddChild(row.Activated ? Icon("activated") : new Control { CustomMinimumSize = new Vector2(16, 16), MouseFilter = MouseFilterEnum.Ignore });   // an empty spacer keeps the columns lined up
                 line.AddChild(new Label { Text = row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}", ThemeTypeVariation = v });
                 foreach (var c in row.Conditions) line.AddChild(Icon(c));
                 var id = row.UnitId;
@@ -57,9 +57,9 @@ public partial class Roster : PanelContainer
 
     /// <summary>The theme's icon for a condition name or marker kind, else a text chip of the name.</summary>
     public static Control Icon(string key) => Ui.Icon(key) is { } texture
-        ? new TextureRect { Texture = texture, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(16, 16), TooltipText = RosterView.Words(key) }
+        ? new TextureRect { Texture = texture, MouseFilter = MouseFilterEnum.Pass, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(16, 16), TooltipText = RosterView.Words(key) }
         : Chip(RosterView.Words(key));
 
-    /// <summary>Text in the theme's chip box.</summary>
-    public static Control Chip(string text) { var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip }; chip.AddChild(new Label { Text = text }); return chip; }
+    /// <summary>Text in the theme's chip box. Icons and chips pass clicks to their row, keeping their tooltips.</summary>
+    public static Control Chip(string text) { var chip = new PanelContainer { ThemeTypeVariation = Variation.Chip, MouseFilter = MouseFilterEnum.Pass }; chip.AddChild(new Label { Text = text }); return chip; }
 }
