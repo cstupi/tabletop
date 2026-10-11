@@ -46,7 +46,7 @@ flowchart TD
   gamescr["GameScreen<br/>lobby, setup, playing, ended"]
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
-  hud["Hud: HeaderBar, StatSheet, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, EndMessage, KeyOverlay"]
+  hud["Hud: HeaderBar, UnitCard, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, EndMessage, KeyOverlay"]
   table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, UndoMoveButton"]
 
   main -- owns --> session

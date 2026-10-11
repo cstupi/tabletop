@@ -84,14 +84,14 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ### 2. The in-game UX: the owner's on-screen check
 
 Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
-`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, stat sheet, decision box,
+`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, unit card, decision box,
 dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
 the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New games start
 with Frontline deployment zones, drawn through round 0. The server side is checked by
 `tests/Tabletop.GameServer.Tests` and the sim.
 
 **The owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
-selection and the stat sheet's two tabs, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
+selection and the unit card, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
 shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and
 gone at round 1, the end message, F1, the shooting lasers (one second, shooter to nearest target model, none in melee),
 Ctrl held to measure (live for the other player, gone on release).
@@ -159,7 +159,7 @@ the table.
 
 **Army-book rules not yet played.** Every rule name the official books put on a unit, a weapon, an item or an upgrade
 has a catalog entry. 71 are generated template wrappers (Aura, Buff, Mark) and play; 108 are generated text-only
-entries (`played: false`): the stat sheet shows their Army Forge text tagged "not automated" and the engine plays them
+entries (`played: false`): the unit card shows their Army Forge text tagged "not automated" and the engine plays them
 as absent. The rules suite lists them and does not fail on them. They are the spec's batches 2–8
 (`docs/superpowers/specs/2026-10-09-army-book-rules-design.md`) and the wrappers of bases those batches author.
 

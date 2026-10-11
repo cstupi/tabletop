@@ -428,7 +428,7 @@ serves a set's entries with their `rule_text`, the client's hover text; a rule w
 
 **`played`** (boolean, default true) is false only on an entry `scripts/ArmyBooks` generated as text only: the Army Forge
 description as `rule_text`, no effects. The engine plays it as an absent name, and `GET /v1/properties/{hash}/rules`
-returns it so the stat sheet tags the rule *not automated* while showing its text. A spell is always played.
+returns it so the unit card tags the rule *not automated* while showing its text. A spell is always played.
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is

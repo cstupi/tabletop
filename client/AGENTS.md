@@ -13,10 +13,10 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
   - `IDispatcher`: posts to the main thread; `ImmediateDispatcher` in tests, `GodotDispatcher` in `src/Screens/`.
   - `AskViewModel`: `LegalSet` to `AskMode`, and the first open Ask for my team.
   - `AnimationQueue`, `MoveRuler`, `DeployView`, `SelectionView`, `PendingDrops`, `PresenceTable`, `MenuModel`, `LogText`, `Names`.
-  - The play screen's models: `HeaderView`, `RoundHistory`, `UnitSheet`, `SheetFocus`, `CombatLog` (`RollEntry`, `ActivationBlock`, `LogEntry`, `LineEntry`), `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `ShotLines`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`, `MarkerLocks`.
+  - The play screen's models: `HeaderView`, `EnemyStrip`, `UnitSheet`, `SheetFocus`, `CombatLog` (`RollEntry`, `ActivationBlock`, `LogEntry`, `LineEntry`), `DecisionView`, `TargetAssignment`, `CasualtyPick`, `HandMoveUndo`, `HoverView`, `SightSummary`, `ShotLines`, `Formation`, `Hotkeys` (`HotKey`, `Intent`), `RuleTexts`, `MarkerLocks`.
   - `AssetCache` (content-addressed), `BuiltinContent`, `TerrainGenerators`, `ClientSettings`, `SessionStore`.
 - `src/Screens/`: `LoginScreen`, `HomeScreen`, `GameScreen` (+ `GameScreen.Play.cs`), `UpdateRequiredScreen`, `GodotDispatcher`.
-- `src/Hud/`: the play Hud: `HeaderBar`, `StatSheet`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `CombatLogPanel`, `EndMessage`, `KeyOverlay`.
+- `src/Hud/`: the play Hud: `HeaderBar`, `UnitCard`, `CardColours`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `CombatLogPanel`, `EndMessage`, `KeyOverlay`.
 - `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `Lasers`, `UndoMoveButton`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
 - `src/Panels/`: `LobbyPanel`, `LogPanel` (no caller), `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
