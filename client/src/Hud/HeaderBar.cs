@@ -13,8 +13,8 @@ public partial class HeaderBar : PanelContainer
     Session _s = null!;
     readonly HBoxContainer _top = new(), _activation = new();
     readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning };
-    readonly Button _gameOver = new() { Flat = true, Visible = false };
-    readonly Button _settings = new() { Flat = true, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
+    readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false };
+    readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
 
@@ -57,7 +57,8 @@ public partial class HeaderBar : PanelContainer
         {
             var name = names.Team(team.Id);
             var score = m.Scores.FirstOrDefault(s => s.Team == name).Score;
-            var label = new Label { Text = $"  {name} {score}", Modulate = Palette.Team(team.Ordinal), MouseFilter = MouseFilterEnum.Stop, TooltipText = "Right-click: team menu" };
+            var label = new Label { Text = $"  {name} {score}", MouseFilter = MouseFilterEnum.Stop, TooltipText = "Right-click: team menu" };
+            label.AddThemeColorOverride("font_color", Palette.Team(team.Ordinal));
             var id = team.Id;
             label.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) TeamMenuRequested?.Invoke(id, b.GlobalPosition); };
             _top.AddChild(label);
@@ -66,6 +67,7 @@ public partial class HeaderBar : PanelContainer
         _gameOver.Text = m.Result is { } result ? $"  {result}" : "";
         _top.MoveChild(_gameOver, -1); _top.MoveChild(_settings, -1);
         _settings.Icon = Ui.Icon("settings");
+        _settings.Text = _settings.Icon is null ? "Settings" : "";   // never a zero-width button
 
         _activation.Visible = m.ActiveUnit is not null;
         if (m.ActiveUnit is { } unit)

@@ -12,13 +12,22 @@ public static class ThemeBuilder
         var s = u.Shape; Color C(Rgba c) => Ui.Of(c);
         StyleBox panel = Box(s.PanelNinePatch, s.PanelMargin, s, C(u.Panel), C(u.PanelBorder), s.BorderWidth);
         foreach (var type in new[] { "PanelContainer", "Panel", "TooltipPanel", "PopupPanel", "PopupMenu", "AcceptDialog", "TabContainer" }) t.SetStylebox("panel", type, panel);
-        StyleBox Btn(float light) { var b = Box(s.ButtonNinePatch, s.ButtonMargin, s, C(u.Background).Lightened(light), C(u.PanelBorder), s.BorderWidth); if (b is StyleBoxTexture x) x.ModulateColor = Colors.White.Lightened(light); return b; }
+        StyleBox Btn(float light) { var b = Box(s.ButtonNinePatch, s.ButtonMargin, s, C(u.Background).Lightened(light), C(u.PanelBorder), s.BorderWidth); if (b is StyleBoxTexture x) x.ModulateColor = light >= 0 ? Grey.Lightened(light) : Grey.Darkened(-light); return b; }
         foreach (var (state, light) in new[] { ("normal", 0f), ("hover", 0.15f), ("pressed", 0.3f), ("disabled", -0.2f) }) t.SetStylebox(state, "Button", Btn(light));
         t.SetStylebox("focus", "Button", new StyleBoxEmpty()); t.SetStylebox("tab_selected", "TabContainer", Btn(0.3f)); t.SetStylebox("tab_unselected", "TabContainer", Btn(0f)); t.SetStylebox("tab_hovered", "TabContainer", Btn(0.15f));
         t.SetStylebox("normal", "LineEdit", Flat(s, C(u.Panel), C(u.PanelBorder), 1)); t.SetStylebox("focus", "LineEdit", Flat(s, C(u.Panel), C(u.Accent), 1)); t.SetStylebox("panel", "ItemList", Flat(s, C(u.Panel), C(u.PanelBorder), 1));
-        foreach (var type in new[] { "Label", "CheckBox", "LineEdit", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
+        foreach (var type in new[] { "Label", "LineEdit", "ItemList", "TooltipLabel", "PopupMenu", "TabContainer" }) t.SetColor("font_color", type, C(u.Text));
         foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, "Button", C(u.ButtonText));
-        t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.DimText)); t.SetColor("font_selected_color", "ItemList", C(u.Accent)); t.SetColor("font_selected_color", "TabContainer", C(u.ButtonText));
+        t.SetColor("font_pressed_color", "Button", C(u.Accent)); t.SetColor("font_disabled_color", "Button", C(u.DimText));
+        // CheckBox and a flat button draw on the panel, not on a button face: Text, and no button stylebox.
+        foreach (var state in new[] { "normal", "hover", "pressed", "disabled", "hover_pressed", "focus" }) t.SetStylebox(state, "CheckBox", new StyleBoxEmpty());
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" }) t.SetColor(name, "CheckBox", C(u.Text));
+        t.SetColor("font_disabled_color", "CheckBox", C(u.DimText));
+        t.SetTypeVariation(Variation.FlatButton, "Button");
+        foreach (var name in new[] { "font_color", "font_hover_color", "font_focus_color" }) t.SetColor(name, Variation.FlatButton, C(u.Text));
+        foreach (var name in new[] { "font_pressed_color", "font_hover_pressed_color" }) t.SetColor(name, Variation.FlatButton, C(u.Accent));
+        t.SetColor("font_disabled_color", Variation.FlatButton, C(u.DimText));
+        t.SetColor("font_selected_color", "ItemList", C(u.Accent)); t.SetColor("font_selected_color", "TabContainer", C(u.ButtonText));
         Variant(t, Variation.Badge, "PanelContainer", "panel", Flat(s, C(u.Panel), C(u.Accent), 2));
         Variant(t, Variation.Chip, "PanelContainer", "panel", Flat(s, C(u.Panel) with { A = 0 }, C(u.Accent), 1, 4));
         Variant(t, Variation.DieFace, "PanelContainer", "panel", Flat(s, C(u.Dice.Face), C(u.Dice.Mark), 1, 2));
@@ -27,6 +36,9 @@ public static class ThemeBuilder
         t.SetColor("font_outline_color", Variation.Banner, C(u.Background)); t.SetConstant("outline_size", Variation.Banner, 6);
         return t;
     }
+
+    // A nine-patch button modulated from grey, so lightening for hover and pressed shows.
+    static readonly Color Grey = new(0.85f, 0.85f, 0.85f);
 
     static void Variant(Godot.Theme t, string v, string baseType, string name, StyleBox box) { t.SetTypeVariation(v, baseType); t.SetStylebox(name, v, box); }
 

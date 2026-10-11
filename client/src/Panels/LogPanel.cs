@@ -43,7 +43,7 @@ public partial class LogPanel : PanelContainer
             var row = new HBoxContainer(); _rows.AddChild(row);
             var isLive = live.Contains(e.Seq);
             var line = $"#{e.Seq}  {LogText.Describe(e, names)}";
-            var text = new Button { Text = !isLive && e.Payload is not Undone ? Strike(line) : line, Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            var text = new Button { Text = !isLive && e.Payload is not Undone ? Strike(line) : line, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill };
             // A Button takes no Label variation: struck and pending rows fade instead.
             if (!isLive && e.Payload is not Undone || _s.PendingUndoTo is { } to && e.Seq > to) text.Modulate = Ui.Faded;
             text.Pressed += () =>
@@ -56,7 +56,7 @@ public partial class LogPanel : PanelContainer
             if (e.Payload is StepCompleted { Rolls.Count: > 0 } rolled)   // each roll's dice inline (in-game UX spec → Log)
                 row.AddChild(new Label { Text = string.Join("   ", rolled.Rolls.Select(r =>
                     $"{r.Roll}: {string.Join(" ", r.Dice.Select(d => d.Success ? $"[{d.Raw}]" : $"{d.Raw}"))}")) });
-            if (isLive && e.Payload is not Undone) { var undo = new Button { Text = "Undo to here", Flat = true }; undo.Pressed += () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); row.AddChild(undo); }
+            if (isLive && e.Payload is not Undone) { var undo = new Button { Text = "Undo to here", Flat = true, ThemeTypeVariation = Variation.FlatButton }; undo.Pressed += () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report); row.AddChild(undo); }
             if (isLive && e.Payload is StepCompleted { Rolls.Count: > 0 } step)
             {
                 // A step holds several rolls whenever the ruleset splits one: OPR's roll-to-hit takes one pool per Quality value the
@@ -66,10 +66,10 @@ public partial class LogPanel : PanelContainer
                 foreach (var roll in step.Rolls)
                 {
                     var which = step.Rolls.Count == 1 ? "" : $" {roll.Roll}{(roll.Threshold is { } t ? $" {t}+" : "")}";
-                    var reroll = new Button { Text = $"Reroll all{which}", Flat = true }; reroll.Pressed += () => Send(new RerollDice(step.FrameId, roll.Id, [])); row.AddChild(reroll);
-                    var set = new Button { Text = $"Set die 1{which}…", Flat = true }; set.Pressed += () => PieceMenu.AskInteger(this, "Raw value for die 1", v => Send(new SetDice(step.FrameId, roll.Id, [new DieValue(0, v)]))); row.AddChild(set);
+                    var reroll = new Button { Text = $"Reroll all{which}", Flat = true, ThemeTypeVariation = Variation.FlatButton }; reroll.Pressed += () => Send(new RerollDice(step.FrameId, roll.Id, [])); row.AddChild(reroll);
+                    var set = new Button { Text = $"Set die 1{which}…", Flat = true, ThemeTypeVariation = Variation.FlatButton }; set.Pressed += () => PieceMenu.AskInteger(this, "Raw value for die 1", v => Send(new SetDice(step.FrameId, roll.Id, [new DieValue(0, v)]))); row.AddChild(set);
                 }
-                var mod = new Button { Text = "+1", Flat = true }; mod.Pressed += () => Send(new AddModifier(step.FrameId, step.Rolls[0].Roll, 1)); row.AddChild(mod);
+                var mod = new Button { Text = "+1", Flat = true, ThemeTypeVariation = Variation.FlatButton }; mod.Pressed += () => Send(new AddModifier(step.FrameId, step.Rolls[0].Roll, 1)); row.AddChild(mod);
             }
         }
         CallDeferred(nameof(ScrollToEnd));

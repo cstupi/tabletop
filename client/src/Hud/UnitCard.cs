@@ -105,7 +105,7 @@ public partial class UnitCard : VBoxContainer
     /// <summary>One row per model: a pip per wound left out of ModelFacts' max, a removed model dimmed; a click selects the model.</summary>
     Button WoundRow(SheetModel model)
     {
-        var b = new Button { Text = $"{model.Label}  {new string('●', model.Left)}{new string('○', model.Max - model.Left)}", Flat = true, ClipText = true,
+        var b = new Button { Text = $"{model.Label}  {new string('●', model.Left)}{new string('○', model.Max - model.Left)}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ClipText = true,
             Disabled = model.Removed, Alignment = HorizontalAlignment.Left };
         if (model.Removed) b.Modulate = Ui.Faded;
         var id = model.Id; b.Pressed += () => ModelPicked?.Invoke(id);

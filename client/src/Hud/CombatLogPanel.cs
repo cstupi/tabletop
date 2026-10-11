@@ -17,7 +17,7 @@ public partial class CombatLogPanel : VBoxContainer
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [];
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _onTheme;
 
     /// <summary>The unit on the card, which the This unit filter keeps; set by the screen when the card changes.</summary>
     public Guid? FocusUnit
@@ -36,10 +36,15 @@ public partial class CombatLogPanel : VBoxContainer
         AddChild(_filter); AddChild(_scroll); _scroll.AddChild(_rows);
         _onEvents = _ => Render(true); _onBoard = () => Render(true);
         s.EventsApplied += _onEvents; s.BoardChanged += _onBoard;
+        _onTheme = () => Render(false); Ui.Changed += _onTheme;   // the rows' dice faces are the theme's
         Render(true);
     }
 
-    public override void _ExitTree() { if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; } }
+    public override void _ExitTree()
+    {
+        Ui.Changed -= _onTheme;
+        if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
+    }
 
     /// <summary>Expand the block and the roll holding this RollRecord and scroll to it.</summary>
     public void Reveal(Guid rollId) { _reveal = rollId; Render(false); }
@@ -71,7 +76,7 @@ public partial class CombatLogPanel : VBoxContainer
             _ => "",
         };
         var row = new HBoxContainer(); into.AddChild(row);
-        var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
+        var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
         if (e.Undone || _s.PendingUndoTo is { } to && e.Seq > to) button.Modulate = Ui.Faded;
         button.Pressed += () => { Highlight(e); if (e is LineEntry) return; if (!_open.Remove(Key(e))) _open.Add(Key(e)); Render(false); };
         row.AddChild(button);
@@ -96,7 +101,7 @@ public partial class CombatLogPanel : VBoxContainer
         }
         foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
         var chips = new HFlowContainer(); into.AddChild(chips);   // the rules that acted in the step, with their catalog text
-        foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, TooltipText = _s.Rules.TextOf(name) ?? name });
+        foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (r.Undone) return;
         var actions = new HBoxContainer(); into.AddChild(actions);
         AddButton(actions, "Reroll all", () => Send(new RerollDice(r.FrameId, r.Record.Id, [])));
@@ -104,7 +109,7 @@ public partial class CombatLogPanel : VBoxContainer
         AddButton(actions, "+1", () => Send(new AddModifier(r.FrameId, r.Record.Roll, 1)));
     }
 
-    static void AddButton(Container row, string text, Action then) { var b = new Button { Text = text, Flat = true }; b.Pressed += then; row.AddChild(b); }
+    static void AddButton(Container row, string text, Action then) { var b = new Button { Text = text, Flat = true, ThemeTypeVariation = Variation.FlatButton }; b.Pressed += then; row.AddChild(b); }
 
     void Highlight(LogEntry e)
     {

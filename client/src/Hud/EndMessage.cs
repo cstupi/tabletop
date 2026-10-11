@@ -26,7 +26,7 @@ public partial class EndMessage : Control
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; _panel.AddChild(box);
         var top = new HBoxContainer(); box.AddChild(top);
         top.AddChild(_result);
-        var close = new Button { Text = "✕", Flat = true }; close.Pressed += Close; top.AddChild(close);
+        var close = new Button { Text = "✕", Flat = true, ThemeTypeVariation = Variation.FlatButton }; close.Pressed += Close; top.AddChild(close);
         box.AddChild(_reason); box.AddChild(_scores);
         _onEvents = _ => Render(); _onChanged = Render;
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged;
@@ -63,7 +63,9 @@ public partial class EndMessage : Control
         foreach (var team in game.Teams.OrderBy(t => t.Ordinal))
         {
             var name = names.Team(team.Id);
-            _scores.AddChild(new Label { Text = $"{name}  {m.Scores.FirstOrDefault(s => s.Team == name).Score}", Modulate = Palette.Team(team.Ordinal) });
+            var score = new Label { Text = $"{name}  {m.Scores.FirstOrDefault(s => s.Team == name).Score}" };
+            score.AddThemeColorOverride("font_color", Palette.Team(team.Ordinal));
+            _scores.AddChild(score);
         }
         return true;
     }

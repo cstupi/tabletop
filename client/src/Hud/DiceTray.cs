@@ -12,11 +12,11 @@ public partial class DiceTray : PanelContainer
 {
     const double TumbleSeconds = 0.4;
     Session _s = null!;
-    readonly Button _line = new() { Flat = true };
+    readonly Button _line = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton };
     readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
     RollEntry? _shown; double _tumble;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _onTheme;
 
     /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
     public event Action<Guid>? RollClicked;
@@ -32,11 +32,13 @@ public partial class DiceTray : PanelContainer
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
         _onEvents = _ => Render(); _onBoard = Render;
         session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
+        _onTheme = Paint; Ui.Changed += _onTheme;   // the dice faces are the theme's
         Render();
     }
 
     public override void _ExitTree()
     {
+        Ui.Changed -= _onTheme;
         if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
     }
 
