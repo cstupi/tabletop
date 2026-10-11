@@ -50,6 +50,9 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
     /// <summary>Wounds each model takes before it is killed, from the latest ModelFacts; an absent id is 1 (in-game UX spec → Model facts).</summary>
     public IReadOnlyDictionary<Guid, int> MaxWounds => _maxWounds;
+    /// <summary>From a board until the join's log has arrived: the first ModelFacts after it, or an empty page (the end of setup).
+    /// The server pages the log 500 events at a time, so one batch is not the whole catch-up.</summary>
+    public bool CatchingUp { get; private set; }
 
     public event Action? PhaseChanged;
     public event Action? GameChanged;
@@ -285,10 +288,12 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             case BoardMessage b when Game is { Status: GameStatus.Playing or GameStatus.Ended }:
                 Draft = null; _predicted = null; PendingUndoTo = null;
                 Applier = new EventApplier(b.Board, Game);
+                CatchingUp = true;
                 BoardChanged?.Invoke();
                 break;
             case BoardMessage b:
                 Draft = b.Board.Table;          // a setup edit replaces the draft
+                CatchingUp = true;
                 BoardChanged?.Invoke();
                 break;
             case EventsMessage e when Applier is not null:
@@ -300,6 +305,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 }
                 catch (ProjectionDesyncException desync) { OnDesync(desync); return; }   // partially applied: unusable
                 if (PendingUndoTo is { } to && e.Events.Any(x => x.Payload is Undone u && u.ToSeq == to)) ClearPrediction();
+                if (e.Events.Count == 0) CatchingUp = false;
                 EventsApplied?.Invoke(e.Events);
                 if (shots.Count > 0) Fired?.Invoke(shots);
                 break;
@@ -312,6 +318,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             case PingMessage p: Pinged?.Invoke(p.Ping); break;
             case ModelFacts f:
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
+                CatchingUp = false;
                 FactsChanged?.Invoke();
                 break;
             case SightAnswer a: SightAnswered?.Invoke(a); break;
@@ -409,6 +416,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         Applier = null; Draft = null; Game = null; ParticipantId = null;
         ClearPrediction(); Others.Clear();
         _maxWounds = new Dictionary<Guid, int>();
+        CatchingUp = true;
         BoardChanged?.Invoke();
     }
 
