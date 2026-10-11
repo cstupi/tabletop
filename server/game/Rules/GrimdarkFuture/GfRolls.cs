@@ -29,7 +29,7 @@ public static class GfRolls
         GfNames.Hit => new(roll, D6, (live, side) => StatReader.TargetNumber(live, side, Quality)),
         GfNames.DefenseRoll => new(roll, D6, (live, side) => StatReader.TargetNumber(live, side, Defense)),
         GfNames.Morale => new(roll, D6, (live, side) => StatReader.TargetNumber(live, side, Quality)),
-        GfNames.Casting => new(roll, D6, (_, _) => 4),
+        GfNames.Casting => new(roll, D6, (_, _) => new TargetRead(4, null)),
         GfNames.RollOff => new(roll, D6, (_, _) => null),
         _ => new(roll, D6, (_, _) => null),   // a property's own roll (Regeneration, Impact, Fearless) carries its threshold in the effect
     };
@@ -48,7 +48,7 @@ public static class GfRolls
     /// value for every model and one pool however many Qualities the unit holds.
     /// </summary>
     public static int HitQuality(StepContext ctx, LiveSet live, AttackKind kind, Guid modelId) =>
-        Fatigued(ctx, live, kind) ? 6 : StatReader.TargetNumber(live, Side.Attacker, ModelQuality, modelId);
+        Fatigued(ctx, live, kind) ? 6 : StatReader.TargetNumber(live, Side.Attacker, ModelQuality, modelId).Value;
 
     /// <summary>
     /// One pooled hit roll for one Quality value. `determine-attacks` splits the group's attacks by `HitQuality` and `roll-to-hit`
@@ -61,7 +61,11 @@ public static class GfRolls
     public static RollPlan HitPlan(StepContext ctx, LiveSet live, AttackKind kind, int quality) =>
         Fatigued(ctx, live, kind)
             ? new RollPlan(GfNames.Hit, 6, [], D6, RequiredRaw: 6, RerollRaw: new HashSet<int>())
-            : ctx.Plan(live, Side.Attacker, GfNames.Hit, [], threshold: quality);
+            : ctx.Plan(live, Side.Attacker, GfNames.Hit, [], threshold: new TargetRead(quality, HitBasis(live, quality)));
+
+    /// <summary>One pool's basis: the first attacking model, in party order, that brings the value. Peeked: determine-attacks accounted it.</summary>
+    static ThresholdBasis? HitBasis(LiveSet live, int quality) =>
+        live.Interaction.Attacker.ModelIds.Select(m => StatReader.Peek(live, Side.Attacker, ModelQuality, m)).FirstOrDefault(r => r.Value == quality)?.Basis;
 
     /// <summary>
     /// p.11's *"If the majority of models in a unit are fully inside a piece of cover terrain or behind a sight blocker"*: one
@@ -118,14 +122,14 @@ public static class GfRolls
         var heroes = Lookup.LivingModels(ctx.State, unit)
             .Where(m => ctx.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero))
             .Select(m => StatReader.TargetNumber(live, Side.Attacker, ModelQuality, m)).ToList();
-        var best = heroes.Append(own).Min();
-        if (best < own) ctx.Applied.Add(GfNames.Hero);
+        var best = heroes.Prepend(own).MinBy(r => r.Value)!;   // the first minimum: a tie stays the unit's own
+        if (best.Value < own.Value) ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Attacker, GfNames.Morale, [], threshold: best);
     }
 
     /// <summary>p.13: one die on 4+, ±1 per token spent for or against.</summary>
     public static RollPlan CastingPlan(StepContext ctx, LiveSet live, int netTokens) =>
-        ctx.Plan(live, Side.Attacker, GfNames.Casting, netTokens == 0 ? [] : [new RollModifier("tokens", netTokens)], threshold: 4);
+        ctx.Plan(live, Side.Attacker, GfNames.Casting, netTokens == 0 ? [] : [new RollModifier("tokens", netTokens)], threshold: new TargetRead(4, null));
 
     /// <summary>
     /// The roll-off the scheduler starts (scheduler → Deployment; p.6, p.50). Two steps, because the boundary between them is the confirm

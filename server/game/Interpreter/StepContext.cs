@@ -41,10 +41,12 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
     /// model's rather than the unit's, so the ruleset passes the value it read
     /// off the attacking model's slot and one such plan is built per distinct value.
     /// </summary>
-    public RollPlan Plan(LiveSet live, Side roller, string roll, IEnumerable<RollModifier> baseModifiers, int? requiredRaw = null, int? threshold = null)
+    public RollPlan Plan(LiveSet live, Side roller, string roll, IEnumerable<RollModifier> baseModifiers, int? requiredRaw = null, TargetRead? threshold = null)
     {
         var spec = Rules.RollSpec(roll);
-        var (plan, rerolls) = RollEffects.Attributed(live, roller, roll, threshold ?? spec.Threshold(live, roller), baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll);
+        var read = threshold ?? spec.Threshold(live, roller);
+        var (attributed, rerolls) = RollEffects.Attributed(live, roller, roll, read?.Value, baseModifiers, spec.Convention, requiredRaw, Rules.HitRoll);
+        var plan = attributed with { Basis = read?.Basis };   // before keying _rerolls, which compares by reference
         if (rerolls.Count > 0) _rerolls[plan] = (live, rerolls);
         return plan;
     }

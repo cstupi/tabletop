@@ -11,7 +11,7 @@ public sealed record RollConvention(int Sides, int? ModifierCap, int? AlwaysFail
 /// <summary>One roll, settled: the threshold GameRules derived, the modifiers the two passes and the players contributed, and the per-die rules.
 /// RerollRaw faces are re-rolled whatever the die scored; RerollSuccessfulRaw faces only when the die succeeded ("re-roll successful unmodified results").</summary>
 public sealed record RollPlan(string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, RollConvention Convention, int? RequiredRaw, IReadOnlySet<int> RerollRaw,
-    IReadOnlySet<int>? RerollSuccessfulRaw = null)
+    IReadOnlySet<int>? RerollSuccessfulRaw = null, ThresholdBasis? Basis = null)
 {
     public bool Rerolls(Die die) => RerollRaw.Contains(die.Raw) || (die.Success && RerollSuccessfulRaw?.Contains(die.Raw) == true);
 

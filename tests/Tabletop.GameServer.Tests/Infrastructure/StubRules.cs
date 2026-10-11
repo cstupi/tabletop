@@ -14,7 +14,7 @@ public sealed class StubRules(params Sequence[] sequences) : IGameRules
     public string HitRoll => "hit";
     public Sequence Sequence(string name) => sequences.FirstOrDefault(s => s.Name == name) ?? throw new UnknownSequenceException(name);
     public string? ActionSequence(string actionName) => actionName.ToLowerInvariant();
-    public RollSpec RollSpec(string roll) => new(roll, new RollConvention(6, null), (_, _) => 4);
+    public RollSpec RollSpec(string roll) => new(roll, new RollConvention(6, null), (_, _) => new TargetRead(4, null));
     public IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet properties, string point, FrameView frame) => Reactions?.Invoke(state, point, frame) ?? [];
     public Func<GameState, string, FrameView, IReadOnlyList<Reaction>>? Reactions { get; init; }
     public IReadOnlyList<SequenceStart> EndOfTurnSequences(GameState state, PropertySet properties, Scheduler.TurnContext turn) => [];

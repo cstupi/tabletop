@@ -8,7 +8,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules;
 
-public sealed record RollSpec(string Roll, RollConvention Convention, Func<LiveSet, Side, int?> Threshold);
+public sealed record RollSpec(string Roll, RollConvention Convention, Func<LiveSet, Side, TargetRead?> Threshold);
 public sealed record Reaction(Guid TeamId, string OptionId, string Label, string Sequence, SequenceContext Context);
 public sealed record SequenceStart(string Sequence, SequenceContext Context);
 

@@ -24,15 +24,53 @@ public class GfRollsTests
         var a = Unit("A", "3+", "5+", [], 1, [], Melee("Fist", 1)); var b = Unit("B", "4+", "2+", [], 1, []);
         var state = State([a], [b]);
         var live = LiveProperties.Settle(new Interaction(state, Core, Party.Whole(state, a.Id), Party.Whole(state, b.Id), AttackKind.Melee, "Charge", 1, []));
-        Assert.Equal(3, Gf.RollSpec(GfNames.Hit).Threshold(live, Side.Attacker));
-        Assert.Equal(2, Gf.RollSpec(GfNames.DefenseRoll).Threshold(live, Side.Defender));
-        Assert.Equal(4, Gf.RollSpec(GfNames.Morale).Threshold(live, Side.Defender));
-        Assert.Equal(4, Gf.RollSpec(GfNames.Casting).Threshold(live, Side.Attacker));
-        Assert.Null(Gf.RollSpec(GfNames.RollOff).Threshold(live, Side.Attacker));
+        Assert.Equal(3, Gf.RollSpec(GfNames.Hit).Threshold(live, Side.Attacker)?.Value);
+        Assert.Equal(2, Gf.RollSpec(GfNames.DefenseRoll).Threshold(live, Side.Defender)?.Value);
+        Assert.Equal(4, Gf.RollSpec(GfNames.Morale).Threshold(live, Side.Defender)?.Value);
+        Assert.Equal(4, Gf.RollSpec(GfNames.Casting).Threshold(live, Side.Attacker)?.Value);
+        Assert.Null(Gf.RollSpec(GfNames.RollOff).Threshold(live, Side.Attacker)?.Value);
         Assert.All(new[] { GfNames.Hit, GfNames.DefenseRoll, GfNames.Morale, GfNames.Casting, "Regeneration" }, r => Assert.Equal(new RollConvention(6, null, 1, 6), Gf.RollSpec(r).Convention));   // p.5: a 1 always fails, a 6 always succeeds
         Assert.Equal(GfNames.Hit, Gf.HitRoll);
         Assert.Equal(GfNames.ChargeSeq, Gf.ActionSequence(GfNames.Charge));
         Assert.Throws<UnknownSequenceException>(() => Gf.Sequence("nope"));
+    }
+
+    static readonly EntryDocument TestSteady = new("Test Steady", CatalogKind.Unit, false, null, null, null, "Quality +1.", null,
+        [new EffectDocument(EffectSubject.Self, 10, EffectKind.ModifyStat, null, new StatRef(StatLevel.Unit, GfNames.Quality), null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [], [])]);
+    static readonly StatRef ModelQuality = new(StatLevel.Model, GfNames.Quality);
+    static string Of(ThresholdBasis? b) => b is null ? "none" : string.Join("; ", new[] { $"{b.Stat} {b.Printed}" }.Concat(b.Changes.Select(c => $"{c.Source} {c.SetTo?.ToString() ?? "-"} {c.Amount}")));
+
+    static (StepContext Ctx, LiveSet Live) Engage(Tabletop.Content.Unit attacker, Tabletop.Content.Unit defender, PropertySet props)
+    {
+        var state = State([attacker], [defender], x1: -6, x2: 6);
+        var frame = new FrameView(new Frame(Guid.CreateVersion7(), "x", new SequenceContext(attacker.Id, [defender.Id], [], GfNames.Hold)), 0, new Dictionary<string, int>(), StepHistory.Empty, null);
+        var ctx = new StepContext(state, props, Gf, frame, new Roller(new ScriptedDice(4), state.RngSeed, 0));
+        var party = Party.Of(state, attacker.Id, attacker.Models.Select(m => m.Id), attacker.Models.SelectMany(m => m.Weapons.Select(w => w.Id)));
+        return (ctx, ctx.Settle(new Interaction(state, props, party, Party.Whole(state, defender.Id), AttackKind.Shooting, GfNames.Hold, 12, [])));
+    }
+
+    [Fact]
+    public void Thresholds_carry_their_basis()
+    {
+        var (ctx, live) = Engage(Unit("S", "4+", "4+", [P("Test Steady")], 1, [], Gun("Rifle", "24\"", 1)), Unit("T", "4+", "5+", [], 1, []), TestProperties.WithSpells(TestSteady));
+        var hit = GfRolls.HitPlan(ctx, live, AttackKind.Shooting, GfRolls.HitQuality(ctx, live, AttackKind.Shooting, live.Interaction.Attacker.ModelIds[0]));
+        Assert.Equal(((int?)5, "Quality 4; Test Steady - 1"), (hit.Threshold, Of(hit.Basis)));                   // modify_stat
+        Assert.Same(hit.Basis, ctx.Roll(hit, 1).Basis);                                                          // Roller writes it
+        Assert.Equal("Defense 5", Of(GfRolls.DefensePlan(ctx, live, inCover: true, defenderModels: 1).Basis));    // cover is a roll modifier
+        Assert.Equal("none", Of(GfRolls.CastingPlan(ctx, live, 0).Basis));                                      // a fixed 4+
+        var (rctx, reliable) = Engage(Unit("S", "5+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Reliable"))), Unit("T", "4+", "4+", [], 1, []), Core);
+        Assert.Equal("Quality 5; Reliable 2 0", Of(GfRolls.HitPlan(rctx, reliable, AttackKind.Shooting, 2).Basis));   // replace_stat
+    }
+
+    [Fact]
+    public void Peeking_a_target_number_spends_and_records_nothing()
+    {
+        var (ctx, live) = Engage(Unit("S", "5+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Reliable"))), Unit("T", "4+", "4+", [], 1, []), Core);
+        var model = live.Interaction.Attacker.ModelIds[0];
+        Assert.Equal(2, StatReader.Peek(live, Side.Attacker, ModelQuality, model).Value);
+        Assert.Null(ctx.Applied.Names);
+        Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, ModelQuality, model).Value);
+        Assert.Equal(["Reliable"], ctx.Applied.Names!);
     }
 
     [Fact]
@@ -106,6 +144,7 @@ public class GfRollsTests
         Assert.Equal(3, GfRolls.HitQuality(ctx, shooting, AttackKind.Shooting, captain));                 // p.4: the model's Quality value
         Assert.Equal(5, GfRolls.HitQuality(ctx, shooting, AttackKind.Shooting, trooper));
         Assert.Equal(3, GfRolls.HitPlan(ctx, shooting, AttackKind.Shooting, 3).Threshold);
+        Assert.Equal(("Quality 3", "Quality 5"), (Of(GfRolls.HitPlan(ctx, shooting, AttackKind.Shooting, 3).Basis), Of(GfRolls.HitPlan(ctx, shooting, AttackKind.Shooting, 5).Basis)));
 
         // p.14: the hero must use the unit's Defense until all other models have been killed.
         var incoming = LiveProperties.Settle(new Interaction(state, Core, Party.Whole(state, enemy.Id), Party.Whole(state, joined.Id), AttackKind.Shooting, GfNames.Hold, 12, []));
@@ -114,10 +153,12 @@ public class GfRollsTests
         var alone = LiveProperties.Settle(new Interaction(state, Core, Party.Whole(state, enemy.Id), Party.Whole(state, joined.Id), AttackKind.Shooting, GfNames.Hold, 12, []));
         Assert.Equal(2, GfRolls.DefensePlan(ctx, alone, inCover: false, defenderModels: 1).Threshold);
         Assert.Equal(5, GfRolls.DefensePlan(ctx, alone, inCover: false, defenderModels: 2).Threshold);   // the count fire-groups settled, not the live one
+        Assert.Equal(("Defense 2", "Defense 5"), (Of(GfRolls.DefensePlan(ctx, alone, inCover: false, defenderModels: 1).Basis), Of(GfRolls.DefensePlan(ctx, alone, inCover: false, defenderModels: 2).Basis)));
 
         // p.14: "may take morale tests on behalf of the unit", resolved always-when-it-helps.
         var morale = LiveProperties.Settle(new Interaction(state, Core, Party.Whole(state, joined.Id), null, null, GfNames.Hold, null, []));
         Assert.Equal(3, GfRolls.MoralePlan(ctx, morale).Threshold);
+        Assert.Equal("Quality 3", Of(GfRolls.MoralePlan(ctx, morale).Basis));                                     // the winning hero's
         var leaderless = State([squad], [enemy], x1: -6, x2: 6);
         var plain = LiveProperties.Settle(new Interaction(leaderless, Core, Party.Whole(leaderless, squad.Id), null, null, GfNames.Hold, null, []));
         Assert.Equal(5, GfRolls.MoralePlan(new StepContext(leaderless, Core, Gf, frame, new Roller(new ScriptedDice(4), leaderless.RngSeed, 0)), plain).Threshold);
