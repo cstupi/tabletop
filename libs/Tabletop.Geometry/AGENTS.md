@@ -43,5 +43,4 @@ dotnet test tests/Tabletop.Geometry.Tests
 ## Docs
 
 - `docs/design/geometry/design.md`
-- `docs/superpowers/plans/2026-09-05-geometry.md`
 - `docs/superpowers/specs/2026-08-29-geometry-values-design.md`

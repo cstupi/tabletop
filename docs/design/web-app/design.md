@@ -1321,10 +1321,7 @@ Not questions the plan asks. Each stands in the built code.
 
 ## References
 
-**Plan.** `docs/superpowers/plans/2026-09-05-web-app/README.md`: 17 tasks, the File Structure, the
-whole-project `Interfaces → Produces` table, and one ruling.
-
-**Specs**, in the order the plan's header names them:
+**Specs**:
 
 - `docs/superpowers/specs/2026-08-29-web-app-design.md`: primary. The preparation/play line,
   the webview rejection, login's location

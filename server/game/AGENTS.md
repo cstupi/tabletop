@@ -114,5 +114,4 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 ## Docs
 
 - `docs/design/game-server/design.md`, `docs/design/interpreter/design.md` (`effect-grammar.md`, `opr-sequences.md`), `docs/design/scheduler/design.md`.
-- Plans: `docs/superpowers/plans/2026-09-05-game-server-skeleton.md`, `2026-09-05-interpreter-and-effects/`, `2026-09-05-scheduler/`, `2026-10-02-army-rule-hooks/`, `2026-10-02-enforcement-engine/`, `2026-10-09-army-book-rules/`.
 - Specs: `docs/superpowers/specs/2026-09-04-scheduler-design.md`, `2026-10-02-enforcement-engine-design.md`, `2026-10-02-army-rule-hooks-design.md`, `2026-10-02-spell-library-design.md`, `2026-08-29-effect-grammar-design.md`, `2026-09-03-action-sequences-design.md`, `2026-09-04-spell-effects-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-28-resolution-design.md`, `2026-09-04-setup-phase-design.md`, `2026-09-06-ruleset-3-5-1-design.md`, `2026-10-02-objectives-design.md`, `2026-10-09-admin-watch-design.md`, `2026-10-09-army-book-rules-design.md`.

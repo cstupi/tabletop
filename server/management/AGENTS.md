@@ -87,6 +87,5 @@ dotnet test tests/Tabletop.Management.Tests    # needs docker compose up -d
 ## Docs
 
 - `docs/design/management-api/design.md`
-- `docs/superpowers/plans/2026-09-05-management-api/README.md`
 - `docs/superpowers/specs/2026-08-29-management-api-design.md`, `2026-08-29-accounts-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-08-28-asset-library-design.md`, `2026-08-28-army-design.md`, `2026-08-29-setup-content-design.md`, `2026-10-01-starter-meshes-design.md`, `2026-09-06-simulation-design.md`, `2026-10-09-admin-watch-design.md`
 - `docs/schema.md`, `docs/data-model.md`

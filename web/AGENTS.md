@@ -51,7 +51,6 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 ## Docs
 
 - `docs/design/web-app/design.md`
-- `docs/superpowers/plans/2026-09-05-web-app/README.md` (tasks 01 to 17)
 - `docs/superpowers/specs/2026-08-29-web-app-design.md`
 - `docs/superpowers/specs/2026-09-04-mesh-conversion-design.md`
 - `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`

@@ -132,7 +132,6 @@ dotnet test tests/Tabletop.Sim.Tests
 ## Docs
 
 - `docs/design/simulation/design.md`
-- `docs/superpowers/plans/2026-09-06-simulation/README.md`
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`
-- `docs/superpowers/specs/2026-10-09-rules-suite-design.md`, `docs/superpowers/plans/2026-10-09-rules-suite.md` (the suite)
+- `docs/superpowers/specs/2026-10-09-rules-suite-design.md` (the suite)
 - `docs/superpowers/specs/2026-10-02-spell-library-design.md` (the `casting` scenario), `docs/superpowers/specs/2026-10-02-army-rule-hooks-design.md` (`army-rules`), `docs/superpowers/specs/2026-10-02-objectives-design.md` (`objectives`)

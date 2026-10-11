@@ -56,9 +56,8 @@ to `libs/`. The rules engine lives here and goes nowhere else.
 
 Step 4 of `architecture.md`'s build order, in parallel with the client shell (step 5). Step 1,
 the contracts, must exist first. Every `Tabletop.Protocol`, `Tabletop.Content` and
-`Tabletop.Geometry` name used here is the [contracts and local development
-plan](../../superpowers/plans/2026-09-05-contracts-and-local-dev.md)'s, and
-`scripts/postgres/init/001_schema.sql` plus `docker-compose.yml` come from its Task 15. Nothing
+`Tabletop.Geometry` name used here is the contracts module's ([contracts design](../contracts/design.md)), and
+`scripts/postgres/init/001_schema.sql` plus `docker-compose.yml` come with it. Nothing
 in this module waits on the geometry bodies being implemented. Nothing waits on management
 either, since the two services share a database and never call each other. The scheduler and
 the interpreter build behind the seam this module defines. The management API can land in either
@@ -1366,11 +1365,7 @@ path, and `EnumerateLegalCommands` expands two of seven `LegalSet` shapes.
 
 ## References
 
-**Plan.** [`docs/superpowers/plans/2026-09-05-game-server-skeleton.md`](../../superpowers/plans/2026-09-05-game-server-skeleton.md):
-thirteen tasks, the `Interfaces → Produces` tables, four interfaces needed from other modules,
-three rulings.
-
-**Specs**, in the order the plan's header names them:
+**Specs**:
 
 - [`2026-08-29-accounts-design.md`](../../superpowers/specs/2026-08-29-accounts-design.md): auth as a module, a game is a lobby, ending is a flag, nobody instantiates a session
 - [`2026-08-30-presence-design.md`](../../superpowers/specs/2026-08-30-presence-design.md): the ephemeral channel, nothing is written down, connectedness is not a field

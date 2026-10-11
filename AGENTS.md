@@ -69,8 +69,7 @@ drives the `sim-runner` service (`sim serve` on `127.0.0.1:5180`, socket driver 
 | `docs/design/README.md` | System design and vocabulary; `docs/design/<module>/design.md` per module |
 | `docs/architecture.md` | Cross-cutting decisions and why |
 | `docs/superpowers/specs/` | Design sessions that settle behaviour |
-| `docs/superpowers/plans/` | Implementation plans |
 | `docs/data-model.md`, `docs/schema.md` | Entity diagram, Postgres tables |
 
-When documents disagree, specs settle behaviour, plans settle what gets written and design docs settle structure. A
+When documents disagree, specs settle behaviour and design docs settle structure. A
 later document beats an earlier one.

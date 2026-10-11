@@ -41,7 +41,6 @@ TABLETOP_WRITE_GENERATED=1 dotnet test tests/Tabletop.Viewer.Tests   # after a w
 ## Docs
 
 - `docs/design/contracts/design.md`
-- `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`
 - `docs/superpowers/specs/2026-08-29-identity-and-enumerations-design.md`
 - `docs/superpowers/specs/2026-08-30-presence-design.md`
 - `docs/superpowers/specs/2026-09-03-action-sequences-design.md`

@@ -2,8 +2,8 @@
 
 The cross-cutting design decisions for the tabletop wargaming simulator, and why they were made.
 `docs/design/README.md` is the system design and owns structure and vocabulary; the module design
-documents beside it own per-module structure, and the plans in `docs/superpowers/plans/` say what
-gets written. Where this document and one of those disagree, the later document wins.
+documents beside it own per-module structure. Where this document and one of those disagree, the later
+document wins.
 
 ## Deliverables
 

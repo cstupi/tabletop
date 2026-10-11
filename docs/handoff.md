@@ -95,14 +95,12 @@ this was asked; run the reading on `opus` after the reset, Fable coordinates onl
 
 ### 2. The client: the owner's on-screen check
 
-**In-game UX** (merged to `main`; spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
-`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, decision box, dice, log drawer and
+**In-game UX** (merged to `main`; spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`): the table to the edges with the header, decision box, dice, log drawer and
 end message over it; selection, hover, formations, and target and casualty picks on the table; the sight check, answered by
 the server; hand moves under the enforcement setting. New games start with Frontline deployment zones,
 drawn through round 0.
 
-**Client UX** (branch `client-ux`; spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`, plan
-`docs/superpowers/plans/2026-10-10-client-ux/`):
+**Client UX** (branch `client-ux`; spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`):
 
 - **Collision.** A drag slides along Impassable Solids, stops at other models' bases and rests on the highest Solid under the
   base (`Collision.Slide`, `Separate`, `RestHeight`); Alt places freely. The server rests every placement (`Battlefield.Settle`)
@@ -235,8 +233,8 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ### 5. Smaller items
 
-- Apply section 6 of `.superpowers/reports/spells.md` (docs corrections) to `docs/schema.md`, the interpreter design
-  doc and the plans.
+- Apply section 6 of `.superpowers/reports/spells.md` (docs corrections) to `docs/schema.md` and the interpreter design
+  doc.
 - Cleanup the owner runs; the permission check refuses these from Claude: `git worktree remove .worktrees/spells`,
   `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
   (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`, `agent-a926f6b5bf678900a`).
@@ -299,14 +297,15 @@ and a second ruleset are not built.
 ## How to work here
 
 - **Read the documents in this order from cold:** this file, `docs/design/README.md`, `docs/architecture.md`, then the
-  design doc and plan for what you touch. Specs settle behaviour, plans what gets written, design docs structure; a
+  design doc for what you touch. Specs settle behaviour and design docs structure; a
   later document beats an earlier one.
-- **Work runs as trees.** Each plan runs on its own worktree and branch under one controller agent (`opus`), with
+- **Work runs from a spec.** `superpowers:writing-plans` turns the spec into a plan in the git-ignored `.superpowers/`
+  workspace, never under `docs/`. Each plan runs on its own worktree and branch under one controller agent (`opus`), with
   `superpowers:subagent-driven-development` inside. Briefs are in `.superpowers/briefs/`, ledgers in
-  `.superpowers/ledgers/`, reports in `.superpowers/reports/<tree>.md` (git-ignored, local). Every subagent names its
+  `.superpowers/ledgers/`, reports in `.superpowers/reports/<tree>.md` (local). Every subagent names its
   model. A controller stops every helper it started before it reports.
 - **Read the rulebook; do not reason about the rules.** Name a mechanic in the rulebook's words, and quote the page.
-- **A ruling reaches every layer:** plans, specs, design docs and their diagrams. Grep for the superseded fact.
+- **A ruling reaches every layer:** specs, design docs and their diagrams. Grep for the superseded fact.
 - **State the current decision; never append history** in a document.
 - **Ask the owner in the language of the game, not the code.**
 - **Split a file over 500 lines** before editing it at length.

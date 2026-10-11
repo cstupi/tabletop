@@ -1679,7 +1679,7 @@ on a slow network. Timing out on the client is the rejected alternative (presenc
 
 | Deferred | Where it is recorded |
 | --- | --- |
-| Every geometry body, plus `ZoneStyles`, `Movement`, `Table`, `BaseFullyWithin` | geometry module (`docs/superpowers/plans/2026-09-05-geometry.md`) |
+| Every geometry body, plus `ZoneStyles`, `Movement`, `Table`, `BaseFullyWithin` | geometry module (`docs/design/geometry/design.md`) |
 | The `Properties` C# types and the interpreter | game server and interpreter modules; `architecture.md` → Rules as data |
 | How authored `Properties` content reaches the eight tables (the content import) | `architecture.md` → Rules as data; whole-design review → Left as first-pass assertions; spell effects → Deliberately not decided |
 | The real migration mechanism and every migration after 001 | management API module |
@@ -1692,10 +1692,6 @@ on a slow network. Timing out on the client is the rejected alternative (presenc
 | Rectangular bases; whether a footprint ever needs to be a polygon | geometry values → Deliberately not decided |
 
 ## References
-
-**Plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`: sixteen tasks, the
-`Interfaces → Produces` tables, the kind-by-kind spec table, its rulings, five
-obligations on later modules.
 
 **Repository documents.** `docs/architecture.md` (the load-bearing seam, what is actually shared, the
 command/event spine, rules enforcement, undo, geometry, two servers, persistence, local development,

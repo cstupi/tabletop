@@ -55,5 +55,4 @@ A static developer web app that draws a `sim/` recording top-down on a 2D canvas
 ## Docs
 
 - `docs/design/viewer/design.md`
-- `docs/superpowers/plans/2026-09-06-viewer/README.md`
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`, `2026-10-09-admin-watch-design.md`

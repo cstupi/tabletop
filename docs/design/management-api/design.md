@@ -81,7 +81,7 @@ client class is an external system. `server/management/` is the project root, so
 ### Position in the build order, and prerequisites
 
 Step 3 of `architecture.md`'s build order, in parallel with the web app. It consumes exactly one
-earlier plan, **contracts and local dev** (`docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`):
+earlier module, **contracts and local dev** (`docs/design/contracts/design.md`):
 
 - `libs/Tabletop.Content`: `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`,
   `ArmySnapshot`, `TableState` and its children, `VisualRef`, `ContentJson`.
@@ -1605,11 +1605,7 @@ sends its version on every request.
 
 ## References
 
-**Plan.** `docs/superpowers/plans/2026-09-05-management-api/README.md` is the source of truth for what
-gets built: fourteen tasks, the File Structure, every `Interfaces` block, the *Interfaces →
-Produces* tables, *Rows by writer* and the eight rulings.
-
-**Specs**, in the order the plan names them:
+**Specs**:
 
 - `docs/superpowers/specs/2026-08-29-management-api-design.md` (primary)
 - `docs/superpowers/specs/2026-08-29-accounts-design.md`
@@ -1626,7 +1622,7 @@ Produces* tables, *Rows by writer* and the eight rulings.
 
 **Repo documents.** `docs/architecture.md`, `docs/data-model.md`, `docs/schema.md`, `CLAUDE.md`.
 
-**Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md` supplies the
+**Consumed module.** `docs/design/contracts/design.md` supplies the
 three libraries, `001_schema.sql`, `docker-compose.yml`, the `TABLETOP_*` names, and the reserved
 ports.
 Its `001_schema.sql` carries `participant.army_id` and `participant.game_id` with its unique

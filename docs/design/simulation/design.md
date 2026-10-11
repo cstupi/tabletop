@@ -23,7 +23,7 @@ the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliver
 
 | Not built here | Where it lives |
 | --- | --- |
-| `viewer/`, the developer web app that draws a recording | `docs/superpowers/plans/2026-09-06-viewer/README.md` |
+| `viewer/`, the developer web app that draws a recording | `viewer/`, designed in `docs/design/viewer/design.md` |
 | A control channel, an HTTP endpoint or a browser over the step-and-wait seam | not built; Task 9 builds the seam only |
 | A state-reading answer policy, and an opponent that plays well | not built; a second `IAnswerSource`, named as such |
 | The rules, the scheduler, the interpreter, the applier | `server/game/`, `libs/Tabletop.Protocol` |
@@ -1365,18 +1365,10 @@ compares the two drivers run for run, and a socket step costs what the server ta
 
 ## References
 
-### The plan
-
-`docs/superpowers/plans/2026-09-06-simulation/README.md`, eleven tasks. Task 1 the project, chooser and
-scenario; Task 2 the answer policy; Task 3 the script and composition; Task 4 `IGameDriver` and
-the in-process driver; Task 5 the recording; Task 6 the run loop; Task 7 the invariants;
-Task 8 the socket driver; Task 9 the step-and-wait seam; Task 10 the console; Task 11 the two
-documentation edits.
-
 ### Specs
 
 - `docs/superpowers/specs/2026-09-06-simulation-design.md`, the whole document. Its `viewer/`
-  sections belong to another plan.
+  sections belong to the viewer module.
 - `docs/superpowers/specs/2026-09-04-whole-design-review.md`, ruling 5: a participant with no
   team is a spectator and is never Asked.
 - `docs/superpowers/specs/2026-09-04-scheduler-design.md`, *The turn is an Ask*: moving models by

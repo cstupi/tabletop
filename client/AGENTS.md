@@ -76,6 +76,5 @@ dotnet test tests/Tabletop.Client.Tests   # the Godot-free core
 ## Docs
 
 - `docs/design/client/design.md`
-- `docs/superpowers/plans/2026-09-05-client-shell/`
 - `docs/superpowers/specs/2026-09-04-client-shell-design.md`
 - `docs/superpowers/specs/2026-08-30-presence-design.md`

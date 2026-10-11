@@ -972,12 +972,6 @@ threshold for the same reason.
 
 ## References
 
-### The plan
-
-- [`docs/superpowers/plans/2026-09-06-viewer/README.md`](../../superpowers/plans/2026-09-06-viewer/README.md):
-  twelve tasks, the file structure, the recording schema it consumes verbatim, the
-  `Interfaces → Produces` tables, seven interfaces needed from other modules, five rulings.
-
 ### Specs
 
 | Spec | What this module takes from it |
@@ -991,19 +985,14 @@ threshold for the same reason.
 | [`2026-08-29-web-app-design.md`](../../superpowers/specs/2026-08-29-web-app-design.md) | the Svelte, Vite and Vitest versions only; no code is shared |
 | [`docs/architecture.md`](../../architecture.md) | the command/event spine, the applier as rules-free and run on both sides, one world unit is one inch |
 
-### Sibling plans read for their seams
+### Sibling modules read for their seams
 
-- [`2026-09-06-simulation/README.md`](../../superpowers/plans/2026-09-06-simulation/README.md) Task 5: the
-  recording schema, owned there and consumed here; Task 9: the step-and-wait seam this module
+- [simulation](../simulation/design.md): the recording schema, owned there and consumed here; the step-and-wait seam this module
   deliberately does not reach.
-- [`2026-09-05-contracts-and-local-dev.md`](../../superpowers/plans/2026-09-05-contracts-and-local-dev.md):
-  `SocketMessage`, `EventApplier`, `WireJson`.
-- [`2026-09-05-game-server-skeleton.md`](../../superpowers/plans/2026-09-05-game-server-skeleton.md):
-  the connect sequence, the frame order, the rejection cases.
-- [`2026-09-05-geometry.md`](../../superpowers/plans/2026-09-05-geometry.md): `Bodies.BaseOutline`,
-  `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains`.
-- [`2026-09-05-management-api/README.md`](../../superpowers/plans/2026-09-05-management-api/README.md):
-  `POST /v1/auth/password`, `POST /v1/auth/session/refresh`.
+- [contracts](../contracts/design.md): `SocketMessage`, `EventApplier`, `WireJson`.
+- [game server](../game-server/design.md): the connect sequence, the frame order, the rejection cases.
+- [geometry](../geometry/design.md): `Bodies.BaseOutline`, `WorldVolumes.WorldOutline`, `Point2.Rotate`, `Polygon.Contains`.
+- [management API](../management-api/design.md): `POST /v1/auth/password`, `POST /v1/auth/session/refresh`.
 
 ### Rulebook
 

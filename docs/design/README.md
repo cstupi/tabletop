@@ -483,11 +483,10 @@ extracted into core code that the test project compiles from source.
 | Simulator | `sim/` | [simulation](simulation/design.md) |
 | Viewer | `viewer/` | [viewer](viewer/design.md) |
 
-Precedence: the specs in `../superpowers/specs/` settle behaviour, the plans in
-`../superpowers/plans/` settle what gets written, these documents settle structure and record
+Precedence: the specs in `../superpowers/specs/` settle behaviour, these documents settle structure and record
 rationale. A later spec beats an earlier one, and
 [the whole-design review](../superpowers/specs/2026-09-04-whole-design-review.md) beats all of
-them. Where a design document disagrees with its plan, the plan is what an implementer follows.
+them.
 
 ## Deferred
 

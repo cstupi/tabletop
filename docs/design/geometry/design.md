@@ -52,8 +52,8 @@ Not in scope:
   serialises these value types, and nothing here reads a row.
 
 Position in the build order: **step 2**, `architecture.md` → Build order, in parallel with
-step 3 and depending only on step 1. The prerequisite is the contracts plan
-(`docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`) Tasks 1–3: the project, the
+step 3 and depending only on step 1. The prerequisite is the contracts module's
+foundation: the project, the
 solution, the test project, the value types in `Points.cs` / `Bases.cs` / `Volumes.cs` /
 `Placements.cs`, and the declared-but-throwing surface in `Api.cs`. Nothing else in the
 repository is a prerequisite, and there is no consumer yet. `libs/` holds only a `.gitkeep`
@@ -1227,14 +1227,6 @@ Deferred, with where it is recorded:
 | A bisection pass on the movement region's rays | section 12 |
 
 ## References
-
-**The plan.** `docs/superpowers/plans/2026-09-05-geometry.md`: thirteen tasks, the
-`Interfaces → Produces` table, and its rulings.
-
-**Consumed plan.** `docs/superpowers/plans/2026-09-05-contracts-and-local-dev.md`: Task 2
-(the value types), Task 3 (the frozen API surface), Task 5 (`DeploymentZone`,
-`TerrainPlacement.WorldVolumes()`), Task 8 (`MoveRegion`, `MoveContainment`, `Destinations`),
-Task 11 (`SetZoneStyle`, `SwapZones`).
 
 **Specs**, in `docs/superpowers/specs/`:
 

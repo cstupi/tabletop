@@ -1248,12 +1248,6 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
 
 ## References
 
-### The plan
-
-- [`docs/superpowers/plans/2026-09-05-scheduler/README.md`](../../superpowers/plans/2026-09-05-scheduler/README.md):
-  ten tasks, the file structure, the `Interfaces → Produces` tables, eleven interfaces needed
-  from other modules, seven rulings.
-
 ### Specs
 
 | Spec | What this module takes from it |

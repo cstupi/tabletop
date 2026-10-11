@@ -42,4 +42,3 @@ dotnet test tests/Tabletop.ArmyBooks.Tests
 ## Docs
 
 - `docs/superpowers/specs/2026-10-02-spell-library-design.md`
-- `docs/superpowers/plans/2026-10-02-spell-library/README.md`
