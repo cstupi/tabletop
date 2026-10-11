@@ -127,8 +127,8 @@ public static class Invariants
     /// The dice are counter-based on (RngSeed, cursor), and RngSeed is the seed stored on the game row, so it
     /// never changes for a game: die k is a pure function of that seed and k, and Undone(N) shortens the
     /// effective log rather than rewriting it. Checked at every sequence that carries dice, which is
-    /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: the engine-level undo and
-    /// redo check, re-answering after a real Undo, is Task 8's socket test (DriverAgreementTests).
+    /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: that dice after an undo are
+    /// fresh, because the undone dice stay counted, is the socket test DriverAgreementTests.
     /// </summary>
     public static InvariantResult UndoAndRedoReproduceTheDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {

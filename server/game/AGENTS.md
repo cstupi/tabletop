@@ -45,7 +45,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - The engine holds no state between calls. A step reads position, values and history from the log (`FrameReader`) and returns one outcome: `Complete`, `Finish`, `OpenAsks`, or `Push`.
 - `RulesEngineFactory` loads the game's pinned `PropertySet` by `game.PropertiesHash` (cached per hash) and calls `ISchedulerFactory`. A missing hash throws `PropertiesNotFoundException`.
 - `SchedulerFactory` picks `AlternatingActivationScheduler` or `PlayerTurnScheduler` from `game.SchedulerShape`.
-- Dice: die `i` of a game is a pure function of (`rng_seed`, `i`) in `DiceSource.Draw`. `DiceCursor.DrawnSoFar` counts dice in the effective log (roll records plus rerolls); edits draw nothing.
+- Dice: die `i` of a game is a pure function of (`rng_seed`, `i`) in `DiceSource.Draw`. `DiceCursor.DrawnSoFar` counts every die in the whole log, undone events included (roll records plus rerolls); edits draw nothing.
 - Effects run two passes over live properties. Pass one (`LiveProperties`, to a fixed point): which properties are live, grants, suppressions, parameter changes, suppressed modifier classes. Pass two (`RollEffects` and readers): what the live properties do to a roll or stat.
 - `StepCompleted.Applied` lists the catalog entries that acted in that run of the step, each once, in order of first application;
   null when none did. Each `StepContext` owns an `AppliedEntries`: a live set settled through `StepContext.Settle` records every

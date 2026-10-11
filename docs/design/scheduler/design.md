@@ -1121,8 +1121,8 @@ already emitted. The game then gains a duplicate `turn_started` or a second `rou
 
 **Undo across a boundary.** `Undo(seq)` is replay to `seq`. The effective log drops the undone
 range, so undoing past the `end_round` answer un-ends the round and re-opens the boundary Ask.
-Round two's record clearing goes with it. Undoing past a roll-off re-rolls the same dice, because
-the RNG is counter-based over the effective log; undoing back into one leaves the frame live and
+Round two's record clearing goes with it. Undoing past a roll-off re-rolls with fresh dice, because
+the RNG cursor counts the whole log, undone events included; undoing back into one leaves the frame live and
 the gate to answer again. `AlternatingSchedulerTests` covers undo past the `end_round` answer, and
 `RollOffUndoTests` covers undo into and past the roll-off.
 

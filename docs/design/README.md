@@ -161,8 +161,8 @@ recomputed by reading the log on every call.
 
 Three consequences. Starting a session, reconnecting and recovering a crashed task are one
 code path. Undo is replay to a sequence number, not inverse events. The RNG is a counter over
-the log, so undoing and redoing an action reproduces the same dice and cannot be used to fish
-for rolls.
+the whole log, undone events included, so an undone roll's dice stay drawn and an undo leads to
+fresh dice; it cannot be used to see the coming dice or fish for rolls.
 
 The price is log scanning. Every `Advance` walks the effective log several times, and no
 memoisation exists.

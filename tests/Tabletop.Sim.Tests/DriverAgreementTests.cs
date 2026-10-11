@@ -218,7 +218,7 @@ public class DriverAgreementTests(PostgresFixture pg)
     }
 
     [Fact]
-    public async Task Undoing_and_redoing_over_the_socket_reproduces_the_dice()
+    public async Task Undoing_and_redoing_over_the_socket_draws_fresh_dice()
     {
         const ulong seed = 23;
         var c = ScenarioCompiler.Compile(ScenarioCatalog.Get("skirmish").WithSeed(seed));
@@ -248,7 +248,19 @@ public class DriverAgreementTests(PostgresFixture pg)
 
             var original = Dice(before).ToList();
             Assert.NotEmpty(original);
-            Assert.Equal(original, Dice(replay.Log).ToList());
+
+            // Dice stay spent after an undo: the redo continues the stream where the undone game left it.
+            var drawn = loop.Log.Sum(e => e.Payload switch
+            {
+                StepCompleted s => s.Rolls.Sum(r => (long)r.Dice.Count),
+                DiceRerolled d => d.Replaced.Count,
+                _ => 0L,
+            });
+            var lastBefore = loop.Log[^1].Seq;
+            var redone = Dice(replay.Log.Where(e => e.Seq > lastBefore)).ToList();
+            Assert.NotEmpty(redone);
+            Assert.Equal(new Tabletop.GameServer.Dice.DiceSource().Draw(seed, drawn, 6), redone[0]);
+            Assert.NotEqual(original, redone);
         }
         finally { await Clean(seeder, c, credentials); }
     }

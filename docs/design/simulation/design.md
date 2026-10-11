@@ -690,9 +690,8 @@ outcome the engine produced.
 Invariant 2 needs no second run. The dice are counter-based on `(RngSeed, cursor)` and `RngSeed`
 is the stored seed, so die *k* is a pure function of that seed and *k*, and `Undone(N)` shortens
 the effective log rather than rewriting it. Doing it at every dice-bearing sequence covers "an
-arbitrary sequence" exhaustively rather than by sampling. A redo that re-rolls is then
-guaranteed by the same arithmetic, and is checked once for real over the socket in
-`DriverAgreementTests`.
+arbitrary sequence" exhaustively rather than by sampling. A redo draws fresh dice, because the cursor counts the undone roll's dice, and is checked once for real over the
+socket in `DriverAgreementTests`.
 
 Invariant 5's escape hatch is the menu's `set_round`, an override that `architecture.md` → Rules
 enforcement requires to be visible to opponents and recorded in the log, never silent. Rounds 0

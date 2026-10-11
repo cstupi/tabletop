@@ -674,8 +674,8 @@ orphan.
 ### A game stores its dice seed
 
 `game.rng_seed bigint not null`, with no default. The RNG
-is counter-based: the seed and the count of dice drawn in the effective log give every die, so an
-undo rewinds the dice along with the log and no RNG state is stored anywhere. Management writes the
+is counter-based: the seed and the count of dice drawn in the whole log, undone events included, give every die, so an
+undone roll's dice stay spent and no RNG state is stored anywhere. Management writes the
 seed once, at creation, and never again. It is not derived from the game id, because a simulator
 run then has no way to choose one. The absent default is deliberate,
 so a caller that omits the seed fails loudly instead of playing a game nobody can reproduce.

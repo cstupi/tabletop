@@ -79,7 +79,7 @@ public class DiceTests
     }
 
     [Fact]
-    public void The_cursor_is_counted_from_the_effective_log_and_the_seed_from_the_game()
+    public void The_cursor_counts_every_die_ever_drawn_undone_or_not_and_the_seed_from_the_game()
     {
         var hit = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [new Die(3, 3, false), new Die(5, 5, true)]);
         var state = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
@@ -89,7 +89,7 @@ public class DiceTests
         Assert.Equal(3, DiceCursor.DrawnSoFar(state));
         var undone = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
             new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []), new Undone(0));
-        Assert.Equal(0, DiceCursor.DrawnSoFar(undone));
+        Assert.Equal(2, DiceCursor.DrawnSoFar(undone));                                        // an undone roll's dice stay drawn
         Assert.Equal(state.RngSeed, undone.RngSeed);                                          // undo never touches the seed
         Assert.Equal(unchecked((ulong)Samples.Game.RngSeed), state.RngSeed);                  // the stored value, whole; nothing is derived from the id
         Assert.Equal(7UL, Seeded(state, 7).RngSeed);

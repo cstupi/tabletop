@@ -308,15 +308,15 @@ processes are one system, so the seeding write needs no endpoint to pass through
 
 ### The roll primitive
 
-`architecture.md` says *RNG lives in server state as a seed*. Undo must reproduce the same dice,
-so rewinding cannot be used to fish for a roll. The seed is `GameInfo.RngSeed`, written once when
-management creates the game row and never written again. The cursor is counted from the effective
-log and stored nowhere.
+`architecture.md` says *RNG lives in server state as a seed*. An undone roll's dice stay drawn,
+so rewinding cannot be used to see the coming dice or fish for a roll. The seed is `GameInfo.RngSeed`, written once when
+management creates the game row and never written again. The cursor is counted from the whole
+log, undone events included, and stored nowhere.
 
 ```mermaid
 flowchart LR
     row["management.game.rng_seed : bigint"] -- "GameInfo.RngSeed, unchecked cast" --> seed["GameState.RngSeed : ulong"]
-    log["effective log"] -- "sum of RollRecord.Dice.Count + DiceRerolled.Replaced.Count" --> cur["DiceCursor.DrawnSoFar : long"]
+    log["whole log"] -- "sum of RollRecord.Dice.Count + DiceRerolled.Replaced.Count" --> cur["DiceCursor.DrawnSoFar : long"]
     seed --> src["IDiceSource.Draw(seed, index, sides)"]
     cur --> src
     src --> die["raw face"]
@@ -327,8 +327,8 @@ flowchart LR
     undo["Undone(N) shortens the effective log"] --> cur
 ```
 
-The seed is fixed for the life of the game and the cursor is a function of the effective log. An
-undo rewinds the dice with everything else, and redoing the same action draws the same faces.
+The seed is fixed for the life of the game and the cursor is a function of the whole log. An
+undo rewinds everything but the dice: an undone roll's dice stay drawn, and redoing the same action draws fresh faces.
 
 `DiceSource` is a counter-based generator: a SplitMix64 finaliser over `seed ^ (index * golden
 ratio)`. Die *i* of a game is a pure function of `(seed, i)` with no sequential dependency.
@@ -826,7 +826,7 @@ what it held.
 | Authored content is a JSON document per set under `server/game/Content/`, hashed over a canonical serialisation and seeded as rows at game-server startup, idempotently by hash | The interpreter is the only process that reads the catalog, and the two servers are one system over one database, so the seeding write needs no endpoint to pass through; this is the smallest mechanism | Management owning the seeder behind an admin endpoint or CLI verb; a migration per set | `architecture.md` → Rules as data; the plan's ruling 1 |
 | A step's settled parameters are a flat `Values` map on `step_completed` | A later step reads a parameter without re-deriving it, and a reroll changes what the next step reads without changing what was settled | A payload schema per step kind | contracts → Event inventory |
 | A fifth step outcome: complete and run again | A move takes a second segment after a mid-move cast, and one window per activation would allow only one spell | A separate *checkpoint* primitive; a sequence listing the move step twice | §Step outcomes |
-| The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the effective log | The seed is written once at creation and never again, and no RNG state is stored, so an undo rewinds the dice with the log | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | `schema.md` → A game stores its dice seed |
+| The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the whole log, undone events included | The seed is written once at creation and never again, and no RNG state is stored; an undone roll's dice stay spent, so an undo cannot replay faces already seen | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | `schema.md` → A game stores its dice seed |
 | A property's own roll is a `RollRecord` named after the entry, with the effect row's threshold | Nothing targets it, so it needs no `roll` row, and `AddModifier` therefore cannot name it | A `roll` row per property that rolls | effect grammar → `Roll` nests |
 | One sealed Ask to every eligible team, whose `TokenSpend` carries a cap per model and no total | An Ask has one legal set for all of its teams, and the caps reveal nothing: a model's token count is already in every client's projection. One Ask per team is what the dispatcher cannot hold, since a sealed Ask closes when its addressed teams have all answered, so the first answer would reach the last team | One sealed Ask per team, needing the engine to withhold answers until the last closes; a per-team maximum in the Ask, which the per-model caps make redundant | contracts → Ask inventory; the plan's ruling 6 |
 | The player chooses which of its own models pays a team's token spend | p.13's test is per model and every token holder is itself a `Caster`, so a server-chosen payer spends tokens a player was keeping for that model's own spell. `TokenSpend.MaxByModel` and `TokensSpent.Counts` are maps keyed by model; `GfCasting.EligibleSpenders` supplies both the eligibility and the caps, so a model out of range or without a sight line is neither offered nor paid from. The caster's own model is an entry, capped at what the spell's cost left it | Nearest-first payer selection; one Ask per eligible model, for which the dispatcher has no sealed group; an `Allocation` over the team's models, which cannot express it because an `Allocated` must sum to its `Amount` and carries no per-target cap | the plan's ruling 14 |
@@ -1121,7 +1121,7 @@ others cascade. The embedded core set is left in a developer's database on purpo
 | `GameState.RngSeed` | `unchecked((ulong)Info.RngSeed)` on `GameState` construction, the value stored on the game row | session |
 | The frame stack | `Projection.Stack`, applied from the four sequence events | rebuilt by the applier; **never a row** |
 | A frame's position, values and history | nothing; computed by `FrameReader.Read` on every `Advance` | one call |
-| The dice cursor | nothing; `DiceCursor.DrawnSoFar` sums over the effective log | one call |
+| The dice cursor | nothing; `DiceCursor.DrawnSoFar` sums over the whole log | one call |
 | A unit's grants, conditions, action record, wounds-this-activation, spell tokens | `UnitInPlay`/`ModelInPlay` in the projection | rebuilt from the log |
 | An open Ask and its answers | `Projection.OpenAsks` | rebuilt from the log |
 
@@ -1200,7 +1200,7 @@ with scripted dice. 80 new tests are expected, which is the figure the plan's fi
 | `PropertySetTests`, `PropertySetDocumentTests` | lookups, `Comparison` over six operators, enum wire spellings, canonical hashing, validation, a spell's two admissible effect shapes | no |
 | `CoreContentTests` | the authored OPR core set parses, validates and builds | no |
 | `PropertiesStoreTests` | eight tables in, eight tables out; `SeedAsync` idempotent by hash | **yes**: `[Collection("Postgres")]`, `PostgresFixture` |
-| `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, undo reproducing dice | no |
+| `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, an undone roll's dice staying counted | no |
 | `LivePropertiesTests`, `RollEffectsTests` | aggregation, a `unit`-kind entry on a model slot read the same way by both readers, collapse-unless-parameter, the four pass-one kinds in ordinal order, plan modifiers, suppression, per-die grants, capped multipliers | no |
 | `InterpreterTests`, `WindowTests` | the five outcomes, position and history from the log, confirm gates, reaction order, the simultaneous spend | no |
 | `RulesEngineTests` | the three-line `Advance` split, the three dice commands, `PropertiesNotFoundException` | no |

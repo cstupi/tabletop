@@ -364,7 +364,8 @@ Three properties follow:
 - the initial state exists because [setup content](../../superpowers/specs/2026-08-29-setup-content-design.md)
   made the snapshot the log's initial state, so terrain is locked structurally and nothing in the
   log can reach it
-- rewinding and redoing reproduces the same dice, because the RNG seed is game state and every
+- an undone roll's dice stay drawn, because the RNG cursor counts the whole log, so an undo leads to fresh dice; the
+  seed is game state and every
   roll's raw and modified results are recorded in the `step_completed` that made them
 - an inverse-event table, which would have to know how to undo every event kind, never exists
 
@@ -760,7 +761,7 @@ nothing to flush.
 | Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | Computed locally and never sent anywhere | Presence, *What this corrects in architecture.md* |
 | No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts; management API, *We issue no tokens of our own* |
 | Nobody instantiates a session | Starting, reconnecting, moving a game and crash recovery become one path | Management creating a session over M2M, which would also make management learn which task holds which game | `architecture.md`, *Contracts to freeze*; accounts, *A game is a lobby* |
-| Undo is replay from the setup snapshot | RNG is game state, so replay reproduces the same dice and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
+| Undo is replay from the setup snapshot | the RNG cursor counts every die in the whole log, so an undone roll stays spent and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
 | `ended` is a flag; commands are accepted at `ended`, whether management ended the game or a strict `game_ended` did | Restarting an ended game is the identical hydrate-from-the-log operation as recovery, and there is no un-end endpoint. A strict round-4 end appends `game_ended` and sets the row to `ended` from `playing`; the flag does not stop commands | Refusing commands until something un-ends the game | Accounts, *Ending is a flag*; identity and enumerations |
 | Legality is `EnumerateLegalCommands`, not `IsLegal` | Validation falls out of enumeration and not the reverse; the client needs the set anyway to render affordances | An `IsLegal(command)` predicate | `architecture.md`, *Rules enforcement* |
 

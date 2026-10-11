@@ -160,8 +160,8 @@ rather than fair play.
 A first-class primitive, because friendly play means out-of-order or mistaken actions are
 normal. Undo is **replay to sequence N from the initial state**, not inverse events. The initial state
 is the setup snapshot — the record the setup phase ends with — so there is nothing else to
-replay from and no separate checkpoint mechanism. Because RNG state is part of game state, rewinding and redoing the same action
-reproduces the same dice — so undo cannot be used to fish for rolls.
+replay from and no separate checkpoint mechanism. An undone roll's dice stay drawn, so an undo leads to
+fresh dice and cannot be used to see the coming dice or fish for rolls.
 
 ## Abilities
 
