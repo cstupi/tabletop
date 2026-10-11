@@ -23,7 +23,7 @@ public static class Movement
     readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
 
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table)
+        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null)
     {
         var origin = start.Placement.Position.Horizontal;
         var baseOutline = start.BaseOutline();
@@ -32,6 +32,7 @@ public static class Movement
         var impassableNear = Prefilter(impassable, origin, reach);
         var difficultNear = Prefilter(difficult, origin, reach);
         var slab = table is { } t ? Table.Outline(t) : null;
+        var bodies = (models ?? []).Select(m => m.BaseOutline()).Where(o => !Outline.InteriorsIntersect(baseOutline, o)).ToList();
 
         var boundary = new List<Point2>(Rays);
         var capped = false;
@@ -52,7 +53,8 @@ public static class Movement
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(at, baseRadius, atOutline, impassableNear) || (slab is not null && !slab.ContainsOutline(atOutline))) break;
+                if (Touches(at, baseRadius, atOutline, impassableNear) || bodies.Any(o => Outline.InteriorsIntersect(atOutline, o))
+                    || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
                     limit = cap;

@@ -96,4 +96,15 @@ public class MovementTests
         Assert.False(r.WithinAllowance);
         Assert.True(Movement.Check(Start, new(-8, 0), 12, [], [Forest], 6, null).WithinAllowance);
     }
+
+    [Fact]
+    public void The_region_goes_around_other_models()
+    {
+        var start = Fx.Model(10, 10);
+        var open = Movement.Region(start, 6, [], [], null, null);
+        var blocked = Movement.Region(start, 6, [], [], null, null, [Fx.Model(13, 10), Fx.Model(10.5, 10)]);   // the second overlaps the start: ignored
+        Assert.Equal(16, open.Boundary[0].X, 6);                                          // ray 0 is +X
+        Assert.True(blocked.Boundary[0].X <= 13 - 1.26 + 1e-6);                          // stops short of contact, centres 1.26 apart
+        Assert.Equal(open.Boundary[45], blocked.Boundary[45]);                           // ray 45 is +Y, clear
+    }
 }
