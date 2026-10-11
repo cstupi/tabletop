@@ -97,9 +97,9 @@ all, which is what keeps it one operation rather than two.
 
 ## Rerolling does not break undo
 
-`docs/architecture.md` makes undo reproduce the same dice, so rewinding and redoing cannot
-be used to fish for a better roll. A freely available reroll button might look like it
-discards that.
+`docs/architecture.md` keeps an undone roll's dice spent, so an undo draws fresh dice and cannot
+be used to see the coming dice or fish for a better roll. A freely available reroll button might
+look like it discards that.
 
 It does not. The protection was never that dice are unchangeable — it is that changing
 them is **visible**. A logged reroll carrying a player's name is a different act from
