@@ -55,7 +55,12 @@ colour. `MarkerNode` is a disc of the marker's diameter with a label. `ZoneNode`
 `ZoneStyles.Resolve(zone.Shape, size)` into flat `ArrayMesh` fans 0.02" above the slab, with no
 frame conversion, and draws nothing plus a warning for an unknown shape id. `OrbitCamera` orbits
 on the right button, pans on the middle, zooms on the wheel, snaps top-down on `Home` and drops to
-table level on `End`, giving the placement and line-of-sight views the spec asks for.
+table level on `End`, giving the placement and line-of-sight views the spec asks for. It orbits a moving focus
+(`CameraFocus`): W A S D pan the way the camera faces and Q/E orbit, read held each frame (`CameraFocus.Steer`) and
+ignored while a text field has focus in the Hud or any dialog; with a unit in hand Q/E turn the unit instead. Pan speed
+scales with the camera's distance and the focus stays within the table plus 12" (`CameraFocus.Clamp`). `Centre` glides
+the focus to a point over 0.3 s (`CameraFocus.Glide`); `Follow` glides only when `CameraFocus.Follows`: follow on, no
+unit in hand, and no player camera move in the last 2 s. Any player move stops a glide.
 
 Godot physics is not used. Picking is a ray tested against `TableView.Pieces` AABBs and the slab
 plane (`Plane(Vector3.Up, 0).IntersectsRay`). A drag is `DragBodies` (`HeldBody`, `Stationary`, `Walls`, `Models`, `Piece`) through
@@ -183,7 +188,7 @@ neither selects nor drags. Under an Options Ask only a piece exactly one choice 
 (`DecisionView.ClickAnswers`); a unit several choices name (activate: one option per unit and action) glows, a click
 selects it as any click does, and the decision box narrows to its options renumbered from 1 (`DecisionView.ChoicesOf`,
 `Number`) until another unit is clicked or Esc widens it. Tab and Shift+Tab select my next unit with no action this round and centre the camera on
-it; Space centres the active unit. Keys go through `Hotkeys.Of`; the table acts on its own and raises
+it; Space centres the active unit. Both glide the camera (`TableInput.Focus`). Keys go through `Hotkeys.Of`; the table acts on its own and raises
 `IntentPressed` for the rest. `M` toggles the measure
 tool: two clicks on pieces, or one press-and-drag, resolved through `Distance.ClosestPoints` and
 relayed as a `Measurement`; Ctrl held does the same while held, and letting go clears the measurement here and in presence.

@@ -9,11 +9,13 @@ part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`,
 
 | Part | Where | Draws |
 | --- | --- | --- |
-| `HeaderBar` | top centre | `HeaderView`: round, turn, scores; the active unit, its action and the step strip from the action frame's `Outline`; the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
+| `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour; the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
+| `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
 | `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
+| `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
 
@@ -31,6 +33,20 @@ colour from each shooter to the nearest model of its target. `Session` applies a
 models on the table carrying one of the frame's weapons, read while the targets still stand. `UndoMoveButton`, in a canvas layer of the table's viewport: beside my last hand
 move until any later event lands (`HandMoveUndo`), undoing to the last effective-log event below the move.
 
+`UnitMarkerNodes` and `FloatingText` draw in that canvas layer at projected anchors and take no clicks: `UnitMarkers`
+rows (activated, each condition by the server's name with the theme's icon or a text chip, a wounded multi-wound
+model's pips) over each unit's centroid above its tallest model, hidden at End's pitch and behind the camera;
+`FloatingResults` lines (`-2 models`, `-1 wound`, a condition) rising for 1.2 s as the `Animator` plays their event
+(`Animator.Played`), wounds diffed against the last total seen, silent while `Session.CatchingUp` and on a batch with
+an undo. `FloatingText` subscribes to `EventsApplied` before the `Animator` is made, so it reads each batch before the
+Animator plays it. `RangeRingNode`: with V on (`ClientSettings.RangeRings`) and a unit of mine selected, `RangeRings`'
+union outline per printed `Range` around the models carrying it, labelled with the printed value; a melee weapon draws
+none. `OrbitCamera` orbits a moving focus (`CameraFocus`): WASD and Q/E read held each frame, ignored while a text
+field has focus, Q/E the held unit's turn while one is in hand; pan speed scales with distance and the focus stays
+within the table plus 12"; Space, Tab and a roster click glide 0.3 s; an action frame's start glides to its actor
+(`CameraFocus.FollowTarget`) unless the camera moved in the last 2 s, a unit is held, `ClientSettings.CameraFollow` is
+off or `Session.CatchingUp`.
+
 The Hud parts take keys in `_Input`, which runs before the `SubViewportContainer` hands a key to the table's
 viewport, and leave the digits and Esc to the table while a drag is in hand. Hud buttons give the GUI focus straight
 back, so Space never presses one. Max wounds, who can shoot and sight come from the server; the client names no
@@ -47,12 +63,12 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 | `Corner` | top left | 420 x 40: Home and the status |
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
-| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; `Roster` is computed but not placed yet (plan 05) |
+| `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show |
 | `Decision` | bottom, centred, left of the log button | 480 x 200 |
 | `Dice` | stacked above the decision box | 480 x 96 |
 | `LogButton` | bottom right | 140 x 36 |
 | `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button | 640 wide, up to 720 tall |
-| `Banner` | full-width band at the upper third | overlay; computed but not placed yet (plan 05) |
+| `Banner` | full-width band at the upper third | overlay; placed with `Fill` whether shown or not |
 | `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
 
 `HudLayout.Overlays` (`Banner`, `EndMessage`) are exempt from the no-overlap rule: they draw over the frame.
@@ -62,14 +78,15 @@ height capped by the slot, `Bottom` takes the slot's bottom edge by the control'
 outgrows its slot grows upward and not off the screen, and `Fill` takes the whole slot.
 
 `GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it once per frame. Its triggers are
-the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, unit
-card, decision box and dice tray, `VisibilityChanged` on the last four, the log opening or closing, and building the play Hud. It
+the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, roster, unit
+card, decision box and dice tray, `VisibilityChanged` on the last five, the log opening or closing, and building the play Hud. It
 subtracts the side panel's width outside play. Because the decision box and dice grow upward past their slots, `Layout`
 moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
 the actual decision box and dice tray when the panel's columns span theirs. Likewise the panel starts 8 px below the
 header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
 panel's height never goes negative. `UnitCard.Place` sizes the card to its
-content, capped by its slot, and anchors it to the slot's bottom.
+content, capped by its slot, and anchors it to the slot's bottom; `Roster.Place` sizes its scroll list to its content,
+capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height.
 
 `Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
 the window and sits outside the frame. `EndMessage` stays a full-screen backdrop.

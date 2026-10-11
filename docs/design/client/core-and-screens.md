@@ -46,8 +46,8 @@ flowchart TD
   gamescr["GameScreen<br/>lobby, setup, playing, ended"]
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
-  hud["Hud: HeaderBar, UnitCard, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, EndMessage, KeyOverlay, Toasts"]
-  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, UndoMoveButton"]
+  hud["Hud: HeaderBar, Roster, UnitCard, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, TurnBanner, EndMessage, KeyOverlay, Toasts"]
+  table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, RangeRingNode,<br/>UndoMoveButton, UnitMarkerNodes, FloatingText"]
 
   main -- owns --> session
   main -- "one at a time, by Phase" --> login
@@ -126,8 +126,8 @@ takes `Text`. It also builds the type variations: `Variation.FlatButton` over `B
 `Ui.Accent/Success/Failure/Warning`, `Ui.Icon(name)` (cached, cleared on a change) and the `Changed` event. Hud, panel
 and screen code names a colour through `Ui` or sets a `ThemeTypeVariation`; it never writes a colour literal.
 A team colour on a label is a `font_color` override, never `Modulate`, which would multiply the theme's text colour.
-On `Ui.Changed` the Hud parts that draw from the theme re-render themselves (`HeaderBar`, `UnitCard`, `EndMessage`,
-`DiceTray`, `CombatLogPanel`), and `GameScreen` re-tints the team panels, redraws the table when bound and gives the
+On `Ui.Changed` the Hud parts that draw from the theme re-render themselves (`HeaderBar`, `Roster`, `UnitCard`, `EndMessage`,
+`DiceTray`, `CombatLogPanel`), the table overlays that do too (`UnitMarkerNodes`, `FloatingText`, `RangeRingNode`), and `GameScreen` re-tints the team panels, redraws the table when bound and gives the
 undo button `Ui.Theme`; nothing is recreated, so typed input survives. `DiceFaces.Of(Die)` makes a die as a
 `DieFace` panel with the theme's face texture or a numeral, the modified value after an arrow when it differs, and
 dimmed when the die failed.

@@ -74,15 +74,15 @@ applies an event the moment it arrives. Whether the table then plays it out is t
 game's `waits_between_steps` is on the game row, because it changes what the server does.
 
 `Take(animate)` returns everything at once when animating is off, and one event at a time when it
-is on. `Animator` tweens a `ModelsMoved` over 0.4 s, shows a roll as a transient `Label3D`
-over the actor unit for 1.5 s, then pumps the next. The queue may lag the projection and never
+is on. `Animator` raises `Played` for each event as it takes it (a whole batch at once with Animate off), glides
+the pieces of a `ModelsMoved`, or of a step's moves, over 0.4 s, then pumps the next; `FloatingText` shows each
+event's results on `Played`. The queue may lag the projection and never
 delays an Ask. A player may answer while a roll's readout is still up, because the decision box reads
 the projection directly and the queue holds no lock. Presence is never animated, only drawn.
 
-A roll is a readout and not an object. The label carries the roll's name, its
-threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
-`RollRecord` already holds. The dice tray and the combat log show the same roll as a
-`RollEntry`; with Animate on the tray's dice tumble for 0.4 s. No die is placed on the table.
+A roll is a readout and not an object. The dice tray and the combat log show it as a `RollEntry`: the roll's
+name, its threshold, the faces with the passing dice marked, and each modifier by source, all of which `RollRecord`
+already holds. With Animate on the tray's dice tumble for 0.4 s. No die is placed on the table.
 
 **A step may carry several rolls, and the readout carries all of them**, one block each, stacked.
 `StepCompleted.Rolls` is a list, and the ruleset fills it with more than one wherever it splits a

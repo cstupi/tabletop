@@ -31,7 +31,9 @@ arrive inside a ten-second handshake window. The server answers `Welcome`, or `R
 by a close. A `BoardMessage` follows from `setup` on. Then one or more `EventsMessage`s at
 `playing`/`ended`, batched at up to 500 events, with an empty one when the log is empty. Then live
 frames. A game that ended before setup ran has no board and no log, so `Welcome` is the whole
-sequence.
+sequence. `Session.CatchingUp` is true from `Reset` or a received board until a `ModelFacts` frame or an empty
+`EventsMessage`: the batches between replay history, and the floating results, turn banners and camera follow stay
+silent for them.
 
 `Session` sends nothing but `Connect` before `Welcome`, gated on `_welcomed`. Presence and pings
 are dropped. `SendCommandAsync` and `SendEditAsync` throw `InvalidOperationException`. A failed
