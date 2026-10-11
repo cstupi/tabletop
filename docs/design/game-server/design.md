@@ -208,9 +208,9 @@ the middle of the log being sent, so `ConnectAsync` is one mailbox turn rather t
 lock around the state would give mutual exclusion without giving any of those an order.
 
 **Cost.** Every database round trip taken inside a handler blocks the whole game, not just the
-caller. `AppendAsync` awaits the log append before broadcasting. That is required: the log is
+caller. `RunToRestAsync` awaits the log append before broadcasting. That is required: the log is
 the authority, so nothing may be broadcast that is not durable. It bounds command throughput at
-one Postgres round trip per batch. `HandleSetupEditAsync` awaits `WriteDraftAsync` after
+one Postgres transaction per command. `HandleSetupEditAsync` awaits `WriteDraftAsync` after
 broadcasting, which is *not* required, and is the one place the implementation reads against its
 spec. The setup phase says the row write is "off the path clients wait on". On the mailbox it is
 on the path of every *subsequent* frame for that game. See Failure modes.
@@ -264,9 +264,9 @@ Three consequences:
   The next socket hydrates again. Nothing keeps a game warm and nothing reaps abandoned ones.
   Every reconnect re-reads and re-applies the whole log, which grows with the game.
 
-`StartAsync` starts the loop, then runs `AdvanceAsync` if `Play` is non-null. A task that died
-between appending a batch and advancing the engine catches up on the next hydrate, instead of
-leaving a game whose Ask never opened.
+`StartAsync` starts the loop, then runs `RunToRestAsync` with no events of its own if `Play` is
+non-null. A task that died between appending a command and running its engine to rest catches up
+on the next hydrate, instead of leaving a game whose Ask never opened.
 
 ### The event log
 
@@ -276,15 +276,24 @@ so `seq`, `actor` and `warning` ride inside the `jsonb` as well as beside it. Re
 `WireJson.Deserialize<GameEvent>` per row with no per-kind mapping. Adding an event type is not
 a migration.
 
-`AppendAsync` on the session is the whole write path and its order is fixed:
+`RunToRestAsync` on the session is the whole write path. A unit of it is one command
+(`HandleCommandAsync`'s `Applied`), the catch-up at `StartAsync`, or the end of setup, and its
+order is fixed:
 
-1. capture `EventFilter.SealedOpenAsks(Play.Projection)`, the sealed windows open *before* this
-   batch
-2. assign `seq` from `Play.Projection.LastSeq + 1` upward, one `GameEvent` per payload, the
-   actor on all of them and the warning on the first only
-3. `IEventLog.AppendAsync`, all-or-nothing per batch, inside one transaction
-4. `Play.Applier.ApplyAll(batch)`
-5. send each client `EventsMessage(EventFilter.ForViewer(batch, TeamOf(client), sealedBefore))`
+1. stage the unit's own events, if any, as one batch
+2. loop `Engine.Advance(Play)` until it returns nothing, staging each result as one batch
+3. one `IEventLog.AppendAsync` of every staged event, all-or-nothing, inside one transaction
+4. send each batch, in order, as its own `EventsMessage(EventFilter.ForViewer(batch,
+   TeamOf(client), sealedBefore))`
+5. `ModelFacts` when a value changed, and the `ended` row write when the unit ended the game
+
+Staging a batch captures `EventFilter.SealedOpenAsks(Play.Projection)` (the sealed windows open
+*before* that batch), assigns `seq` from `Play.Projection.LastSeq + 1` upward (the actor on all of
+them, the warning on the first only), and applies it with `Play.Applier.ApplyAll`, so the next
+`Advance` reads it. Steps 1 and 2 are synchronous; step 3 is the unit's one await on the database.
+`PostgresEventLog` sends the inserts as one `NpgsqlBatch`: one round trip and one commit per unit,
+however many batches it holds. The wire is per batch, as it would be with one append per batch;
+only the timing moves behind the commit.
 
 **The sequence constraint is the concurrency control.** Nothing else stops two processes serving
 one game: the registry is per-process, and no lease, advisory lock or ownership row exists. If a
@@ -295,20 +304,23 @@ that loses calls `FaultAsync`, which closes every socket with `1011` and marks t
 Single-task ownership is a deployment property ("one game lives on one task"), and the database
 is the backstop for the window in which it is briefly false.
 
-**Three failures on this path, one response.** `AppendAsync` faults the session on a
-`DuplicateSequenceException` from step 3, on any other exception from step 3, and on a
-`ProjectionDesyncException` from step 4. A batch whose append threw for any other reason has an
-unknown outcome, so the next `seq` is unknown and the instance cannot be trusted to continue. A
-`ProjectionDesyncException` in step 4 means this server has just written an event naming an id
-its own projection does not hold. Faulting is the whole response:
-the batch is durable by then, so a resync would replay the same event from the same log and
-throw again, and hydration hits it in `Hydrator` instead, where `ConnectionHandshake` closes the
-socket with `1011`. The client's opposite treatment of the same exception, dropping the
-projection and rebuilding it from the log, works because a client holds one copy of a log it can
-re-read.
-The server holds the only copy, and the log it would rebuild from is the log that faulted. The
-order stays append-first. Applying before appending would keep the log clean at the cost of a
-projection mutated by events that may never be durable, and the session is discarded either way.
+**The projection runs ahead of the log inside one unit, and never past it.** Between steps 1 and
+3 the in-memory projection holds events the log does not. Nothing reads it from outside the
+mailbox turn, and nothing is sent before step 3 returns. If step 3 throws
+(`DuplicateSequenceException` or anything else) the session faults before step 4: no client saw
+the staged events, the instance is discarded, and the next hydration rebuilds from the log and
+catches up through `RunToRestAsync`. A failed append of unknown outcome is the same case: the next
+`seq` is unknown and only the log is trusted.
+
+**An engine or projection failure stores what was staged, then faults.** An exception from
+`Advance`, or a `ProjectionDesyncException` from applying a staged batch, ends staging; step 3
+appends everything staged (the batch that failed to apply included) and the session faults
+without step 4. A desync means this server has just written an event naming an id its own
+projection does not hold. A resync would replay the same event from the same log and throw again,
+and hydration hits it in `Hydrator` instead, where `ConnectionHandshake` closes the socket with
+`1011`. The client's opposite treatment of the same exception, dropping the projection and
+rebuilding it from the log, works because a client holds one copy of a log it can re-read. The
+server holds the only copy, and the log it would rebuild from is the log that faulted.
 
 ### The rest frame
 
@@ -321,7 +333,7 @@ frame is `GameSession.Rest()` and has three call sites.
 | --- | --- | --- |
 | At the end of `ConnectAsync`, at every status | the connecting client alone | the log as delivered, `0` at `lobby` and `setup` |
 | At the end of `HandleCommandAsync`, whatever the outcome | everyone when the batch appended an event, the sender alone when it appended none | the mark after the batch, or the unchanged mark |
-| At the end of `HandleEndSetupAsync`, after `AdvanceAsync` | everyone | the last of the scheduler's opening events |
+| At the end of `HandleEndSetupAsync`, after `RunToRestAsync` | everyone | the last of the scheduler's opening events |
 
 The frame follows its batch. A command refused under strict enforcement, or refused for the
 status, appends nothing, so its rest frame reaches nobody but the sender and a refusal still
@@ -580,8 +592,9 @@ Division of labour inside a command:
 | `AnswerAsk`: membership, the enforcement verdict, `AskAnswered`, and `AskClosed` when unsealed or when every addressed team has answered | |
 | applying the enforcement setting to whatever `Judge` returned | |
 
-After **every** appended batch the session loops `Engine.Advance(Play)` until it returns an
-empty list, appending each result. That is where the scheduler opens the next Ask and the
+After **every** command that produced events the session loops `Engine.Advance(Play)` until it
+returns an empty list, staging each result and appending them all with the command's own events in
+one transaction (The event log). That is where the scheduler opens the next Ask and the
 interpreter completes steps. The engine is never asked "what happens next" by a timer, only by a
 command having landed. `architecture.md`'s "no simulation tick" is this loop being driven by
 appends. The loop is capped at 10 000 iterations and logs an error rather than spinning forever.
@@ -655,7 +668,7 @@ army is read and `ArmySnapshot.Of` taken *as it stands*. One transaction rewrite
 writes every `army_snapshot` (null staying null) and flips `status` to `playing`. Then in memory
 `Draft` becomes null, `Play` is a fresh `GameState` over `new Board(snapshot, armies)`, and a
 fresh `EventApplier`, `Engine` and `Dispatcher` are created. `GameInfoMessage`, `BoardMessage`
-and an empty `EventsMessage` go out, and `AdvanceAsync` runs, which is where the scheduler will
+and an empty `EventsMessage` go out, and `RunToRestAsync` runs, which is where the scheduler will
 begin deployment. One `AtRest` closes the transition, because it is the one edit that opens the
 log and runs the engine.
 
@@ -697,7 +710,7 @@ never filtered. It is the reveal. Three properties:
   same state as one that watched it live, and the server never rewrites history.
 - **a spectator (`viewerTeamId` null) sees no sealed answer** until the reveal, which is the
   reading of "withheld from the other teams".
-- **the filter is applied per client on the way out**, on `AppendAsync`'s broadcast and on
+- **the filter is applied per client on the way out**, on `RunToRestAsync`'s broadcast and on
   `ConnectAsync`'s log delivery. The log itself is never filtered, which keeps one canonical
   history.
 
@@ -819,7 +832,7 @@ Decisions this module settles itself:
 | Type | Members |
 | --- | --- |
 | `interface ISessionClient` | `Guid ConnectionId`, `Guid ParticipantId`, `ValueTask SendAsync(SocketMessage)`, `ValueTask CloseAsync(WebSocketCloseStatus, string)` |
-| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `AdvanceAsync`, `Rest`, `ReloadInfoAsync`, `NewDraft` |
+| `sealed class GameSession` | `GameId`, `Info`, `Rules`, `Draft`, `Play`, `Engine`, `Dispatcher`, `Clients`, `Faulted`, `StartAsync`, `ConnectAsync`, `AttachAsync`, `DetachAsync`, `ReceiveAsync`, `TickPresenceAsync`, `RunAsync<T>`, `DrainAsync`, `BroadcastAsync`, `TeamOf`, `ActorOf`; internal `AppendAsync`, `RunToRestAsync`, `Rest`, `ReloadInfoAsync`, `NewDraft` |
 | `sealed record SessionServices` | `IGameRows Rows, IEventLog Log, IRulesEngineFactory Engines, GameServerOptions Options, ILoggerFactory Logging` |
 | `sealed class PresenceTable` | `Set(Presence)`, `Remove(Guid)`, `IReadOnlyList<Presence> TakeDirty()`, `IReadOnlyList<Presence> All` |
 | `static class Hydrator` | `Task<GameSession> HydrateAsync(Guid, SessionServices, CancellationToken)`; `GameNotFoundException`, `GameRowsInconsistentException` |
@@ -1221,9 +1234,9 @@ edge back to `absent` is recovered by hydrating again.
 | A live event interleaved into a connecting client's log delivery | `ConnectAsync` is one mailbox turn | `Connecting_at_playing_yields_welcome_board_and_the_log_then_live_events` |
 | Two members of one team answering the same Ask | The dispatcher refuses the second with `NotPermitted`; one answer per team | `Only_an_addressed_team_may_answer_and_an_unknown_ask_is_unknown` |
 | Two people dragging the same piece in setup | Arrival order on the mailbox; last drop wins, and each sees the other's drag through presence | `Anyone_edits_everyone_sees_the_whole_draft_and_the_row_follows` |
-| A crash between an append and `Advance` | `StartAsync` runs `AdvanceAsync` after hydrating a `playing` game | `Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer` |
+| A crash between an append and `Advance` | `StartAsync` runs `RunToRestAsync` after hydrating a `playing` game | `Starting_advances_the_engine_and_a_sealed_answer_is_withheld_per_viewer` |
 | An event the server's own projection cannot apply | `EventApplier` throws `ProjectionDesyncException`, `AppendAsync` faults the session and closes every socket with `1011`; the next hydrate throws the same exception and the handshake closes with `1011` | `An_event_the_servers_own_projection_cannot_apply_faults_the_session` |
-| An engine that never rests | `AdvanceAsync` caps at 10 000 iterations and logs an error | — |
+| An engine that never rests | `RunToRestAsync` caps at 10 000 iterations and logs an error | — |
 | Two sockets for one participant | The newer replaces the older, closed with `1000`; presence stays one value | `A_second_connection_for_the_same_participant_replaces_the_first` |
 
 ### Lifecycle

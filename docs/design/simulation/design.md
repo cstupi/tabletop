@@ -1194,7 +1194,7 @@ size writes about 3 GB into `--out`. `--no-recording` exists for that case.
 
 **A run that does not end.** `RunLoop` caps at `RunSettings.MaxSteps` (20 000) and reports
 `Stuck(NoAskNoEvents)` on exhaustion. The engine's own cap is 10 000 `Advance` iterations inside
-`AdvanceAsync`. A scheduler or interpreter that emits one event forever passes the
+`RunToRestAsync`. A scheduler or interpreter that emits one event forever passes the
 reopened-unchanged check, since `_sinceLastAnswer` clears on any non-Ask event, and is caught
 only by the step cap. The frame dump is what makes that diagnosable.
 

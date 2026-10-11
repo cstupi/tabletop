@@ -974,7 +974,7 @@ sequenceDiagram
 The step runs **twice** for one Ask: once to open it, once to consume the answer. Both runs read
 the answer out of the log rather than from a local. A step that opens the same Ask again instead
 of recognising its closed record loops forever. Every asking step therefore tests
-`ctx.History.LastClosed()` before anything else. The `AdvanceAsync` loop calling until the batch
+`ctx.History.LastClosed()` before anything else. The `RunToRestAsync` loop calling until the batch
 is empty is the skeleton's, so a step that always returns a non-empty batch hangs the session,
 not just the frame.
 
@@ -1134,7 +1134,7 @@ a *current* column means the event spine has been broken.
 
 | Hazard | What happens | What the design does |
 | --- | --- | --- |
-| A step returns a non-empty batch forever | The session's `AdvanceAsync` loop never terminates and the game hangs | Nothing generic. Every repeating step must advance its own `Values`; no loop bound exists. **The most likely way to hang a session.** |
+| A step returns a non-empty batch forever | The session's `RunToRestAsync` loop never terminates and the game hangs | Nothing generic. Every repeating step must advance its own `Values`; no loop bound exists. **The most likely way to hang a session.** |
 | A step opens an Ask it already opened | Same hang, one call later | Every asking step tests `ctx.History.LastClosed()` first. `WindowTests` and `InterpreterTests` pin the pattern for the two generic cases |
 | A sequence lists one step name twice in a row | `FrameReader` would read the second completion as a repeat and the position would stall | `Sequence`'s constructor throws `ArgumentException`, at first call of `GfRules.Sequence` |
 | A sealed Ask never closes because a team is disconnected | The frame is stuck and every other team waits | Not handled. A menu edit or an abandon is the only exit, and nothing times out |

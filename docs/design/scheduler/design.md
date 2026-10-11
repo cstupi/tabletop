@@ -39,7 +39,7 @@ the factory and its registration in `Program.cs`.
 **Code lands in** `server/game/Scheduler/` (ten new files), two partials of the one ruleset in
 `server/game/Rules/GrimdarkFuture/` (`GfRules.Scheduling.cs`, `GfRules.Deployment.cs`), seven
 new members on `server/game/Rules/IGameRules.cs`, one registration line in
-`server/game/Program.cs`, two changes in `server/game/Session/GameSession.cs` (`StartAsync` advances only a `Playing` game; `AdvanceAsync` catches a throw from `Engine.Advance` and faults the session), one Layout bullet in `CLAUDE.md`, and fourteen test classes plus five
+`server/game/Program.cs`, two changes in `server/game/Session/GameSession.cs` (`StartAsync` advances only a `Playing` game; `RunToRestAsync` catches a throw from `Engine.Advance` and faults the session), one Layout bullet in `CLAUDE.md`, and fourteen test classes plus five
 infrastructure files in `tests/Tabletop.GameServer.Tests/`.
 `libs/Tabletop.Protocol/EventApplier.cs` copies `RoundStarted.Order` before it clears the
 projection's order. No Protocol type is reshaped. `Scheduler/` is a sibling of `Rules/`
@@ -72,7 +72,7 @@ flowchart TD
         Menu["menu: set_active_team, set_round, set_condition"]
     end
     subgraph gameserver["server/game/"]
-        Session["GameSession: append, broadcast, AdvanceAsync"]
+        Session["GameSession.RunToRestAsync: advance, append, broadcast"]
         Dispatcher["CommandDispatcher: ask_answered, ask_closed, menu"]
         Engine["Engine.RulesEngine (one IRulesEngine)"]
         Sched["Scheduler/ (this module)"]
@@ -1083,7 +1083,7 @@ ends.
 
 ## Failure modes
 
-**The engine does not rest.** `AdvanceAsync` caps the loop at 10 000 iterations and logs an error.
+**The engine does not rest.** `RunToRestAsync` caps the loop at 10 000 iterations and logs an error.
 The scheduler's contribution to that risk is any state where `Advance` returns a non-empty batch
 whose effect does not change what the next call reads. Three candidates. A `RoundBoundaryStep`
 that returns `HookEmit` for the same Ask forever; the Ambusher loop guards against it by reading
