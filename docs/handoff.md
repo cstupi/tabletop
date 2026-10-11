@@ -1,10 +1,10 @@
-# Handoff — 2026-10-09
+# Handoff — 2026-10-11
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
-after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (192 sim games over every catalog
-rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX
-spec, merged to `main`, and waits for the owner's on-screen check (*Next* 2); polish follows.
+after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (193 sim games over every catalog
+rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
+the client UX spec (branch `client-ux`), and waits for the owner's on-screen check (*Next* 2); polish follows.
 
 ## Get running
 
@@ -36,11 +36,14 @@ each game's rows, never the accounts.
 games, with `sim-spectator` as a participant for the live feed); `--list` lists games and what each covers. A failing game prints its
 replay command. The viewer's Tests page (`http://127.0.0.1:5174`, Tests tab) runs the same suite through `sim-runner`:
 pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a kept recording, Open live a kept socket game.
-Today: 192 of 192 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
+Today: 193 of 193 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
 
-**Checks.** `dotnet build` has 0 errors (8 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 2058 with the stack up: Geometry 159, Content 17, ArmyBooks 36, Protocol 49, Viewer 9, Client 192,
-GameServer 1035, Management 96, Sim 465. `cd web && npm test` and `cd viewer && npm test` cover the two web apps.
+**Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
+`dotnet test` passes 2169 with the stack up: Geometry 174, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 51,
+Viewer 9, Client 246, GameServer 1061, Management 96, Sim 474. `cd viewer && npm run check && npm test` passes (111);
+`cd web && npm test` covers the web app.
+In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
+(`game.game_event`, `step_completed` payloads).
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
@@ -76,31 +79,119 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
   silent zero move; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
   effects" is unbuilt.
 - **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
-- **Threshold basis in Postgres (after the client-ux merge):** run `dotnet run --project sim -- suite --driver socket --keep`,
-  then check a kept game's `step_completed` rows in `game.game_event`: every hit, defense and morale record without `requiredRaw`
-  carries `basis` (the jq filter of plan `2026-10-10-client-ux/02-combat-log.md` Task 7 Step 4, over the `payload` column). The
-  recordings cannot show it: they do not carry `basis`.
 
-### 2. The in-game UX: the owner's on-screen check
+### 2. The client: the owner's on-screen check
 
-Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
-`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, a lower-left unit panel, decision box,
-dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
-the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New games start
-with Frontline deployment zones, drawn through round 0. The server side is checked by
-`tests/Tabletop.GameServer.Tests` and the sim.
+**In-game UX** (merged to `main`; spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
+`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, decision box, dice, log drawer and
+end message over it; selection, hover, formations, and target and casualty picks on the table; the sight check, answered by
+the server; hand moves under the enforcement setting, with **Undo move**. New games start with Frontline deployment zones,
+drawn through round 0.
 
-**The owner's check** in the client (`./scripts/client`), the plan's Task 19, Step 6: layout, hover and distance,
-selection and the unit card, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
-shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and
-gone at round 1, the end message, F1, the shooting lasers (one second, shooter to nearest target model, none in melee),
-Ctrl held to measure (live for the other player, gone on release).
+**Client UX** (branch `client-ux`; spec `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md`, plan
+`docs/superpowers/plans/2026-10-10-client-ux/`):
 
-**The unit card** (the `client-ux` branch replaces the lower-left panel; check after it merges): it shows nothing until a unit
-is selected or my activation starts; selecting another unit keeps it through my next activation; an enemy activation leaves it;
-clicking empty table returns it to my activating unit or hides it; the AP column; pips dimming on a removed model; rule hover
-text; hovering an enemy with my unit on the card shows the strip above the card with distance and each weapon's range within or
-beyond; the combat log's This unit filter follows the card.
+- **Collision.** A drag slides along Impassable Solids, stops at other models' bases and rests on the highest Solid under the
+  base (`Collision.Slide`, `Separate`, `RestHeight`); Alt places freely. The server rests every placement (`Battlefield.Settle`)
+  and judges a move answer's p.7 contact clauses under the enforcement setting (`GfMoves.ContactBreach`: `move_overlap`,
+  `move_through_models` by `Collision.Crosses`, `move_separation`) and a hand placement's overlap (`PlacementBreach`). The
+  built-in `ruin` is a walk-in Area; `large-sight-blocker` is Impassable.
+- **Combat log.** `CombatLog` groups `Session.Log` into activation blocks with a result chain, roll entries with the
+  threshold's basis (`RollRecord.Basis`: stat, printed value, each change), filters All, Rolls, My units, This unit;
+  `CombatLogPanel` renders it in `LogDrawer` while the drawer is open. The dice tray shows `CombatLog.Latest` and opens the log
+  at that roll.
+- **Unit card.** `UnitCard` replaces `StatSheet`: weapons with AP, wound rows, rule chips with text, and the hovered-enemy
+  strip with distance and each weapon's range.
+- **Themes, settings, Hud frame.** Fantasy and Sci-fi (`UiThemes`, `ThemeBuilder`), a Settings dialog (theme, Animate, Camera
+  follow, Turn banner, Range rings), and `HudLayout` slots so no two parts overlap at 1280×720 and up.
+- **Table UX.** WASD/Q/E camera, Space/Tab/roster focus glide, camera follow, the army roster (R), the header's
+  activation counts and objective chips, unit markers, floating results, range rings (V), turn banners.
+
+**The owner's check** (`./scripts/client`, two players or against the sim's socket players, both themes):
+
+*Layout and in-game UX*
+1. Layout, hover and distance, selection, Shift for one model, formations (1–5 while holding, Q/E), the sight check (L),
+   shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take
+   wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and gone at round 1, the end message, F1,
+   the shooting lasers (one second, shooter to nearest target model, none in melee), Ctrl held to measure (live for the
+   other player, gone on release).
+2. At 1280×720 and 1920×1080, with the log open and a decision taken, nothing overlaps: the log sits above the decision and
+   dice and below a three-line header, toasts stack top right, "Close log (G)" fits its button, and the unit card stays in its
+   column.
+
+*Collision*
+3. A model dragged onto a hill stands on it; dragged into a building, it stops and slides along the wall.
+4. A model dragged into another unit stops at contact; a unit dragged against a wall compresses.
+5. Alt drops a model anywhere, and it still rests on what is under it.
+6. In setup, a wood dragged onto a hill sits on it and stops at a building; the large sight blocker is impassable.
+7. The move circle goes around other models, except for a Flying unit. Models walk into the built-in ruin.
+
+*Combat log and dice*
+8. The drawer opens 640 px wide. An activation is one `Round · Team · Unit · Action` row with its chain
+   (`Hit 3 → Defense 2 → 2 models removed → Morale passed`).
+9. Expanding a roll shows the basis (`Quality 4+`, each change, `Target N+`), the modifiers, each die's pass or fail
+   (`(raw face)` on fatigued hits), rerolls and edits with the faces they replaced, and rule chips with hover text.
+10. Undo to here, Reroll all, Set die 1… and +1 act; clicking an entry highlights what it touched; undone entries are struck
+    through, and several undone activations show as separate blocks.
+11. The filters work, This unit follows the card's unit (including an enemy activation that shot it), and the filter and the
+    open state survive a restart. Opening the drawer after play lands at the end of the log.
+12. The dice tray shows the latest roll as the log's collapsed line; with Animate on the faces tumble 0.4 s, off they appear
+    settled; a reroll re-tumbles; a roll-off shows neutral. Clicking the tray opens the drawer at that roll, expanded.
+
+*Unit card*
+13. The card shows nothing until a unit is selected or my activation starts; a selected unit stays through my next
+    activation; an enemy activation leaves it; clicking empty table returns it to my activating unit or hides it.
+14. The AP column is filled, a removed model's pips dim, rule chips and the AP cell show hover text, and clicking a wound row
+    selects that model.
+15. With my unit on the card, hovering an enemy shows the strip above the card (Defense, models alive, distance, each weapon's
+    range within or beyond), and moving across units does not reset the card's scroll.
+
+*Themes and settings*
+16. Login and Home draw in Sci-fi; Home → Settings → Fantasy reskins at once and persists across a relaunch.
+17. Fantasy is readable: log rows and buttons, wound rows, Settings check boxes, header and end-game team colours, team panels,
+    button hover, pressed and disabled.
+18. A mid-game theme switch restyles the header, unit card, dice tray, log, table team colours, markers and undo button; a
+    switch in lobby or setup keeps typed text. Dice: Fantasy bone pips, Sci-fi numerals, failed dice faded.
+19. Escape closes Settings and reopening works; Animate, Camera follow, Turn banner and Range rings persist (on, on, on, off).
+
+*Table UX*
+20. WASD moves the way the camera faces, faster zoomed out, and stops 12" past each table edge. Q/E orbit with an empty
+    hand; while dragging a unit they turn it and the camera stays put.
+21. In the piece menu's text prompt, the Settings dialog or a number dialog, WASDQE do not move the camera and R and V do
+    nothing.
+22. Space, Tab and a roster click glide about 0.3 s. The opponent's activation glides to their unit, but not within 2 s of my
+    own camera move or focus, not while I hold a unit, and not with Camera follow off.
+23. The roster: mine first under team-coloured headers, with ticks, pips and condition icons; off-table units dimmed; R
+    collapses it and the card grows into the space; a click anywhere on a row selects and centres.
+24. The header at 1280×720: "k not activated" counts down, objective chips take the controller's colour (plain when
+    neutral), "Team 2 activating: …" shows, the team row wraps clear of the toasts.
+25. Markers show over units, hide at End and come back at Home. "-1 wound", "-2 models" and "Shaken" float as each step plays
+    (all together with Animate off); joining a game over 500 events in floats nothing and shows no banners.
+26. V shows one closed, labelled outline per range around my selected unit, none for melee-only or enemy units; the setting
+    persists and the Settings toggle redraws.
+27. "Round 2" and "Team k's turn" show once each, not again while the same team keeps the turn; clicks pass through; none
+    with Animate off or the setting off.
+
+**Owner decisions:**
+- An Aircraft's Teleport-style placement (`RepositionStep.Place`, `GfMoves.cs` ~l.427) keeps the 1" separation and the
+  impassable landing check. p.13's *"ignore all units and terrain when moving and stopping"* may cover a placement; the two
+  checks change together.
+- The `move_through_models` sweep is 2D (`Collision.Crosses`), so a model moving across a roof passes through a ground model
+  under it.
+- The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations (Cover, and Rush/Charge or
+  Difficult); only the built-in `ruin` is Difficult, BlocksLineOfSight and SeeInAndOut.
+- The card does not mark which model a Shift-click or wound-row click selected.
+- Home has a text "Settings" button; the spec has a gear.
+
+**Deferred minors:**
+- Under `strict` the client shows no warning for a drag the server refuses: a landing within 1" of another unit, a path
+  through a model, and a flyer's drag or a placement dropped on a base.
+- The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
+  zone-centre fallback after 40 rejected anchors is unchecked against occupied bases.
+- Range rings make about 1.5M distance calls per redraw for 20 packed carriers.
+- `UnitCard` rebuilds on every event, board and facts change, and loses its scroll position.
+- Re-grabbing a model already proposed in a move Ask starts the drag at its projected spot, so it jumps back
+  (`TableInput.Position`).
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
@@ -135,7 +226,7 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ## Defects the rules suite found
 
-D1-D16 are fixed; the suite passes 192/192 on both drivers with no pin. What stays open is in *Next* 1.
+D1-D16 are fixed; the suite passes 193/193 on both drivers with no pin. What stays open is in *Next* 1.
 
 ## Rules-suite gaps
 
