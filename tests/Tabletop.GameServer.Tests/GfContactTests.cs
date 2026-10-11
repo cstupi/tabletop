@@ -37,6 +37,25 @@ public class GfContactTests
         Assert.True(Region(Advancing(Enforcement.Strict, out _, out _, 3, P("Flying"))).PassesModels);
     }
 
+    /// <summary>A reposition move (army-rule hooks) of 3" for A, whose unit rules are given; p.13 exempts an Aircraft's move from the 1" rule.</summary>
+    static MoveRegion Reposition(params PropertyInstance[] rules)
+    {
+        var hop = new EntryDocument("Hop", CatalogKind.Model, false, Aggregation.All, null, null, "Hop.", null,
+            [new(EffectSubject.Self, 10, EffectKind.Move, null, null, null, null, null, null, null, 3, false, null, null, null, EffectDuration.Interaction,
+                [new(ConditionKind.AtPoint, null, Comparison.Eq, null, [GfNames.AfterShooting])], [])]);
+        var a = Unit("A", "4+", "4+", rules, 1, [P("Hop")]);
+        var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -20, x2: 20), GrimdarkFutureRules.Instance, TestProperties.WithSpells(hop), new Tabletop.GameServer.Dice.ScriptedDice(4));
+        sim.Start(GfNames.RepositionSeq, new SequenceContext(a.Id, [], [], "Hop"));
+        return Region(sim);
+    }
+
+    [Fact]
+    public void A_reposition_keeps_one_inch_unless_the_unit_is_an_aircraft()
+    {
+        Assert.Equal(1, Reposition().Separation);
+        Assert.Null(Reposition(P(GfNames.Aircraft)).Separation);
+    }
+
     static DispatchOutcome Move(Sim sim, params ModelRelocation[] moves) => sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, new Destinations(moves)), Samples.P1, Samples.Team1);
     static string? Breach(Sim sim, params ModelRelocation[] moves) => GrimdarkFutureRules.Instance.AnswerBreach(sim.State, sim.AskFor(Samples.Team1), new Destinations(moves))?.Rule;
 

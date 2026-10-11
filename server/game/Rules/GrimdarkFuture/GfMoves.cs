@@ -398,7 +398,7 @@ public static partial class GfMoves
                 var rules = TerrainFor(ctx, unit, live);
                 var (impassable, difficult) = RegionVolumes(ctx.State, rules);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: GfNames.Separation, PassesModels: rules.PassesImpassable), allowPass: true)]);   // the cap ApplyMove holds the move to
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point

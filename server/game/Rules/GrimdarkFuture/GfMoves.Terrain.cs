@@ -44,13 +44,13 @@ public static partial class GfMoves
     }
 
     /// <summary>The Ask region of a move another team makes for this unit (a spell's move kind): the unit's alive models, the allowance, and the
-    /// volumes and cap its own move would have (TerrainFor).</summary>
+    /// volumes, cap and separation its own move would have (TerrainFor; no separation for an Aircraft, p.13).</summary>
     public static MoveRegion ForcedMoveRegion(StepContext ctx, Guid unit, double allowance)
     {
         var rules = TerrainFor(ctx, unit, Lone(ctx, unit, null));
         var (impassable, difficult) = RegionVolumes(ctx.State, rules);
         return new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap,
-            Separation: GfNames.Separation, PassesModels: rules.PassesImpassable);
+            Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable);
     }
 
     /// <summary>

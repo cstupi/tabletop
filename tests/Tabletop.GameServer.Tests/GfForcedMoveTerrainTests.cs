@@ -81,6 +81,7 @@ public class GfForcedMoveTerrainTests
         Assert.Equal([WallId], region.ImpassableVolumeIds.ToList());
         Assert.Equal([BogId], region.DifficultVolumeIds.ToList());
         Assert.Equal(GfNames.DifficultCap, region.DifficultCap);
+        Assert.Equal(GfNames.Separation, region.Separation);
         var m = target.Models[0].Id;
         Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(Move(sim, Shifted(sim, m, 5))).Reason);     // through the wall (p.11)
         Assert.Equal(28, X(sim, m), 6);
@@ -128,6 +129,7 @@ public class GfForcedMoveTerrainTests
         Assert.Empty(region.ImpassableVolumeIds);
         Assert.Empty(region.DifficultVolumeIds);
         Assert.Null(region.DifficultCap);
+        Assert.Null(region.Separation);                                                                         // p.13 "ignore all units"
     }
 
     [Fact]
