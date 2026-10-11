@@ -1169,7 +1169,9 @@ this table is the rest of the surface, with the exact member names later modules
 | `enum SubjectKind { Unit, Model }`; `sealed record Subject(SubjectKind Kind, Guid Id)` | |
 | `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | |
 | `sealed record Die(int Raw, int Modified, bool Success)`; `sealed record RollModifier(string Source, int Amount)` | |
-| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise |
+| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise; `Basis` null for a threshold no stat gave and in logs written before it, and `EventApplier` does not read it |
+| `sealed record ThresholdBasis(string Stat, int Printed, IRL<ThresholdChange> Changes)` | the stat a threshold was read from, its printed value and each change applied |
+| `sealed record ThresholdChange(string Source, int? SetTo, int Amount)` | a replace_stat row sets `SetTo`; a modify_stat row adds `Amount` |
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
 | `sealed record GameEvent(long Seq, Guid? Actor, EventPayload Payload, string? Warning)` | `string Kind` `[JsonIgnore]` |
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |

@@ -9,7 +9,7 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 - `Commands.cs`: `Command` (`AnswerAsk` and the others). `Edits.cs`: `Edit`, `LobbyEdit` (rows, never logged).
 - `Asks.cs`: `Ask`, `AskOption`, `AskAnswer`, and the `LegalSet` shapes.
 - `Events.cs`, `StateChanges.cs`: `EventPayload`, `GameEvent`, `StateChange` (the log's content). `SequenceStarted.Outline` (`OutlineStep`) is null in logs written before it, and `Frame.Outline` is then empty.
-- `State.cs`, `Game.cs`: `Location`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`.
+- `State.cs`, `Game.cs`: `Location`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`. `RollRecord.Basis` (`ThresholdBasis`, `ThresholdChange`) is null for a threshold no stat gave and in logs written before it; `EventApplier` does not read it.
 - `EventApplier.cs`: applies events to a `Projection`; `EffectiveLog` drops undone events; `ProjectTo(seq)`.
 - `Projection.cs`: `Projection`, `UnitInPlay`, `ModelInPlay`; only `EventApplier` writes it.
 - `Presence.cs`: presence, cursor, selection, measurement; latest wins, never logged.

@@ -335,8 +335,8 @@ ratio)`. Die *i* of a game is a pure function of `(seed, i)` with no sequential 
 `ScriptedDice(params int[] faces)` returns `faces[index % Length]` and ignores the seed. Every
 sequence test uses it to script a whole engagement as one array of faces in draw order.
 
-`RollPlan` is the settled roll: `Roll`, `Threshold`, `Modifiers`, `Convention`, `RequiredRaw` and
-`RerollRaw`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
+`RollPlan` is the settled roll: `Roll`, `Threshold`, `Modifiers`, `Convention`, `RequiredRaw`,
+`RerollRaw`, `RerollSuccessfulRaw` and `Basis`, the threshold's `ThresholdBasis` from `StatReader`'s `TargetRead`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
 modifiers, then clamps to `±Convention.ModifierCap` when the ruleset set one. OPR never clamps.
 40k clamps hit and wound at ±1. Summing is generic and clamping is the ruleset's: constraint 4.
 Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Raw != AlwaysFails && (Raw ==

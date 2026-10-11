@@ -25,6 +25,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 
 ## How it works
 
+- A threshold read from a stat carries its basis: `StatReader.TargetNumber` returns a `TargetRead` (value, printed value, each replace_stat and modify_stat row), `StepContext.Plan` puts its `ThresholdBasis` on the `RollPlan` and `Roller` on the `RollRecord`. `StatReader.Peek` reads without spending or recording, for a hit pool's basis in `roll-to-hit`. Casting's 4+, fatigue and a property's own roll carry none.
 - `/ws` accepts a socket; `ConnectionHandshake` reads the first frame, which must be `Connect`.
 - Handshake order: client version against `MinimumClientVersion` (`Rejected(UpgradeRequired)`), `ISessionVerifier` (`Rejected(InvalidSession)`), `IGameRows.FindParticipantAsync` (`Rejected(NotAParticipant)` unless the session is an admin and the game exists), `SessionRegistry.GetOrHydrateAsync`, `GameSession.ConnectAsync` (`WatchAsync` for an admin watcher), then the read loop.
 - An admin watcher (session `roles` claim holds `admin`, no participant row) gets what a teamless participant gets, with `Welcome.ParticipantId` `Guid.Empty`. `GameSession` holds watchers in `_watchers`, apart from `_clients`, so lobby, presence and Asks never meet one. A watcher's sight query is answered; its command, edit, presence or ping is `Refused` with `RefusalReason.Watcher` and nothing else.

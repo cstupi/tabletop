@@ -16,8 +16,9 @@ exactly as Step 3 writes them, and `Names.Weapon(Guid)`, `Names.TeamOfUnit(Guid)
 Wording settled here: a result is `passed`/`failed` for one die, else `{successes} {roll}s` (`2 hits`, `1 hit`); a chain part is
 `{Roll} {result}` for one die, `{Roll} {successes}` for several, then `{k} model(s) wounded`, `{k} model(s) removed` and each
 condition set (`Shaken`) or cleared (`Shaken cleared`); a step change is `LogText`'s line without `the game `. A block opens at
-the first `SequenceStarted` with `Context.Action` while none is open and closes at that frame's `SequenceFinished` or
-`SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. *My units* and *This unit* keep blocks and roll
+the first `SequenceStarted` with `Context.Action` while none is open and closes at that frame's live `SequenceFinished` or
+`SequenceAbandoned` (a dead one stays inside the block, struck through), or at an `Undone` whose `ToSeq` is before its start. The
+chain's `wounded` leaves out a model the same step sends to the shelf; that model counts as removed. *My units* and *This unit* keep blocks and roll
 entries whose actor or a target matches.
 
 - [ ] **Step 1: Write the failing tests.** Create `tests/Tabletop.Client.Tests/CombatLogTests.cs`:

@@ -28,7 +28,7 @@ In:
 | Input and presence: select, picks, drag, formations, drop, ruler, measure, ping, hotkeys, others' cursors and ghosts | `client/src/Table/TableInput*.cs`, `PresenceOverlay.cs` |
 | Table overlays: hover labels, sight lines, target lines, shooting lasers, the undo-move button | `client/src/Table/{HoverLabels,SightLines,TargetLines,Lasers,UndoMoveButton}.cs`, `client/src/Core/ShotLines.cs` |
 | The Hud: header, stat sheet, decision box, dice, log drawer, end message, key overlay; the declared move's region and ghost, containment | `client/src/Hud/`, `client/src/Core/MoveRuler.cs` |
-| The log panel with undo-to-here, the right-click menu, the animation queue | `client/src/Panels/`, `client/src/Table/Animator.cs` |
+| The combat log panel with undo-to-here, the right-click menu, the animation queue | `client/src/Hud/CombatLogPanel.cs`, `client/src/Table/Animator.cs` |
 | Built-in terrain, textures, marker visuals, and the rulebook's four terrain generators | `client/src/Core/BuiltinContent.cs`, `TerrainGenerators.cs` |
 | The scripted boundary checks: no physics, no rules type, no Godot in `Core` | `scripts/check-client` |
 
@@ -173,7 +173,7 @@ flowchart TD
   gamescr["GameScreen<br/>lobby, setup, playing, ended"]
   lobby["LobbyPanel"]
   setup["SetupToolbar"]
-  hud["Hud: HeaderBar, StatSheet, DecisionBox, DiceTray,<br/>LogDrawer, EndMessage, KeyOverlay"]
+  hud["Hud: HeaderBar, StatSheet, DecisionBox, DiceTray,<br/>LogDrawer, CombatLogPanel, EndMessage, KeyOverlay"]
   table["TableView + TableInput + PresenceOverlay<br/>+ HoverLabels, SightLines, TargetLines, Lasers, UndoMoveButton"]
 
   main -- owns --> session
@@ -349,8 +349,8 @@ The client adds three things around it:
 
 1. `Session.Projection` is `_predicted ?? Applier?.Projection`. A pending undo prediction shadows
    the truth without replacing it.
-2. `Session.Log` is `Applier.Log`: every event received, undone ones included. `LogPanel` renders
-   it with `EventApplier.EffectiveLog` to strike through undone ranges.
+2. `Session.Log` is `Applier.Log`: every event received, undone ones included. `CombatLogPanel` renders
+   it through `CombatLog` with `EventApplier.EffectiveLog` to strike through undone ranges.
 3. `Draft` is set from `BoardMessage.Board.Table` whenever status is `lobby` or `setup`. `Applier`
    is constructed from the board only when status is `playing` or `ended`. One frame kind, two
    destinations, chosen on `Game.Status`.
@@ -698,8 +698,8 @@ part a control in `client/src/Hud/` with `Bind(Session, TableView, TableInput)`,
 | `HeaderBar` | top centre | `HeaderView`: round, turn, scores; the active unit, its action and the step strip from the action frame's `Outline`; the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
 | `StatSheet` | lower left | *Stats* (`UnitSheet`: weapons, rules with their `rule_text`, *not automated* for a rule with no catalog entry or a `played: false` one, the models strip from `ModelFacts`) and *This round* (`RoundHistory`), for the unit `SheetFocus` names |
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
-| `DiceTray` | above the decision box | the latest roll and its result until the next |
-| `LogDrawer` | lower right | `LogPanel`, each roll's dice inline on its row, and the Animate toggle; G opens it |
+| `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
+| `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; the Animate toggle until the Settings dialog; G opens it |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
 
@@ -862,24 +862,30 @@ that answered it and a sealed spend reads on the line that closed it. `LogText.T
 pieces an answer carries, so clicking either row highlights the models that spent and the model that was
 picked.
 
-### The log panel
+### The combat log
 
-`LogPanel` renders one row per event in `Session.Log`: `#{seq}  {LogText.Describe(event, names)}`,
-newest at the bottom, auto-scrolled. `LogText` turns an event into words with a `Names` context
-that resolves participants, teams, units, models and markers, degrading an unknown id to its first
-eight characters. `EventApplier.EffectiveLog` decides which rows are struck through, so an undone
-range stays visible rather than disappearing. Presence never appears in the log. A replay is where
-things went, not what people pointed at.
+`CombatLog` builds the play log from `Session.Log`, and `CombatLogPanel` renders it, newest at the bottom, auto-scrolled. A
+block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
+frame's live `SequenceFinished` or `SequenceAbandoned` (a dead one stays inside the block, struck through) or at an `Undone`
+whose `ToSeq` is before its start. Inside a block each event is a `LineEntry`, `LogText.Describe(event, names)` with a `Names`
+context that resolves participants, teams, units, weapons, models and markers, degrading an unknown id to its first eight
+characters. A step's rolls are one `RollEntry`: the roll's name, its threshold with its basis (the stat, the printed value and
+each change), the dice, the result (`passed`/`failed` for one die, else `{successes} {roll}s`) and the chain's parts
+(`{k} model(s) wounded`, `{k} model(s) removed`, each condition set or cleared). The chain's "wounded" leaves out a model the
+same step sends to the shelf; that model counts as removed. A reroll, a set die or an added modifier attaches to the entry it
+amends as a `RollAmendment`. `EventApplier.EffectiveLog` decides which entries are struck through, so an undone range stays
+visible. Presence never appears in the log.
 
-The panel lives in `LogDrawer`, a button lower right that G or a click opens upward; the Animate toggle is in it.
-Clicking a row highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every
-row above the target until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move
-(*The play screen*). There is no undo stack UI and no redo. Undo is replay to a sequence number
-rather than inverse events, so the log serves as the control.
+Filters are All, Rolls, My units and This unit; the last two keep blocks and roll entries whose actor or a target matches. The
+filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a
+button lower right that G or a click opens upward; the Animate toggle is in it until the Settings dialog. Clicking an entry
+highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above the target
+until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move (*The play screen*). There is no
+undo stack UI and no redo. Undo is replay to a sequence number rather than inverse events, so the log serves as the control.
+`LogPanel` (one row per event) has no caller.
 
-A row carrying rolls also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die…"
-(`SetDice`) and "Add modifier…" (`AddModifier`) for the roll it shows. Players roll their own dice
-and every roll result is editable.
+A roll entry also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die 1…" (`SetDice`) and "+1" (`AddModifier`) for
+the roll it shows. Players roll their own dice and every roll result is editable.
 
 ### The right-click menu
 
@@ -993,15 +999,16 @@ the projection directly and the queue holds no lock. Presence is never animated,
 
 A roll is a readout and not an object. The label carries the roll's name, its
 threshold, the faces with the passing dice in brackets, and each modifier by source, all of which
-`RollRecord` already holds. No die is placed on the table and nothing tumbles.
+`RollRecord` already holds, and the `Basis` of its threshold. The dice tray and the combat log show the same roll as a
+`RollEntry`; with Animate on the tray's dice tumble for 0.4 s. No die is placed on the table.
 
 **A step may carry several rolls, and the readout carries all of them**, one block each, stacked.
 `StepCompleted.Rolls` is a list, and the ruleset fills it with more than one wherever it splits a
 roll: OPR's `roll-to-hit` takes one pool per Quality value the attacking models bring, since
 rulebook p.4 tests each attack against *"the model's Quality value"* and a joined hero brings its
-own. Each block's threshold is what tells the pools apart. The log panel's dice controls follow the
-same list: "Reroll all" and "Set die 1" name a `RollRecord` by id, so there is one of each per roll,
-while "Add modifier" names a roll by name and stays one control for the step. Godot physics is out
+own. Each block's threshold is what tells the pools apart. The combat log's roll entries follow the
+same list: one `RollEntry` per `RollRecord`, with "Reroll all" and "Set die 1…" naming a `RollRecord` by id, while "+1"
+(`AddModifier`) names a roll by name. Godot physics is out
 of the scene, so a die on the table would be a canned animation of a result the server has already
 decided, and the readout says more than a tumbling die can. The client shell spec → Animation says
 the same.
@@ -1192,7 +1199,7 @@ else, so the game screen must render with `Draft` and `Applier` both null.
 ```mermaid
 sequenceDiagram
   participant P as player
-  participant LP as LogPanel
+  participant LP as CombatLogPanel
   participant S as Session
   participant GS as game server
   P->>LP: Undo to here on row 12
