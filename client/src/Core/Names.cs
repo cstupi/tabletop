@@ -12,6 +12,9 @@ public sealed class Names(GameInfo game, Projection? projection)
     /// <summary>The team of the participant whose army the model belongs to.</summary>
     public Guid? TeamOfModel(Guid modelId) => projection?.Models.GetValueOrDefault(modelId) is { } m && projection.Units.GetValueOrDefault(m.UnitId) is { } u
         ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
+    /// <summary>A weapon by its snapshot name, from the slot that carries it.</summary>
+    public string Weapon(Guid id) => projection?.Models.Values.SelectMany(m => m.Slot.Weapons).FirstOrDefault(w => w.Id == id)?.Name ?? Short(id);
+    public Guid? TeamOfUnit(Guid unitId) => projection?.Units.GetValueOrDefault(unitId) is { } u ? game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId : null;
     public Guid? UnitOfModel(Guid modelId) => projection?.Models.GetValueOrDefault(modelId)?.UnitId;
     public string Piece(Guid id) => projection is null ? Short(id)
         : projection.Units.ContainsKey(id) ? Unit(id) : projection.Models.ContainsKey(id) ? Model(id) : projection.Markers.GetValueOrDefault(id)?.Label ?? Short(id);
