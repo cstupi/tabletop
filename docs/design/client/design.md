@@ -866,15 +866,20 @@ picked.
 
 `CombatLog` builds the play log from `Session.Log`, and `CombatLogPanel` renders it, newest at the bottom, auto-scrolled. A
 block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
-frame's live `SequenceFinished` or `SequenceAbandoned` (a dead one stays inside the block, struck through) or at an `Undone`
-whose `ToSeq` is before its start. Inside a block each event is a `LineEntry`, `LogText.Describe(event, names)` with a `Names`
-context that resolves participants, teams, units, weapons, models and markers, degrading an unknown id to its first eight
-characters. A step's rolls are one `RollEntry`: the roll's name, its threshold with its basis (the stat, the printed value and
-each change), the dice, the result (`passed`/`failed` for one die, else `{successes} {roll}s`) and the chain's parts
-(`{k} model(s) wounded`, `{k} model(s) removed`, each condition set or cleared). The chain's "wounded" leaves out a model the
-same step sends to the shelf; that model counts as removed. A reroll, a set die or an added modifier attaches to the entry it
-amends as a `RollAmendment`. `EventApplier.EffectiveLog` decides which entries are struck through, so an undone range stays
-visible. Presence never appears in the log.
+frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. A live block closes only
+at a live finish (a dead one stays inside the block, struck through); a block whose start is undone closes at its own undone
+finish, so it never absorbs a later activation. A block's targets are the distinct targets, in order, of every `SequenceStarted`
+inside it: an activation starts with none, and its nested attack frames name the units attacked. Inside a block each event is a
+`LineEntry`, `LogText.Describe(event, names)` with a `Names` context that resolves participants, teams, units, weapons, models
+and markers, degrading an unknown id to its first eight characters. Each `RollRecord` of a step is one `RollEntry`: the roll's
+name, its threshold with its basis (the stat, the printed value and each change), the dice, the result (`passed`/`failed` for
+one die, else `{successes} {roll}s`) and the chain's parts (`{k} model(s) wounded`, `{k} model(s) removed`, each condition set
+or cleared). The chain's "wounded" leaves out a model the same step sends to the shelf; that model counts as removed. A reroll
+or a set die attaches to the entry it amends, by `RollId`, as a `RollAmendment`; an added modifier (`ModifierAdded`) is its own
+`LogText` line. A roll with neither `Threshold` nor `RequiredRaw` (a roll-off, a property's own roll) is not judged: its dice
+show the face, and the modified value if different, with no pass or fail; its result and its collapsed line's result part are
+empty, its chain part is the roll's name alone, and the dice tray paints it neutral. `EventApplier.EffectiveLog` decides which
+entries are struck through, so an undone range stays visible. Presence never appears in the log.
 
 Filters are All, Rolls, My units and This unit; the last two keep blocks and roll entries whose actor or a target matches. The
 filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a

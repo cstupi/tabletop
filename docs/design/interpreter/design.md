@@ -321,7 +321,7 @@ flowchart LR
     cur --> src
     src --> die["raw face"]
     die --> judge["Roller.Judge: modified = raw + NetModifier, success"]
-    judge --> rec["RollRecord(id, roll, threshold, modifiers, dice)"]
+    judge --> rec["RollRecord(id, roll, threshold, modifiers, dice, requiredRaw, basis)"]
     rec --> sc["StepCompleted.Rolls"]
     judge -- "raw in RollPlan.RerollRaw" --> forced["DiceRerolled, one extra draw"]
     undo["Undone(N) shortens the effective log"] --> cur

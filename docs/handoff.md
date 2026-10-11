@@ -76,6 +76,10 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
   silent zero move; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
   effects" is unbuilt.
 - **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
+- **Threshold basis in Postgres (after the client-ux merge):** run `dotnet run --project sim -- suite --driver socket --keep`,
+  then check a kept game's `step_completed` rows in `game.game_event`: every hit, defense and morale record without `requiredRaw`
+  carries `basis` (the jq filter of plan `2026-10-10-client-ux/02-combat-log.md` Task 7 Step 4, over the `payload` column). The
+  recordings cannot show it: they do not carry `basis`.
 
 ### 2. The in-game UX: the owner's on-screen check
 

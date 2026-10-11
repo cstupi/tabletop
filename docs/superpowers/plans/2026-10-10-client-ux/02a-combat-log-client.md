@@ -2,8 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Tasks 4 and 5 of [`02-combat-log.md`](02-combat-log.md), split out to keep each file under 500 lines. Goal, architecture, global
-constraints and review focus are that file's. Requires its Tasks 1–3 landed.
+Tasks 4 and 5 of [`02-combat-log.md`](02-combat-log.md); goal, architecture, constraints and review focus are that file's. Needs its Tasks 1–3.
 
 ## Task 4: `CombatLog`, `RollEntry`, `ActivationBlock`
 
@@ -15,11 +14,13 @@ exactly as Step 3 writes them, and `Names.Weapon(Guid)`, `Names.TeamOfUnit(Guid)
 
 Wording settled here: a result is `passed`/`failed` for one die, else `{successes} {roll}s` (`2 hits`, `1 hit`); a chain part is
 `{Roll} {result}` for one die, `{Roll} {successes}` for several, then `{k} model(s) wounded`, `{k} model(s) removed` and each
-condition set (`Shaken`) or cleared (`Shaken cleared`); a step change is `LogText`'s line without `the game `. A block opens at
-the first `SequenceStarted` with `Context.Action` while none is open and closes at that frame's live `SequenceFinished` or
-`SequenceAbandoned` (a dead one stays inside the block, struck through), or at an `Undone` whose `ToSeq` is before its start. The
-chain's `wounded` leaves out a model the same step sends to the shelf; that model counts as removed. *My units* and *This unit* keep blocks and roll
-entries whose actor or a target matches.
+condition set (`Shaken`) or cleared (`Shaken cleared`); a step change is `LogText`'s line without `the game `. A block opens at the
+first `SequenceStarted` with `Context.Action` while none is open and closes at that frame's `SequenceFinished` or
+`SequenceAbandoned` (a live block only at a live one, an undone block at its own), or at an `Undone` whose `ToSeq` is before its
+start. The chain's `wounded` leaves out a model the same step sends to the shelf; that model counts as removed. A block's targets:
+every target, distinct and in order, of each `SequenceStarted` in it. *My units* and *This unit* keep blocks and roll entries whose
+actor or a target matches. A roll with neither `Threshold` nor `RequiredRaw` is unjudged: faces only (raw → modified), an empty
+result, no collapsed result part, the roll's name alone as its chain part, neutral in the tray.
 
 - [ ] **Step 1: Write the failing tests.** Create `tests/Tabletop.Client.Tests/CombatLogTests.cs`:
 
