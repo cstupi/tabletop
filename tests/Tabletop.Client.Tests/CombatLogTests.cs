@@ -10,9 +10,11 @@ public class CombatLogTests
     static Guid Rifle => Samples.Army.Units[0].Models[0].Weapons[0].Id;
     static readonly RoundStarted Round1 = new(1, [Samples.Team1, Samples.Team2], []);
 
-    static (IReadOnlyList<LogEntry> Entries, IReadOnlyList<GameEvent> Log, Names Names) Build(params EventPayload[] history)
+    static (IReadOnlyList<LogEntry> Entries, IReadOnlyList<GameEvent> Log, Names Names) Build(params EventPayload[] history) => BuildOn(Samples.Board, history);
+
+    static (IReadOnlyList<LogEntry> Entries, IReadOnlyList<GameEvent> Log, Names Names) BuildOn(Board board, params EventPayload[] history)
     {
-        var a = new EventApplier(Samples.Board, Samples.Game);
+        var a = new EventApplier(board, Samples.Game);
         a.ApplyAll(history.Select((p, i) => new GameEvent(i + 1, Samples.P1, p, null)));
         var n = new Names(Samples.Game, a.Projection);
         return (CombatLog.Build(a.Log, n), a.Log, n);
@@ -116,5 +118,37 @@ public class CombatLogTests
         Assert.Equal([Enemy], CombatLog.Filter(entries, LogFilter.Unit, Mine, Enemy).Select(ActorOf));
         Assert.Empty(CombatLog.Filter(entries, LogFilter.Unit, Mine, null));
         Assert.Same(entries, CombatLog.Filter(entries, LogFilter.All, Mine, null));
+    }
+    [Fact]
+    public void A_model_wounded_then_removed_in_one_step_reads_removed_not_wounded()
+    {
+        var unit = Samples.Army.Units[0];
+        var second = unit.Models[0] with { Id = Guid.CreateVersion7(), Ordinal = 2 };
+        var army = Samples.Board.Armies[0].Snapshot with { Units = [unit with { Models = [unit.Models[0], second] }] };
+        var board = Samples.Board with { Armies = [new ArmyInPlay(Samples.P1, army)] };
+        var shelved = new ModelRelocation(Samples.Model, Samples.Deploy.To, new OnShelf());
+        var (entries, _, _) = BuildOn(board, Round1, new ModelsMoved([Samples.Deploy]),
+            new SequenceStarted(Samples.Frame, "advance", new SequenceContext(Samples.Unit, [Enemy], [], "Advance")),
+            new StepCompleted(Samples.Frame, "remove", null, [], [new WoundsSet(Samples.Model, 3), new ModelsMoved([shelved]), new WoundsSet(second.Id, 1)]),
+            new SequenceFinished(Samples.Frame));
+        Assert.Equal("1 model wounded → 1 model removed", entries.OfType<ActivationBlock>().Single().Chain);
+    }
+
+    [Fact]
+    public void An_undo_into_a_finished_activation_reopens_it_until_its_live_finish()
+    {
+        var (entries, _, _) = Build(Round1,
+            new SequenceStarted(Samples.Frame, "advance", new SequenceContext(Samples.Unit, [], [], "Advance")),
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], []),
+            new SequenceFinished(Samples.Frame),
+            new Undone(3),                                                                              // into the block: its finish dies
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit with { Id = Guid.CreateVersion7() }], []),
+            new SequenceFinished(Samples.Frame));
+        Assert.Equal(2, entries.Count);
+        var block = Assert.IsType<ActivationBlock>(entries[1]);
+        Assert.False(block.Undone);
+        Assert.Equal([3L, 4, 5, 6, 7], block.Entries.Select(e => e.Seq));
+        Assert.Equal([false, true, false, false, false], block.Entries.Select(e => e.Undone));
+        Assert.Equal("Hit 1 → Hit 1", block.Chain);
     }
 }

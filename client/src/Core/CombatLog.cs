@@ -2,7 +2,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>An action frame's entries, from its sequence_started to its finish or abandonment, under one header.</summary>
+/// <summary>An action frame's entries, from its sequence_started to its live finish or abandonment, or an undo to before its start, under one header.</summary>
 public sealed record ActivationBlock(long Seq, GameEvent Event, bool Undone, string Header, Guid? Actor, IReadOnlyList<Guid> Targets,
     IReadOnlyList<LogEntry> Entries, IReadOnlyList<string> ChainParts) : LogEntry(Seq, Event, Undone)
 {
@@ -52,7 +52,7 @@ public static class CombatLog
                 default: into.Add(new LineEntry(e.Seq, e, dead, LogText.Describe(e, n))); break;
             }
             var ended = e.Payload switch { SequenceFinished x => x.FrameId, SequenceAbandoned x => x.FrameId, _ => (Guid?)null };
-            if (open is not null && ended == open.S.FrameId) { top.Add(open.Close(Dead(open.Start))); open = null; }
+            if (open is not null && !dead && ended == open.S.FrameId) { top.Add(open.Close(Dead(open.Start))); open = null; }
         }
         if (open is not null) top.Add(open.Close(Dead(open.Start)));
         return top;
@@ -94,10 +94,12 @@ public static class CombatLog
         return text.StartsWith(engine, StringComparison.Ordinal) ? text[engine.Length..] : text;
     }
 
+    /// <summary>A model a step wounds and sends to the shelf reads removed, not wounded.</summary>
     static IEnumerable<string> Changes(IReadOnlyList<StateChange> changes)
     {
-        var wounded = changes.OfType<WoundsSet>().Select(w => w.ModelId).Distinct().Count();
-        var removed = changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Count(m => m.To is OnShelf);
+        var shelved = changes.OfType<ModelsMoved>().SelectMany(m => m.Moves).Where(m => m.To is OnShelf).Select(m => m.ModelId).ToHashSet();
+        var wounded = changes.OfType<WoundsSet>().Select(w => w.ModelId).Where(m => !shelved.Contains(m)).Distinct().Count();
+        var removed = shelved.Count;
         if (wounded > 0) yield return $"{wounded} model{(wounded == 1 ? "" : "s")} wounded";
         if (removed > 0) yield return $"{removed} model{(removed == 1 ? "" : "s")} removed";
         foreach (var c in changes.OfType<ConditionSet>()) yield return RollEntry.Capital(c.Condition) + (c.Present ? "" : " cleared");
