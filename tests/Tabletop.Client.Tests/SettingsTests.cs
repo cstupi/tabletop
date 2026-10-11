@@ -66,7 +66,7 @@ public class SettingsTests : IDisposable
         s.Save(path);
         Assert.Equal(s, ClientSettings.Load(path));
         Assert.NotEqual(ClientSettings.Default, s);
-        foreach (var json in new[] { """{ "logFilter": "sideways" }""", """{ "logFilter": "7" }""", """{ "animate": false }""" })
+        foreach (var json in new[] { """{ "logFilter": "sideways" }""", """{ "logFilter": "7" }""", """{ "logFilter": "2" }""", """{ "animate": false }""" })
         {
             File.WriteAllText(path, json);
             Assert.Equal((LogFilter.All, false), (ClientSettings.Load(path).LogFilter, ClientSettings.Load(path).LogOpen));

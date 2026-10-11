@@ -151,4 +151,55 @@ public class CombatLogTests
         Assert.Equal([false, true, false, false, false], block.Entries.Select(e => e.Undone));
         Assert.Equal("Hit 1 → Hit 1", block.Chain);
     }
+
+    [Fact]
+    public void A_block_is_found_by_the_targets_of_its_nested_frames()
+    {
+        var nested = Guid.CreateVersion7();
+        var (entries, _, _) = Build(Round1,
+            new SequenceStarted(Samples.Frame, "shooting", new SequenceContext(Samples.Unit, [], [], "Hold")),
+            new SequenceStarted(nested, "attack-sequence", new SequenceContext(Samples.Unit, [Enemy], [Rifle], null)),
+            new StepCompleted(nested, "roll-to-hit", null, [Samples.Hit], []),
+            new SequenceFinished(nested), new SequenceFinished(Samples.Frame));
+        var block = Assert.IsType<ActivationBlock>(Assert.Single(CombatLog.Filter(entries, LogFilter.Unit, _ => false, Enemy)));
+        Assert.Equal([Enemy], block.Targets);
+        Assert.Single(CombatLog.Filter(entries, LogFilter.Mine, u => u == Enemy, null));                // the attacked unit's side
+    }
+
+    [Fact]
+    public void An_undone_block_closes_at_its_own_finish_or_abandonment()
+    {
+        var second = Guid.CreateVersion7(); var third = Guid.CreateVersion7();
+        var (entries, _, _) = Build(Round1,
+            new SequenceStarted(Samples.Frame, "advance", new SequenceContext(Samples.Unit, [], [], "Advance")),
+            new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], []),
+            new SequenceFinished(Samples.Frame),
+            new SequenceStarted(second, "hold", new SequenceContext(Enemy, [], [], "Hold")),
+            new StepCompleted(second, "roll-to-hit", null, [Samples.Hit with { Id = Guid.CreateVersion7() }], []),
+            new SequenceAbandoned(second),
+            new SequenceStarted(third, "hold", new SequenceContext(Samples.Unit, [], [], "Hold")),
+            new SequenceFinished(third),
+            new Undone(1));
+        var blocks = entries.OfType<ActivationBlock>().ToList();
+        Assert.Equal([2L, 5, 8], blocks.Select(b => b.Seq));
+        Assert.All(blocks, b => Assert.True(b.Undone));
+        Assert.Equal([Samples.Unit, Enemy, Samples.Unit], blocks.Select(b => b.Actor!.Value));
+        Assert.Single(blocks[0].Entries.OfType<RollEntry>());
+        Assert.Single(blocks[1].Entries.OfType<RollEntry>());
+    }
+
+    [Fact]
+    public void A_roll_with_no_target_number_shows_its_faces_without_pass_or_fail()
+    {
+        var roll = new RollRecord(Samples.Roll, "roll-off", null, [new RollModifier("bonus", 1)], [new Die(4, 5, false), new Die(2, 2, false)]);
+        var (entries, _, _) = Build(Round1, new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], "Hold")),
+            new StepCompleted(Samples.Frame, "roll", null, [roll], []), new SequenceFinished(Samples.Frame));
+        var block = Assert.IsType<ActivationBlock>(entries[1]);
+        var r = block.Entries.OfType<RollEntry>().Single();
+        Assert.Equal(["4 → 5", "2"], r.Dice.Select(d => d.Text));
+        Assert.Equal("", r.Result);
+        Assert.Equal("Battle Brothers · Roll-off · ⚃ ⚁", r.Collapsed(CombatLog.Pip));
+        Assert.Equal("Roll-off", block.Chain);
+        Assert.False(r.Judged);
+    }
 }

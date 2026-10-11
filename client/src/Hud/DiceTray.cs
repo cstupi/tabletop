@@ -9,7 +9,7 @@ namespace Tabletop.Client.Hud;
 /// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling.</summary>
 public partial class DiceTray : PanelContainer
 {
-    static readonly Color Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.5f, 0.5f, 0.5f), Tumbling = Colors.White;
+    static readonly Color Pass = new(0.35f, 0.8f, 0.4f), Fail = new(0.5f, 0.5f, 0.5f), Neutral = new(0.85f, 0.85f, 0.85f), Tumbling = Colors.White;
     const double TumbleSeconds = 0.4;
     Session _s = null!; Control? _below;
     readonly Button _line = new() { Flat = true };
@@ -78,6 +78,6 @@ public partial class DiceTray : PanelContainer
         if (_shown is not { } r) return;
         var settled = _tumble <= 0;
         _line.Text = r.Collapsed(face => CombatLog.Pip(settled ? face : _faces.Next(1, 7)));
-        _line.Modulate = !settled ? Tumbling : r.Successes > 0 ? Pass : Fail;
+        _line.Modulate = !settled ? Tumbling : !r.Judged ? Neutral : r.Successes > 0 ? Pass : Fail;
     }
 }

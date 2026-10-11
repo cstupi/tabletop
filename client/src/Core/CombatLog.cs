@@ -2,7 +2,9 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>An action frame's entries, from its sequence_started to its live finish or abandonment, or an undo to before its start, under one header.</summary>
+/// <summary>An action frame's entries, from its sequence_started to its finish or abandonment, or an undo to before its start, under one
+/// header. A live block closes at a live finish; an undone block at its own (undone) finish. Targets: every target of every
+/// sequence_started in the block, its own and its nested frames', in order.</summary>
 public sealed record ActivationBlock(long Seq, GameEvent Event, bool Undone, string Header, Guid? Actor, IReadOnlyList<Guid> Targets,
     IReadOnlyList<LogEntry> Entries, IReadOnlyList<string> ChainParts) : LogEntry(Seq, Event, Undone)
 {
@@ -34,6 +36,7 @@ public static class CombatLog
             if (open is not null && e.Payload is Undone u && u.ToSeq < open.Start.Seq) { top.Add(open.Close(Dead(open.Start))); open = null; }
             if (open is null && e.Payload is SequenceStarted { Context.Action: { } action } started) { open = new Draft(e, started, Header(round, started.Context, action, n)); continue; }
             var into = open?.Entries ?? top;
+            if (open is not null && e.Payload is SequenceStarted nested) open.Target(nested.Context.TargetUnitIds);
             switch (e.Payload)
             {
                 case DiceRerolled d when rolled.Contains(d.RollId): break;
@@ -52,7 +55,7 @@ public static class CombatLog
                 default: into.Add(new LineEntry(e.Seq, e, dead, LogText.Describe(e, n))); break;
             }
             var ended = e.Payload switch { SequenceFinished x => x.FrameId, SequenceAbandoned x => x.FrameId, _ => (Guid?)null };
-            if (open is not null && !dead && ended == open.S.FrameId) { top.Add(open.Close(Dead(open.Start))); open = null; }
+            if (open is not null && ended == open.S.FrameId && (!dead || Dead(open.Start))) { top.Add(open.Close(Dead(open.Start))); open = null; }
         }
         if (open is not null) top.Add(open.Close(Dead(open.Start)));
         return top;
@@ -109,6 +112,8 @@ public static class CombatLog
     {
         public GameEvent Start { get; } = start; public SequenceStarted S { get; } = s;
         public List<LogEntry> Entries { get; } = []; public List<string> Chain { get; } = [];
-        public ActivationBlock Close(bool undone) => new(Start.Seq, Start, undone, header, S.Context.ActorUnitId, S.Context.TargetUnitIds, Entries, Chain);
+        readonly List<Guid> _targets = [.. s.Context.TargetUnitIds.Distinct()];
+        public void Target(IEnumerable<Guid> ids) => _targets.AddRange(ids.Where(id => !_targets.Contains(id)).Distinct());
+        public ActivationBlock Close(bool undone) => new(Start.Seq, Start, undone, header, S.Context.ActorUnitId, _targets, Entries, Chain);
     }
 }

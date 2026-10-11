@@ -26,7 +26,7 @@ public sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWind
             if (d is null) return Default;
             return new ClientSettings(d.Animate ?? Default.Animate, new HashSet<string>(d.MutedWindowKinds ?? []), d.RememberMe ?? Default.RememberMe,
                 d.ManagementUrl ?? Default.ManagementUrl, d.GameServerUrl ?? Default.GameServerUrl,
-                Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) ? f : Default.LogFilter, d.LogOpen ?? Default.LogOpen);
+                Enum.TryParse<LogFilter>(d.LogFilter, true, out var f) && Enum.IsDefined(f) && !int.TryParse(d.LogFilter, out _) ? f : Default.LogFilter, d.LogOpen ?? Default.LogOpen);
         }
         catch (Exception e) when (e is JsonException or IOException) { return Default; }
     }

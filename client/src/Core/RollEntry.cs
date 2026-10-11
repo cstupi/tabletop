@@ -6,10 +6,11 @@ namespace Tabletop.Client.Core;
 public abstract record LogEntry(long Seq, GameEvent Event, bool Undone);
 public sealed record LineEntry(long Seq, GameEvent Event, bool Undone, string Text) : LogEntry(Seq, Event, Undone);
 
-/// <summary>A die as the log shows it. RawJudged: the roll judged the raw face alone (RequiredRaw).</summary>
-public sealed record DieView(int Raw, int Modified, bool Success, bool RawJudged)
+/// <summary>A die as the log shows it. RawJudged: the roll judged the raw face alone (RequiredRaw). Judged: the roll has a target
+/// number or a required face; a roll with neither shows its faces with no pass or fail.</summary>
+public sealed record DieView(int Raw, int Modified, bool Success, bool RawJudged, bool Judged = true)
 {
-    public string Text => $"{Raw}{(Modified == Raw ? "" : $" → {Modified}")} {(Success ? "pass" : "fail")}{(RawJudged ? " (raw face)" : "")}";
+    public string Text => $"{Raw}{(Modified == Raw ? "" : $" → {Modified}")}{(Judged ? $" {(Success ? "pass" : "fail")}" : "")}{(RawJudged ? " (raw face)" : "")}";
 }
 
 /// <summary>A reroll or hand edit of one roll, with the faces it replaced.</summary>
@@ -23,10 +24,12 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
     IReadOnlyList<string> Basis, IReadOnlyList<string> Modifiers, IReadOnlyList<DieView> Dice, IReadOnlyList<RollAmendment> Amendments,
     IReadOnlyList<string> Applied) : LogEntry(Seq, Event, Undone)
 {
+    /// <summary>The record has a target number or a required face (a roll-off or a property's own roll has neither).</summary>
+    public bool Judged => Record.Threshold is not null || Record.RequiredRaw is not null;
     public int Successes => Dice.Count(d => d.Success);
-    public string Result => Dice.Count == 1 ? (Dice[0].Success ? "passed" : "failed") : $"{Successes} {Record.Roll}{(Successes == 1 ? "" : "s")}";
-    public string Chain => $"{Capital(Record.Roll)} {(Dice.Count == 1 ? Result : Successes.ToString())}";
-    public string Collapsed(Func<int, string> face) => $"{Title} · {string.Join(" ", Dice.Select(d => face(d.Raw)))} · {Result}";
+    public string Result => !Judged ? "" : Dice.Count == 1 ? (Dice[0].Success ? "passed" : "failed") : $"{Successes} {Record.Roll}{(Successes == 1 ? "" : "s")}";
+    public string Chain => !Judged ? Capital(Record.Roll) : $"{Capital(Record.Roll)} {(Dice.Count == 1 ? Result : Successes.ToString())}";
+    public string Collapsed(Func<int, string> face) => $"{Title} · {string.Join(" ", Dice.Select(d => face(d.Raw)))}{(Judged ? $" · {Result}" : "")}";
     public static string Capital(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     public static RollEntry Of(GameEvent e, bool undone, StepCompleted step, RollRecord r, SequenceContext c, IEnumerable<(GameEvent Event, bool Undone)> amendments, Names n)
@@ -43,7 +46,7 @@ public sealed record RollEntry(long Seq, GameEvent Event, bool Undone, Guid Fram
         if (c.WeaponIds.Count > 0) title.Add(string.Join(", ", c.WeaponIds.Select(n.Weapon).Distinct()));
         title.Add($"{Capital(r.Roll)}{(r.Threshold is { } t ? $" {t}+" : "")}");
         return new RollEntry(e.Seq, e, undone, step.FrameId, r with { Dice = dice }, c, string.Join(" · ", title), BasisLines(r),
-            r.Modifiers.Select(m => $"{m.Amount:+#;-#;0} {m.Source}").ToList(), dice.Select(d => new DieView(d.Raw, d.Modified, d.Success, r.RequiredRaw is not null)).ToList(),
+            r.Modifiers.Select(m => $"{m.Amount:+#;-#;0} {m.Source}").ToList(), dice.Select(d => new DieView(d.Raw, d.Modified, d.Success, r.RequiredRaw is not null, r.Threshold is not null || r.RequiredRaw is not null)).ToList(),
             amended, step.Applied ?? []);
     }
 

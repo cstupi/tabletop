@@ -88,7 +88,7 @@ public partial class CombatLogPanel : VBoxContainer
     void Details(VBoxContainer into, RollEntry r)
     {
         foreach (var line in r.Basis.Concat(r.Modifiers)) into.AddChild(new Label { Text = line });
-        foreach (var d in r.Dice) into.AddChild(new Label { Text = $"{CombatLog.Pip(d.Raw)}  {d.Text}", Modulate = d.Success ? Pass : Fail });
+        foreach (var d in r.Dice) into.AddChild(new Label { Text = $"{CombatLog.Pip(d.Raw)}  {d.Text}", Modulate = !d.Judged ? Plain : d.Success ? Pass : Fail });
         foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, Modulate = a.Undone ? Struck : Plain });
         var chips = new HFlowContainer(); into.AddChild(chips);   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, TooltipText = _s.Rules.TextOf(name) ?? name });
