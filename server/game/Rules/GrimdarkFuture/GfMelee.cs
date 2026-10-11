@@ -118,14 +118,17 @@ public static class GfMelee
         // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
         var inside = Lookup.ContainerOf(state, unit);
-        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t => inside is { } container
-            ? Lookup.LivingModels(state, t).Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
-            : Lookup.LivingModels(state, unit).Any(m => Lookup.LivingModels(state, t).Any(e =>
-            {
-                if (Battlefield.Placed(state, m) is not { } from || Battlefield.Placed(state, e) is not { } to) return false;
-                var check = Movement.Check(from, to.Placement.Position.Horizontal, distance, impassable, [], null, state.Board.Table.Size);
-                return Battlefield.Distance(state, m, e) <= distance && !check.CrossesImpassable;
-            }))).ToList();
+        var own = Lookup.LivingModels(state, unit);
+        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
+        {
+            var enemies = Lookup.LivingModels(state, t);
+            // The distance test is cheap and the path walk is not: walk only the pairs already within charge distance.
+            return inside is { } container
+                ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
+                : own.Any(m => enemies.Any(e => Battlefield.Placed(state, m) is { } from && Battlefield.Placed(state, e) is { } to
+                    && Battlefield.Distance(state, m, e) <= distance
+                    && !Movement.Check(from, to.Placement.Position.Horizontal, distance, impassable, [], null, state.Board.Table.Size).CrossesImpassable));
+        }).ToList();
     }
 
     sealed class ChargeTargetStep : IStep
