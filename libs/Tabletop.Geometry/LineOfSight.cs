@@ -56,6 +56,14 @@ public static class LineOfSight
         }
     }
 
+    /// <summary><see cref="TargetPoints(PlacedModel)"/> written into <paramref name="into"/> (room for 27); returns how many.</summary>
+    internal static int TargetPoints(PlacedModel to, Span<Point3> into)
+    {
+        var n = 0;
+        foreach (var t in TargetPoints(to)) into[n++] = t;
+        return n;
+    }
+
     /// <summary>Eight points around the outline: evenly around a circle; every n-th vertex of a polygon.</summary>
     internal static IReadOnlyList<Point2> Rim(Outline outline) => outline switch
     {

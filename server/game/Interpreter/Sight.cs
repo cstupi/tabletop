@@ -12,10 +12,10 @@ namespace Tabletop.GameServer.Interpreter;
 public sealed class Sight
 {
     readonly GameState state;
-    readonly IReadOnlyList<WorldVolume> blockers;
+    readonly SightBlockers blockers;
     readonly HashSet<Guid> bodies;
 
-    Sight(GameState state, IReadOnlyList<WorldVolume> blockers, HashSet<Guid> bodies) => (this.state, this.blockers, this.bodies) = (state, blockers, bodies);
+    Sight(GameState state, SightBlockers blockers, HashSet<Guid> bodies) => (this.state, this.blockers, this.bodies) = (state, blockers, bodies);
 
     /// <summary>`alsoIgnoring` leaves a second unit's bodies out as well, for a question that must not count that unit as a blocker.</summary>
     public static Sight From(GameState state, Guid observerUnit, Guid? alsoIgnoring = null)
@@ -23,10 +23,15 @@ public sealed class Sight
         var terrain = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.BlocksLineOfSight));
         var models = state.Projection.Models.Values.Where(m => m.UnitId != observerUnit && m.UnitId != alsoIgnoring && m.Location is OnTable).ToList();
         var volumes = terrain.Concat(models.Select(m => Bodies.AsBlockingVolume(m.Id, Battlefield.Placed(state, m.Id)!.Value))).ToList();
-        return new(state, volumes, models.Select(m => m.Id).ToHashSet());
+        return new(state, new SightBlockers(volumes), models.Select(m => m.Id).ToHashSet());
     }
 
-    public bool CanSee(Guid fromModel, Guid toModel) => Look(fromModel, toModel) is { Clear: true };
+    /// <summary>`Look`'s Clear, drawing lines only until one is clear.</summary>
+    public bool CanSee(Guid fromModel, Guid toModel)
+    {
+        var (from, to) = (Battlefield.Placed(state, fromModel), Battlefield.Placed(state, toModel));
+        return from is not null && to is not null && blockers.Check(from.Value, to.Value, Ignored(toModel)).Clear;
+    }
 
     /// <summary>
     /// One sight line measured: `Clear` is `LineOfSight.Check`, and `Screened` is `Cover.SightBlockersBetween` non-empty along a
@@ -42,9 +47,11 @@ public sealed class Sight
     {
         var (from, to) = (Battlefield.Placed(state, fromModel), Battlefield.Placed(state, toModel));
         if (from is null || to is null) return null;
-        var volumes = bodies.Contains(toModel) ? blockers.Where(v => v.Id != toModel).ToList() : blockers;
-        var check = LineOfSight.Check(from.Value, to.Value, volumes);
-        if (!check.Clear) return new SightLine(fromModel, toModel, false, false, check.ObstructedBy);
-        return new SightLine(fromModel, toModel, true, Cover.SightBlockersBetween(from.Value, to.Value, volumes).Count > 0, []);
+        var reading = blockers.Measure(from.Value, to.Value, Ignored(toModel));
+        return reading.Clear
+            ? new SightLine(fromModel, toModel, true, reading.Blockers.Count > 0, [])
+            : new SightLine(fromModel, toModel, false, false, reading.Blockers);
     }
+
+    Guid? Ignored(Guid toModel) => bodies.Contains(toModel) ? toModel : null;
 }
