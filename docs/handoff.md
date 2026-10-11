@@ -134,7 +134,7 @@ drawn through round 0.
 10. Undo to here, Reroll all, Set die 1… and +1 act; clicking an entry highlights what it touched; undone entries are struck
     through, and several undone activations show as separate blocks.
 11. The filters work, This unit follows the card's unit (including an enemy activation that shot it), and the filter and the
-    open state survive a restart. Opening the drawer after play lands at the end of the log.
+    open state survive a restart. Opening the drawer after events arrived while it was closed lands at the end of the log.
 12. The dice tray shows the latest roll as the log's collapsed line; with Animate on the faces tumble 0.4 s, off they appear
     settled; a reroll re-tumbles; a roll-off shows neutral. Clicking the tray opens the drawer at that roll, expanded.
 
@@ -179,7 +179,7 @@ drawn through round 0.
 - The `move_through_models` sweep is 2D (`Collision.Crosses`), so a model moving across a roof passes through a ground model
   under it.
 - The book-table ruins (`ruins`, `large-ruins`, `overgrown-ruins`) keep p.12's declarations (Cover, and Rush/Charge or
-  Difficult); only the built-in `ruin` is Difficult, BlocksLineOfSight and SeeInAndOut.
+  Difficult); only the built-in `ruin` is BlocksLineOfSight and SeeInAndOut, a walk-in Difficult Area with Cover.
 - The card does not mark which model a Shift-click or wound-row click selected.
 - Home has a text "Settings" button; the spec has a gear.
 
@@ -198,10 +198,9 @@ rule; the client holds none); objective markers are locked in play under every e
 menu unlocks them (client-local); a terrain drag in play starts under every setting, sends nothing and snaps back; the e2e sight check's
 observer has only melee weapons, so it never proves a non-empty `CanShoot` (the unit tests do).
 
-### 3. Check the terrain fix in the client
+### 3. Check the built-in terrain meshes in the client
 
-Merged (`4fbe694`). The built-in terrain meshes are glTF Y-up and were read as Z-up, which laid them on their side
-and sank half of each into the table; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
+The built-in terrain meshes are glTF Y-up; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
 woods and buildings stand upright with their bases flush on the table, and water and pads lie flat.
 
 ### 4. Base shape at import
