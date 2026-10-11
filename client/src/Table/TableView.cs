@@ -31,6 +31,7 @@ public partial class TableView : Node3D
     public override void _ExitTree()
     {
         if (_session is null) return;
+        _meshes.Dispose();
         _session.BoardChanged -= _onBoard; _session.EventsApplied -= _onEvents; _session.GameChanged -= _onBoard; _session.GameChanged -= _onGame;
     }
 
@@ -56,17 +57,21 @@ public partial class TableView : Node3D
         if (table is null) { Clear(); return; }
         if (table.Size != Size || _slab.GetChildCount() == 0) { Size = table.Size; _slab.Set(Size, table.Texture); }
         Volumes = table.Terrain.SelectMany(t => t.WorldVolumes()).ToList();
-        Sync(_terrain, table.Terrain, t => t.Id, t => { var n = new TerrainNode { PlacementId = t.Id }; n.Set(t); LoadTerrainMesh(n, t); return n; }, (TerrainNode n, TerrainPlacement t) => { if (!IsHeld(t.Id)) n.Set(t); });
+        Sync(_terrain, table.Terrain, t => t.Id, BoardDiff.SameShape,
+            t => { var n = new TerrainNode { PlacementId = t.Id }; n.Build(t); LoadTerrainMesh(n, t); return n; }, (n, t) => n.Place(t));
         // A play marker wins over a setup marker of the same id: one disc per id.
         var played = _session.Projection?.Markers.Values.ToList() ?? [];
-        var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played).ToList();
+        var markers = table.Markers.Where(m => played.All(q => q.Id != m.Id)).Concat(played);
         Color? ControlColour(Marker m) => _session.Projection?.Control.TryGetValue(m.Id, out var holder) == true
             && _session.Game?.Teams.FirstOrDefault(t => t.Id == holder) is { } team ? Palette.Team(team.Ordinal) : null;
-        Sync(_markers, markers, m => m.Id, m => { var n = new MarkerNode { MarkerId = m.Id }; n.Set(m, ControlColour(m)); return n; }, (MarkerNode n, Marker m) => { if (!IsHeld(m.Id)) n.Set(m, ControlColour(m)); });
+        Sync(_markers, markers.Select(m => (Marker: m, Team: ControlColour(m))).ToList(), x => x.Marker.Id, (a, b) => BoardDiff.SameShape(a.Marker, b.Marker) && a.Team == b.Team,
+            x => { var n = new MarkerNode { MarkerId = x.Marker.Id }; n.Build(x.Marker, x.Team); return n; }, (n, x) => n.Place(x.Marker));
         var teams = _session.Game?.Teams ?? [];
-        Sync(_zones, ZonesShown(table, _session.Projection, teams), z => z.Id, z => { var n = new ZoneNode(); n.Set(z, Size, ZoneColour(z, teams)); return n; }, (ZoneNode n, DeploymentZone z) => n.Set(z, Size, ZoneColour(z, teams)));
+        Sync(_zones, ZonesShown(table, _session.Projection, teams).Select(z => (Zone: z, Size, Colour: ZoneColour(z, teams))).ToList(), x => x.Zone.Id, (a, b) => a == b,
+            x => { var n = new ZoneNode(); n.Build(x.Zone, x.Size, x.Colour); return n; }, (_, _) => { });
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
-        Sync(_pieces, onTable, m => m.Id, m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, (PieceNode n, ModelInPlay m) => { if (!IsHeld(m.Id)) Place(n, m); });
+        Sync(_pieces, onTable, m => m.Id, (_, _) => true,
+            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, Place);
     }
 
     /// <summary>Put the named models' nodes back on the projection's placements, held or not: a move Ask that starts again from the server's positions.</summary>
@@ -93,13 +98,25 @@ public partial class TableView : Node3D
         n.Position = WorldFrame.ToGodot(p.Position); n.Rotation = new Vector3(0, WorldFrame.Radians(p.Yaw), 0);
     }
 
-    void Sync<TNode, TItem>(Node parent, IReadOnlyList<TItem> items, Func<TItem, Guid> id, Func<TItem, TNode> create, Action<TNode, TItem> update) where TNode : Node3D, IHasId
+    /// <summary>
+    /// One layer against what its nodes last drew (<see cref="BoardDiff"/>): a removed id's node goes, a new id gets a node, a
+    /// reshaped one is replaced, and a kept one only takes its transform, which also snaps back a drag the server did not take.
+    /// A held id is left as it is, and keeps what it last drew until it is let go.
+    /// </summary>
+    void Sync<TNode, TItem>(Node parent, IReadOnlyList<TItem> items, Func<TItem, Guid> id, Func<TItem, TItem, bool> sameShape, Func<TItem, TNode> create, Action<TNode, TItem> place)
+        where TNode : Node3D, IDrawn<TItem>
     {
-        var existing = parent.GetChildren().OfType<TNode>().Where(n => !n.IsQueuedForDeletion()).ToDictionary(n => n.Id);
-        var wanted = items.ToDictionary(id);
-        foreach (var (key, node) in existing) if (!wanted.ContainsKey(key)) node.QueueFree();
-        foreach (var (key, item) in wanted) { if (existing.TryGetValue(key, out var node)) update(node, item); else parent.AddChild(create(item)); }
+        var nodes = parent.GetChildren().OfType<TNode>().ToDictionary(n => n.Id);
+        var diff = BoardDiff.Of(nodes.ToDictionary(kv => kv.Key, kv => kv.Value.Drawn), items, id, sameShape);
+        foreach (var key in diff.Removed) Drop(nodes[key]);
+        foreach (var item in diff.Reshaped) if (!IsHeld(id(item))) { Drop(nodes[id(item)]); Add(item); }
+        foreach (var item in diff.Kept) if (!IsHeld(id(item))) { var n = nodes[id(item)]; n.Drawn = item; place(n, item); }
+        foreach (var item in diff.Added) Add(item);
+        void Add(TItem item) { var n = create(item); n.Drawn = item; parent.AddChild(n); }
     }
+
+    /// <summary>Out of the tree now, so a lookup by id this frame finds only the live node; freed at the end of the frame.</summary>
+    static void Drop(Node n) { n.GetParent().RemoveChild(n); n.QueueFree(); }
 
     async void LoadPieceMesh(PieceNode n, ModelInPlay m)
     {
@@ -111,7 +128,7 @@ public partial class TableView : Node3D
     // A built-in's group mesh is fitted to the placement's first volume; an asset's mesh carries its own scale.
     async void LoadTerrainMesh(TerrainNode n, TerrainPlacement t)
     {
-        var scene = t.Mesh.IsBuiltin ? _meshes.LoadBuiltin(t.Mesh.Builtin!, t.Volumes.Count > 0 ? t.Volumes[0].Volume : null) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, WorldFrame.ToGodot(t.Position));
+        var scene = t.Mesh.IsBuiltin ? await _meshes.LoadBuiltinAsync(t.Mesh.Builtin!, t.Volumes.Count > 0 ? t.Volumes[0].Volume : null) : await _meshes.LoadAssetAsync(t.Mesh.AssetId!.Value, Camera.GlobalPosition, WorldFrame.ToGodot(t.Position));
         if (!IsInstanceValid(n)) { scene?.QueueFree(); return; }
         n.SetMesh(scene);
     }
@@ -170,7 +187,8 @@ public partial class TableView : Node3D
     public IEnumerable<Node3D> Pieces => _pieces.GetChildren().OfType<Node3D>().Concat(_ghosts.GetChildren().OfType<Node3D>())
         .Concat(_terrain.GetChildren().OfType<Node3D>()).Concat(_markers.GetChildren().OfType<Node3D>());
 
-    void Clear() { foreach (var parent in new[] { _pieces, _terrain, _markers, _zones, _ghosts }) foreach (var c in parent.GetChildren()) c.QueueFree(); }
+    void Clear() { foreach (var parent in new[] { _pieces, _terrain, _markers, _zones, _ghosts }) foreach (var c in parent.GetChildren()) Drop(c); }
 }
 
-public interface IHasId { Guid Id { get; } }
+/// <summary>A table node by its board id, with the item it was last built or placed from.</summary>
+public interface IDrawn<TItem> { Guid Id { get; } TItem Drawn { get; set; } }

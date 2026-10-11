@@ -5,17 +5,18 @@ using Tabletop.Geometry;
 namespace Tabletop.Client.Table;
 
 /// <summary>One proxy per volume, placed by the volume's offset, yaw and heights under the piece's transform and uniform scale.</summary>
-public partial class TerrainNode : Node3D, IHasId
+public partial class TerrainNode : Node3D, IDrawn<TerrainPlacement>
 {
     public Guid PlacementId { get; init; }
     public Guid Id => PlacementId;
+    public TerrainPlacement Drawn { get; set; } = null!;
     readonly List<MeshInstance3D> _proxies = new();
     Node3D? _mesh;
 
-    public void Set(TerrainPlacement p)
+    /// <summary>Once per node: the proxies come from the volumes. A placement whose volumes or mesh change gets a new node.</summary>
+    public void Build(TerrainPlacement p)
     {
-        Position = WorldFrame.ToGodot(p.Position); Rotation = new Vector3(0, WorldFrame.Radians(p.Yaw), 0); Scale = Vector3.One * (float)p.Scale;
-        foreach (var m in _proxies) m.QueueFree(); _proxies.Clear();
+        Place(p);
         foreach (var tv in p.Volumes)
         {
             var v = tv.Volume; var height = (float)(v.Top - v.Bottom);
@@ -26,6 +27,11 @@ public partial class TerrainNode : Node3D, IHasId
                 Visible = _mesh is null, Position = new Vector3((float)v.Offset.X, (float)v.Bottom + height / 2, (float)-v.Offset.Y), Rotation = new Vector3(0, WorldFrame.Radians(v.Yaw), 0) };
             _proxies.Add(node); AddChild(node);
         }
+    }
+
+    public void Place(TerrainPlacement p)
+    {
+        Position = WorldFrame.ToGodot(p.Position); Rotation = new Vector3(0, WorldFrame.Radians(p.Yaw), 0); Scale = Vector3.One * (float)p.Scale;
     }
 
     public void SetMesh(Node3D? scene) { _mesh?.QueueFree(); _mesh = scene; if (scene is not null) { AddChild(scene); foreach (var p in _proxies) p.Visible = false; } }

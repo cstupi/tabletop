@@ -1,14 +1,16 @@
 using Godot;
 using Tabletop.Content;
 using Tabletop.Geometry;
+using Tabletop.Protocol;
 
 namespace Tabletop.Client.Table;
 
 /// <summary>A model: its base extruded to its height, then the mesh decorating it. The proxy is the thing the rules measure; it never goes away.</summary>
-public partial class PieceNode : Node3D, IHasId
+public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
 {
     public Guid ModelId { get; init; }
     public Guid Id => ModelId;
+    public ModelInPlay Drawn { get; set; } = null!;
     public Guid UnitId { get; init; }
     MeshInstance3D _proxy = null!;
     Node3D? _mesh;

@@ -5,9 +5,15 @@ using Orientation = Tabletop.Geometry.Orientation;
 
 namespace Tabletop.Client.Table;
 
-/// <summary>Runtime GLB loading: manifest → cache → GltfDocument. Nearest to the camera first; a failure leaves the proxy and logs.</summary>
-public sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId)
+/// <summary>
+/// Runtime GLB loading: manifest → cache → GltfDocument. Nearest to the camera first; a failure leaves the proxy and logs. Each
+/// file is parsed once, off the main thread, into a template scene; every piece gets its own duplicate of it. Main thread only,
+/// apart from the parse and the downloads.
+/// </summary>
+public sealed class MeshLoader(AssetCache cache, ManagementClient management, Guid gameId) : IDisposable
 {
+    readonly Dictionary<string, Task<Node3D?>> _templates = new();
+    bool _disposed;
     readonly Dictionary<Guid, ManifestEntry> _manifest = new();
     readonly PriorityQueue<(Guid AssetId, string Hash, Uri Url, TaskCompletionSource<string?> Done), float> _queue = new();
     readonly SemaphoreSlim _inFlight = new(2, 2);
@@ -56,7 +62,7 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         _queue.Enqueue((assetId, hash, url, done), cameraPosition.DistanceTo(piecePosition));
         _ = Pump();
         var path = await done.Task;
-        return path is null ? null : Build(path, scale, orientation);
+        return path is null ? null : await Build(path, scale, orientation);
     }
 
     async Task Pump()
@@ -71,14 +77,14 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         finally { _inFlight.Release(); }
     }
 
-    public Node3D? LoadBuiltin(string name, Volume? fit = null)
+    public async Task<Node3D?> LoadBuiltinAsync(string name, Volume? fit = null)
     {
         var file = BuiltinContent.TerrainMeshFile(name);
         // The res:// path is passed through unchanged: GltfDocument reads it with Godot's FileAccess, so it works from
         // the editor and from an exported .pck alike, which GlobalizePath would not. Built-ins ship inside the build and
         // never enter the cache. A missing file returns null, and TerrainNode keeps its proxies visible.
         if (file is null || !Godot.FileAccess.FileExists(file)) return null;
-        var scene = Build(file, 1, BuiltinContent.MeshOrientation);
+        var scene = await Build(file, 1, BuiltinContent.MeshOrientation);
         if (scene is null) return null;
         if (fit is null) return scene;
         // One mesh serves a group of built-ins (Task 6), so it is authored in the unit box — table-frame x and y in
@@ -94,16 +100,39 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         return box;
     }
 
-    /// <summary>Main thread only: GltfDocument builds a scene tree, then the asset's corrections are applied to its root.</summary>
-    static Node3D? Build(string path, double scale, Orientation orientation)
+    /// <summary>A duplicate of the file's template, with the asset's corrections applied to its root. Null when the file does not parse.</summary>
+    async Task<Node3D?> Build(string path, double scale, Orientation orientation)
     {
-        var doc = new GltfDocument(); var state = new GltfState();
-        var err = doc.AppendFromFile(path, state);
-        if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return null; }
-        var generated = doc.GenerateScene(state);
-        if (generated is not Node3D scene) { generated?.Free(); return null; }
+        if (!_templates.TryGetValue(path, out var template)) _templates[path] = template = Template(path);
+        if (await template is not { } root || _disposed) return null;
+        var scene = (Node3D)root.Duplicate();
         Orient(scene, scale, orientation);
         return scene;
+    }
+
+    /// <summary>The file read and parsed on the thread pool; the scene tree generated on the main thread the await resumes on.
+    /// A path is a content hash or a built-in that ships in the build, so its template never goes stale.</summary>
+    async Task<Node3D?> Template(string path)
+    {
+        var parsed = await Task.Run(() =>
+        {
+            var doc = new GltfDocument(); var state = new GltfState();
+            var err = doc.AppendFromFile(path, state);
+            if (err != Error.Ok) { GD.PushWarning($"GLB {path}: {err}"); return ((GltfDocument, GltfState)?)null; }
+            return (doc, state);
+        });
+        if (parsed is not var (d, s)) return null;
+        var generated = d.GenerateScene(s);
+        if (generated is not Node3D scene || _disposed) { generated?.Free(); return null; }
+        return scene;
+    }
+
+    /// <summary>Frees the templates, which are never in the tree; the duplicates belong to their pieces.</summary>
+    public void Dispose()
+    {
+        _disposed = true;
+        foreach (var t in _templates.Values) if (t.IsCompletedSuccessfully && t.Result is { } root && GodotObject.IsInstanceValid(root)) root.Free();
+        _templates.Clear();
     }
 
     /// <summary>The asset row's scale and orientation, in the one convention stated on Tabletop.Geometry.Orientation (contracts plan Task 2; the web app writes it): the raw mesh coordinates are read as
