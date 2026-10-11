@@ -47,14 +47,14 @@ public partial class ArmyRuleHookTests
         Assert.Single(Now().AtPoint(Side.Attacker, GfNames.AfterShooting));
     }
 
-    static EffectDocument Row(EffectKind kind, string? entry = null) =>
-        new(EffectSubject.Self, 10, kind, null, null, entry, null, null, null, null, 1, false, null, null, null, EffectDuration.Once, [], []);
+    static EffectDocument Row(EffectKind kind, string? entry = null, EffectDuration duration = EffectDuration.Once) =>
+        new(EffectSubject.Self, 10, kind, null, null, entry, null, null, null, null, 1, false, null, null, null, duration, [], []);
 
     [Fact]
     public void A_granted_rules_own_pass_one_rows_run_so_a_granted_boost_suppresses_its_base()
     {
         var grantBoost = new EntryDocument("Boost It", CatalogKind.Spell, false, null, 1, null, "Boost it.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Boosted")]);
-        var boosted = new EntryDocument("Boosted", CatalogKind.Model, false, Aggregation.All, null, null, "Boosted.", null, [Row(EffectKind.SuppressProperty, "Base")]);
+        var boosted = new EntryDocument("Boosted", CatalogKind.Model, false, Aggregation.All, null, null, "Boosted.", null, [Row(EffectKind.SuppressProperty, "Base", EffectDuration.Interaction)]);
         var baseRule = new EntryDocument("Base", CatalogKind.Model, false, Aggregation.All, null, null, "Base.", null, []);
         var props = TestProperties.WithSpells(grantBoost, boosted, baseRule);
         var a = Unit("A", "4+", "4+", [], 1, [P("Base")]);
@@ -71,7 +71,7 @@ public partial class ArmyRuleHookTests
     [Fact]
     public void Pass_one_stops_when_a_rule_grants_itself()
     {
-        var loop = new EntryDocument("Loop", CatalogKind.Model, false, Aggregation.All, null, null, "Loop.", null, [Row(EffectKind.GrantProperty, "Loop")]);
+        var loop = new EntryDocument("Loop", CatalogKind.Model, false, Aggregation.All, null, null, "Loop.", null, [Row(EffectKind.GrantProperty, "Loop", EffectDuration.Interaction)]);
         var props = TestProperties.WithSpells(loop);
         var a = Unit("A", "4+", "4+", [], 1, [P("Loop")]);
         var s = State([a], [Unit("B", "4+", "4+", [], 1, [])]);
@@ -250,9 +250,9 @@ public partial class ArmyRuleHookTests
     [Fact]
     public void A_placement_crosses_impassable_terrain_but_may_not_land_in_it()
     {
-        var wall = new Tabletop.Content.TerrainPlacement(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("wall"), new Tabletop.Geometry.Point3(-9, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
+        var wall = new Tabletop.Content.TerrainPlacement(Guid.CreateVersion7(), Tabletop.Content.VisualRef.OfBuiltin("wall"), new Tabletop.Geometry.Point3(-9.5, -18.5, 0), new Tabletop.Geometry.Yaw(0), 1,
             [new Tabletop.Content.TerrainVolume(Guid.CreateVersion7(), new Tabletop.Geometry.Volume(Tabletop.Geometry.VolumeKind.Solid, Tabletop.Geometry.Footprint.Rect(1, 6), new Tabletop.Geometry.Point2(0, 0), new Tabletop.Geometry.Yaw(0), 0, 4, Tabletop.Geometry.TerrainDeclarations.Impassable, null))]);
-        foreach (var (dx, lands) in new[] { (3.0, true), (2.0, false) })
+        foreach (var (dx, lands) in new[] { (3.0, true), (2.5, false), (1.5, false) })   // 2.5": the centre is clear but the base overhangs the wall (p.11 "partially overhanging")
         {
             var a = Unit("A", "4+", "4+", [], 1, [P("Teleport")]);
             var sim = new Sim(State([a], [Unit("B", "4+", "4+", [], 1, [])], x1: -11, x2: 20, terrain: [wall]), GrimdarkFutureRules.Instance, Core, new ScriptedDice(4));
@@ -474,13 +474,13 @@ public partial class ArmyRuleHookTests
         var hit = sim.Steps("roll-to-hit").First();
         Assert.Equal([2, 1], hit.Rolls.Select(r => r.Dice.Count));                                   // the added six adds no third attack
         Assert.Equal(2, hit.Rolls.Sum(r => r.Dice.Count(d => d.Success)));                           // the first six and the added die's six
-        Assert.Equal(2, hit.Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
+        Assert.Equal(2, sim.Steps("score-hits").First().Values!.Where(kv => kv.Key.StartsWith("granted_AP_")).Sum(kv => kv.Value));   // AP(4) granted on the added die too
     }
 
     static readonly EntryDocument Frenzy = new("Test Frenzy", CatalogKind.Spell, false, null, 1, null, "Grants Primal.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 18), [Row(EffectKind.GrantProperty, "Primal")]);
 
     [Fact]
-    public void A_once_granted_primal_adds_an_attack_on_a_six_and_is_gone_after_the_roll_to_hit()
+    public void A_once_granted_primal_adds_an_attack_on_a_six_and_is_spent_by_score_hits()
     {
         var props = TestProperties.WithSpells(Frenzy);
         var a = Unit("A", "4+", "4+", [], 1, [], Melee("Claws", 2)); var b = Unit("B", "4+", "2+", [], 1, []);
@@ -488,6 +488,8 @@ public partial class ArmyRuleHookTests
         sim.Append([new GrantAdded(a.Id, new Tabletop.Protocol.Grant(Guid.CreateVersion7(), props.Entry("Test Frenzy")!.Effects[0].Id, "Test Frenzy", a.Id, 1))]);
         sim.Start(GfNames.Melee, new SequenceContext(a.Id, [b.Id], GfMelee.MeleeWeapons(sim.State, a.Id), GfNames.Charge));
         Assert.Equal([2, 1], sim.Steps("roll-to-hit").First().Rolls.Select(r => r.Dice.Count));
+        Assert.Empty(sim.Steps("roll-to-hit").First().Changes.OfType<GrantRemoved>());
+        Assert.Single(sim.Steps("score-hits").First().Changes.OfType<GrantRemoved>());
         Assert.Empty(sim.Unit(a.Id).Grants);
     }
 }

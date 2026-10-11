@@ -10,7 +10,10 @@ public partial class TeamPanel : PanelContainer
     public Team Team { get; }
     readonly Label _text = new();
     public event Action<Vector2>? RightClicked;
-    public TeamPanel(Team team) { Team = team; AddChild(_text); SelfModulate = Palette.Team(team.Ordinal); }
+    public TeamPanel(Team team) { Team = team; AddChild(_text); Recolour(); }
+
+    /// <summary>The panel, not its text, tinted by the team colour; lightened so a light panel keeps the theme's dark text readable.</summary>
+    public void Recolour() => SelfModulate = Palette.Team(Team.Ordinal).Lightened(0.6f);
 
     public void Refresh(Session s)
     {

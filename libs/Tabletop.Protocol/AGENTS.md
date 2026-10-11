@@ -5,11 +5,11 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 
 ## Layout
 
-- `Wire.cs`: `SocketMessage` and its kinds (`Connect`, `CommandMessage`, `EditMessage`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `AtRest`, `Refused`, `Rejected`, `PresenceMessage`, `PingMessage`, `PresenceEnded`), `RejectReason`, `RefusalReason`, `WireJson`.
+- `Wire.cs`: `SocketMessage` and its kinds (`Connect`, `CommandMessage`, `EditMessage`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `AtRest`, `Refused`, `Rejected`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `SightQuery`, `SightAnswer` with `SightLine`, `ModelFacts`), `RejectReason`, `RefusalReason`, `WireJson`.
 - `Commands.cs`: `Command` (`AnswerAsk` and the others). `Edits.cs`: `Edit`, `LobbyEdit` (rows, never logged).
 - `Asks.cs`: `Ask`, `AskOption`, `AskAnswer`, and the `LegalSet` shapes.
-- `Events.cs`, `StateChanges.cs`: `EventPayload`, `GameEvent`, `StateChange` (the log's content).
-- `State.cs`, `Game.cs`: `Location`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`.
+- `Events.cs`, `StateChanges.cs`: `EventPayload`, `GameEvent`, `StateChange` (the log's content). `SequenceStarted.Outline` (`OutlineStep`) is null in logs written before it, and `Frame.Outline` is then empty.
+- `State.cs`, `Game.cs`: `Location`, `GameInfo`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Team`. `RollRecord.Basis` (`ThresholdBasis`, `ThresholdChange`) is null for a threshold no stat gave and in logs written before it; `EventApplier` does not read it.
 - `EventApplier.cs`: applies events to a `Projection`; `EffectiveLog` drops undone events; `ProjectTo(seq)`.
 - `Projection.cs`: `Projection`, `UnitInPlay`, `ModelInPlay`; only `EventApplier` writes it.
 - `Presence.cs`: presence, cursor, selection, measurement; latest wins, never logged.
@@ -18,8 +18,8 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 ## How it works
 
 - Client and server exchange `SocketMessage` JSON through `WireJson` (polymorphic, options built on `ContentJson`).
-- Three message kinds travel inward: `Command` (logged), `Edit` (applied to rows, persisted, not logged) and presence.
-- The server answers with events, `AtRest` and `Refused`.
+- Three message kinds travel inward: `Command` (logged), `Edit` (applied to rows, persisted, not logged) and presence. A `SightQuery` is a question, answered and never stored.
+- The server answers with events, `AtRest` and `Refused`; a `SightQuery` with a `SightAnswer` to the asker alone, outside the log. `ModelFacts` follow the batches that change them.
 - Replay applies logged events and never re-derives them. The server, client, sim and viewer all run `EventApplier`.
 
 ## Commands

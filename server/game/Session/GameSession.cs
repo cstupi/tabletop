@@ -21,6 +21,8 @@ public sealed partial class GameSession
 {
     private readonly Channel<Func<Task>> _mailbox = Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions { SingleReader = true });
     private readonly List<ISessionClient> _clients = new();
+    /// <summary>Admin watchers: they receive what a teamless participant receives and are never in _clients.</summary>
+    private readonly List<ISessionClient> _watchers = new();
     private readonly PresenceTable _presence = new();
     private readonly SessionServices _services;
     private readonly ILogger _log;
@@ -42,6 +44,7 @@ public sealed partial class GameSession
     public IRulesEngine? Engine { get; internal set; }
     public CommandDispatcher? Dispatcher { get; internal set; }
     public IReadOnlyList<ISessionClient> Clients => _clients;
+    public IReadOnlyList<ISessionClient> Watchers => _watchers;
     public bool Faulted { get; private set; }
 
     /// <summary>
@@ -103,6 +106,7 @@ public sealed partial class GameSession
     /// rather than a throw into the /ws endpoint.</summary>
     public Task DetachAsync(ISessionClient client) => WhenNotDrained(RunAsync(async () =>
     {
+        if (_watchers.Remove(client)) return;
         if (!_clients.Remove(client)) return;
         if (_clients.All(c => c.ParticipantId != client.ParticipantId)) { _presence.Remove(client.ParticipantId); await BroadcastAsync(new PresenceEnded(client.ParticipantId)); }
     }));
@@ -115,7 +119,7 @@ public sealed partial class GameSession
 
     public async Task BroadcastAsync(SocketMessage message, ISessionClient? except = null)
     {
-        foreach (var c in _clients.ToList()) if (c != except) await c.SendAsync(message);
+        foreach (var c in _clients.Concat(_watchers).ToList()) if (c != except) await c.SendAsync(message);
     }
 
     /// <summary>The log path: seq assigned here, appended first, applied, then broadcast with each viewer's sealed answers withheld.</summary>
@@ -134,6 +138,8 @@ public sealed partial class GameSession
         try { Play.Applier.ApplyAll(batch); }
         catch (ProjectionDesyncException ex) { await FaultAsync($"this server's own event does not apply to its own projection: {ex.Message}"); return; }
         foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
+        foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, null, sealedBefore)));
+        await BroadcastFactsIfChangedAsync();
         if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
     }
 
@@ -160,8 +166,8 @@ public sealed partial class GameSession
     {
         Faulted = true;
         _log.LogError("Game {GameId} faulted: {Reason}", GameId, reason);
-        foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, reason);
-        _clients.Clear();
+        foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, reason);
+        _clients.Clear(); _watchers.Clear();
     }
 
     /// <summary>Finishes queued work, closes every socket with 1001, and stops the loop. Everything durable was already written when it was queued.
@@ -172,7 +178,7 @@ public sealed partial class GameSession
     {
         if (_drained) return;
         _drained = true;
-        await WhenNotDrained(RunAsync(async () => { foreach (var c in _clients.ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); }));
+        await WhenNotDrained(RunAsync(async () => { foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, reason); _clients.Clear(); _watchers.Clear(); }));
         _mailbox.Writer.TryComplete();
         if (_loop is not null) await _loop;
     }

@@ -184,8 +184,8 @@ changes for a game.
 Beyond a scenario's own expectations, every run checks the invariants that hold for any game:
 
 - Replaying the log from the initial state reproduces the final projection.
-- Undoing to an arbitrary sequence and redoing reproduces the same dice, because the seed never
-  changes for a game.
+- Undoing to an arbitrary sequence keeps the earlier dice, and the redo draws fresh ones: an undone
+  roll's dice stay spent.
 - Every Ask is answered by a team that Ask addressed.
 - No model is in two places, and no model on the table is outside the slab.
 - The round only advances through the boundary Ask, per the ruling of 2026-09-06.

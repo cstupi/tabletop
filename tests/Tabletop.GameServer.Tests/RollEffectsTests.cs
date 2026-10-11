@@ -25,7 +25,7 @@ public class RollEffectsTests
     public void Stealth_modifies_the_hit_roll_aircraft_cuts_range_and_unstoppable_ignores_the_penalties()
     {
         var (live, _, _) = Shooting(Unit("S", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1)), Unit("T", "4+", "4+", [P("Aircraft")], 2, [P("Stealth")]), 12);
-        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality), [], D6, null, hitRollName: "hit");
+        var plan = RollEffects.Plan(live, Side.Attacker, "hit", StatReader.TargetNumber(live, Side.Attacker, Quality).Value, [], D6, null, hitRollName: "hit");
         Assert.Equal(4, plan.Threshold); Assert.Equal(-1, plan.NetModifier);                                      // 3.5.1 Aircraft is -12" to range only, with no to-hit modifier
         Assert.Equal(["Stealth"], plan.Modifiers.Select(m => m.Source));
         Assert.Equal(12.0, StatReader.WeaponRange(live, Side.Attacker, live.Interaction.Attacker.WeaponIds[0]));
@@ -42,8 +42,8 @@ public class RollEffectsTests
     public void Reliable_replaces_quality_ap_modifies_defense_and_bane_forces_a_reroll_of_sixes()
     {
         var (live, _, _) = Shooting(Unit("S", "5+", "4+", [], 1, [], Gun("Rifle", "24\"", 1, P("Reliable"), P("AP", 2), P("Bane"))), Unit("T", "4+", "3+", [], 2, [P("Regeneration")]), 6);
-        Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, Quality));
-        var defense = RollEffects.Plan(live, Side.Defender, "defense", StatReader.TargetNumber(live, Side.Defender, Defense), [], D6, null, "hit");
+        Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, Quality).Value);
+        var defense = RollEffects.Plan(live, Side.Defender, "defense", StatReader.TargetNumber(live, Side.Defender, Defense).Value, [], D6, null, "hit");
         Assert.Equal((3, -2), (defense.Threshold, defense.NetModifier));
         Assert.Equal([6], defense.RerollRaw);
         Assert.Empty(RollEffects.OwnRolls(live, Side.Defender, c => c.Kind == EffectKind.OverrideResult && c.TargetResult == TargetResult.Wound));   // Regeneration suppressed
@@ -55,16 +55,16 @@ public class RollEffectsTests
         var squad = Unit("Squad", "5+", "4+", [], 2, [], Gun("Rifle", "24\"", 1));
         var joined = squad with { Models = [squad.Models[0] with { Name = "Captain", Stats = new Dictionary<string, string> { ["Quality"] = "3+", ["Defense"] = "2+" }, Properties = [P("Hero")] }, squad.Models[1]] };
         var (live, _, _) = Shooting(joined, Unit("T", "4+", "4+", [], 3, []), 12);
-        Assert.Equal(3, StatReader.TargetNumber(live, Side.Attacker, ModelQuality, joined.Models[0].Id));   // p.4: "the model's Quality value"
-        Assert.Equal(5, StatReader.TargetNumber(live, Side.Attacker, ModelQuality, joined.Models[1].Id));   // no slot value: the unit's
-        Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, ModelDefense, joined.Models[0].Id));
-        Assert.Equal(5, StatReader.TargetNumber(live, Side.Attacker, Quality));                             // the unit-level ref is unchanged
+        Assert.Equal(3, StatReader.TargetNumber(live, Side.Attacker, ModelQuality, joined.Models[0].Id).Value);   // p.4: "the model's Quality value"
+        Assert.Equal(5, StatReader.TargetNumber(live, Side.Attacker, ModelQuality, joined.Models[1].Id).Value);   // no slot value: the unit's
+        Assert.Equal(2, StatReader.TargetNumber(live, Side.Attacker, ModelDefense, joined.Models[0].Id).Value);
+        Assert.Equal(5, StatReader.TargetNumber(live, Side.Attacker, Quality).Value);                             // the unit-level ref is unchanged
         Assert.Throws<NotSupportedException>(() => StatReader.TargetNumber(live, Side.Attacker, ModelQuality));
 
         var elite = joined with { Models = joined.Models.Select(m => m with { Weapons = [Gun("Rifle", "24\"", 1, P("Reliable"))] }).ToList() };
         var (reliable, _, _) = Shooting(elite, Unit("T", "4+", "4+", [], 3, []), 12);
-        Assert.Equal(2, StatReader.TargetNumber(reliable, Side.Attacker, ModelQuality, elite.Models[0].Id));   // p.14 replaces the value the model brought, hero or not
-        Assert.Equal(2, StatReader.TargetNumber(reliable, Side.Attacker, ModelQuality, elite.Models[1].Id));
+        Assert.Equal(2, StatReader.TargetNumber(reliable, Side.Attacker, ModelQuality, elite.Models[0].Id).Value);   // p.14 replaces the value the model brought, hero or not
+        Assert.Equal(2, StatReader.TargetNumber(reliable, Side.Attacker, ModelQuality, elite.Models[1].Id).Value);
     }
 
     [Fact]

@@ -3,8 +3,22 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Interpreter;
 
-/// <summary>A step is ruleset C#. It reads game state and its frame and ends one of four ways. It holds nothing between runs.</summary>
-public interface IStep { string Name { get; } StepOutcome Run(StepContext ctx); }
+/// <summary>A step is ruleset C#. It reads game state and its frame and ends one of four ways. It holds nothing between runs.
+/// Label: the player-facing name in the sequence's outline (SequenceStarted.Outline); null for an internal step, which the outline leaves out.</summary>
+public interface IStep { string Name { get; } string? Label => null; StepOutcome Run(StepContext ctx); }
+
+/// <summary>A step under a player-facing label. The same name and the same run: a label is a property of the step's place in a sequence, not of its class.</summary>
+public sealed class LabelledStep(IStep step, string label) : IStep
+{
+    public string Name => step.Name;
+    public string? Label => label;
+    public StepOutcome Run(StepContext ctx) => step.Run(ctx);
+}
+
+public static class StepLabels
+{
+    public static IStep Labelled(this IStep step, string label) => new LabelledStep(step, label);
+}
 
 /// <summary>Starts a sequence on the stack: what the scheduler (Task 10) needs from the interpreter.</summary>
 public interface ISequenceStarter { IReadOnlyList<EventPayload> Start(GameState state, string sequence, SequenceContext context); }

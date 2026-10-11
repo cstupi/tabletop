@@ -21,6 +21,7 @@ export interface Allocation {
   readonly kind: 'allocation';
   readonly targets: readonly string[];
   readonly amount: number;
+  readonly maxTargets?: number;
 }
 
 export interface ArmyInPlay {
@@ -55,6 +56,7 @@ export interface AskAnswered {
   readonly teamId: string;
   readonly answer?: AskAnswer;
   readonly outsideLegalSet: boolean;
+  readonly breach?: string;
 }
 
 export interface AskClosed {
@@ -84,6 +86,7 @@ export interface Assignment {
   readonly items: readonly AskOption[];
   readonly targets: readonly string[];
   readonly maxDistinctTargets: number;
+  readonly targetsByItem?: { readonly [key: string]: readonly string[] };
 }
 
 export interface Base {
@@ -140,6 +143,7 @@ export interface DeploymentZone {
 export interface Destinations {
   readonly kind: 'destinations';
   readonly moves: readonly ModelRelocation[];
+  readonly continues: boolean;
 }
 
 export interface DiceEdited {
@@ -323,6 +327,10 @@ export interface MoveRegion {
   readonly difficultVolumeIds: readonly string[];
   readonly difficultCap?: number;
   readonly containment?: MoveContainment;
+  readonly minDistance?: number;
+  readonly stoppable: boolean;
+  readonly separation?: number;
+  readonly passesModels: boolean;
 }
 
 export interface ObjectiveControlSet {
@@ -343,6 +351,11 @@ export interface OnTable {
 export interface Options {
   readonly kind: 'options';
   readonly choices: readonly AskOption[];
+}
+
+export interface OutlineStep {
+  readonly step: string;
+  readonly label: string;
 }
 
 export interface Participant {
@@ -391,7 +404,7 @@ export interface PropertyInstance {
   readonly parameter?: number;
 }
 
-export type RefusalReason = 'outside_legal_set' | 'illegal' | 'wrong_status' | 'not_permitted' | 'unknown';
+export type RefusalReason = 'outside_legal_set' | 'illegal' | 'wrong_status' | 'not_permitted' | 'unknown' | 'watcher';
 
 export interface Refused {
   readonly kind: 'refused';
@@ -418,6 +431,8 @@ export interface RollRecord {
   readonly threshold?: number;
   readonly modifiers: readonly RollModifier[];
   readonly dice: readonly Die[];
+  readonly requiredRaw?: number;
+  readonly basis?: ThresholdBasis;
 }
 
 export interface RoundEnded {
@@ -468,6 +483,7 @@ export interface SequenceStarted {
   readonly frameId: string;
   readonly sequence: string;
   readonly context: SequenceContext;
+  readonly outline?: readonly OutlineStep[];
 }
 
 export type SocketMessage = Connect | Welcome | GameInfoMessage | BoardMessage | EventsMessage | Refused | Rejected;
@@ -487,6 +503,7 @@ export interface StepCompleted {
   readonly answer?: AskAnswer;
   readonly rolls: readonly RollRecord[];
   readonly changes: readonly StateChange[];
+  readonly applied?: readonly string[];
   readonly values?: { readonly [key: string]: number };
 }
 
@@ -537,6 +554,18 @@ export interface TerrainPlacement {
 export interface TerrainVolume {
   readonly id: string;
   readonly volume: Volume;
+}
+
+export interface ThresholdBasis {
+  readonly stat: string;
+  readonly printed: number;
+  readonly changes: readonly ThresholdChange[];
+}
+
+export interface ThresholdChange {
+  readonly source: string;
+  readonly setTo?: number;
+  readonly amount: number;
 }
 
 export interface TokenSpend {

@@ -39,6 +39,31 @@ public class AskTests
     }
 
     [Fact]
+    public void An_assignment_item_takes_only_its_own_targets_when_the_set_lists_them()
+    {
+        // p.8: "Each group may be fired at a different target" — and a target is valid for a group only with a weapon of it in range.
+        Guid near = Guid.CreateVersion7(), far = Guid.CreateVersion7();
+        var items = new[] { new AskOption("Rifles", "Rifles", []), new AskOption("Pistols", "Pistols", []) };
+        var split = new Assignment(items, [near, far], 2, new Dictionary<string, IReadOnlyList<Guid>> { ["Rifles"] = [near, far], ["Pistols"] = [near] });
+        Assert.Equal([near, far], split.TargetsOf("Rifles"));
+        Assert.Equal([near], split.TargetsOf("Pistols"));
+        Assert.Empty(split.TargetsOf("Grenades"));                                                          // an item the map does not name takes none
+        var open = new Assignment(items, [near, far], 2);
+        Assert.Null(open.TargetsByItem);
+        Assert.Equal([near, far], open.TargetsOf("Pistols"));                                               // no map: every item takes any target
+    }
+
+    [Fact]
+    public void An_assignment_without_per_item_targets_reads_from_json_that_omits_them()
+    {
+        var unit = Guid.CreateVersion7();
+        var json = $$"""{"kind":"assignment","items":[{"id":"g1","label":"Rifles","pieces":[]}],"targets":["{{unit}}"],"maxDistinctTargets":2}""";
+        var legal = Assert.IsType<Assignment>(WireJson.Deserialize<LegalSet>(json));
+        Assert.Null(legal.TargetsByItem);
+        Assert.Equal([unit], legal.TargetsOf("g1"));
+    }
+
+    [Fact]
     public void A_piece_selection_is_answered_at_either_grain()
     {
         // Unit ids for deploy and a charge target; model ids for a model-grain spell and for a Takedown's
@@ -61,5 +86,14 @@ public class AskTests
         var disembark = new MoveRegion([model], 6, [], [], 6, new MoveContainment([], bus, 6));
         Assert.Equal((bus, 6.0), (disembark.Containment!.ExitingId!.Value, disembark.Containment.ExitWithin!.Value));
         Assert.Empty(disembark.Containment.Enterable);                                                      // never both in one activation
+    }
+
+    [Fact]
+    public void A_move_region_carries_its_separation_and_whether_it_passes_models()
+    {
+        var plain = new MoveRegion([Guid.CreateVersion7()], 6, [], [], 6);
+        Assert.Equal(((double?)null, false), (plain.Separation, plain.PassesModels));
+        var back = Assert.IsType<MoveRegion>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(plain with { Separation = 1, PassesModels = true })));
+        Assert.Equal(((double?)1, true), (back.Separation, back.PassesModels));
     }
 }

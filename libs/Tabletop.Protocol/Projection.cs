@@ -81,19 +81,21 @@ public sealed class SchedulerPosition
     public IReadOnlySet<Guid> Passed => PassedMut;
 }
 
-public sealed class Frame(Guid id, string sequence, SequenceContext context)
+public sealed class Frame(Guid id, string sequence, SequenceContext context, IReadOnlyList<OutlineStep>? outline = null)
 {
     internal readonly List<CompletedStep> StepsMut = new();
     internal readonly Dictionary<string, List<RollModifier>> PendingMut = new();
     public Guid Id { get; } = id;
     public string Sequence { get; } = sequence;
     public SequenceContext Context { get; } = context;
+    /// <summary>The sequence's labelled steps from SequenceStarted; empty when the event carried none.</summary>
+    public IReadOnlyList<OutlineStep> Outline { get; } = outline ?? [];
     public IReadOnlyList<CompletedStep> Steps => StepsMut;
     public IReadOnlyDictionary<string, IReadOnlyList<RollModifier>> PendingModifiers =>
         PendingMut.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<RollModifier>)kv.Value);
 }
 
-public sealed class CompletedStep(string step, AskAnswer? answer, IReadOnlyList<RollRecord> rolls, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values)
+public sealed class CompletedStep(string step, AskAnswer? answer, IReadOnlyList<RollRecord> rolls, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, IReadOnlyList<string>? applied = null)
 {
     internal readonly List<RollRecord> RollsMut = rolls.ToList();
     public string Step { get; } = step;
@@ -102,6 +104,8 @@ public sealed class CompletedStep(string step, AskAnswer? answer, IReadOnlyList<
     public IReadOnlyList<StateChange> Changes { get; } = changes;
     /// <summary>The step's settled parameters, copied from StepCompleted.Values; null when the step recorded none.</summary>
     public IReadOnlyDictionary<string, int>? Values { get; } = values;
+    /// <summary>The catalog entries that acted in the step, copied from StepCompleted.Applied; empty when null.</summary>
+    public IReadOnlyList<string> Applied { get; } = applied ?? [];
 }
 
 public sealed class OpenAsk(Ask ask)

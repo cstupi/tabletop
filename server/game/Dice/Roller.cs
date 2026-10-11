@@ -7,10 +7,12 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
 {
     public long Cursor { get; private set; } = cursor;
 
+    /// <summary>A required raw face rules alone; otherwise a thresholded roll fails on the convention's AlwaysFails face, succeeds on its AlwaysSucceeds face, and else compares the modified result.</summary>
     public Die Judge(RollPlan plan, int raw)
     {
         var modified = raw + plan.NetModifier;
-        var success = plan.RequiredRaw is { } r ? raw >= r : plan.Threshold is { } t && modified >= t;
+        var success = plan.RequiredRaw is { } r ? raw >= r
+            : plan.Threshold is { } t && raw != plan.Convention.AlwaysFails && (raw == plan.Convention.AlwaysSucceeds || modified >= t);
         return new Die(raw, modified, success);
     }
 
@@ -19,10 +21,10 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
     public RollResult Roll(Guid frameId, RollPlan plan, int count)
     {
         var rolled = Enumerable.Range(0, count).Select(_ => Judge(plan, Draw(plan))).ToList();
-        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled);
+        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis);
         var replaced = new List<DieReplacement>();
         for (var i = 0; i < rolled.Count; i++)
-            if (plan.RerollRaw.Contains(rolled[i].Raw)) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again
+            if (plan.Rerolls(rolled[i])) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again
         return new RollResult(record, replaced.Count == 0 ? null : new DiceRerolled(frameId, record.Id, replaced), Cursor);
     }
 }

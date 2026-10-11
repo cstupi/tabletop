@@ -112,6 +112,7 @@ public class GfCoverTests
         AssertScreened(sim, mortar.Models[0].Id, screened.Models[0].Id, screen.Models[0].Id);
         sim.Start(GfNames.AttackSequence, new SequenceContext(mortar.Id, [screened.Id], mortar.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Hold));
         Assert.DoesNotContain(sim.Steps("roll-to-block").Single().Rolls.Single().Modifiers, m => m.Source == "cover");
+        Assert.Equal(["Indirect"], sim.Steps("determine-attacks").Single().Applied);                      // seen, so only the cover half acted
 
         var (wooded, screen2) = (Unit("Lone", "4+", "6+", [], 1, []), Wall());
         var inWood = Laid(mortar, wooded, screen2, [InWood], wood: true, 6, 5);

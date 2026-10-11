@@ -103,15 +103,27 @@ public class EventApplierTests
     }
 
     [Fact]
-    public void Moving_a_marker_placed_during_setup_is_a_desync()
+    public void Moving_a_setup_marker_puts_it_in_the_projection_at_the_new_spot_and_keeps_its_control()
     {
-        var board = Samples.Board;                                                  // its markers are the draft's, not the log's
+        var board = Samples.Board;
         var a = new EventApplier(board, Samples.Game);
-        var setupMarker = board.Table.Markers[0].Id;
-        var ex = Assert.Throws<ProjectionDesyncException>(
-            () => a.Apply(Ev(1, new MarkerMoved(setupMarker, new(2, 2, 0), new(90)))));
+        var setup = board.Table.Markers[0];
+        a.ApplyAll([Ev(1, new ObjectiveControlSet(setup.Id, Samples.Team1)), Ev(2, new MarkerMoved(setup.Id, new(2, 2, 0), new(90))),
+            Ev(3, new MarkerMoved(setup.Id, new(4, 4, 0), new(45)))]);
+        Assert.Equal(setup with { Position = new(4, 4, 0), Yaw = new(45) }, a.Projection.Markers[setup.Id]);
+        Assert.Equal(Samples.Team1, a.Projection.Control[setup.Id]);
+        Assert.Equal(setup, a.Projection.Board.Table.Markers[0]);                     // the board row itself is untouched
+        Assert.False(a.ProjectTo(1).Markers.ContainsKey(setup.Id));                    // replay from the board puts it back
+    }
+
+    [Fact]
+    public void Moving_a_marker_nothing_holds_is_a_desync()
+    {
+        var a = new EventApplier(Samples.Board, Samples.Game);
+        var unknown = Guid.CreateVersion7();
+        var ex = Assert.Throws<ProjectionDesyncException>(() => a.Apply(Ev(1, new MarkerMoved(unknown, new(2, 2, 0), new(90)))));
         Assert.Equal("marker_moved", ex.Kind);
-        Assert.Equal(setupMarker, ex.UnknownId);
+        Assert.Equal(unknown, ex.UnknownId);
     }
 
     [Fact]
@@ -178,5 +190,56 @@ public class EventApplierTests
         a.Apply(Ev(3, new MarkerPlaced(Samples.Token)));
         a.Apply(Ev(4, new MarkerRemoved(Samples.Token.Id)));
         Assert.Empty(a.Projection.Control);
+    }
+
+    [Fact]
+    public void SequenceStarted_without_outline_reads_as_empty()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        Assert.Empty(a.Projection.Stack.Single().Outline);
+
+        // A log row written before Outline existed: no "outline" key at all.
+        var json = $"{{\"kind\":\"sequence_started\",\"frameId\":\"{Frame}\",\"sequence\":\"hold\",\"context\":{{\"actorUnitId\":\"{Samples.Unit}\",\"targetUnitIds\":[],\"weaponIds\":[]}}}}";
+        var old = Assert.IsType<SequenceStarted>(WireJson.Deserialize<EventPayload>(json));
+        Assert.Null(old.Outline);
+        var b = Fresh();
+        b.Apply(Ev(1, old));
+        Assert.Empty(b.Projection.Stack.Single().Outline);
+    }
+
+    [Fact]
+    public void StepCompleted_applied_round_trips_and_lands_on_the_completed_step()
+    {
+        var withApplied = new StepCompleted(Frame, "roll-to-hit", null, [Samples.Hit], [], ["Furious", "Rending"]);
+        var back = Assert.IsType<StepCompleted>(WireJson.Deserialize<EventPayload>(WireJson.Serialize<EventPayload>(withApplied)));
+        Assert.Equal(["Furious", "Rending"], back.Applied);
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        a.Apply(Ev(2, back));
+        Assert.Equal(["Furious", "Rending"], a.Projection.Stack.Single().Steps.Single().Applied);
+    }
+
+    [Fact]
+    public void StepCompleted_without_applied_reads_as_null_and_an_empty_list_on_the_completed_step()
+    {
+        // A log row written before Applied existed: no "applied" key at all.
+        var json = $"{{\"kind\":\"step_completed\",\"frameId\":\"{Frame}\",\"step\":\"roll\",\"rolls\":[],\"changes\":[]}}";
+        var old = Assert.IsType<StepCompleted>(WireJson.Deserialize<EventPayload>(json));
+        Assert.Null(old.Applied);
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))));
+        a.Apply(Ev(2, old));
+        Assert.Empty(a.Projection.Stack.Single().Steps.Single().Applied);
+    }
+
+    [Fact]
+    public void A_frame_carries_its_sequences_outline_in_order()
+    {
+        var a = Fresh();
+        a.Apply(Ev(1, new SequenceStarted(Frame, "advance", new SequenceContext(Samples.Unit, [], [], "Advance"),
+            [new OutlineStep("move", "Move"), new OutlineStep("shoot", "Shoot")])));
+        Assert.Equal(["move", "shoot"], a.Projection.Stack.Single().Outline.Select(o => o.Step));
+        Assert.Equal(["Move", "Shoot"], a.Projection.Stack.Single().Outline.Select(o => o.Label));
     }
 }

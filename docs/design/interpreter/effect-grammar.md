@@ -61,9 +61,9 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 | --- | --- | --- | --- |
 | `ActionTaken` | `Interaction.ActionTaken` | yes | set membership over the action name; false when no action is in context |
 | `AttackKind` | `Interaction.Attack` | yes | membership over `"shooting"`/`"melee"`; false when neither |
-| `Range` | `Interaction.RangeInches` | **no** | `Compare((int)Math.Floor(r))`, inches truncated to an integer |
-| `RollResult` | the `DieContext` passed in | yes | `Values` are exactly `[roll, "raw" or "modified"]`; false when no die is in context |
-| `ActorState` | the named side's unit conditions, plus the source model's own conditions | yes | presence, negated under `neq` |
+| `Range` | `Interaction.RangeInches` | **no** | `Compare(r)` on the measured inches, unrounded |
+| `RollResult` | the `DieContext` passed in | yes | `Values` are `[roll, "raw" or "modified"]`, optionally a third, `"success"` or `"fail"`, that the die's success must match; false when no die is in context |
+| `ActorState` | the named side's unit conditions, plus the source model's own conditions | yes | presence, negated under `neq`; false on a side the interaction lacks |
 | `PositionTerrain` | `Interaction.DefenderTerrain` | yes | membership over declaration names; applies to the defender, or to the lone party when there is no defender |
 | `RoundNumber` | `Interaction.Round` | **no** | `Compare(round)` |
 | `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads |
@@ -71,9 +71,10 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 `Validate` refuses a subject on the three relational predicates. A range test is about both
 parties, so a subject would have no meaning.
 
-`Range` truncates to an integer, so a condition written `gt 9` is false at exactly 9.0 and true
-at 9.6 but tested as 9. That is correct for OPR, where every threshold is a whole number of
-inches, and lossy for a ruleset that is not. `UsageCount` scanning `SequenceContext.WeaponIds`
+`Range` compares the distance as measured (p.5, base to base), so a condition written `gt 9` is
+false at exactly 9.0 and true at 9.41. `ActorState`, `HoldsProperty` and `MostModels` on the
+defender are false when the interaction has none (a charge's reach, a move, a lone roll), as
+`PositionTerrain` reads the lone party. `UsageCount` scanning `SequenceContext.WeaponIds`
 counts sequences the weapon was in, not shots fired. That is the right reading for *once per
 game* and not clearly right for anything else.
 
@@ -246,7 +247,10 @@ amounts in `StatReader.WeaponRange` instead.
 
 `ForceReroll` is collected here rather than evaluated per die. The effect's `roll_result`
 condition names the *face*, every other condition must hold now, and the face goes into
-`RollPlan.RerollRaw` so `Roller.Roll` can redraw it once.
+`RollPlan.RerollRaw` so `Roller.Roll` can redraw it once. A face whose condition carries
+`"success"` goes into `RollPlan.RerollSuccessfulRaw` instead, redrawn only when the die succeeded
+(Scrapper Boost: *"re-roll successful unmodified defense results of 5-6"*). `Validate` refuses
+`"fail"` on a `force_reroll`.
 
 **`RollEffects.PerDie`** returns `DieEffects(int ExtraHits, IReadOnlyList<(string Entry, int?
 Parameter)> Grants)` for one die. It keeps only effects that carry a `RollResult` condition, so a
@@ -339,6 +343,12 @@ too, or a granted hook-name rule would never fire.
   carries one reference. A grant carries three, so it is not a condition either. The rule is not
   written into the unit's property list, because that list is the frozen army snapshot's copy.
 
+**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`) whose
+rows are all `once` rows with `at_point before-attacking` is an army-book Buff, Mark or Debuff. Carried, it exposes no
+rows; the `pick-rule` sequence writes one `GrantAdded` per row on the unit it picks, and the grant is read and consumed
+as a spell's is. A granted row's `at_point` holds wherever the grant is read: it said when the rule was used. Each
+carrying model has one use per activation, counted by `GfPick.Uses`.
+
 ## Name checks handled by `GameRules`
 
 Some entries carry no effects at all. They are names `GrimdarkFutureRules` checks for at hooks it
@@ -360,6 +370,9 @@ unit's own properties, the aggregated model properties **and** the grants store.
 This is name-matching. The alternative is inventing grammar for deployment timing, movement
 exemption and a token economy, most of which would be used by one property each. That is where
 effects-as-data stops paying.
+
+`Lookup.UnitHas` also reads a carried Aura (an `any` model entry whose unconditional subject-self `grant_property` row
+names the rule) off the unit's definition, so *"This model and its unit get Scout"* is a Scout unit at deployment.
 
 **A property may be in both places.** `Indirect` carries one effect row, its −1 to hit after
 moving, *and* is checked by name for *"may target enemies that are not in line of sight"* and

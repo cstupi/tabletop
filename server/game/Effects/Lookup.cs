@@ -48,7 +48,7 @@ public static class Lookup
     /// the unit's rule and is read off the definition, which is the reading LiveProperties.Gather takes as well.</summary>
     public static bool UnitHas(GameState state, PropertySet props, Guid unitId, string entry)
     {
-        if (UnitProperties(state, props, unitId).Any(p => p.Name == entry)) return true;
+        if (UnitProperties(state, props, unitId).Any(p => p.Name == entry) || AuraGrants(state, props, unitId).Contains(entry)) return true;
         if (props.Entry(entry) is not { } e) return false;
         if (e.Kind == CatalogKind.Unit) return UnitKindOnSlots(state, props, unitId).Any(x => x.Property.Name == entry);
         var living = LivingModels(state, unitId);
@@ -67,6 +67,18 @@ public static class Lookup
             .Select(p => (Property: p, Entry: props.Entry(p.Name)))
             .Where(x => x.Entry is { Kind: CatalogKind.Unit })
             .Select(x => (x.Property, Entry: x.Entry!));
+
+    /// <summary>
+    /// The rules carried Auras give the unit (army-book rules spec → Aura: "This model and its unit get X"): a played model entry with aggregation
+    /// any and no targeting, on any of the unit's slots, whose unconditional subject-self grant_property row names X. Read off the definition, as
+    /// UnitKindOnSlots is, because a deployment rule (Scout, Ambush) is read before the unit has a position.
+    /// </summary>
+    static IEnumerable<string> AuraGrants(GameState state, PropertySet props, Guid unitId) =>
+        state.Projection.Units[unitId].Definition.Models.SelectMany(m => m.Properties)
+            .Select(p => props.Entry(p.Name)).OfType<CatalogEntry>()
+            .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
+            .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))
+            .Select(f => f.TargetEntry!);
 
     public static int? UnitParameter(GameState state, PropertySet props, Guid unitId, string entry)
     {

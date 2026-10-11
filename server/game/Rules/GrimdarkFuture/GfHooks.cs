@@ -26,6 +26,8 @@ public static class GfHooks
         var changes = state.Projection.Units.Values.Where(u => u.WoundsThisActivation > 0).Select(u => (StateChange)new WoundsThisActivationSet(u.Id, 0)).ToList();
         // moved is "moved this activation", which is what p.14 Indirect's "shooting after moving" reads.
         changes.AddRange(state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Moved)).Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Moved, false)));
+        // Owner ruling: a granted Flying "applies to the whole move - its per activation": what this activation used and kept is spent now.
+        changes.AddRange(GfMoves.FlyingHeldThisActivation(state, turn.AnsweredAtSeq));
         // p.10: "Shaken units must spend their activation being idle and doing nothing, which stops them from being Shaken at the end of their activation."
         // p.13: an Aircraft "may only use Advance actions … (even if Shaken)" and "their mandatory move doesn't break the staying idle requirement
         // to stop being Shaken" — so a Shaken Aircraft's Advance counts as having idled.
@@ -75,6 +77,7 @@ public static class GfHooks
     /// each unit the point concerns (the actor; at after-melee the charger and then the defender) offers its live move rows at that point
     /// (army-rule hooks spec), one reaction per entry, pushing `reposition`. A Shaken unit offers nothing: 3.5.1 p.10 says being idle means it "can't
     /// take any actions, or use any active special rules, such as casting spells, using buffs/debuffs on units, re-positioning, etc.".
+    /// At before-attacking each carrying model also offers its Buff, Mark or Debuff (GfPick), pushing `pick-rule`.
     /// </summary>
     public static IReadOnlyList<Reaction> ReactionsAt(GameState state, PropertySet props, string point, FrameView frame)
     {
@@ -86,6 +89,11 @@ public static class GfHooks
         foreach (var unit in units)
         {
             if (Shaken(state, unit) || Lookup.LivingModels(state, unit).Count == 0 || Teams.Of(state, unit) is not { } team) continue;
+            // Army-book rules spec → the pick: one use per carrying model that has not used it this activation and has a target now.
+            if (point == GfNames.BeforeAttacking)
+                foreach (var (entry, model) in GfPick.Offers(state, props, unit))
+                    reactions.Add(new Reaction(team, GfPick.Key(entry.Name, model), $"{entry.Name} ({state.Projection.Models[model].Slot.Name}): pick a target",
+                        GfNames.PickRuleSeq, new SequenceContext(unit, [], [], GfPick.Key(entry.Name, model))));
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
             foreach (var (source, row) in live.AtPoint(Side.Attacker, point).Where(x => x.Effect.Kind is EffectKind.Move or EffectKind.Place).DistinctBy(x => x.Source.Entry.Name))
                 reactions.Add(new Reaction(team, $"{source.Entry.Name}|{unit:N}", Label(source.Entry.Name, row), GfNames.RepositionSeq, new SequenceContext(unit, [], [], source.Entry.Name)));

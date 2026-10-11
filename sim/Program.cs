@@ -6,6 +6,8 @@ using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Recording;
 using Tabletop.Sim.Run;
 using Tabletop.Sim.Scenarios;
+using Tabletop.Sim.Serve;
+using Tabletop.Sim.Suite;
 
 namespace Tabletop.Sim;
 
@@ -13,7 +15,17 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        try { return await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None); }
+        try
+        {
+            if (args.Length > 0 && args[0] == ServeArguments.Verb)
+            {
+                await ServeApp.Build(ServeArguments.Parse(args[1..]), new SuiteRunner()).RunAsync();
+                return 0;
+            }
+            return args.Length > 0 && args[0] == SuiteArguments.Verb
+                ? await RunSuiteAsync(SuiteArguments.Parse(args[1..]), Console.Out, new SuiteRunner(), CancellationToken.None)
+                : await RunAsync(SimOptions.Parse(args), Console.Out, CancellationToken.None);
+        }
         catch (UsageException usage) { Console.Error.WriteLine(usage.Message); return 2; }
     }
 
@@ -32,6 +44,37 @@ public static class Program
         }
 
         return await RunScenarioAsync(template, options, output, ct);
+    }
+
+    /// <summary>
+    /// The rules suite: --list prints the selected games, otherwise the runner plays them and the report is printed, a line per game
+    /// as it finishes and the tables at the end. Exit 0 only when the report passed. suite.json goes to --out with --keep or --out.
+    /// </summary>
+    public static async Task<int> RunSuiteAsync(SuiteArguments arguments, TextWriter output, SuiteRunner runner, CancellationToken ct)
+    {
+        if (arguments.List)
+        {
+            foreach (var game in SuiteCatalog.Select(runner.Games, arguments.Only))
+                output.WriteLine($"{game.Name}  [{game.Group}]  {string.Join(", ", game.Covers)}");
+            return 0;
+        }
+
+        var outDir = arguments.Out ?? SuiteArguments.DefaultOut;
+        var report = await runner.RunAsync(new SuiteOptions(arguments.Only, arguments.Driver, arguments.Keep, outDir),
+            new Inline<SuiteGameResult>(r => output.WriteLine($"{(r.Passed ? "pass" : "FAIL")}  {r.Name}")), ct);
+        output.WriteLine(report.Table());
+        if (arguments.Keep || arguments.Out is not null)
+        {
+            Directory.CreateDirectory(outDir);
+            await File.WriteAllTextAsync(Path.Combine(outDir, SuiteReport.FileName), report.ToJson(), ct);
+        }
+        return report.ExitCode;
+    }
+
+    /// <summary>Reports on the caller's thread, so the per-game lines come out in order before the tables (Progress&lt;T&gt; posts to the pool).</summary>
+    private sealed class Inline<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     /// <summary>Every seed of the options' range against one scenario; the seam a test uses for a scenario the catalog does not hold.</summary>
@@ -64,7 +107,7 @@ public static class Program
     private static async Task<RunReport> PlayAsync(Scenario scenario, SimOptions options, CancellationToken ct)
     {
         var compiled = ScenarioCompiler.Compile(scenario);
-        var answers = new ComposedAnswers(scenario.Script, scenario.ScriptOnly ? null : new AnswerPolicy(new Chooser(scenario.Seed)));
+        var answers = new ComposedAnswers(scenario.Script, scenario.Policy());
 
         NpgsqlDataSource? db = null;
         try

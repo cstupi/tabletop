@@ -19,12 +19,14 @@ public static partial class GfAttack
         var rolled = new HashSet<string>();
         foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: false))
         {
-            var live = LiveProperties.Settle(ix);
+            var live = ctx.Settle(ix);
             foreach (var (source, row) in live.AtPoint(Side.Attacker, GfNames.AttackStart).Where(x => x.Effect.Kind == EffectKind.Roll))
             {
                 if (!rolled.Add(source.Entry.Name)) continue;
-                var record = ctx.Roll(new Dice.RollPlan(source.Entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), Math.Max(1, row.Amount ?? 1));
+                // A table roll read by its raw face (Unpredictable's "on a 1-3"), never modified: the row's threshold is a raw face, so p.5's natural 1 does not fail it.
+                var record = ctx.Roll(new Dice.RollPlan(source.Entry.Name, row.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: row.Threshold, new HashSet<int>()), Math.Max(1, row.Amount ?? 1));
                 values[$"face_{unit:N}_{source.Entry.Name}"] = record.Dice[0].Raw;
+                live.Record(source);
             }
         }
     }
@@ -36,7 +38,7 @@ public static partial class GfAttack
         foreach (var ix in AttackStartInteractions(ctx, unit, opponents, kind, withFaces: true))
         {
             if (ix.Faces is null || !ix.Faces.TryGetValue(Side.Attacker, out var faces) || faces.Count == 0) continue;
-            var live = LiveProperties.Settle(ix with { Point = null });
+            var live = ctx.Settle(ix with { Point = null });
             foreach (var p in live.On(Side.Attacker).Where(p => p.GrantId is not null && faces.ContainsKey(p.Entry.Name))) live.Read(p);
             spent.AddRange(RollEffects.Consume(live));
         }
@@ -58,7 +60,7 @@ public static partial class GfAttack
     }
 
     /// <summary>The faces the nearest shooting or melee frame recorded, by side of this interaction.</summary>
-    static IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? FacesFor(FrameView frame, Guid attacker, Guid target)
+    static IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? FacesFor(FrameView? frame, Guid attacker, Guid target)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence is GfNames.Shooting or GfNames.Melee)

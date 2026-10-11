@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Screens;
@@ -16,6 +17,7 @@ public partial class HomeScreen : Control
         var top = new HBoxContainer(); root.AddChild(top);
         top.AddChild(new Label { Text = $"Signed in as {Main.Instance.Session.Account?.Name}" });
         top.AddChild(Btn("Create game", () => Run(CreateDialog)));
+        top.AddChild(Btn("Settings", () => SettingsDialog.Open(this, Main.Instance.Session)));
         top.AddChild(Btn("Sign out", () => Run(Main.Instance.Session.LogoutAsync)));
         var filters = new HBoxContainer(); root.AddChild(filters);
         filters.AddChild(_status = new OptionButton());
@@ -29,7 +31,7 @@ public partial class HomeScreen : Control
         bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) Run(() => Join(Filtered()[sel[0]].Id)); }));
         bottom.AddChild(Btn("More", () => Run(LoadPage)));
         bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); Run(LoadPage); }));
-        root.AddChild(_error = new Label { Modulate = Colors.Orange });
+        root.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
         if (Main.Instance.Session.LastCloseReason is { } why) _error.Text = $"Dropped from the last game: {why}";
@@ -90,13 +92,13 @@ public partial class HomeScreen : Control
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(pack);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
-        var waits = new CheckBox { Text = "Wait between steps" }; form.AddChild(waits);
         var army = new OptionButton(); army.AddItem("No army (watch)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
         dialog.Confirmed += () => Run(async () =>
         {
             if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
+            // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
-                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), waits.ButtonPressed));
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
             Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
             if (armyId is { } id)
             {

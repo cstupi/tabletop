@@ -10,7 +10,7 @@
 
 **Interfaces:**
 - Consumes: `EffectKind.CountAsTerrain/TakeTest/SetCondition/Move`, `TargetTerrain`, `Effect.TargetCondition` (Task 3); `RollEffects.Consume`, `LiveSet.Read` (Task 6).
-- Produces: `GfNames.IdleSeq = "idle"`, `GfNames.SpellTestSeq = "spell-test"`; `GfCasting.SpellTest()`; `GfMoves.Idle()`; `GfMoves.ApplyForcedMove(StepContext, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed) → IReadOnlyList<StateChange>`.
+- Produces: `GfNames.IdleSeq = "idle"`, `GfNames.SpellTestSeq = "spell-test"`; `GfCasting.SpellTest()`; `GfMoves.Idle()`; `GfMoves.ForcedMoveRegion(StepContext, Guid unit, double allowance) → MoveRegion`; `GfMoves.ApplyForcedMove(StepContext, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed) → (IReadOnlyList<StateChange> Changes, IReadOnlyDictionary<string, int> Values)`. Both read the target's own terrain rules (`GfMoves.TerrainFor`): the owner's ruling is *"Spells move as however that unit moves"*.
 
 Spec → *Grammar additions*, kinds 13 to 16, and *An Idle activation is an activation*. `count_as_terrain`: difficult caps the next move at 6" (p.11), dangerous runs a dangerous terrain test at the next activation's start (p.11, *"or is activated in it"*). `take_test`: the target takes a morale test now, with p.10's ordinary consequence; the children apply when it fails. `set_condition` sets a condition; `move` lets the caster's team move the target up to its amount.
 
@@ -192,12 +192,12 @@ Add the sequence and its step to `GfCasting`:
                 .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
             if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
             if (ctx.History.LastClosed("move") is { } moved)
-                return new Complete([.. changes, .. GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved))]);
-            var terrain = Battlefield.Terrain(ctx.State);
+            {
+                var (forced, values) = GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved));
+                return new Complete([.. changes, .. forced], values.Count > 0 ? values : null);
+            }
             return new OpenAsks([ctx.Ask("move", $"Move up to {move.EffectiveAmount(null)}\" in a straight line", ctx.ActorTeam!.Value,
-                new MoveRegion(Lookup.AliveModels(ctx.State, target), move.EffectiveAmount(null),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+                GfMoves.ForcedMoveRegion(ctx, target, move.EffectiveAmount(null)), allowPass: true)]);
         }
 
         /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0, or it finished with no model to test.</summary>
@@ -213,26 +213,12 @@ Add the sequence and its step to `GfCasting`:
     }
 ```
 
-In `GfMoves`, expose the move validation the forced move needs:
-
-```csharp
-    /// <summary>A move another team makes for this unit (a spell's move kind): the same settling, impassable and difficult checks as an action's
-    /// move, measured against the allowance; dangerous terrain crossed is not tested, since no rule asks it of a forced move.</summary>
-    public static IReadOnlyList<StateChange> ApplyForcedMove(StepContext ctx, Guid unit, double allowance, IReadOnlyList<ModelRelocation> proposed)
-    {
-        var terrain = Battlefield.Terrain(ctx.State);
-        var impassable = Declared(terrain, TerrainDeclarations.Impassable); var difficult = Declared(terrain, TerrainDeclarations.Difficult);
-        var moves = new List<ModelRelocation>();
-        foreach (var m in proposed.Where(m => m.To is OnTable && ctx.Projection.Models.TryGetValue(m.ModelId, out var mm) && mm.UnitId == unit))
-        {
-            if (Battlefield.Placed(ctx.State, m.ModelId) is not { } start) continue;
-            var settled = Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement);
-            var check = Movement.Check(start, settled.Position.Horizontal, allowance, impassable, difficult, GfNames.DifficultCap, ctx.State.Board.Table.Size);
-            if (check.WithinAllowance && !check.CrossesImpassable && !check.LeavesTable) moves.Add(new ModelRelocation(m.ModelId, m.From, new OnTable(settled)));
-        }
-        return moves.Count == 0 ? [] : [new ModelsMoved(moves)];
-    }
-```
+In `GfMoves` (`GfMoves.Terrain.cs`), the forced move reads the target unit's terrain rules once (`TerrainFor`: Aircraft, Flying,
+Strider), as every move of that unit does. `ForcedMoveRegion` lists the impassable and difficult volumes and the cap that unit's
+own move would have; `ApplyForcedMove` applies the same settling, measured against the allowance with those rules, refuses a path
+through an impassable volume the unit may not pass, a landing touching one (not for an Aircraft) and a model carried off the
+table, and tests no dangerous terrain, since no rule asks it of a forced move. A granted Flying is read for the terrain but neither
+spent nor held, since the forced move is not the target's activation; the returned `Values` stay empty.
 
 - [ ] **Step 5: The idle activation and the registry**
 

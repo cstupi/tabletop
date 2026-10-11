@@ -14,29 +14,75 @@ public partial class TableInput : Node
     TableView _view = null!; Session _session = null!; RulerNode _ruler = null!;
     readonly Godot.Timer _presenceTimer = new() { WaitTime = 0.05, Autostart = true };   // 20 Hz
     bool _presenceDirty; Cursor? _cursor; Measurement? _measurement; Point3? _measureFrom;
-    Drag? _drag; readonly PendingDrops _drops = new();
+    Drag? _drag; readonly PendingDrops _drops = new(); Guid? _hovered;
+    IReadOnlySet<Guid> _eligible = new HashSet<Guid>();
     public TableTool Tool { get; set; } = TableTool.Select;
+    bool _measureHeld;
+    /// <summary>Clicks measure: the M tool, or Ctrl held.</summary>
+    bool Measuring => Tool == TableTool.Measure || _measureHeld;
     public Selection? Selected { get; private set; }
-    /// <summary>Models a declared move is positioning: their drag streams proposed ghosts, and the release sends nothing (the Ask panel commits).</summary>
+    /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
     public double? Allowance { get; set; }
+    /// <summary>The open move Ask's region: its walls and whether it passes models. Null outside one.</summary>
+    public MoveRegion? Region { get; set; }
+    /// <summary>The least each of the move step's models must move (MoveRegion.MinDistance, an Aircraft's 30"), each held to the table from where it
+    /// stands (MoveRuler.Minimum): shorter shows red. Null when the Ask sets no minimum.</summary>
+    public IReadOnlyDictionary<Guid, double>? Minimum { get; set; }
+    /// <summary>What a click picks while a decision wants a unit or a model: unit ids, model ids, or both. Empty when nothing is being picked.</summary>
+    public IReadOnlySet<Guid> Eligible { get => _eligible; set { _eligible = value; EligibleChanged?.Invoke(); } }
+    public bool SightHeld { get; private set; }
+    /// <summary>Objective markers locked from play on: a drag on a locked one does not start. Local to this client.</summary>
+    public MarkerLocks Locks { get; } = new();
+    /// <summary>The marker under the cursor, or null.</summary>
+    public Guid? HoveredMarker { get; private set; }
+    /// <summary>A drag is armed: past the threshold, models in hand.</summary>
+    public bool Holding => _drag is { Armed: true };
     public event Action<Guid, Point3>? ModelDragged;
     public event Action<Guid, Vector2>? PieceRightClicked;
     public event Action<Vector3>? TableRightClicked;
     public event Action? SelectionChanged;
     public event Action<Guid>? PieceLeftClicked;
+    public event Action<Guid?>? HoveredUnitChanged;
+    public event Action<Guid?>? HoveredMarkerChanged;
+    public event Action<Guid>? UnitClicked;
+    public event Action<Guid>? TargetClicked;
+    public event Action<Guid, bool>? ModelClicked;
+    public event Action<IReadOnlyList<Guid>>? HandMoved;
+    public event Action<Intent>? IntentPressed;
+    public event Action? EligibleChanged, SightHeldChanged;
 
-    sealed record Drag(Guid PieceId, IReadOnlyList<Guid> ModelIds, Point3 Start, Dictionary<Guid, Point3> Starts, Dictionary<Guid, Point3> Current, Yaw Yaw);
+    /// <summary>A drag in hand. Armed once the cursor has travelled <see cref="DragThreshold"/> pixels. Rows above zero is a formation about the cursor, turned by Turn degrees from the camera's heading.</summary>
+    sealed class Drag(Guid pieceId, IReadOnlyList<Guid> modelIds, Point3 start, Vector2 screen, Dictionary<Guid, Point3> starts, Yaw yaw)
+    {
+        public Guid PieceId { get; } = pieceId;
+        public IReadOnlyList<Guid> ModelIds { get; } = modelIds;
+        public Point3 Start { get; } = start;
+        public Vector2 Screen { get; } = screen;
+        public Dictionary<Guid, Point3> Starts { get; } = starts;
+        public Dictionary<Guid, Point3> Current { get; } = new(starts);
+        public Yaw Yaw { get; set; } = yaw;
+        public bool Armed { get; set; }
+        public int Rows { get; set; }
+        public double Turn { get; set; }
+        public Point3 Cursor { get; set; } = start;
+    }
+    const float DragThreshold = 6;
+
     /// <summary>The volumes a dragged piece settles on: every world volume except the ones the dragged piece itself owns,
     /// so dragging a terrain placement does not make it climb its own hill. Volume ids and piece ids are different ids,
     /// so the exclusion is built from the placement, not by subtracting the drag's piece id.</summary>
     List<WorldVolume> _settleAgainst = [];
+    /// <summary>The models a held unit collides with: every model on the table but the held ones, taken when the drag starts.</summary>
+    IReadOnlyList<PlacedModel> _stationary = [];
 
     public void Bind(TableView view, Session session)
     {
         _view = view; _session = session;
+        view.Camera.Holding = () => HoldingModels;
         view.AddChild(_ruler = new RulerNode()); AddChild(_presenceTimer);
-        view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a move Ask's proposed placements session.RefusedReceived += OnRefused;
+        view.IsHeld = id => _drops.Holds(id) || _drag?.Current.ContainsKey(id) == true || Proposing.Contains(id);   // a drop awaiting its event, the pieces in hand, a proposed placement
+        session.RefusedReceived += OnRefused;
         _presenceTimer.Timeout += OnPresenceTick;
     }
 
@@ -58,7 +104,7 @@ public partial class TableInput : Node
     }
 
     Presence Snapshot() => new(_session.ParticipantId ?? Guid.Empty, _cursor, Selected,
-        _drag is null ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaw, Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _measurement);
+        _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaw, Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _measurement);
 
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
@@ -111,32 +157,36 @@ public partial class TableInput : Node
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false }: Observe(OnLeftUp()); break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true } b when !Input.IsMouseButtonPressed(MouseButton.Middle):
                 var (point, piece) = Pick(b.Position);
+                if (piece is PieceNode marked && Eligible.Contains(marked.ModelId)) { ModelClicked?.Invoke(marked.ModelId, true); break; }   // a casualty pick takes a wound back
                 if (piece is not null && !b.AltPressed) PieceRightClicked?.Invoke(IdOf(piece), b.Position); else if (b.AltPressed) TableRightClicked?.Invoke(WorldFrame.ToGodot(point));
                 break;
-            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.M }: Tool = Tool == TableTool.Measure ? TableTool.Select : TableTool.Measure; _measureFrom = null; break;
-            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.P }: var (at, target) = Pick(GetViewport().GetMousePosition()); Observe(_session.SendPingAsync(new Ping(_session.ParticipantId ?? Guid.Empty, at, target is null ? null : IdOf(target)))); break;
-            case InputEventKey { Pressed: true, Keycode: Key.Escape }: Selected = null; _measurement = null; _presenceDirty = true; SelectionChanged?.Invoke(); break;
+            case InputEventKey k: OnKey(k); break;
         }
     }
 
     void OnMotion(Vector2 screen)
     {
         var (point, piece) = Pick(screen);
+        Hover(_drag is { Armed: true } ? null : piece);
         if (_drag is not null) { piece = null; point = OnPlane(screen, _drag.Start.Z) ?? point; }   // a drag follows the plane it started on: pieces and terrain never take the point
         _cursor = new Cursor(point, piece is null ? null : IdOf(piece)); _presenceDirty = true;
+        if (Measuring && _measureFrom is not null) { Stretch(AnchorAt(point, piece)); return; }   // the line follows the cursor until the second click or the release
         if (_drag is null) return;
-        var delta = new Point2(point.X - _drag.Start.X, point.Y - _drag.Start.Y);
-        foreach (var (id, start) in _drag.Starts)
-        {
-            var x = start.X + delta.X; var y = start.Y + delta.Y;
-            var z = Settling.SurfaceHeightAt(new Point3(x, y, _drag.Current[id].Z + 0.5), _settleAgainst);
-            _drag.Current[id] = new Point3(x, y, z);
-            MoveNode(id, _drag.Current[id]);
-            ModelDragged?.Invoke(id, _drag.Current[id]);
-        }
-        var readout = MoveRuler.Read(_drag.Start.Horizontal, point.Horizontal, Proposing.Contains(_drag.ModelIds[0]) ? Allowance : null);
-        var lead = _drag.ModelIds[0];
-        _ruler.Show(_drag.Starts[lead], _drag.Current[lead], readout, Colors.White);
+        if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
+        _drag.Armed = true; _drag.Cursor = point;
+        var dx = point.X - _drag.Start.X; var dy = point.Y - _drag.Start.Y;
+        Place(_drag.Rows > 0 ? Arranged(point) : _drag.Starts.ToDictionary(kv => kv.Key, kv => new Point3(kv.Value.X + dx, kv.Value.Y + dy, kv.Value.Z)));
+    }
+
+    /// <summary>The unit under the cursor, raised on change; an eligible piece takes the pointing hand.</summary>
+    void Hover(Node3D? piece)
+    {
+        var over = piece as PieceNode;
+        Input.SetDefaultCursorShape(over is not null && (Eligible.Contains(over.ModelId) || Eligible.Contains(over.UnitId)) ? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
+        var marker = (piece as MarkerNode)?.MarkerId;
+        if (marker != HoveredMarker) { HoveredMarker = marker; HoveredMarkerChanged?.Invoke(marker); }
+        if (over?.UnitId == _hovered) return;
+        _hovered = over?.UnitId; HoveredUnitChanged?.Invoke(_hovered);
     }
 
     void MoveNode(Guid id, Point3 to)
@@ -149,8 +199,13 @@ public partial class TableInput : Node
     Action<Guid>? _pickPiece; Action<Point3>? _pickPoint;
     public void PickNextPiece(Action<Guid> then) => _pickPiece = then;
     public void PickNextPoint(Action<Point3> then) => _pickPoint = then;
+    /// <summary>
+    /// Deployment placement's own point pick, separate from the menu's one-shot slot so neither can take the other's click: it
+    /// stands until its owner clears it. A menu pick armed meanwhile takes the next click first, and the placement the one after.
+    /// </summary>
+    public Action<Point3>? PlacementPoint { get; set; }
 
-    /// <summary>Abandon the drag in progress and send nothing. The Ask panel calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
+    /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
     public void CancelDrag() { _drag = null; _ruler.Hide(); _presenceDirty = true; _view.Redraw(); }
 
     void OnLeftDown(Vector2 screen, bool shift)
@@ -158,36 +213,70 @@ public partial class TableInput : Node
         var (point, piece) = Pick(screen);
         if (_pickPoint is { } wantPoint) { _pickPoint = null; wantPoint(OnPlane(screen, 0) ?? point); return; }   // a point pick is the table surface, never a box top
         if (_pickPiece is { } wantPiece && piece is not null) { _pickPiece = null; wantPiece(IdOf(piece)); return; }
-        if (Tool == TableTool.Measure) { Measure(point, piece); return; }
-        if (piece is null) { Selected = null; SelectionChanged?.Invoke(); _presenceDirty = true; return; }
+        if (PlacementPoint is { } place) { place(OnPlane(screen, 0) ?? point); return; }
+        if (Measuring) { Measure(point, piece); return; }
+        if (piece is null) { ClearSelection(); return; }
+        if (piece is PieceNode target && (Eligible.Contains(target.ModelId) || Eligible.Contains(target.UnitId)))
+        {
+            // A pick answers: it neither selects nor drags. A model-id set (casualties, a Takedown) names the model; a unit-id set the unit.
+            if (Eligible.Contains(target.ModelId)) ModelClicked?.Invoke(target.ModelId, false);
+            TargetClicked?.Invoke(Eligible.Contains(target.ModelId) ? target.ModelId : target.UnitId);
+            return;
+        }
         var id = IdOf(piece);
         var projection = _session.Projection;
         IReadOnlyList<Guid> models;
         if (piece is PieceNode pn && projection is not null)
         {
-            // The unit's models the view is drawing: the ones OnTable, or — during a disembark — its exit ghosts. An occupant
-            // has no node otherwise, so PieceAt is the test rather than the Location: it answers for both cases (Task 11).
+            // The unit's models the view is drawing: the ones OnTable, or — during a disembark or a placement — its ghosts.
             var unitModels = projection.Models.Values.Where(m => m.UnitId == pn.UnitId && _view.PieceAt(m.Id) is not null).Select(m => m.Id).ToList();
             Selected = shift ? new Selection(pn.UnitId, [pn.ModelId]) : new Selection(pn.UnitId, []);
             models = shift ? [pn.ModelId] : unitModels;
+            UnitClicked?.Invoke(pn.UnitId);
         }
         else { Selected = new Selection(id, []); models = [id]; }
-        SelectionChanged?.Invoke();
-        var starts = models.ToDictionary(m => m, m => Position(m));
-        var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
-        _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
-        _drag = new Drag(id, models, point, starts, new Dictionary<Guid, Point3>(starts), CurrentYaw(id));
-        _presenceDirty = true;
+        SelectionChanged?.Invoke(); _presenceDirty = true;
+        if (MayDrag(piece, models))
+        {
+            var starts = models.ToDictionary(m => m, m => Position(m));
+            var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
+            _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
+            // The Ask's other models are ghosts: they collide where they are drawn, a disembark ghost included.
+            _stationary = projection is null ? [] : DragBodies.Stationary(projection, models, Proposing.Where(m => !models.Contains(m) && _view.PieceAt(m) is not null)
+                .ToDictionary(m => m, m => new Placement(WorldFrame.FromGodot(_view.PieceAt(m)!.Position), WorldFrame.YawFrom(_view.PieceAt(m)!.Rotation.Y))));
+            _drag = new Drag(id, models, point, screen, starts, CurrentYaw(id));
+        }
         // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's
-        // own id, which for a model is the model — not the unit Selection widens it to, and what the Ask panel needs to match
-        // against MoveContainment.Enterable (Task 14).
+        // own id, which for a model is the model, not the unit Selection widens it to (MoveContainment.Enterable is model ids).
         PieceLeftClicked?.Invoke(id);
     }
+
+    /// <summary>
+    /// Under strict a hand move is refused (spec → Moves), so a model drag starts only when every model is Proposing: a move
+    /// step, or a deployment placement's ghosts. A locked objective marker never drags, under every enforcement. Terrain and
+    /// other markers are not hand moves.
+    /// </summary>
+    bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) => piece switch
+    {
+        PieceNode => models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict,
+        MarkerNode m => Locks.MayDrag(_session.Game?.Status, _session.Projection, m.MarkerId),
+        _ => true,
+    };
+
+    /// <summary>Select a unit, or one of its models, as a click would: Tab and the unit card's wound rows.</summary>
+    public void Select(Guid unitId, Guid? modelId = null)
+    {
+        Selected = new Selection(unitId, modelId is { } m ? [m] : []); _presenceDirty = true;
+        SelectionChanged?.Invoke(); UnitClicked?.Invoke(unitId);
+    }
+
+    void ClearSelection() { Selected = null; _presenceDirty = true; SelectionChanged?.Invoke(); }
 
     Point3 Position(Guid id)
     {
         var p = _session.Projection; var t = p?.Board.Table ?? _session.Draft;
         if (p?.Models.GetValueOrDefault(id)?.Location is OnTable on) return on.Placement.Position;
+        if (_view.PieceAt(id) is { } ghost) return WorldFrame.FromGodot(ghost.Position);   // a ghost: where its node stands
         if (Container(id) is { } inside) return inside.Placement.Position;                   // a disembark ghost starts on the container
         if (t?.Terrain.FirstOrDefault(x => x.Id == id) is { } terrain) return terrain.Position;
         return t?.Markers.Concat(p?.Markers.Values ?? []).FirstOrDefault(m => m.Id == id)?.Position ?? new Point3(0, 0, 0);
@@ -197,6 +286,7 @@ public partial class TableInput : Node
     {
         var p = _session.Projection; var t = p?.Board.Table ?? _session.Draft;
         if (p?.Models.GetValueOrDefault(id)?.Location is OnTable on) return on.Placement.Yaw;
+        if (_view.PieceAt(id) is { } ghost) return WorldFrame.YawFrom(ghost.Rotation.Y);
         if (Container(id) is { } inside) return inside.Placement.Yaw;                        // and facing the way it did
         return t?.Terrain.FirstOrDefault(x => x.Id == id)?.Yaw ?? t?.Markers.FirstOrDefault(m => m.Id == id)?.Yaw ?? new Yaw(0);
     }
@@ -212,7 +302,7 @@ public partial class TableInput : Node
 
     async Task OnLeftUp()
     {
-        if (Tool == TableTool.Measure)                                   // "two clicks or a drag" (client shell -> Input and presence)
+        if (Measuring)                                                   // "two clicks or a drag" (client shell -> Input and presence)
         {
             var (to, hit) = Pick(GetViewport().GetMousePosition());
             if (_measureFrom is { } from && from.Horizontal.DistanceTo(to.Horizontal) > 0.25) Measure(to, hit);
@@ -220,11 +310,11 @@ public partial class TableInput : Node
         }
         if (_drag is null) return;
         var drag = _drag; _drag = null; _ruler.Hide(); _presenceDirty = true;
-        var moved = drag.Current.Any(kv => kv.Value != drag.Starts[kv.Key]);
+        var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Starts[kv.Key]);
         if (!moved) return;
         var status = _session.Game?.Status;
         var p = _session.Projection; var draft = _session.Draft;
-        // A declared move: the Ask panel's Commit sends the Destinations, so nothing goes now and — unlike every other drop —
+        // A declared move or a placement: the decision box's Enter sends the Destinations, so nothing goes now and — unlike every other drop —
         // the nodes are left where the player put them. Redrawing here would snap a proposed placement back to the projection,
         // and a disembark ghost has no projected placement to snap to at all.
         if (drag.ModelIds.All(Proposing.Contains)) return;
@@ -237,12 +327,13 @@ public partial class TableInput : Node
                 var moves = drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList();
                 freeMove = true; _drops.Add(held, moves);
                 await _session.SendCommandAsync(new MoveModels(moves), held);
+                HandMoved?.Invoke(drag.ModelIds);                         // the undo button waits for this move's event
             }
             else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
                 await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
             else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
                 await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
-            else if (p is not null && p.Markers.ContainsKey(drag.PieceId))
+            else if (p is not null && (p.Markers.ContainsKey(drag.PieceId) || p.Board.Table.Markers.Any(m => m.Id == drag.PieceId)))   // a play marker, or a setup one (an unlocked objective)
                 await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
         }
         catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); _drops.Refuse(held); freeMove = false; }
@@ -251,11 +342,20 @@ public partial class TableInput : Node
 
     void Measure(Point3 point, Node3D? piece)
     {
-        var anchor = piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
-            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+        var anchor = AnchorAt(point, piece);
         if (_measureFrom is null) { _measureFrom = point; _pendingAnchor = anchor; return; }
-        var (a, b) = Distance.ClosestPoints(_pendingAnchor!.Value, anchor);
-        _measurement = new Measurement(a, b); _measureFrom = null; _presenceDirty = true;
+        Stretch(anchor); _measureFrom = null;
+    }
+
+    /// <summary>A model measures from its base, anything else from the point.</summary>
+    PlacedModel AnchorAt(Point3 point, Node3D? piece) =>
+        piece is PieceNode pn && _session.Projection?.Models.GetValueOrDefault(pn.ModelId) is { Location: OnTable on } m
+            ? new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), on.Placement) : new PlacedModel(new ModelBody(Base.Circle(0), 0), new Placement(point, new Yaw(0)));
+
+    void Stretch(PlacedModel to)
+    {
+        var (a, b) = Distance.ClosestPoints(_pendingAnchor!.Value, to);
+        _measurement = new Measurement(a, b); _presenceDirty = true;
         _ruler.Show(a, b, MoveRuler.Read(a.Horizontal, b.Horizontal, null), Colors.Yellow);
     }
     PlacedModel? _pendingAnchor;

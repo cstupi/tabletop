@@ -7,11 +7,11 @@
 
 **Interfaces:**
 - Consumes: `Projection`, `UnitInPlay`, `ModelInPlay`, `SchedulerPosition`, `Frame`, `OpenAsk`, `EventApplier`, `GameEvent`, `EventPayload` members, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, `AskQuestions`, `Board`, `GameInfo`, `Undo` (Protocol); `Replay` (game server skeleton); `Distance`, `TableSize` (Geometry); `IGameDriver`, `InProcessDriver` (Task 4); `CompiledScenario` (Task 1); `RunOutcome` (Task 6).
-- Produces: `static class ProjectionComparer` with `IReadOnlyList<string> Differences(Projection expected, Projection actual)`; `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `static class Invariants` (namespace `Tabletop.Sim.Invariants`, so callers outside it write `Invariants.Invariants.CheckAll`) with `IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)`, and one method per invariant — `InvariantResult ReplayReproducesTheProjection(...)`, `InvariantResult UndoAndRedoReproduceTheDice(...)`, `InvariantResult EveryAskAnsweredByAnAddressedTeam(...)`, `InvariantResult NoModelInTwoPlacesOrOffTheSlab(...)`, `InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(...)`; `static class MidRun` with `void Assert(Projection, IReadOnlyList<GameEvent>, CompiledScenario)` (throws `InvariantViolatedException` with every failure); `sealed class InvariantViolatedException(IReadOnlyList<InvariantResult>) : Exception`.
+- Produces: `static class ProjectionComparer` with `IReadOnlyList<string> Differences(Projection expected, Projection actual)`; `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `static class Invariants` (namespace `Tabletop.Sim.Invariants`, so callers outside it write `Invariants.Invariants.CheckAll`) with `IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario)`, and one method per invariant — `InvariantResult ReplayReproducesTheProjection(...)`, `InvariantResult UndoKeepsTheEarlierDice(...)`, `InvariantResult EveryAskAnsweredByAnAddressedTeam(...)`, `InvariantResult NoModelInTwoPlacesOrOffTheSlab(...)`, `InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(...)`; `static class MidRun` with `void Assert(Projection, IReadOnlyList<GameEvent>, CompiledScenario)` (throws `InvariantViolatedException` with every failure); `sealed class InvariantViolatedException(IReadOnlyList<InvariantResult>) : Exception`.
 
 Spec: spec → *What it asserts*, all five bullets verbatim:
 - Replaying the log from the initial state reproduces the final projection.
-- Undoing to an arbitrary sequence and redoing reproduces the same dice, because the seed is stored on the game and never changes.
+- Undoing to an arbitrary sequence keeps the earlier dice; the redo draws fresh ones, since an undone roll's dice stay spent.
 - Every Ask is answered by a team that Ask addressed.
 - No model is in two places, and no model on the table is outside the slab.
 - The round only advances through the boundary Ask (scheduler design → *The final round is the ruleset's*).
@@ -89,7 +89,7 @@ public class InvariantTests
     {
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
-        var result = Invariants.Invariants.UndoAndRedoReproduceTheDice(loop.Log, scenario);
+        var result = Invariants.Invariants.UndoKeepsTheEarlierDice(loop.Log, scenario);
         Assert.True(result.Held, result.Detail);
     }
 
@@ -210,7 +210,7 @@ public static class Invariants
     public static IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario) =>
     [
         ReplayReproducesTheProjection(driverProjection, log, scenario),
-        UndoAndRedoReproduceTheDice(log, scenario),
+        UndoKeepsTheEarlierDice(log, scenario),
         EveryAskAnsweredByAnAddressedTeam(log),
         NoModelInTwoPlacesOrOffTheSlab(log, scenario),
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
@@ -231,7 +231,7 @@ public static class Invariants
     /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: the engine-level undo and
     /// redo check, re-answering after a real Undo, is Task 8's socket test (DriverAgreementTests).
     /// </summary>
-    public static InvariantResult UndoAndRedoReproduceTheDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
+    public static InvariantResult UndoKeepsTheEarlierDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {
         // The effective log: an undone range's dice are no longer the game's, so a log that already holds an
         // Undone is measured as it stands, not as every event ever appended.
@@ -244,10 +244,10 @@ public static class Invariants
             var kept = DiceOf(effective);
             var expected = original.Take(kept.Count).ToList();
             if (!kept.SequenceEqual(expected))
-                return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), false,
+                return new InvariantResult(nameof(UndoKeepsTheEarlierDice), false,
                     $"undoing to {target} changed the dice: kept [{string.Join(",", kept)}] against [{string.Join(",", expected)}]");
         }
-        return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), true, null);
+        return new InvariantResult(nameof(UndoKeepsTheEarlierDice), true, null);
     }
 
     private static IReadOnlyList<int> DiceOf(IReadOnlyList<GameEvent> log) => log

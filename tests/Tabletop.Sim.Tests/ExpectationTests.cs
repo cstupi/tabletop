@@ -107,6 +107,58 @@ public class ExpectationTests
         Assert.Contains(failures, f => f.Contains("expected team 1 to win"));
     }
 
+    /// <summary>The objectives board played by the uniform policy, not the catalog's goal-seeking one: seed 3 is then a game nobody seizes in.</summary>
+    static async Task<(CompiledScenario Compiled, Projection Projection, IReadOnlyList<GameEvent> Log, RunOutcome Outcome)> Objectives(ulong seed)
+    {
+        var scenario = ScenarioCatalog.Get("objectives").WithSeed(seed);
+        var compiled = ScenarioCompiler.Compile(scenario);
+        await using var driver = await InProcessDriver.StartAsync(compiled, Ct);
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(seed))), HandPlacement.ChooserFor(seed));
+        var report = await loop.RunAsync(Ct);
+        return (compiled, await driver.ProjectionAsync(Ct), loop.Log.ToList(), report.Outcome);
+    }
+
+    [Theory]
+    [InlineData(2UL)]   // team 2 holds one marker at the end: a win
+    [InlineData(3UL)]   // nobody holds a marker: every team tied at none
+    public async Task MostMarkersWin_holds_for_the_engines_own_end_win_or_tie(ulong seed)
+    {
+        var (compiled, projection, log, outcome) = await Objectives(seed);
+        Assert.Empty(Expectations.Check([new Expectation.MostMarkersWin()], projection, log, outcome, compiled));
+    }
+
+    [Fact]
+    public async Task MostMarkersWin_fails_when_game_ended_names_other_teams_than_hold_the_most_markers()
+    {
+        var (compiled, projection, log, outcome) = await Objectives(2);
+        Assert.Single(projection.Control);                                              // seed 2: team 2 holds one marker
+        var team1 = compiled.Info.Teams.Single(t => t.Ordinal == 1).Id;
+        var team2 = compiled.Info.Teams.Single(t => t.Ordinal == 2).Id;
+        foreach (var winners in new[] { [team1], [team1, team2], Array.Empty<Guid>() })
+        {
+            var forged = log.Append(new GameEvent(log[^1].Seq + 1, null, new GameEnded("forged", winners), null)).ToList();
+            var failures = Expectations.Check([new Expectation.MostMarkersWin()], projection, forged, outcome, compiled);
+            Assert.Contains(failures, f => f.Contains("expected winners [2]"));
+        }
+        var (stalemate, stalemateProjection, stalemateLog, stalemateOutcome) = await Known();  // capped: no game_ended
+        Assert.Contains(Expectations.Check([new Expectation.MostMarkersWin()], stalemateProjection, stalemateLog, stalemateOutcome, stalemate),
+            f => f.Contains("no game_ended"));
+    }
+
+    [Fact]
+    public async Task MostMarkersWin_counts_only_objective_markers()
+    {
+        var (compiled, _, log, outcome) = await Objectives(2);                         // seed 2: team 2 holds one marker and wins
+        var applier = new EventApplier(compiled.Board, compiled.Info);
+        foreach (var e in log) applier.Apply(e);
+        var team1 = compiled.Info.Teams.Single(t => t.Ordinal == 1).Id;
+        var seq = log[^1].Seq;
+        foreach (var stray in new[] { Guid.CreateVersion7(), Guid.CreateVersion7() })     // control of ids that name no objective marker
+            applier.Apply(new GameEvent(++seq, null, new ObjectiveControlSet(stray, team1), null));
+        Assert.Equal(3, applier.Projection.Control.Count);
+        Assert.Empty(Expectations.Check([new Expectation.MostMarkersWin()], applier.Projection, log, outcome, compiled));
+    }
+
     [Fact]
     public async Task A_tie_is_recorded_without_a_winner_and_a_win_names_the_team()
     {

@@ -8,11 +8,11 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfCasting
 {
-    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new TargetsStep(), new EffectsStep()]);
+    public static Sequence Casting() => new(GfNames.CastingSeq, [new PickSpellStep(), new TokenSpendStep(), new RollStep(), new ResultStep(), new TargetsStep(), new EffectsStep()]);
     /// <summary>take_test (spell library, kind 14): the target's morale test with p.10's ordinary consequence, then the row's children when it failed.</summary>
     public static Sequence SpellTest() => new(GfNames.SpellTestSeq,
         [new GfAttack.PushStep("test", GfNames.MoraleTest, ctx => new SequenceContext(ctx.Frame.Context.TargetUnitIds[0], [], [], "spell")), new ConsequenceStep()]);
-    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
+    public static Sequence SpellHits() => new(GfNames.SpellHitsSeq, [new HitStep(), new GfAttack.ScoreHitsStep(finishWithoutHits: true), new GfAttack.PushStep("resolve", GfNames.ResolveHits), new GfAttack.SelfWoundsStep()]);
 
     /// <summary>
     /// The in-play reading, matching GfHooks.ReactionsAt: a caster inside a container may still cast at what is inside with it (p.15),
@@ -93,25 +93,30 @@ public static class GfCasting
         return spenders;
     }
 
+    /// <summary>A spell's targets from its caster model (Targets).</summary>
+    public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell) => Targets(ctx.State, casterModel, spell.Targeting!);
+
     /// <summary>
     /// p.15 first: containment answers before range and sight, so no spell crosses a container's wall either way, and a caster inside
     /// one reaches the units in there with it and the container itself with nothing to measure. Otherwise a unit is a target when one
-    /// of its models is within the spell's range of the caster model and in its line of sight (p.13). A model-grain spell offers those models.
+    /// of its models is within range of the caster model and in its line of sight (p.13), or within range alone when the targeting
+    /// says so (a Buff: "pick one friendly unit within 12""). A model-grain targeting offers those models. Spells and pick entries share it.
     /// </summary>
-    public static IReadOnlyList<Guid> SpellTargets(StepContext ctx, Guid casterModel, CatalogEntry spell)
+    public static IReadOnlyList<Guid> Targets(GameState state, Guid casterModel, SpellTargeting t)
     {
-        var t = spell.Targeting!; var casterUnit = ctx.Projection.Models[casterModel].UnitId; var team = ctx.TeamOf(casterUnit);
-        var candidates = ctx.Projection.Units.Values.Where(u => (ctx.TeamOf(u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
+        var casterUnit = state.Projection.Models[casterModel].UnitId; var team = Teams.Of(state, casterUnit);
+        var candidates = state.Projection.Units.Values.Where(u => (Teams.Of(state, u.Id) == team) == (t.Side == TargetSide.Friendly)).Select(u => u.Id).ToList();
         var result = new List<Guid>();
-        var sight = new Lazy<Sight>(() => Sight.From(ctx.State, casterUnit));                                        // built once for every candidate model
+        var sight = new Lazy<Sight>(() => Sight.From(state, casterUnit));                                            // built once for every candidate model
         foreach (var unit in candidates)
         {
-            var reaches = Battlefield.InsideReach(ctx.State, casterUnit, unit);
+            var reaches = Battlefield.InsideReach(state, casterUnit, unit);
             var models = reaches switch
             {
-                true => Lookup.AliveModels(ctx.State, unit),
+                true => Lookup.AliveModels(state, unit),
                 false => [],
-                null => Lookup.LivingModels(ctx.State, unit).Where(m => Battlefield.Distance(ctx.State, casterModel, m) <= t.Range && (m == casterModel || sight.Value.CanSee(casterModel, m))).ToList(),
+                null => Lookup.LivingModels(state, unit).Where(m => Battlefield.Distance(state, casterModel, m) <= t.Range
+                    && (m == casterModel || t.LineOfSight == false || sight.Value.CanSee(casterModel, m))).ToList(),
             };
             if (models.Count == 0) continue;
             if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);
@@ -133,6 +138,7 @@ public static class GfCasting
                 // A pass, another type of answer or an id the Ask did not offer casts nothing and spends nothing.
                 if (GfAnswers.Option(closed) is not { } picked || Pick(picked.Id) is not var (spellName, caster)) return new Finish([]);
                 var cost = ctx.Properties.Entry(spellName)?.Cost ?? 0;
+                ctx.Applied.Add(GfNames.Caster);
                 // The cost is spent here, and spend-tokens computes the caps after this change is applied, so the caster is offered what is left.
                 return new Complete([new SpellTokensSet(caster, Math.Max(0, ctx.Projection.Models[caster].SpellTokens - cost))]);
             }
@@ -166,11 +172,23 @@ public static class GfCasting
         {
             var (_, caster) = Picked(ctx.Frame);
             var casterUnit = ctx.Projection.Models[caster].UnitId;
-            var live = LiveProperties.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
-            var passed = Dice.RollOutcome.Successes(ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1)) == 1;
+            var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
+            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens")), 1);
+            return new Complete(RollEffects.Consume(live));
+        }
+    }
+
+    /// <summary>p.13: "on 4+ resolve the effect", read off the casting die as it now stands, so an edit made after `roll` counts (opr-sequences →
+    /// Dice edits). A failure ends the casting.</summary>
+    sealed class ResultStep : IStep
+    {
+        public string Name => "result";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var die = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).LastOrDefault(r => r.Roll == GfNames.Casting);
+            var passed = die is not null && Dice.RollOutcome.Successes(die) == 1;
             var values = new Dictionary<string, int> { ["passed"] = passed ? 1 : 0 };
-            var spent = RollEffects.Consume(live);
-            return passed ? new Complete(spent, values) : new Finish(spent, values);
+            return passed ? new Complete([], values) : new Finish([], values);
         }
     }
 
@@ -212,6 +230,7 @@ public static class GfCasting
             // A once-row's conditions say when the grant applies ("Shred when shooting"), not whether it is written: every once-row is granted.
             var changes = already ? [] : spell.Effects.Where(e => e.Duration == EffectDuration.Once)
                 .Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, spell.Name, casterUnit, 1))).ToList();
+            if (changes.Count > 0 || ctx.History.Children.Count > 0) ctx.Applied.Add(spell.Name);   // a cast spell names itself where it reached this target
             return new Complete(changes, new Dictionary<string, int> { ["target_index"] = index + 1 }, Repeat: index + 1 < chosen.Count);
         }
 
@@ -240,7 +259,8 @@ public static class GfCasting
         return [];
     }
 
-    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1, so "on rolls of 6" rules read a real die; a die's per-die grants become granted_* values.</summary>
+    /// <summary>A hit roll that cannot fail: one die per hit on threshold 1 with RequiredRaw 1 (no test, so p.5's natural 1 does not fail it, and an
+    /// edit judges it the same way), so "on rolls of 6" rules read a real die. What the dice decide is `score-hits`' (opr-sequences → Dice edits).</summary>
     sealed class HitStep : IStep
     {
         public string Name => "hit";
@@ -250,35 +270,30 @@ public static class GfCasting
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
             var target = ctx.Frame.Context.TargetUnitIds[0];
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = 1, ["hits"] = 0 };
+            var values = new Dictionary<string, int> { ["hit_multiplier"] = 1, ["hits"] = 0 };
             // The spell's weapon rules are part of this settled set (AttackInteraction), so every hit carries them and their pass-one rows act.
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null));
-            var total = 0; var multiplier = 1;
+            var ix = GfAttack.AttackInteraction(ctx, casterUnit, target, [], AttackKind.Spell, null);
+            var live = ctx.Settle(ix);
+            var multiplier = 1; var rolled = false;
+            ctx.Applied.Add(spell.Name);
             foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
             {
                 var n = hit.EffectiveAmount(null);
-                if (hit.TargetRoll is null) { total += n; values["hits"] += n; }
+                if (hit.TargetRoll is null) values["hits"] += n;
                 else
                 {
-                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": a hit roll that cannot fail (threshold 1).
-                    var record = ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), n);
-                    total += Dice.RollOutcome.Successes(record);
-                    RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
-                    foreach (var die in record.Dice)
-                    {
-                        var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                        values["extra_hits"] += effects.ExtraHits;
-                        values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
-                        if (GfAttack.GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
-                    }
+                    // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": every die is a hit, so the roll cannot fail. It is
+                    // no test, so p.5's natural 1 does not judge it: RequiredRaw 1 succeeds on every face.
+                    ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: 1, new HashSet<int>()), n);
+                    rolled = true;
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.
                 multiplier = Math.Max(multiplier, RollEffects.HitMultiplier(live, Side.Attacker, modelTarget ? 1 : Lookup.LivingModels(ctx.State, target).Count));
             }
             values["hit_multiplier"] = multiplier;
-            values["wounds"] = values.GetValueOrDefault("self_wounds");
-            var spent = RollEffects.Consume(live);   // a granted multiplier or per-die rule on the caster is used up by these hits
-            return total == 0 ? new Finish(spent, values) : new Complete(spent, values);
+            // A granted multiplier on the caster is used up by these hits; a per-die rule is left for score-hits, which reads it.
+            var spent = rolled ? GfDeferred.Leave(RollEffects.Consume(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)) : RollEffects.Consume(live);
+            return new Complete(spent, values);
         }
     }
 
@@ -291,26 +306,28 @@ public static class GfCasting
             if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
             var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
             var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
+            if (children.Count > 0) ctx.Applied.Add(spell.Name);
             var changes = children.Where(c => c.Kind == EffectKind.SetCondition)
                 .Select(c => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, target), c.TargetCondition!, true)).ToList();
             if (children.FirstOrDefault(c => c.Kind == EffectKind.Move) is not { } move) return new Complete(changes);
+            // Owner ruling: "Spells move as however that unit moves": the region and the apply read the target's own terrain rules (GfMoves.TerrainFor).
             if (ctx.History.LastClosed("move") is { } moved)
-                return new Complete([.. changes, .. GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved))]);
-            var terrain = Battlefield.Terrain(ctx.State);
+            {
+                var (forced, values) = GfMoves.ApplyForcedMove(ctx, target, move.EffectiveAmount(null), GfAnswers.Moves(ctx.State, moved));
+                return new Complete([.. changes, .. forced], values.Count > 0 ? values : null);
+            }
             return new OpenAsks([ctx.Ask("move", $"Move up to {move.EffectiveAmount(null)}\" in a straight line", ctx.ActorTeam!.Value,
-                new MoveRegion(Lookup.AliveModels(ctx.State, target), move.EffectiveAmount(null),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
-                    terrain.Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Difficult)).Select(v => v.Id).ToList(), GfNames.DifficultCap), allowPass: true)]);
+                GfMoves.ForcedMoveRegion(ctx, target, move.EffectiveAmount(null)), allowPass: true)]);
         }
 
-        /// <summary>The morale test this frame pushed failed: its test step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
+        /// <summary>The morale test this frame pushed failed: its consequence step recorded passed = 0. A test that finished with no model to test records nothing and does not count as failed.</summary>
         static bool Failed(GameState state, Guid frameId)
         {
             var log = EventApplier.EffectiveLog(state.Applier.Log).Select(e => e.Payload).ToList();
             var mine = log.FindIndex(p => p is SequenceStarted s && s.FrameId == frameId);
             var child = log.Skip(mine + 1).OfType<SequenceStarted>().FirstOrDefault(s => s.Sequence == GfNames.MoraleTest);
             if (child is null) return false;
-            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "test");
+            var done = log.OfType<StepCompleted>().LastOrDefault(s => s.FrameId == child.FrameId && s.Step == "consequence");
             return done?.Values is { } v && v.GetValueOrDefault("passed", 1) == 0;
         }
     }

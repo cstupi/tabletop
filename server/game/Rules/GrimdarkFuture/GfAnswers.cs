@@ -1,3 +1,4 @@
+using Tabletop.Geometry;
 using Tabletop.GameServer.Interpreter;
 using Tabletop.Protocol;
 
@@ -37,17 +38,51 @@ public static class GfAnswers
         return result;
     }
 
+    public static IReadOnlyList<ModelRelocation> Moves(GameState state, AskRecord closed) =>
+        closed.Single is Destinations answer && closed.Ask.Legal is MoveRegion region ? Moves(state, region, answer) : [];
+
     /// <summary>
-    /// The relocations of models the move Ask named and the projection holds, one per model. From is the projection's location, never the
-    /// answer's, so a forged From cannot skip the distance check; a move Inside a piece the Ask did not list as enterable is dropped.
+    /// The one reading of a move answer: what the move steps apply and what IGameRules.AnswerBreach judges, so a check can never pass a move
+    /// the application reads differently. The relocations of models the Ask named and the projection holds, the first one per model. From is
+    /// the projection's location, never the answer's, so a forged From cannot skip the distance check. Dropped: a placement with a non-finite
+    /// coordinate or yaw, or one farther from where the model stands than the table's diagonal, which no move ending on the table can be (p.7: "never
+    /// move outside of the battlefield"; it also bounds what Movement.Check sweeps); a move Inside a piece the Ask did not list as enterable; a move out of a container the Ask is not exiting (p.15:
+    /// "units can't both embark/disembark as part of the same activation"). A model the reading drops has not moved.
     /// </summary>
-    public static IReadOnlyList<ModelRelocation> Moves(GameState state, AskRecord closed)
+    public static IReadOnlyList<ModelRelocation> Moves(GameState state, MoveRegion region, Destinations answer)
     {
-        if (closed.Single is not Destinations answer || closed.Ask.Legal is not MoveRegion region) return [];
         var enterable = region.Containment?.Enterable ?? [];
         return answer.Moves
-            .Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId) && (m.To is not Inside into || enterable.Contains(into.ContainerId)))
+            .Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId))
             .DistinctBy(m => m.ModelId)
-            .Select(m => m with { From = state.Projection.Models[m.ModelId].Location }).ToList();
+            .Select(m => m with { From = state.Projection.Models[m.ModelId].Location })
+            .Where(m => m.To switch
+            {
+                Inside into => enterable.Contains(into.ContainerId),
+                OnTable on => Finite(on.Placement) && WithinDiagonal(state, m.From, on.Placement) && (m.From is not Inside from || region.Containment?.ExitingId == from.ContainerId),
+                _ => true,
+            }).ToList();
     }
+
+    /// <summary>
+    /// The first relocation of a listed model the reading does not apply: one Moves drops, or one to somewhere no move step puts a model (the
+    /// shelf). Null when every relocation is read. AnswerBreach refuses it under strict rather than let it pass as a silent zero move. A
+    /// relocation to where the model already is (an occupant answered Inside the container it is in) is standing still, not a dropped one:
+    /// it is how a model with nowhere to stand answers, and it moves nothing (a transport's survivor is then destroyed: GfContainers).
+    /// </summary>
+    public static ModelRelocation? Unread(GameState state, MoveRegion region, Destinations answer)
+    {
+        var read = Moves(state, region, answer).ToDictionary(m => m.ModelId);
+        return answer.Moves.Where(m => region.ModelIds.Contains(m.ModelId) && state.Projection.Models.ContainsKey(m.ModelId)).DistinctBy(m => m.ModelId)
+            .Where(m => m.To != state.Projection.Models[m.ModelId].Location)
+            .FirstOrDefault(m => !read.TryGetValue(m.ModelId, out var r) || r.To is not (OnTable or Inside));
+    }
+
+    static bool WithinDiagonal(GameState state, Location from, Placement to)
+    {
+        var size = state.Board.Table.Size;
+        return from is not OnTable at || at.Placement.Position.Horizontal.DistanceTo(to.Position.Horizontal) <= Math.Sqrt(size.Width * size.Width + size.Length * size.Length);
+    }
+
+    static bool Finite(Placement p) => double.IsFinite(p.Position.X) && double.IsFinite(p.Position.Y) && double.IsFinite(p.Position.Z) && double.IsFinite(p.Yaw.Degrees);
 }

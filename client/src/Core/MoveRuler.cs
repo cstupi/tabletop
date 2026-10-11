@@ -3,16 +3,31 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Core;
 
-/// <summary>Distance is the base's displacement from where it started (GF p.7); Remaining is what the allowance leaves.</summary>
-public sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance);
+/// <summary>Distance is the base's displacement from where it started (GF p.7); Remaining is what the allowance leaves; UnderMinimum is short of a
+/// minimum move the Ask set (MoveRegion.MinDistance).</summary>
+public sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance, bool UnderMinimum = false)
+{
+    /// <summary>Outside the distances the move allows: the model shows red.</summary>
+    public bool OutOfRange => OverAllowance || UnderMinimum;
+}
 
 public static class MoveRuler
 {
-    public static RulerReadout Read(Point2 start, Point2 current, double? allowance)
+    public static RulerReadout Read(Point2 start, Point2 current, double? allowance, double? minimum = null)
     {
         var d = start.DistanceTo(current);
-        return new RulerReadout(d, allowance is { } a ? Math.Max(0, a - d) : null, allowance is { } b && d > b + 1e-6);
+        return new RulerReadout(d, allowance is { } a ? Math.Max(0, a - d) : null, allowance is { } b && d > b + 1e-6, minimum is { } m && d < m - 1e-6);
     }
+
+    /// <summary>The least this model must move: the Ask's MinDistance, or as far as the table lets its whole base go when that is less
+    /// (the server's own reading, Movement.FarthestOnTable). Null when the Ask sets no minimum.</summary>
+    public static double? Minimum(PlacedModel start, MoveRegion legal, TableSize size) =>
+        legal.MinDistance is { } m ? Math.Min(m, Movement.FarthestOnTable(start, size).Distance) : null;
+
+    /// <summary>The inner edge of the annulus a minimum cuts from the region: each boundary vertex pulled in to the minimum along its own ray, or
+    /// left where it is when the ray stops short of it. Paired with the boundary vertex for vertex.</summary>
+    public static IReadOnlyList<Point2> Inner(Point2 origin, IReadOnlyList<Point2> boundary, double minimum) =>
+        boundary.Select(p => origin.DistanceTo(p) is var d && d > minimum ? origin + (p - origin) * (minimum / d) : p).ToList();
 
     /// <summary>Distance a model has already moved inside a frame: the sum of its logged table-to-table relocations in the frame's completed steps.</summary>
     public static double UsedInFrame(Frame frame, Guid modelId) =>
@@ -21,11 +36,11 @@ public static class MoveRuler
             .Sum(r => ((OnTable)r.From).Placement.Position.Horizontal.DistanceTo(((OnTable)r.To).Placement.Position.Horizontal));
 
     /// <summary>The reachable region: Movement.Region from the Ask's parameters — the allowance, the impassable and difficult volumes resolved by id from the board, and the cap GameRules computed. One frame, no conversion.</summary>
-    public static IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size)
+    public static IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel>? others = null)
     {
         var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
         var difficult = volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList();
-        return Movement.Region(start, legal.Allowance, impassable, difficult, legal.DifficultCap, size).Boundary;
+        return Movement.Region(start, legal.Allowance, impassable, difficult, legal.DifficultCap, size, legal.PassesModels ? null : others).Boundary;
     }
 
     /// <summary>The unit is inside a container, so this move is a disembark and <see cref="Region"/> cannot serve it: there is no start placement to sweep from and Allowance binds nothing (contracts plan Task 8).</summary>

@@ -89,7 +89,7 @@ Task 1 comes first. Tasks 2, 3 and 6 need only Task 1. Task 4 needs 3; Task 5 ne
 | `GrimdarkFutureRules` | `OnRoundEnded(GameState, PropertySet, int)` → `GfObjectives.Seize` for round ≥ 1; `JudgeAdvance` now carries `GfObjectives.Winners` and `MissionLengthDetail(int) + " " + Standing` |
 | `FakeRules` | `Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }` |
 | `RecordedMarkerState` | trailing `Guid? ControlledBy = null` |
-| `Expectation` | `Won(int TeamOrdinal)` |
+| `Expectation` | `Won(int TeamOrdinal)`, `MostMarkersWin` |
 | `Invariants` | `ControlFollowsTheMarkers(IReadOnlyList<GameEvent>, CompiledScenario)`, seventh in `CheckAll` |
 | `ScenarioCatalog` | `objectives` |
 

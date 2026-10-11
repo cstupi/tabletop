@@ -8,11 +8,8 @@ namespace Tabletop.GameServer.Interpreter;
 /// <summary>Runs the top frame's current step and turns its outcome into payloads. Generic: knows no ruleset.</summary>
 public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties, IDiceSource dice) : ISequenceStarter
 {
-    public IReadOnlyList<EventPayload> Start(GameState state, string sequence, SequenceContext context)
-    {
-        rules.Sequence(sequence);   // throws UnknownSequenceException
-        return [new SequenceStarted(Guid.CreateVersion7(), sequence, context)];
-    }
+    public IReadOnlyList<EventPayload> Start(GameState state, string sequence, SequenceContext context) =>
+        [new SequenceStarted(Guid.CreateVersion7(), sequence, context, Outline(rules.Sequence(sequence)))];   // Sequence throws UnknownSequenceException
 
     public IReadOnlyList<EventPayload> Advance(GameState state)
     {
@@ -35,7 +32,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
             case Finish f: Completed(events, ctx, step, f.Changes, f.Values, finished: true); break;
             case OpenAsks { Asks.Count: 0 }: throw new InvalidOperationException($"{top.Frame.Sequence}/{step.Name} suspended with no Ask open");
             case OpenAsks a: events.AddRange(a.Asks.Select(ask => new AskOpened(ask))); break;
-            case Push p: rules.Sequence(p.Sequence); events.Add(new SequenceStarted(Guid.CreateVersion7(), p.Sequence, p.Context)); break;
+            case Push p: events.Add(new SequenceStarted(Guid.CreateVersion7(), p.Sequence, p.Context, Outline(rules.Sequence(p.Sequence)))); break;
         }
         return events;
     }
@@ -53,6 +50,14 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
         return values;
     }
 
+    /// <summary>The sequence's labelled steps in order (in-game UX spec → Step outline), or null when it has none, so an unlabelled
+    /// sequence's sequence_started is written as it was before outlines existed.</summary>
+    static IReadOnlyList<OutlineStep>? Outline(Sequence sequence)
+    {
+        var outline = sequence.Steps.Where(s => s.Label is not null).Select(s => new OutlineStep(s.Name, s.Label!)).ToList();
+        return outline.Count == 0 ? null : outline;
+    }
+
     /// <summary>
     /// Who a step boundary is gated to, or null for no gate. The actor's team, and only when WaitsBetweenSteps is on. Every team,
     /// whatever that setting says, for a frame with no actor and no parent: the roll-off is the only one, and nothing else keeps its log
@@ -68,7 +73,7 @@ public sealed class SequenceInterpreter(IGameRules rules, PropertySet properties
     static void Completed(List<EventPayload> events, StepContext ctx, IStep step, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, bool finished)
     {
         var answer = ctx.History.ClosedExceptConfirm.LastOrDefault()?.Single;
-        events.Add(new StepCompleted(ctx.Frame.Id, step.Name, answer, ctx.Rolls, changes) { Values = values is { Count: > 0 } ? values : null });
+        events.Add(new StepCompleted(ctx.Frame.Id, step.Name, answer, ctx.Rolls, changes, ctx.Applied.Names) { Values = values is { Count: > 0 } ? values : null });
         events.AddRange(ctx.ForcedRerolls);
         if (finished) events.Add(new SequenceFinished(ctx.Frame.Id));
     }

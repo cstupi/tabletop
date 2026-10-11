@@ -40,24 +40,43 @@ public sealed record SocketCredentials(IReadOnlyList<MintedSession> Sessions)
     private sealed record MintAccount(Guid Id, string Name);
     private sealed record MintResponse(string SessionJwt, MintAccount Account);
 
-    /// <summary>Stable across runs and distinct within a scenario, so a re-run mints for the same accounts.</summary>
-    public static string NameFor(CompiledScenario scenario, int index) => $"sim-{scenario.Scenario.Name}-{index}";
+    /// <summary>
+    /// The accounts every socket game plays on: participant i of any game is sim-player-i, so concurrent games and every run share
+    /// them. As many as the most participants any scenario has (the recorder included).
+    /// </summary>
+    public const int PoolSize = 4;
+    public static IReadOnlyList<string> Pool { get; } = Enumerable.Range(0, PoolSize).Select(i => $"sim-player-{i}").ToList();
+
+    public static string NameFor(int index) => index >= 0 && index < PoolSize
+        ? Pool[index]
+        : throw new ArgumentOutOfRangeException(nameof(index), index, $"the account pool has {PoolSize} accounts");
 
     public static async Task<SocketCredentials> MintAsync(CompiledScenario scenario, HttpClient http, CancellationToken ct)
     {
         var sessions = new List<MintedSession>();
         for (var i = 0; i < scenario.Info.Participants.Count; i++)
+            sessions.Add(await MintOneAsync(http, NameFor(i), ct));
+        return new SocketCredentials(sessions);
+    }
+
+    /// <summary>
+    /// A session for the named account. The mint makes the account and its Stytch user on first use; two first uses at once race on
+    /// the Stytch create and the loser answers 409, so a 409 is asked once more, when the user exists.
+    /// </summary>
+    public static async Task<MintedSession> MintOneAsync(HttpClient http, string name, CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
         {
-            using var response = await http.PostAsJsonAsync(MintPath, new { name = NameFor(scenario, i) }, Json, ct);
+            using var response = await http.PostAsJsonAsync(MintPath, new { name }, Json, ct);
             if (response.StatusCode == HttpStatusCode.NotFound)
                 throw new InvalidOperationException(
                     $"{http.BaseAddress}{MintPath.TrimStart('/')} answered 404; the management API must run as a development environment (./scripts/management sets ASPNETCORE_ENVIRONMENT=Development)");
+            if (response.StatusCode == HttpStatusCode.Conflict && attempt == 0) continue;
             response.EnsureSuccessStatusCode();
             var minted = await response.Content.ReadFromJsonAsync<MintResponse>(Json, ct)
                 ?? throw new InvalidOperationException("the mint returned an empty body");
-            sessions.Add(new MintedSession(minted.SessionJwt, minted.Account.Id));
+            return new MintedSession(minted.SessionJwt, minted.Account.Id);
         }
-        return new SocketCredentials(sessions);
     }
 
     public string For(int index) => At(index).Jwt;

@@ -148,6 +148,7 @@ erDiagram
     ACTION {
         string name
         units distance
+        int position
     }
     ROLL {
         string name
@@ -169,6 +170,8 @@ erDiagram
         enum target_grain
         int target_count
         units target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         enum subject
@@ -181,6 +184,7 @@ erDiagram
         enum cap_kind
         string replacement
         enum duration
+        int position
     }
     EFFECTCONDITION {
         enum kind
@@ -188,6 +192,7 @@ erDiagram
         enum comparison
         int number
         list values
+        int position
     }
     GAMEEVENT {
         uuid game_id
@@ -270,7 +275,7 @@ so they are never absent; a placement may override them. `kind` is `solid` or `a
 difficult, dangerous.
 
 **Models are yaw only and always upright**, so a placement is position and yaw. What a model
-rests on is derived by settling, never stored.
+rests on is derived by `Collision.RestHeight`, never stored.
 
 **A stored position is three-dimensional.** Terrain and markers carry x, y and z, because both
 are put where the user puts them — a marker ignores terrain entirely, and terrain does not

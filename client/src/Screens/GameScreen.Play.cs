@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Hud;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Content;
@@ -8,52 +9,174 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Screens;
 
+/// <summary>
+/// Play (spec → Layout): the Hud parts float over the table, the overlays draw on it, and the events between them meet here.
+/// Everything is built once when play starts and freed when the screen leaves play.
+/// </summary>
 public partial class GameScreen
 {
-    AskPanel? _askPanel; LogPanel? _logPanel; Animator? _animator; CheckBox? _animate; PieceMenu? _menu;
-    // Input outlives the play panels: its subscriptions are fields and come off when they go.
+    HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; UndoButton? _undo; EndMessage? _end; KeyOverlay? _keys;
+    HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
+    Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
+    Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; Action<IReadOnlyList<GameEvent>>? _onFollow;
+    // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
     readonly MenuItem _leave = new("Leave the game", MenuInput.None, _ => null);
 
     partial void ShowPlayPanels(bool playing)
     {
         if (!playing) { FreePlayPanels(); return; }
-        if (_askPanel is null)
+        if (_header is not null) return;
+
+        // Hud parts, bottom of the input order first: the end message and the key overlay are added last and hear keys first.
+        _hud.AddChild(_header = new HeaderBar()); _header.Bind(_session, Table, Input);
+        _hud.AddChild(_roster = new Roster()); _roster.Bind(_session);
+        _hud.AddChild(_card = new UnitCard()); _card.Bind(_session, Table, Input);
+        _hud.AddChild(_decision = new DecisionBox()); _decision.Bind(_session, Table, Input);
+        _hud.AddChild(_dice = new DiceTray()); _dice.Bind(_session, Table, Input);
+        _hud.AddChild(_logDrawer = new LogDrawer()); _logDrawer.Bind(_session, Table, Input);
+        _hud.AddChild(_undo = new UndoButton()); _undo.Bind(_session, Input);
+        _dice.RollClicked += _logDrawer.OpenAt;
+        _card.FocusChanged += id => { if (_logDrawer is { } d) d.CombatLog.FocusUnit = id; };
+        _logDrawer.CombatLog.FocusUnit = _card.UnitId;
+        _hud.AddChild(_banner = new TurnBanner()); _banner.Bind(_session);
+        _hud.AddChild(_end = new EndMessage()); _end.Bind(_session, Table, Input);
+        _hud.AddChild(_keys = new KeyOverlay()); _keys.Bind(_session, Table, Input);
+
+        // Table overlays: Node3D children of the table, and the markers and floating text in a canvas layer of the table's own viewport.
+        Table.AddChild(_hover = new HoverLabels()); _hover.Bind(_session, Table, Input);
+        Table.AddChild(_sight = new SightLines()); _sight.Bind(_session, Table, Input);
+        Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
+        Table.AddChild(_lasers = new Lasers()); _lasers.Bind(_session, Table, Input);
+        Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input);
+        Table.AddChild(_tableLayer = new CanvasLayer());
+
+        // The floating text subscribes before the Animator is made, so it hears each batch before the Animator plays it.
+        _tableLayer.AddChild(_markers = new UnitMarkerNodes()); _markers.Bind(_session, Table);
+        _tableLayer.AddChild(_floating = new FloatingText()); _floating.Bind(_session, Table);
+
+        _animator = new Animator(_session, Table, Input);
+        _menu = new PieceMenu(_session, Toast); AddChild(_menu);
+        _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
+        _onItem = item =>
         {
-            _askPanel = new AskPanel(); _side.AddChild(_askPanel); _askPanel.Bind(_session, Table, Input);
-            _logPanel = new LogPanel(); _side.AddChild(_logPanel); _logPanel.Bind(_session, Table, Toast);
-            _animator = new Animator(_session, Table, Input);
-            _animate = new CheckBox { Text = "Animate", ButtonPressed = _session.Settings.Animate };
-            _animate.Toggled += on => _session.UpdateSettings(x => x with { Animate = on });
-            _side.AddChild(_animate);
-            _menu = new PieceMenu(_session, Toast); AddChild(_menu);
-            _menu.PickPieceRequested += Input.PickNextPiece; _menu.PickPointRequested += Input.PickNextPoint;
-            _onItem = item => { if (ReferenceEquals(item, _leave)) Guarded.Run(_session.LeaveAsync, Toast); };   // Leave is a management call, not a command
-            _menu.ItemChosen += _onItem;
-            _onPieceRight = (id, at) => { if (_menu is not null) _menu.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
-            _onTableRight = at => _menu?.Open([Token(at), _leave], GetViewport().GetMousePosition());
-            Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
-        }
-        // The team panels are new on every Rebuild, so they are wired on every call.
-        foreach (var team in _teams)
-        {
-            var id = team.Team.Id;
-            team.RightClicked += at =>
-            {
-                if (_session.Game is { } game && _session.Projection is { } p) _menu?.Open(MenuModel.ForTeam(game, p, id).Concat(MenuModel.OffTable(p, id, new Names(game, p))).ToList(), at);
-            };
-        }
+            if (ReferenceEquals(item, _leave)) Guarded.Run(_session.LeaveAsync, Toast);   // Leave is a management call, not a command
+            else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
+        };
+        _menu.ItemChosen += _onItem;
+        _onPieceRight = (id, at) => _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at);
+        _onTableRight = at => _menu?.Open([Token(at), _leave], GetViewport().GetMousePosition());
+        Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
+
+        // The parts die with the screen, so their own events need no unsubscribing.
+        _header.TeamMenuRequested += OpenTeamMenu;
+        _header.GameOverPressed += _end.Open;
+        _header.SettingsRequested += () => SettingsDialog.Open(this, _session);
+        _card.ModelPicked += SelectModel;
+        _decision.TargetsChanged += ShowTargets;
+        _logDrawer.Reported += Toast;
+        _undo.Reported += Toast;
+        _animator.Played += _floating.Show;
+        _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
+        // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
+        // or holds a unit; never for the history replayed on join.
+        _onFollow = batch => { if (!_session.CatchingUp && _session.Projection is { } p && CameraFocus.FollowTarget(batch, p) is { } at) Table.Camera.Follow(WorldFrame.ToGodot(at), _session.Settings.CameraFollow); };
+        _session.EventsApplied += _onFollow;
+        foreach (var part in new Control[] { _header, _roster, _card, _decision, _dice }) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
+        _logDrawer.OpenChanged += QueueLayout;
+        QueueLayout();
     }
+
+    /// <summary>Lay the Hud out once, at the end of this frame, however many changes asked for it.</summary>
+    void QueueLayout()
+    {
+        if (_layoutQueued) return;
+        _layoutQueued = true;
+        Callable.From(Layout).CallDeferred();
+    }
+
+    /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
+    /// corner and the toasts exist. The unit card starts 8 px below the roster's actual bottom, so a collapsed roster gives it the
+    /// column back; the dice end 8 px above the decision box's actual top; the end message stays a full-screen backdrop.</summary>
+    void Layout()
+    {
+        _layoutQueued = false;
+        if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
+        var w = _hud.Size.X - (IsInstanceValid(_side) && _side.Visible ? _side.Size.X : 0);
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card), Shows(_decision), Shows(_dice), _logDrawer is { } l && IsInstanceValid(l) && l.Open));
+        HudPlacement.Top(_corner, r[HudPart.Corner]);
+        HudPlacement.Top(_toasts, r[HudPart.Toasts]);
+        if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
+        if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
+        if (Shows(_card)) _card!.Place(Shows(_roster) ? HudLayout.Below(r[HudPart.UnitCard], _roster!.Position.Y + _roster.Size.Y) : r[HudPart.UnitCard]);
+        if (Shows(_decision)) HudPlacement.Bottom(_decision!, r[HudPart.Decision]);
+        if (Shows(_dice))
+        {
+            var slot = r[HudPart.Dice];
+            if (Shows(_decision)) slot = slot with { Y = _decision!.Position.Y - HudLayout.M - slot.H };
+            HudPlacement.Bottom(_dice!, slot);
+        }
+        if (_logDrawer is { } log && IsInstanceValid(log))
+            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(BelowHeader(panel)) : null);
+        if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Bottom(undo, r[HudPart.UndoButton]);
+        // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
+        if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
+    }
+
+    /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume:
+    /// both grow upward past their slots. Only when the panel's columns span theirs.</summary>
+    HudRect AboveBottomStack(HudRect panel)
+    {
+        var bottom = panel.Bottom;
+        foreach (var part in new Control?[] { _decision, _dice })
+            if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) bottom = Math.Min(bottom, part.Position.Y - HudLayout.M);
+        return panel with { H = Math.Max(0, bottom - panel.Y) };
+    }
+
+    /// <summary>The log panel starts HudLayout.M below the header as it is, not as its 96 px slot assumes: three lines can be
+    /// taller. Only when the panel's columns span the header's; the height never goes negative.</summary>
+    HudRect BelowHeader(HudRect panel)
+    {
+        if (!Shows(_header) || !panel.SpansX(new HudRect(_header!.Position.X, 0, _header.Size.X, 1))) return panel;
+        var top = Math.Max(panel.Y, _header.Position.Y + _header.Size.Y + HudLayout.M);
+        return panel with { Y = top, H = Math.Max(0, panel.Bottom - top) };
+    }
+
+    static bool Shows(Control? c) => c is not null && IsInstanceValid(c) && c.Visible;
 
     void FreePlayPanels()
     {
         if (Input is not null && IsInstanceValid(Input)) { Input.PieceRightClicked -= _onPieceRight; Input.TableRightClicked -= _onTableRight; }
+        if (_onFollow is not null) _session.EventsApplied -= _onFollow;
+        _onFollow = null;
         _animator?.Dispose(); _animator = null;
-        _askPanel?.QueueFree(); _askPanel = null;
-        _logPanel?.QueueFree(); _logPanel = null;
-        _animate?.QueueFree(); _animate = null;
-        _menu?.QueueFree(); _menu = null;
+        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _markers, _floating, _tableLayer, _menu })
+            if (node is not null && IsInstanceValid(node)) node.QueueFree();
+        _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
+        _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
+        _roster = null; _banner = null; _markers = null; _floating = null; _rings = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
+    }
+
+    /// <summary>The team menu, from the header's team names (spec → Layout): what the team panel's right-click opened.</summary>
+    void OpenTeamMenu(Guid teamId, Vector2 at)
+    {
+        if (_session.Game is { } game && _session.Projection is { } p)
+            _menu?.Open(MenuModel.ForTeam(game, p, teamId).Concat(MenuModel.OffTable(p, teamId, new Names(game, p))).ToList(), at);
+    }
+
+    /// <summary>A model clicked in the unit card's wound rows selects that one model on the table (spec → Unit card).</summary>
+    void SelectModel(Guid modelId)
+    {
+        if (_session.Projection?.Models.GetValueOrDefault(modelId) is { } model) Input.Select(model.UnitId, modelId);
+    }
+
+    void ShowTargets()
+    {
+        if (_targets is null || !IsInstanceValid(_targets)) return;
+        if (_decision?.Targets is { } t) _targets.Show(t.Groups, t.Assigned); else _targets.Clear();
+        if (_sight is not null && IsInstanceValid(_sight))
+            _sight.ShowAssigned(_decision?.Targets?.Groups ?? [], _decision?.Targets is { } a ? new Dictionary<string, Guid>(a.Assigned) : new Dictionary<string, Guid>());
     }
 
     IReadOnlyList<MenuItem> ItemsFor(Guid id, bool shift)
@@ -64,7 +187,7 @@ public partial class GameScreen
             var known = MenuModel.KnownActionNames(p, _session.Log);
             return shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p)).ToList();
         }
-        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id) : [];
+        return _session.Game is { } game ? MenuModel.ForMarker(game, p, id, Input.Locks) : [];
     }
 
     static MenuItem Token(Vector3 at) => new("Drop a token here", MenuInput.Text,

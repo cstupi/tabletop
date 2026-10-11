@@ -2,6 +2,7 @@ using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
+using Tabletop.Sim.Answers;
 
 namespace Tabletop.Sim.Scenarios;
 
@@ -78,15 +79,20 @@ public static class ScenarioCatalog
             .Expect(new Expectation.AskAsked("react"))
             .Build(),
 
-        // The core mission scored (p.6): three markers across the middle, one deep in Red's frontline zone. Ends after round 4 under strict
-        // with the team holding most markers named on game_ended.
+        // The core mission scored (p.6): "At the end of each round, if a unit is within 3" of a marker whilst no enemies are, then it counts
+        // as being seized ... After 4 rounds have been played, the game ends, and the player that controls most markers wins." Three markers
+        // across the middle and one, Blue home, at (36, 4) inside Blue's frontline zone (y 0–12). p.6 places markers "outside of the deployment
+        // zones"; Blue home breaks that on purpose, so a unit deployed near it can seize in round 1. The policy seeks the nearest marker its
+        // team does not control (ObjectiveGoal), so every seed seizes at least once and round_ended is expected; which team wins, or whether
+        // the game ends tied, still depends on the seed.
         ["objectives"] = () => new ScenarioBuilder("objectives", seed: 1)
             .Army("Red", 3, 3).Army("Blue", 3, 3)
             .Marker(MarkerKind.Objective, new Point3(18, 24, 0), label: "West")
             .Marker(MarkerKind.Objective, new Point3(36, 24, 0), label: "Centre")
             .Marker(MarkerKind.Objective, new Point3(54, 24, 0), label: "East")
-            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Red home")
-            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("round_ended"), new Expectation.Won(2))
+            .Marker(MarkerKind.Objective, new Point3(36, 4, 0), label: "Blue home")
+            .Seeking(ObjectiveGoal.Nearest)
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.EventOfKind("round_ended"), new Expectation.MostMarkersWin())
             .Build(),
     };
 

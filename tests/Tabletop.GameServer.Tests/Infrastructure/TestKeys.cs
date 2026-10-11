@@ -12,9 +12,10 @@ public static class TestKeys
     public static readonly JsonWebKeySet Jwks = new() { Keys = { JsonWebKeyConverter.ConvertFromRSASecurityKey(Key) } };
     public static IJwksSource Source => new StaticJwksSource(Jwks);
 
-    public static string Mint(Guid accountId, string? issuer = null, string? audience = null, TimeSpan? lifetime = null, bool includeAccountClaim = true, RsaSecurityKey? signingKey = null, string? accountClaimValue = null)
+    public static string Mint(Guid accountId, string? issuer = null, string? audience = null, TimeSpan? lifetime = null, bool includeAccountClaim = true, RsaSecurityKey? signingKey = null, string? accountClaimValue = null, object? roles = null)
     {
         var claims = new Dictionary<string, object> { ["sub"] = "user-test-" + accountId.ToString("N")[..12] };
+        if (roles is not null) claims[StytchJwtVerifier.RolesClaim] = roles;
         if (includeAccountClaim)
         {
             claims[StytchJwtVerifier.AccountClaim] = accountClaimValue ?? accountId.ToString();

@@ -9,11 +9,11 @@ public class MoveRegionPolicyTests
 {
     static readonly Guid Model = Guid.CreateVersion7(), Unit = Guid.CreateVersion7(), Part = Guid.CreateVersion7(), Team = Guid.CreateVersion7();
 
-    static (PolicyView View, Guid ModelId) Standing(Point3 at)
+    static (PolicyView View, Guid ModelId) Standing(Point3 at, TableSize? size = null)
     {
         var slot = new ModelSlot(Model, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
         var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [slot]);
-        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var table = new TableState(Guid.CreateVersion7(), null, size ?? new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
         var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
             SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
             [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
@@ -41,6 +41,24 @@ public class MoveRegionPolicyTests
     }
 
     [Fact]
+    public void A_minimum_move_with_little_room_for_it_is_always_met_on_the_table()
+    {
+        // p.13 Aircraft: a 30" minimum on a 24" table from near a corner, where only bearings close to the far diagonal have room (just over 30").
+        var (view, model) = Standing(new Point3(2, 2, 0), new TableSize(24, 24));
+        var start = view.PlacedOf(model)!.Value;
+        Assert.InRange(Movement.FarthestOnTable(start, view.Table).Distance, 30, 31);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team], new MoveRegion([model], 36, [], [], null, null, 30), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 40; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, view));
+            var to = Assert.IsType<OnTable>(Assert.Single(answer.Moves).To).Placement.Position.Horizontal;
+            var check = Movement.Check(start, to, 36, [], [], null, view.Table);
+            Assert.True(check.Distance >= 30 - 1e-6, $"seed {seed} moved {check.Distance}");
+            Assert.False(check.LeavesTable, $"seed {seed} left the table");
+        }
+    }
+
+    [Fact]
     public void An_impassable_volume_is_not_crossed()
     {
         var (view, model) = Standing(new Point3(10, 24, 0));
@@ -55,6 +73,27 @@ public class MoveRegionPolicyTests
             var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled));
             var to = Assert.IsType<OnTable>(answer.Moves[0].To);
             Assert.False(Movement.Check(walled.PlacedOf(model)!.Value, to.Placement.Position.Horizontal, 12, [wall], [], null, walled.Table).CrossesImpassable);
+        }
+    }
+
+    [Fact]
+    public void A_move_whose_Ask_lists_no_impassable_volume_still_never_ends_in_one()
+    {
+        // A Flying unit's Ask lists no impassable volume to sweep, but the server refuses a landing in one (p.11, p.7).
+        var (view, model) = Standing(new Point3(10, 24, 0));
+        var block = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(8, 40), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(17, 24, 0), new Yaw(0), 1));
+        var walled = new PolicyView(view.Projection, view.Board, [block]);
+        var ask = new Ask(Guid.CreateVersion7(), "move", "Move", [Team],
+            new MoveRegion([model], 12, [], [], null, null), false, false, null, Guid.CreateVersion7());
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled));
+            if (answer.Moves[0].To is not OnTable to) continue;
+            var at = walled.PlacedOf(model)!.Value;
+            var landed = at with { Placement = to.Placement };
+            Assert.False(Movement.Check(landed, to.Placement.Position.Horizontal, 0, [block], [], null, null).CrossesImpassable, $"seed {seed}");
         }
     }
 
@@ -97,6 +136,53 @@ public class MoveRegionPolicyTests
         Assert.Equal(moves[0].From, moves[0].To);   // OnTable at the same placement: standing still
         var optional = forced with { AllowPass = true };
         Assert.IsType<Passed>(new AnswerPolicy(new Chooser(1), none).Answer(optional, view));
+    }
+
+    [Fact]
+    public void A_model_inside_a_container_with_nowhere_to_stand_is_left_out_of_the_answer()
+    {
+        var (view, ask, _, _) = Inside();
+        var none = new PolicyOptions(MoveSamples: 0);
+        Assert.Empty(Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(1), none).Answer(ask, view)).Moves);   // a wreck's survivors: no pass
+        Assert.IsType<Passed>(new AnswerPolicy(new Chooser(1), none).Answer(ask with { AllowPass = true }, view));
+    }
+
+    [Fact]
+    public void A_disembark_never_lands_in_impassable_terrain()
+    {
+        var (view, ask, rider, _) = Inside();
+        var block = new WorldVolume(Guid.CreateVersion7(),
+            new Volume(VolumeKind.Solid, Footprint.Rect(6, 20), new Point2(0, 0), new Yaw(0), 0, 4, TerrainDeclarations.Impassable, null),
+            new TerrainTransform(new Point3(34, 20, 0), new Yaw(0), 1));
+        var walled = new PolicyView(view.Projection, view.Board, [block]);
+        for (var seed = 0ul; seed < 25; seed++)
+        {
+            var answer = Assert.IsType<Destinations>(new AnswerPolicy(new Chooser(seed)).Answer(ask, walled));
+            if (answer.Moves.SingleOrDefault()?.To is not OnTable to) continue;
+            var landed = new PlacedModel(walled.BodyOf(rider), to.Placement);
+            Assert.False(Movement.Check(landed, to.Placement.Position.Horizontal, 0, [block], [], null, null).CrossesImpassable, $"seed {seed}");
+        }
+    }
+
+    /// <summary>A rider inside a wreck standing at (30, 20), and the survivors' Ask (no pass).</summary>
+    static (PolicyView View, Ask Ask, Guid Rider, Point3 At) Inside()
+    {
+        var wreck = Guid.CreateVersion7(); var rider = Guid.CreateVersion7();
+        ModelSlot Slot(Guid id) => new(id, 1, "m", new Dictionary<string, string>(), [], Base.Circle(1.26), 1.5, null, []);
+        var unit = new Unit(Unit, 1, "u", new Dictionary<string, string>(), [], [Slot(wreck), Slot(rider)]);
+        var table = new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfBuiltin("grass"), [], [], []);
+        var info = new GameInfo(Guid.CreateVersion7(), "g", GameStatus.Playing, Part, "grimdark-future", "sha256:x",
+            SchedulerShape.AlternatingActivation, Enforcement.Strict, false, RngSeed: 2, [new Team(Team, 1)],
+            [new Participant(Part, Guid.CreateVersion7(), "p", Team, null)]);
+        var board = new Board(table, [new ArmyInPlay(Part, new ArmySnapshot(Guid.CreateVersion7(), "a", "grimdark-future", [unit]))]);
+        var applier = new EventApplier(board, info);
+        var at = new Point3(30, 20, 0);
+        applier.Apply(new GameEvent(1, null, new ModelsMoved([
+            new ModelRelocation(wreck, new OnShelf(), new OnTable(new Placement(at, new Yaw(0)))),
+            new ModelRelocation(rider, new OnShelf(), new Inside(wreck))]), null));
+        var ask = new Ask(Guid.CreateVersion7(), "disembark", "Disembark", [Team],
+            new MoveRegion([rider], 6, [], [], null, new MoveContainment([], wreck, 6)), false, false, null, Guid.CreateVersion7());
+        return (new PolicyView(applier.Projection, board), ask, rider, at);
     }
 
     [Fact]

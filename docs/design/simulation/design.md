@@ -15,7 +15,8 @@ legal set and never compute a rules outcome the engine should compute.
 the answer policy over all seven `LegalSet` shapes and the script that overrides it; the
 `IGameDriver` interface and both implementations; the run loop, its outcomes and its
 hand-placement of deployed models; the seven invariants and the projection comparer; the
-recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; and
+recording schema, its writer and its JSON; the step-and-wait seam; the console entry point; the
+rules suite and its runner service (spec `docs/superpowers/specs/2026-10-09-rules-suite-design.md`); and
 the `CLAUDE.md` and `docs/architecture.md` edits that record `sim/` as a deliverable.
 
 **Not in scope.**
@@ -57,7 +58,7 @@ before one exists. What must land first: the contracts plan's `Tabletop.Protocol
 skeleton's `GameSession`, `Hydrator`, `SessionServices`, `InMemoryEventLog`, `IGameRows`,
 `ISessionClient` and `Replay`; the interpreter's `RulesEngineFactory`, `IPropertiesStore`,
 `PropertiesSeeder` and `DiceSource`; the scheduler's `SchedulerFactory`; and the geometry
-plan's `Movement.Check`, `ZoneStyles` and `Settling.SurfaceHeightAt`.
+plan's `Movement.Check`, `ZoneStyles`, `Collision.RestHeight` and `Collision.Crosses`.
 
 ## Context
 
@@ -128,7 +129,7 @@ and *k*. The answers are `sim/`'s: one `Chooser`, SplitMix64 over a counter, adv
 order over legal sets the engine offers in its own ordinal order.
 
 Both are fixed by `Scenario.Seed`. It reaches the engine as `GameInfo.RngSeed`, and it
-constructs the `AnswerPolicy`'s `Chooser` and the `RunLoop`'s placement `Chooser`.
+constructs the `AnswerPolicy`'s `Chooser` (`Scenario.Policy()`) and the `RunLoop`'s placement `Chooser`.
 
 The seed is its own stored value on the management-owned game row, `rng_seed`, not null, written
 once when the game is created. It is not derived from the game id: hashing the id would make the
@@ -198,7 +199,7 @@ The ten catalog scenarios and what each exists to exercise:
 | `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
 | `final-round-warn` | alternating activation | the same under `warn`: round 5 starts with a warning and the run stops at the cap |
 | `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
-| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with a scored winner (seed 1, winner team ordinal 2) |
+| `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with the teams holding the most markers named on `game_ended` (`MostMarkersWin`, any seed, a tie included). Opts into `ObjectiveGoal.Nearest`, so every seed seizes at least once (`EventOfKind("round_ended")`). Blue home sits in Blue's zone, against p.6's "outside of the deployment zones", on purpose |
 
 `Scenario.Enforcement` defaults to `Enforcement.Strict`, which is the opposite of every
 fixture's default. An answer outside the legal set must be refused loudly rather than logged and
@@ -276,6 +277,16 @@ not, and a boolean is one careless `new PolicyOptions(readState: true)` away fro
 soak default. Keeping `AnswerPolicy` free of state reads also lets its own tests pass a bare
 view. Asserting "uniform over the legal set" is cheap as a result.
 
+One state read is opted into per scenario, and it is named rather than flagged: a `MoveGoal`
+(`delegate Point2? MoveGoal(Guid modelId, PolicyView view)`), passed to `AnswerPolicy`'s
+constructor from `Scenario.Goal` (`ScenarioBuilder.Seeking`). `ObjectiveGoal.Nearest` is the one
+goal: the nearest objective marker (`PolicyView.ObjectiveMarkers`) that the model's team
+(`TeamOf`) does not hold in `Projection.Control`. The goal reads the state; `AnswerPolicy` still
+samples and checks destinations from the legal set alone, and the goal only ranks the ones that
+passed (see `MoveRegion` below), so neither prohibition is touched. Only `objectives` opts in: with
+uniform moves, 8 of its first 20 seeds never seized a marker, so a broken seize would pass as a
+0–0 tie.
+
 ### `PolicyView` and the seven legal-set shapes
 
 `PolicyView(Projection, Board, IReadOnlyList<WorldVolume>? volumes = null, GameInfo? info = null,
@@ -294,7 +305,7 @@ hole rather than a runtime one.
 | `Options` | `Chosen(optionId)` | `Chooser.Pick` over `Choices`; empty set passes if it may, else `NoLegalAnswerException` |
 | `PieceSelection` | `SelectedPieces` | a size uniform in `[Min, min(Max, Eligible.Count)]`, then `Chooser.Subset` |
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
-| `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets`, then one pick per item |
+| `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets` in which every item has one of its own targets (`TargetsOf`), else one covering the most items, then one pick per covered item within it; an uncovered item holds fire |
 | `MoveRegion` | `Destinations` | see below |
 | `TokenSpend` | `TokensSpent` | one `Chooser.Next(max + 1)` per entry of `MaxByModel`, in the server's order |
 | `Confirmation` | `Confirmed` | always |
@@ -319,10 +330,14 @@ opponent that plays well.
 `MoveRegion` is the one shape that reads the view, because it is the one shape whose answer is
 not expressible from the set alone. `MoveRegion` names model ids, an allowance and volume ids
 and says nothing about where those models stand. `PlacedOf`, `BodyOf`, `VolumesById` and
-`SurfaceAt` are how a destination gets computed at all. Per model the policy samples a uniform
+`RestOf` are how a destination gets computed at all. Per model the policy samples a uniform
 bearing and a uniform distance inside the allowance, up to `PolicyOptions.MoveSamples` (24)
-times, and accepts the first destination `Movement.Check` likes. Every parameter of that check
-comes from the legal set itself. Standing still is the fallback and is always legal, because it
+times, and accepts the first destination `Movement.Check` likes. With a `MoveGoal` that names a
+point for the model, it draws all the samples and takes the passing one nearest that point; with
+none, or a null point, the draws and the answer are the uniform ones. Every parameter of that check
+comes from the legal set itself. `AnswerPolicy.Clear` then mirrors `GfMoves.Contact`: the landing is on no other
+base, does not cross a model (`Collision.Crosses`) unless the region `PassesModels`, and keeps the region's `Separation`;
+a repair pass after the sample cap redraws any landing no longer Clear, so a sampled move does not breach under `strict`. Standing still is the fallback and is always legal, because it
 is where the model already is. The retry budget is per model rather than per Ask, so a unit of
 five gets five independent budgets and one model that cannot find a destination does not freeze
 the others.
@@ -444,9 +459,13 @@ JWT, which keeps the socket driver on the production verification path. It lives
 API because management holds the Stytch project secret; the game server holds no credential and
 could mint nothing real. It is gated on `IHostEnvironment.IsDevelopment()`.
 
-`SocketCredentials.MintAsync(scenario, http, ct)` is the whole consumer side. `NameFor(scenario,
-index)` is `sim-{scenario name}-{index}`, stable across runs and distinct within a scenario, so a
-re-run mints for the accounts it used last time. The response carries `account.id` beside the
+`SocketCredentials.MintAsync(scenario, http, ct)` is the whole consumer side. The accounts are a
+fixed pool: `NameFor(index)` is `sim-player-{index}`, the same for every scenario and every run,
+and `PoolSize` (4) is the most participants any scenario has, the recorder included. A session JWT
+names an account and `FindParticipantAsync` keys on game and account, so one account plays any
+number of games at once; the CLI suite and the runner service share the pool. The mint makes an
+account on its first use; two first uses at once race on the Stytch create, and `MintOneAsync`
+asks again once on the loser's 409. The response carries `account.id` beside the
 token, so `AccountOf` is a lookup rather than a base64 decode of a claim. `SocketRowSeeder` keeps
 its `insert ... on conflict (id) do nothing` for `management.account`, which is a no-op for a
 minted account and remains the path for a test-minted one, so the seeder creates its own accounts
@@ -455,7 +474,8 @@ development environment, and `MintAsync` says so rather than letting a bad token
 handshake.
 
 The cost is network access. A console socket run reaches Stytch's test project once per
-participant. The in-process driver reaches nothing, and neither does `DriverAgreementTests`.
+participant, and the test project holds the pool's four users and `sim-spectator`, however many
+games the suite has. The in-process driver reaches nothing, and neither does `DriverAgreementTests`.
 
 ### The run loop and its outcomes
 
@@ -506,14 +526,12 @@ ordinary `MoveModels` command, not an Ask: the scheduler spec's *The turn is an 
 models by hand never ends one. So after a `deploy` answer the loop puts that unit's models on
 the table itself, inside the team's own zone, resolving the shape with `ZoneStyles.Resolve`.
 That is geometry from a library, not a rules outcome the engine should have computed. Nothing
-checks whether the placement is good. `architecture.md` → Rules enforcement makes placement free
-under every enforcement setting, with base overlap, terrain intersection and broken coherency
-flagged rather than prevented.
+checks whether the placement is good, except that an anchor is chosen where no base touches a model already on the table:
+a hand placement is judged for overlap (`IGameRules.PlacementBreach`, `move_overlap`; `architecture.md` → Rules
+enforcement), and coherency is not judged.
 
-`HandPlacement.IntoZone` writes `Z = 0` and lets the server settle it. The interpreter's move
-step calls `Settling.SurfaceHeightAt`, and hand moves are copied as sent including the client's
-`Z`, so a model deployed onto a hill sits at `0` until it next moves. That is a cosmetic wrong
-the simulator does not exist to fix.
+`HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` ignores the client's
+`Z`), so a model deployed onto a hill stands on it.
 
 ### The projection recording
 
@@ -662,7 +680,7 @@ outcome the engine produced.
 | Invariant | How it is computed |
 | --- | --- |
 | `ReplayReproducesTheProjection` | `Replay.To(board, info, log, log[^1].Seq)` against the driver's projection through `ProjectionComparer`. In process the session's own projection is compared too, so a cold replay, the incremental projection and the server's all agree. |
-| `UndoAndRedoReproduceTheDice` | For every seq at which a `StepCompleted` carries rolls, append `Undone(seq)`, take `EventApplier.EffectiveLog`, and require the surviving dice to be a prefix of the original. |
+| `UndoKeepsTheEarlierDice` | For every seq at which a `StepCompleted` carries rolls, append `Undone(seq)`, take `EventApplier.EffectiveLog`, and require the surviving dice to be a prefix of the original. |
 | `EveryAskAnsweredByAnAddressedTeam` | For each `AskAnswered`, the `AskOpened` with that id must exist and must list the answering team in `Ask.Teams`. |
 | `NoModelInTwoPlacesOrOffTheSlab` | Walk the effective log: each `ModelRelocation.From` must equal the model's location before the event, and every `OnTable` position must satisfy `0 <= x <= width` and `0 <= y <= length`. |
 | `TheRoundAdvancedOnlyThroughTheBoundaryAsk` | For every `RoundStarted` with `Round >= 2`, the nearest preceding `AskClosed` must have closed an Ask whose question is `AskQuestions.EndRound`, or `GameEvent.Actor` must be non-null. |
@@ -672,9 +690,8 @@ outcome the engine produced.
 Invariant 2 needs no second run. The dice are counter-based on `(RngSeed, cursor)` and `RngSeed`
 is the stored seed, so die *k* is a pure function of that seed and *k*, and `Undone(N)` shortens
 the effective log rather than rewriting it. Doing it at every dice-bearing sequence covers "an
-arbitrary sequence" exhaustively rather than by sampling. A redo that re-rolls is then
-guaranteed by the same arithmetic, and is checked once for real over the socket in
-`DriverAgreementTests`.
+arbitrary sequence" exhaustively rather than by sampling. A redo draws fresh dice, because the cursor counts the undone roll's dice, and is checked once for real over the
+socket in `DriverAgreementTests`.
 
 Invariant 5's escape hatch is the menu's `set_round`, an override that `architecture.md` → Rules
 enforcement requires to be visible to opponents and recorded in the log, never silent. Rounds 0
@@ -723,6 +740,12 @@ dotnet run --project sim -- <scenario> [options]
 ```
 
 Exit code `0` when every run passed, `1` otherwise, `2` on a usage error.
+
+```
+dotnet run --project sim -- suite [--only A,B] [--driver in-process|socket] [--keep] [--out DIR] [--list]
+dotnet run --project sim -- serve [--port 5180] [--bind 127.0.0.1] [--out DIR]
+```
+
 `--driver socket` reads `TABLETOP_DB_CONNECTION` (the variable the servers read),
 `TABLETOP_SIM_WS` (default `ws://127.0.0.1:5200/ws`) and `TABLETOP_SIM_MANAGEMENT` (default
 `http://127.0.0.1:5100`), each from the environment or the nearest `.env`, as the servers load theirs. `TABLETOP_MANAGEMENT_URL` in `.env` is management's bind address, so the client side has its own name. A scenario that declares its own spells cannot run on the socket driver, because
@@ -736,6 +759,36 @@ game rather than colliding on the primary key, because the game id is random and
 repeats. A seed range therefore leaves one row per run. That is the price of the seed being
 stored rather than derived, and the two runs are separate games that rolled the same dice.
 
+### The rules suite
+
+The suite is the sim's regression net for the rules: about 130 themed games, each a `TestGame`, that bring every catalog
+rule and spell into play and check what the rule text states. The `suite` verb plays a selection on one driver, judges
+each game, computes coverage and prints a report; `serve` hosts the same runner over HTTP for the viewer's Tests page.
+
+- **Groups.** `core` (pp.4–12: actions, terrain, shooting, melee, morale, transports, objectives, deployment, the round-4
+  end), `special` (the 33 core special rules, three to five a game), `army:<book uid>` (the army rules, by the book
+  that prints them) and `spells:<book uid>` (every spell, generated per book by `SpellGames`, cast by name).
+- **Judging.** Every game is judged by `ended`, `invariants` and `fired` (each covered entry fired), then by its own
+  checks. Fired reads `StepCompleted.Applied` and `RollModifier.Source` in the effective log; a rule that acts in the
+  scheduler or in action legality gives its game an `Evidence` predicate. An exact check names the entries it is about
+  and quotes its rule; its expected value is a literal from the text. A check reports one failure line per reason. The army
+  attack checks choose their occasions from the log and the army definitions (the holder's attacks, the attacks on it, the
+  attacks with its weapon), never from `Applied`.
+- **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes, so a game that fixes
+  dice runs with the step gate on. A fix that never meets its roll fails the game.
+- **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
+  (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are
+  scenario fields (`ScenarioArmy.SetAside`, `ScenarioArmy.Models`).
+- **Known defects.** A game an engine defect blocks keeps its failing check and is pinned (`TestGame.Known`): a check and
+  the reason text the defect produces, matched against each failure line. The report files matching failures under the defect id, counts the game apart from
+  unexpected failures, and lists every pin that no longer fails.
+- **Coverage.** Every entry of the shipped property set, with the games covering it, whether it fired in each, and its
+  exact checks. A full run fails on an uncovered entry; any run fails on a covered entry that never fired.
+- **Socket hygiene.** A socket run takes an advisory lock, sweeps games an interrupted run left, and deletes each game's
+  rows (its log and the game; team, participant and the table_state tree cascade) after judging it. It never deletes an
+  account: the pool and `sim-spectator` are shared by every run and by concurrent games. `--keep` keeps the game, writes
+  the recording, and adds `sim-spectator` as a participant so a live feed can open the game.
+
 ## Key decisions
 
 **(plan)** marks a decision stated in the plan and in no spec.
@@ -746,6 +799,7 @@ stored rather than derived, and the two runs are separate games that rolled the 
 | The simulator may read anything the engine exposes; two prohibitions carry the argument | invariants, expectations and the recording all read state, so a ban on reading it would contradict itself | banning every read of game state | spec → Two ways to answer an Ask |
 | The default policy is uniform over the legal set and ignorant of state | a cleverer policy explores a narrower region and finds fewer bugs | weighting toward plausible play | spec → Two ways to answer an Ask |
 | A state-reading policy is a second `IAnswerSource`, not a `PolicyOptions` flag | a type name is named; a boolean is one careless call away from becoming the soak default | `PolicyOptions(readState: true)` | **(plan)** Task 2 |
+| A move goal is a named `MoveGoal` a scenario opts into, ranking only destinations the uniform sampler found legal | the `objectives` scenario must seize on every seed to catch a broken seize; the goal never adds or removes a destination | a separate `IAnswerSource` duplicating the move sampler | sim-goal brief |
 | The policy prefers to act: `PassProbability` defaults to `0` | a pass is taken only when the legal set admits nothing else | preferring to pass, or tuning toward plausible play | spec → Deliberately not decided |
 | The RNG seed is a stored column, `game.rng_seed bigint not null`, reaching the engine as `GameInfo.RngSeed` | a run sets the seed explicitly and takes ordinary v7 ids | hashing the game id to derive the seed, which would force `sim/` to derive its ids from its run seed | spec → The seed is stored, so a run sets it; `schema.md` → A game stores its dice seed |
 | `GameInfo.RngSeed` is positional and last among the scalars | a construction that forgets the seed fails to compile rather than getting `0` | a defaulted or named parameter | [contracts](../contracts/design.md) → Key decisions |
@@ -794,26 +848,30 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 
 | Type | Members |
 | --- | --- |
-| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)` |
-| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats)` | |
+| `sealed record Scenario(string Name, ulong Seed, SchedulerShape Shape, Enforcement Enforcement, int RoundCap, TableSize Table, IRL<ScenarioArmy> Armies, IRL<ScenarioTerrain> Terrain, IRL<ScenarioMarker> Markers, IRL<string> ZoneShapes, IRL<EntryDocument> Spells, AnswerScript Script, bool ScriptOnly, IRL<Expectation> Expectations)` | `Scenario WithSeed(ulong)`, `MoveGoal? Goal { init; }`, `AnswerPolicy? Policy()` (null when script-only) |
+| `sealed record ScenarioArmy(string Name, int Units, int ModelsPerUnit, IRL<ScenarioRule> UnitRules, IRL<ScenarioRule> ModelRules, IRL<ScenarioWeapon> Weapons, IRD<string,string> UnitStats, string? ArmyBook = null)` | `IRL<int> SetAside { init; }` (unit ordinals set aside before deployment), `IRL<ScenarioModel> Models { init; }` |
+| `sealed record ScenarioModel(int Unit, int Model, IRL<ScenarioRule>? Rules, IRD<string,string>? Stats, IRL<ScenarioWeapon>? Weapons)` | one model's own rules, stats and weapons (1-based ordinals) |
 | `sealed record ScenarioRule(int Unit, string Name, int? Parameter)`; `ScenarioWeapon(string Name, IRD<string,string> Stats, IRL<ScenarioRule> Rules)` | |
 | `sealed record ScenarioTerrain(string Mesh, Point3 Position, double Yaw, double Scale, IRL<Volume> Volumes)`; `ScenarioMarker(MarkerKind Kind, Point3 Position, double Diameter, string? Label)` | |
-| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Expect`, `Build` |
+| `sealed class ScenarioBuilder(string name, ulong seed)` | `Shape`, `Enforcing`, `RoundCap`, `Table`, `Zones`, `Army`, `Terrain`, `Marker`, `Spells`, `Scripted`, `Seeking`, `Expect`, `Build` |
 | `sealed record CompiledScenario(Scenario, GameInfo Info, Board Board, PropertySet Properties, IRL<Guid> TeamIds, IRL<Guid> ParticipantIds, IRD<Guid,Guid> TeamOfParticipant, TableState Snapshot, Guid RecorderParticipantId)` | `Guid ParticipantFor(Guid teamId)` |
 | `static class ScenarioCompiler` | `CompiledScenario Compile(Scenario)`, `PropertySet CoreProperties`, `PropertySet PropertiesFor(IRL<EntryDocument>)` |
 | `static class ScenarioCatalog` | `IRL<string> Names`, `Scenario Get(string)`, `bool TryGet(string, out Scenario)` |
-| `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)` |
+| `abstract record Expectation` | `EventOfKind(string, int AtLeast = 1)`, `NoEventOfKind(string)`, `ReachedRound(int)`, `TeamWiped(int)`, `ModelsRemaining(int, int)`, `AskAsked(string, int AtLeast = 1)`, `Outcome(string)`, `Warnings(string, int)`, `Won(int)`, `MostMarkersWin` |
 | `static class Expectations` | `IRL<string> Check(IRL<Expectation>, Projection, IRL<GameEvent>, RunOutcome, CompiledScenario)`, `int ModelsOnTable(Projection, CompiledScenario, int teamOrdinal)`, `int ModelsOnTable(Projection, CompiledScenario, Guid teamId)` |
 
 ### Produced: `Tabletop.Sim.Answers`
 
 | Type | Members |
 | --- | --- |
-| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double SurfaceAt(Point2)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
+| `sealed class PolicyView(Projection, Board, IRL<WorldVolume>? volumes = null, GameInfo? info = null, PropertySet? properties = null)` | `Projection`, `Board`, `GameInfo? Info`, `PropertySet? Properties`, `TableSize Table`, `IRL<WorldVolume> Volumes`, `IRL<WorldVolume> VolumesById(IRL<Guid>)`, `Location LocationOf(Guid)`, `PlacedModel? PlacedOf(Guid)`, `ModelBody BodyOf(Guid)`, `double RestOf(Guid modelId, Point2 at, Yaw? yaw = null)`, `IRL<Marker> ObjectiveMarkers`, `static IRL<Marker> ObjectiveMarkersOf(Projection)`, `UnitInPlay UnitOf(Guid)`, `ModelInPlay ModelOf(Guid)`, `Guid? TeamOf(Guid)` |
 | `sealed record PolicyOptions(double PassProbability = 0, double EmbarkProbability = 0.25, int MoveSamples = 24)` | |
-| `sealed class AnswerPolicy(Chooser, PolicyOptions? = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
-| `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IRD<ScriptKey,AskAnswer> Answers)` | `static Empty`, `static ScriptBuilder Build()`, `bool TryGet(string, int, out AskAnswer)`, `int Count` |
-| `sealed class ScriptBuilder` | `At(string, int, AskAnswer)`, `Then(string, AskAnswer)`, `Build()` |
+| `sealed class AnswerPolicy(Chooser, PolicyOptions? = null, MoveGoal? goal = null)` | `AskAnswer Answer(Ask, PolicyView)`, `static IRL<string> ShapeNames`; `sealed class NoLegalAnswerException` |
+| `delegate Point2? MoveGoal(Guid modelId, PolicyView view)`; `static class ObjectiveGoal` | `static Point2? Nearest(Guid, PolicyView)` |
+| `sealed record ScriptKey(string Question, int Ordinal)`; `sealed record AnswerScript(IRD<ScriptKey,AskAnswer> Answers)` | `static Empty`, `static ScriptBuilder Build()`, `bool TryGet(string, int, out AskAnswer)`, `int Count`, `IRL<ScriptMatch> Matches { init; }`, `AskAnswer? Match(Ask, Projection)` |
+| `sealed record ScriptMatch(string Question, Func<Ask, Projection, AskAnswer?> Pick)` | consulted in order for an Ask no keyed answer covers; null falls through |
+| `sealed class ScriptBuilder` | `At(string, int, AskAnswer)`, `Then(string, AskAnswer)`, `Match(string, Func<Ask, Projection, AskAnswer?>)`, `Build()` |
+| `static class AskPicks` | `Option`, `Labeled(Ask, string)`, `Activate(Ask, string unit, string action)`, `Spell(Ask, Projection, string, string? casterUnit)`, `Pieces(Ask, Projection, params string[] units)`, `UnitNameOf(Projection, Guid)`: picks by label and name, never by id |
 | `interface IAnswerSource` | `AskAnswer Answer(Ask, PolicyView)`, `IRL<AnsweredAsk> History` |
 | `sealed record AnsweredAsk(string Question, int Ordinal, Guid AskId, AskAnswer Answer, bool FromScript)` | |
 | `sealed class ComposedAnswers(AnswerScript, AnswerPolicy?) : IAnswerSource`; `sealed class UnscriptedAskException` | a null policy is a script-only run |
@@ -830,8 +888,8 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed class RecorderClient(Guid participantId) : ISessionClient` | `IRL<SocketMessage> Frames`, `IRL<SocketMessage> TakeFrames()`, `bool Closed`, `WebSocketCloseStatus? CloseStatus`, `string? CloseReason` |
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
-| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static NameFor(CompiledScenario, int)`, `string For(int)`, `Guid AccountOf(int)` |
-| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)`, `Task DeleteAccountsAsync(SocketCredentials, CancellationToken)` |
+| `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `const PoolSize = 4`, `static Pool`, `static NameFor(int)`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static MintOneAsync(HttpClient, string, CancellationToken)`, `string For(int)`, `Guid AccountOf(int)` |
+| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
 | `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
 ### Produced: `Tabletop.Sim.Run`
@@ -852,7 +910,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | --- | --- |
 | `static class ProjectionComparer` | `IRL<string> Differences(Projection expected, Projection actual)` |
 | `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `sealed class InvariantViolatedException` | `IRL<InvariantResult> Failures` |
-| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoAndRedoReproduceTheDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
+| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoKeepsTheEarlierDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
 | `static class MidRun` | `void Assert(Projection, IRL<GameEvent>, CompiledScenario)` |
 
 ### Produced: `Tabletop.Sim.Recording`
@@ -879,13 +937,37 @@ The viewer's whole input.
 | `static class LogLines` | `string Of(GameEvent, Projection after, IRD<Guid,int> teamOrdinals)` |
 | `sealed class FrameProjector(CompiledScenario)` | `RecordedBoard Board`, `RecordedFrame Add(GameEvent)`, `IRL<RecordedFrame> Frames`, `Projection Projection`, `Recording Build(RecordingMeta)` |
 
+### Produced: `Tabletop.Sim.Suite`
+
+| Type | Members |
+| --- | --- |
+| `sealed record TestGame(string Name, string Group, Scenario Scenario, IRL<string> Covers, IRL<DiceFix> Dice, IRL<GameCheck> Checks, IRD<string, Func<IRL<GameEvent>, bool>>? Evidence = null)` | `bool FiredIn(IRL<GameEvent>, string)`, `IRL<KnownDefect> Known { init; }`, `TestGame Pinned(string id, string check, string reason, DriverKind? driver = null)`, `IRL<KnownDefect> KnownOn(DriverKind)` |
+| `sealed record DiceFix(string Roll, int Ordinal, IRL<int> Faces)` | the Ordinal-th roll of that kind gets these faces by `SetDice` |
+| `sealed record GameCheck(string Name, Func<SuiteGameRun, string?> Failure, IRL<string>? Entries = null)` | null is a pass; Entries make it an exact check; `static Each(string, Func<SuiteGameRun, IEnumerable<string>>, IRL<string>?)` reports one line per reason; `IRL<string> FailuresOf(SuiteGameRun)` |
+| `sealed record KnownDefect(string Id, string Check, string Reason, DriverKind? Driver = null)` | a pin: a failure that starts with Check and contains Reason is that defect's (`bool Matches(string)`) |
+| `sealed record SuiteGameRun(TestGame Game, RunOutcome Outcome, IRL<GameEvent> EffectiveLog, Projection Final, IRL<string> InvariantFailures)` | `IRD<string, IRL<ExactResult>> Exact { init; }` |
+| `static class Checks` | `Ended()`, `Invariants()`, `FiredAll()`, `Event(string, Func<IRL<GameEvent>, string?>, params string[])` |
+| `static class Fired` | `bool In(IRL<GameEvent> effectiveLog, string entry)`: `Applied` or a `RollModifier.Source` |
+| `static class Coverage`; `sealed record CoverageEntry(string Name, string Kind, IRL<string> Games, bool Fired, IRL<ExactResult> Exact)`; `ExactResult(string Game, string Check, bool Passed)` | `Of(PropertySet, IEnumerable<SuiteGameRun>, bool fullRun)`, `Complete(IRL<CoverageEntry>)`; `bool Uncovered` |
+| `sealed class LogQueries` | `static Of(SuiteGameRun)`; `Frames`, `FramesOf`, `Children`, `Descendants`, `Steps`, `StepsOf`, `Listing`, `Rolls`, `Asks`, `AsksOf`, `ModelsRemoved`, `Moves`, deployments and activations; `LoggedFrame`, `LoggedStep`, `LoggedRoll` (dice as they stand), `LoggedAsk` |
+| `static partial class SuiteCatalog` | `IRL<TestGame> All`, `Select(IRL<TestGame>, IRL<string> only)`, `CoreGroup`, `SpecialGroup`, `ArmyPrefix`, `SpellsPrefix` |
+| `sealed class SuiteRunner(IRL<TestGame>? games, SuiteSocket? socket, PropertySet? properties)` | `Task<SuiteReport> RunAsync(SuiteOptions, IProgress<SuiteGameResult>?, CancellationToken)`, `SpectatorSessionAsync`, `static ReplayOf(TestGame, DriverKind)` |
+| `sealed record SuiteOptions(IRL<string> Only, DriverKind Driver, bool Keep, string OutDir)`; `enum DriverKind { InProcess, Socket }` | |
+| `sealed record SuiteGameResult(string Name, string Group, bool Passed, IRL<string> Failures, ulong Seed, string Replay, string? RecordingPath, Guid? GameId, string? Spectator, IRL<string>? Known, IRL<string>? Pinned, IRL<string>? Stale)` | Known: the defect ids when every failure is pinned; Stale: the pins no failure matched |
+| `sealed record SuiteReport(Guid RunId, IRL<SuiteGameResult> Games, IRL<CoverageEntry> Coverage, bool Passed)` | `string Table()`, `string ToJson()`, `int ExitCode` |
+
+### Produced: `Tabletop.Sim.Serve`
+
+`ServeApp` maps `GET /suite`, `POST /runs`, `GET /runs/{id}/events`, `GET /runs/{id}/recordings/{game}` and
+`POST /runs/{id}/games/{game}/spectate`; `ServeArguments(int Port, string Bind, string Out)`.
+
 ### Consumed
 
 | From | Names |
 | --- | --- |
 | `Tabletop.Protocol` | `GameInfo` (with `RngSeed`), `Board`, `Team`, `Participant`, `GameStatus`, `SchedulerShape`, `Enforcement`, `Projection`, `ModelInPlay`, `UnitInPlay`, `SchedulerPosition`, `Frame`, `OpenAsk`, `Ask`, `AskQuestions`, `LegalSet` and its seven members, `AskAnswer` and its eight members, `Location`/`OnTable`/`OnShelf`/`Inside`, `ModelRelocation`, `Command`, `MoveModels`, `AnswerAsk`, `Undo`, `GameEvent`, `EventPayload` and every member, `EventKinds`, `RollRecord`, `Die`, `Grant`, `EventApplier`, `RefusalReason`, `SocketMessage` and every kind, `WireJson`, `ProtocolVersion` |
 | `Tabletop.Content` | `Army`, `ArmySnapshot`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, `TableState`, `TerrainPlacement`, `TerrainVolume`, `Marker`, `MarkerKind`, `DeploymentZone`, `VisualRef`, `ContentJson` |
-| `Tabletop.Geometry` | `Base`, `TableSize`, `Point2`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `TerrainDeclarations`, `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Polygon`, `Movement.Check`, `MoveCheck`, `Settling.SurfaceHeightAt`, `ZoneStyles.ShapesOf`/`Resolve`/`Contains`/`Frontline`/`FreeForAll`, `Distance` |
+| `Tabletop.Geometry` | `Base`, `TableSize`, `Point2`, `Point3`, `Yaw`, `Volume`, `VolumeKind`, `Footprint`, `TerrainDeclarations`, `PlacedModel`, `ModelBody`, `WorldVolume`, `Placement`, `Polygon`, `Movement.Check`, `MoveCheck`, `Collision.RestHeight`, `Collision.Crosses`, `ZoneStyles.ShapesOf`/`Resolve`/`Contains`/`Frontline`/`FreeForAll`, `Distance` |
 | `server/game/` | `GameSession`, `SessionServices`, `Hydrator`, `Replay`, `IEventLog`, `InMemoryEventLog`, `IGameRows`, `PostgresGameRows`, `OwnedArmy`, `ISessionClient`, `GameServerOptions`, `RulesEngineFactory`, `IPropertiesStore`, `InMemoryPropertiesStore`, `PropertiesSeeder`, `PropertiesJson`, `PropertySet`, `IDiceSource`, `DiceSource`, `SchedulerFactory`, `GrimdarkFutureRules.RulesId` |
 | Test project only | `PostgresFixture`, `GameServerFactory`, `TestKeys` from `tests/Tabletop.GameServer.Tests` |
 
@@ -897,7 +979,7 @@ The viewer's whole input.
 | Interpreter | `PropertiesSeeder.EmbeddedDocuments()` and `PropertiesJson.ToSet(PropertySetDocument, Func<Guid>)` public. `InMemoryPropertiesStore.Add(PropertySet)` returning `this`. `DiceSource()` parameterless. `RulesEngineFactory(IPropertiesStore, IDiceSource, ISchedulerFactory)` public. |
 | Scheduler | `SchedulerFactory()` parameterless and public, since `InProcessDriver` registers it directly rather than through DI. |
 | Game server skeleton | `GameSession.ConnectAsync`, `ReceiveAsync`, `RunAsync<T>`, `DrainAsync` and `Play` public. `Hydrator.HydrateAsync`. `Replay.To(Board, GameInfo, IRL<GameEvent>, long)`. `InMemoryEventLog()`. `GameServerOptions` constructible with only `DbConnection`, `StytchProjectId` and `StytchJwksUrl` set. `PostgresGameRows(NpgsqlDataSource)`. `PostgresFixture.CountAsync(string sql, params object[])`. `AtRest` at the end of `ConnectAsync` and at the end of `HandleCommandAsync` whatever the outcome, `Seq` the log's high-water mark, broadcast when the batch appended and to the provoking client alone when it did not, and a `Refused` before that command's `AtRest`. |
-| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Settling.SurfaceHeightAt`. |
+| Geometry | `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume>, IRL<WorldVolume>, double?, TableSize?)` returning a `MoveCheck` with `WithinAllowance`, `CrossesImpassable` and `LeavesTable`. `ZoneStyles.Resolve(string, TableSize)` returning `IRL<Polygon>` in the corner frame, and throwing `ArgumentException` for an unknown or malformed id. `Collision.RestHeight`, `Collision.Crosses`. |
 | Management API | `POST /v1/dev/sessions`, body `{"name"}`, response `{"sessionJwt", "account": {"id", "name"}}`, mapped only under `IHostEnvironment.IsDevelopment()`. `SocketCredentials.MintAsync` calls it once per participant. Management API plan → Task 5. |
 | Viewer | consumes `Tabletop.Sim.Recording` verbatim as its input format and `RecordingJson.SchemaVersion` as the number to check. It generates its TypeScript types from these C# records. |
 
@@ -1152,7 +1234,7 @@ event. In `sim/` that surfaces as an exception out of `DrainEventsAsync` rather 
 `Failed` outcome, so it is a crash rather than a report. That is the game server's hazard, not
 this module's, and `sim/` is one of the better ways to find it.
 
-**Invariant 2 is quadratic.** `UndoAndRedoReproduceTheDice` runs `EventApplier.EffectiveLog`
+**Invariant 2 is quadratic.** `UndoKeepsTheEarlierDice` runs `EventApplier.EffectiveLog`
 once per dice-bearing sequence, and each call walks the whole log. A game with 300 dice-bearing
 sequences and a 1 500-event log does 450 000 event visits per run. That is affordable for one
 run and is the dominant cost of a 500-seed soak. `RunSettings.CheckInvariants` turns it off.
@@ -1188,6 +1270,7 @@ Twelve xUnit classes in `tests/Tabletop.Sim.Tests`. All but one need nothing run
 | `ScenarioTests` | the builder's teams and participants, the same seed with different ids, the properties hash and rules id, every catalog scenario compiling, `strict` by default | nothing |
 | `AnswerPolicyTests` | one test per legal-set shape, the empty set, the pass probability, the same seed answering identically, `ShapeNames` matching the switch | nothing |
 | `MoveRegionPolicyTests` | 25 seeds each: a destination within the allowance and on the table, an impassable volume not crossed, embarking putting every model inside | nothing |
+| `ObjectiveGoalTests` | the goal is the nearest objective marker the team does not hold (tokens and held markers skipped, an enemy's marker kept), none when every marker is held, a goal-directed move within the allowance and closer, the same seed answering identically, no goal leaving the uniform answer unchanged | nothing |
 | `AnswerScriptTests` | the ordinal counting per question, a duplicate key throwing, the script winning, a script-only run failing on the first unscripted Ask | nothing |
 | `InProcessDriverTests` | hydrating to a playing game with the first Ask open, every model on the shelf before deployment, an accepted answer, an out-of-set answer refused under `strict`, the driver's and the server's projections agreeing, draining twice | nothing |
 | `RecordingTests` | the board block, a frame's models, the score and passed, a marker placed during play, an Ask on every frame until it closes, the dice raw and modified, a JSON round trip, camelCase and omitted nulls | nothing |
@@ -1210,7 +1293,7 @@ many draws. Nothing tests a socket run against a server that never rests, so `Re
 the `Failed` outcome it produces have no coverage. Nothing tests a recording against `viewer/`,
 which is that plan's to do.
 And no test proves the two prohibitions: that `sim/` never narrows a legal set and never computes
-a rules outcome is enforced by `AnswerPolicy` reading only `PolicyView`'s geometry members, and a
+a rules outcome is enforced by `AnswerPolicy` reading only `PolicyView`'s geometry members (a `MoveGoal` only ranks what it already found legal), and a
 future `IAnswerSource` could violate both without a test noticing.
 
 ## Rulings and deferred work
@@ -1310,8 +1393,8 @@ documentation edits.
   what the socket driver exercises.
 - `docs/architecture.md` → Contracts to freeze: nobody instantiates a game session, which is why
   the in-process driver goes through `Hydrator`.
-- `docs/architecture.md` → Rules enforcement: free placement, with base overlap, terrain
-  intersection and broken coherency flagged rather than prevented.
+- `docs/architecture.md` → Rules enforcement: the client prevents base overlap, an Impassable
+  Solid and a path through a model, the server judges them, and coherency is not judged.
 - `docs/architecture.md` → Undo: replay to sequence N from the initial state, and the RNG as part
   of game state, which is invariant 2.
 - `docs/schema.md` → `GAME`, `TEAM`, `PARTICIPANT`, `GAME_EVENT`.

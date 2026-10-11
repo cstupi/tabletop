@@ -334,7 +334,7 @@ already past round 4 ends at its next boundary. A `warn` game warns from its nex
 | Round 5 or later about to start | `GrimdarkFutureRules.JudgeAdvance` | `mission_length` | ends the game |
 
 Named as candidates only, with nothing built for them: placement flags (`architecture.md` → *Rules
-enforcement*: base overlap, terrain intersection and broken coherency "flagged rather than prevented";
+enforcement*: broken coherency, "flagged rather than prevented" (base overlap and a path through a model are judged as `move_overlap` and `move_through_models`);
 hand moves are on the override path, so a flag needs a consequence this design does not define), and a
 step that finds the rules broken mid-sequence (its proposal already passes `JudgeAdvance`; ending the
 game mid-sequence needs the closing `EndGamePayloads` refuses today).

@@ -122,7 +122,7 @@ What the merge brings, and what Task 14 absorbs:
 | `DieEffects` | `(int ExtraHits, int ExtraWounds, IRL<(string Entry, int? Parameter)> Grants)`; `ExtraWounds` are wounds the rolling side's unit takes | 8 |
 | `GfAttack.SelfWoundsStep` | step `self-wounds`, last in `attack-sequence` and `spell-hits` | 8 |
 | `GfMorale` | `static AttackKind? CauseOf(GameState, Guid unit)` | 9 |
-| `GfCasting` | `static Sequence SpellTest()`; `GfMoves.Idle()`, `GfMoves.ApplyForcedMove(StepContext, Guid, double, IRL<ModelRelocation>)` | 10 |
+| `GfCasting` | `static Sequence SpellTest()`; `GfMoves.Idle()`, `GfMoves.ForcedMoveRegion(StepContext, Guid, double)`, `GfMoves.ApplyForcedMove(StepContext, Guid, double, IRL<ModelRelocation>) → (IRL<StateChange>, IReadOnlyDictionary<string, int>)`, both reading the target's own terrain rules (`GfMoves.TerrainFor`) | 10 |
 | `ScenarioArmy` (sim) | trailing `string? ArmyBook = null`; `Scenario.Spells`, `ScenarioBuilder.Spells`, `ScenarioCompiler.PropertiesFor` removed | 14 |
 | `Invariants` (sim) | `SpellsComeFromTheCastersBook(IRL<GameEvent>, CompiledScenario)`, the seventh | 14 |
 | `GfNames` | `IdleSeq = "idle"`, `SpellTestSeq = "spell-test"`, `CounterAttack = "Counter-Attack"`, `Unwieldy = "Unwieldy"`, `ChargeRangeKey = "charge_range"` | 9, 10, 11 |

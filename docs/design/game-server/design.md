@@ -28,9 +28,10 @@ management's rows plus the event log.
 
 - **Any rule.** No dice, no turn order, no legality beyond membership of an Ask's
   server-computed legal set, no `Properties` interpretation. `IGameRules` carries one member,
-  `Id`; the later plans add `JudgeAdvance` and `OnRoundEnded`, both default members returning none. `InertEngine` judges nothing and advances nothing.
-- **Geometry adjudication.** `MoveRegion` answers are checked for model ids only. Distance,
-  containment and settling belong to the move step in [the interpreter](../interpreter/design.md)
+  `Id`; the later plans add `JudgeAdvance`, `OnRoundEnded` and `AnswerBreach`, default members returning none. `InertEngine` judges nothing and advances nothing.
+- **Geometry adjudication.** `MoveRegion` answers are checked for model ids (each at most once) and finite placements only, plus what the
+  ruleset's `IGameRules.AnswerBreach` finds (Grimdark Future: the allowance, impassable terrain, the table edge, a disembark's
+  6", p.11's difficult-terrain cap, p.13's Aircraft minimum, p.7's contact clauses). Applying, containment and resting belong to the move step in [the interpreter](../interpreter/design.md)
   over `Tabletop.Geometry`.
 - **HTTP resources.** The game server exposes commands and events and nothing else. Creating,
   joining, leaving, ending and deleting a game are management endpoints, and layouts stay
@@ -103,7 +104,9 @@ it to each new session with `session_custom_claims`, and Stytch keeps it on the 
 refreshes (the management plan's ruling 1); this server passes no claims. There is no M2M call, no shared signing
 key and no session row. Verification happens once, at connect. The socket lives hours and the JWT
 five minutes, so re-checking it would kill live games on a five-minute clock.
-`VerifiedSession.ExpiresAt` is recorded and not enforced.
+`VerifiedSession.ExpiresAt` is recorded and not enforced. `VerifiedSession.Roles` is the top-level
+custom claim `roles`, the Stytch user's role ids, stamped by management beside `account_id` (an array,
+or a lone string; absent is no roles). `IsAdmin` is `Roles` containing `admin`.
 
 **The row seam.** One database, two schemas, no joins across the line. The game server reads
 `management.game`, `management.team`, `management.participant`, the `management.table_state`
@@ -361,23 +364,25 @@ Three properties follow:
 - the initial state exists because [setup content](../../superpowers/specs/2026-08-29-setup-content-design.md)
   made the snapshot the log's initial state, so terrain is locked structurally and nothing in the
   log can reach it
-- rewinding and redoing reproduces the same dice, because the RNG seed is game state and every
+- an undone roll's dice stay drawn, because the RNG cursor counts the whole log, so an undo leads to fresh dice; the
+  seed is game state and every
   roll's raw and modified results are recorded in the `step_completed` that made them
 - an inverse-event table, which would have to know how to undo every event kind, never exists
 
 Replaying to an arbitrary N is O(log), and this module does not memoise. `Undone` compounds: the
 log grows with every undo, and every hydrate re-applies all of it.
 
-### Three message kinds on one socket
+### Message kinds on one socket
 
-One socket carries every `SocketMessage` kind. The three inbound kinds have three different
-durability rules. `GameSession.ReceiveAsync` is the whole routing table:
+One socket carries every `SocketMessage` kind. Commands, edits and presence have three different
+durability rules, and a sight query has none: it is answered and forgotten. `GameSession.ReceiveAsync` is the whole routing table:
 
 | Frame | Handled by | Logged | Persisted | Broadcast | Valid at |
 | --- | --- | --- | --- | --- | --- |
 | `CommandMessage` | `HandleCommandAsync` → `CommandDispatcher` | **yes**, before broadcast | in the log | to everyone, filtered per viewer, then one `AtRest` | `playing`, `ended` |
 | `PresenceMessage` | `HandlePresence` → `PresenceTable.Set` | never | never | on the next 20 Hz tick, latest value only | every status |
 | `PingMessage` | relayed at once, sender stamped | never | never | immediately, except back to the sender | every status |
+| `SightQuery` | `HandleSightAsync` → `Sight.From(state, observer).Line` per model pair, `IGameRules.Shooters` | never | never | one `SightAnswer` to the asker alone, no `AtRest` | every status (empty lists before play) |
 | `EditMessage` with a `LobbyEdit` | `HandleLobbyEditAsync` | never | **management's rows** | `GameInfoMessage` | `lobby`, `setup` |
 | `EditMessage` with a `SetupEdit` | `HandleSetupEditAsync` → `DraftEditor` | never | the `table_state` tree | `BoardMessage` with the whole draft | `setup` |
 
@@ -401,10 +406,31 @@ whole contradicts free-for-all editing.
 missing`. The setup phase is therefore headless logic: fourteen edit kinds, no I/O, no clock, no
 session. It also owns two rules that are not edits. `OnSlab` is the corner frame,
 `0 <= x <= width` and `0 <= y <= length`. `OnSlab` re-implements `Tabletop.Geometry`'s
-`Table.ContainsPoint` rather than calling it, without that method's `Tolerance.Distance` margin.
+`Table.ContainsPoint` rather than calling it, without that method's `Tolerance.Distance` margin. `Add`, `Move`, `Scale` and
+`OverrideTerrainVolumes` rest the edited piece with `Collision.RestHeight`.
 `DropOffSlab` is used once, by end-setup, to implement
 Grimdark Future page 17's *"if it's impossible to place the terrain piece, simply remove it"* for
 generated pieces never dragged onto the table.
+
+### The sight query, model facts and the step outline
+
+Three additions serve the play screen. The sight query and model facts are socket messages outside the log; the
+outline rides on the logged `SequenceStarted`. A `SightQuery(QueryId, ObserverUnitId, TargetUnitId)`
+is answered from the current state with the same `Sight` the rules use: one `SightLine` per model pair, `BlockedBy`
+the obstructing volumes (a terrain volume's id or a model's), and `CanShoot` the observer's models that p.8's *Who can
+shoot* lets fire at the target (`IGameRules.Shooters`). It goes to the asker alone; nothing is appended, broadcast or
+followed by `AtRest`. `ModelFacts(MaxWounds)` is `IGameRules.MaxWounds` for every model in play (Grimdark Future:
+`Tough(X)`, else 1), sent to a client on connect once the game is playing and broadcast after a batch whenever a value
+differs from the last facts sent. `SequenceStarted.Outline` lists a sequence's labelled steps (`IStep.Label`) in order;
+a step with no label is internal, a sequence with no labelled step writes none, and a log written before outlines
+replays with none.
+
+`Shooters` needs the game's `PropertySet` outside a running step, so `IRulesEngine.Properties` exposes the one
+`RulesEngine` holds. Grimdark Future answers it per ranged weapon group with `GfAttack.EligibleModels`, over the live
+set of `GfAttack.AttackInteraction`'s frame-optional core: the same core the fire groups use inside a sequence, called
+with no frame, so the range is the units' distance and there are no faces. Every `IGameRules` wrapper that forwards by
+hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside` and `AnswerBreach`, or the wrapped
+ruleset answers 1, nobody, never and nothing broken.
 
 ### Enforcement and the override path
 
@@ -421,15 +447,21 @@ sequences and the scheduler both need. `EnforcementPolicy.Decide` is the setting
 | `OutsideLegalSet` | accept silently | accept **with a warning on the event** | `Refuse(OutsideLegalSet)` |
 | `Illegal` | accept silently | accept with a warning | `Refuse(Illegal)` |
 
-**Menu edits are accepted under every setting.** They never reach the policy.
-`CommandDispatcher.Classify` puts the fifteen menu and hand-move commands in
-`CommandClass.Override`, and `Dispatch` sends that class straight to `MenuTranslation`.
-`Legality.AlwaysAccepted` exists in the enum and is exercised by `EnforcementPolicyTests`, but
-the dispatch path never constructs it. The invariant "the override path is unconditional" is
-therefore enforced by a `switch` arm rather than by a value flowing through the policy.
+**Menu edits are accepted under every setting; a hand move is judged.** `CommandDispatcher.Classify` puts the
+fifteen menu and hand-move commands in `CommandClass.Override`, and `Override` translates each through
+`MenuTranslation`, which refuses only a missing reference. A `MoveModels` then goes through
+`HandMoves.Judge(state, command, actor)` and `Decide(Enforcement, Breach?)`. A relocation that takes a model from the
+shelf to the table, or inside a container the rules allow (`IGameRules.MayDeployInside`; Grimdark Future, p.15: a Transport on the
+table belonging to another unit of the actor's team), is legal when its unit is one the actor's team picked at the deploy-family Ask (`deploy`,
+`deploy_scouts`, `deploy_ambusher`) whose answer the scheduler is waiting on, which holds while no Ask has opened since
+that one closed: that is the placement the scheduler waits for. Anything else is the breach `hand_move`, detail
+"{unit} moved by hand outside a move step", `StrictRefuses(Illegal)`: `silent` accepts, `warn` accepts with the
+warning on the event, `strict` refuses. `HandMoves.Judge` also asks `IGameRules.PlacementBreach` (default none; `WithSequences` forwards it; Grimdark Future: `GfMoves.OverlapBreach`): a legal placement that overlaps another base is `move_overlap`, and the overlap detail is appended to a `hand_move` breach. The other override commands never reach the policy, by a `switch` arm rather
+than by a value flowing through it; `Legality.AlwaysAccepted` exists in the enum and is exercised by
+`EnforcementPolicyTests`, but the dispatch path never constructs it.
 
-A breach has a second form, raised by a system rather than a command. `Decide(Enforcement, Breach?)`
-reads it:
+A breach is the policy's second input, raised by a hand move or by the engine's own proposal. `Decide(Enforcement,
+Breach?)` reads it:
 
 | Breach | `silent` | `warn` | `strict` |
 | --- | --- | --- | --- |
@@ -456,11 +488,43 @@ functions read it:
 - `LegalSetMembership.Contains(Ask, AskAnswer)` is rules-free set membership over the seven
   closed `LegalSet` shapes. `Options` by option id, `PieceSelection` by count bounds,
   distinctness and eligibility, `Allocation` by targets and a sum equal to `Amount`,
-  `Assignment` by total coverage and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
+  `Assignment` by offered items (at least one; one left out holds fire), each item's target on its own list (`Assignment.TargetsOf`) and `MaxDistinctTargets`, `TokenSpend` by keys and per-key caps —
   every key of `TokensSpent.Counts` is a key of `MaxByModel` and every value is between zero and
   that key's own cap, with **no total**, because a spend is any number up to a maximum —
-  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**. The distance
-  against `Allowance` and the impassable volume ids is geometry, and belongs to the move step.
+  `Confirmation` and `Passed` by shape. `MoveRegion` checks **model ids only**: every id is in
+  `ModelIds` and appears once, and every table placement has finite coordinates and yaw. The distance
+  against `Allowance`, the impassable volume ids and the table edge are geometry the ruleset judges.
+  Grimdark Future reads a move answer one way, `GfAnswers.Moves`, for both its breach checks and
+  the steps that apply it, so nothing a check does not see is applied.
+  An answer inside the set is then asked of `IGameRules.AnswerBreach(state, ask, answer)`, which
+  needs the table and returns `AnswerBreachFound(Rule, Detail)`. Grimdark Future's are, in order:
+  `move_not_offered` (`GfMoves.NotOfferedBreach`: a relocation `GfAnswers.Moves` does not read, so
+  strict never accepts an answer as a silent zero move); `move_exit` (a disembark not fully within
+  `ExitWithin` of the container, on the table and clear of impassable terrain, p.15, p.7 and p.11, `GfMoves.ExitPlacement`);
+  `move_off_table`, `move_impassable` and `move_allowance` (`GfMoves.PathBreach`, each move's
+  straight path against the Ask's own parameters: p.7 *"never move outside of the battlefield (no part
+  of them, at any point)"*, p.11 *"Units may not move through impassable terrain"*, p.7 *"no part of
+  their bases move further than the total movement distance"*, and the landing against every impassable
+  volume on the table, p.11 *"may not end their move partially overhanging gaps or terrain"* with p.7
+  *"physically impossible locations"*, except the Aircraft move (p.13 *"when moving and stopping"*); a
+  model answered where it stands is not judged, one already standing off the table is not judged for the
+  edge, and one whose base already touches an impassable volume is not judged for sweeping that volume);
+  `aircraft_minimum`; and
+  `difficult_cap` (`GfMoves.DifficultCapBreach`: every model of a `MoveRegion` with a `DifficultCap`
+  is held to it once any model's straight path enters a listed difficult volume, or an earlier
+  segment of the move did; p.11: *"all models in the unit may not move more than 6" for that
+  movement"*), with `aircraft_minimum` (`GfMoves.MinimumBreach`: every model moves at least
+  `MinDistance`, p.13) before it. They cover every Ask that applies a move answer: the action moves and
+  charges, the defender's close-in and consolidation (whose Asks list the impassable volumes), a
+  disembark and a destroyed transport's survivors, rule repositions and placements, and a spell's forced
+  move. A Flying unit's action move, charge, close-in, consolidation, reposition and forced move Asks list no impassable
+  volume (p.13 Flying *"may move through units and terrain"*; p.11 *"unless they have any rules that allow
+  them to ignore it"*; read from the live set), so only its landing is judged. A spell's forced move reads the target's
+  own terrain rules (`GfMoves.TerrainFor`, owner ruling *"Spells move as however that unit moves"*). A relocation
+  to where the model already is (an occupant answered `Inside` its own container) is standing still, not
+  `move_not_offered`. p.7's contact clauses are `GfMoves.ContactBreach`, chained last in `AnswerBreach`: `move_overlap` (a landing on another model's base), `move_through_models` (`Collision.Crosses` against the models the answer does not move, unless the region `PassesModels`: the Flying and Aircraft pass-impassable rule, including the terrain reposition Ask) and `move_separation` (within the region's `Separation`: 1 except the Charge move, the close-in, consolidation and an Aircraft's move (move step, forced move, reposition); a disembark keeps it). Coherency is not judged. The dispatcher hands it to `EnforcementPolicy.Decide` as a `Breach` with
+  that rule and `StrictRefuses(Illegal)`: refused under `strict`, applied with the warning and
+  `AskAnswered.Breach` (the rule name) under `warn`; `OutsideLegalSet` marks only an answer outside the set.
   A spend divides the same way: whether the answering team owns the models it paid with is state
   the protocol cannot answer, so the spend step checks it.
 - `CommandDispatcher.EnumerateLegalCommands(state, teamId)` returns the discrete affordances for
@@ -638,6 +702,25 @@ never filtered. It is the reveal. Three properties:
   `ConnectAsync`'s log delivery. The log itself is never filtered, which keeps one canonical
   history.
 
+### Watchers
+
+An account that is not a participant of the game and whose session has the `admin` role joins as a
+watcher (admin watch spec); anyone else is `Rejected(NotAParticipant)`, and so is an admin naming a game
+that does not exist. A watcher is an admin tool: the viewer reads any game, finished or running, without
+joining it.
+
+- `GameSession.WatchAsync` runs the connect sequence a participant with no team gets: `Welcome` with
+  `ParticipantId` `Guid.Empty`, the board, the log from the start filtered as for no team, `ModelFacts`
+  once playing, every participant's presence value, `AtRest`. It writes no row: the watcher is in no
+  participant list, lobby or presence.
+- `GameSession` holds watchers in `_watchers`, apart from `_clients`, so lobby edits, presence, Asks and
+  `ActorOf` never meet one. Watchers receive every broadcast, each batch filtered as for no team, and
+  every relayed presence value and ping. Leaving sends no `PresenceEnded`. `SessionRegistry` keeps a game
+  in memory while it has a participant or a watcher.
+- What a watcher sends: a `SightQuery` is answered. A command (answers and undo included), an edit,
+  presence or a ping is answered `Refused` with reason `watcher` (`RefusalReason.Watcher`; `MessageId`
+  the command or edit id, `Guid.Empty` for presence and ping) and nothing else follows, no `AtRest`.
+
 ### Presence and the drain
 
 `PresenceTable` keeps the latest value per participant plus a dirty set. `HandlePresence` stamps
@@ -678,7 +761,7 @@ nothing to flush.
 | Measurements, ghosts and cursors are relayed | A tape measure on a real table is visible to everyone at it | Computed locally and never sent anywhere | Presence, *What this corrects in architecture.md* |
 | No join token, and no token of our own at all | A game has an id, the session JWT says who you are, `participant` records who is allowed in; a token restated all three and added an expiry that could lapse mid-game | The join token accounts designed, and the `session` table beside it | Accounts; management API, *We issue no tokens of our own* |
 | Nobody instantiates a session | Starting, reconnecting, moving a game and crash recovery become one path | Management creating a session over M2M, which would also make management learn which task holds which game | `architecture.md`, *Contracts to freeze*; accounts, *A game is a lobby* |
-| Undo is replay from the setup snapshot | RNG is game state, so replay reproduces the same dice and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
+| Undo is replay from the setup snapshot | the RNG cursor counts every die in the whole log, so an undone roll stays spent and undo cannot fish for rolls; no inverse-event table has to exist | Inverse events; a separate checkpoint mechanism | `architecture.md`, *Undo* |
 | `ended` is a flag; commands are accepted at `ended`, whether management ended the game or a strict `game_ended` did | Restarting an ended game is the identical hydrate-from-the-log operation as recovery, and there is no un-end endpoint. A strict round-4 end appends `game_ended` and sets the row to `ended` from `playing`; the flag does not stop commands | Refusing commands until something un-ends the game | Accounts, *Ending is a flag*; identity and enumerations |
 | Legality is `EnumerateLegalCommands`, not `IsLegal` | Validation falls out of enumeration and not the reverse; the client needs the set anyway to render affordances | An `IsLegal(command)` predicate | `architecture.md`, *Rules enforcement* |
 
@@ -748,7 +831,7 @@ Decisions this module settles itself:
 | `interface IEventLog` | `AppendAsync(Guid, IReadOnlyList<GameEvent>, CancellationToken)`, `ReadAsync(Guid, long afterSeq, CancellationToken)`, `LastSeqAsync(Guid, CancellationToken)`; `DuplicateSequenceException(Guid GameId, long Seq)` |
 | `static class Replay` | `Projection To(Board, GameInfo, IReadOnlyList<GameEvent>, long seq)`, `bool IsValidUndoTarget(EventApplier, long toSeq)` |
 | `interface IGameRows` | six reads: `ReadGameAsync`, `FindParticipantAsync`, `ReadDraftAsync`, `ReadSnapshotsAsync`, `ReadArmyAsync`, `PropertiesExistAsync`; seven writes: `CreateTeamAsync`, `SetParticipantTeamAsync`, `SetParticipantArmyAsync`, `SetConfigurationAsync`, `StartSetupAsync`, `WriteDraftAsync`, `EndSetupAsync`; `sealed record OwnedArmy(Army Army, Guid OwnerId)` |
-| `interface ISessionVerifier` | `Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken)`; `sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt)`; `const string StytchJwtVerifier.AccountClaim = "account_id"` |
+| `interface ISessionVerifier` | `Task<VerifiedSession?> VerifyAsync(string jwt, CancellationToken)`; `sealed record VerifiedSession(Guid AccountId, string StytchUserId, DateTimeOffset ExpiresAt, IReadOnlySet<string> Roles)` with `IsAdmin`; `const string StytchJwtVerifier.AccountClaim = "account_id"`, `RolesClaim = "roles"` |
 | `static class DraftEditor` | `TableState? Apply(TableState, SetupEdit, out string? missing)`, `TableState DropOffSlab(TableState)`, `bool OnSlab(TableState, Point3)` |
 | `sealed class GameServerOptions` | `DbConnection`, `StytchProjectId`, `StytchJwksUrl`, `MinimumClientVersion`, `PresenceRelayHz = 20`, `HandshakeTimeout = 10 s`, `KeepAliveInterval = 20 s`, `KeepAliveTimeout = 60 s`, `DefaultTableWidth = 72`, `DefaultTableLength = 48`, `DefaultTextureBuiltin = "grass"`; `static FromEnvironment(IConfiguration)` |
 
@@ -785,6 +868,10 @@ waits for `at_rest` instead of timing a quiet window.
 
 ### Connect and hydrate
 
+An admin watcher takes the same path: `FindParticipantAsync` answers null, the session `IsAdmin` and
+`ReadGameAsync` finds the game, so the handshake calls `WatchAsync` instead of `ConnectAsync` (see
+*Watchers*).
+
 ```mermaid
 sequenceDiagram
     participant C as Client
@@ -801,7 +888,7 @@ sequenceDiagram
     V->>V: RS256, issuer, audience, account_id claim
     V-->>H: VerifiedSession, or null giving Rejected(InvalidSession)
     H->>DB: FindParticipantAsync(gameId, accountId)
-    DB-->>H: participantId, or null giving Rejected(NotAParticipant)
+    DB-->>H: participantId, or null giving a watcher for an admin and Rejected(NotAParticipant) for anyone else
     H->>R: GetOrHydrateAsync(gameId)
     R->>DB: rows, draft, snapshots, whole log
     R->>S: new GameSession, StartAsync, Advance if playing
@@ -1188,8 +1275,8 @@ edge back to `absent` is recovered by hydrating again.
 - **`GameRules` is not pinned.** Only `Properties` is content-addressed. Restarting an ended
   game after a deploy that changed a step list may replay differently. Pinning a build version
   was rejected: every deploy would become a wall old games cannot cross.
-- **Hand-move positions are copied as sent, `Z` included.** The skeleton does no settling, so
-  the authoritative log records a position a client chose. Accepted under "anyone can move
+- **Hand-move positions are rested.** `MenuTranslation` rests each hand move with `Battlefield.Settle`, which ignores the
+  client's `Z`; the `X`/`Y` the client chose are recorded. Accepted under "anyone can move
   anything, and the record says who".
 - **No rate limiting anywhere.** A client may send presence at any rate. The relay is capped at
   20 Hz outbound. The inbound side is not capped.
@@ -1268,7 +1355,7 @@ Deferred, with where it is recorded:
 | Deferred | Where |
 | --- | --- |
 | Every rule: scheduler, interpreter, `Properties`, dice, legality beyond set membership | [scheduler](../scheduler/design.md), [interpreter](../interpreter/design.md) |
-| Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, settling `Z` | the interpreter's move step over `Tabletop.Geometry` |
+| Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, resting `Z` (`Battlefield.Settle(state, modelId, placement)`) | the interpreter's move step over `Tabletop.Geometry` |
 | Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment |
 | Terrain as event-driven state, which unlocks army terrain, buildings as targets and mid-game terrain edits | setup content → Still open |
 | How authored `Properties` content reaches the eight tables | `architecture.md` → Rules as data |

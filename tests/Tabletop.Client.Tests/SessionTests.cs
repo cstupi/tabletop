@@ -255,6 +255,26 @@ public class SessionTests : IDisposable
         Assert.Equal(2, _s.Projection!.Scores[Samples.Team1]);
     }
 
+    /// <summary>Review Focus 3: the join replays the log in pages of 500, then ModelFacts; the end of setup sends an empty page.</summary>
+    [Fact]
+    public async Task Catching_up_runs_from_a_board_to_the_facts_or_an_empty_page()
+    {
+        var sock = await ConnectedAtPlaying();
+        var seen = new List<bool>(); _s.FactsChanged += () => seen.Add(_s.CatchingUp); _s.EventsApplied += _ => seen.Add(_s.CatchingUp);
+        Assert.True(_s.CatchingUp);
+        sock.Deliver(new EventsMessage([new GameEvent(3, Samples.P1, new ScoreSet(Samples.Team1, 3), null)]));
+        Assert.True(_s.CatchingUp);
+        sock.Deliver(new ModelFacts(new Dictionary<Guid, int>()));
+        Assert.Equal([true, false], seen);
+        Assert.False(_s.CatchingUp);
+
+        sock.Deliver(new BoardMessage(Samples.Board));
+        Assert.True(_s.CatchingUp);
+        sock.Deliver(new EventsMessage([]));
+        Assert.Equal([true, false, false], seen);
+        Assert.False(_s.CatchingUp);
+    }
+
     [Fact]
     public async Task Nothing_but_Connect_goes_out_before_Welcome_and_a_command_then_throws()
     {
@@ -292,5 +312,14 @@ public class SessionTests : IDisposable
         await _s.LogoutAsync();
         Assert.Equal(SessionPhase.LoggedOut, _s.Phase);
         Assert.Null(new SessionStore(Path.Combine(_dir, "session.bin")).Read());
+    }
+
+    [Fact]
+    public void UpdateSettings_raises_SettingsChanged_after_persisting()
+    {
+        var seen = new List<string>();
+        _s.SettingsChanged += () => seen.Add(_persisted[^1].Theme);
+        _s.UpdateSettings(x => x with { Theme = "fantasy" });
+        Assert.Equal(new[] { "fantasy" }, seen);
     }
 }

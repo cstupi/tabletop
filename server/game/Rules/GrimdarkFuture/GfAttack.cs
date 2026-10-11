@@ -9,18 +9,27 @@ public static partial class GfAttack
 {
     public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
 
-    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action)
+    public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
+        AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
+            actor is { } a && kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
+
+    /// <summary>
+    /// The attack's interaction from state, properties and, inside a running sequence, its frame: the frame gives a charge's recorded range and the
+    /// nearest shooting or melee frame's faces. With no frame (a question asked outside Advance, such as who can shoot) the range is the units'
+    /// distance and there are no faces. `spellRules` is the spell's weapon rules, which only a step context can read.
+    /// </summary>
+    public static Interaction AttackInteraction(GameState state, PropertySet properties, FrameView? frame, Guid? actor, Guid target, IReadOnlyList<Guid> weapons,
+        AttackKind? kind, string? action, IReadOnlyList<(string Entry, int? Parameter)>? spellRules = null)
     {
-        var state = ctx.State;
-        if (actor is not { } a) return new Interaction(state, ctx.Properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
+        if (actor is not { } a) return new Interaction(state, properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
         var models = weapons.Count > 0 ? state.Projection.Models.Values.Where(m => m.Slot.Weapons.Any(w => weapons.Contains(w.Id))).Select(m => m.Id).ToList() : Lookup.LivingModels(state, a);
-        return new Interaction(state, ctx.Properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(ctx.Frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
-            Faces: FacesFor(ctx.Frame, a, target), SpellRules: kind == AttackKind.Spell && weapons.Count == 0 ? GfCasting.WeaponRules(ctx, a, target) : null);
+        return new Interaction(state, properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
+            Faces: FacesFor(frame, a, target), SpellRules: spellRules);
     }
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded
     /// before the move (spell library, Grammar additions). Null outside a charge.</summary>
-    static double? ChargeRange(FrameView frame)
+    static double? ChargeRange(FrameView? frame)
     {
         for (var f = frame; f is not null; f = f.Parent)
             if (f.Frame.Sequence == GfNames.ChargeSeq && f.Values.TryGetValue(GfNames.ChargeRangeKey, out var hundredths)) return hundredths / 100.0;
@@ -83,17 +92,29 @@ public static partial class GfAttack
         // wounded Tough hero waits for every other model rather than soaking the next wound.
         var notHeroes = living.Where(m => !state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero)).ToList();
         var pool = notHeroes.Count > 0 ? notHeroes : living;
-        bool IsTough(Guid m) => (Lookup.ModelParameter(state, m, "Tough") ?? 1) > 1;
-        var plain = pool.Where(m => !IsTough(m)).ToList();
+        var plain = pool.Where(m => !IsTough(state, m)).ToList();
         if (plain.Count > 0) return plain;
         var woundedTough = pool.Where(m => state.Projection.Models[m].Wounds > 0).OrderByDescending(m => state.Projection.Models[m].Wounds).ToList();
         return woundedTough.Count > 0 ? [woundedTough[0]] : pool;
     }
 
+    static bool IsTough(GameState state, Guid modelId) => (Lookup.ModelParameter(state, modelId, GfNames.Tough) ?? 1) > 1;
+
+    /// <summary>p.15's "heroes must be assigned wounds last": a living hero and a living model that is not one, so the hero was held back from this wound.</summary>
+    static bool HeroDeferred(GameState state, Guid unit)
+    {
+        var living = Lookup.AliveModels(state, unit).Where(m => !AtCapacity(state, m)).ToList();
+        bool IsHero(Guid m) => state.Projection.Models[m].Slot.Properties.Any(p => p.Name == GfNames.Hero);
+        return living.Any(IsHero) && living.Any(m => !IsHero(m));
+    }
+
     /// <summary>
     /// One segment per run, repeating (p.8: one model removed for each wound, so ordinary wounds carry over past a dead model): the
     /// wounds left come from the parent's failed defense rolls on the first run and from the previous segment's "wounds_left" after.
-    /// Deadly's multiplied wounds and a Takedown's (a unit of one, p.14) do not carry over, so only their excess is lost.
+    /// Deadly's multiplied wounds and a Takedown's (a unit of one, p.14) do not carry over, so only their excess is lost. A carried wound
+    /// has already taken its wound-ignoring roll (Regeneration p.14, Resistance, Self-Repair, Plaguebound: "roll one die for each"), so
+    /// "wounds_carried" counts the wounds left that keep their result and roll no die again. With no model left to take a wound (an earlier
+    /// weapon group destroyed the unit, p.8 "all weapons are fired simultaneously") the wounds are lost and nothing is asked.
     /// </summary>
     sealed class AssignStep : IStep
     {
@@ -108,15 +129,27 @@ public static partial class GfAttack
             // decide the prompt's targets, and there is no prompt (p.14).
             var takedown = TakedownModel(ctx.Frame) is { } named && Lookup.AliveModels(ctx.State, target).Contains(named) ? named : (Guid?)null;
             var eligible = takedown is null ? EligibleForNextWound(ctx.State, ctx.Properties, target) : [];
+            if (takedown is null && eligible.Count == 0) return new Finish([]);
+            if (takedown is not null) ctx.Applied.Add(GfNames.Takedown);
+            else if (HeroDeferred(ctx.State, target)) ctx.Applied.Add(GfNames.Hero);
+            // p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
+            // the next tough model". Offered only Tough models (none wounded), the defender names one, which takes every wound it can; the
+            // rest carry to the next segment, which offers the survivors again. A spread answer (out of set, warned) reads as its first model.
+            var toughOnly = eligible.All(m => IsTough(ctx.State, m));
             Dictionary<Guid, int> allocation;
             if (takedown is { } one) allocation = new Dictionary<Guid, int> { [one] = wounds };
             else if (eligible.Count == 1) allocation = new Dictionary<Guid, int> { [eligible[0]] = wounds };   // nothing to choose
-            else if (ctx.History.LastClosed() is { Single: Allocated } closed) allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
-            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds))]);
+            else if (ctx.History.LastClosed() is { Single: Allocated } closed)
+            {
+                allocation = GfAnswers.Allocated(closed, Lookup.AliveModels(ctx.State, target), wounds);
+                if (toughOnly && allocation.Keys.FirstOrDefault() is var first && first != Guid.Empty)
+                    allocation = new Dictionary<Guid, int> { [first] = wounds };
+            }
+            else return new OpenAsks([ctx.Ask("remove_casualties", $"Assign {wounds} wound(s)", team, new Allocation(eligible, wounds, toughOnly ? 1 : null))]);
 
             var actor = ctx.Frame.Context.ActorUnitId;
             var ix = AttackInteraction(ctx, actor, target, ctx.Frame.Context.WeaponIds, actor is null ? null : KindOf(ctx), ctx.Frame.Context.Action);
-            var live = LiveProperties.Settle(ix);
+            var live = ctx.Settle(ix);
             var targetSide = actor is null ? Side.Attacker : Side.Defender;
             var withGranted = GrantedOf(ctx.Frame).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
             var multiplier = actor is null ? 1 : RollEffects.WoundMultiplier(withGranted, Side.Attacker);
@@ -126,16 +159,20 @@ public static partial class GfAttack
             var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
                 .FirstOrDefault();
 
+            var carried = ctx.Frame.Value("wounds_carried");
             var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
                 var model = ctx.Projection.Models[modelId];
                 var capacity = Lookup.ModelParameter(ctx.State, modelId, "Tough") ?? 1;
+                if (capacity > 1) ctx.Applied.Add(GfNames.Tough);
                 var incoming = count * multiplier;
-                if (regen.Roll is { } roll)
+                var kept = Math.Min(carried, incoming);   // carried wounds come first and keep the result they rolled
+                carried -= kept;
+                if (regen.Roll is { } roll && incoming > kept)
                 {
-                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming);
-                    incoming = Dice.RollOutcome.Failures(record);   // each success overrides one wound
+                    var record = ctx.Roll(new Dice.RollPlan(regen.Source.Entry.Name, roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), incoming - kept);
+                    incoming = kept + Dice.RollOutcome.Failures(record);   // each success overrides one wound
                 }
                 var applied = Math.Min(capacity - model.Wounds, incoming);
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
@@ -152,7 +189,7 @@ public static partial class GfAttack
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
-            var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left };
+            var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
     }
@@ -185,7 +222,7 @@ public static partial class GfAttack
     /// <summary>The grants this step used (spell library → consumption): every granted source it read, with the rest of its spell's grants on that unit.</summary>
     static IReadOnlyList<StateChange> Consumed(LiveSet live) => RollEffects.Consume(live);
 
-    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
+    public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
@@ -220,15 +257,32 @@ public static partial class GfAttack
             return reaches ? Lookup.AliveModels(state, attacker).Where(m => state.Projection.Models[m].Slot.Weapons.Any(w => weapons.Contains(w.Id))).ToList() : [];
         var targets = Lookup.LivingModels(state, target);
         var indirect = live.Has(Side.Attacker, GfNames.Indirect);
-        var sight = kind == AttackKind.Shooting && !indirect ? Sight.From(state, attacker) : null;               // built once for every pair below
-        return Lookup.LivingModels(state, attacker).Where(m =>
+        bool Reaches(Guid m, Sight? sight)
         {
             var mine = state.Projection.Models[m].Slot.Weapons.Where(w => weapons.Contains(w.Id)).ToList();
             if (mine.Count == 0) return false;
             if (kind == AttackKind.Melee) return targets.Any(t => Battlefield.Distance(state, m, t) <= GfNames.MeleeHorizontal && Battlefield.Vertical(state, m, t) <= GfNames.MeleeVertical);
             var range = mine.Max(w => StatReader.WeaponRange(live, Side.Attacker, w.Id) ?? 0);
             return targets.Any(t => Battlefield.Distance(state, m, t) <= range && (sight is null || sight.CanSee(m, t)));
-        }).ToList();
+        }
+        var sight = kind == AttackKind.Shooting && !indirect ? Sight.From(state, attacker) : null;               // built once for every pair below
+        var eligible = Lookup.LivingModels(state, attacker).Where(m => Reaches(m, sight)).ToList();
+        // p.14 Indirect "may target enemies that are not in line of sight": it acted when a model is eligible only because sight was not asked.
+        if (indirect && kind == AttackKind.Shooting && eligible.Count > 0)
+        {
+            var seen = Sight.From(state, attacker);
+            if (eligible.Any(m => !Reaches(m, seen))) live.Record(Side.Attacker, GfNames.Indirect);
+        }
+        return eligible;
+    }
+
+    /// <summary>p.11's majority with p.14 Indirect's "ignores cover from sight obstructions": Indirect acted when dropping the sight half took the cover away.</summary>
+    static bool InCover(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible)
+    {
+        var indirect = live.Has(Side.Attacker, GfNames.Indirect);
+        var covered = GfRolls.InCover(state, target, eligible, indirect);
+        if (indirect && !covered && GfRolls.InCover(state, target, eligible, ignoresSightObstructions: false)) live.Record(Side.Attacker, GfNames.Indirect);
+        return covered;
     }
 
     /// <summary>
@@ -239,7 +293,7 @@ public static partial class GfAttack
     /// </summary>
     public static IReadOnlyList<(int Quality, int Attacks)> AttacksAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons, AttackKind kind, string? action)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
+        var live = ctx.Settle(AttackInteraction(ctx, attacker, target, weapons, kind, action));
         return Attacks(ctx, live, EligibleModels(ctx.State, live, attacker, target, weapons, kind), weapons, kind);
     }
 
@@ -251,8 +305,8 @@ public static partial class GfAttack
     /// </summary>
     public static bool InCoverAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons)
     {
-        var live = LiveProperties.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
-        return GfRolls.InCover(ctx.State, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting), live.Has(Side.Attacker, GfNames.Indirect));
+        var live = ctx.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
+        return InCover(ctx.State, live, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting));
     }
 
     /// <summary>
@@ -290,7 +344,7 @@ public static partial class GfAttack
         var c = ctx.Frame.Context;
         var kind = KindOf(ctx);
         var ix = AttackInteraction(ctx, c.ActorUnitId, c.TargetUnitIds[0], c.WeaponIds, kind, c.Action);
-        return (ix, LiveProperties.Settle(ix), kind);
+        return (ix, ctx.Settle(ix), kind);
     }
 
     /// <summary>Pushes a child once and completes when it has finished. Values pass through the frame stack, not through this step.</summary>
@@ -330,7 +384,7 @@ public static partial class GfAttack
                 ["attacks"] = settled ?? byQuality.Sum(x => x.Attacks),
                 ["eligible_models"] = eligible.Count,
                 ["defender_models"] = Pushed(ctx.Frame, "defender_models") ?? Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count,
-                ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && GfRolls.InCover(ctx.State, ix.Defender.UnitId, eligible, live.Has(Side.Attacker, GfNames.Indirect)) ? 1 : 0),
+                ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && InCover(ctx.State, live, ix.Defender.UnitId, eligible) ? 1 : 0),
             };
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
             return values["attacks"] == 0 ? new Finish(Consumed(live), values) : new Complete(Consumed(live), values);
@@ -380,8 +434,8 @@ public static partial class GfAttack
     /// in ascending order, since p.4 scores each test against *"the model's Quality value"* and a joined hero brings its own.
     /// p.4's *"having dice of multiple colors ... and then roll them all at once"* is the tabletop procedure for it. The
     /// counts are `determine-attacks`' `attacks_q&lt;n&gt;`, so nothing is recounted here and the pools are the ones the action started
-    /// with. `extra_hits` and every `granted_&lt;entry&gt;_&lt;amount&gt;` sum across all of the pools, because they belong to the group's hits
-    /// rather than to one pool, and `GfAttack.HitsFrom` already sums the successes of every `hit` roll on the frame.
+    /// with. What a face decides is `score-hits`' (opr-sequences → Dice edits); only the dice an extra-attacks row adds are drawn
+    /// here, on the faces as rolled, because drawing is the roll's.
     /// </summary>
     sealed class RollToHitStep : IStep
     {
@@ -392,30 +446,57 @@ public static partial class GfAttack
             // p.13 caps Blast at "as many hits as models in the target unit" without saying when they are counted. p.8 fires all
             // weapons simultaneously, so the cap is fixed at the same moment as the attack counts: this reads the defender's model
             // count that determine-attacks carried down from the pushing frame.
-            if (kind == AttackKind.Shooting) live.Use(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here
+            if (kind == AttackKind.Shooting) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
             var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
-            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
+            var values = new Dictionary<string, int> { ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                // One die's per-die effects; the attacks it adds are returned for the caller to roll.
-                int Read(Die die)
-                {
-                    var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
-                    values["self_wounds"] = values.GetValueOrDefault("self_wounds") + effects.ExtraWounds;
-                    if (!die.Success) return 0;
-                    values["extra_hits"] += effects.ExtraHits;
-                    if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
-                    return effects.ExtraAttacks;
-                }
-                var added = ctx.Roll(plan, attacks).Dice.Sum(Read);
+                var added = ctx.Roll(plan, attacks).Dice.Sum(d => AddedAttacks(live, d));
                 // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                if (added > 0)
-                    foreach (var die in ctx.Roll(plan, added).Dice) Read(die);
+                if (added > 0) ctx.Roll(plan, added);
             }
-            RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
-            values["wounds"] = values.GetValueOrDefault("self_wounds");
-            return new Complete(Consumed(live), values);
+            return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
+        }
+
+        /// <summary>The attacks a successful die's extra-attacks rows add, recorded as having acted; nothing else a face decides is read here.</summary>
+        static int AddedAttacks(LiveSet live, Die die)
+        {
+            if (!die.Success) return 0;
+            var adds = live.Effects(Side.Attacker, EffectKind.AddHit, new DieContext(GfNames.Hit, die.Raw, die.Modified, die.Success))
+                .Where(x => x.Effect.TargetQuantity == TargetQuantity.Attacks && x.Effect.Conditions.Any(c => c.Kind == ConditionKind.RollResult)).ToList();
+            foreach (var x in adds) live.Record(x.Source);
+            return adds.Sum(x => x.Effect.EffectiveAmount(x.Source.Parameter));
+        }
+    }
+
+    /// <summary>
+    /// What the frame's `hit` dice decide, read as they now stand, so an edit made after the roll counts (opr-sequences → Dice edits):
+    /// `extra_hits` and every `granted_&lt;entry&gt;_&lt;amount&gt;` on a success, and `self_wounds` on any die, summed across every pool and
+    /// the added dice, since they belong to the group's hits rather than to one pool. `wounds` is `self_wounds`, for the self-wounds
+    /// deal. Shared by `attack-sequence` and `spell-hits`; a spell's frame finishes here when it scored no hit.
+    /// </summary>
+    public sealed class ScoreHitsStep(bool finishWithoutHits = false) : IStep
+    {
+        public string Name => "score-hits";
+        public StepOutcome Run(StepContext ctx)
+        {
+            var (_, live, _) = Settle(ctx);
+            var rolls = ctx.Frame.Frame.Steps.SelectMany(s => s.Rolls).Where(r => r.Roll == GfNames.Hit).ToList();
+            var values = new Dictionary<string, int> { ["extra_hits"] = 0, ["self_wounds"] = 0 };
+            foreach (var die in rolls.SelectMany(r => r.Dice))
+            {
+                var effects = RollEffects.PerDie(live, Side.Attacker, die, GfNames.Hit);
+                values["self_wounds"] += effects.ExtraWounds;
+                if (!die.Success) continue;
+                values["extra_hits"] += effects.ExtraHits;
+                if (GrantKey(effects.Grants) is { } key) values[key] = values.GetValueOrDefault(key) + 1;
+            }
+            if (rolls.Count > 0) RollEffects.ReadPerDie(live, Side.Attacker, GfNames.Hit);
+            values["wounds"] = values["self_wounds"];
+            var spent = Consumed(live);
+            var scored = ctx.Frame.Value("hits") + rolls.Sum(Dice.RollOutcome.Successes);
+            return finishWithoutHits && scored == 0 ? new Finish(spent, values) : new Complete(spent, values);
         }
     }
 
@@ -449,7 +530,7 @@ public static partial class GfAttack
             var defender = ix.Defender!.UnitId;
             var inCover = kind == AttackKind.Shooting
                 && (parent.Values.TryGetValue("in_cover", out var settled) ? settled == 1
-                    : GfRolls.InCover(ctx.State, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind), live.Has(Side.Attacker, GfNames.Indirect)));
+                    : InCover(ctx.State, live, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind)));
             var multiplier = Math.Max(1, parent.Value("hit_multiplier", 1));
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.

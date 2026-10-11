@@ -70,14 +70,57 @@ public class ScenarioTests
     [InlineData("final-round-warn")]
     [InlineData("final-round-silent")]
     [InlineData("objectives")]
-    public async Task The_end_of_game_scenarios_meet_their_expectations(string name)
+    public async Task The_end_of_game_scenarios_meet_their_expectations(string name) =>
+        AssertPasses(await RunAsync(ScenarioCatalog.Get(name)));
+
+    /// <summary>The console's own composition: the scenario's script, then its policy (its goal included), placement from its seed.</summary>
+    static async Task<RunReport> RunAsync(Scenario scenario)
     {
-        var scenario = ScenarioCatalog.Get(name);
         var compiled = ScenarioCompiler.Compile(scenario);
         await using var driver = await InProcessDriver.StartAsync(compiled, CancellationToken.None);
-        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, new AnswerPolicy(new Chooser(scenario.Seed))), HandPlacement.ChooserFor(scenario.Seed));
-        var report = await loop.RunAsync(CancellationToken.None);
-        Assert.True(report.Passed, string.Join("\n", report.Failures));
+        var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, scenario.Policy()), HandPlacement.ChooserFor(scenario.Seed));
+        return await loop.RunAsync(CancellationToken.None);
+    }
+
+    static void AssertPasses(RunReport report) => Assert.True(report.Passed, string.Join("\n", report.Failures));
+
+    [Fact]
+    public void Only_the_objectives_scenario_seeks_the_markers_and_its_policy_carries_the_goal()
+    {
+        Assert.Equal(["objectives"], ScenarioCatalog.Names.Where(n => ScenarioCatalog.Get(n).Goal is not null));
+        Assert.Equal(ObjectiveGoal.Nearest, ScenarioCatalog.Get("objectives").Goal);
+        Assert.Contains(new Expectation.EventOfKind("round_ended"), ScenarioCatalog.Get("objectives").Expectations);
+        Assert.Null((ScenarioCatalog.Get("skirmish") with { ScriptOnly = true }).Policy());
+    }
+
+    // A catalog scenario's expectations are what the rules guarantee for any seed, not what its own seed happened to do: the console
+    // sweeps it over seed ranges (`--seeds 1..20` is the check of record). These are the catalog seed and the next nine.
+    [Theory]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(3UL)]
+    [InlineData(4UL)]
+    [InlineData(5UL)]
+    [InlineData(6UL)]
+    [InlineData(7UL)]
+    [InlineData(8UL)]
+    [InlineData(9UL)]
+    [InlineData(10UL)]
+    public async Task The_objectives_scenario_meets_its_expectations_on_seeds_1_to_10(ulong seed) =>
+        AssertPasses(await RunAsync(ScenarioCatalog.Get("objectives").WithSeed(seed)));
+
+    // A scored win end to end on one known game: the uniform policy's seed 1, pinned for the answers, the placement and the game's dice
+    // alike. Blue's unit ends round 2 within 3" of Blue home, round_ended records it, and the 1–0 is a win. A seed-specific fact, so it
+    // lives here and not in the catalog's expectations.
+    [Fact]
+    public async Task Objectives_seed_1_seizes_a_marker_and_scores_a_win()
+    {
+        var scenario = ScenarioCatalog.Get("objectives").WithSeed(1) with
+        {
+            Goal = null,
+            Expectations = [new Expectation.EventOfKind("round_ended"), new Expectation.Won(2), new Expectation.MostMarkersWin()],
+        };
+        AssertPasses(await RunAsync(scenario));
     }
 
     [Fact]

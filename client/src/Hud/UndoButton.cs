@@ -1,0 +1,65 @@
+using Godot;
+using Tabletop.Client.Core;
+using Tabletop.Client.Panels;
+using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
+using Tabletop.Protocol;
+
+namespace Tabletop.Client.Hud;
+
+/// <summary>Lower right, left of the log button (client UX spec → Undo): undoes the last action in the game, whoever took it (UndoPlan).
+/// Disabled only when nothing is undoable; the tooltip names the action. When the undo would take dice rolls with it, a dialog lists
+/// them first. Ctrl+Z presses it. GameScreen.Layout places it.</summary>
+public partial class UndoButton : Button
+{
+    Session _s = null!; TableInput _input = null!;
+    UndoPlan? _plan; ConfirmationDialog? _asking;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard; Action<Intent>? _onIntent;
+
+    /// <summary>A failed undo, for the screen's toast.</summary>
+    public event Action<string>? Reported;
+
+    public void Bind(Session session, TableInput input)
+    {
+        _s = session; _input = input;
+        Text = "Undo (Ctrl+Z)"; FocusMode = FocusModeEnum.None;
+        Pressed += Press;
+        _onEvents = _ => Render(); _onBoard = Render;
+        _onIntent = intent => { if (intent == Intent.Undo && !Disabled) Press(); };
+        session.EventsApplied += _onEvents; session.BoardChanged += _onBoard; input.IntentPressed += _onIntent;
+        Render();
+    }
+
+    public override void _ExitTree()
+    {
+        if (_s is null) return;
+        _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard;
+        if (IsInstanceValid(_input)) _input.IntentPressed -= _onIntent;
+    }
+
+    /// <summary>While an undo travels the log still holds what it undoes: plan as if its marker had landed, so each press steps back one more.</summary>
+    void Render()
+    {
+        _plan = _s.Game is { } game ? UndoPlan.Of(Pending(), new Names(game, _s.Projection)) : null;
+        Disabled = _plan is null;
+        TooltipText = _plan?.Tooltip ?? "Nothing to undo";
+    }
+
+    IReadOnlyList<GameEvent> Pending() => _s.PendingUndoTo is not { } to ? _s.Log
+        : [.. _s.Log, new GameEvent((_s.Log.Count == 0 ? 0 : _s.Log[^1].Seq) + 1, null, new Undone(to), null)];
+
+    void Press()
+    {
+        if (_plan is not { } plan || _asking is not null && IsInstanceValid(_asking)) return;
+        if (plan.LostRolls.Count == 0) { Send(plan.ToSeq); return; }
+        var d = _asking = new ConfirmationDialog
+        {
+            Title = "Undo dice rolls?", DialogText = string.Join("\n", plan.LostRolls), OkButtonText = "Undo", CancelButtonText = "Cancel", Theme = Ui.Theme,
+        };
+        d.Confirmed += () => Send(plan.ToSeq);
+        d.VisibilityChanged += () => { if (!d.Visible) { d.QueueFree(); _asking = null; } };
+        AddChild(d); d.PopupCentered();
+    }
+
+    void Send(long to) => Guarded.Run(() => _s.UndoToAsync(to), message => Reported?.Invoke($"Undo failed: {message}"));
+}

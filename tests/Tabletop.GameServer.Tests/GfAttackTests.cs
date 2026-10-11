@@ -58,8 +58,7 @@ public class GfAttackTests
         var target = Unit("T", "4+", "2+", [], 3, []);
         var sim2 = Sim.Gf(State([render], [target], x1: -4, x2: 4), 6, 4, 5, 5);
         sim2.Start(GfNames.AttackSequence, Attack(render, target, GfNames.Hold));
-        var hit = sim2.Steps("roll-to-hit").Single();
-        Assert.Equal(1, hit.Values!["granted_AP_4"]);
+        Assert.Equal(1, sim2.Steps("score-hits").Single().Values!["granted_AP_4"]);
         var blocks = sim2.Steps("roll-to-block").Single().Rolls;
         Assert.Equal(2, blocks.Count);
         var rendered = blocks.Single(r => r.Modifiers.Any(m => m.Source == "AP" && m.Amount == -4));
@@ -74,11 +73,11 @@ public class GfAttackTests
         var t = Unit("T", "4+", "6+", [], 3, []);
         var sim = Sim.Gf(State([berserkers], [t], x1: -1, x2: 1), 6, 3, 1, 1, 1);
         sim.Start(GfNames.AttackSequence, Attack(berserkers, t, GfNames.Charge));
-        Assert.Equal(1, sim.Steps("roll-to-hit").Single().Values!["extra_hits"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["extra_hits"]);
         Assert.Equal(2, sim.Steps("roll-to-block").Single().Rolls.Single().Dice.Count);
         var hold = Sim.Gf(State([berserkers], [t], x1: -1, x2: 1), 6, 3, 1, 1);
         hold.Start(GfNames.AttackSequence, Attack(berserkers, t, GfNames.Hold));
-        Assert.Equal(0, hold.Steps("roll-to-hit").Single().Values!.GetValueOrDefault("extra_hits"));
+        Assert.Equal(0, hold.Steps("score-hits").Single().Values!.GetValueOrDefault("extra_hits"));
     }
 
     [Fact]

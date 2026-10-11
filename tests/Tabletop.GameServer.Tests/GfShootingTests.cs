@@ -1,3 +1,4 @@
+using Tabletop.GameServer.Dispatch;
 using Tabletop.Content;
 using Tabletop.GameServer.Effects;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
@@ -36,6 +37,43 @@ public class GfShootingTests
         Assert.Equal(a.Id, Assert.Single(attacks).Context.TargetUnitIds[0]);
         Assert.Equal(GfNames.Advance, attacks[0].Context.Action);
         sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [a.Models[0].Id] = 3 }));
+        Assert.Empty(sim.State.Projection.Stack);
+    }
+
+    [Fact]
+    public void Each_group_is_offered_only_the_targets_it_can_shoot_and_a_group_aimed_elsewhere_fires_nothing()
+    {
+        // p.8: a target is valid when a model "has a weapon that is within range of that model", and "Each group may be fired at a
+        // different target". Near stands 12" off (Rifles and Pistols reach it); Far about 17" (only the Rifles).
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifles", "24\"", 1), Gun("Pistols", "12\"", 1));
+        var near = Unit("Near", "4+", "4+", [], 1, []); var far = Unit("Far", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([shooter], [near, far], x1: -6, x2: 6), 1, 1, 1, 1);                           // every hit misses: only the aims are under test
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        var ask = sim.AskFor(Samples.Team1);
+        var declare = Assert.IsType<Assignment>(ask.Legal);
+        Assert.Equal(new HashSet<Guid> { near.Id, far.Id }, declare.Targets.ToHashSet());
+        Assert.Equal(new HashSet<Guid> { near.Id, far.Id }, declare.TargetsOf("Rifles").ToHashSet());
+        Assert.Equal([near.Id], declare.TargetsOf("Pistols"));
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = far.Id })));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = near.Id })));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id, ["Pistols"] = far.Id }));   // warn accepts it; the Pistols' aim is dropped
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        var rifles = shooter.Models[0].Weapons.Where(w => w.Name == "Rifles").Select(w => w.Id).ToList();
+        Assert.Equal(rifles, Assert.Single(attacks).Context.WeaponIds);
+        Assert.Equal(far.Id, attacks[0].Context.TargetUnitIds[0]);
+    }
+
+    [Fact]
+    public void A_group_left_without_a_target_holds_fire()
+    {
+        // p.8: "all models in the unit may shoot at it"; a group the answer leaves out fires nothing, and the other group fires.
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifles", "24\"", 1), Gun("Pistols", "12\"", 1));
+        var near = Unit("Near", "4+", "4+", [], 1, []); var far = Unit("Far", "4+", "4+", [], 1, []);
+        var sim = Sim.Gf(State([shooter], [near, far], x1: -6, x2: 6, enforcement: Enforcement.Strict), 1, 1, 1, 1);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = far.Id }));        // strict accepts it: in set
+        var attacks = sim.Emitted.OfType<SequenceStarted>().Where(s => s.Sequence == GfNames.AttackSequence).ToList();
+        Assert.Equal(shooter.Models[0].Weapons.Where(w => w.Name == "Rifles").Select(w => w.Id), Assert.Single(attacks).Context.WeaponIds);
         Assert.Empty(sim.State.Projection.Stack);
     }
 
@@ -254,7 +292,9 @@ public class GfShootingTests
         var troops = Unit("Troops", "4+", "4+", [], 2, []);
         var sim = Sim.Gf(State([bus, troops], [Unit("T", "4+", "4+", [], 1, [])], x1: -12, x2: 12), 1);
         var container = bus.Models[0].Id;
-        sim.Append([new ModelsMoved(troops.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container))).ToList())]);
+        // The bus stands on the table (p.7: no exit placement may put a base off it); Armies.State's rows start below y = 0.
+        sim.Append([new ModelsMoved([new ModelRelocation(container, sim.Model(container).Location, new OnTable(new Placement(new Point3(36, 24, 0), new Yaw(0)))),
+            .. troops.Models.Select(m => new ModelRelocation(m.Id, sim.Model(m.Id).Location, new Inside(container)))])]);
         sim.Start(GfNames.AdvanceSeq, new SequenceContext(troops.Id, [], [], GfNames.Advance));
         var ask = Assert.IsType<MoveRegion>(sim.AskFor(Samples.Team1).Legal);
         Assert.Equal((container, GfNames.ExitWithin), (ask.Containment!.ExitingId!.Value, ask.Containment.ExitWithin!.Value));

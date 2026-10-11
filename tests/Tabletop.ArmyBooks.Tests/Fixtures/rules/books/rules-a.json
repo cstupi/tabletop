@@ -1,0 +1,26 @@
+{ "uid": "rules-a", "name": "Rules A", "versionString": "1", "spells": [],
+  "specialRules": [
+    { "name": "Stealth Aura", "description": "This model and its unit get Stealth." },
+    { "name": "Stealth Buff", "description": "Once per activation, before attacking, pick one friendly unit within 12\", which gets Stealth once (next time the effect would apply)." },
+    { "name": "Rending Mark", "description": "Once per activation, before attacking, pick one enemy unit within 18\" in line of sight, which friendly units gets Rending against once (next time the effect would apply)." },
+    { "name": "Fortified Aura", "description": "This model and its unit get Fortified." },
+    { "name": "Precision Shooter Aura", "description": "This model and its unit get +1 to hit rolls when shooting." },
+    { "name": "Defense Debuff", "description": "Once per activation, before attacking, pick one enemy unit within 18\" in line of sight, which gets -1 to defense rolls once (next time the effect would apply)." },
+    { "name": "Precise", "description": "Gets +1 to hit when attacking.\n" },
+    { "name": "Ignores Cover", "description": "This weapon ignores cover." },
+    { "name": "Bane when Shooting", "description": "This model gets Bane when shooting." }
+  ],
+  "units": [
+    { "rules": [ { "name": "Bane when Shooting" } ],
+      "weapons": [ { "specialRules": [ { "name": "Ignores Cover" }, { "name": "AP" } ] } ],
+      "items": [ { "name": "Pole", "type": "ArmyBookItem", "content": [ { "name": "Stealth Aura", "type": "ArmyBookRule" } ] } ] }
+  ],
+  "upgradePackages": [ { "sections": [ { "options": [
+    { "gains": [ { "name": "Stealth Buff", "type": "ArmyBookRule" } ] },
+    { "gains": [ { "name": "Rending Mark", "type": "ArmyBookRule" }, { "name": "Banner", "type": "ArmyBookRule" } ] },
+    { "gains": [ { "name": "Gun", "type": "ArmyBookWeapon", "specialRules": [ { "name": "Precise" } ] } ] },
+    { "gains": [ { "name": "Kit", "type": "ArmyBookItem", "content": [
+      { "name": "Fortified Aura", "type": "ArmyBookRule" }, { "name": "Precision Shooter Aura", "type": "ArmyBookRule" },
+      { "name": "Defense Debuff", "type": "ArmyBookRule" }, { "name": "Precise", "type": "ArmyBookRule" } ] } ] }
+  ] } ] } ]
+}

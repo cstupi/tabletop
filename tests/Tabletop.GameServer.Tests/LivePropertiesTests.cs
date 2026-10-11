@@ -62,10 +62,10 @@ public class LivePropertiesTests
         var a = Unit("A", "4+", "4+", [], 2, [], Melee("Claws", 1));
         var b = Unit("B", "4+", "4+", [], 2, []);
         var state = State([a], [b]);
-        var spell = new EntryDocument("Mend", CatalogKind.Spell, false, null, 1, null, "Target friendly unit gets Regeneration once.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12),
+        var spell = new EntryDocument("Test Mend", CatalogKind.Spell, false, null, 1, null, "Target friendly unit gets Regeneration once.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12),
             [new EffectDocument(EffectSubject.Self, 10, EffectKind.GrantProperty, null, null, "Regeneration", null, null, null, null, null, false, null, null, null, EffectDuration.Once, [], [])]);
         var props = TestProperties.WithSpells(spell);
-        var apGrant = new Grant(Guid.CreateVersion7(), props.Entry("Mend")!.Effects[0].Id, "Mend", a.Id, 1);   // the spell's once grant_property Regeneration row, held by B
+        var apGrant = new Grant(Guid.CreateVersion7(), props.Entry("Test Mend")!.Effects[0].Id, "Test Mend", a.Id, 1);   // the spell's once grant_property Regeneration row, held by B
         state.Applier.Apply(new GameEvent(2, null, new GrantAdded(b.Id, apGrant), null));
         Assert.True(Lookup.UnitHas(state, props, b.Id, "Regeneration"));
         Assert.False(Lookup.UnitHas(state, props, a.Id, "Regeneration"));
@@ -117,8 +117,8 @@ public class LivePropertiesTests
         Assert.False(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, impact, ih, null));
         var furious = Core.Entry("Furious")!.Effects[0];
         var fh = new LiveProperty(Side.Attacker, Core.Entry("Furious")!, null, null, null, null);
-        Assert.True(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, furious, fh, new DieContext("hit", 6, 5)));
-        Assert.False(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, furious, fh, new DieContext("hit", 5, 6)));
+        Assert.True(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, furious, fh, new DieContext("hit", 6, 5, true)));
+        Assert.False(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, furious, fh, new DieContext("hit", 5, 6, true)));
         Assert.False(Conditions.Hold(Ix(1, "Charge") with { Attack = AttackKind.Melee }, Side.Attacker, furious, fh, null));   // a roll_result predicate cannot hold before the die
     }
 

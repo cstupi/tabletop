@@ -8,6 +8,8 @@ public static class GfNames
     public const string Hit = "hit", DefenseRoll = "defense", Morale = "morale", Casting = "casting", RollOff = "roll-off";
     public const string Shaken = "shaken", Fatigued = "fatigued", Moved = "moved";
     public const string BeforeAttacking = "before-attacking";
+    /// <summary>Army-book rules spec → the pick: the sequence a Buff, Mark or Debuff's use pushes, its Ask's question and its one step.</summary>
+    public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleTargetStep = "rule-target";
     public const string QuickShot = "Quick Shot";   // army-rule hooks: a name check on the rush sequence's shooting
     public const string ActivationStart = "activation-start", AfterShooting = "after-shooting", AfterMelee = "after-melee", AttackStart = "attack-start", RepositionSeq = "reposition";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
@@ -22,6 +24,17 @@ public static class GfNames
     public const double MeleeHorizontal = 2, MeleeVertical = 4, ChargeCloseIn = 3, Consolidate = 3, FallBack = 1, Separation = 1, CastRange = 18, DifficultCap = 6;
     /// <summary>p.15 and p.21: a unit leaving a container "must stay fully within 6" of it".</summary>
     public const double ExitWithin = 6;
+    /// <summary>p.13 Aircraft: "adding 30" to its total move".</summary>
+    public const double AircraftMove = 30;
+    /// <summary>The move step's Values key: an earlier segment of this move went in or through difficult terrain (p.11 "for that movement").</summary>
+    public const string EnteredDifficultKey = "entered_difficult";
+    /// <summary>IGameRules.AnswerBreach rule names (enforcement spec → The breach): p.11's cap over the unit, p.13 Aircraft's mandatory move.</summary>
+    public const string DifficultCapRule = "difficult_cap", AircraftMinimumRule = "aircraft_minimum";
+    /// <summary>IGameRules.AnswerBreach rule names for a move answer's geometry (p.7, p.11, p.15) and for a relocation the move steps do not read.</summary>
+    public const string MoveAllowanceRule = "move_allowance", MoveImpassableRule = "move_impassable", MoveOffTableRule = "move_off_table",
+        MoveExitRule = "move_exit", MoveNotOfferedRule = "move_not_offered";
+    /// <summary>p.7's contact clauses (GfMoves.ContactBreach): a landing on another model's base, a path through a model, a landing within 1" of another unit.</summary>
+    public const string MoveOverlapRule = "move_overlap", MoveThroughModelsRule = "move_through_models", MoveSeparationRule = "move_separation";
     public const int TokenCap = 6;
 
     // The scheduler plan's names (its Task 2 reads them from here; one names class).
@@ -29,6 +42,10 @@ public static class GfNames
     public const string Rounds = Scheduler.SchedulerBase.RoundsPhase;
     public const string Deploy = "Deploy";                                                                              // Activation.Action for a deployment answer
     public const string Scout = "Scout", Ambush = "Ambush", Immobile = "Immobile", Aircraft = "Aircraft", Caster = "Caster", Tough = "Tough", Hero = "Hero";
+    /// <summary>p.13 Flying and p.14 Strider: the movement rules a move reads from the unit's live set (GfMoves.TerrainFor).</summary>
+    public const string Flying = "Flying", Strider = "Strider";
+    /// <summary>The Values key prefix a step writes for a granted Flying it used and kept (GfMoves.ConsumeKeepingFlying): "flying_held_{unit:N}_{grant:N}".</summary>
+    public const string FlyingHeldPrefix = "flying_held_";
     public const string Artillery = "Artillery";                                                                        // p.13: "May only use Hold actions"; not in the core catalog, so read off a unit's own properties
     public const string Transport = "Transport";                                                                        // p.15; its (X) is carried and never read — game flow: capacity is not enforced
     public const string Indirect = "Indirect";                                                                          // p.14; a weapon property, read by GfAttack for sight and cover

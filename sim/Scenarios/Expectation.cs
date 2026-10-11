@@ -18,6 +18,11 @@ public abstract record Expectation
 
     /// <summary>The live game_ended names exactly this team as the winner (p.6: most markers after round 4).</summary>
     public sealed record Won(int TeamOrdinal) : Expectation;
+
+    /// <summary>The live game_ended names exactly the teams controlling the most markers in the final projection (p.6: "the player
+    /// that controls most markers wins"): one team is a win, several a tie, every team when none holds a marker. Holds for any seed.
+    /// Only control of an objective marker in play counts, as in the engine's own tally.</summary>
+    public sealed record MostMarkersWin : Expectation;
 }
 
 /// <summary>Evaluation of a scenario's own assertions, checked at the end of a run beside the universal invariants.</summary>
@@ -60,7 +65,17 @@ public static class Expectations
                     var team = scenario.Info.Teams.Single(t => t.Ordinal == ordinal).Id;
                     var end = EventApplier.EffectiveLog(log).LastOrDefault(e => e.Payload is GameEnded)?.Payload as GameEnded;
                     if (end is null || end.Winners.Count != 1 || end.Winners[0] != team)
-                        failures.Add($"expected team {ordinal} to win, got {(end is null ? "no game_ended" : $"winners [{string.Join(", ", end.Winners.Select(w => scenario.Info.Teams.FirstOrDefault(t => t.Id == w)?.Ordinal.ToString() ?? w.ToString("N")[..8]))}]")}");
+                        failures.Add($"expected team {ordinal} to win, got {(end is null ? "no game_ended" : $"winners [{Ordinals(end.Winners, scenario)}]")}");
+                    break;
+                case Expectation.MostMarkersWin:
+                    var ended = EventApplier.EffectiveLog(log).LastOrDefault(e => e.Payload is GameEnded)?.Payload as GameEnded;
+                    var objectives = Answers.PolicyView.ObjectiveMarkersOf(projection).Select(m => m.Id).ToHashSet();
+                    var held = scenario.Info.Teams.OrderBy(t => t.Ordinal)
+                        .Select(t => (t.Ordinal, t.Id, Count: projection.Control.Count(kv => kv.Value == t.Id && objectives.Contains(kv.Key)))).ToList();
+                    var most = held.Where(h => h.Count == held.Max(m => m.Count)).Select(h => h.Id).ToList();
+                    if (ended is null || !ended.Winners.Order().SequenceEqual(most.Order()))
+                        failures.Add($"expected winners [{Ordinals(most, scenario)}] (markers held: {string.Join(", ", held.Select(h => $"team {h.Ordinal}: {h.Count}"))}), " +
+                                     $"got {(ended is null ? "no game_ended" : $"winners [{Ordinals(ended.Winners, scenario)}]")}");
                     break;
                 case Expectation.Outcome(var kind) when outcome.Kind != kind:
                     failures.Add($"expected outcome '{kind}', got '{outcome.Kind}': {outcome}");
@@ -69,6 +84,10 @@ public static class Expectations
         }
         return failures;
     }
+
+    /// <summary>Team ordinals, comma-separated; an id that names no team shows its first eight hex digits.</summary>
+    static string Ordinals(IEnumerable<Guid> teams, CompiledScenario scenario) =>
+        string.Join(", ", teams.Select(w => scenario.Info.Teams.FirstOrDefault(t => t.Id == w)?.Ordinal.ToString() ?? w.ToString("N")[..8]));
 
     /// <summary>Models in play: <c>Location is not OnShelf</c>, the engine's own test (Scheduler/TeamUnits.cs).
     /// Casualties and set-aside units are on the shelf; a model inside a building or transport still counts.</summary>

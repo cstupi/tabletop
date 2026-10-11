@@ -269,6 +269,7 @@ erDiagram
         text properties_hash PK
         text name PK
         float8 distance
+        int position
     }
     ROLL {
         text properties_hash PK
@@ -293,6 +294,8 @@ erDiagram
         text target_grain
         int target_count
         float8 target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         uuid id PK
@@ -316,6 +319,7 @@ erDiagram
         text cap_kind
         text replacement
         text duration
+        int position
     }
     EFFECT_CONDITION {
         uuid id PK
@@ -324,10 +328,12 @@ erDiagram
         text subject
         text comparison
         int number
+        int position
     }
     CONDITION_VALUE {
         uuid condition_id PK
         text value PK
+        int position
     }
     GAME_EVENT {
         uuid game_id PK
@@ -417,7 +423,12 @@ the row exists because an effect points at it.
 `catalog_entry` is every named rule in a ruleset, and `kind` says what sort:
 `unit | model | weapon | spell`. The first three are the property kinds
 [identity and enumerations](superpowers/specs/2026-08-29-identity-and-enumerations-design.md)
-set out — attachment points, with a name belonging to exactly one of them.
+set out — attachment points, with a name belonging to exactly one of them. `GET /v1/properties/{hash}/rules`
+serves a set's entries with their `rule_text`, the client's hover text; a rule with no entry is tagged *not automated*.
+
+**`played`** (boolean, default true) is false only on an entry `scripts/ArmyBooks` generated as text only: the Army Forge
+description as `rule_text`, no effects. The engine plays it as an absent name, and `GET /v1/properties/{hash}/rules`
+returns it so the unit card tags the rule *not automated* while showing its text. A spell is always played.
 
 **A spell is the fourth, and it is not a property**, which is why this table is not called
 `property_definition`. A property is attached to something and travels with an army; a spell is
@@ -503,6 +514,21 @@ log and never a row — consumed the first time that grant's effect applies. Eve
 first"*, `Blast` applies *"after resolving other special rules"* — and four of the twelve kinds
 act on other properties rather than on game state, which does not commute.
 
+### Ordered child rows record their position
+
+`action.position`, `effect.position`, `effect_condition.position` and `condition_value.position` are each row's index among
+its siblings in the document (an effect's siblings share its entry and parent), arriving as management's
+`007_properties_positions.sql`. The game server reads every one of those lists in that order and nothing else orders them:
+ids are v7 uuids minted in one loop, random within a millisecond. The order is evaluated, not cosmetic: sibling effects that
+share an `ordinal` apply in document order, conditions are judged in order (`Slayer`'s `attack_kind`, judged first, keeps its
+`most_models` from reading a defender an interaction without an attack does not have), a `roll_result` condition's values are its roll, then `raw | modified`, then the optional `success | fail`,
+and a turn's options list actions in document order.
+
+`position` is null on rows seeded before the column existed. Their order is not in the rows, so the game server's seeder,
+finding a set already present with a null position, takes the positions from the document its hash names and updates the
+rows in place, matching each document sibling to a stored sibling with the same content; ids are kept, because a game's
+grants name effect ids. A set whose document is no longer embedded keeps null positions and reads in id order.
+
 ### A condition is a row, and its values are rows
 
 `effect_condition` carries the predicate kind, its subject, and a comparison — `Stealth` is
@@ -520,9 +546,10 @@ grammar found is set membership over action types and not an `or`. One row is a 
 several rows are a set, and there is no boolean expression tree anywhere — the rulebook has no
 *or* and no *not* in its properties.
 
-A `roll_result` condition has exactly two `condition_value` rows: the roll it reads (`hit`,
-`defense`) and either `raw` or `modified`. `effect_condition.number` is the face compared. No
-roll may be named `raw` or `modified`.
+A `roll_result` condition has two or three `condition_value` rows: the roll it reads (`hit`,
+`defense`), either `raw` or `modified`, and optionally `success` or `fail`, which the die's
+success must match. `effect_condition.number` is the face compared. No roll may be named `raw`,
+`modified`, `success` or `fail`.
 
 Conditions hang off the effect, never off the property. `Indirect` is why: its three effects
 have different conditions, one of them conditional and two unconditional.
@@ -623,15 +650,18 @@ is the override, and clearing them re-copies the source's volumes.
 shows. `enforcement` is `silent | warn | strict`, replacing `warns boolean`: the review reopened
 identity and enumerations' boolean and kept the refusing position two later designs had written.
 `waits_between_steps` is resolution's second setting, which had no column; its first, animate, is
-a per-player client setting and not here.
+a per-player client setting and not here. Neither the client's create-game form nor its lobby panel offers `waits_between_steps`;
+both send `false`, and the column serves development.
 
 The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
 
 ### The catalog's per-kind check
 
-`cost`, `target_side`, `target_grain`, `target_count` and `target_range` are non-null only when
-`kind = spell`; `aggregation` only when `kind = model`; `takes_parameter` is false for a spell.
-Stated in one place since 09-04.
+`cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null
+on a spell and on a pick entry (a `model` entry an army-book Buff, Mark or Debuff writes); `target_line_of_sight` is null
+(in sight) or false (range alone, a Buff), and set only with a target; `aggregation` only when `kind = model`;
+`takes_parameter` is false for a spell. `PropertiesJson.Validate` holds a pick entry to count one and `once` rows at
+`before-attacking`.
 
 ### A game records its creator
 
@@ -644,8 +674,8 @@ orphan.
 ### A game stores its dice seed
 
 `game.rng_seed bigint not null`, with no default. The RNG
-is counter-based: the seed and the count of dice drawn in the effective log give every die, so an
-undo rewinds the dice along with the log and no RNG state is stored anywhere. Management writes the
+is counter-based: the seed and the count of dice drawn in the whole log, undone events included, give every die, so an
+undone roll's dice stay spent and no RNG state is stored anywhere. Management writes the
 seed once, at creation, and never again. It is not derived from the game id, because a simulator
 run then has no way to choose one. The absent default is deliberate,
 so a caller that omits the seed fails loudly instead of playing a game nobody can reproduce.

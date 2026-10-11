@@ -118,8 +118,8 @@ Roll N dice against a threshold, with modifiers. Split:
 | folding in player-added modifiers | |
 
 **The RNG is counter-based.** The seed is the game's stored `rng_seed`, written once when the game
-is created and never changed. The cursor is the number of dice drawn in the effective log, so no
-RNG state is stored and an undo rewinds the dice with the log. A forced reroll (`Bane`) is a
+is created and never changed. The cursor is the number of dice ever drawn in the log, undone events
+included, so no RNG state is stored and an undone roll's dice stay spent: an undo draws fresh dice. A forced reroll (`Bane`) is a
 `dice_rerolled` payload following the `step_completed`, so the record shows the replaced die and
 the cursor counts the extra draw.
 

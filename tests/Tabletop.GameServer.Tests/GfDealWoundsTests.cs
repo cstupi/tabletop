@@ -14,10 +14,13 @@ public class GfDealWoundsTests
     static Sim Start(Tabletop.Content.Unit attacker, Tabletop.Content.Unit target, int wounds, int[] dice, Guid? takedown = null, params Guid[] weapons) =>
         StartWith(attacker, target, wounds, dice, takedown, Enforcement.Warn, [], weapons);
 
-    static Sim StartWith(Tabletop.Content.Unit attacker, Tabletop.Content.Unit target, int wounds, int[] dice, Guid? takedown, Enforcement enforcement, (Guid Model, int Wounds)[] wounded, Guid[] weapons)
+    static Sim StartWith(Tabletop.Content.Unit attacker, Tabletop.Content.Unit target, int wounds, int[] dice, Guid? takedown, Enforcement enforcement, (Guid Model, int Wounds)[] wounded, Guid[] weapons, Guid[]? shelved = null)
     {
         var state = State([attacker], [target], enforcement: enforcement);
         foreach (var (woundedModel, w) in wounded) state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null, new WoundsSet(woundedModel, w), null));
+        if (shelved is { Length: > 0 })
+            state.Applier.Apply(new GameEvent(state.Projection.LastSeq + 1, null,
+                new ModelsMoved([.. shelved.Select(m => new ModelRelocation(m, state.Projection.Models[m].Location, new OnShelf()))]), null));
         var sim = new Sim(state, new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "wounds"), WithSequences.Parent(GfNames.AttackSequence, "wounds", "pick-target-model")), TestProperties.Core, new ScriptedDice(dice));
         var parent = Guid.CreateVersion7();
         sim.Append([new SequenceStarted(parent, takedown is null ? "test-parent" : GfNames.AttackSequence, new SequenceContext(attacker.Id, [target.Id], weapons, GfNames.Hold)),
@@ -55,6 +58,30 @@ public class GfDealWoundsTests
         Assert.Null(sim.AskForOrNull(Samples.Team2));                                                                  // one eligible model: nothing to choose
         Assert.IsType<OnShelf>(sim.Model(y).Location);
         Assert.Equal((1, 1), (sim.Alive(t.Id), sim.Model(x).Wounds));                                                  // two wounds killed y, the third goes to the next Tough model
+    }
+
+    /// <summary>p.15: "continue to put wounds on the tough model with most wounds in the unit until it is killed, before starting to put them on
+    /// the next tough model". With none wounded the defender picks which one, and a spread answer puts every wound on the first model it names.</summary>
+    [Fact]
+    public void Among_unwounded_Tough_models_the_wounds_go_on_the_first_one_named_until_it_dies_and_the_defender_picks_the_next()
+    {
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 3, [P("Tough", 3)]);
+        var (x, y, z) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
+        var sim = Start(a, t, 4, [1]);
+        var legal = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);
+        Assert.Equal([x, y, z], legal.Targets);
+        Assert.Equal(1, legal.MaxTargets);                                                                              // one Tough model at a time
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [y] = 1, [x] = 1, [z] = 2 }));             // spread: out of set, warned, read as its first model
+        Assert.IsType<OnShelf>(sim.Model(y).Location);                                                                // three wounds killed y
+        Assert.Equal((0, 0), (sim.Model(x).Wounds, sim.Model(z).Wounds));
+        var next = Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal);                                         // the fourth: neither left is wounded, so the defender picks
+        Assert.Equal(1, next.Amount);
+        Assert.Equal([x, z], next.Targets);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [z] = 1 }));
+        Assert.Equal((2, 0, 1), (sim.Alive(t.Id), sim.Model(x).Wounds, sim.Model(z).Wounds));
+        Assert.Equal(4, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.Empty(sim.State.Projection.Stack);
     }
 
     [Fact]
@@ -215,5 +242,32 @@ public class GfDealWoundsTests
         var sim = Start(Unit("A", "4+", "4+", [], 1, []), Unit("T", "4+", "4+", [], 2, []), 0, [1]);
         Assert.Null(sim.AskForOrNull(Samples.Team2));
         Assert.Empty(sim.State.Projection.Stack.Where(f => f.Sequence == GfNames.DealWounds));
+    }
+
+    [Fact]
+    public void A_later_weapon_group_whose_target_has_no_model_left_removes_nothing_and_finishes_without_asking()
+    {
+        // p.8: "all weapons are fired simultaneously": an earlier group destroyed the unit, so this group's wounds find no model and are lost.
+        var a = Unit("A", "4+", "4+", [], 1, []);
+        var t = Unit("T", "4+", "4+", [], 2, []);
+        var sim = StartWith(a, t, 2, [1], null, Enforcement.Warn, [], [], [t.Models[0].Id, t.Models[1].Id]);
+        Assert.Null(sim.AskForOrNull(Samples.Team2));
+        Assert.Equal(0, sim.Unit(t.Id).WoundsThisActivation);
+        Assert.DoesNotContain(sim.State.Projection.Stack, f => f.Sequence == GfNames.DealWounds);
+    }
+
+    [Fact]
+    public void Wounds_carried_past_a_dead_model_keep_their_regeneration_result_and_are_not_rolled_again()
+    {
+        // p.14 Regeneration: "roll one die for each" wound: three wounds take three dice, however the allocation carries them.
+        var t = Unit("T", "4+", "4+", [], 3, [P("Regeneration")]);
+        var (p1, p2, p3) = (t.Models[0].Id, t.Models[1].Id, t.Models[2].Id);
+        var sim = Start(Unit("A", "4+", "4+", [], 1, []), t, 3, [1, 1, 1, 5, 5]);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [p1] = 3 }));          // three dice fail: p1 dies, two wounds carry
+        Assert.Equal(2, Assert.IsType<Allocation>(sim.AskFor(Samples.Team2).Legal).Amount);
+        sim.Answer(Samples.Team2, new Allocated(new Dictionary<Guid, int> { [p2] = 1, [p3] = 1 }));
+        Assert.Equal(3, sim.Steps("assign").SelectMany(s => s.Rolls).Sum(r => r.Dice.Count));
+        Assert.Equal((0, 3), (sim.Alive(t.Id), sim.Unit(t.Id).WoundsThisActivation));
+        Assert.Empty(sim.State.Projection.Stack);
     }
 }

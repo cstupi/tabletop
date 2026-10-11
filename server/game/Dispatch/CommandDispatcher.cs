@@ -27,7 +27,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
 
     public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => Classify(command) switch
     {
-        CommandClass.Override => Override(state, command),
+        CommandClass.Override => Override(state, command, actor),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
             ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not a live event"),
         CommandClass.Abandon => Abandon(state, ((AbandonSequence)command).FrameId),
@@ -35,13 +35,23 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         _ => Engine(state, command, actor),
     };
 
-    /// <summary>The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round (enforcement spec → A menu round start).</summary>
-    private DispatchOutcome Override(GameState state, Command command)
+    /// <summary>
+    /// The menu's one event. A set_round carries the round-start changes the scheduler would write, so a round started by hand is a whole round
+    /// (enforcement spec → A menu round start). A hand move is judged and decided under the enforcement setting (in-game UX spec → Hand moves
+    /// under enforcement); every other menu edit is applied under every setting.
+    /// </summary>
+    private DispatchOutcome Override(GameState state, Command command, Actor actor)
     {
         if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
             return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
         if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };
-        return new Applied([payload], null);
+        var verdict = command is MoveModels move ? EnforcementPolicy.Decide(state.Info.Enforcement, HandMoves.Judge(state, move, actor)) : new Accept(null);
+        switch (verdict)
+        {
+            case Refuse refuse: return new Refused(refuse.Reason, refuse.Detail);
+            case EndGame: throw new UnreachableException("a hand move's breach is always StrictRefuses");
+        }
+        return new Applied([payload], ((Accept)verdict).Warning);
     }
 
     private static DispatchOutcome Abandon(GameState state, Guid frameId)
@@ -69,13 +79,18 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         // Passing is a real answer and is never probed; a framed Ask, an Ambusher Ask and the boundary confirmation are not turn Asks.
         var readable = command.Answer is Passed || !SchedulerLog.IsTurnAsk(ask) || state.Rules.ReadAnswer(state, team, command.Answer) is not null;
         var detail = inSet ? $"answer to '{ask.Question}' names nothing this ruleset can read" : $"answer to '{ask.Question}' is outside the legal set";
-        var verdict = EnforcementPolicy.Decide(state.Info.Enforcement, inSet && readable ? Legality.Legal : Legality.OutsideLegalSet, detail);
+        // An answer inside the set can still break a rule only the table answers (IGameRules.AnswerBreach): the ruleset names it, and strict refuses it.
+        var breach = inSet && readable ? state.Rules.AnswerBreach(state, ask, command.Answer) : null;
+        var legal = inSet && readable && breach is null;
+        var verdict = breach is not null
+            ? EnforcementPolicy.Decide(state.Info.Enforcement, new Breach(breach.Rule, $"answer to '{ask.Question}': {breach.Detail}", new StrictRefuses(RefusalReason.Illegal)))
+            : EnforcementPolicy.Decide(state.Info.Enforcement, legal ? Legality.Legal : Legality.OutsideLegalSet, detail);
         switch (verdict)
         {
             case Refuse r: return new Refused(r.Reason, r.Detail);
             case EndGame: throw new UnreachableException("a legality breach is always StrictRefuses");
         }
-        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable) };
+        var events = new List<EventPayload> { new AskAnswered(ask.Id, team, command.Answer, !inSet || !readable, breach?.Rule) };
         var answered = new Dictionary<Guid, AskAnswer>(open.Answers.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value!)) { [team] = command.Answer };
         if (!ask.Sealed || ask.Teams.All(answered.ContainsKey))
             events.Add(new AskClosed(ask.Id, ask.Teams.Where(answered.ContainsKey).Select(t => new TeamAnswer(t, answered[t])).ToList()));

@@ -1,5 +1,6 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
@@ -30,7 +31,7 @@ public partial class LobbyPanel : VBoxContainer
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
-        AddChild(_error = new Label { Modulate = Colors.Orange });
+        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
@@ -44,9 +45,8 @@ public partial class LobbyPanel : VBoxContainer
         var name = new LineEdit { Text = game.Name }; config.AddChild(name);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(enforcement);
-        var waits = new CheckBox { Text = "Wait between steps", ButtonPressed = game.WaitsBetweenSteps }; config.AddChild(waits);
         config.AddChild(Btn("Apply configuration", () => Guarded.Send(s, new SetConfiguration(name.Text, game.PropertiesHash,
-            shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, waits.ButtonPressed))));
+            shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false))));
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {

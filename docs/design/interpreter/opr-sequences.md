@@ -18,14 +18,14 @@ edges and the free-for-all roll-off.
 | `charge` | `activation-terrain`, `charge-target`, `move`, `defender-closes`, `fight` | `GfMelee` | the scheduler |
 | `shooting` | `declare-targets`, `fire-groups` | `GfShooting` | `shoot-or-not` |
 | `melee` | `melee-start`, `counter`, `impact`, `charger-attacks`, `strike-back`, `compare`, `consolidate` | `GfMelee` | `charge`'s `fight` |
-| `attack-sequence` | `determine-attacks`, `roll-to-hit`, `resolve` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
+| `attack-sequence` | `determine-attacks`, `pick-target-model`, `roll-to-hit`, `score-hits`, `resolve`, `self-wounds` | `GfAttack` | `fire-groups`, `counter`, `charger-attacks`, `strike-back` |
 | `resolve-hits` | `roll-to-block`, `deal` | `GfAttack` | `attack-sequence`'s `resolve`, `impact`, `spell-hits` |
 | `deal-wounds` | `assign`, `disgorge` | `GfAttack`, `GfContainers` | `resolve-hits`' `deal`, `dangerous-terrain`'s `deal` |
-| `morale-test` | `test` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
+| `morale-test` | `test`, `override`, `consequence` | `GfMorale` | `melee`'s `compare`; `IGameRules.EndOfTurnSequences` |
 | `dangerous-terrain` | `test`, `deal` | `GfMoves` | `activation-terrain`, `move` phase 1, `wreck-test` |
 | `transport-destroyed` | `wreck-test`, `place` | `GfContainers` | `deal-wounds`' `disgorge` |
-| `casting` | `pick-spell`, `spend-tokens`, `roll`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
-| `spell-hits` | `hit`, `resolve` | `GfCasting` | `casting`'s `effects` |
+| `casting` | `pick-spell`, `spend-tokens`, `roll`, `result`, `targets`, `effects` | `GfCasting` | a `before-attacking` window |
+| `spell-hits` | `hit`, `score-hits`, `resolve`, `self-wounds` | `GfCasting` | `casting`'s `effects` |
 | `roll-off` | `roll-off`, `order` | `GfRolls` | the scheduler, via `FirstTeamDecision.RollOffNeeded` |
 
 ```mermaid
@@ -96,8 +96,10 @@ for a strike-back.
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]` and `Values["in_cover"]`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending. Writes `Values["extra_hits"]` (`Furious`/`Relentless` per unmodified 6) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Consumes any granted instance that contributed, via `RollEffects.ConsumeGrants` |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
+| `score-hits` | Every `hit` roll of the frame as it now stands, through `RollEffects.PerDie`. Writes `Values["extra_hits"]` (`Surge`/`Relentless` per unmodified 6 on a success) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["self_wounds"]` (`Hazardous`'s 1s) with `Values["wounds"]` equal to it. Consumes the per-die grants |
 | `resolve` | `Push(resolve-hits, ...)` |
+| `self-wounds` | `Push(deal-wounds)` at the attacker's own unit, with no actor, when `self_wounds` is above 0 |
 
 `GfAttack.HitsFrom(parent)` is what `resolve-hits` reads back. It is the successes of the
 parent's `hit` rolls plus its `extra_hits`, times its `hit_multiplier`. When the parent rolled no
@@ -136,7 +138,7 @@ suppression of `Regeneration`, are live), `Action` = the attacker's.
 completed steps. When the parent rolled none it is the parent's `Values["wounds"]`, which is the
 dangerous-terrain path.
 
-`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds)` to the
+`assign` opens `Allocation(Targets = GfAttack.EligibleForNextWound(...), Amount = wounds, MaxTargets)` to the
 target's team, and any member of that team may answer it. p.8 gives the defending player free
 choice of removal order. p.15 constrains it twice, and the two clauses are ordered. Heroes are
 assigned wounds last *even if already wounded*. Among the models that are not heroes, a wounded
@@ -146,8 +148,12 @@ after: a wounded `Tough` hero waits for every other model instead of soaking the
 `EligibleForNextWound` enumerates over `Lookup.AliveModels`, so a unit inside a container is
 wounded like any other. A hero joined to another unit is a model of that unit carrying `Hero` on
 its own slot, and `Hero` is `none` aggregation, so the same per-model predicate orders it last.
-That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*. The answer is applied as given. An out-of-set allocation under
-`warn`/`silent` is applied too, because nothing is an invariant.
+That is one of two clauses of `Hero` the slot property reaches, the other being `GfRolls.MoralePlan`'s *"may take morale tests on behalf of the unit"*.
+When every eligible model is `Tough` (none wounded, or only heroes left), `MaxTargets` is 1: p.15's *"continue to put wounds on
+the tough model with most wounds in the unit until it is killed, before starting to put them on the next tough model"* means the
+defender names one model, it takes every wound it can, and the rest carry to the next segment, which offers the survivors again.
+Otherwise `MaxTargets` is null and the answer is applied as given. An out-of-set allocation under `warn`/`silent` is applied too,
+because nothing is an invariant; a spread over `Tough` models reads as all its wounds on the first model it names.
 
 A **takedown** wound opens no Ask at all. When `GfAttack.TakedownModel` names a living model of the
 target, every wound this group deals is assigned to that one model and the defender is not asked
@@ -195,7 +201,11 @@ pushes `shooting`.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Phase0
+    [*] --> Before: Aircraft
+    [*] --> Phase0: any other unit
+    Before: before the move - casting checkpoint (Aircraft only)
+    Before --> Before: a cast or pick finished
+    Before --> Phase0: pass, or nothing offered
     Phase0: phase 0 - move a segment
     Phase1: phase 1 - dangerous terrain
     Phase2: phase 2 - casting checkpoint
@@ -204,7 +214,7 @@ stateDiagram-v2
     Phase1 --> Phase2: no dangerous volume entered or crossed
     Phase1 --> Phase1: Push dangerous-terrain, then resume
     Phase2 --> Phase2: Windows.Run(before-attacking) offers a cast, then resume
-    Phase2 --> Phase0: a cast finished and move budget remains
+    Phase2 --> Phase0: a cast finished, or the segment was a stop, and move budget remains
     Phase2 --> [*]: no reaction left: the step completes
 ```
 
@@ -213,10 +223,23 @@ in both cases with a fresh history, so the window **reopens**. p.13 is *"spend a
 the spell's value to try casting one or more spells (only one try per spell)"*, and one window per
 activation would allow only one spell. That reopening is why the fifth step outcome exists.
 
-Phase 0's Ask is a `MoveRegion` carrying six parameters: the unit's models still in play,
-`allowance − used`, the impassable volume ids, the difficult volume ids, `GfNames.DifficultCap`
-of 6 inches, and `MoveStep.Containers(...)`. The cap is `null` for a `Strider`/`Flying` unit,
-which it does not bind. The allowance is `StatReader.ActionDistance(live, side, action)`, so
+p.13 is also *"at any point before attacking"*, so a move may stop anywhere. `MoveRegion.Stoppable` is true when
+`ReactionsAt(before-attacking)` offers the mover's team something at the Ask, for any unit but an Aircraft. An answer with
+`Destinations.Continues` is a stop, recorded in `Values["continues"]`: after the checkpoint the step goes back to phase 0
+when budget remains, whether the window was answered, passed or offered nothing. A plain answer followed by a pass ends
+the step. A stop drops every relocation that leaves a model where it stands, facing as it faces (`MoveStep.Unmoved`), so a
+stop with no drag sets nothing `moved`, uses no distance and is how a unit casts before it moves. An Aircraft cannot stop
+(its move is one mandatory segment), so it gets the checkpoint once before phase 0 as well, in `Values["before_move"]`.
+The window's Ask is titled with the point's own words (`Windows.Prompt`: `before-attacking` → *Before attacking*).
+
+Phase 0's Ask is a `MoveRegion` carrying eight parameters: the unit's models still in play,
+`allowance − used`, the impassable volume ids, the difficult volume ids, what is left of `GfNames.DifficultCap`
+(6 inches less `used`), `MoveStep.Containers(...)`, a minimum distance (an Aircraft's 30", else null), and `Stoppable`. The cap is
+`null` for a `Strider`/`Flying`/`Aircraft` unit, which it does not bind. p.11's cap is *"for that movement"*, so it spans
+every segment a cast splits the move into: once a segment went in or through difficult ground the step records
+`Values["entered_difficult"]` and clamps every later segment's allowance to what is left of the cap. p.11 also holds
+*every* model of the unit to the cap once any one enters; the answer is judged for that by `GfMoves.DifficultCapBreach`
+at dispatch (`IGameRules.AnswerBreach`, rule `difficult_cap`), which reads the recorded flag for an earlier segment. The allowance is `StatReader.ActionDistance(live, side, action)`, so
 `Fast` and `Slow` are ordinary `modify_stat` effects on an `action` row. That is the reason an
 action is a row at all. `Values["distance_used_tenths"]` accumulates the largest
 `Movement.Check(...).Distance` over the moved models, in tenths of an inch, because `Values` is a
@@ -224,9 +247,44 @@ map of integers. A `Passed` answer is a zero move.
 
 The server applies the destinations with its own settled Z (`Battlefield.Settle`) and sets the
 unit's `moved` condition, which `GfHooks.OnTurnEnded` clears: it means moved this activation, what p.14
-Indirect's *"shooting after moving"* reads. It does **not** enforce the 1-inch separation or coherency. The client
-flags those, per `architecture.md` → Rules enforcement. `ignoreSeparation` changes only the Ask's
-prompt for a charge.
+Indirect's *"shooting after moving"* reads. Under the enforcement setting, dispatch judges the answer's allowance, impassable
+terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_exit`) and any relocation the step would not read
+(`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
+terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask lists no
+impassable volume; p.11 *"may not end their move partially overhanging gaps or terrain"* and p.7 *"physically impossible
+locations"* still hold its landing (`GfMoves.LandsInImpassable`). p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
+`move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, 1 except the Charge
+move, the close-in, consolidation and an Aircraft's move (move step, forced move, reposition); a disembark keeps it). Coherency is not judged, per
+`architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
+
+How a unit treats terrain is read once, from its live set, by `GfMoves.TerrainFor`: Aircraft (no volume listed or swept, no
+cap, no dangerous terrain test), Flying (p.13 *"may move through units and terrain, and ignore terrain effects whilst moving"*:
+no impassable volume, no cap, no dangerous terrain test) and Strider (p.14 *"May ignore the effects of difficult terrain when
+moving"*: no cap). The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
+reposition, and a spell's forced move: the owner's ruling is *"Spells move as however that unit moves"*, so `take_test`'s
+`move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
+
+A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
+It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:
+the step that used it removes nothing of that spell's grants and writes a `Values["flying_held_<unit>_<grant>"]` key instead
+(`GfMoves.ConsumeKeepingFlying`), so every later leg of a split move and the landing still read it. `GfHooks.OnTurnEnded`
+removes every grant so held since the activation was answered (`GfMoves.FlyingHeldThisActivation`). A spell's forced move of the unit
+reads it for terrain but neither spends nor holds it (owner ruling: the forced move is not the unit's activation), so the grant
+waits for the unit's own activation. This is the one granted rule held
+past the step that used it, and it is held by name.
+
+p.13 Aircraft is the move step's too: *"May only use Advance actions, moving in a straight line, and adding 30" to its
+total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping"*. For an Aircraft unit
+the allowance gains `GfNames.AircraftMove` (30), the Ask names no impassable or difficult volume and no cap,
+`ApplyMove` sweeps no terrain (so no dangerous terrain test), `activation-terrain` tests nothing, and the move is one
+segment (the casting checkpoint never returns it to phase 0, and a `Continues` from it is not a stop), so each model
+moves in one straight line; it is offered the checkpoint before that segment and after it. The step lists
+`Aircraft` in `Applied`. *"Can't be charged"* is `GfMelee.ChargeTargets`'. The move is mandatory (*"can't move into the
+table edges to move less than 30""*): the Ask allows no pass and sets `MoveRegion.MinDistance` to 30, and
+`GfMoves.MinimumBreach` (rule `aircraft_minimum`) refuses under strict any model that moved less, or that the answer
+left out. Where the table has no room for 30" in any direction (a small table: p.6 allows "smaller areas", p.7 keeps every
+base on the table), the owner's ruling is that it moves as far as it can in the direction taken: the minimum is the room
+towards where the model went (`GfMoves.Minimum`, `Movement.RoomAlong`).
 
 Phase 1 pushes `dangerous-terrain` when a moved model **entered or crossed** a `Dangerous` volume.
 p.11 says *"moves in or through"*, so the test is `Movement.Check` with the dangerous volumes
@@ -244,8 +302,11 @@ and push: the activation, the move, and transport destruction.
 ## Shooting
 
 `declare-targets` opens `Assignment(Items = GfShooting.Groups(...), Targets = valid target units,
-MaxDistinctTargets = 2)`. p.8: targets are declared *before any roll*, and up to two different
-targets. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
+MaxDistinctTargets = 2, TargetsByItem = each group's own valid targets)`. p.8: targets are declared
+*before any roll*, and up to two different targets; a target is valid for a group when a model can see
+it and has a weapon of that group in range (`GfShooting.ValidTargets` per group), so each group may be
+assigned only a unit on its own list. `GfShooting.Declared` drops any aim off that list. A group the
+answer leaves out holds fire (p.8: models "may" shoot); `fire-groups` fires only the groups with a target. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
 `Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
 `Values["defender_models_<i>"]` and `Values["in_cover_<i>"]`, before it pushes anything, pushes
@@ -309,7 +370,7 @@ that causes a wound would be counted twice.
 
 `charge-target` offers enemy units with a model within `StatReader.ActionDistance(Charge)` of a
 charger model whose straight path crosses no impassable volume
-(`Movement.Check(...).CrossesImpassable`). Two containment consequences fall out:
+(`Movement.Check(...).CrossesImpassable`); a Flying charger's path is not blocked (p.13). Two containment consequences fall out:
 
 - **A charger inside a container measures from the container**, because p.15 says *"units may use
   Charge actions to disembark"* and an occupant has no position of its own. Its reach is
@@ -335,21 +396,23 @@ shares one pool, since p.9 replaces the Quality value rather than modifying it; 
 
 ## The morale test
 
-One step, `test`. p.10, both paragraphs:
+Three steps, `test`, `override` and `consequence`, so each die is recorded a step before what it
+decides (→ Dice edits). p.10, both paragraphs:
 
-1. A unit with no models still in play `Finish`es without testing.
-2. A `Shaken` unit **always fails and no die is rolled**.
-3. Otherwise one `GfRolls.MoralePlan` die, at the best of the unit's `Quality` and every living
-   `Hero` model's own (p.14: *"The hero may take morale tests on behalf of the unit"*, resolved
-   always-when-it-helps, so no Ask). On a failure, every kind-5 roll whose child overrides a
-   `morale_test` result gets its chance. That is `Fearless`: one die at the effect row's
-   threshold, and a success counts as passed.
-4. A failed **wounds** test sets `shaken`. A failed **melee** test Routs when the unit is at half
-   or less of starting size, or its `Tough` value for a single model, sending every model to the
-   shelf. Otherwise it sets `shaken`.
+1. `test`: a unit with no models still in play `Finish`es without testing. A `Shaken` unit **always
+   fails and no die is rolled**. Otherwise one `GfRolls.MoralePlan` die, at the best of the unit's
+   `Quality` and every living `Hero` model's own (p.14: *"The hero may take morale tests on behalf
+   of the unit"*, resolved always-when-it-helps, so no Ask).
+2. `override`: when the `test` die as it now stands failed, or there is none, every kind-5 roll
+   whose child overrides a `morale_test` result gets its chance. That is `Fearless`: one die at the
+   effect row's threshold.
+3. `consequence`: the test passed when the `test` die or any `override` die is a success as it now
+   stands. A failed **wounds** test sets `shaken`. A failed **melee** test Routs when the unit is
+   at half or less of starting size, or its `Tough` value for a single model, sending every model
+   to the shelf. Otherwise it sets `shaken`.
 
-`Values["passed"]` and `Values["routed"]` are 0/1. Removal happens only on the melee path.
-`Action` in the frame context carries that distinction as `"wounds"` or `"melee"`.
+`consequence` writes `Values["passed"]` and `Values["routed"]`, both 0/1. Removal happens only on
+the melee path. `Action` in the frame context carries that distinction as `"wounds"` or `"melee"`.
 
 Morale is never a step of the attack machinery. It is reached from `melee`'s `compare` and from
 `IGameRules.EndOfTurnSequences`, which the scheduler calls after the declared action's sequence
@@ -371,7 +434,8 @@ still takes its test.
 | --- | --- |
 | `pick-spell` | `Options` over `GfCasting.Casters(state, unit)` crossed with the spell entries not yet tried this activation whose `Cost` the model can pay. The option id is `"{spell}\|{casterModelId}"`, so the paying model is in the answer. On the answer: `SpellTokensSet` deducting the cost, and nothing else |
 | `spend-tokens` | `Windows.SimultaneousSpend` then `Windows.Spends`, over `GfCasting.SpendCapacity`. Each addressed team names which of its own models pays what and each named model is deducted its own count. `Values["net_tokens"]` is the own team's counts summed less everyone else's |
-| `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13). A failure `Finish`es |
+| `roll` | `GfRolls.CastingPlan(net_tokens)`: one die at 4+ with the net token spend as a signed modifier (p.13) |
+| `result` | The `roll` die as it now stands (→ Dice edits): `Values["passed"]` 0/1, and a failure `Finish`es (p.13: *"on 4+ resolve the effect"*) |
 | `targets` | `PieceSelection` from the spell entry's four columns: `Side` relative to the caster's team, `Grain` (unit ids or model ids), `Count` as the maximum with a minimum of 1, `Range` from the caster model, and line of sight from the caster model |
 | `effects` | Once per chosen target, via `Values["target_index"]` and `Repeat`: every effect of the spell whose conditions hold, in ordinal order |
 
@@ -379,8 +443,11 @@ still takes its test.
 shape:
 
 - **`AddHit` with no `RollResult` condition** → `Push(spell-hits, ...)`. Its `hit` step rolls
-  `amount` dice at threshold 1, so every die is a hit and *on rolls of 6* rules read a real die.
-  It writes `granted_<entry>_<amount>` for the hits' nested grants, then pushes `resolve-hits`.
+  `amount` dice at threshold 1 with `RequiredRaw` 1, so every die is a hit (p.5's natural 1 does not
+  judge a roll that is no test, and an edit is judged the same way) and *on rolls of 6* rules read a
+  real die. Its `score-hits` is `attack-sequence`'s: `extra_hits`, `self_wounds` and
+  `granted_<entry>_<amount>` from the dice as they now stand, and it `Finish`es the frame when the
+  spell scored no hit. Then `resolve-hits` is pushed.
 - **Any effect with `Duration = Once`** → `GrantAdded(targetUnit, new Grant(id, effect.Id,
   effect.TargetEntry ?? spell.Name, casterUnit, 1))`. A model-grain target's grant lands on its
   unit, because the grants store is the unit's.
@@ -432,7 +499,7 @@ move step's work, not a sequence of their own. `MoveStep.Containers` decides wha
 | Answer shape | Meaning | What is measured |
 | --- | --- | --- |
 | `To is Inside` | embarking | **nothing.** p.15: *"only one model needs to reach the Transport for everyone to embark"*, and the 1-inch move restriction is ignored. `distance_used_tenths` does not grow. The one guard is state integrity: an `Inside` whose container is not a model on the table is dropped |
-| `From is Inside`, `To is OnTable` | disembarking | only p.15's *"must stay fully within 6 inches of it when exiting"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin`. Checked on the server rather than trusted from the client, because it is the one containment rule that is geometry. A placement outside the radius is not applied and that model stays inside |
+| `From is Inside`, `To is OnTable` | disembarking | p.15's *"must stay fully within 6 inches of it when exiting"* and p.7's *"never move outside of the battlefield (no part of them, at any point)"*, and p.11's *"may not end their move partially overhanging gaps or terrain"*, via `GfMoves.ExitPlacement` over `Containment.BaseFullyWithin`, `Table.ContainsBase` and `GfMoves.LandsInImpassable` (every impassable volume, whatever the Ask lists). Checked on the server rather than trusted from the client. Under strict, a placement outside the radius, off the table or in impassable terrain is refused (`move_exit`); under warn and silent it is not applied and that model stays inside. A model answered `Inside` the container it is in stands still and stays inside |
 | table to table | an ordinary move | as before |
 
 Ignoring the 1-inch restriction needs no code, because nothing enforces it in the first place.
@@ -442,7 +509,11 @@ Only the Ask's prompt and the client's decision not to flag it change.
 `ContainerMovesThisActivation` and returns `null` for the exit after an embark and `null` for the
 enterable list after a disembark. The legal set enforces it, the way every other rule here does.
 The answer is applied as sent, and `LegalSet.Contains` under `strict` checks a `move_region`
-answer's model ids only.
+answer's model ids (each once) and finite placements only, plus p.11's cap and an Aircraft's minimum (`IGameRules.AnswerBreach`).
+Both breach checks and every step that applies a move read the answer through `GfAnswers.Moves`: the first relocation per listed
+model, `From` taken from the projection, and nothing that is not applied. It drops a non-finite placement, one farther from the
+model than the table's diagonal, an `Inside` the Ask did not list as enterable, and a move out of a container the Ask is not
+exiting (so a unit that embarked cannot step out on a later segment, whose Ask offers no exit). A dropped model has not moved.
 
 `ContainersInReach` lists **friendly** containers only, so no automated move puts a unit inside an
 enemy vehicle, while `Battlefield.InsideReach` implements p.14 as written. That asymmetry leaves
@@ -505,14 +576,55 @@ so any team may release it.
 
 `order` never rolls. A menu edit that leaves two teams on equal dice is therefore settled by team
 ordinal rather than by a fresh die, which is the same tolerance `RollOff.Order` already has for a
-hand-edited log. Splitting the ranking out of the rolling step is what makes an edit take effect
-at all: `dice_edited` reaches back into a recorded `RollRecord` and never rewrites a
-`step_completed`'s `Values`, so a one-step roll-off would have offered an edit the order ignored.
+hand-edited log. The ranking is a step of its own for the reason every face decision is
+(→ Dice edits).
+
+## Dice edits
+
+`SetDice` and `RerollDice` reach a `RollRecord` of a frame on the stack, and only there
+(`RulesEngine.Find`): a popped frame's rolls are out of reach, and the client treats an edit to one
+as a desync. An edit appends `dice_edited` or `dice_rerolled` and nothing else. The applier folds
+it into the record, so `RollOutcome` and `record.Dice` read the dice as they now stand. Every
+`step_completed` already appended keeps its `Values` and `Changes`, and so does every event after
+it. An edit therefore changes exactly what the steps that run after it read off the record.
+
+So a decision the rulebook takes from a face is never settled by the step that rolls the die. The
+rolling step records the dice and settles what does not depend on their faces; the next step reads
+the record as it now stands and settles the decision. The boundary between the two is where an
+edit lands: a confirm gate (the wait setting, or the roll-off's own), or any Ask the frame waits
+beneath. With neither, the deciding step runs in the same advance as the roll and an edit reaches
+only the readers after it. Replay re-derives nothing: the deciding step's `Values` and `Changes`
+are appended once, after whatever edits preceded it, and replay applies them.
+
+| Sequence | Rolls | Decides | What it settles from the dice as they stand |
+| --- | --- | --- | --- |
+| `roll-off` | `roll-off` | `order` | `place_1 .. place_n`, `winner_ordinal` |
+| `attack-sequence` | `roll-to-hit` | `score-hits` | `extra_hits`, `granted_<entry>_<amount>`, `self_wounds`, `wounds` |
+| `spell-hits` | `hit` | `score-hits` | the same, and `Finish` when the spell scored no hit |
+| `casting` | `roll` | `result` | `passed`; a failure `Finish`es |
+| `morale-test` | `test`, then `override` | `override`, then `consequence` | whether the override rolls at all; then `passed`, `routed`, `shaken` or the rout |
+
+Two things stay with the roll. `hit_multiplier` reads no face. The dice an extra-attacks row adds
+are drawn on the faces as rolled, because an edit draws no die: editing an added attack's source
+die neither adds nor removes dice, and `score-hits` reads whichever dice were drawn.
+
+A granted instance is consumed by the step that reads it. The rolling step reads the plan's grants
+and the deciding step the per-die ones, so the rolling step leaves out of its `GrantRemoved`s every
+grant the deciding step will read, with the rest of that spell's grants (`GfDeferred.Leave`). The
+deciding step then settles the same live set the roll was planned against. `override` may roll
+nothing, so `test` names each grant it read and held back in a `Values["held_<unit>_<grant>"]` key,
+and `override` removes those on either path: a spell's morale modifier beside its Fearless is spent
+once whether or not the test passed.
+
+The other rolls still settle their consequence in the step that rolls them, and an edit to one
+changes only later readers: `roll-to-block`'s per-die `extra_wounds` (its failures are read as they
+stand by `GfAttack.WoundsToDeal`), `assign`'s wound-ignoring rolls, `dangerous-terrain`'s `test`,
+`impact`, the attack-start rolls' `face_` values and a dice-distance move's `distance_tenths`.
 
 ## Roll specs
 
-`GfRolls.Spec(roll)` gives every OPR roll the same convention, `new RollConvention(6, null)`,
-which is 1D6 with no modifier cap. The specs differ only in threshold derivation, and a spec's threshold is the default a caller that
+`GfRolls.Spec(roll)` gives every OPR roll the same convention, `new RollConvention(6, null, 1, 6)`,
+which is 1D6 with no modifier cap, where a raw 1 always fails and a raw 6 always succeeds (p.5). The specs differ only in threshold derivation, and a spec's threshold is the default a caller that
 names none gets: `GfRolls` passes its own to `StepContext.Plan` wherever the rulebook makes the
 target number a model's.
 

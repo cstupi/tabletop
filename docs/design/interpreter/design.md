@@ -64,7 +64,7 @@ scheduler. Three modules must land first:
 | Module | What this one consumes |
 | --- | --- |
 | Contracts | Every `EventPayload`, `Command`, `Ask`, `LegalSet`, `StateChange`, `Projection`, `Frame`, `EventApplier.EffectiveLog`, `StepCompleted.Values`, and `GameInfo.RngSeed` |
-| Geometry | `Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Settling` |
+| Geometry | `Distance`, `LineOfSight`, `Cover`, `Movement`, `Bodies`, `Containment`, `Collision` |
 | Game server skeleton | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult`, `CommandDispatcher`, `Legality`, `InMemoryEventLog`, `PostgresFixture`, `GrimdarkFutureRules` as a `partial` |
 
 Nothing of this module exists yet. The repository is at scaffold stage: only `client/` has code,
@@ -189,6 +189,8 @@ erDiagram
         text target_grain
         int target_count
         float8 target_range
+        bool played
+        bool target_line_of_sight
     }
     EFFECT {
         uuid id PK
@@ -245,7 +247,9 @@ the game server's assembly. The document has the eight tables' shape without ids
 `PropertiesJson.Canonical` serialises it with the lists whose order carries no meaning sorted
 (`stats` by level then name, `actions`, `rolls` and `entries` by name, all `StringComparer.Ordinal`)
 and the lists whose order *is* meaning left alone (an effect's `ordinal` is authored, and so is
-the order of its children and conditions). `PropertiesJson.Hash` is `"sha256:"` plus 64 lowercase
+the order of its children, conditions and condition values). The stored rows keep both kinds of order: every action,
+effect, condition and condition value records its `position` in the document (`docs/schema.md` → Ordered child rows
+record their position), because the engine reads actions in order too. `PropertiesJson.Hash` is `"sha256:"` plus 64 lowercase
 hex over that. `PropertySetDocumentTests` pins the property that matters: reversing `entries` and
 `rolls` does not change the hash, changing `name` does.
 
@@ -253,8 +257,8 @@ Consequences:
 
 - **Editing a document produces a new set.** The hash changes, `SeedAsync` inserts new rows, and
   every game that pinned the old hash keeps reading the old rows. Undo-by-replay requires this.
-  Content is therefore append-only: nothing updates a seeded row, and stale sets are never
-  garbage-collected. §Failure modes takes that up.
+  Content is therefore append-only: nothing updates a seeded row's content, and stale sets are never
+  garbage-collected. The one update is a present set's null `position`s, filled from its document. §Failure modes takes that up.
 - **Effect and condition ids are minted at seeding**, not authored. `Grant.EffectId` is stable
   within one database and not portable between databases. A grant in an event log refers to an
   `effect.id`, so restoring a log into an independently seeded database would dangle. Nothing in
@@ -276,10 +280,10 @@ That last rule is a reading, not a schema constraint. Spell effects read forty-e
 and found *"always with one duration: once"*. Validating it makes an unexpected spell shape fail
 loudly instead of applying nowhere.
 
-A `roll_result` condition's `condition_value` rows are exactly two: the roll it reads, and `raw` or
-`modified` (`schema.md` → A condition is a row, and its values are rows). `number` is the face.
-`(condition_id, value)` is the primary key and carries no ordinal, so the loader re-orders those
-two to put the roll name first, and `Validate` refuses a roll named `raw` or `modified`.
+A `roll_result` condition's `condition_value` rows are the roll it reads, `raw` or `modified`, and
+optionally `success` or `fail` (`schema.md` → A condition is a row, and its values are rows).
+`number` is the face. `condition_value.position` carries each value's index (`schema.md` → Ordered child rows record their position); the loader's re-order to roll name, then `raw`/`modified`, then the outcome serves only rows seeded before that column, and `Validate`
+refuses a roll named `raw`, `modified`, `success` or `fail`.
 
 #### Store and seeder
 
@@ -304,44 +308,47 @@ processes are one system, so the seeding write needs no endpoint to pass through
 
 ### The roll primitive
 
-`architecture.md` says *RNG lives in server state as a seed*. Undo must reproduce the same dice,
-so rewinding cannot be used to fish for a roll. The seed is `GameInfo.RngSeed`, written once when
-management creates the game row and never written again. The cursor is counted from the effective
-log and stored nowhere.
+`architecture.md` says *RNG lives in server state as a seed*. An undone roll's dice stay drawn,
+so rewinding cannot be used to see the coming dice or fish for a roll. The seed is `GameInfo.RngSeed`, written once when
+management creates the game row and never written again. The cursor is counted from the whole
+log, undone events included, and stored nowhere.
 
 ```mermaid
 flowchart LR
     row["management.game.rng_seed : bigint"] -- "GameInfo.RngSeed, unchecked cast" --> seed["GameState.RngSeed : ulong"]
-    log["effective log"] -- "sum of RollRecord.Dice.Count + DiceRerolled.Replaced.Count" --> cur["DiceCursor.DrawnSoFar : long"]
+    log["whole log"] -- "sum of RollRecord.Dice.Count + DiceRerolled.Replaced.Count" --> cur["DiceCursor.DrawnSoFar : long"]
     seed --> src["IDiceSource.Draw(seed, index, sides)"]
     cur --> src
     src --> die["raw face"]
     die --> judge["Roller.Judge: modified = raw + NetModifier, success"]
-    judge --> rec["RollRecord(id, roll, threshold, modifiers, dice)"]
+    judge --> rec["RollRecord(id, roll, threshold, modifiers, dice, requiredRaw, basis)"]
     rec --> sc["StepCompleted.Rolls"]
     judge -- "raw in RollPlan.RerollRaw" --> forced["DiceRerolled, one extra draw"]
     undo["Undone(N) shortens the effective log"] --> cur
 ```
 
-The seed is fixed for the life of the game and the cursor is a function of the effective log. An
-undo rewinds the dice with everything else, and redoing the same action draws the same faces.
+The seed is fixed for the life of the game and the cursor is a function of the whole log. An
+undo rewinds everything but the dice: an undone roll's dice stay drawn, and redoing the same action draws fresh faces.
 
 `DiceSource` is a counter-based generator: a SplitMix64 finaliser over `seed ^ (index * golden
 ratio)`. Die *i* of a game is a pure function of `(seed, i)` with no sequential dependency.
 `ScriptedDice(params int[] faces)` returns `faces[index % Length]` and ignores the seed. Every
 sequence test uses it to script a whole engagement as one array of faces in draw order.
 
-`RollPlan` is the settled roll: `Roll`, `Threshold`, `Modifiers`, `Convention`, `RequiredRaw` and
-`RerollRaw`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
+`RollPlan` is the settled roll: `Roll`, `Threshold`, `Modifiers`, `Convention`, `RequiredRaw`,
+`RerollRaw`, `RerollSuccessfulRaw` and `Basis`, the threshold's `ThresholdBasis` from
+`StatReader`'s `TargetRead`. `Threshold` is nullable because the roll-off has none. `NetModifier` sums the
 modifiers, then clamps to `±Convention.ModifierCap` when the ruleset set one. OPR never clamps.
 40k clamps hit and wound at ±1. Summing is generic and clamping is the ruleset's: constraint 4.
-Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Modified >= t`. The
-`RequiredRaw` branch covers fatigue's *unmodified 6s* and 40k's critical hits, and is why a die
-carries both raw and modified.
+Success is `RequiredRaw is { } r ? Raw >= r : Threshold is { } t && Raw != AlwaysFails && (Raw ==
+AlwaysSucceeds || Modified >= t)`, the two faces read from the convention. OPR's are 1 and 6 on every
+roll (p.5). The `RequiredRaw` branch covers fatigue's *unmodified 6s*, rolls that are no test (a
+spell's *"Roll as many dice as hits"*, Unpredictable's table roll) and 40k's critical hits, and is
+why a die carries both raw and modified.
 
 Every roll is recorded per die: `RollRecord(Guid Id, string Roll, int? Threshold,
-IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice)` with `Die(int Raw, int Modified,
-bool Success)`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
+IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw, ThresholdBasis? Basis = null)` with `Die(int Raw, int Modified,
+bool Success)`. A reroll or `SetDice` re-judges a die under the record's own threshold, modifiers and `RequiredRaw`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
 so a threshold recomputed after a deploy could disagree with what the players rolled (resolution →
 Rerolling does not break undo).
 
@@ -359,11 +366,16 @@ buys. With the wait setting on, a reroll of a block die between `roll-to-block` 
 changes the number of wounds `assign` asks the defender to allocate, because `assign` reads the
 record rather than a stored count.
 
-One known inconsistency: `RequiredRaw` is not in `RollRecord`, so `RulesEngine.PlanOf` cannot
-restore it, and a player's reroll of a fatigued hit die is judged as `Modified >= Threshold`.
-`GfRolls.HitPlan` sets threshold 6 with no modifiers for that case, so the two agree by
-construction, and `GfRolls.HitQuality` returns 6 for every model of a fatigued unit, so there is
-one pool to keep aligned rather than one per Quality value. A comment holds that alignment in place, not a type.
+**The edit model.** An edit reaches a frame on the stack and nothing popped. It appends one event
+and rewrites none: every `step_completed` already appended keeps its `Values` and `Changes`, and an
+edit changes exactly what later steps read off the record. Where a sequence is split for it, the
+rolling step records and the next step reads the record as it now stands and decides, so the
+boundary between them is where an edit lands. Grimdark Future splits the roll-off, the hit rolls
+(attacks and spell hits), the casting roll and the morale test. Six rolls still settle their
+consequence in the step that rolls them, and an edit to one reaches only later readers:
+`roll-to-block`'s per-die extra wounds, `assign`'s wound-ignoring rolls, `dangerous-terrain`'s
+test, `impact`, the attack-start rolls and a dice-distance move
+([opr-sequences.md → Dice edits](opr-sequences.md#dice-edits)).
 
 ### The effect grammar: two passes
 
@@ -554,7 +566,8 @@ an explicit `Values["phase"]` machine. `GfContainers.WreckTestStep` guards it wi
 hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who lost. There is no
 schema per step kind, one flat map (contracts → Event inventory). It buys two things. A later step or a nested frame reads a settled
 parameter without re-deriving it. A reroll between steps changes what the next step reads, which
-is the record, without changing what was settled, which is the value. The cost is untyped string
+is the record, without changing what was settled, which is the value. A value a face decides is
+therefore settled by the step after the roll in the split sequences above. The cost is untyped string
 keys with no registry. `dangerous_dice`, `net_tokens`, `phase`, `hits`, `hit_multiplier`,
 `distance_used_tenths`, `place_1..place_n` and `loser` are conventions held in `GfNames`' vicinity
 and in prose, not in a type.
@@ -763,7 +776,7 @@ pinned by the shape of Tasks 8 and 9 rather than by an assertion.
 | --- | --- | --- | --- | --- |
 | 1 | Roll count and names are data | 40k has Hit, Wound, Save and Feel No Pain against OPR's two | `roll` rows; `RollDefinition` | source scan of five directories |
 | 2 | Threshold derivation is a function, not a stat reference | 40k's wound roll is a Strength-against-Toughness lookup | `RollSpec.Threshold : Func<LiveSet, Side, int?>` | the property is a `Delegate` |
-| 3 | Dice conventions are per roll | Battle-shock is 2D6 >= Leadership | `RollConvention.Sides` | every OPR roll is `(6, null)`; no `Six`/`D6` member on `Roller` |
+| 3 | Dice conventions are per roll | Battle-shock is 2D6 >= Leadership | `RollConvention.Sides` | every OPR roll is `(6, null, 1, 6)`; no `Six`/`D6` member on `Roller` |
 | 4 | Modifier caps are per roll | 40k clamps hit and wound at ±1; OPR never clamps | `RollConvention.ModifierCap`, applied after summing | `RollPlan.NetModifier` under both conventions |
 | 5 | Granularity: pooled or per attack | 40k allocates per attack, with pooling legitimised by Fast Dice Rolling | `Roller.Roll(frameId, plan, count)` plus a later step consuming the pool | by shape |
 | 6 | Damage reads a capacity, not a rule name | `Tough(X)` in OPR, the W stat in 40k | `Lookup.ModelParameter(state, modelId, "Tough") ?? 1` inside `GfAttack` only | `Tough` absent from the generic half |
@@ -813,7 +826,7 @@ what it held.
 | Authored content is a JSON document per set under `server/game/Content/`, hashed over a canonical serialisation and seeded as rows at game-server startup, idempotently by hash | The interpreter is the only process that reads the catalog, and the two servers are one system over one database, so the seeding write needs no endpoint to pass through; this is the smallest mechanism | Management owning the seeder behind an admin endpoint or CLI verb; a migration per set | `architecture.md` → Rules as data; the plan's ruling 1 |
 | A step's settled parameters are a flat `Values` map on `step_completed` | A later step reads a parameter without re-deriving it, and a reroll changes what the next step reads without changing what was settled | A payload schema per step kind | contracts → Event inventory |
 | A fifth step outcome: complete and run again | A move takes a second segment after a mid-move cast, and one window per activation would allow only one spell | A separate *checkpoint* primitive; a sequence listing the move step twice | §Step outcomes |
-| The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the effective log | The seed is written once at creation and never again, and no RNG state is stored, so an undo rewinds the dice with the log | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | `schema.md` → A game stores its dice seed |
+| The RNG is counter-based: the seed is the game's stored `rng_seed`, the cursor the count of dice drawn in the whole log, undone events included | The seed is written once at creation and never again, and no RNG state is stored; an undone roll's dice stay spent, so an undo cannot replay faces already seen | Deriving the seed from the game id, which fixes it but leaves a simulator run no way to choose one; storing RNG state in the game record and rewinding it explicitly | `schema.md` → A game stores its dice seed |
 | A property's own roll is a `RollRecord` named after the entry, with the effect row's threshold | Nothing targets it, so it needs no `roll` row, and `AddModifier` therefore cannot name it | A `roll` row per property that rolls | effect grammar → `Roll` nests |
 | One sealed Ask to every eligible team, whose `TokenSpend` carries a cap per model and no total | An Ask has one legal set for all of its teams, and the caps reveal nothing: a model's token count is already in every client's projection. One Ask per team is what the dispatcher cannot hold, since a sealed Ask closes when its addressed teams have all answered, so the first answer would reach the last team | One sealed Ask per team, needing the engine to withhold answers until the last closes; a per-team maximum in the Ask, which the per-model caps make redundant | contracts → Ask inventory; the plan's ruling 6 |
 | The player chooses which of its own models pays a team's token spend | p.13's test is per model and every token holder is itself a `Caster`, so a server-chosen payer spends tokens a player was keeping for that model's own spell. `TokenSpend.MaxByModel` and `TokensSpent.Counts` are maps keyed by model; `GfCasting.EligibleSpenders` supplies both the eligibility and the caps, so a model out of range or without a sight line is neither offered nor paid from. The caster's own model is an entry, capped at what the spell's cost left it | Nearest-first payer selection; one Ask per eligible model, for which the dispatcher has no sealed group; an `Allocation` over the team's models, which cannot express it because an `Allocated` must sum to its `Amount` and carries no per-target cap | the plan's ruling 14 |
@@ -865,7 +878,7 @@ what it held.
 | `sealed class StepContext` | `State`, `Properties`, `Rules`, `Frame`, `History`, `Projection`, `ActorTeam`, `TeamOf`, `Roll`, `Rolls`, `ForcedRerolls`, `Plan`, `Ask`, `SealedAsk` |
 | `sealed class SequenceInterpreter(IGameRules, PropertySet, IDiceSource) : ISequenceStarter` | `Advance(GameState)`, `Start(...)` |
 | `static class Windows` | `ReactionOrder`, `Run`, `SimultaneousSpend`, `Spends` |
-| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle` |
+| `static class Battlefield` | `Placed`, `At`, `InsideReach`, `Terrain`, `CanSee`, `Distance`, `Vertical`, `UnitDistance`, `ModelsInCoverTerrain(state, unit, wholeBase)`, `ModelsBehindSightBlockers(state, unit, fromModels)`, `TerrainUnder`, `Settle(state, modelId, placement)` (ignores the client's Z; rests on `Collision.RestHeight`) |
 | `static class Teams` | `Of(GameState, Guid unitId)`, `Others(GameState, Guid? team)` |
 
 `Tabletop.GameServer.Rules`, the nine members added to `IGameRules` beside the scheduler's
@@ -910,7 +923,7 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_ca
 | From | Exact names |
 | --- | --- |
 | Contracts (`Tabletop.Protocol`) | `StepCompleted` with `IReadOnlyDictionary<string,int>? Values { get; init; }` and `CompletedStep.Values` copied by `EventApplier.ApplyTo`, **the one addition this module asks for**; `SequenceStarted/Finished/Abandoned`, `AskOpened/Answered/Closed`, `TeamAnswer`, `DiceRerolled`, `DiceEdited`, `DieReplacement`, `ModifierAdded`, `Undone`, `RollRecord`, `Die`, `RollModifier`, `Grant`, `SequenceContext`, `Location` (`OnTable`, `OnShelf`, `Inside`), `ModelRelocation`, every `StateChange`, `Ask`, `AskOption`, every `LegalSet` and `AskAnswer`, `AskQuestions`, `Projection`, `Frame`, `CompletedStep`, `OpenAsk`, `UnitInPlay`, `ModelInPlay`, `EventApplier.EffectiveLog`, `GameInfo.RngSeed : long` |
-| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Settling.SurfaceHeightAt`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed`, `Footprint.IsValid(scale)`, `Table.IsValid` (for `DraftEditor.Degenerate`) |
+| Geometry (`Tabletop.Geometry`) | `Distance.EdgeToEdge`, `Distance.Vertical`, `LineOfSight.Check`, `Cover.InsideCoverVolumes`, `Cover.SightBlockersBetween`, `Containment.VolumesContaining`, `Containment.BaseFullyWithin(PlacedModel, PlacedModel, double)`, `Collision.RestHeight`, `Collision.Crosses`, `Bodies.AsBlockingVolume`, `Movement.Check(PlacedModel, Point2, double, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? cap, TableSize?)`, `Movement.VolumesCrossed`, `Footprint.IsValid(scale)`, `Table.IsValid` (for `DraftEditor.Degenerate`) |
 | Skeleton (`server/game/`) | `IGameRules`, `IRulesEngine`, `IRulesEngineFactory`, `GameState`, `Actor`, `EngineResult` (`Emit`, `RefuseCommand`), `Legality`, `CommandDispatcher`, `RowMapping.EnumText/EnumFrom`, `IEventLog`, `InMemoryEventLog`, `PostgresFixture`, `RecordingClient`, `FixedAskEngine`, `GrimdarkFutureRules` as `sealed partial` |
 | Scheduler | `TurnContext`, `Activation`, `ActivationOption.Idle`, `SchedulerBase.RoundsPhase`; and `SchedulerFactory` replacing `NoSchedulerFactory` in `Program.cs` |
 | Management | `GET /v1/properties` already lists the seeded sets, and the Army Forge import's stat names `Quality`, `Defense`, `Range`, `Attacks` must match `grimdark-future-core.properties.json`. Its joined hero is a model of the unit it joined, which obliges this module in two places: the document declares `Quality` and `Defense` at `model` level as well as `unit` level, so a joined hero's `slot_stat` rows are declared ones, and a `unit`-kind entry on a model slot is read as the unit's rule in both readers. The hero attacks at its own Quality and blocks on the unit's Defense until it is alone, so the model-level `Quality` is read; `StatReader.TargetNumber` resolves either level for a named model and the split lives in `GfRolls.HitQuality`, `GfAttack.Attacks` and `GfRolls.DefensePlan` (the plan's ruling 13) |
@@ -918,7 +931,7 @@ shapes: `move`, `shoot_or_not`, `declare_targets`, `takedown_target`, `remove_ca
 Two geometry obligations are discharged by this module rather than by geometry. A dangerous
 terrain test is owed `Movement.VolumesCrossed`, because p.11 says *"moves in or through"* rather
 than "ends in". `Containment.BaseFullyWithin` implements p.15's *"fully within 6 inches of it"*,
-and `GfMoves.ExitPlacement` is its only caller.
+and `GfMoves.ExitPlacement` is its only caller; it also holds the base on the table (`Table.ContainsBase`, p.7).
 
 ## Sequences
 
@@ -1046,12 +1059,13 @@ sequenceDiagram
     participant TD as transport-destroyed frame
 
     AS->>AS: determine-attacks: Values[attacks] and Values[attacks_q3], [attacks_q5] read off the pushing frame, Values[eligible_models] counted now
-    AS->>AS: roll-to-hit: one RollRecord(hit) per attacks_q&lt;n&gt; - Values[extra_hits], [hit_multiplier] capped at defender_models, [granted_Rending_4]
+    AS->>AS: roll-to-hit: one RollRecord(hit) per attacks_q&lt;n&gt; - Values[hit_multiplier] capped at defender_models
+    AS->>AS: score-hits: the hit dice as they now stand - Values[extra_hits], [granted_Rending_4], [self_wounds]
     AS->>RH: resolve: Push
     RH->>RH: roll-to-block: one defense roll per grant group, cover as a base modifier off in_cover, the unit's Defense until defender_models is 1
     RH->>RH: cover: GfRolls.InCover over the target unit's models, seen from every eligible attacker model
     RH->>DW: deal: Push
-    DW->>Def: assign: Allocation(eligible models, wounds)
+    DW->>Def: assign: Allocation(eligible models, wounds, MaxTargets)
     Def-->>DW: Allocated: counts per model
     DW->>DW: Deadly multiplies first - Regeneration rolls per wound - wounds_set - casualties to the shelf
     DW->>DW: an occupied container is NOT shelved: p.15 places occupants before removal
@@ -1089,7 +1103,7 @@ produces reaches `game.game_event` through the skeleton's session, never through
 | `management.action` | `properties_hash`, `name`, `distance` | the same |
 | `management.roll` | `properties_hash`, `name` | the same |
 | `management.stat_definition` | `properties_hash`, `level`, `name`, `kind` | the same |
-| `management.catalog_entry` | `properties_hash`, `name`, `kind`, `takes_parameter`, `aggregation`, `cost`, `faction`, `rule_text`, `target_side`, `target_grain`, `target_count`, `target_range` | the same |
+| `management.catalog_entry` | `properties_hash`, `name`, `kind`, `takes_parameter`, `aggregation`, `cost`, `faction`, `rule_text`, `target_side`, `target_grain`, `target_count`, `target_range`, `played`, `target_line_of_sight` | the same |
 | `management.effect` | `id`, `properties_hash`, `entry_name`, `parent_effect_id`, `subject`, `ordinal`, `kind`, `target_roll`, `target_stat`, `target_entry`, `target_action`, `target_quantity`, `target_result`, `target_modifier`, `amount`, `amount_from_parameter`, `threshold`, `cap_kind`, `replacement`, `duration` | the same |
 | `management.effect_condition` | `id`, `effect_id`, `kind`, `subject`, `comparison`, `number` | the same |
 | `management.condition_value` | `condition_id`, `value` | the same |
@@ -1107,7 +1121,7 @@ others cascade. The embedded core set is left in a developer's database on purpo
 | `GameState.RngSeed` | `unchecked((ulong)Info.RngSeed)` on `GameState` construction, the value stored on the game row | session |
 | The frame stack | `Projection.Stack`, applied from the four sequence events | rebuilt by the applier; **never a row** |
 | A frame's position, values and history | nothing; computed by `FrameReader.Read` on every `Advance` | one call |
-| The dice cursor | nothing; `DiceCursor.DrawnSoFar` sums over the effective log | one call |
+| The dice cursor | nothing; `DiceCursor.DrawnSoFar` sums over the whole log | one call |
 | A unit's grants, conditions, action record, wounds-this-activation, spell tokens | `UnitInPlay`/`ModelInPlay` in the projection | rebuilt from the log |
 | An open Ask and its answers | `Projection.OpenAsks` | rebuilt from the log |
 
@@ -1160,8 +1174,10 @@ a *current* column means the event spine has been broken.
   cannot cross.
 - **Capacity is never enforced.** `Transport(X)`'s parameter is carried by the catalog entry and
   read by nothing. Game flow rules it explicitly.
-- **The 1-inch separation and unit coherency are never enforced.** The client flags them.
-  `MoveStep`'s `ignoreSeparation` changes only the Ask's prompt.
+- **Unit coherency is never enforced.** Nothing judges it. The 1-inch separation, base overlap and a path through a model are
+  judged by `GfMoves.ContactBreach` and `OverlapBreach` under the enforcement setting; `MoveRegion.Separation` and
+  `PassesModels` carry the Ask's terms (Separation 1 except the Charge move, close-in, consolidation and an Aircraft's
+  move (move step, forced move, reposition); PassesModels from the Flying/Aircraft pass-impassable rule, including the terrain reposition Ask).
 - **Missions beyond the core one do not exist here.** Objective seizing and the round-4 winner are the ruleset's `OnRoundEnded` and `JudgeAdvance`, not interpreter steps; players keep their own counters.
 
 ### Concurrency
@@ -1184,7 +1200,7 @@ with scripted dice. 80 new tests are expected, which is the figure the plan's fi
 | `PropertySetTests`, `PropertySetDocumentTests` | lookups, `Comparison` over six operators, enum wire spellings, canonical hashing, validation, a spell's two admissible effect shapes | no |
 | `CoreContentTests` | the authored OPR core set parses, validates and builds | no |
 | `PropertiesStoreTests` | eight tables in, eight tables out; `SeedAsync` idempotent by hash | **yes**: `[Collection("Postgres")]`, `PostgresFixture` |
-| `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, undo reproducing dice | no |
+| `DiceTests` | counter-based determinism, the stored seed reinterpreted whole including a negative one, cursor arithmetic, `RequiredRaw` versus threshold, forced rerolls, an undone roll's dice staying counted | no |
 | `LivePropertiesTests`, `RollEffectsTests` | aggregation, a `unit`-kind entry on a model slot read the same way by both readers, collapse-unless-parameter, the four pass-one kinds in ordinal order, plan modifiers, suppression, per-die grants, capped multipliers | no |
 | `InterpreterTests`, `WindowTests` | the five outcomes, position and history from the log, confirm gates, reaction order, the simultaneous spend | no |
 | `RulesEngineTests` | the three-line `Advance` split, the three dice commands, `PropertiesNotFoundException` | no |
@@ -1231,7 +1247,7 @@ and what else it touches.
 | 5 | May generic `Effects/` know the two weapon stat names? | Yes, while OPR is the only ruleset. `StatReader` reads `"Range"` and `"Attacks"`, whitelisted by the constraint test | A second ruleset needs `IGameRules` to gain `StatRef RangeStat` and `StatRef AttacksStat`, and `StatReader` to take them |
 | 6 | One sealed `TokenSpend` legal set for every team? | Yes. `TokenSpend` is a cap per model (ruling 14), so no per-team maximum exists to place in the Ask and no clamp derives one. One Ask serves every team, since a sealed Ask closes when its addressed teams have all answered and one Ask per team would reveal the first answer to the last | None; the Ask carries nothing per team |
 | 7 | `Takedown`'s per-model target | Per **model**: p.14 reads *"This model may pick"*. `attack-sequence` has `pick-target-model`, a `PieceSelection(AliveModels(target), 1, 1)` to the attacker's team after `determine-attacks` and before `roll-to-hit`, and `deal-wounds` assigns that group's wounds to the named model without opening its allocation. `GfShooting.Groups` splits a takedown weapon type into one group per model, so each pick, hit roll and `deal-wounds` is one model's | *Resolved as if it was a unit of [1]* is not modelled, so cover, `Blast`'s cap and the defence roll read the whole target unit |
-| 8 | Confirm gates and the actor | The gate goes to the acting unit's team where there is one, and a frame with no actor and no parent is gated at every boundary past position 0 whatever the wait setting, by one unsealed `Confirm` Ask to every team. The roll-off is the only such frame; its `order` step gives the gate a boundary to sit on, and its dice are editable from the menu like any other roll | A root frame *with* an actor and one step, which is the end-of-turn `morale-test`, pops before any boundary can gate it, so that die is unreachable once the frame is gone. Gating a root frame's terminal boundary would close that too, at the price of a confirm after every morale test |
+| 8 | Confirm gates and the actor | The gate goes to the acting unit's team where there is one, and a frame with no actor and no parent is gated at every boundary past position 0 whatever the wait setting, by one unsealed `Confirm` Ask to every team. The roll-off is the only such frame; its `order` step gives the gate a boundary to sit on, and its dice are editable from the menu like any other roll | A frame with an actor is gated only by the wait setting. `morale-test` rolls in `test` and decides in `consequence`, so with the wait setting on its die is editable at the boundaries between them like any other roll |
 | 9 | Can a unit embark into an enemy's transport, or an occupant target its own container? | No: a unit cannot enter an enemy transport, and only friendly containers are offered, since p.21 writes the containment text for the same-army case. `ContainersInReach` lists friendly containers only. p.15's *target the Transport itself* is consequently unreachable, since valid targets are enemies and a unit's own container is friendly | `InsideReach` keeps p.15's predicate as written, which only a menu-written state reaches |
 | 10 | May a caster inside a container cast? | Yes, at what is in there with it. `EligibleSpenders` is positional on both ends for every model but the caster, which is admitted without measurement, so such a cast draws no tokens from anybody else and resolves at 4+ modified only by what the caster itself still holds | Barring it would mean `ReactionsAt` and `GfCasting.Casters` reading `LivingModels`, two lines. Either way the model-grain edge stays open |
 | 11 | Where does the disembark radius come from, and is it edge to edge? | `GfNames.ExitWithin = 6`, p.15's `Transport` figure, edge to edge from the container's base as the table domain model's *"never centre to centre"* requires, so the region is the footprint grown by 6 inches. A garrisonable building has no automated exit (the geometry plan's ruling 8) | `Containment.BaseFullyWithin` is the only place the number is applied |

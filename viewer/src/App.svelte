@@ -6,6 +6,7 @@
   import AskPanel from './lib/components/AskPanel.svelte';
   import RollPanel from './lib/components/RollPanel.svelte';
   import SourcePicker from './lib/components/SourcePicker.svelte';
+  import TestsPage from './lib/components/TestsPage.svelte';
   import Scoreboard from './lib/components/Scoreboard.svelte';
   import { sceneOf } from './lib/board/frame';
   import type { Hit } from './lib/board/pick';
@@ -21,6 +22,7 @@
   let error: string | null = $state(null);
   let selected: string | null = $state(null);
   let tab: 'log' | 'ask' | 'dice' | 'meta' = $state('log');
+  let view: 'viewer' | 'tests' = $state('viewer');
   let showGrid = $state(true), showZones = $state(true), showLabels = $state(true);
 
   function attach(next: Feed) {
@@ -35,6 +37,7 @@
       timeline = reduce(timeline, { type: 'frames', count: s.frames.length });
     });
     feed = next;
+    view = 'viewer';
   }
 
   const dispatch = (action: TimelineAction) => { timeline = reduce(timeline, action); };
@@ -63,6 +66,10 @@
 
 <header>
   <strong>Tabletop viewer</strong>
+  <nav class="views">
+    <button class:active={view === 'viewer'} onclick={() => (view = 'viewer')}>Viewer</button>
+    <button class:active={view === 'tests'} onclick={() => (view = 'tests')}>Tests</button>
+  </nav>
   <SourcePicker onFeed={attach} onError={(m) => (error = m)} />
   <span class="muted">
     {feedState.status === 'idle' ? 'no recording loaded' : `${feedState.label} · ${feedState.status} · ${feedState.frames.length} frames`}
@@ -72,7 +79,7 @@
   <Scoreboard teams={feedState.meta?.teams ?? []} {frame} />
 </header>
 
-<div class="panes">
+<div class="panes" hidden={view !== 'viewer'}>
   <div class="left">
     {#if scene === null}
       <p class="muted pad">Load a recording to draw it.</p>
@@ -126,4 +133,10 @@
   </aside>
 </div>
 
-<Timeline {timeline} {dispatch} seq={frame?.seq ?? null} line={frame?.line ?? ''} />
+<div class="tests-view" hidden={view !== 'tests'}>
+  <TestsPage onFeed={attach} onError={(m) => (error = m)} />
+</div>
+
+<div hidden={view !== 'viewer'}>
+  <Timeline {timeline} {dispatch} seq={frame?.seq ?? null} line={frame?.line ?? ''} />
+</div>

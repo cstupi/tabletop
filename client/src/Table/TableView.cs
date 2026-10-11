@@ -3,6 +3,7 @@ using Tabletop.Client.Core;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
+using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Table;
 
@@ -63,7 +64,7 @@ public partial class TableView : Node3D
             && _session.Game?.Teams.FirstOrDefault(t => t.Id == holder) is { } team ? Palette.Team(team.Ordinal) : null;
         Sync(_markers, markers, m => m.Id, m => { var n = new MarkerNode { MarkerId = m.Id }; n.Set(m, ControlColour(m)); return n; }, (MarkerNode n, Marker m) => { if (!IsHeld(m.Id)) n.Set(m, ControlColour(m)); });
         var teams = _session.Game?.Teams ?? [];
-        Sync(_zones, table.Zones, z => z.Id, z => { var n = new ZoneNode(); n.Set(z, Size, ZoneColour(z, teams)); return n; }, (ZoneNode n, DeploymentZone z) => n.Set(z, Size, ZoneColour(z, teams)));
+        Sync(_zones, ZonesShown(table, _session.Projection, teams), z => z.Id, z => { var n = new ZoneNode(); n.Set(z, Size, ZoneColour(z, teams)); return n; }, (ZoneNode n, DeploymentZone z) => n.Set(z, Size, ZoneColour(z, teams)));
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
         Sync(_pieces, onTable, m => m.Id, m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, (PieceNode n, ModelInPlay m) => { if (!IsHeld(m.Id)) Place(n, m); });
     }
@@ -74,6 +75,15 @@ public partial class TableView : Node3D
         foreach (var id in modelIds)
             if (PieceAt(id) is { } node && _session.Projection?.Models.GetValueOrDefault(id) is { Location: OnTable } m) Place(node, m);
     }
+
+    /// <summary>
+    /// Setup (no projection): every ordinal, grey without a team. Play: each team's zone through round 0 — deployment, then the
+    /// phases before the first round — and none once round 1 has started.
+    /// </summary>
+    static IReadOnlyList<DeploymentZone> ZonesShown(TableState table, Projection? p, IReadOnlyList<Team> teams) =>
+        p is null ? table.Zones
+        : p.Scheduler.Round >= 1 ? []
+        : table.Zones.Where(z => teams.Any(t => t.Ordinal == z.TeamOrdinal)).ToList();
 
     static Color ZoneColour(DeploymentZone z, IReadOnlyList<Team> teams) => teams.Any(t => t.Ordinal == z.TeamOrdinal) ? Palette.Team(z.TeamOrdinal) with { A = 0.35f } : Palette.Unassigned;
 
@@ -108,7 +118,7 @@ public partial class TableView : Node3D
 
     /// <summary>
     /// A disembark's draggable stand-ins. An occupant has no placement and therefore no piece node (game flow → Inside a
-    /// container), so the Ask panel asks for one node per model, stacked on the container's own placement, in the ghost
+    /// container), so the decision box asks for one node per model, stacked on the container's own placement, in the ghost
     /// colour. They live in their own child, which <see cref="Redraw"/> never diffs, so a board event arriving mid-answer
     /// cannot delete them and their dragged positions survive until the player commits.
     /// </summary>
@@ -123,6 +133,27 @@ public partial class TableView : Node3D
             n.SetBody(m.Slot.Base, m.Slot.Height);
             n.Position = WorldFrame.ToGodot(at.Placement.Position);
             n.Rotation = new Vector3(0, WorldFrame.Radians(at.Placement.Yaw), 0);
+            n.SetHighlight(Palette.Ghost);
+            _ghosts.AddChild(n);
+        }
+    }
+
+    /// <summary>
+    /// The deployment placement's stand-ins (in-game UX spec → Deployment placement): one node per relocation at its OnTable
+    /// placement, in the ghost colour, for models still on the shelf. Same child as the exit ghosts, so Redraw never diffs
+    /// them and ClearExitGhosts clears them.
+    /// </summary>
+    public void ShowGhosts(IReadOnlyList<ModelRelocation> placements)
+    {
+        ClearExitGhosts();
+        if (_session.Projection is not { } p) return;
+        foreach (var r in placements)
+        {
+            if (r.To is not OnTable to || p.Models.GetValueOrDefault(r.ModelId) is not { } m) continue;
+            var n = new PieceNode { ModelId = r.ModelId, UnitId = m.UnitId };
+            n.SetBody(m.Slot.Base, m.Slot.Height);
+            n.Position = WorldFrame.ToGodot(to.Placement.Position);
+            n.Rotation = new Vector3(0, WorldFrame.Radians(to.Placement.Yaw), 0);
             n.SetHighlight(Palette.Ghost);
             _ghosts.AddChild(n);
         }

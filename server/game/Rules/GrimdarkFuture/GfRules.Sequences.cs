@@ -5,7 +5,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
-/// <summary>The interpreter plan's partial of GrimdarkFutureRules (identity is in the skeleton's GfRules.cs; the scheduler's hooks in GfRules.Scheduling.cs and GfRules.Deployment.cs). The sequence catalog fills in over Tasks 12–17.</summary>
+/// <summary>The interpreter plan's partial of GrimdarkFutureRules (identity is in the skeleton's GfRules.cs; the scheduler's hooks in GfRules.Scheduling.cs and GfRules.Deployment.cs; the answer judge in GfRules.Moves.cs). The sequence catalog fills in over Tasks 12–17.</summary>
 public sealed partial class GrimdarkFutureRules
 {
     /// <summary>A flagged interpretation, not a silent guess (action sequences → Rulings): the scope is the activation, so a caster that failed a spell may try it again in a later activation.</summary>
@@ -30,6 +30,7 @@ public sealed partial class GrimdarkFutureRules
         GfCasting.Casting(),
         GfCasting.SpellHits(),
         GfCasting.SpellTest(),
+        GfPick.PickRule(),
         GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 

@@ -8,20 +8,20 @@
 - `Configuration/`: `ManagementOptions` (every setting), `DotEnv` (loads the repo-root `.env`).
 - `Identity/`
   - `StytchClient`: the only code that calls Stytch (basic auth, snake_case JSON).
-  - `StytchAuthentication`: JWT bearer setup, `AccountClaim = "account_id"`. `StytchJwks`: key cache.
+  - `StytchAuthentication`: JWT bearer setup, `AccountClaim = "account_id"`, `RolesClaim = "roles"`. `StytchJwks`: key cache.
   - `AuthEndpoints` (`/v1/auth/*`), `AccountEndpoints` (`/v1/account`), `AccountRepository`, `AccountDeleter`.
   - `Sessions`: the post-authenticate step. `DevSessions`: the Development-only token mint.
 - `Content/Assets/`: `AssetEndpoints`, `AssetRepository`, `FolderEndpoints`, `FolderRepository`, `IBlobStore` / `S3BlobStore`, `GlbHeader`, `StarterAssets`, `StarterMeshes`.
 - `Content/Armies/`: `ArmyForgeClient` (fetch), `ArmyForgeImport` (list to army), `ArmyEndpoints`, `ArmyRepository`, `CatalogKinds`.
 - `Content/Layouts/`: `LayoutEndpoints`, `LayoutRepository`. `Content/VolumeRows.cs`: asset volume rows.
-- `Games/`: `GameEndpoints`, `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`).
+- `Games/`: `GameEndpoints`, `GameRepository`, `ManifestEndpoint` (`GET /v1/games/{id}/assets`), `PropertiesEndpoint` (`GET /v1/properties`; `GET /v1/properties/{hash}/rules`, a pinned set's catalog entries with `rule_text`, 404 for an unknown hash).
 - `Http/`: `ClientVersionMiddleware`, `Keyset` / `Page<T>`, `CurrentAccount`, `Problems`.
 - `Persistence/`: `Database` (one `NpgsqlDataSource`), `Migrator` (DbUp), `Migrations/NNN_*.sql` (embedded resources).
 
 ## How it works
 
 - Login: the client calls `/v1/auth/{otp,otp/verify,password,password/signup,password/reset,password/reset/complete,session/refresh}`. Each Stytch authenticate result goes through `Sessions.Complete`.
-- `Sessions.Complete` ensures the account row exists, links the Stytch user's `external_id` to the account id, seeds the starter miniatures, and stamps `account_id` into the session's custom claims through `StytchClient.StampAccount`. A refreshed session keeps its stamp.
+- `Sessions.Complete` ensures the account row exists, links the Stytch user's `external_id` to the account id, seeds the starter miniatures, and stamps `account_id` and `roles` (the Stytch user's RBAC role ids, the authenticate response's `user.roles`) into the session's custom claims through `StytchClient.StampAccount`. A refreshed session keeps its stamp unless the user's Stytch roles differ from the ones it carries, when it is stamped again, so a role change reaches the next refresh.
 - A new account id is a v7 UUID. The link to Stytch is written before the row insert, so a retry leaves no orphan and the next login inserts a missing row.
 - Authenticated requests carry the Stytch session JWT. Verification: RS256, issuer `stytch.com/{projectId}`, audience the project id, keys from `StytchJwks`. `CurrentAccount.Id` reads the `account_id` claim and throws `UnauthorizedAccessException` (401) without it.
 - Assets: `POST /v1/assets` returns a presigned PUT URL, the client uploads to MinIO, `POST /v1/assets/{id}/confirm` checks the object size and the GLB header (`GlbHeader`) and marks the blob uploaded. `GET /v1/assets/{id}/download` returns a presigned GET.
@@ -29,7 +29,7 @@
 - Starter miniatures: `StarterAssets.SeedIfNeeded` runs at login while `account.starter_seeded_at` is null. It writes `StarterMeshes.All` (deterministic in-memory GLBs) into a `Starter` folder. A failure is logged and never blocks login.
 - Armies: `POST /v1/armies/import` takes an Army Forge share link or list id, fetches `https://army-forge.onepagerules.com/api/tts?id=...`, and maps it with `ArmyForgeImport`. Only Grimdark Future and Age of Fantasy lists import. Fetch failures return 502.
 - Layouts: `/v1/layouts` stores a `TableState` per owner. Folders: `/v1/folders` nest and hold assets via `PUT /v1/folders/{id}/assets/{assetId}`.
-- Games: create, list, get, join, leave, end, delete under `/v1/games`. `GameRepository.Create` generates the game's `rng_seed` once. `GET /v1/games/{id}/assets` returns presigned downloads (60 min) for participants only.
+- Games: create, list, get, join, leave, end, delete under `/v1/games`. The list is public and each `GameSummary` carries `ParticipantNames`. `GameRepository.Create` generates the game's `rng_seed` once. `GET /v1/games/{id}/assets` returns presigned downloads (60 min) for participants only.
 - Lists page by keyset: `limit` (default 50, max 200) and `after`; the cursor is the last item's id because ids are v7. `Page<T>.Next` is null on a short page.
 - `ClientVersionMiddleware` reads `Tabletop-Client-Version` (`ProtocolVersion.Header`) on every request. Below `MinimumClientVersion` gives `ProtocolVersion.UpgradeRequiredStatusCode`; a non-integer gives 400; absent is accepted.
 - Rows by writer: management writes a game's rows at creation and at end/leave/delete. The game server writes them only while the game is `lobby` or `setup`, plus `game.status` `playing → ended` when its log ends the game.
@@ -46,9 +46,9 @@
 ## Identity and the Stytch dashboard
 
 - Password reset sends `{WEB_URL}/reset-password` as the redirect. It must be registered as a `RESET_PASSWORD` redirect URL in the Stytch project dashboard (`http://localhost:5173/reset-password` locally), or resets fail at Stytch.
-- The `account_id` claim needs no dashboard setting.
+- The `account_id` claim needs no dashboard setting. The `roles` claim carries whatever roles the Stytch user has: an admin (who watches any game on the game server) is a user assigned the `admin` role of the project's RBAC policy in the dashboard.
 - `Sessions.Problem` maps Stytch errors: 401/404 to 401, `duplicate_email` to 409, 429 to 429, 5xx to 502, other to 422.
-- `POST /v1/dev/sessions` (`{ "name": "..." }`) exists only when the host environment is Development (`DevSessions` and `MapDevSession` are both gated). It derives a name-based v8 account id, creates the Stytch user at `<name>@example.com` if absent, mints a real Stytch session through an embeddable magic-link token, and runs `Sessions.Complete`. The simulator's socket driver uses it.
+- `POST /v1/dev/sessions` (`{ "name": "...", "roles": ["admin"] }`, `roles` optional and stamped in place of the Stytch user's) exists only when the host environment is Development (`DevSessions` and `MapDevSession` are both gated). It derives a name-based v8 account id, creates the Stytch user at `<name>@example.com` if absent, mints a real Stytch session through an embeddable magic-link token, and runs `Sessions.Complete`. The simulator's socket driver uses it.
 - `./scripts/management` sets `ASPNETCORE_ENVIRONMENT=Development`. Compose publishes port 5100 on loopback only because of this route.
 
 ## Persistence
@@ -88,5 +88,5 @@ dotnet test tests/Tabletop.Management.Tests    # needs docker compose up -d
 
 - `docs/design/management-api/design.md`
 - `docs/superpowers/plans/2026-09-05-management-api/README.md`
-- `docs/superpowers/specs/2026-08-29-management-api-design.md`, `2026-08-29-accounts-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-08-28-asset-library-design.md`, `2026-08-28-army-design.md`, `2026-08-29-setup-content-design.md`, `2026-10-01-starter-meshes-design.md`, `2026-09-06-simulation-design.md`
+- `docs/superpowers/specs/2026-08-29-management-api-design.md`, `2026-08-29-accounts-design.md`, `2026-08-29-identity-and-enumerations-design.md`, `2026-08-28-asset-library-design.md`, `2026-08-28-army-design.md`, `2026-08-29-setup-content-design.md`, `2026-10-01-starter-meshes-design.md`, `2026-09-06-simulation-design.md`, `2026-10-09-admin-watch-design.md`
 - `docs/schema.md`, `docs/data-model.md`

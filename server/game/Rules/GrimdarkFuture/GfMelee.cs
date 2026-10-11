@@ -9,8 +9,10 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static class GfMelee
 {
-    public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep(), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true), new DefenderClosesStep(), new FightStep()]);
-    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new ChargerAttacksStep(), new StrikeBackStep(), new UnwieldyStep(), new CompareStep(), new ConsolidateStep(), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
+    /// <summary>Outline labels: p.9 ("must pick one valid target"; Charge moves; the target's models "must move by up to 3”"; The melee sequence).</summary>
+    public static Sequence Charge() => new(GfNames.ChargeSeq, [new GfMoves.ActivationTerrainStep(), new GfMoves.PointWindowStep(GfNames.ActivationStart, "activation-start"), new ChargeTargetStep().Labelled("Pick target"), new GfMoves.MoveStep(GfNames.Charge, ignoreSeparation: true).Labelled("Charge move"), new DefenderClosesStep().Labelled("Target moves"), new FightStep().Labelled("Melee")]);
+    /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.</summary>
+    public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new UnwieldyStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
     public static IReadOnlyList<Guid> MeleeWeapons(GameState state, Guid unit, Func<Weapon, bool>? filter = null) =>
         Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => !w.Stats.ContainsKey(GfNames.Range) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
@@ -23,8 +25,8 @@ public static class GfMelee
     /// <summary>The defender's Counter-Attack, innate or granted. A granted one is spent by the counter step, so every later step reads what that step recorded.</summary>
     static bool CounterAttacks(StepContext ctx) =>
         ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(CounterAttackKey) == 1) || DefenderLive(ctx).Has(Side.Attacker, GfNames.CounterAttack);
-    static LiveSet DefenderLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
-    static LiveSet ChargerLive(StepContext ctx) => LiveProperties.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
+    static LiveSet DefenderLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Defender(ctx), Charger(ctx), [], AttackKind.Melee, null));
+    static LiveSet ChargerLive(StepContext ctx) => ctx.Settle(GfAttack.AttackInteraction(ctx, Charger(ctx), Defender(ctx), [], AttackKind.Melee, GfNames.Charge));
     /// <summary>Unwieldy: "Strikes last when charging": the charger's weapon, or every weapon of a charger the rule was granted to.</summary>
     static bool StrikesLast(StepContext ctx, Weapon w) => w.Properties.Any(p => p.Name == GfNames.Unwieldy) || ChargerLive(ctx).Has(Side.Attacker, GfNames.Unwieldy);
     static bool CounterStruck(StepContext ctx) => ctx.Frame.Frame.Steps.Any(s => s.Step == "counter" && s.Values?.GetValueOrDefault(StruckKey) == 1);
@@ -81,10 +83,14 @@ public static class GfMelee
     }
     static IReadOnlyList<StateChange> Fatigue(Guid unit) => [new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Fatigued, true)];
 
+    /// <summary>p.11 "Units may not move through impassable terrain": the volumes a close-in or a consolidation lists, which AnswerBreach judges; none for a
+    /// Flying mover (p.13, GfMoves.Flies), whose landing AnswerBreach still judges.</summary>
+    static IReadOnlyList<Guid> Impassable(StepContext ctx, Guid mover) => GfMoves.ImpassableFor(ctx.State, GfMoves.Flies(ctx.State, ctx.Properties, mover));
+
     /// <summary>The settled move answer: every model that went on the table lands on the surface. Shared by the defender's close-in and consolidation.</summary>
     static StepOutcome Settled(StepContext ctx, AskRecord closed)
     {
-        var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, ((OnTable)m.To).Placement)))).ToList();
+        var moves = GfAnswers.Moves(ctx.State, closed).Where(m => m.To is OnTable).Select(m => new ModelRelocation(m.ModelId, m.From, new OnTable(Battlefield.Settle(ctx.State, m.ModelId, ((OnTable)m.To).Placement)))).ToList();
         return new Complete(moves.Count > 0 ? [new ModelsMoved(moves)] : []);
     }
 
@@ -93,23 +99,26 @@ public static class GfMelee
     {
         var wounds = ctx.Projection.Units[to].WoundsThisActivation - ctx.Frame.Value(beforeKey);
         var fear = attacked ? Lookup.LivingModels(ctx.State, by).Sum(m => Lookup.ModelParameter(ctx.State, m, "Fear") ?? 0) : 0;
+        if (fear > 0) ctx.Applied.Add("Fear");
         return wounds + fear;
     }
 
     /// <summary>
     /// The enemy units this unit could charge: p.7 "Units may only take a Charge action if at least one model is within charge distance of the
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
+    /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target.
     /// </summary>
     public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
     {
         var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
         var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
-        var impassable = Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
+        // p.13 Flying "may move through units and terrain": a Flying charger's reach is not blocked by impassable terrain.
+        var impassable = live.Has(Side.Attacker, "Flying") ? [] : Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var team = Teams.Of(state, unit);
         // p.15: "Units may use Charge actions to disembark". An occupant has no position, so its reach is the exit radius from
         // the container it is inside — anything it could be placed fully within 6" of is a unit it could then be in contact with.
         var inside = Lookup.ContainerOf(state, unit);
-        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team).Select(u => u.Id).Where(t => inside is { } container
+        return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t => inside is { } container
             ? Lookup.LivingModels(state, t).Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)
             : Lookup.LivingModels(state, unit).Any(m => Lookup.LivingModels(state, t).Any(e =>
             {
@@ -151,7 +160,7 @@ public static class GfMelee
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
             var free = Lookup.LivingModels(ctx.State, target).Where(t => Lookup.LivingModels(ctx.State, charger).All(m => Battlefield.Distance(ctx.State, m, t) > Touching)).ToList();
             if (free.Count == 0 || ctx.TeamOf(target) is not { } team) return new Complete([]);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, [], [], null), allowPass: true)]);   // a close-in: no terrain parameters, no cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {GfNames.ChargeCloseIn}\" into contact", team, new MoveRegion(free, GfNames.ChargeCloseIn, Impassable(ctx, target), [], null), allowPass: true)]);   // a close-in: impassable terrain, no difficult cap
         }
     }
 
@@ -193,6 +202,7 @@ public static class GfMelee
             // is spent when the strike is done and recorded here, because strike-back then reads it from the frame.
             var live = DefenderLive(ctx);
             var values = new Dictionary<string, int> { [StruckKey] = 1 };
+            if (!Recorded(ctx, Name) && MeleeWeapons(ctx.State, Defender(ctx), IsCounter).Count > 0) ctx.Applied.Add("Counter");
             if (live.Use(Side.Attacker, GfNames.CounterAttack)) values[CounterAttackKey] = 1;
             return Strike(ctx, Name, GroupsOf(ctx.State, counters), Defender(ctx), Charger(ctx), null, RollEffects.Consume(live), values);
         }
@@ -207,11 +217,12 @@ public static class GfMelee
             var (charger, defender) = (Charger(ctx), Defender(ctx));
             if (ctx.Frame.Value("impact_phase") == 1)
                 return AfterChild(ctx, () => new Push(GfNames.ResolveHits, new SequenceContext(charger, [defender], [], GfNames.Charge)));
-            var live = LiveProperties.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
+            var live = ctx.Settle(GfAttack.AttackInteraction(ctx, charger, defender, [], AttackKind.Melee, GfNames.Charge));
             var impacts = RollEffects.OwnRolls(live, Side.Attacker, c => c.Kind == EffectKind.AddHit);   // Impact's conditions (charging, not fatigued) were judged in pass one's read
             if (impacts.Count == 0) return new Complete([], new Dictionary<string, int> { ["hits"] = 0 });
             var counterModels = Lookup.LivingModels(ctx.State, defender).Count(m => ctx.Projection.Models[m].Slot.Weapons.Any(w => w.Properties.Any(p => p.Name == "Counter")));
             var dice = Math.Max(0, impacts.Sum(x => x.Roll.EffectiveAmount(x.Source.Parameter)) - counterModels);
+            if (counterModels > 0) ctx.Applied.Add("Counter");
             var hits = dice == 0 ? 0 : Dice.RollOutcome.Successes(ctx.Roll(new Dice.RollPlan(impacts[0].Source.Entry.Name, impacts[0].Roll.Threshold, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, null, new HashSet<int>()), dice));
             return new Complete([], new Dictionary<string, int> { ["hits"] = hits, ["impact_phase"] = 1 }, Repeat: hits > 0);
         }
@@ -239,6 +250,7 @@ public static class GfMelee
             // A granted Unwieldy is spent here, where it put the charger's weapons last, whether or not they get to strike.
             var live = ChargerLive(ctx);
             live.Use(Side.Attacker, GfNames.Unwieldy);
+            if (weapons.Count > 0 && !Recorded(ctx, Name)) ctx.Applied.Add(GfNames.Unwieldy);
             var spent = RollEffects.Consume(live);
             if (Lookup.LivingModels(ctx.State, Charger(ctx)).Count == 0) return new Complete(spent);
             // The charger's other weapons may have destroyed the defender: nothing is struck, but the fatigue charger-attacks deferred is still owed.
@@ -308,7 +320,7 @@ public static class GfMelee
             var (chargerAlive, defenderAlive) = (Lookup.LivingModels(ctx.State, charger), Lookup.LivingModels(ctx.State, defender));
             if (chargerAlive.Count == 0 && defenderAlive.Count == 0) return new Complete([]);
             var (mover, distance) = chargerAlive.Count == 0 ? (defender, GfNames.Consolidate) : defenderAlive.Count == 0 ? (charger, GfNames.Consolidate) : (charger, GfNames.FallBack);
-            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, [], [], null), allowPass: true)]);   // fall back / consolidate: no terrain parameters, no cap
+            return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx, mover), [], null), allowPass: true)]);   // fall back / consolidate: impassable terrain, no difficult cap
         }
     }
 }

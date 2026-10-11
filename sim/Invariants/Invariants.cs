@@ -1,4 +1,5 @@
 using Tabletop.GameServer.Log;
+using Tabletop.GameServer.Properties;
 using Tabletop.Protocol;
 using Tabletop.Sim.Scenarios;
 
@@ -23,7 +24,7 @@ public static class Invariants
     public static IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario) =>
     [
         ReplayReproducesTheProjection(driverProjection, log, scenario),
-        UndoAndRedoReproduceTheDice(log, scenario),
+        UndoKeepsTheEarlierDice(log, scenario),
         EveryAskAnsweredByAnAddressedTeam(log),
         NoModelInTwoPlacesOrOffTheSlab(log, scenario),
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
@@ -35,7 +36,8 @@ public static class Invariants
     /// <summary>
     /// Invariant 8 (spell library spec → Testing). p.13: "the Caster's spells must be picked from their own faction": every closed
     /// pick-spell names a spell the caster model's own army book lists in the pinned set, and every grant a step wrote carries the name
-    /// of a spell some caster's book in the scenario lists. Grants are checked by name, not effect id: over the socket the server
+    /// of a spell some caster's book in the scenario lists, unless the set holds that name as another kind (an army-book Buff, Mark or
+    /// Debuff, a model rule picked before attacking). Grants are checked by name, not effect id: over the socket the server
     /// seeds Postgres with its own ids. Reads the log, the board and the pinned set; names no rule.
     /// </summary>
     public static InvariantResult SpellsComeFromTheCastersBook(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
@@ -54,7 +56,8 @@ public static class Invariants
                 if (scenario.Properties.SpellsOf(slot.ArmyBook).All(s => s.Name != id[..cut]))
                     return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: caster {caster:N} of book {slot.ArmyBook ?? "none"} picked '{id[..cut]}'");
             }
-            foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)))
+            foreach (var g in step.Changes.OfType<GrantAdded>().Where(g => !inBooks.Contains(g.Grant.EntryName)
+                && scenario.Properties.Entry(g.Grant.EntryName) is null or { Kind: CatalogKind.Spell }))
                 return new InvariantResult(nameof(SpellsComeFromTheCastersBook), false, $"seq {e.Seq}: grant {g.Grant.Id:N} is '{g.Grant.EntryName}', which no caster's book lists");
         }
         return new InvariantResult(nameof(SpellsComeFromTheCastersBook), true, null);
@@ -124,10 +127,10 @@ public static class Invariants
     /// The dice are counter-based on (RngSeed, cursor), and RngSeed is the seed stored on the game row, so it
     /// never changes for a game: die k is a pure function of that seed and k, and Undone(N) shortens the
     /// effective log rather than rewriting it. Checked at every sequence that carries dice, which is
-    /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: the engine-level undo and
-    /// redo check, re-answering after a real Undo, is Task 8's socket test (DriverAgreementTests).
+    /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: that dice after an undo are
+    /// fresh, because the undone dice stay counted, is the socket test DriverAgreementTests.
     /// </summary>
-    public static InvariantResult UndoAndRedoReproduceTheDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
+    public static InvariantResult UndoKeepsTheEarlierDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {
         // The effective log: an undone range's dice are no longer the game's, so a log that already holds an
         // Undone is measured as it stands, not as every event ever appended.
@@ -140,10 +143,10 @@ public static class Invariants
             var kept = DiceOf(effective);
             var expected = original.Take(kept.Count).ToList();
             if (!kept.SequenceEqual(expected))
-                return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), false,
+                return new InvariantResult(nameof(UndoKeepsTheEarlierDice), false,
                     $"undoing to {target} changed the dice: kept [{string.Join(",", kept)}] against [{string.Join(",", expected)}]");
         }
-        return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), true, null);
+        return new InvariantResult(nameof(UndoKeepsTheEarlierDice), true, null);
     }
 
     private static IReadOnlyList<int> DiceOf(IReadOnlyList<GameEvent> log) => log

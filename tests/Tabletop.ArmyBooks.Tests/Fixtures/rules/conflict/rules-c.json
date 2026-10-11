@@ -1,0 +1,5 @@
+{ "uid": "rules-c", "name": "Rules C", "versionString": "1", "spells": [],
+  "specialRules": [ { "name": "Precise", "description": "Gets +1 to hit." } ],
+  "units": [ { "rules": [ { "name": "Precise" } ] } ],
+  "upgradePackages": []
+}

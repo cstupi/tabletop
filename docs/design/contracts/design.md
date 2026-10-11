@@ -4,7 +4,7 @@ This module is the three shared libraries under `libs/` (`Tabletop.Geometry`,
 `Tabletop.Content`, `Tabletop.Protocol`), their three xUnit test projects, and the local
 development environment: Postgres and MinIO in Docker plus the thirty-three-table schema as init
 SQL. It owns every type more than one deliverable must agree on. That is the geometry value types
-and the declared distance / line-of-sight / settling API, the army snapshot and table-state
+and the declared distance / line-of-sight / collision API, the army snapshot and table-state
 records, and the whole socket vocabulary: commands, events, Asks, presence, setup edits, the
 envelope, the JSON rules, `EventApplier`, and the `Projection` it builds.
 
@@ -22,7 +22,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 
 | Deliverable | Where | What it is |
 | --- | --- | --- |
-| `Tabletop.Geometry` | `libs/Tabletop.Geometry/` | `Points.cs`, `Bases.cs`, `Volumes.cs`, `Placements.cs` hold the value types. `Api.cs` declares `Distance`, `LineOfSight`, `Settling`, `Containment`, `Overlap` with throwing bodies |
+| `Tabletop.Geometry` | `libs/Tabletop.Geometry/` | `Points.cs`, `Bases.cs`, `Volumes.cs`, `Placements.cs` hold the value types. `Api.cs` declares `Distance`, `LineOfSight`, `Collision`, `Containment`, `Overlap` with throwing bodies |
 | `Tabletop.Content` | `libs/Tabletop.Content/` | `Stats.cs`, `Army.cs`, `TableState.cs`, `ContentJson.cs` |
 | `Tabletop.Protocol` | `libs/Tabletop.Protocol/` | `ProtocolVersion.cs`, `Game.cs`, `State.cs`, `StateChanges.cs`, `Asks.cs`, `Events.cs`, `Commands.cs`, `Presence.cs`, `Edits.cs`, `Wire.cs`, `Projection.cs`, `EventApplier.cs` |
 | Tests | `tests/Tabletop.{Geometry,Content,Protocol}.Tests/` | xUnit 2.9, one project per library; `tests/` is a fourth top-level directory of the repo-level-support kind |
@@ -34,7 +34,7 @@ assemblies therefore compile into a Windows Godot export, two Linux containers, 
 - **Every geometry body.** `Api.cs` and `Polygon.Contains` throw `NotImplementedException("Implemented
   by the geometry plan.")`. The geometry module fills them in. It may not change a signature or a
   documented contract without first changing the spec. It also *adds* members this module does not
-  declare: `Settling.SurfaceHeightAt(Point3 from, …)`, `Containment.VolumesFullyContaining`,
+  declare: `Collision.Slide`, `Collision.Separate`, `Collision.Crosses`, `Containment.VolumesFullyContaining`,
   `Containment.BaseFullyWithin`, `Movement`, `Table`, `ZoneStyles`.
 - **`Properties` types.** The catalog, effect and condition rows are interpreted only by the game
   server. The eight tables exist in SQL here. The C# for them belongs to the game server and
@@ -197,9 +197,10 @@ comments are the contract, and they encode decisions rather than descriptions.
 | `Distance.EdgeToEdge(PlacedModel, PlacedModel)` | horizontal inches, edge to edge between bases, never centre to centre; `0` when the outlines overlap |
 | `Distance.EdgeToEdge(PlacedModel, Point2)` | same, to a bare point |
 | `LineOfSight.Check(from, to, volumes)` | only volumes declaring `BlocksLineOfSight` obstruct; a `SeeInAndOut` volume obstructs a line passing through but not one starting or ending inside it; the mesh is never consulted |
-| `Settling.SurfaceHeightAt(Point2, volumes)` | raycast down: the highest `Solid` top under the point, or `0` (the slab) |
+| `Collision.RestHeight(Point2, volumes)` | the highest `Solid` top under the point, or `0` (the slab); the model and piece overloads rest on any part of the base or footprint |
 | `Containment.VolumesContaining(model, volumes)` | ids of volumes whose footprint and vertical range contain the base centre, `Area` or `Solid` |
-| `Overlap.Bases`, `Overlap.WithSolid` | flagged, never prevented (`architecture.md` → Rules enforcement) |
+| `Overlap.Bases` | prevented by the client's drag and judged by the server as `move_overlap` (`architecture.md` → Rules enforcement) |
+| `Overlap.WithSolid` | no production caller: every placement the server appends rests on the highest Solid top under its base (`Battlefield.Settle`) |
 | `Polygon.Contains(Point2)` | point in polygon |
 
 The signatures are declared here rather than by the geometry module because `architecture.md` lists
@@ -311,10 +312,12 @@ Four decisions are carried in this shape.
   "Clearing" re-sends the source's own volumes (`OverrideTerrainVolumes`). `schema.md` → A terrain
   placement names a built-in or an asset states the same.
 - **Objectives and tokens are one `Marker` with a `Kind`**, sized by a diameter. Markers ignore
-  terrain: no settling, no collision (setup content → Markers; table domain model). Where a marker
+  terrain: no resting, no collision (setup content → Markers; table domain model). Where a marker
   lives differs by origin. Setup markers are rows in `TableState.Markers`. A token dropped in play is
-  a logged `MarkerPlaced` and lands in `Projection.Markers`.
-  [Failure modes](#failure-modes) covers a token placed during setup.
+  a logged `MarkerPlaced` and lands in `Projection.Markers`. A setup marker's first `MarkerMoved`
+  copies its row into `Projection.Markers` at the new position, and that entry wins on the shared id
+  from then on; control stays keyed by id. A setup marker is never removed: `RemoveMarker` naming one
+  is refused.
 - **`DeploymentZone` names a *shape id* and a team ordinal**, never a team, because a saved layout
   has zones and no game. Shape ids are namespaced by style (`"frontline/1"`), the ids
   `Tabletop.Geometry.ZoneStyles.ShapesOf(style)` lists, one row per shape, keyed by ordinal `1..n`.
@@ -429,6 +432,7 @@ flowchart TD
     K -->|"CommandMessage"| CMD["Command: an intent"]
     K -->|"EditMessage"| ED["Edit: lobby or setup"]
     K -->|"PresenceMessage or PingMessage"| PR["Presence value or ping"]
+    K -->|"SightQuery"| SQ["SightAnswer to the asker alone:<br/>never logged, no at_rest"]
 
     CMD --> V{"legality x enforcement"}
     V -->|"strict and out of set"| REF["Refused(messageId, reason, detail)"]
@@ -457,8 +461,8 @@ tests read.
 | Group | Kinds | Payload of note | Source |
 | --- | --- | --- | --- |
 | Scheduler | `round_started`, `turn_started`, `turn_ended`, `phase_started` | `RoundStarted(Round, Order, Changes)`; `TurnEnded(TeamId, Passed, Changes)` | scheduler → Events; `turn_ended.passed` from whole-design review → The scheduler's pass |
-| Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }` | action sequences → The resolution stack, Abandonment |
-| Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks |
+| Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }`; `SequenceStarted(FrameId, Sequence, Context, Outline?)`, the outline the sequence's player-facing steps as `OutlineStep(Step, Label)`, null in logs written before it | action sequences → The resolution stack, Abandonment |
+| Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet, Breach?)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks |
 | Dice | `dice_rerolled`, `dice_edited`, `modifier_added` | `DieReplacement(Index, Die Old, Die New)`; `ModifierAdded(FrameId, Roll, RollModifier)` | resolution → Players roll their own dice; scheduler → Deployment ("every roll result is editable from the menu") |
 | Undo | `undone` | `Undone(long ToSeq)` | `architecture.md` → Undo; client shell → undo is local first |
 | State change | `models_moved` | `ModelsMoved(IRL<ModelRelocation>)`, one kind for deployment, hand moves, casualties and embarking | table domain model → The one wire decision; game flow → The shelf, Inside a container |
@@ -521,8 +525,8 @@ is null when the Ask is not a window. `AskQuestions` holds only the engine's own
 | --- | --- | --- |
 | `Options(IRL<AskOption> Choices)` | `Chosen(OptionId)` | activate (unit x action), act-or-end-phase, react, ruleset yes/no questions |
 | `PieceSelection(Eligible, Min, Max)` | `SelectedPieces(PieceIds)` | deploy, deploy scouts, deploy ambushers, spell targets (1..`target_count`), a `Takedown`'s target model (p.14) |
-| `Allocation(Targets, Amount)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly |
-| `Assignment(Items, Targets, MaxDistinctTargets)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8) |
+| `Allocation(Targets, Amount, MaxTargets?)` | `Allocated(IRD<Guid,int>)` | wound assignment, casualty removal; the counts sum to `Amount` exactly, and at most `MaxTargets` targets get a count above zero (null: any) |
+| `Assignment(Items, Targets, MaxDistinctTargets, TargetsByItem?)` | `Assigned(IRD<string,Guid>)` | weapon groups to up to two targets (p.8); `TargetsByItem` is each group's own valid targets, `Targets` their union (null: every item may take any of `Targets`); an answer names at least one item, and an item it leaves out holds fire |
 | `MoveRegion(ModelIds, Allowance, ImpassableVolumeIds, DifficultVolumeIds, DifficultCap, Containment?)` | `Destinations(IRL<ModelRelocation>)` | every declared move, charge close-in, fall back, consolidation, embark, disembark |
 | `TokenSpend(MaxByModel)` | `TokensSpent(Counts)` | casting's simultaneous token spend, per spending model (p.13) |
 | `Confirmation` | `Confirmed` | the wait-between-steps confirm gate, the round boundary |
@@ -645,11 +649,11 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 
 | Direction | Kinds |
 | --- | --- |
-| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit` |
-| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`) |
+| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`) |
+| Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds)`) |
 | Both | `presence`, `ping` |
 
-Thirteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
+Sixteen kinds. Every receiver but the game server ignores a kind it does not handle and stays up,
 which is what lets a kind be added to the union without a lockstep release of the client, the viewer
 and the simulator.
 
@@ -666,7 +670,7 @@ sent after the last frame that processing produced: the hydration frames on a co
 frame on an accepted command, the `refused` frame on a rejected one. Who receives it is the game
 server's rule and is settled in its design: the frame follows its batch, broadcast when the batch
 appended an event and sent to the provoking client alone when it did not. Presence and pings are
-relayed rather than processed and never produce one. `Seq` is the last sequence number in the log, so it repeats the previous value
+relayed rather than processed and never produce one, and a `sight_query` is answered without being processed into the log, so it produces none either. `Seq` is the last sequence number in the log, so it repeats the previous value
 when the round of processing appended nothing, and is `0` for a game whose log is empty. It is a
 rest point, not a receipt: `at_rest` says nothing more is coming, and never that anything happened.
 The cost is one small frame per participant per inbound frame, paid by every client whether or not
@@ -1120,7 +1124,7 @@ four repo files it does not rewrite (`Tabletop.sln`, `global.json`, `Directory.B
 | `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)` |
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | |
 | `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
-| `static class Settling` | `double SurfaceHeightAt(Point2, IRL<WorldVolume>)` |
+| `static class Collision` | `double RestHeight(Point2, IRL<WorldVolume>)` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 
@@ -1165,7 +1169,9 @@ this table is the rest of the surface, with the exact member names later modules
 | `enum SubjectKind { Unit, Model }`; `sealed record Subject(SubjectKind Kind, Guid Id)` | |
 | `sealed record Grant(Guid Id, Guid EffectId, string EntryName, Guid CasterUnitId, int RemainingUses)` | |
 | `sealed record Die(int Raw, int Modified, bool Success)`; `sealed record RollModifier(string Source, int Amount)` | |
-| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice)` | `Threshold` null for the roll-off |
+| `sealed record RollRecord(Guid Id, string Roll, int? Threshold, IRL<RollModifier> Modifiers, IRL<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null)` | `Threshold` null for the roll-off; `RequiredRaw` the raw face a roll judged on alone, null otherwise; `Basis` null for a threshold no stat gave and in logs written before it, and `EventApplier` does not read it |
+| `sealed record ThresholdBasis(string Stat, int Printed, IRL<ThresholdChange> Changes)` | the stat a threshold was read from, its printed value and each change applied |
+| `sealed record ThresholdChange(string Source, int? SetTo, int Amount)` | a replace_stat row sets `SetTo`; a modify_stat row adds `Amount` |
 | `sealed record SequenceContext(Guid? ActorUnitId, IRL<Guid> TargetUnitIds, IRL<Guid> WeaponIds, string? Action)` | |
 | `sealed record GameEvent(long Seq, Guid? Actor, EventPayload Payload, string? Warning)` | `string Kind` `[JsonIgnore]` |
 | `static class EventKinds` | `IReadOnlyCollection<string> All`, `string Of(Type)`, `string Of(EventPayload)` |
@@ -1202,7 +1208,7 @@ written in this module and kept in another.
 
 | Module | Obligation |
 | --- | --- |
-| Geometry | implement every body in `Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests; add `ZoneStyles`, `Movement`, `Table`, `Containment.BaseFullyWithin`, `Settling.SurfaceHeightAt(Point3, …)` |
+| Geometry | implement every body in `Api.cs` and `Polygon.Contains` without changing a signature; replace `ApiSurfaceTests` with behaviour tests; add `ZoneStyles`, `Movement`, `Table`, `Containment.BaseFullyWithin`, `Collision` (`RestHeight`, `Slide`, `Separate`, `Crosses`) |
 | Game server | read `game.rng_seed` with the rest of the game's row at hydration, pass it into `GameInfo.RngSeed`, and never write it; emit `ask_closed` before `sequence_abandoned` for any open Ask on the popped frames; write `GameEvent.Kind` to `game_event.kind` and `WireJson.Serialize(GameEvent)` to `payload`; refuse `Undo(ToSeq)` unless `ToSeq` is `0` or the seq of a live event; send `BoardMessage` (whole draft) after each setup edit and `GameInfoMessage` after each lobby edit; filter `ask_answered.Answer` to null for teams a sealed window withholds from; overwrite `Presence.ParticipantId`, `Ping.Sender` and `GameEvent.Actor` from the socket's identity. The `Properties` catalog types are the interpreter plan's, not the skeleton's |
 | Management API | adopt `001_schema.sql` as migration 001 and baseline a compose-built database; generate `game.rng_seed` in application code when inserting the game row, never update it, and return it in the game representation; read the `TABLETOP_*` names; answer `ProtocolVersion.UpgradeRequiredStatusCode` when `ProtocolVersion.Header` is below the minimum; mint presigned URLs against `TABLETOP_S3_ENDPOINT` with path-style addressing |
 | Client shell | add `ProjectReference`s from `client/Tabletop.csproj` to the three libraries and confirm the Godot-side build creates `obj/Windows_NT/`; marshal socket-thread applier writes onto Godot's main thread; render `MoveRegion.Containment`, where a click on an `Enterable` container answers `Destinations` with `Inside(container)` for every model and a non-null `ExitingId` draws the exit region with `Containment.BaseFullyWithin` |
@@ -1316,9 +1322,9 @@ sequenceDiagram
     S-->>C: AskOpened(Ask, MoveRegion(modelIds, allowance, impassableIds, difficultIds, cap, containment))
     C->>G: Movement.Region(start, allowance, volumes, cap, tableSize)
     G-->>C: boundary polygon
-    Note over C: drag streams PresencePlacement(held);<br/>the client settles Z locally with Settling
+    Note over C: drag streams PresencePlacement(held);<br/>the client slides and rests Z locally with Collision
     C->>S: AnswerAsk(askId, Destinations([ModelRelocation(model, from, to)]))
-    S->>G: re-check distance, settle Z authoritatively
+    S->>G: re-check distance, rest Z authoritatively
     S-->>C: StepCompleted(frame, "move", answer, rolls, [ModelsMoved(...)])
     Note over C: the event's To overwrites the client's predicted Z
 ```
@@ -1496,14 +1502,9 @@ lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`sc
 nothing when the frame is already gone.
 
 Strictness holds because the server is the only writer and it emits ids from the snapshot it
-hydrated. Two cases fall on the wrong side of it, and both are a typed desync rather than a
+hydrated. One case falls on the wrong side of it, and it is a typed desync rather than a
 `KeyNotFoundException` or an `InvalidOperationException`.
 
-- **A token placed during setup and then moved in play throws.** Setup content says objectives are
-  snapshot rows and *"a token placed during setup may sit in the snapshot as well, as initial
-  state"*. Such a marker lives in `Projection.Board.Table.Markers`, while `MarkerMoved` and
-  `MarkerRemoved` look in `Projection.Markers`, which holds only tokens dropped in play. Two id
-  spaces, one `MarkerId` field, and a renderer that has to union the two collections anyway.
 - **Editing a roll after its sequence has finished throws.** The scheduler says *"every roll result
   is editable from the menu, as any roll is"*. `SetDice`/`DiceEdited` carry a `FrameId`, and
   `ReplaceDice` calls `FrameOf`, which throws once the frame has been popped. The roll lookup throws
@@ -1513,7 +1514,7 @@ hydrated. Two cases fall on the wrong side of it, and both are a typed desync ra
   gate it. The deployment roll-off is not a case, because it is gated, so its frame is live while
   the gate is open.
 
-The typed exception makes both cases recoverable on the client and loud on the server rather than
+The typed exception makes the case recoverable on the client and loud on the server rather than
 fatal on both, and `EventApplierTests` asserts each of them. It does not make either case
 correct: a client that resyncs replays the same event and desyncs again, so the two id spaces and
 the popped-frame lookup are still the fix, and both belong to the game server module.
@@ -1578,8 +1579,9 @@ every type in the tree stays immutable. Nothing enforces that.
 
 ### Left to break
 
-- **Base overlap, terrain intersection and broken coherency are flagged, never prevented**
-  (`architecture.md` → Rules enforcement). `Overlap` returns a bool that nothing acts on.
+- **Base overlap, an Impassable Solid and a path through a model are prevented by the client's drag and judged by the
+  server; coherency is not judged** (`architecture.md` → Rules enforcement). `Overlap.Bases` returns a bool the server's
+  `move_overlap` breach reads.
 - **Nothing recorded is an invariant.** A dead model can stand on the table, a unit that has moved
   can move again, a score can be any integer, `Transport(X)` capacity is not checked and a building's
   capacity is not recorded at all. The applier will copy every one of those states without complaint,
@@ -1621,7 +1623,7 @@ Geometry 12, Content 15, Protocol 32.
 | Derived properties stay off the wire | `"horizontal"`, `"isBuiltin"`, `"transform"` absent from serialised `TableState` | Content |
 | One literal wire shape | the `EventsMessage` prefix is asserted character for character: `{"kind":"events","events":[{"seq":1,"payload":{"kind":"turn_started","teamId":"` | Protocol |
 | Applier behaviour | deployment moves a model off the shelf; every store copies what its event says and un-copies on the inverse event; the scheduler's four events with a pass that stands across a round; frames push, record steps, clear pending modifiers, replace dice, and pop with everything above; Asks open, collect and close; undo drops a range while `Log` stays append-only, including `ProjectTo(1)`, `ProjectTo(0)` and `Undone(0)` | Protocol |
-| Desync is typed | moving a marker that came from the setup draft, and editing the dice of a frame that has been popped, each throw `ProjectionDesyncException` carrying the event kind and the unknown id | Protocol |
+| Desync is typed | moving a marker neither the board nor the log holds, and editing the dice of a frame that has been popped, each throw `ProjectionDesyncException` carrying the event kind and the unknown id; moving a setup marker copies it into `Projection.Markers` | Protocol |
 
 `Every_concrete_kind_has_a_sample` plus the round-trip loop means no message kind can be added to
 the contract without a serialisation test existing for it. That is the mechanism keeping a
@@ -1646,7 +1648,7 @@ hand-written union honest.
 - **`EffectiveLog` is not tested against interleaved undos**: an `Undone` after an `Undone`, or an
   `Undone` naming a sequence that was already undone past. The behaviour is defined by the code and
   by a server-side guard in a different module, and no test states it.
-- **A missing id is tested at two sites, not at all sixteen.** The setup marker and the popped frame
+- **A missing id is tested at two sites, not at all sixteen.** The unknown marker and the popped frame
   are asserted; the model, unit, Ask and roll lookups are not. One test per site would be cheap and
   is not in the plan.
 - **Nothing measures.** No assertion bounds a frame size, a projection rebuild, or `EffectiveLog`

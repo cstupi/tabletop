@@ -218,11 +218,14 @@ no field changes meaning. `ProtocolVersion` stays 1 under the enforcement spec's
   `RunOutcome.Ended(Round, Winners)`; here `Winners` is the scored result. `RecordingMeta.WinningTeamId`
   is the sole winner.
 - **A catalog scenario that ends with a scored winner**, `objectives`: `strict`, two armies of 3 units of
-  3 models (as `skirmish`), three objective markers along the middle of the table and one deep in Red's
-  deployment zone, round cap 8. Expectations: `Outcome("ended")`, `ReachedRound(4)`,
-  `EventOfKind("round_ended")`, and a new `Expectation.Won(int TeamOrdinal)` asserting `game_ended`
-  names exactly that team. The plan picks the seed and the winning ordinal by running the scenario, as
-  the catalog's other seeds were picked.
+  3 models (as `skirmish`), three objective markers along the middle of the table and one deep in Blue's
+  deployment zone (p.6 places markers "outside of the deployment zones"; this one is inside on purpose), round
+  cap 8. Its policy opts into `ObjectiveGoal.Nearest`: each move takes the legal sampled destination nearest an
+  objective marker the model's team does not control. Expectations, which hold for every seed: `Outcome("ended")`,
+  `ReachedRound(4)`, `EventOfKind("round_ended")` (at least one seize) and `Expectation.MostMarkersWin`,
+  asserting `game_ended` names exactly the teams controlling the most objective markers in the final projection,
+  every team when none holds one. `Expectation.Won(int TeamOrdinal)` asserts `game_ended` names exactly that
+  team; a test pins the uniform policy's seed 1, a seize and a win, with it.
 - **Invariant 7, `ControlFollowsTheMarkers`.** Every `objective_control_set` in the effective log names a
   marker the projection holds at that point and, when it names a team, a team of the game. It reads the
   log and the board only.

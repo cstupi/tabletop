@@ -2,6 +2,7 @@ using Godot;
 using HttpClient = System.Net.Http.HttpClient;
 using Tabletop.Client.Core;
 using Tabletop.Client.Screens;
+using Tabletop.Client.Theming;
 
 namespace Tabletop;
 
@@ -24,12 +25,22 @@ public partial class Main : Node
         var settings = ClientSettings.Load(_settingsPath);
         var store = new SessionStore(Path.Combine(userDir, "session.bin"));
         Session = new Session(new ManagementClient(Http, new Uri(settings.ManagementUrl)), new ClientGameSocketFactory(), store, settings, s => s.Save(_settingsPath), _dispatcher);
+        ApplyTheme();
+        Session.SettingsChanged += () => { if (UiThemes.Resolve(Session.Settings.Theme) != Ui.Current) ApplyTheme(); };
         Cache = new AssetCache(Path.Combine(userDir, "cache"), Http);
         Session.PhaseChanged += () => _dispatcher.Post(Route);
         var refresh = new Godot.Timer { WaitTime = 60, Autostart = true };
         refresh.Timeout += () => _ = Session.RefreshAsync();
         AddChild(refresh);
         _ = Boot();
+    }
+
+    void ApplyTheme()
+    {
+        Ui.Apply(UiThemes.Resolve(Session.Settings.Theme));
+        GetTree().Root.Theme = Ui.Theme;
+        if (_screen is Control c) c.Theme = Ui.Theme;
+        RenderingServer.SetDefaultClearColor(Ui.Of(Ui.Current.Background));
     }
 
     async Task Boot()
@@ -56,6 +67,7 @@ public partial class Main : Node
         if (!ResourceLoader.Exists(scenePath)) { GD.PushWarning($"no scene at {scenePath}"); return; }
         _screen?.QueueFree();
         _screen = GD.Load<PackedScene>(scenePath).Instantiate();
+        if (_screen is Control c) c.Theme = Ui.Theme;
         AddChild(_screen);
     }
 }

@@ -34,27 +34,119 @@ public class PropertiesStoreTests(PostgresFixture pg)
         await pg.DeletePropertiesAsync(hash);
     }
 
+    [Fact]
+    public async Task Played_round_trips_through_the_catalog_entry_table()
+    {
+        var name = "Played " + Guid.CreateVersion7().ToString("N")[24..32];
+        var doc = new PropertySetDocument(name, "played-" + name, [], [], ["hit"],
+            [new EntryDocument("Text Only", CatalogKind.Model, false, Aggregation.Any, null, null, "Text.", null, [], Played: false),
+             new EntryDocument("Played", CatalogKind.Model, false, Aggregation.All, null, null, "Played.", null, [])]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            var set = (await _store.LoadAsync(hash, CancellationToken.None))!;
+            Assert.False(set.Entry("Text Only")!.Played);
+            Assert.True(set.Entry("Played")!.Played);
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+    }
+
     /// <summary>
-    /// The set with every id blanked, as canonical JSON, so two loads compare on content. Row order within an entry
-    /// carries no meaning (PropertiesJson.ToSet keeps the author's order; the store's loader returns `order by
-    /// ordinal, id`, and `id` is not even deterministic between siblings sharing an ordinal), so effects, their
-    /// children and their conditions are each sorted by their own blanked, serialised content before comparing.
-    /// Only `Ordinal` and the conjunction of `Conditions` carry meaning, and both are preserved either way.
+    /// The set with every id blanked, as canonical JSON, so two loads compare on content. Stats, rolls and entries are sorted (the
+    /// hash sorts them: their order carries no meaning); actions, effects, conditions and condition values keep their order, because
+    /// the engine reads them in order (a turn's options, ties between equal ordinals, a roll_result's roll-then-modifier pair).
     /// </summary>
     static string Shape(PropertySet s)
     {
         Effect Blank(Effect e) => e with
         {
             Id = Guid.Empty,
-            Conditions = SortByContent(e.Conditions.Select(c => c with { Id = Guid.Empty })),
-            Children = SortByContent(e.Children.Select(Blank)),
+            Conditions = e.Conditions.Select(c => c with { Id = Guid.Empty }).ToList(),
+            Children = e.Children.Select(Blank).ToList(),
         };
-        var entries = s.Entries.OrderBy(e => e.Name, StringComparer.Ordinal).Select(e => e with { Effects = SortByContent(e.Effects.Select(Blank)) });
-        return ContentJson.Serialize(new { s.ContentHash, s.Name, s.GameRules, Stats = s.Stats.OrderBy(x => x.Level).ThenBy(x => x.Name), Actions = s.Actions.OrderBy(a => a.Name), Rolls = s.Rolls.OrderBy(r => r.Name), Entries = entries });
+        var entries = s.Entries.OrderBy(e => e.Name, StringComparer.Ordinal).Select(e => e with { Effects = e.Effects.Select(Blank).ToList() });
+        return ContentJson.Serialize(new { s.ContentHash, s.Name, s.GameRules, Stats = s.Stats.OrderBy(x => x.Level).ThenBy(x => x.Name, StringComparer.Ordinal), s.Actions,
+            Rolls = s.Rolls.OrderBy(r => r.Name, StringComparer.Ordinal), Entries = entries, Books = s.Books.Values.OrderBy(b => b.Uid, StringComparer.Ordinal) });
     }
 
-    static List<T> SortByContent<T>(IEnumerable<T> items) =>
-        items.Select(i => (Item: i, Key: ContentJson.Serialize(i))).OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => x.Item).ToList();
+    /// <summary>Ids that sort in Postgres the reverse of the order they are minted in: a random high half, then a falling counter.</summary>
+    static Func<Guid> Descending()
+    {
+        var high = Random.Shared.NextInt64(1, long.MaxValue);
+        var n = long.MaxValue;
+        return () => Guid.Parse($"{high:x16}{n--:x16}");
+    }
+
+    /// <summary>Several conditions per effect, values out of alphabetical order, siblings sharing an ordinal, actions out of name order.</summary>
+    static PropertySetDocument Ordered(string name)
+    {
+        ConditionDocument C(ConditionKind k, EffectSubject? subject, Comparison cmp, int? n, params string[] values) => new(k, subject, cmp, n, values);
+        EffectDocument E(int ordinal, int amount, params ConditionDocument[] conditions) =>
+            new(EffectSubject.Self, ordinal, EffectKind.ModifyRoll, "hit", null, null, null, null, null, null, amount, false, null, null, null, EffectDuration.Interaction, conditions, []);
+        var effects = new[]
+        {
+            E(10, 1, C(ConditionKind.MostModels, EffectSubject.Opponent, Comparison.Gte, 3, "Tough"), C(ConditionKind.ActionTaken, EffectSubject.Self, Comparison.Eq, null, "Rush", "Charge", "Advance"),
+                C(ConditionKind.AttackKind, null, Comparison.Eq, null, "shooting", "melee"), C(ConditionKind.Range, null, Comparison.Gt, 9)),
+            E(10, 2, C(ConditionKind.RollResult, null, Comparison.Eq, 1, "hit", "raw"), C(ConditionKind.AttackKind, null, Comparison.Eq, null, "melee"), C(ConditionKind.ActionTaken, EffectSubject.Opponent, Comparison.Eq, null, "Charge")),
+            E(10, 3, C(ConditionKind.UsageCount, null, Comparison.Lt, 1, "round"), C(ConditionKind.AtPoint, null, Comparison.Eq, null, "attack-start", "activation-start")),
+            E(5, 4, C(ConditionKind.HoldsProperty, EffectSubject.Self, Comparison.Eq, null, "Ordered"), C(ConditionKind.RoundNumber, null, Comparison.Gte, 2)),
+        };
+        return new PropertySetDocument(name, "order-" + name, [], [new ActionDefinition("Hold", 0), new ActionDefinition("Advance", 6), new ActionDefinition("Rush", 12), new ActionDefinition("Charge", 12)],
+            ["hit"], [new EntryDocument("Ordered", CatalogKind.Model, false, Aggregation.All, null, null, "Ordered.", null, effects)]);
+    }
+
+    [Fact]
+    public async Task A_set_reads_back_in_document_order_whatever_order_its_row_ids_sort_in()
+    {
+        for (var run = 0; run < 20; run++)
+        {
+            var doc = Ordered("Ordered " + Guid.CreateVersion7().ToString("N")[24..32]);
+            var hash = PropertiesJson.Hash(doc);
+            try
+            {
+                Assert.True(await _store.SeedAsync(doc, run % 2 == 0 ? Descending() : Guid.NewGuid, CancellationToken.None));
+                Assert.Equal(Shape(PropertiesJson.ToSet(doc, Guid.CreateVersion7)), Shape((await _store.LoadAsync(hash, CancellationToken.None))!));
+            }
+            finally { await pg.DeletePropertiesAsync(hash); }
+        }
+    }
+
+    [Fact]
+    public async Task The_composed_embedded_document_reads_back_as_the_document_evaluates_with_ids_minted_in_reverse()
+    {
+        var doc = TestProperties.CoreDocument with { Name = "Composed " + Guid.CreateVersion7().ToString("N")[24..32] };
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, Descending(), CancellationToken.None));
+            Assert.Equal(Shape(PropertiesJson.ToSet(doc, Guid.CreateVersion7)), Shape((await _store.LoadAsync(hash, CancellationToken.None))!));
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+    }
+
+    [Fact]
+    public async Task Seeding_a_present_set_without_positions_fills_them_from_the_document_and_keeps_its_row_ids()
+    {
+        var doc = Ordered("Unpositioned " + Guid.CreateVersion7().ToString("N")[24..32]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, Descending(), CancellationToken.None));
+            var before = (await _store.LoadAsync(hash, CancellationToken.None))!;
+            // A set seeded before 007_properties_positions.sql: every position null.
+            await pg.CountAsync("update management.action set position = null where properties_hash = $1", hash);
+            await pg.CountAsync("update management.condition_value v set position = null from management.effect_condition c, management.effect e where v.condition_id = c.id and c.effect_id = e.id and e.properties_hash = $1", hash);
+            await pg.CountAsync("update management.effect_condition c set position = null from management.effect e where c.effect_id = e.id and e.properties_hash = $1", hash);
+            await pg.CountAsync("update management.effect set position = null where properties_hash = $1", hash);
+            Assert.False(await _store.SeedAsync(doc, CancellationToken.None));
+            var after = (await _store.LoadAsync(hash, CancellationToken.None))!;
+            Assert.Equal(Shape(PropertiesJson.ToSet(doc, Guid.CreateVersion7)), Shape(after));
+            Assert.Equal(Ids(before).Order(), Ids(after).Order());   // a game's grants name effect ids
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+        static IEnumerable<Guid> Ids(PropertySet s) => s.AllEffects().SelectMany(e => e.Conditions.Select(c => c.Id).Prepend(e.Id));
+    }
 
     [Fact]
     public async Task The_embedded_documents_seed_at_startup()
@@ -123,5 +215,22 @@ public class PropertiesStoreTests(PostgresFixture pg)
         var row = (await _store.LoadAsync(hash, CancellationToken.None))!.Entry("Blink")!.Effects.Single();
         Assert.Equal(("d3", EffectKind.Place, ConditionKind.AtPoint), (row.AmountDice, row.Kind, row.Conditions.Single().Kind));
         await pg.DeletePropertiesAsync(hash);
+    }
+
+    [Fact]
+    public async Task Line_of_sight_round_trips_through_the_catalog_entry_table()
+    {
+        var name = "Sight " + Guid.CreateVersion7().ToString("N")[24..32];
+        var at = new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["before-attacking"]);
+        var row = new EffectDocument(EffectSubject.Self, 5, EffectKind.ModifyRoll, "hit", null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Once, [at], []);
+        var doc = new PropertySetDocument(name, "sight-" + name, [], [], ["hit"],
+            [new EntryDocument("Picker", CatalogKind.Model, false, Aggregation.None, null, null, "Pick.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12, LineOfSight: false), [row])]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            Assert.Equal(new SpellTargeting(TargetSide.Friendly, TargetGrain.Unit, 1, 12, false), (await _store.LoadAsync(hash, CancellationToken.None))!.Entry("Picker")!.Targeting);
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
     }
 }

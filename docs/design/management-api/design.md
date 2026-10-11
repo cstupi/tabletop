@@ -307,9 +307,9 @@ sequenceDiagram
         X->>X: StarterAssets.SeedIfNeeded(account id), failures logged
     end
     opt the minted JWT's account_id is not the account id
-        X->>S: StampAccount(jwt, account id)
-        S->>K: POST /v1/sessions/authenticate {session_custom_claims: {account_id}}
-        K-->>X: a JWT carrying account_id
+        X->>S: StampAccount(jwt, account id, user.roles)
+        S->>K: POST /v1/sessions/authenticate {session_custom_claims: {account_id, roles}}
+        K-->>X: a JWT carrying account_id and roles
     end
     X-->>A: SessionResponse{sessionJwt, account}
     A-->>C: 200
@@ -322,8 +322,12 @@ refresh. A session minted by the call that spends a single-use one-time code or 
 carries no claim, because that call runs before `external_id` exists, and a new session of a linked
 account carries none either. `Sessions.Complete` therefore creates the account row, sets `external_id`
 when absent, and, when the minted JWT's `account_id` is not the account id, calls
-`StytchClient.StampAccount`, which posts `session_custom_claims: {"account_id": "<uuid>"}` to
-`POST /v1/sessions/authenticate` and returns that JWT. Every new session pays this call: signup, password
+`StytchClient.StampAccount`, which posts `session_custom_claims: {"account_id": "<uuid>", "roles": [...]}` to
+`POST /v1/sessions/authenticate` and returns that JWT. `roles` is the Stytch user's RBAC role ids, the
+authenticate response's `user.roles` (`StytchUser.Roles`; `stytch_user` on every user, plus any role
+assigned in the dashboard). The game server admits a session whose `roles` holds `admin` as a watcher of
+any game (admin watch spec). A refresh stamps the session again when the user's Stytch roles differ from
+the ones it carries, so a granted or revoked role reaches the next refresh; an open watcher socket stays open. Every new session pays this call: signup, password
 login, OTP login, password-reset completion and the dev session mint. A refresh
 (`/v1/auth/session/refresh`, `/v1/sessions/authenticate` with no claims) carries the claim already.
 Linking earlier does not work: the code is single-use, so the session must be minted by the call that
@@ -372,7 +376,9 @@ belongs here.
 5. `Sessions.Complete(session)`, the path every login takes.
 
 Because `external_id` is written when the user is created, `Complete` skips the link and stamps the
-account's `account_id` on the new session: one `StampAccount` call per mint.
+account's `account_id` on the new session: one `StampAccount` call per mint. The request's optional
+`roles` (`{"name": "...", "roles": ["admin"]}`) is stamped in place of the Stytch user's, so tests mint an admin without touching the Stytch
+project.
 
 The derived email is the name lowercased, non-alphanumeric characters replaced by `-`, at
 `example.com`, reserved by RFC 2606 and undeliverable. No call on this path sends mail: creating a
@@ -797,7 +803,8 @@ Endpoint behaviour:
   open*). Descending by id means newest first: the list filters by status, name and created-by-me,
   which is a filter set for finding something recent, and ascending puts every finished game ahead
   of tonight's (the plan's ruling 7).
-  `id < @after order by id desc`; `Page<T>.Next` still holds the last id.
+  `id < @after order by id desc`; `Page<T>.Next` still holds the last id. Each `GameSummary` carries
+  `ParticipantNames`, the participants' account names in join order, which the viewer's game list shows.
 - `POST /v1/games/{id}/join` is `insert ... on conflict (game_id, account_id) do nothing` guarded by
   `where exists (select 1 from game ...)`, so joining twice is the same row and joining a
   nonexistent game is `404`. Joining is allowed at every status, including `ended`. The arriving
@@ -1020,7 +1027,7 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 | `POST /v1/games/{id}/leave` | → `204` | participant |
 | `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}` | → `204` | creator |
 | `GET /v1/games/{id}/assets` | → `Manifest(Assets, ExpiresAt)` | participant |
-| **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
+| **`POST /v1/dev/sessions`, development only, not a product endpoint** | `DevSessionRequest(Name, Roles?)` → `SessionResponse` | none, and the route exists only under `IHostEnvironment.IsDevelopment()` |
 
 The last route is the simulator's token source. Nothing else calls it, no client and no web app may,
 and a build whose environment is unset serves `404` for it.
@@ -1036,7 +1043,7 @@ and a build whose environment is unset serves `404` for it.
 | `Http.Problems`, `Http.CurrentAccount` | `NotFound()`, `Conflict(detail)`, `Unprocessable(detail)`, `BadGateway(detail)`; `CurrentAccount.Id(ClaimsPrincipal)` |
 | `Persistence.Database`, `Persistence.Migrator` | `Open(CancellationToken)`, `Source`; `Migrator.Run(connectionString)` |
 | `Identity.StytchJwks` | `Resolve(string? kid)`, `Url` |
-| `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
+| `Identity.StytchAuthentication` | `AddStytchJwt(IServiceCollection, ManagementOptions)`, `AccountClaim = "account_id"`, `RolesClaim = "roles"`, `SessionClaim = "https://stytch.com/session"`, `Issuer(projectId)`, `JwksClient = "stytch-jwks"` |
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
 | `Identity.DevSessions`, `Identity.DevSessionEndpoint` | `Mint(name) : SessionResponse`, `static AccountIdFor(name) : Guid`, `static EmailFor(name) : string`; `DevSessionRequest(Name)`; `MapDevSession`, registered only under a development environment |
@@ -1072,7 +1079,7 @@ and a build whose environment is unset serves `404` for it.
 
 | Module | Must honour |
 | --- | --- |
-| Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string; verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
+| Game server | verify the JWT exactly as here: JWKS at `{StytchBaseUrl}/v1/sessions/jwks/{project_id}` with **no** credentials, `iss = stytch.com/{project_id}`, `aud = project_id`, RS256, 30 s skew, account id in the top-level claim `account_id` as a GUID string, the Stytch role ids in the top-level claim `roles` (an array; absent means none); verify **at connect only** (a socket outlives the five-minute JWT and is never re-verified); write only the rows in the split table above; set `participant.army_id` on `PickArmy`, because the manifest reads it before a snapshot exists; regenerate every child id on `ReplaceDraft` from a loaded layout, since placement, volume, marker and zone ids are global primary keys; write `army_snapshot` as `ContentJson.Serialize(ArmySnapshot)`; seed the `stat_definition` names `Quality`, `Defense` (unit) and `Range`, `Attacks` (weapon) that import writes as stat keys; load at least one `properties` row, without which no game can be created |
 | Interpreter, through the OPR properties document | author an Age of Fantasy content set. `aof` lists import (the plan's ruling 5), a game pins a set by `properties.content_hash`, and the only authored document is `grimdark-future-core.properties.json`, whose catalog is Grimdark Future's army books and spells. An Age of Fantasy army can therefore be imported before anything exists to play it with, and nothing detects the mismatch: `army.game_system` and `properties.game_rules` are both `grimdark-future`, which is what lets one rules implementation serve both |
 | Interpreter, through the OPR properties document | declare `Quality` and `Defense` at `model` level beside their `unit` declarations, because a joined hero's slots carry both as slot stats and `slot_stat` has no foreign key to `stat_definition` to catch the gap. **Both are discharged.** A joined hero attacks at its own Quality and blocks on the unit's Defense until every other model is dead, so the slot's `Quality` is read for every hit roll and the slot's `Defense` once the unit holds one model, and a `unit`-kind entry on a slot is the whole unit's rule in `Gather` and `UnitHas` alike (the interpreter design's ruling 13) |
 | Web app | host `/reset-password` at `TABLETOP_WEB_URL` and read `?token=` from Stytch's redirect; compute the SHA-256 before `POST /v1/assets`; `PUT` with the same `Content-Type` it declared; call `/confirm` and show `Warning`; write the bounding-box volume with `PUT /v1/assets/{id}/volumes`. Unit and slot names are read-only. They are the list's |

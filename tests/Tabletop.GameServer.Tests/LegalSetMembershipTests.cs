@@ -24,15 +24,31 @@ public class LegalSetMembershipTests
         Assert.True(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [A] = 2, [B] = 1 })));
         Assert.False(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [A] = 3, [B] = 1 })));
         Assert.False(LegalSetMembership.Contains(ask, new Allocated(new Dictionary<Guid, int> { [C] = 3 })));
+        var one = With(new Allocation([A, B], 3, MaxTargets: 1));
+        Assert.True(LegalSetMembership.Contains(one, new Allocated(new Dictionary<Guid, int> { [B] = 3, [A] = 0 })));
+        Assert.False(LegalSetMembership.Contains(one, new Allocated(new Dictionary<Guid, int> { [A] = 2, [B] = 1 })));
     }
     [Fact] public void Assignment_covers_every_item_with_at_most_n_distinct_targets()
     {
         var ask = With(new Assignment([new AskOption("g1", "", []), new AskOption("g2", "", [])], [A, B, C], 2));
         Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["g1"] = A, ["g2"] = B })));
-        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["g1"] = A })));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["g1"] = A })));                // p.8: models "may" shoot, so g2 holds fire
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid>())));                          // nothing assigned is a pass, not an Assigned
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["g3"] = A })));             // not an offered item
         Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["g1"] = A, ["g2"] = Guid.CreateVersion7() })));
         var one = With(new Assignment([new AskOption("g1", "", []), new AskOption("g2", "", [])], [A, B], 1));
         Assert.False(LegalSetMembership.Contains(one, new Assigned(new Dictionary<string, Guid> { ["g1"] = A, ["g2"] = B })));
+    }
+    [Fact] public void Assignment_gives_each_item_only_a_target_on_its_own_list()
+    {
+        // p.8: a group's target must be one it can shoot ("has a weapon that is within range of that model"), so Pistols at a unit only the Rifles reach is out of set.
+        var ask = With(new Assignment([new AskOption("Rifles", "", []), new AskOption("Pistols", "", [])], [A, B], 2,
+            new Dictionary<string, IReadOnlyList<Guid>> { ["Rifles"] = [A, B], ["Pistols"] = [A] }));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = B, ["Pistols"] = A })));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = A, ["Pistols"] = A })));
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = B, ["Pistols"] = B })));
+        Assert.True(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Rifles"] = B })));          // the Pistols hold fire
+        Assert.False(LegalSetMembership.Contains(ask, new Assigned(new Dictionary<string, Guid> { ["Pistols"] = B })));
     }
     [Fact] public void Move_region_checks_model_ids_only()
     {

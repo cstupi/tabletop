@@ -78,11 +78,11 @@ public sealed class EventApplier(Board board, GameInfo game)
                 foreach (var c in t.Changes) ApplyChange(p, c);
                 break;
             case PhaseStarted ph: p.Scheduler.Phase = ph.Phase; break;
-            case SequenceStarted s: p.StackMut.Add(new Frame(s.FrameId, s.Sequence, s.Context)); break;
+            case SequenceStarted s: p.StackMut.Add(new Frame(s.FrameId, s.Sequence, s.Context, s.Outline)); break;
             case StepCompleted s:
             {
                 var frame = FrameOf(p, s.FrameId, s);
-                frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values));
+                frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values, s.Applied));
                 foreach (var roll in s.Rolls) frame.PendingMut.Remove(roll.Roll);
                 foreach (var c in s.Changes) ApplyChange(p, c);
                 break;
@@ -129,7 +129,11 @@ public sealed class EventApplier(Board board, GameInfo game)
             case WoundsThisActivationSet w: Need(p.UnitsMut, w.UnitId, w).WoundsThisActivation = w.Wounds; break;
             case ScoreSet s: p.ScoresMut[s.TeamId] = s.Score; break;                       // an assignment cannot miss
             case MarkerPlaced m: p.MarkersMut[m.Marker.Id] = m.Marker; break;
-            case MarkerMoved m: p.MarkersMut[m.MarkerId] = Need(p.MarkersMut, m.MarkerId, m) with { Position = m.Position, Yaw = m.Yaw }; break;
+            // A setup marker's first move copies its board row into the projection, which wins on the shared id from then on.
+            case MarkerMoved m:
+                var marker = p.MarkersMut.GetValueOrDefault(m.MarkerId) ?? p.Board.Table.Markers.FirstOrDefault(x => x.Id == m.MarkerId)
+                    ?? throw new ProjectionDesyncException(EventKinds.Of(m), m.MarkerId);
+                p.MarkersMut[m.MarkerId] = marker with { Position = m.Position, Yaw = m.Yaw }; break;
             case MarkerRemoved m: p.MarkersMut.Remove(m.MarkerId); p.ControlMut.Remove(m.MarkerId); break;
             case ObjectiveControlSet o: if (o.TeamId is { } team) p.ControlMut[o.MarkerId] = team; else p.ControlMut.Remove(o.MarkerId); break;   // an assignment cannot miss
             default: throw new NotSupportedException($"Unknown state change {change.GetType().Name}");

@@ -5,6 +5,10 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Management.Games;
 
+/// <summary>One catalog entry's player-facing text (spec: in-game UX → Rule text). Played is false on a generated text-only entry
+/// (army-book rules spec → Played flag). Dapper maps by constructor parameter name.</summary>
+public sealed record CatalogRuleText(string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
+
 public sealed class GameRepository(Database db)
 {
     private sealed record GameRow(Guid Id, string Name, string Status, string GameRules, string PropertiesHash, string SchedulerShape, string Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy);
@@ -12,7 +16,7 @@ public sealed class GameRepository(Database db)
     // CreatedAt comes back as DateTime (Npgsql's CLR type for timestamptz), not DateTimeOffset: Dapper picks a
     // constructor by the reader's exact field type, so the row type must match it and GameSummary's DateTimeOffset
     // is built afterwards.
-    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants);
+    private sealed record SummaryRow(Guid Id, string Name, string Status, Guid CreatedBy, DateTime CreatedAt, int Participants, Array ParticipantNames);   // Array: the reader reports text[] as System.Array
     private static readonly IReadOnlyDictionary<string, SchedulerShape> Shapes = new Dictionary<string, SchedulerShape> { ["player-turn"] = SchedulerShape.PlayerTurn, ["alternating-activation"] = SchedulerShape.AlternatingActivation };
     private static string Wire(SchedulerShape s) => Shapes.First(kv => kv.Value == s).Key;
 
@@ -23,6 +27,17 @@ public sealed class GameRepository(Database db)
             select distinct on (game_rules, name) content_hash as ContentHash, name as Name, game_rules as GameRules
             from properties order by game_rules, name, seeded_at desc
             """)).ToList();
+    }
+
+    /// <summary>Every catalog entry of a pinned set, by name; null when no set has this hash.</summary>
+    public async Task<IReadOnlyList<CatalogRuleText>?> RuleTexts(string hash)
+    {
+        await using var c = await db.Open();
+        if (await c.ExecuteScalarAsync<int>("select count(*) from properties where content_hash = @hash", new { hash }) == 0) return null;
+        return (await c.QueryAsync<CatalogRuleText>("""
+            select name as Name, kind as Kind, takes_parameter as TakesParameter, rule_text as RuleText, played as Played
+            from catalog_entry where properties_hash = @hash order by name
+            """, new { hash })).ToList();
     }
 
     public async Task<GameInfo?> Create(Guid creator, CreateGameRequest r)
@@ -47,9 +62,10 @@ public sealed class GameRepository(Database db)
         await using var c = await db.Open();
         // A named record, not a ValueTuple: Dapper maps to constructor parameters by column name and cannot map tuple element names.
         var rows = await c.QueryAsync<SummaryRow>(@"select g.id as Id, g.name as Name, g.status as Status, g.created_by as CreatedBy, g.created_at as CreatedAt,
-            (select count(*) from participant p where p.game_id = g.id)::int as Participants
+            (select count(*) from participant p where p.game_id = g.id)::int as Participants,
+            array(select a.name from participant p join account a on a.id = p.account_id where p.game_id = g.id order by p.id) as ParticipantNames
             from game g where (@after::uuid is null or g.id < @after::uuid) order by g.id desc limit @limit", new { after = page.After, limit = page.Limit });
-        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants)).ToList();
+        return rows.Select(r => new GameSummary(r.Id, r.Name, Enum.Parse<GameStatus>(r.Status, true), r.CreatedBy, new DateTimeOffset(r.CreatedAt, TimeSpan.Zero), r.Participants, r.ParticipantNames.Cast<string>().ToList())).ToList();
     }
 
     public async Task<GameInfo?> Get(Guid id)

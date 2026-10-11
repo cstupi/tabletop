@@ -86,7 +86,7 @@ public class AgreementFixtureTests
             File.ReadAllText(Path.Combine(RepoPaths.Fixtures, "skirmish.board.json"))));
         var applier = new EventApplier(board.Board, welcome.Game);
 
-        // A marker id nothing placed: the case ruling 2 names, a marker from setup rather than from an event.
+        // A marker id neither the board nor the log holds.
         var unknown = Guid.CreateVersion7();
         Assert.Throws<ProjectionDesyncException>(
             () => applier.Apply(new GameEvent(1, null, new MarkerMoved(unknown, new Point3(5, 5, 0), new Yaw(90)), null)));

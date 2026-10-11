@@ -93,14 +93,14 @@ public class SpellShapeTests
     public void A_casting_modifier_grant_applies_to_the_units_next_casting_roll_and_is_spent()
     {
         var wizard = Unit("Wizard", "4+", "4+", [], 1, [P("Caster", 6)]);
-        var sim = new Sim(State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(6));
+        var sim = new Sim(State([wizard], [Unit("T", "4+", "4+", [], 1, [])], x1: -4, x2: 4), new WithSequences(GrimdarkFutureRules.Instance, WithSequences.Parent("test-parent", "w")), Props, new ScriptedDice(5));
         sim.Append([new SpellTokensSet(wizard.Models[0].Id, 6), new GrantAdded(wizard.Id, new Grant(Guid.CreateVersion7(), Props.Entry("Hex")!.Effects[0].Id, "Hex", wizard.Id, 1))]);
         sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
         sim.Answer(Samples.Team1, new Chosen($"Quiet Bolt|{wizard.Models[0].Id}"));
         sim.Answer(Samples.Team1, new Passed());
         var roll = sim.Steps("roll").Single().Rolls.Single();
         Assert.Contains(roll.Modifiers, m => m.Source == "Hex" && m.Amount == -3);
-        Assert.Equal(0, sim.Steps("roll").Single().Values!["passed"]);                                   // 6 − 3 = 3, short of 4
+        Assert.Equal(0, sim.Steps("result").Single().Values!["passed"]);                                 // 5 − 3 = 2, short of 4 (a 6 would pass whatever the modifier, p.5)
         Assert.Empty(sim.Unit(wizard.Id).Grants);
     }
 
@@ -161,7 +161,7 @@ public class SpellShapeTests
         var sim = new Sim(State([a], [b], x1: -6, x2: 6), GrimdarkFutureRules.Instance, Weapons, new ScriptedDice(1, 5, 6));
         sim.Start(GfNames.Shooting, new SequenceContext(a.Id, [], [], GfNames.Hold));
         sim.Answer(Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Pistol"] = b.Id }));
-        Assert.Equal(1, sim.Steps("roll-to-hit").Single().Values!["self_wounds"]);
+        Assert.Equal(1, sim.Steps("score-hits").Single().Values!["self_wounds"]);
         var removed = a.Models.Count(m => sim.Model(m.Id).Location is OnShelf);
         Assert.Equal(1, removed + (sim.AskForOrNull(Samples.Team1) is { Legal: Allocation } ? 1 : 0));   // removed, or awaiting its own allocation
     }

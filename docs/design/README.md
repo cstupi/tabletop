@@ -161,8 +161,8 @@ recomputed by reading the log on every call.
 
 Three consequences. Starting a session, reconnecting and recovering a crashed task are one
 code path. Undo is replay to a sequence number, not inverse events. The RNG is a counter over
-the log, so undoing and redoing an action reproduces the same dice and cannot be used to fish
-for rolls.
+the whole log, undone events included, so an undone roll's dice stay drawn and an undo leads to
+fresh dice; it cannot be used to see the coming dice or fish for rolls.
 
 The price is log scanning. Every `Advance` walks the effective log several times, and no
 memoisation exists.
@@ -207,8 +207,9 @@ answer is accepted, with a logged warning when it falls outside the legal set. U
 an out-of-set answer or illegal command is refused.
 
 The menu is exempt at every setting. A right-click edit of any property is accepted, logged
-and visible to opponents. Base overlap, terrain intersection and broken coherency are flagged,
-never prevented. This is what makes it a simulator rather than a referee, and it removes the
+and visible to opponents. Base overlap, an Impassable Solid and a path through a model are
+prevented by the client while dragging (Alt overrides) and judged by the server; coherency is not judged.
+The override is what makes it a simulator rather than a referee, and it removes the
 need for an admin mode.
 
 ### 7. Row ownership moves with game status
@@ -387,14 +388,14 @@ the ECS Fargate sketch a later session will design against.
 
 | Process | Where | Address |
 | --- | --- | --- |
-| Management API | WSL | `localhost:5100` |
-| Game server | WSL | `localhost:5200` |
-| Web app dev server | WSL | `localhost:5173` |
+| Management API | Docker | `127.0.0.1:5100` |
+| Game server | Docker | `127.0.0.1:5200` |
+| Web app dev server | Docker | `127.0.0.1:5173` |
 | Postgres | Docker | `localhost:5432` |
 | Blob store, MinIO | Docker | `localhost:9000` |
 | Godot client | Windows host | Connects over forwarded localhost |
 | Simulator | WSL | A console run, no address of its own |
-| Viewer dev server | WSL | `localhost:5174` |
+| Viewer dev server | Docker | `127.0.0.1:5174` |
 
 The client runs on the Windows host because the Godot editor does; the repository is reached
 over the WSL share. This is the only configuration, so it is the one that is always tested.

@@ -40,8 +40,10 @@ public static class GfContainers
 
     /// <summary>
     /// p.15: the survivors are Shaken and "placed fully within 6" of the transport". The Ask is a move_region whose containment names
-    /// the container being exited, so the client draws the region a disembark move draws. A survivor with no placement in the answer,
-    /// or one outside the radius, has nowhere legal to stand; the rulebook does not cover it (ruling 12), so it is destroyed.
+    /// the container being exited, so the client draws the region a disembark move draws. A survivor left out of the answer, or answered
+    /// where it is (inside the wreck), has nowhere legal to stand; the rulebook does not cover it (ruling 12), so it is destroyed. A placement
+    /// outside the radius, off the table or in impassable terrain is refused under strict (GfMoves.PathBreach, move_exit); under warn and silent it is applied as nowhere
+    /// to stand, and that survivor is destroyed too.
     /// That removal is a casualty and writes what `assign` writes for one: wounds at capacity, the model to the shelf, and the wounds on the
     /// unit's activation tally, so p.10's end-of-activation morale test counts it. `Values["destroyed"]` is how many went that way.
     /// </summary>
@@ -57,7 +59,7 @@ public static class GfContainers
                     // Allowance is unbound on a disembark (Task 14): ExitWithin is passed so the number is the exit distance. The client reads Containment.
                     new MoveRegion(Lookup.AliveModels(ctx.State, unit), GfNames.ExitWithin,
                         Battlefield.Terrain(ctx.State).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).Select(v => v.Id).ToList(),
-                        [], null, new MoveContainment([], container, GfNames.ExitWithin)), allowPass: false)]);
+                        [], null, new MoveContainment([], container, GfNames.ExitWithin), Separation: GfNames.Separation), allowPass: false)]);
             var proposed = GfAnswers.Moves(ctx.State, closed);
             var changes = new List<StateChange> { new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Shaken, true) };
             var moves = new List<ModelRelocation>(); var destroyed = 0; var fatal = 0;
@@ -72,6 +74,7 @@ public static class GfContainers
                 moves.Add(new ModelRelocation(m, new Inside(container), new OnShelf()));
             }
             changes.Add(new ModelsMoved(moves));
+            ctx.Applied.Add(GfNames.Transport);
             if (fatal > 0) changes.Add(new WoundsThisActivationSet(unit, ctx.Projection.Units[unit].WoundsThisActivation + fatal));
             return new Complete(changes, new Dictionary<string, int> { ["destroyed"] = destroyed });
         }

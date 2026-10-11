@@ -23,7 +23,7 @@ public static class Movement
     readonly record struct NearVolume(Guid Id, Outline Outline, Point2 Centre, double Radius);
 
     public static MovementRegion Region(PlacedModel start, double allowance, IReadOnlyList<WorldVolume> impassable,
-        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table)
+        IReadOnlyList<WorldVolume> difficult, double? difficultCap, TableSize? table, IReadOnlyList<PlacedModel>? models = null)
     {
         var origin = start.Placement.Position.Horizontal;
         var baseOutline = start.BaseOutline();
@@ -32,6 +32,7 @@ public static class Movement
         var impassableNear = Prefilter(impassable, origin, reach);
         var difficultNear = Prefilter(difficult, origin, reach);
         var slab = table is { } t ? Table.Outline(t) : null;
+        var bodies = (models ?? []).Select(m => m.BaseOutline()).Where(o => !Outline.InteriorsIntersect(baseOutline, o)).ToList();
 
         var boundary = new List<Point2>(Rays);
         var capped = false;
@@ -52,7 +53,8 @@ public static class Movement
                 var d = Math.Min(k * Step, limit);
                 var at = origin + dir * d;
                 var atOutline = baseOutline.Shift(dir * d);
-                if (Touches(at, baseRadius, atOutline, impassableNear) || (slab is not null && !slab.ContainsOutline(atOutline))) break;
+                if (Touches(at, baseRadius, atOutline, impassableNear) || bodies.Any(o => Outline.InteriorsIntersect(atOutline, o))
+                    || (slab is not null && !slab.ContainsOutline(atOutline))) break;
                 if (difficultCap is { } cap && cap < limit && Touches(at, baseRadius, atOutline, difficultNear))
                 {
                     limit = cap;
@@ -92,6 +94,41 @@ public static class Movement
         }
         var effective = enters && difficultCap is { } cap ? Math.Min(allowance, cap) : allowance;
         return new MoveCheck(distance, effective, distance <= effective + Tolerance.Distance, crosses, enters, leaves);
+    }
+
+    /// <summary>
+    /// The farthest the base centre can go from its start in a straight line with the whole base still on the table: the corner of the
+    /// slab inset by the base's bounding radius that lies farthest from the start, and its distance. A minimum move the table has no room
+    /// for is held to this. The start itself, at distance zero, when the base is wider than the slab.
+    /// </summary>
+    public static (double Distance, Point2 To) FarthestOnTable(PlacedModel start, TableSize table)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
+        var radius = bound + centre.DistanceTo(origin);
+        if (2 * radius > table.Width || 2 * radius > table.Length) return (0, origin);
+        Point2[] corners = [new(radius, radius), new(table.Width - radius, radius), new(radius, table.Length - radius), new(table.Width - radius, table.Length - radius)];
+        var far = corners.MaxBy(c => origin.DistanceTo(c));
+        return (origin.DistanceTo(far), far);
+    }
+
+    /// <summary>
+    /// How far the base centre can go from its start in a straight line towards `toward` with the whole base still on the table (the slab
+    /// inset as FarthestOnTable insets it). Zero when `toward` is the start or the base is wider than the slab.
+    /// </summary>
+    public static double RoomAlong(PlacedModel start, Point2 toward, TableSize table)
+    {
+        var origin = start.Placement.Position.Horizontal;
+        var (centre, bound) = start.BaseOutline().BoundingCircle();
+        var radius = bound + centre.DistanceTo(origin);
+        var delta = toward - origin;
+        if (delta.Length <= Tolerance.Distance || 2 * radius > table.Width || 2 * radius > table.Length) return 0;
+        double dx = delta.X / delta.Length, dy = delta.Y / delta.Length, room = double.PositiveInfinity;
+        if (dx > 1e-12) room = Math.Min(room, (table.Width - radius - origin.X) / dx);
+        if (dx < -1e-12) room = Math.Min(room, (radius - origin.X) / dx);
+        if (dy > 1e-12) room = Math.Min(room, (table.Length - radius - origin.Y) / dy);
+        if (dy < -1e-12) room = Math.Min(room, (radius - origin.Y) / dy);
+        return Math.Max(0, room);
     }
 
     /// <summary>

@@ -3,11 +3,14 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Effects;
 
-public sealed record DieContext(string Roll, int Raw, int Modified);
+public sealed record DieContext(string Roll, int Raw, int Modified, bool Success);
 
 /// <summary>The eight predicates. A subject-bearing predicate tests the side it names relative to the holder; relational ones test the interaction.</summary>
 public static class Conditions
 {
+    /// <summary>roll_result's optional third value: the die must have succeeded (`success`) or failed (`fail`), "successful unmodified results of 5-6".</summary>
+    public const string Success = "success", Fail = "fail";
+
     public static bool Hold(Interaction ix, Side holder, Effect effect, LiveProperty source, DieContext? die) =>
         effect.Conditions.All(c => Holds(ix, holder, c, source, die));
 
@@ -18,10 +21,14 @@ public static class Conditions
         {
             case ConditionKind.ActionTaken: return ix.ActionTaken is { } a && Membership(c, a);
             case ConditionKind.AttackKind: return ix.Attack is { } k && Membership(c, k switch { AttackKind.Shooting => "shooting", AttackKind.Melee => "melee", _ => "spell" });
-            case ConditionKind.Range: return ix.RangeInches is { } r && c.Compare((int)Math.Floor(r));
+            // p.5 measures base to base: the measured distance is compared as it is, never rounded ("over 9\"" holds at 9.41").
+            case ConditionKind.Range: return ix.RangeInches is { } r && c.Compare(r);
             case ConditionKind.RollResult:
-                if (die is null || c.Values.Count != 2 || die.Roll != c.Values[0]) return false;
+                if (die is null || c.Values.Count is not (2 or 3) || die.Roll != c.Values[0]) return false;
+                if (c.Values.Count == 3 && die.Success != (c.Values[2] == Success)) return false;
                 return c.Compare(c.Values[1] == "raw" ? die.Raw : die.Modified);
+            // A subject-bearing predicate on a side the interaction lacks (the defender of a lone roll, a charge's reach) cannot hold.
+            case ConditionKind.ActorState or ConditionKind.HoldsProperty or ConditionKind.MostModels when side == Side.Defender && ix.Defender is null: return false;
             case ConditionKind.ActorState:
             {
                 var unit = ix.State.Projection.Units[ix.Of(side).UnitId];
@@ -32,7 +39,9 @@ public static class Conditions
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
             case ConditionKind.UsageCount: return c.Compare(Usage(ix, source, c));
-            case ConditionKind.AtPoint: return ix.Point is { } point && Membership(c, point);
+            // A grant row's at_point said when its rule was used; the grant is that use, so wherever the grant is read the point has passed
+            // (army-book rules spec → the pick). Any other row holds only at its point.
+            case ConditionKind.AtPoint: return source.GrantRow is not null || (ix.Point is { } point && Membership(c, point));
             // The side holds the entry under its own aggregation, a granted instance included; a suppression does not unhold (spell library spec).
             case ConditionKind.HoldsProperty: return c.Values.Count == 1 && Lookup.UnitHas(ix.State, ix.Properties, ix.Of(side).UnitId, c.Values[0]);
             case ConditionKind.MostModels: return c.Values.Count == 1 && MostModels(ix, side, c);

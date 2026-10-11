@@ -52,6 +52,22 @@ public class DiceTests
     }
 
     [Fact]
+    public void A_convention_s_natural_faces_win_over_any_modifier_on_a_thresholded_roll()
+    {
+        var naturals = Plan(4, new RollModifier("big", 5)) with { Convention = new RollConvention(6, null, AlwaysFails: 1, AlwaysSucceeds: 6) };
+        Assert.Equal([(1, 6, false), (2, 7, true)], new Roller(new ScriptedDice(1, 2), 0, 0).Roll(Samples.Frame, naturals, 2).Record.Dice.Select(x => (x.Raw, x.Modified, x.Success)));
+        var penalised = naturals with { Modifiers = [new RollModifier("big", -5)] };
+        Assert.Equal([(6, 1, true), (5, 0, false)], new Roller(new ScriptedDice(6, 5), 0, 0).Roll(Samples.Frame, penalised, 2).Record.Dice.Select(x => (x.Raw, x.Modified, x.Success)));
+        var roller = new Roller(new ScriptedDice(1), 0, 0);
+        Assert.False(roller.Judge(naturals, 1).Success);                                             // SetDice judges through the same call
+        var record = new RollRecord(Guid.CreateVersion7(), "hit", 4, naturals.Modifiers, [roller.Judge(naturals, 3)]);
+        Assert.False(RollOutcome.Reroll(naturals, record, [0], roller).Single().New.Success);         // and a reroll: the scripted 1 fails at modified 6
+        Assert.True(new Roller(new ScriptedDice(1), 0, 0).Roll(Samples.Frame, Plan(4, new RollModifier("big", 5)), 1).Record.Dice[0].Success);   // a convention without them judges the modified result alone
+        Assert.Equal([false, true], new Roller(new ScriptedDice(5, 6), 0, 0).Roll(Samples.Frame, Plan(2) with { RequiredRaw = 6, Convention = naturals.Convention }, 2).Record.Dice.Select(x => x.Success));   // a required raw face still rules
+        Assert.False(new Roller(new ScriptedDice(6), 0, 0).Roll(Samples.Frame, Plan(null) with { Convention = naturals.Convention }, 1).Record.Dice[0].Success);   // no threshold, no success
+    }
+
+    [Fact]
     public void A_forced_reroll_is_a_dice_rerolled_payload_and_the_cursor_counts_the_extra_draw()
     {
         var plan = Plan(4) with { Roll = "defense", RerollRaw = new HashSet<int> { 6 } };
@@ -63,7 +79,7 @@ public class DiceTests
     }
 
     [Fact]
-    public void The_cursor_is_counted_from_the_effective_log_and_the_seed_from_the_game()
+    public void The_cursor_counts_every_die_ever_drawn_undone_or_not_and_the_seed_from_the_game()
     {
         var hit = new RollRecord(Guid.CreateVersion7(), "hit", 4, [], [new Die(3, 3, false), new Die(5, 5, true)]);
         var state = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
@@ -73,7 +89,7 @@ public class DiceTests
         Assert.Equal(3, DiceCursor.DrawnSoFar(state));
         var undone = State(new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [Samples.Unit], [], "Advance")),
             new StepCompleted(Samples.Frame, "roll-to-hit", null, [hit], []), new Undone(0));
-        Assert.Equal(0, DiceCursor.DrawnSoFar(undone));
+        Assert.Equal(2, DiceCursor.DrawnSoFar(undone));                                        // an undone roll's dice stay drawn
         Assert.Equal(state.RngSeed, undone.RngSeed);                                          // undo never touches the seed
         Assert.Equal(unchecked((ulong)Samples.Game.RngSeed), state.RngSeed);                  // the stored value, whole; nothing is derived from the id
         Assert.Equal(7UL, Seeded(state, 7).RngSeed);

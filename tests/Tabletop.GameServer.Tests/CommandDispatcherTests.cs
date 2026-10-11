@@ -1,6 +1,7 @@
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Rules;
 using Tabletop.GameServer.Rules.GrimdarkFuture;
+using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Tabletop.Protocol.Tests;
 using Refused = Tabletop.GameServer.Dispatch.Refused;
@@ -27,21 +28,40 @@ public class CommandDispatcherTests
     static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", Samples.Frame);
 
     public static IEnumerable<object[]> Overrides() =>
-        new Command[] { new MoveModels([Samples.Deploy]), new SetWounds(Samples.Model, 2), new SetCondition(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
+        new Command[] { new SetWounds(Samples.Model, 2), new SetCondition(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
             new RecordAction(Samples.Unit, "Advance"), new ClearActionRecord(Samples.Unit), new AddGrant(Samples.Unit, Samples.Grant), new RemoveGrant(Samples.Unit, Samples.Grant.Id),
             new SetSpellTokens(Samples.Model, 3), new SetWoundsThisActivation(Samples.Unit, 1), new SetScore(Samples.Team1, 5), new SetActiveTeam(Samples.Team2), new SetRound(2),
             new PlaceMarker(Samples.Token) }
         .SelectMany(c => new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict }.Select(e => new object[] { c, e }));
 
     [Theory, MemberData(nameof(Overrides))]
-    public void Menu_edits_and_hand_moves_are_applied_under_every_setting_with_no_warning(Command command, Enforcement enforcement)
+    public void Menu_edits_are_applied_under_every_setting_with_no_warning(Command command, Enforcement enforcement)
     {
         var outcome = Dispatcher().Dispatch(State(enforcement), command, Watcher);
         var applied = Assert.IsType<Applied>(outcome);
         Assert.Single(applied.Events); Assert.Null(applied.Warning);
-        var expectedKind = command switch { MoveModels => typeof(ModelsMoved), SetActiveTeam => typeof(TurnStarted), SetRound => typeof(RoundStarted), PlaceMarker => typeof(MarkerPlaced), _ => null };
+        var expectedKind = command switch { SetActiveTeam => typeof(TurnStarted), SetRound => typeof(RoundStarted), PlaceMarker => typeof(MarkerPlaced), _ => null };
         if (expectedKind is not null) Assert.IsType(expectedKind, applied.Events[0]);
         else Assert.IsAssignableFrom<StateChange>(applied.Events[0]);
+    }
+
+    [Theory]
+    [InlineData(Enforcement.Silent, true, false)] [InlineData(Enforcement.Warn, true, true)] [InlineData(Enforcement.Strict, false, false)]
+    public void A_hand_move_with_no_deploy_pick_follows_the_enforcement_setting(Enforcement enforcement, bool applied, bool warned)
+    {
+        var outcome = Dispatcher().Dispatch(State(enforcement), new MoveModels([Samples.Deploy]), Clay);
+        if (!applied) { Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(outcome).Reason); return; }
+        var ok = Assert.IsType<Applied>(outcome);
+        Assert.IsType<ModelsMoved>(Assert.Single(ok.Events));
+        Assert.Equal(warned, ok.Warning is not null);
+    }
+
+    [Fact]
+    public void A_hand_move_naming_no_model_is_unknown_under_every_setting()
+    {
+        var ghost = new MoveModels([new ModelRelocation(Guid.CreateVersion7(), new OnShelf(), Samples.Deploy.To)]);
+        foreach (var e in Enum.GetValues<Enforcement>())
+            Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(State(e), ghost, Clay)).Reason);
     }
 
     [Fact]
@@ -182,6 +202,19 @@ public class CommandDispatcherTests
             Assert.Null(neutral.TeamId);
         }
         Assert.Equal(CommandClass.Override, CommandDispatcher.Classify(new SetObjectiveControl(Guid.CreateVersion7(), null)));
+    }
+
+    [Fact]
+    public void A_setup_marker_moves_from_the_menu_and_is_not_removable()
+    {
+        foreach (var e in new[] { Enforcement.Silent, Enforcement.Warn, Enforcement.Strict })
+        {
+            var state = State(e);
+            var setup = state.Board.Table.Markers.First().Id;
+            var moved = Assert.IsType<MarkerMoved>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new MoveMarker(setup, new(5, 6, 0), new(30)), Clay)).Events));
+            Assert.Equal((setup, new Point3(5, 6, 0)), (moved.MarkerId, moved.Position));
+            Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new RemoveMarker(setup), Clay)).Reason);
+        }
     }
 
     [Fact]

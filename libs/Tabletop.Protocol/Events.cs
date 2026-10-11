@@ -52,14 +52,17 @@ public sealed record PhaseStarted(string Phase) : EventPayload;
 public sealed record GameEnded(string Reason, IReadOnlyList<Guid> Winners) : EventPayload;
 
 // Resolution stack
-public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context) : EventPayload;
+/// <summary>Outline: the player-facing steps of the sequence, in order; Step matches StepCompleted.Step. Null in logs written before it existed.</summary>
+public sealed record SequenceStarted(Guid FrameId, string Sequence, SequenceContext Context, IReadOnlyList<OutlineStep>? Outline = null) : EventPayload;
+public sealed record OutlineStep(string Step, string Label);
 /// <summary>
 /// Everything the step produced: the answer that resumed it, its rolls, the state changes it applied, and Values — a flat map of
 /// named integers holding the step's settled parameters (attacks counted, a capped multiplier, a distance used in tenths, a token spend,
 /// a winner's ordinal) so a later step or nested frame reads them without re-deriving. No schema per step kind; omitted when null.
+/// Applied: the catalog entries (rules, spells) whose effect changed this step's result, each once, in order of first application; null in logs written before it and when none acted.
 /// A step may complete and run again (the same name twice in a row) — a second step_completed, a fresh history.
 /// </summary>
-public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IReadOnlyList<RollRecord> Rolls, IReadOnlyList<StateChange> Changes) : EventPayload
+public sealed record StepCompleted(Guid FrameId, string Step, AskAnswer? Answer, IReadOnlyList<RollRecord> Rolls, IReadOnlyList<StateChange> Changes, IReadOnlyList<string>? Applied = null) : EventPayload
 {
     public IReadOnlyDictionary<string, int>? Values { get; init; }
 }
@@ -69,8 +72,8 @@ public sealed record SequenceAbandoned(Guid FrameId) : EventPayload;
 
 // Asks
 public sealed record AskOpened(Ask Ask) : EventPayload;
-/// <summary>Answer is null when withheld from this viewer (a sealed window still open).</summary>
-public sealed record AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet) : EventPayload;
+/// <summary>Answer is null when withheld from this viewer (a sealed window still open). Breach: the rule name when an answer inside the legal set broke a rule the table answers (IGameRules.AnswerBreach) and was accepted under warn or silent; OutsideLegalSet is then false. Omitted when null.</summary>
+public sealed record AskAnswered(Guid AskId, Guid TeamId, AskAnswer? Answer, bool OutsideLegalSet, string? Breach = null) : EventPayload;
 public sealed record TeamAnswer(Guid TeamId, AskAnswer Answer);
 public sealed record AskClosed(Guid AskId, IReadOnlyList<TeamAnswer> Answers) : EventPayload;
 

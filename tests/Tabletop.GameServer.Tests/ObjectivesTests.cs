@@ -37,6 +37,18 @@ public class ObjectivesTests
     }
 
     [Fact]
+    public void A_moved_setup_objective_is_judged_where_it_now_stands()
+    {
+        var s = Game();
+        Apply(s, new MarkerMoved(Objective(s), new Point3(10, 10, 0), new Yaw(0)));
+        Put(s, Red, 36, 28);
+        Assert.Empty(Seize(s));                                          // where it stood at setup: nothing there now
+        Put(s, Red, 10, 12);
+        Assert.Equal([new ObjectiveControlSet(Objective(s), Samples.Team1)], Seize(s));
+        Assert.Single(GfObjectives.Markers(s), m => m.Id == Objective(s));   // counted once, at the moved spot
+    }
+
+    [Fact]
     public void A_unit_just_out_of_range_seizes_nothing()
     {
         var s = Game();
@@ -135,12 +147,14 @@ public class ObjectivesTests
         return h;
     }
 
-    /// <summary>Every model of team 0's unit onto the setup objective's edge (36, 26.5): 2.5" from its centre, well inside 3" of its edge.</summary>
+    /// <summary>Every model of team 0's unit onto the setup objective's edge (36, 26.5): 2.5" from its centre, well inside 3" of its edge.
+    /// Appended, not dispatched: under strict a hand move mid-round is refused, and these tests are about seizing, not moving.</summary>
     static void OntoTheObjective(SchedulerHarness h)
     {
         var unit = h.Units(0)[0];
-        h.Dispatch(new MoveModels(h.P.Units[unit].Definition.Models.Select(m =>
-            new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new OnTable(new Placement(new Point3(36, 26.5, 0), new Yaw(0))))).ToList()), team: 0);
+        h.Append([new ModelsMoved(h.P.Units[unit].Definition.Models.Select(m =>
+            new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new OnTable(new Placement(new Point3(36, 26.5, 0), new Yaw(0))))).ToList())]);
+        h.Run();
     }
 
     static void PlayTurns(SchedulerHarness h)

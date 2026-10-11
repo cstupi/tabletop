@@ -60,6 +60,11 @@ row without it is never returned at a point. Asking at a point is `GfHooks.React
 attack-start step for the fifth. **A Shaken unit is offered nothing at any point**, p.10's *"re-positioning"* and
 *"active special rules"*; `ReactionsAt` already returns nothing for a Shaken actor and keeps that for every point.
 
+**A pick is offered at `before-attacking` too.** An army-book Buff, Mark or Debuff is a pick entry (army-book rules
+spec → the pick): each carrying model offers a `use` reaction (`GfPick.Offers`) while it has not used it this
+activation and has a target, and the reaction pushes `pick-rule`, whose `rule_target` Ask picks the unit that gets
+the grants. The use is counted per model by `GfPick.Uses`, not by `usage_count`, which counts per unit.
+
 **`usage_count` gains a scope.** Today it counts the sequences that used the holding weapon, over the game, which
 is `Limited`'s *"once per game"*. A `usage_count` condition's first value may now be `round` or `activation`, and a
 use of a non-weapon rule is a sequence started by it, whose `SequenceContext.Action` is the entry's name. *"Once
@@ -70,7 +75,7 @@ count is per entry, so *Harassing*'s two rows share one use.
 ## A move after attacking: *Hit & Run* and *Harassing*
 
 The library's kind 16, `move`, already says *"a team may move a unit up to `amount` inches"*, with a `MoveRegion`
-over the unit's alive models, the move's usual impassable and difficult volumes, and a pass. On a spell the team
+over the unit's alive models, the impassable and difficult volumes and cap the moving unit's own move has (`GfMoves.TerrainFor`), and a pass. On a spell the team
 is the caster's and the unit the target's. **On a property, the team is the holder's and the unit is the
 holder's own.** The three rules are `move` rows on a model rule with aggregation `all` (*"units where all models
 have this rule"*):
@@ -102,9 +107,10 @@ a melee it was in; p.7's 1" rule does not stop a move that ends outside 1".
 place the holder's models that carry the entry *"anywhere fully within"* the distance of their own positions.
 With `amount_dice` the distance is rolled when the placement is chosen: `amount` dice, each a D6 halved and
 rounded up (p.4), summed, recorded as a `RollRecord` named for the entry. A placement is not a move: nothing is
-swept, so it crosses impassable terrain and units, and only the landing is checked: each model's displacement is
-at most the distance, and its centre is outside impassable volumes. The table edge and p.7's 1" from other units
-are client-flagged, as they are for every move the engine measures. It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
+swept, so it crosses impassable terrain and models, and only the landing is checked: each model's displacement is
+at most the distance, and its base touches no impassable volume (p.11: units *"may not end their move partially
+overhanging gaps or terrain"*; `GfMoves.LandsInImpassable`). Under strict, dispatch also refuses a landing off the
+table (`GfMoves.PathBreach`, p.7); p.7's contact clauses judge the landing (`GfMoves.ContactBreach`: `move_overlap`, and `move_separation` by the region's `Separation`; the region sets `PassesModels`, so no path through models is judged). It is offered as a `MoveRegion` whose allowance is the distance and whose impassable and
 difficult lists are empty, which is how the client is told nothing will be swept; `GfMoves` validates it with a
 landing check instead of `Movement.Check`. No wire type changes.
 

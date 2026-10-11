@@ -7,6 +7,28 @@ public class MovementTests
     static readonly WorldVolume Forest = Fx.Cylinder(3, 0, 1, 0, 8, VolumeKind.Area, TerrainDeclarations.Difficult);
     static readonly TableSize Opr = new(72, 48);
 
+    [Fact] public void The_farthest_on_table_reach_is_the_inset_corner_farthest_from_the_start()
+    {
+        var model = Fx.Model(18, 18);
+        var (_, radius) = model.BaseOutline().BoundingCircle();
+        var (distance, to) = Movement.FarthestOnTable(model, new TableSize(36, 36));
+        Assert.Equal(radius, Math.Min(to.X, to.Y), 6);
+        Assert.Equal(Math.Sqrt(2) * (18 - radius), distance, 6);
+        Assert.False(Movement.Check(model, to, distance, [], [], null, new TableSize(36, 36)).LeavesTable);
+        Assert.Equal(Math.Sqrt((72 - radius) * (72 - radius) + (48 - radius) * (48 - radius)), Movement.FarthestOnTable(Fx.Model(0, 0), Opr).Distance, 6);
+    }
+
+    [Fact] public void The_room_along_a_direction_is_how_far_the_base_centre_goes_that_way_with_the_whole_base_on_the_table()
+    {
+        var model = Fx.Model(18, 18);
+        var (_, radius) = model.BaseOutline().BoundingCircle();
+        var table = new TableSize(36, 36);
+        Assert.Equal(18 - radius, Movement.RoomAlong(model, new Point2(20, 18), table), 6);                    // east, to the inset edge
+        Assert.Equal(Math.Sqrt(2) * (18 - radius), Movement.RoomAlong(model, new Point2(19, 19), table), 6);   // to the inset corner
+        Assert.Equal(Movement.FarthestOnTable(model, table).Distance, Movement.RoomAlong(model, Movement.FarthestOnTable(model, table).To, table), 6);
+        Assert.Equal(0, Movement.RoomAlong(model, new Point2(18, 18), table));                                 // no direction taken
+    }
+
     [Fact] public void Open_ground_is_a_full_circle()
     {
         var r = Movement.Region(Start, 6, [], [], null, null);
@@ -73,5 +95,16 @@ public class MovementTests
         Assert.Equal(6, r.EffectiveAllowance);
         Assert.False(r.WithinAllowance);
         Assert.True(Movement.Check(Start, new(-8, 0), 12, [], [Forest], 6, null).WithinAllowance);
+    }
+
+    [Fact]
+    public void The_region_goes_around_other_models()
+    {
+        var start = Fx.Model(10, 10);
+        var open = Movement.Region(start, 6, [], [], null, null);
+        var blocked = Movement.Region(start, 6, [], [], null, null, [Fx.Model(13, 10), Fx.Model(10.5, 10)]);   // the second overlaps the start: ignored
+        Assert.Equal(16, open.Boundary[0].X, 6);                                          // ray 0 is +X
+        Assert.True(blocked.Boundary[0].X <= 13 - 1.26 + 1e-6);                          // stops short of contact, centres 1.26 apart
+        Assert.Equal(open.Boundary[45], blocked.Boundary[45]);                           // ray 45 is +Y, clear
     }
 }

@@ -72,7 +72,7 @@ Three libraries in `libs/`, and nothing else:
 
 | Library | Shared by | Contents |
 | --- | --- | --- |
-| `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, surface settling |
+| `Tabletop.Geometry` | client, game server | Collision volumes, distance, LoS, collision (rest, slide, separate) |
 | `Tabletop.Protocol` | client, both servers | Commands, events, Asks, presence, setup edits, the rules-free event applier, wire format. Management reads only `ProtocolVersion` and the game-row enums `GameStatus`, `SchedulerShape` and `Enforcement` |
 | `Tabletop.Content` | client, both servers | Army, unit, model slot and weapon types; the table state (board, terrain placements, markers, deployment zones) |
 
@@ -137,8 +137,10 @@ and `warn` the server accepts every
 command and every Ask answer, logging a warning under `warn` when one is outside the legal set.
 Under `strict` an out-of-set Ask answer or an illegal command is refused. **The menu's edits are
 accepted under every setting** — they are the override path, visible to opponents and recorded
-in the event log, never silent. Model placement follows the same rule: free placement, with base
-overlap, terrain intersection, and broken coherency flagged rather than prevented.
+in the event log, never silent. Model placement follows the same rule: the client prevents base
+overlap, an Impassable Solid and a path through a model while dragging (Alt overrides), and the server judges a move answer under the
+enforcement setting: `move_overlap`, `move_through_models`, `move_impassable`, and `move_separation` for p.7's 1" between units. Every
+placement rests on the highest Solid top under its base, so no model stands inside a Solid. Coherency is not judged.
 
 **One policy behind the three positions.** Any system hands it a breach: what was broken, the sentence players read, and what `strict` does about it. The dispatcher hands it a command's legality; the engine hands it what Grimdark Future's judge finds in the engine's own proposal. Under `warn` the warning rides on the event; under `strict` a command breach is refused and a state-time breach ends the game. The first state-time breach is the end of round 4 (GF p.7): `silent` lets round 5 start, `warn` marks it, `strict` logs `game_ended` and the game server marks the row ended ([the enforcement engine](superpowers/specs/2026-10-02-enforcement-engine-design.md)).
 
@@ -158,8 +160,8 @@ rather than fair play.
 A first-class primitive, because friendly play means out-of-order or mistaken actions are
 normal. Undo is **replay to sequence N from the initial state**, not inverse events. The initial state
 is the setup snapshot — the record the setup phase ends with — so there is nothing else to
-replay from and no separate checkpoint mechanism. Because RNG state is part of game state, rewinding and redoing the same action
-reproduces the same dice — so undo cannot be used to fish for rolls.
+replay from and no separate checkpoint mechanism. An undone roll's dice stay drawn, so an undo leads to
+fresh dice and cannot be used to see the coming dice or fish for rolls.
 
 ## Abilities
 
@@ -288,8 +290,8 @@ mechanism as assets — hashed and pinned in the game record.
 
 ## Geometry
 
-Full 3D math in inches (one world unit = one inch), including settling a model onto the surface
-it lands on by raycasting down through terrain volumes.
+Full 3D math in inches (one world unit = one inch), including `Collision`: resting a model on the
+surface it lands on, sliding it along impassable terrain and separating it from other models.
 
 Line of sight uses **simplified collision volumes**, never the visual mesh.
 [Geometry values](superpowers/specs/2026-08-29-geometry-values-design.md) narrows those to

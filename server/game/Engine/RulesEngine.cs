@@ -12,6 +12,7 @@ namespace Tabletop.GameServer.Engine;
 public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler scheduler) : IRulesEngine
 {
     public SequenceInterpreter Interpreter { get; } = new(rules, properties, dice);
+    public PropertySet Properties => properties;
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
@@ -79,6 +80,6 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
     static RollRecord? Find(GameState state, Guid frameId, Guid rollId) =>
         state.Projection.Stack.FirstOrDefault(f => f.Id == frameId)?.Steps.SelectMany(s => s.Rolls).FirstOrDefault(r => r.Id == rollId);
 
-    /// <summary>A record re-judged under its own threshold and modifiers, in the ruleset's convention for that roll; RequiredRaw cannot be read back and is not re-applied.</summary>
-    RollPlan PlanOf(RollRecord record) => new(record.Roll, record.Threshold, record.Modifiers, rules.RollSpec(record.Roll).Convention, null, new HashSet<int>());
+    /// <summary>A record re-judged under its own threshold, modifiers and required raw face, in the ruleset's convention for that roll.</summary>
+    RollPlan PlanOf(RollRecord record) => new(record.Roll, record.Threshold, record.Modifiers, rules.RollSpec(record.Roll).Convention, record.RequiredRaw, new HashSet<int>());
 }

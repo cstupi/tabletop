@@ -68,7 +68,7 @@ roll-off onward needs it. One edge is cyclic: `GfNames.Rounds` is
 ```mermaid
 flowchart TD
     subgraph client["client/ (Godot)"]
-        Panel["Ask panel + log panel"]
+        Panel["decision box + log drawer"]
         Menu["menu: set_active_team, set_round, set_condition"]
     end
     subgraph gameserver["server/game/"]
@@ -749,7 +749,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Decision | Why | Alternative rejected | Source |
 | --- | --- | --- | --- |
 | The scheduler is generic engine code with two implementations, `GameRules` supplies policy | keeps ruleset identity out of the engine; two shapes are the second example at this seam | the scheduler inside `GameRules` with the shape as a parameter, which is two branches in one class | scheduler → The line; `architecture.md` → Turn scheduling |
-| The turn is an Ask through the interpreter's `Ask` type, `FrameId = null` | one input path; the client's Ask panel already renders it | the scheduler as a sequence on the resolution stack, which has no loop primitive and a frame living for the whole game | scheduler → The line, The turn is an Ask |
+| The turn is an Ask through the interpreter's `Ask` type, `FrameId = null` | one input path; the client's decision box already renders it | the scheduler as a sequence on the resolution stack, which has no loop primitive and a frame living for the whole game | scheduler → The line, The turn is an Ask |
 | The shape is chosen per game (`game.scheduler_shape`), fixed once playing | a group may want alternating activation in a player-turn pack; `FirstTeam` must never see the shape | per ruleset, which would put the scheduler back inside `GameRules` | game flow → Two schedulers; scheduler → Setup configuration is fixed once playing |
 | No state held; everything re-read from `Projection.Scheduler` and the effective log | one hydrate path for undo, rejoin and crash recovery; no cache to invalidate | a cached position, a second source of truth | scheduler → State, Nothing is an invariant |
 | Four events carry the state; replay applies and never re-derives them | a first-team policy change must not rewrite a played game | recomputing the order on replay | scheduler → Events |
@@ -859,7 +859,7 @@ Plus two public statics the tests call directly:
    Shaken Aircraft's `Advance`. Page 13 says an Aircraft's mandatory `Advance` *"doesn't break the
    staying idle requirement"*, and `ActionsFor` offers a Shaken Aircraft exactly that.
 5. **Client shell plan:** nothing new. The boundary Ask is an unframed `Confirmation` addressed to
-   several teams, which the Ask panel already renders. That plan relabels the confirm button
+   several teams, which the decision box already renders. That plan relabels the confirm button
    "End the round" and the log line "confirmed for Team 1". Window mutes stay client-side.
 6. **`Program.cs`:** replace `AddSingleton<ISchedulerFactory, NoSchedulerFactory>()` with
    `SchedulerFactory`. `NoScheduler`/`NoSchedulerFactory` stay in the tree for the interpreter
@@ -1121,8 +1121,8 @@ already emitted. The game then gains a duplicate `turn_started` or a second `rou
 
 **Undo across a boundary.** `Undo(seq)` is replay to `seq`. The effective log drops the undone
 range, so undoing past the `end_round` answer un-ends the round and re-opens the boundary Ask.
-Round two's record clearing goes with it. Undoing past a roll-off re-rolls the same dice, because
-the RNG is counter-based over the effective log; undoing back into one leaves the frame live and
+Round two's record clearing goes with it. Undoing past a roll-off re-rolls with fresh dice, because
+the RNG cursor counts the whole log, undone events included; undoing back into one leaves the frame live and
 the gate to answer again. `AlternatingSchedulerTests` covers undo past the `end_round` answer, and
 `RollOffUndoTests` covers undo into and past the roll-off.
 
@@ -1188,7 +1188,7 @@ Everything else runs on `dotnet test` with nothing up.
 
 **Cannot be tested headlessly.** Nothing in this module. There is no Godot, no socket-level
 rendering, and no timing. The client-side halves are the client-shell plan's, tested by running
-the game: the Ask panel's confirm button and the log line for the boundary answer.
+the game: the decision box's confirm button and the log line for the boundary answer.
 
 **Notable gaps.**
 
@@ -1290,7 +1290,7 @@ keys `Resolved` on `sequence_finished`, and reads the completed step carrying `p
   session's `Advance` loop, hydration.
 - `docs/design/interpreter/`: the other half of the one engine. `RulesEngine`, frames, steps,
   windows, `ISequenceStarter`, `PropertySet`, `GfHooks`, `GfRolls.RollOffSequence`.
-- `docs/design/client-shell/`: the Ask panel that renders the turn Ask and the boundary
+- `docs/design/client/`: the decision box that renders the turn Ask and the boundary
   confirmation, and the menu that overrides the active team and round.
 - `docs/design/geometry/`, `docs/design/management-api/`, `docs/design/web-app/`: no edge to this
   module.

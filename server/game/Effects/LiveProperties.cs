@@ -3,29 +3,51 @@ using Tabletop.GameServer.Properties;
 namespace Tabletop.GameServer.Effects;
 
 /// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
-/// effect row) exposes only the row its grant holds, and that row's children; every other instance exposes its entry's effects.</summary>
+/// effect row) exposes only the row its grant holds, and that row's children. A carried pick entry (one with targeting) exposes none: its once
+/// rows act only through the grants its pick writes (army-book rules spec → the pick). Every other instance exposes its entry's effects.</summary>
 public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null)
 {
-    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Effects);
+    public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Entry.Effects);
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
 }
 
 /// <summary>Pass one's result: the properties that are live, the modifier classes suppressed, and what was applied to get there.</summary>
 public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty> live, IReadOnlySet<TargetModifier> suppressedModifiers,
-    IReadOnlyList<(LiveProperty Source, Effect Effect)> applied, HashSet<(Guid UnitId, Guid GrantId)>? read = null, PassOneActs? acts = null)
+    IReadOnlyList<(LiveProperty Source, Effect Effect)> applied, HashSet<(Guid UnitId, Guid GrantId)>? read = null, PassOneActs? acts = null, AppliedEntries? recorder = null)
 {
     private readonly HashSet<(Guid UnitId, Guid GrantId)> _read = read ?? [];
     private readonly PassOneActs _acts = acts ?? new();
     /// <summary>Every granted source a consumer used, with the unit holding the grant. A step that acts on this live set emits RollEffects.Consume.</summary>
     public IReadOnlyCollection<(Guid UnitId, Guid GrantId)> GrantsRead => _read;
-    /// <summary>Records a granted source, under the unit that holds the grant (a derived instance's Holder is the side it acts on, which an opponent-subject grant makes the other unit).
-    /// Reading a property also reads the granted pass-one effects that changed its parameter.</summary>
+
+    /// <summary>A source whose row applied here: it is spent (Spend) and its entry recorded as having acted (Record).</summary>
     public void Read(LiveProperty source)
+    {
+        Spend(source);
+        Record(source);
+    }
+
+    /// <summary>Records a granted source as used, under the unit that holds the grant (a derived instance's Holder is the side it acts on, which an opponent-subject grant makes the other unit),
+    /// without saying it changed anything: "next time the effect would apply" spends a grant whatever the dice then show.
+    /// Spending a property also spends the granted pass-one effects that changed its parameter.</summary>
+    public void Spend(LiveProperty source)
     {
         if (source.GrantId is { } g)
             foreach (var unit in new[] { Interaction.Attacker.UnitId, Interaction.Defender?.UnitId })
                 if (unit is { } u && Interaction.State.Projection.Units[u].Grants.Any(x => x.Id == g)) _read.Add((u, g));
-        if (_acts.Modified.TryGetValue(PassOneActs.Key(source), out var by)) foreach (var m in by) Read(m);
+        if (_acts.Modified.TryGetValue(PassOneActs.Key(source), out var by)) foreach (var m in by) Spend(m);
+    }
+
+    /// <summary>The source's entry acted in this step (StepContext.Applied), and with it the pass-one sources behind it: the one that granted it and those that changed its parameter.
+    /// Nothing is recorded for a live set settled with no recorder, which is every question asked outside a step.</summary>
+    public void Record(LiveProperty source) => Record(source, new HashSet<LiveProperty>(ReferenceEqualityComparer.Instance));
+
+    void Record(LiveProperty source, HashSet<LiveProperty> seen)
+    {
+        if (recorder is null || !seen.Add(source)) return;
+        recorder.Add(source.Entry.Name);
+        if (_acts.GrantedBy.TryGetValue(source, out var grantor)) Record(grantor, seen);
+        if (_acts.Modified.TryGetValue(PassOneActs.Key(source), out var by)) foreach (var m in by) Record(m, seen);
     }
 
     /// <summary>A modifier class a pass-one effect suppressed has just been left out of a plan or a range: the granted sources that suppressed it were used.</summary>
@@ -54,6 +76,20 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
         foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Read(p); any = true; }
         return any;
     }
+    /// <summary>Use without spending: every instance is recorded as having acted, for a rule whose use the step does not spend (Strider, Indirect's sight and cover halves).</summary>
+    public bool Record(Side side, string entry)
+    {
+        var any = false;
+        foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Record(p); any = true; }
+        return any;
+    }
+    /// <summary>Use without recording: every instance is spent, for a rule a step spends whether or not it changed anything (a granted Flying on any applied move).</summary>
+    public bool Spend(Side side, string entry)
+    {
+        var any = false;
+        foreach (var p in On(side).Where(p => p.Entry.Name == entry).ToList()) { Spend(p); any = true; }
+        return any;
+    }
     public int? Parameter(Side side, string entry)
     {
         var instances = On(side).Where(p => p.Entry.Name == entry).ToList();
@@ -72,13 +108,15 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
                 && Conditions.Hold(Interaction, p.Holder, e, p, null)).Select(e => (p, e)));
 
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
-        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied, _read, _acts) : this;
+        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
 }
 
-/// <summary>What pass one did, kept so a consumer that reads the affected item can mark the granted source that acted on it: properties removed, parameters modified, modifier classes suppressed.</summary>
+/// <summary>What pass one did, kept so a consumer that reads the affected item can mark the granted source that acted on it: properties removed, parameters modified, modifier classes suppressed,
+/// and which source granted each instance a grant row added.</summary>
 public sealed class PassOneActs
 {
     public static (Side, string, Guid?, Guid?, Guid?) Key(LiveProperty p) => (p.Holder, p.Entry.Name, p.ModelId, p.WeaponId, p.GrantId);
+    public Dictionary<LiveProperty, LiveProperty> GrantedBy { get; } = new(ReferenceEqualityComparer.Instance);
     public List<(LiveProperty Source, LiveProperty Removed)> Removed { get; } = [];
     public Dictionary<(Side, string, Guid?, Guid?, Guid?), List<LiveProperty>> Modified { get; } = [];
     public List<(LiveProperty Source, TargetModifier Modifier)> SuppressedModifiers { get; } = [];
@@ -88,7 +126,8 @@ public static class LiveProperties
 {
     static readonly EffectKind[] PassOne = [EffectKind.GrantProperty, EffectKind.SuppressProperty, EffectKind.ModifyParameter, EffectKind.SuppressModifiers];
 
-    public static LiveSet Settle(Interaction ix)
+    /// <summary>The recorder, when given, is the step's (StepContext.Settle): the set records into it what its consumers apply.</summary>
+    public static LiveSet Settle(Interaction ix, AppliedEntries? recorder = null)
     {
         var live = Gather(ix, Side.Attacker).ToList();
         if (ix.Defender is not null) live.AddRange(Gather(ix, Side.Defender));
@@ -114,7 +153,8 @@ public static class LiveProperties
                 switch (effect.Kind)
                 {
                     case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } grantedEntry && granted.Add((effect.Id, PassOneActs.Key(source))):
-                        live.Add(WithFace(ix, new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId))); break;
+                        var derived = WithFace(ix, new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId));
+                        live.Add(derived); acts.GrantedBy[derived] = source; break;
                     case EffectKind.SuppressProperty:
                         foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
                         live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;
@@ -124,6 +164,7 @@ public static class LiveProperties
                                 var was = live[i];
                                 live[i] = was with { Parameter = (was.Parameter ?? 0) + effect.EffectiveAmount(source.Parameter) };
                                 if (scanned.Contains(was)) scanned.Add(live[i]);   // the same instance with a new parameter, not a new one
+                                if (acts.GrantedBy.TryGetValue(was, out var grantor)) acts.GrantedBy[live[i]] = grantor;
                                 if (!acts.Modified.TryGetValue(PassOneActs.Key(live[i]), out var by)) acts.Modified[PassOneActs.Key(live[i])] = by = [];
                                 by.Add(source);
                             }
@@ -133,7 +174,7 @@ public static class LiveProperties
                 applied.Add((source, effect));
             }
         }
-        return new LiveSet(ix, live, suppressed, applied, null, acts);
+        return new LiveSet(ix, live, suppressed, applied, null, acts, recorder);
     }
 
     /// <summary>Unit properties and grants, unit-kind properties on the unit's slots, model properties under aggregation, weapon properties;
@@ -144,7 +185,9 @@ public static class LiveProperties
         var state = ix.State;
         var unit = state.Projection.Units[party.UnitId];
         var result = new List<LiveProperty>();
-        foreach (var p in unit.Definition.Properties) if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
+        // A text-only entry (Played false) plays as an absent name does (army-book rules spec → Played flag).
+        CatalogEntry? Playing(string name) => ix.Properties.Entry(name) is { Played: true } e ? e : null;
+        foreach (var p in unit.Definition.Properties) if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, null, null, null));
         // A grant is its row (spell library spec): the spell entry it names, exposing only that row. A subject-opponent row ("friendly units get
         // X against") reaches only an opponent on the caster's team, which is p.13's "friendly" read against the grant.
         foreach (var g in unit.Grants)
@@ -161,7 +204,7 @@ public static class LiveProperties
         var models = party.ModelIds.Count > 0 ? party.ModelIds : Lookup.LivingModels(state, party.UnitId);
         foreach (var group in Lookup.ModelProperties(state, party.UnitId, models).GroupBy(x => x.Property.Name))
         {
-            if (ix.Properties.Entry(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
+            if (Playing(group.Key) is not { } e || e.Kind == CatalogKind.Unit) continue;   // added above, off the definition
             var count = group.Select(x => x.ModelId).Distinct().Count();
             var live = e.Aggregation switch { Aggregation.All => count == models.Count, Aggregation.Any => count > 0, Aggregation.Majority => count * 2 > models.Count, _ => true };
             if (!live) continue;
@@ -169,10 +212,10 @@ public static class LiveProperties
             else result.Add(new LiveProperty(side, e, group.First().Property.Parameter, null, null, null));
         }
         foreach (var (weaponId, modelId, p) in Lookup.WeaponProperties(state, party.WeaponIds))
-            if (ix.Properties.Entry(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
+            if (Playing(p.Name) is { } e) result.Add(new LiveProperty(side, e, p.Parameter, modelId, weaponId, null));
         // A spell's weapon rules are the attacker's ordinary rules for these hits, so their pass-one rows and per-die rows act like a weapon's.
         if (side == Side.Attacker && ix.SpellRules is { } spellRules)
-            foreach (var (name, parameter) in spellRules) if (ix.Properties.Entry(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
+            foreach (var (name, parameter) in spellRules) if (Playing(name) is { } rule) result.Add(new LiveProperty(side, rule, parameter, null, null, null));
         // A rule instance doesn't stack with another of the same kind unless it declares a parameter. Per-model rules (aggregation none) keep one
         // instance per model; a weapon rule is one rule per weapon *type*, so three of the same weapon's AP(1) are one AP(1), not three summed.
         string WeaponName(Guid? id) => id is { } w ? state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(x => x.Id == w).Name : "";

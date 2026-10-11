@@ -30,7 +30,10 @@ public static class Samples
     [
         new Options([new AskOption("a", "Advance", [Unit])]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
         new PieceSelection([Model], 1, 1),                                                                  // model grain: a Takedown's target (p.14)
-        new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2), new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
+        new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2),
+        new Assignment([new AskOption("g1", "Rifles", [Model]), new AskOption("g2", "Pistols", [Model])], [Unit, Container], 2,
+            new Dictionary<string, IReadOnlyList<Guid>> { ["g1"] = [Unit, Container], ["g2"] = [Unit] }),      // per-group targets (p.8)
+        new MoveRegion([Model], 6, [Guid.CreateVersion7()], [Guid.CreateVersion7()], 6),
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([Container], null, null)),                 // may embark
         new MoveRegion([Model], 6, [], [], 6, new MoveContainment([], Container, 6)),                        // is disembarking
         new TokenSpend(new Dictionary<Guid, int> { [Model] = 2 }), new Confirmation(),
@@ -46,7 +49,8 @@ public static class Samples
     public static readonly EventPayload[] Events =
     [
         new RoundStarted(1, [Team1, Team2], [new ActionRecordCleared(Unit)]), new TurnStarted(Team1), new TurnEnded(Team1, true, []),
-        new PhaseStarted("deployment"), new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Unit, [Unit], [], "Advance")),
+        new PhaseStarted("deployment"), new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Unit, [Unit], [], "Advance"),
+            [new OutlineStep("move", "Move"), new OutlineStep("shoot", "Shoot")]),
         new StepCompleted(Frame, "roll-to-hit", new Chosen("a"), [Hit], [new WoundsSet(Model, 1)]) { Values = new Dictionary<string, int> { ["attacks"] = 2, ["hits"] = 1 } }, new SequenceFinished(Frame),
         new SequenceAbandoned(Frame), new AskOpened(Ask), new AskAnswered(AskId, Team1, null, false),
         new AskClosed(AskId, [new TeamAnswer(Team1, new TokensSpent(new Dictionary<Guid, int> { [Model] = 2 }))]),
@@ -87,5 +91,8 @@ public static class Samples
         new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0)))),
         new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),
         new Refused(Guid.CreateVersion7(), RefusalReason.OutsideLegalSet, "unit already activated"), new Rejected(RejectReason.UpgradeRequired),
+        new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()),
+        new SightAnswer(Guid.CreateVersion7(), [new SightLine(Model, Guid.CreateVersion7(), false, true, [Guid.CreateVersion7()])], [Model]),
+        new ModelFacts(new Dictionary<Guid, int> { [Model] = 3 }),
     ];
 }

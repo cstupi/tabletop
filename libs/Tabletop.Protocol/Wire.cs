@@ -19,6 +19,9 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(PresenceEnded), "presence_ended")]
 [JsonDerivedType(typeof(Refused), "refused")]
 [JsonDerivedType(typeof(Rejected), "rejected")]
+[JsonDerivedType(typeof(SightQuery), "sight_query")]
+[JsonDerivedType(typeof(SightAnswer), "sight_answer")]
+[JsonDerivedType(typeof(ModelFacts), "model_facts")]
 public abstract record SocketMessage;
 
 // Client → server
@@ -26,8 +29,11 @@ public abstract record SocketMessage;
 public sealed record Connect(string SessionJwt, Guid GameId, int ClientVersion) : SocketMessage;
 public sealed record CommandMessage(Guid CommandId, Command Command) : SocketMessage;
 public sealed record EditMessage(Guid EditId, Edit Edit) : SocketMessage;
+/// <summary>Which models of the observer can see which of the target, and which may shoot it. Answered outside the log, to the asker alone.</summary>
+public sealed record SightQuery(Guid QueryId, Guid ObserverUnitId, Guid TargetUnitId) : SocketMessage;
 
 // Server → client
+/// <summary>ParticipantId is Guid.Empty for an admin watcher, which is no participant of the game.</summary>
 public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage;
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
@@ -43,17 +49,25 @@ public sealed record EventsMessage(IReadOnlyList<GameEvent> Events) : SocketMess
 /// processing appended no event, and is 0 for a game whose log is empty, so it is a rest point and not a receipt.</param>
 public sealed record AtRest(long Seq) : SocketMessage;
 public sealed record PresenceEnded(Guid ParticipantId) : SocketMessage;
-/// <summary>A command or edit was not applied. MessageId is the CommandId or EditId.</summary>
+/// <summary>A command or edit was not applied. MessageId is the CommandId or EditId; Guid.Empty for a watcher's presence or ping, which carry no id.</summary>
 public sealed record Refused(Guid MessageId, RefusalReason Reason, string Detail) : SocketMessage;
 /// <summary>The connect was not accepted; the server closes the socket after this.</summary>
 public sealed record Rejected(RejectReason Reason) : SocketMessage;
+/// <summary>The answer to a SightQuery, to the asker alone: one line per observer-model, target-model pair, and the observer's models that
+/// may fire at the target (p.8, Who can shoot). Both lists are empty when either unit is off the table.</summary>
+public sealed record SightAnswer(Guid QueryId, IReadOnlyList<SightLine> Lines, IReadOnlyList<Guid> CanShoot) : SocketMessage;
+/// <summary>Clear: line of sight exists. Screened: clear but through cover. BlockedBy: the terrain pieces or models that obstruct it.</summary>
+public sealed record SightLine(Guid FromModelId, Guid ToModelId, bool Clear, bool Screened, IReadOnlyList<Guid> BlockedBy);
+/// <summary>The ruleset's per-model facts: wounds a model takes before it is killed. On connect once playing, then whenever a value changes.</summary>
+public sealed record ModelFacts(IReadOnlyDictionary<Guid, int> MaxWounds) : SocketMessage;
 
 // Both directions
 public sealed record PresenceMessage(Presence Presence) : SocketMessage;
 public sealed record PingMessage(Ping Ping) : SocketMessage;
 
 public enum RejectReason { UpgradeRequired, InvalidSession, NotAParticipant }
-public enum RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown }
+/// <summary>Watcher: the sender is an admin watching the game, which may send nothing that changes it (admin watch spec).</summary>
+public enum RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted, Unknown, Watcher }
 
 public static class WireJson
 {

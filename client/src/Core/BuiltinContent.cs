@@ -13,7 +13,7 @@ public static class BuiltinContent
     const string Solid = "solid", Area = "area";
     static Volume V(string kind, Footprint f, double top, TerrainDeclarations d, string? notes = null) =>
         new(kind == Solid ? VolumeKind.Solid : VolumeKind.Area, f, new Point2(0, 0), new Yaw(0), 0, top, d, notes);
-    // A built-in names its group's mesh, not one of its own: ten meshes cover the 35 pieces, differing by footprint,
+    // A built-in names its group's mesh, not one of its own: eleven meshes cover the 35 pieces, differing by footprint,
     // height, scale and yaw. MeshLoader.LoadBuiltin fits the group mesh to the placement's volume (Task 11).
     static BuiltinTerrain T(string name, string label, Volume v, string group) => new(name, label, v, $"res://content/builtin/terrain/{group}.glb");
     const string RushCharge = "Dangerous terrain when using Rush/Charge actions";
@@ -26,7 +26,7 @@ public static class BuiltinContent
         T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | TerrainDeclarations.Cover), "wall"),        // as Wall or Fence, p.18: Cover, and Difficult when moving through it
         T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | TerrainDeclarations.Cover), "field"),
-        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight), "building"),
+        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, Impassable | BlocksLineOfSight), "building"),   // p.11: over 3" is elevated and impassable
         T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, TerrainDeclarations.Cover, OnTop), "hill"),
         T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, TerrainDeclarations.Cover, RushCharge), "ruins"),
         T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable), "water"),
@@ -43,7 +43,7 @@ public static class BuiltinContent
         T("small-buildings", "Group of Small Buildings", V(Solid, Footprint.Rect(6, 6), 4, Impassable | BlocksLineOfSight), "building"),
         T("steep-hill", "Steep Hill", V(Solid, Footprint.Circle(3), 3, TerrainDeclarations.Cover, $"{MovingUp}. {OnTop}"), "hill"),
         // Wasteland (p.19)
-        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, TerrainDeclarations.Cover, OnTop), "hill"),
+        T("small-dunes", "Group of Small Dunes", V(Solid, Footprint.Rect(6, 4), 1.5, TerrainDeclarations.Cover, OnTop), "hill-rect"),
         T("large-rock", "Large Rock or Two to Three Small Rocks", V(Solid, Footprint.Rect(4, 4), 4, Impassable | BlocksLineOfSight), "rock"),
         T("crater", "Crater", V(Area, Footprint.Circle(3), 1, TerrainDeclarations.Cover), "pad"),
         T("toxic-smog", "Toxic Smog", V(Area, Footprint.Circle(4), 6, TerrainDeclarations.Cover | Dangerous | BlocksLineOfSight | SeeInAndOut), "haze"),
@@ -60,12 +60,12 @@ public static class BuiltinContent
         T("beast-lair", "Beast Lair", V(Solid, Footprint.Circle(2), 2, Dangerous), "hill"),
         T("quicksand", "Quicksand", V(Area, Footprint.Rect(4, 4), 0.1, None, RushCharge), "pad"),
         // Names the contracts plan's samples use
-        T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None), "hill"),
-        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),
+        T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None), "hill-rect"),
+        T("ruin", "Ruin", V(Area, Footprint.Rect(4, 4), 4, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),   // owner ruling: passable, difficult
     ];
 
-    /// <summary>The ten mesh files the 35 built-ins share, by their basename under res://content/builtin/terrain/.</summary>
-    public static IReadOnlyList<string> TerrainMeshGroups { get; } = ["hill", "woods", "ruins", "building", "wall", "rock", "field", "water", "pad", "haze"];
+    /// <summary>The eleven mesh files the 35 built-ins share, by their basename under res://content/builtin/terrain/.</summary>
+    public static IReadOnlyList<string> TerrainMeshGroups { get; } = ["hill", "hill-rect", "woods", "ruins", "building", "wall", "rock", "field", "water", "pad", "haze"];
 
     public static IReadOnlyDictionary<string, BuiltinTerrain> Terrain { get; } = All.ToDictionary(t => t.Name);
     public static IReadOnlyList<string> Textures { get; } = ["grass", "desert", "urban", "snow", "ash"];

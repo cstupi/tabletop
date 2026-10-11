@@ -32,12 +32,19 @@ public sealed class Sight
     /// One sight line measured: `Clear` is `LineOfSight.Check`, and `Screened` is `Cover.SightBlockersBetween` non-empty along a
     /// clear line, so it is false whenever `Clear` is. The target's own body is never its own blocker. Null when either model is off the table.
     /// </summary>
-    public (bool Clear, bool Screened)? Look(Guid fromModel, Guid toModel)
+    public (bool Clear, bool Screened)? Look(Guid fromModel, Guid toModel) => Line(fromModel, toModel) is { } line ? (line.Clear, line.Screened) : null;
+
+    /// <summary>
+    /// The same measurement as a wire SightLine (in-game UX spec → Sight question): BlockedBy is LineOfSightResult.ObstructedBy, the
+    /// terrain volume ids and model ids in the way, empty on a clear line. Null when either model is off the table.
+    /// </summary>
+    public SightLine? Line(Guid fromModel, Guid toModel)
     {
         var (from, to) = (Battlefield.Placed(state, fromModel), Battlefield.Placed(state, toModel));
         if (from is null || to is null) return null;
         var volumes = bodies.Contains(toModel) ? blockers.Where(v => v.Id != toModel).ToList() : blockers;
-        if (!LineOfSight.Check(from.Value, to.Value, volumes).Clear) return (false, false);
-        return (true, Cover.SightBlockersBetween(from.Value, to.Value, volumes).Count > 0);
+        var check = LineOfSight.Check(from.Value, to.Value, volumes);
+        if (!check.Clear) return new SightLine(fromModel, toModel, false, false, check.ObstructedBy);
+        return new SightLine(fromModel, toModel, true, Cover.SightBlockersBetween(from.Value, to.Value, volumes).Count > 0, []);
     }
 }

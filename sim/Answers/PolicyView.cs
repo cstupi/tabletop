@@ -1,3 +1,4 @@
+using Tabletop.Content;
 using Tabletop.GameServer.Properties;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -46,7 +47,19 @@ public sealed class PolicyView(
         return new ModelBody(slot.Base, slot.Height);
     }
 
-    public double SurfaceAt(Point2 point) => Settling.SurfaceHeightAt(point, Volumes);
+    /// <summary>The model's rest height with its base at a point (Collision.RestHeight over its whole base), as the server settles a landing.</summary>
+    public double RestOf(Guid modelId, Point2 at, Yaw? yaw = null) =>
+        Collision.RestHeight(new PlacedModel(BodyOf(modelId), new Placement(new Point3(at.X, at.Y, 0), yaw ?? new Yaw(0))), Volumes);
+
+    /// <summary>The objective markers where they stand now: the setup rows, then those placed in play, the projection's entry winning on a shared id.</summary>
+    public IReadOnlyList<Marker> ObjectiveMarkers => ObjectiveMarkersOf(Projection);
+
+    public static IReadOnlyList<Marker> ObjectiveMarkersOf(Projection projection)
+    {
+        var play = projection.Markers;
+        return projection.Board.Table.Markers.Where(m => !play.ContainsKey(m.Id)).Concat(play.Values)
+            .Where(m => m.Kind == MarkerKind.Objective).ToList();
+    }
 
     // Wounds, conditions, actions, grants and the unit definition with its stats.
     public UnitInPlay UnitOf(Guid unitId) => Projection.Units[unitId];

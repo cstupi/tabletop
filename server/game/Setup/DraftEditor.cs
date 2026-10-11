@@ -20,10 +20,10 @@ public static class DraftEditor
         {
             case SetTableSize s: return d with { Size = s.Size };
             case SetTexture t: return d with { Texture = t.Texture };
-            case AddTerrain a: return d.Terrain.Any(t => t.Id == a.Placement.Id) ? Miss(out missing, $"terrain {a.Placement.Id} already placed") : d with { Terrain = [.. d.Terrain, a.Placement] };
-            case MoveTerrain m: return Terrain(d, m.PlacementId, t => t with { Position = m.Position, Yaw = m.Yaw }, out missing);
-            case ScaleTerrain s: return Terrain(d, s.PlacementId, t => t with { Scale = s.Scale }, out missing);
-            case OverrideTerrainVolumes o: return Terrain(d, o.PlacementId, t => t with { Volumes = o.Volumes }, out missing);
+            case AddTerrain a: return d.Terrain.Any(t => t.Id == a.Placement.Id) ? Miss(out missing, $"terrain {a.Placement.Id} already placed") : Rest(d with { Terrain = [.. d.Terrain, a.Placement] }, a.Placement.Id);
+            case MoveTerrain m: return Rest(Terrain(d, m.PlacementId, t => t with { Position = m.Position, Yaw = m.Yaw }, out missing), m.PlacementId);
+            case ScaleTerrain s: return Rest(Terrain(d, s.PlacementId, t => t with { Scale = s.Scale }, out missing), s.PlacementId);
+            case OverrideTerrainVolumes o: return Rest(Terrain(d, o.PlacementId, t => t with { Volumes = o.Volumes }, out missing), o.PlacementId);
             case SwapTerrainMesh s: return Terrain(d, s.PlacementId, t => t with { Mesh = s.Mesh }, out missing);
             case RemoveTerrain r: return d.Terrain.Any(t => t.Id == r.PlacementId) ? d with { Terrain = d.Terrain.Where(t => t.Id != r.PlacementId).ToList() } : Miss(out missing, $"no terrain {r.PlacementId}");
             case AddSetupMarker a: return d.Markers.Any(m => m.Id == a.Marker.Id) ? Miss(out missing, $"marker {a.Marker.Id} already placed") : d with { Markers = [.. d.Markers, a.Marker] };
@@ -95,6 +95,14 @@ public static class DraftEditor
     {
         missing = null;
         return d.Terrain.Any(t => t.Id == id) ? d with { Terrain = d.Terrain.Select(t => t.Id == id ? change(t) : t).ToList() } : Miss(out missing, $"no terrain {id}");
+    }
+
+    /// <summary>Client UX spec → Physical collision: the edited piece rests on the Solid tops under its footprints, its own volumes ignored.</summary>
+    static TableState? Rest(TableState? d, Guid id)
+    {
+        if (d?.Terrain.FirstOrDefault(t => t.Id == id) is not { } piece) return d;
+        var z = Collision.RestHeight(piece.WorldVolumes(), d.Terrain.Where(t => t.Id != id).SelectMany(t => t.WorldVolumes()).ToList());
+        return d with { Terrain = d.Terrain.Select(t => t.Id == id ? t with { Position = t.Position with { Z = z } } : t).ToList() };
     }
 
     static TableState? Miss(out string? missing, string detail) { missing = detail; return null; }
