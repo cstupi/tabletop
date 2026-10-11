@@ -45,8 +45,9 @@ public class UnitSheetTests
         Assert.Equal(new[] { ("Fearless", (string?)null, true), ("Tough(3)", (string?)"Must take X wounds to be killed.", false) },
             s.Rules.Select(r => (r.Label, r.Text, r.NotAutomated)));
         var rifle = Assert.Single(s.Weapons);
-        Assert.Equal(("Heavy Rifle", 1, "24\"", "1"), (rifle.Name, rifle.Count, rifle.Range, rifle.Attacks));
-        Assert.Equal(new[] { ("AP(1)", true) }, rifle.Rules.Select(r => (r.Label, r.NotAutomated)));
+        Assert.Equal(("Heavy Rifle", 1, "24\"", "1", "1"), (rifle.Name, rifle.Count, rifle.Range, rifle.Attacks, rifle.Ap));
+        Assert.Empty(rifle.Rules);                                   // AP(1) moved to its column
+        Assert.Equal(("AP(1)", true), (rifle.ApRule!.Label, rifle.ApRule.NotAutomated));
         var model = Assert.Single(s.Models);
         Assert.Equal((Samples.Model, "Battle Brother", 3, 3, false), (model.Id, model.Label, model.Left, model.Max, model.Removed));
     }
@@ -57,7 +58,8 @@ public class UnitSheetTests
         var s = Sheet(Applier(SquadBoard), Squad.Id, NoFacts);
         Assert.Equal(new[] { ("Rifle", 2, "24\"", "1"), ("CCW", 3, "-", "2"), ("Plasma Gun", 1, "24\"", "1") },
             s.Weapons.Select(w => (w.Name, w.Count, w.Range, w.Attacks)));
-        Assert.Equal(["AP(4)"], s.Weapons[2].Rules.Select(r => r.Label));
+        Assert.Equal(new[] { "-", "-", "4" }, s.Weapons.Select(w => w.Ap));
+        Assert.Empty(s.Weapons[2].Rules);
         Assert.Equal(("4+", "5+", 3, 3), (s.Quality, s.Defense, s.Alive, s.Size));
     }
 
@@ -87,8 +89,21 @@ public class UnitSheetTests
         var a = Applier(Samples.Board, new ActionRecorded(Samples.Unit, "Advance"),
             new ConditionSet(new Subject(SubjectKind.Unit, Samples.Unit), "shaken", true),
             new SpellTokensSet(Samples.Model, 2), new GrantAdded(Samples.Unit, Samples.Grant));
-        Assert.Equal(["Activated: Advance", "shaken", "2 spell tokens", "Regeneration from Battle Brothers · 1 use"],
+        Assert.Equal([new SheetChip(ChipKind.Activated, "Activated: Advance"), new SheetChip(ChipKind.Condition, "Shaken", "shaken"),
+            new SheetChip(ChipKind.SpellTokens, "2 spell tokens"), new SheetChip(ChipKind.Grant, "Regeneration from Battle Brothers · 1 use")],
             Sheet(a, Samples.Unit, NoFacts).Chips);
+    }
+
+    [Fact]
+    public void An_AP_rule_without_a_parameter_stays_in_the_rules()
+    {
+        var odd = new Unit(Guid.CreateVersion7(), 1, "Odd", new Dictionary<string, string>(), [],
+            [Slot(1, Ranged("Lance", "18\"", new PropertyInstance("AP", null), new PropertyInstance("Rending", null)))]);
+        var board = new Board(TableStateTests.Sample(), [new ArmyInPlay(Samples.P1, ArmySnapshot.Of(
+            new Army(Guid.CreateVersion7(), "Odd", "grimdark-future", "test", [odd]), Guid.CreateVersion7()))]);
+        var lance = Assert.Single(Sheet(Applier(board), odd.Id, NoFacts).Weapons);
+        Assert.Equal(("-", (SheetRule?)null), (lance.Ap, lance.ApRule));
+        Assert.Equal(["AP", "Rending"], lance.Rules.Select(r => r.Label));
     }
 
     /// <summary>Until the catalog loads, or after its fetch failed, no rule is tagged: an unknown catalog says nothing about automation.</summary>

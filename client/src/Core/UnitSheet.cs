@@ -5,13 +5,16 @@ namespace Tabletop.Client.Core;
 
 /// <summary>A rule as the sheet shows it: its label with the parameter, its catalog text, and the *not automated* tag (a loaded catalog without it).</summary>
 public sealed record SheetRule(string Label, string? Text, bool NotAutomated);
-public sealed record SheetWeapon(string Name, int Count, string Range, string Attacks, IReadOnlyList<SheetRule> Rules);
+public enum ChipKind { Activated, Condition, SpellTokens, Grant }
+/// <summary>A status chip; Condition keeps the raw condition name, the key an icon is looked up by.</summary>
+public sealed record SheetChip(ChipKind Kind, string Text, string? Condition = null);
+public sealed record SheetWeapon(string Name, int Count, string Range, string Attacks, string Ap, SheetRule? ApRule, IReadOnlyList<SheetRule> Rules);
 public sealed record SheetModel(Guid Id, string Label, int Left, int Max, bool Removed);
 public sealed record UnitSheetModel(Guid UnitId, string Team, string Name, int Alive, int Size, string? Quality, string? Defense,
-    IReadOnlyList<string> Chips, IReadOnlyList<SheetWeapon> Weapons, IReadOnlyList<SheetRule> Rules, IReadOnlyList<SheetModel> Models);
+    IReadOnlyList<SheetChip> Chips, IReadOnlyList<SheetWeapon> Weapons, IReadOnlyList<SheetRule> Rules, IReadOnlyList<SheetModel> Models);
 
 /// <summary>
-/// The Stats tab (in-game UX spec → Stat sheet) from the army snapshot, the projection, the pinned catalog and the server's model
+/// The unit card (client UX spec → Unit card) from the army snapshot, the projection, the pinned catalog and the server's model
 /// facts. Names no rule: a label is the snapshot's, a model's wounds are the ModelFacts value, and a rule with no catalog entry is
 /// not automated.
 /// </summary>
@@ -39,22 +42,34 @@ public static class UnitSheet
     static string? Stat(Unit unit, ModelSlot? first, string name) =>
         unit.Stats.GetValueOrDefault(name) ?? first?.Stats.GetValueOrDefault(name);
 
-    static IReadOnlyList<string> Chips(Projection p, Names n, UnitInPlay unit)
+    /// <summary>The printed army list's AP column label: the card moves this property's parameter into its own column and computes nothing from it.</summary>
+    public const string ApLabel = "AP";
+
+    static IReadOnlyList<SheetChip> Chips(Projection p, Names n, UnitInPlay unit)
     {
-        var chips = new List<string>();
-        if (unit.Actions.Count > 0) chips.Add($"Activated: {string.Join(", ", unit.Actions.Order(StringComparer.Ordinal))}");
-        chips.AddRange(unit.Conditions.Order(StringComparer.Ordinal));
+        var chips = new List<SheetChip>();
+        if (unit.Actions.Count > 0) chips.Add(new(ChipKind.Activated, $"Activated: {string.Join(", ", unit.Actions.Order(StringComparer.Ordinal))}"));
+        chips.AddRange(unit.Conditions.Order(StringComparer.Ordinal).Select(c => new SheetChip(ChipKind.Condition, Capitalised(c), c)));
         var tokens = p.Models.Values.Where(m => m.UnitId == unit.Id).Sum(m => m.SpellTokens);
-        if (tokens > 0) chips.Add($"{tokens} spell token{(tokens == 1 ? "" : "s")}");
-        chips.AddRange(unit.Grants.Select(g => $"{g.EntryName} from {n.Unit(g.CasterUnitId)} · {g.RemainingUses} use{(g.RemainingUses == 1 ? "" : "s")}"));
+        if (tokens > 0) chips.Add(new(ChipKind.SpellTokens, $"{tokens} spell token{(tokens == 1 ? "" : "s")}"));
+        chips.AddRange(unit.Grants.Select(g => new SheetChip(ChipKind.Grant,
+            $"{g.EntryName} from {n.Unit(g.CasterUnitId)} · {g.RemainingUses} use{(g.RemainingUses == 1 ? "" : "s")}")));
         return chips;
     }
 
+    static string Capitalised(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
     static IReadOnlyList<SheetWeapon> Weapons(IReadOnlyList<ModelSlot> standing, RuleTexts rules) =>
-        standing.SelectMany(s => s.Weapons).GroupBy(w => w.Name, StringComparer.Ordinal)
-            .Select(g => new SheetWeapon(g.Key, g.Count(), g.First().Stats.GetValueOrDefault("Range") ?? "-",
-                g.First().Stats.GetValueOrDefault("Attacks") ?? "-", g.First().Properties.Select(x => Rule(x, rules)).ToList()))
-            .ToList();
+        standing.SelectMany(s => s.Weapons).GroupBy(w => w.Name, StringComparer.Ordinal).Select(g => WeaponRow(g.Key, g.Count(), g.First(), rules)).ToList();
+
+    static SheetWeapon WeaponRow(string name, int count, Weapon w, RuleTexts rules)
+    {
+        var ap = w.Properties.Select((x, i) => (x, i)).FirstOrDefault(t => t.x.Name == ApLabel && t.x.Parameter is not null);
+        var found = ap.x is not null;
+        return new SheetWeapon(name, count, w.Stats.GetValueOrDefault("Range") ?? "-", w.Stats.GetValueOrDefault("Attacks") ?? "-",
+            found ? ap.x!.Parameter!.Value.ToString() : "-", found ? Rule(ap.x!, rules) : null,
+            w.Properties.Where((_, i) => !found || i != ap.i).Select(x => Rule(x, rules)).ToList());
+    }
 
     static IReadOnlyList<SheetRule> Rules(Unit unit, IReadOnlyList<ModelSlot> standing, RuleTexts rules) =>
         unit.Properties.Concat(standing.SelectMany(s => s.Properties)).Select(x => Rule(x, rules)).DistinctBy(r => r.Label).ToList();

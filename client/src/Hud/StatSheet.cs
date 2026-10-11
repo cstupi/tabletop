@@ -83,7 +83,7 @@ public partial class StatSheet : PanelContainer
         if (m.Chips.Count > 0)
         {
             var chips = new HFlowContainer(); _stats.AddChild(chips);
-            foreach (var chip in m.Chips) { var c = new PanelContainer(); c.AddChild(new Label { Text = chip }); chips.AddChild(c); }
+            foreach (var chip in m.Chips) { var c = new PanelContainer(); c.AddChild(new Label { Text = chip.Text }); chips.AddChild(c); }
         }
         if (m.Weapons.Count > 0)
         {
