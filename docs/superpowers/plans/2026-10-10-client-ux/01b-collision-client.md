@@ -23,10 +23,16 @@ Part of [`01-collision.md`](01-collision.md); its Global Constraints, Rulings an
     public void Every_builtin_solid_over_three_inches_is_impassable() =>   // p.11 elevated terrain
         Assert.All(BuiltinContent.Terrain.SelectMany(t => t.Volumes).Where(v => v.Kind == VolumeKind.Solid && v.Top > 3),
             v => Assert.True(v.Declarations.HasFlag(TerrainDeclarations.Impassable)));
+
+    [Fact]
+    public void The_ruin_is_walk_in_difficult_ground_seen_into_and_out_of() =>   // owner ruling: passable, difficult, not seen through
+        Assert.Equal((VolumeKind.Area, TerrainDeclarations.Difficult | TerrainDeclarations.Cover | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut),
+            BuiltinContent.Terrain.Single(t => t.Id == "ruin").Volumes.Select(v => (v.Kind, v.Declarations)).Single());
 ```
 
-  Then in `client/src/Core/BuiltinContent.cs` add `Impassable |` to the declarations of `large-sight-blocker` and `ruin`,
-  with the comment `// p.11: over 3" is elevated and impassable`. Match the test's member names to `BuiltinContent`'s actual
+  Then in `client/src/Core/BuiltinContent.cs` add `Impassable |` to `large-sight-blocker`'s declarations with the comment
+  `// p.11: over 3" is elevated and impassable`, and make `ruin` `V(Area, Footprint.Rect(4, 4), 4, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut)`
+  (owner ruling: ruins are passable and difficult; seen into and out of, not through). Match the test's member names to `BuiltinContent`'s actual
   catalogue shape (read the file first; `Terrain`/`Volumes` are the expected names). Run green.
 - [ ] **Step 1: Failing test** — `tests/Tabletop.Client.Tests/DragBodiesTests.cs`:
 

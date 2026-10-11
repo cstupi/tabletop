@@ -218,10 +218,12 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 - An **Area** volume (woods, ruins, fields, water) is ground a model stands *in*: models enter it and rest on what is
   under it; terrain dropped on it rests on what is under it. Its own floor, when its piece is lifted onto a hill, is the
   piece's base height.
+- **Walls and climbing.** A dragged model stops at the sides of a Solid declared `Impassable` (or listed impassable by
+  the open move Ask) and climbs every other Solid. Uploaded terrain keeps its author's declarations.
 - **Elevated built-ins are impassable.** p.11: *"Terrain features that are over 3” tall count as elevated terrain, and
-  are impassable"*. The built-in Solids over 3" (`large-sight-blocker`, `ruin`) declare `Impassable`; a dragged model
-  stops at the sides of a Solid declared `Impassable` (or listed impassable by the open move Ask) and climbs every other
-  Solid. Uploaded terrain keeps its author's declarations.
+  are impassable"*. The built-in `large-sight-blocker` (6") declares `Impassable`.
+- **Ruins are walk-in ground.** Ruins are passable and Difficult, seen into and out of but not through (owner ruling).
+  The built-in `ruin` is an Area declaring Difficult, Cover, BlocksLineOfSight and SeeInAndOut.
 - **Hill meshes are flat-topped.** The built-in hill, steep-hill, small-hill, dunes and lair meshes are rebuilt as
   plateaus at their volume's top with a sloped rim inside the footprint, so a model on the hill stands on the drawn
   surface.

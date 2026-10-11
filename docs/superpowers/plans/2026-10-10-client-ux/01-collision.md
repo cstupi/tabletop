@@ -45,8 +45,9 @@ section *Physical collision*, and its *Testing* lines for geometry and server.
   stands on it"*. A body slides along the Solid volumes its caller names as walls: during a move Ask the Ask's
   `ImpassableVolumeIds`, otherwise every Solid declared `Impassable`. Every other Solid is climbed (*"no step-up limit"*).
 - **Elevated built-ins.** p.11: *"Terrain features that are over 3” tall count as elevated terrain, and are impassable"*. The
-  built-in Solids over 3" that declared no `Impassable` — `large-sight-blocker` (6") and `ruin` (4") — declare it
-  (`BuiltinContent`, 01b Task 8 Step 0), so a drag stops at their sides instead of climbing onto them. Uploaded terrain keeps the
+  built-in `large-sight-blocker` (6") declares it (`BuiltinContent`, 01b Task 8 Step 0), so a drag stops at its sides.
+  The built-in `ruin` becomes an Area (owner ruling: ruins are passable and Difficult; seen into and out of, not through),
+  so models walk into it rather than onto a 4" block. Uploaded terrain keeps the
   declarations its author gives it; the client holds no 3" constant.
 - **Storeys.** `RestHeight` has no from-height, so a model under a raised Solid (an asset ruin's floor) rests on its top.
   Every built-in is one volume from Z 0; only uploaded multi-volume assets meet this.
