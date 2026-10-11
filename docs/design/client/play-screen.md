@@ -257,7 +257,6 @@ button lower right that G or a click opens upward. Clicking an entry
 highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(seq)` and greys every row above the target
 until `PendingUndoTo` clears. The other undo affordance is **Undo move** after a hand move (*The play screen*). There is no
 undo stack UI and no redo. Undo is replay to a sequence number rather than inverse events, so the log serves as the control.
-`LogPanel` (one row per event) has no caller.
 
 A roll entry also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die 1…" (`SetDice`) and "+1" (`AddModifier`) for
 the roll it shows. Players roll their own dice and every roll result is editable.

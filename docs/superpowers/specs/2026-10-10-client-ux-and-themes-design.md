@@ -56,7 +56,7 @@ never changes a selection, and an enemy activation never takes the card: the hea
 6. Special rules as chips with hover text.
 
 **Hovered enemy.** With one of my units on the card and the pointer over an enemy unit, a compact strip appears above
-the card, inside the left column,: the enemy's name, Defense, models alive, the distance (`HoverView`'s, closest base to closest base) and each of
+the card, inside the left column: the enemy's name, Defense, models alive, the distance (`HoverView`'s, closest base to closest base) and each of
 my weapons' printed range, shown within or beyond that distance. The strip makes no claim about shooting; the sight
 check (L) answers that.
 
@@ -332,7 +332,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 | `Hotkeys` (new intents), `CameraFocus` (pan clamp, glide, follow rule) | `Table/OrbitCamera` |
 | `Tabletop.Geometry.Collision` (shared with the server) | `Table/TableInput.Hold` drags, `Panels/SetupToolbar` terrain drags |
 
-`RoundHistory` is removed with the *This round* tab. `LogPanel` stays for lobby and setup.
+`RoundHistory` is removed with the *This round* tab. `LogPanel` is removed: lobby and setup never showed a log.
 
 ## Testing
 

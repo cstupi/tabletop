@@ -20,7 +20,7 @@ The Godot 4.7 / C# game client and the only project with a Godot dependency. A r
 - `src/Theme/` (namespace `Tabletop.Client.Theming`): `ThemeBuilder` (`UiTheme` to a Godot `Theme`), `Ui` (the current theme, colours and icons as Godot types, `Changed`; `Variation` type-variation names), `DiceFaces`. `Main` applies the theme to the tree root and each screen, since `Main` is a `Node`.
 - `src/Hud/`: the play Hud: `HeaderBar`, `UnitCard`, `DecisionBox` (+ `.Move`, `.Picks`), `DiceTray`, `LogDrawer`, `CombatLogPanel`, `EndMessage`, `KeyOverlay`, `Toasts`, `Roster`, `TurnBanner`; `HudPlacement` puts each part in its `HudLayout` slot (`GameScreen.Layout`).
 - `src/Table/`: the 3D table: `TableView`, `TableInput` (+ `.Keys`, `.Hold`), `HoverLabels`, `SightLines`, `TargetLines`, `Lasers`, `UndoMoveButton`, `UnitMarkerNodes`, `FloatingText`, `RangeRingNode`, `OrbitCamera`, `WorldFrame`, `Animator`, `MeshLoader`, `PieceNode`, `TerrainNode`, `MarkerNode`, `SlabNode`, `ZoneNode`, `MoveRegionNode`, `RulerNode`, `PresenceOverlay`, `Palette`.
-- `src/Panels/`: `LobbyPanel`, `LogPanel` (no caller), `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
+- `src/Panels/`: `LobbyPanel`, `PieceMenu`, `SetupToolbar`, `TeamPanel`, `Guarded`.
 - `content/themes/<id>/`: per theme `fonts/`, `icons/` and `LICENSES.md`; `fantasy` also has `panel.svg`, `button.svg` and `dice/`.
 - `scenes/`: `Main.tscn` is the root that swaps `Login`, `Home`, `Game`, `UpdateRequired`; `TableView.tscn` is the table.
 - `content/builtin/`: `textures/` (five table textures: ash, desert, grass, snow, urban) and `terrain/` (eleven grouped `.glb` meshes from `scripts/terrain-meshes`; `hill` is round, `hill-rect` square). A missing file draws the piece's volumes.
