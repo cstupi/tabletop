@@ -58,7 +58,7 @@ dotnet test tests/Tabletop.Client.Tests   # the Godot-free core
 - No Godot physics; picking is ray versus AABB.
 - Godot's import step wipes `client/.godot/mono/temp/bin/`. Build after an import; otherwise every script fails with "class could not be found". `./scripts/client` builds in WSL first.
 - `Directory.Build.props` gives each OS its own `obj/Unix` or `obj/Windows_NT`; a shared `obj/` breaks restore. `TabletopBuildSlot` adds a suffix to `obj/` and `bin/` for the compose server containers; the client does not set it.
-- The Godot editor runs on the Windows host, so the client reads and writes under `OS.GetUserDataDir()` there: `settings.json` (`ClientSettings`: `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`), `session.bin` (the remembered JWT, `SessionStore`) and `cache/` (`AssetCache`). Settings are presentation only and never reach the server.
+- The Godot editor runs on the Windows host, so the client reads and writes under `OS.GetUserDataDir()` there: `settings.json` (`ClientSettings`: `Animate`, `MutedWindowKinds`, `RememberMe`, `ManagementUrl`, `GameServerUrl`, `LogFilter`, `LogOpen`), `session.bin` (the remembered JWT, `SessionStore`) and `cache/` (`AssetCache`). Settings are presentation only and never reach the server.
 - `ClientSettings.Default` URLs use `127.0.0.1`, not `localhost`: Windows tries `::1` first, which does not reach WSL, and .NET waits 21 s before falling back.
 - `Session` raises events on the main thread only through `IDispatcher`; tests use `ImmediateDispatcher`.
 - `SessionStore.Read` returns null for anything that is not three non-empty dot-separated segments, so a corrupt file never reaches an Authorization header.

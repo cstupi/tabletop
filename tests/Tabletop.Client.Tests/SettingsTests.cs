@@ -57,4 +57,19 @@ public class SettingsTests : IDisposable
         File.WriteAllText(path, "eyJ.only-two-segments");
         Assert.Null(store.Read());
     }
+
+    [Fact]
+    public void The_log_filter_and_drawer_state_round_trip_and_an_unknown_filter_reads_all()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        var s = ClientSettings.Default with { LogFilter = LogFilter.Unit, LogOpen = true };
+        s.Save(path);
+        Assert.Equal(s, ClientSettings.Load(path));
+        Assert.NotEqual(ClientSettings.Default, s);
+        foreach (var json in new[] { """{ "logFilter": "sideways" }""", """{ "logFilter": "7" }""", """{ "animate": false }""" })
+        {
+            File.WriteAllText(path, json);
+            Assert.Equal((LogFilter.All, false), (ClientSettings.Load(path).LogFilter, ClientSettings.Load(path).LogOpen));
+        }
+    }
 }
