@@ -24,7 +24,7 @@ public static class Invariants
     public static IReadOnlyList<InvariantResult> CheckAll(Projection driverProjection, IReadOnlyList<GameEvent> log, CompiledScenario scenario) =>
     [
         ReplayReproducesTheProjection(driverProjection, log, scenario),
-        UndoAndRedoReproduceTheDice(log, scenario),
+        UndoKeepsTheEarlierDice(log, scenario),
         EveryAskAnsweredByAnAddressedTeam(log),
         NoModelInTwoPlacesOrOffTheSlab(log, scenario),
         TheRoundAdvancedOnlyThroughTheBoundaryAsk(log),
@@ -130,7 +130,7 @@ public static class Invariants
     /// "an arbitrary sequence" exhaustively. This checks the effective-log prefix only: that dice after an undo are
     /// fresh, because the undone dice stay counted, is the socket test DriverAgreementTests.
     /// </summary>
-    public static InvariantResult UndoAndRedoReproduceTheDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
+    public static InvariantResult UndoKeepsTheEarlierDice(IReadOnlyList<GameEvent> log, CompiledScenario scenario)
     {
         // The effective log: an undone range's dice are no longer the game's, so a log that already holds an
         // Undone is measured as it stands, not as every event ever appended.
@@ -143,10 +143,10 @@ public static class Invariants
             var kept = DiceOf(effective);
             var expected = original.Take(kept.Count).ToList();
             if (!kept.SequenceEqual(expected))
-                return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), false,
+                return new InvariantResult(nameof(UndoKeepsTheEarlierDice), false,
                     $"undoing to {target} changed the dice: kept [{string.Join(",", kept)}] against [{string.Join(",", expected)}]");
         }
-        return new InvariantResult(nameof(UndoAndRedoReproduceTheDice), true, null);
+        return new InvariantResult(nameof(UndoKeepsTheEarlierDice), true, null);
     }
 
     private static IReadOnlyList<int> DiceOf(IReadOnlyList<GameEvent> log) => log

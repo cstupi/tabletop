@@ -140,11 +140,11 @@ public class InvariantTests
     /// itself can go wrong: a log that already holds an undone range must be measured as its effective log.
     /// </summary>
     [Fact]
-    public async Task An_undo_to_any_dice_bearing_sequence_reproduces_the_dice()
+    public async Task An_undo_to_any_dice_bearing_sequence_keeps_the_earlier_dice()
     {
         var (scenario, loop, _, driver) = await Played();
         await using var _ = driver;
-        Assert.True(Invariants.Invariants.UndoAndRedoReproduceTheDice(loop.Log, scenario).Held);
+        Assert.True(Invariants.Invariants.UndoKeepsTheEarlierDice(loop.Log, scenario).Held);
 
         // Dice, an undo before them, then fresh dice: the first set is undone and must not count as the game's.
         var first = loop.Log.First(e => e.Payload is StepCompleted { Rolls.Count: > 0 });
@@ -153,7 +153,7 @@ public class InvariantTests
         var original = (StepCompleted)first.Payload;
         var other = original.Rolls[0] with { Dice = [new Die(6, 6, true)] };
         log.Add(Next(log, original with { Rolls = [other] }));
-        var result = Invariants.Invariants.UndoAndRedoReproduceTheDice(log, scenario);
+        var result = Invariants.Invariants.UndoKeepsTheEarlierDice(log, scenario);
         Assert.True(result.Held, result.Detail);
     }
 

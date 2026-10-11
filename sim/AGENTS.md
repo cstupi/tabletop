@@ -36,7 +36,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `sim/` holds no second implementation of the rules. It asserts invariants over the log and projection.
 - `InProcessDriver` hosts the engine in the process. `SocketDriver` seeds rows in Postgres, mints sessions and plays over the game server's WebSocket.
 - `DriverMode.StepAndWait` stops with one Ask open and answers nothing (`RunOutcome.Paused`).
-- `Invariants.CheckAll` runs eight checks: replay reproduces the projection, undo and redo reproduce the dice, every Ask answered by an addressed team, no model in two places or off the slab, the round advances only through the boundary Ask, nothing advances after the end, control follows the markers, spells come from the caster's book.
+- `Invariants.CheckAll` runs eight checks: replay reproduces the projection, an undo keeps the earlier dice, every Ask answered by an addressed team, no model in two places or off the slab, the round advances only through the boundary Ask, nothing advances after the end, control follows the markers, spells come from the caster's book.
 - One file per run: `<scenario>-<seed>.json` in `--out` (default `./recordings`, git-ignored), plus `summary.json`.
 - A recording is a projection frame per event, not an event log. It is never replayed into the engine.
 - Exit code: 0 when no run failed, 1 otherwise, 2 for usage errors.

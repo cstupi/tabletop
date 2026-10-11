@@ -680,7 +680,7 @@ outcome the engine produced.
 | Invariant | How it is computed |
 | --- | --- |
 | `ReplayReproducesTheProjection` | `Replay.To(board, info, log, log[^1].Seq)` against the driver's projection through `ProjectionComparer`. In process the session's own projection is compared too, so a cold replay, the incremental projection and the server's all agree. |
-| `UndoAndRedoReproduceTheDice` | For every seq at which a `StepCompleted` carries rolls, append `Undone(seq)`, take `EventApplier.EffectiveLog`, and require the surviving dice to be a prefix of the original. |
+| `UndoKeepsTheEarlierDice` | For every seq at which a `StepCompleted` carries rolls, append `Undone(seq)`, take `EventApplier.EffectiveLog`, and require the surviving dice to be a prefix of the original. |
 | `EveryAskAnsweredByAnAddressedTeam` | For each `AskAnswered`, the `AskOpened` with that id must exist and must list the answering team in `Ask.Teams`. |
 | `NoModelInTwoPlacesOrOffTheSlab` | Walk the effective log: each `ModelRelocation.From` must equal the model's location before the event, and every `OnTable` position must satisfy `0 <= x <= width` and `0 <= y <= length`. |
 | `TheRoundAdvancedOnlyThroughTheBoundaryAsk` | For every `RoundStarted` with `Round >= 2`, the nearest preceding `AskClosed` must have closed an Ask whose question is `AskQuestions.EndRound`, or `GameEvent.Actor` must be non-null. |
@@ -910,7 +910,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | --- | --- |
 | `static class ProjectionComparer` | `IRL<string> Differences(Projection expected, Projection actual)` |
 | `sealed record InvariantResult(string Name, bool Held, string? Detail)`; `sealed class InvariantViolatedException` | `IRL<InvariantResult> Failures` |
-| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoAndRedoReproduceTheDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
+| `static class Invariants` | `CheckAll`, `ReplayReproducesTheProjection`, `UndoKeepsTheEarlierDice`, `EveryAskAnsweredByAnAddressedTeam`, `NoModelInTwoPlacesOrOffTheSlab`, `TheRoundAdvancedOnlyThroughTheBoundaryAsk` |
 | `static class MidRun` | `void Assert(Projection, IRL<GameEvent>, CompiledScenario)` |
 
 ### Produced: `Tabletop.Sim.Recording`
@@ -1234,7 +1234,7 @@ event. In `sim/` that surfaces as an exception out of `DrainEventsAsync` rather 
 `Failed` outcome, so it is a crash rather than a report. That is the game server's hazard, not
 this module's, and `sim/` is one of the better ways to find it.
 
-**Invariant 2 is quadratic.** `UndoAndRedoReproduceTheDice` runs `EventApplier.EffectiveLog`
+**Invariant 2 is quadratic.** `UndoKeepsTheEarlierDice` runs `EventApplier.EffectiveLog`
 once per dice-bearing sequence, and each call walks the whole log. A game with 300 dice-bearing
 sequences and a 1 500-event log does 450 000 event visits per run. That is affordable for one
 run and is the dominant cost of a 500-seed soak. `RunSettings.CheckInvariants` turns it off.
