@@ -41,7 +41,7 @@ public sealed partial class GameSession
             switch (Dispatcher.Dispatch(Play, message.Command, ActorOf(from)))
             {
                 case Dispatch.Refused r: await from.SendAsync(new Protocol.Refused(message.CommandId, r.Reason, r.Detail)); break;
-                case Applied a: await AppendAsync(a.Events, from.ParticipantId, a.Warning); await AdvanceAsync(); break;
+                case Applied a: await RunToRestAsync(a.Events, from.ParticipantId, a.Warning); break;
             }
         if (Faulted) return;
         var rest = Rest();

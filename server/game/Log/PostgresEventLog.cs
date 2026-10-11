@@ -4,7 +4,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Log;
 
-/// <summary>game.game_event: kind is GameEvent.Kind, payload is WireJson.Serialize(GameEvent) — seq, actor and warning ride inside the jsonb.</summary>
+/// <summary>game.game_event: kind is GameEvent.Kind, payload is WireJson.Serialize(GameEvent) — seq, actor and warning ride inside the jsonb.
+/// One append is one transaction and one round trip: every insert goes in one NpgsqlBatch.</summary>
 public sealed class PostgresEventLog(NpgsqlDataSource db) : IEventLog
 {
     public async Task AppendAsync(Guid gameId, IReadOnlyList<GameEvent> events, CancellationToken ct)
@@ -14,13 +15,15 @@ public sealed class PostgresEventLog(NpgsqlDataSource db) : IEventLog
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
+            await using var batch = new NpgsqlBatch(conn, tx);
             foreach (var e in events)
             {
-                await using var cmd = new NpgsqlCommand("insert into game.game_event (game_id, seq, kind, payload) values ($1, $2, $3, $4)", conn, tx);
-                cmd.Parameters.AddWithValue(gameId); cmd.Parameters.AddWithValue(e.Seq); cmd.Parameters.AddWithValue(e.Kind);
+                var cmd = new NpgsqlBatchCommand("insert into game.game_event (game_id, seq, kind, payload) values ($1, $2, $3, $4)");
+                cmd.Parameters.Add(new NpgsqlParameter { Value = gameId }); cmd.Parameters.Add(new NpgsqlParameter { Value = e.Seq }); cmd.Parameters.Add(new NpgsqlParameter { Value = e.Kind });
                 cmd.Parameters.Add(new NpgsqlParameter { Value = WireJson.Serialize(e), NpgsqlDbType = NpgsqlDbType.Jsonb });
-                await cmd.ExecuteNonQueryAsync(ct);
+                batch.BatchCommands.Add(cmd);
             }
+            await batch.ExecuteNonQueryAsync(ct);
             await tx.CommitAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)

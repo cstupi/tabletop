@@ -2,7 +2,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Log;
 
-/// <summary>The game schema's one table. Append is atomic per batch; seq is assigned by the session and enforced by the primary key.</summary>
+/// <summary>The game schema's one table. Append is atomic per call: all of the events land or none do. The session appends one command's
+/// events (its own batch and every Advance batch after it) in one call. Seq is assigned by the session and enforced by the primary key.</summary>
 public interface IEventLog
 {
     Task AppendAsync(Guid gameId, IReadOnlyList<GameEvent> events, CancellationToken ct);

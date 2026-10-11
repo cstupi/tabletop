@@ -36,7 +36,7 @@ public sealed class Sim
         }
     }
 
-    /// <summary>Advance until the engine returns nothing (the session's AdvanceAsync loop).</summary>
+    /// <summary>Advance until the engine returns nothing (the session's RunToRestAsync loop).</summary>
     public IReadOnlyList<EventPayload> Run()
     {
         var from = Emitted.Count;

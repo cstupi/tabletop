@@ -34,7 +34,7 @@ public sealed partial class GameSession
         await BroadcastAsync(new GameInfoMessage(Info));
         await BroadcastAsync(new BoardMessage(board));
         await BroadcastAsync(new EventsMessage([]));
-        await AdvanceAsync();
+        await RunToRestAsync([], null, null);
         await BroadcastAsync(Rest());   // the log has opened and the scheduler's first events are out: the transition ends at rest
     }
 }
