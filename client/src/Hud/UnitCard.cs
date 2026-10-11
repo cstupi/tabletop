@@ -93,7 +93,7 @@ public partial class UnitCard : VBoxContainer
     {
         Clear(_body);
         _body.AddChild(new ColorRect { Color = Palette.Team(team), CustomMinimumSize = new Vector2(0, 4) });
-        _body.AddChild(new Label { Text = $"{m.Name} · {m.Alive}/{m.Size} models" });
+        _body.AddChild(Wrap($"{m.Name} · {m.Alive}/{m.Size} models"));
         var badges = new HBoxContainer(); _body.AddChild(badges);
         badges.AddChild(Badge($"Quality {m.Quality ?? "-"}")); badges.AddChild(Badge($"Defense {m.Defense ?? "-"}"));
         _body.AddChild(Flow(m.Chips.Select(StatusChip)));
@@ -105,7 +105,7 @@ public partial class UnitCard : VBoxContainer
     /// <summary>One row per model: a pip per wound left out of ModelFacts' max, a removed model dimmed; a click selects the model.</summary>
     Button WoundRow(SheetModel model)
     {
-        var b = new Button { Text = $"{model.Label}  {new string('●', model.Left)}{new string('○', model.Max - model.Left)}", Flat = true,
+        var b = new Button { Text = $"{model.Label}  {new string('●', model.Left)}{new string('○', model.Max - model.Left)}", Flat = true, ClipText = true,
             Disabled = model.Removed, Alignment = HorizontalAlignment.Left };
         if (model.Removed) b.Modulate = Ui.Faded;
         var id = model.Id; b.Pressed += () => ModelPicked?.Invoke(id);
@@ -118,10 +118,10 @@ public partial class UnitCard : VBoxContainer
         foreach (var h in new[] { "Weapon", "Range", "Attacks", UnitSheet.ApLabel, "Rules" }) grid.AddChild(new Label { Text = h, ThemeTypeVariation = Variation.Dim });
         foreach (var w in weapons)
         {
-            grid.AddChild(new Label { Text = w.Count > 1 ? $"{w.Name} ×{w.Count}" : w.Name });
+            grid.AddChild(Wrap(w.Count > 1 ? $"{w.Name} ×{w.Count}" : w.Name));
             grid.AddChild(new Label { Text = w.Range }); grid.AddChild(new Label { Text = w.Attacks });
             grid.AddChild(new Label { Text = w.Ap, TooltipText = w.ApRule is { } ap ? Tooltip(ap) : "", MouseFilter = MouseFilterEnum.Stop });
-            grid.AddChild(Flow(w.Rules.Select(RuleChip)));
+            var rules = Flow(w.Rules.Select(RuleChip)); rules.SizeFlagsHorizontal = SizeFlags.ExpandFill; grid.AddChild(rules);
         }
         return grid;
     }
@@ -144,6 +144,9 @@ public partial class UnitCard : VBoxContainer
         return chip;
     }
     static PanelContainer Badge(string text) { var badge = new PanelContainer { ThemeTypeVariation = Variation.Badge }; badge.AddChild(new Label { Text = text }); return badge; }
+    /// <summary>A label that wraps to the slot's width, so its text never sets the card's minimum width.</summary>
+    static Label Wrap(string text, string variation = "") =>
+        new() { Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
     static HFlowContainer Flow(IEnumerable<Control> items) { var flow = new HFlowContainer(); foreach (var c in items) flow.AddChild(c); return flow; }
     static void Clear(Node box) { foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); } }
 
@@ -154,10 +157,10 @@ public partial class UnitCard : VBoxContainer
         if (_hovered is not { } h || !p.Units.ContainsKey(h) || !EnemyStrip.Shows(p, game, _s.MyTeamId, mine.UnitId, h)) return;
         var m = EnemyStrip.Of(mine, UnitSheet.Of(p, names, h, _s.Rules, _s.MaxWounds), HoverView.Of(p, game, names, h, mine.UnitId, _s.MaxWounds)?.Distance);
         Clear(_stripBody);
-        _stripBody.AddChild(new Label { Text = m.Name });
-        _stripBody.AddChild(new Label { Text = $"Defense {m.Defense ?? "-"} · {m.Alive} alive" + (m.Distance is { } d ? $" · {d:0.0}\"" : "") });
+        _stripBody.AddChild(Wrap(m.Name));
+        _stripBody.AddChild(Wrap($"Defense {m.Defense ?? "-"} · {m.Alive} alive" + (m.Distance is { } d ? $" · {d:0.0}\"" : "")));
         foreach (var r in m.Ranges)
-            _stripBody.AddChild(new Label { Text = $"{r.Weapon} {r.Range}{(r.Within switch { true => " within", false => " beyond", null => "" })}", ThemeTypeVariation = r.Within switch { true => Variation.Success, false => Variation.Warning, null => "" } });
+            _stripBody.AddChild(Wrap($"{r.Weapon} {r.Range}{(r.Within switch { true => " within", false => " beyond", null => "" })}", r.Within switch { true => Variation.Success, false => Variation.Warning, null => "" }));
         _strip.Visible = true;
     }
 }

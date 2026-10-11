@@ -102,7 +102,17 @@ public partial class GameScreen
             HudPlacement.Bottom(_dice!, slot);
         }
         if (_logDrawer is { } log && IsInstanceValid(log))
-            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? panel : null);
+            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(panel) : null);
+    }
+
+    /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume:
+    /// both grow upward past their slots. Only when the panel's columns span theirs.</summary>
+    HudRect AboveBottomStack(HudRect panel)
+    {
+        var bottom = panel.Bottom;
+        foreach (var part in new Control?[] { _decision, _dice })
+            if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) bottom = Math.Min(bottom, part.Position.Y - HudLayout.M);
+        return panel with { H = Math.Max(0, bottom - panel.Y) };
     }
 
     static bool Shows(Control? c) => c is not null && IsInstanceValid(c) && c.Visible;
