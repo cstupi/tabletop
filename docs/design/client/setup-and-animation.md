@@ -82,7 +82,7 @@ the projection directly and the queue holds no lock. Presence is never animated,
 
 A roll is a readout and not an object. The dice tray and the combat log show it as a `RollEntry`: the roll's
 name, its threshold, the faces with the passing dice marked, and each modifier by source, all of which `RollRecord`
-already holds. With Animate on the tray's dice tumble for 0.4 s. No die is placed on the table.
+already holds. With Animate on the tray's dice tumble for 0.4 s, each face changing in place every frame. No die is placed on the table.
 
 **A step may carry several rolls, and the readout carries all of them**, one block each, stacked.
 `StepCompleted.Rolls` is a list, and the ruleset fills it with more than one wherever it splits a
