@@ -55,4 +55,16 @@ public class WireJsonTests
         var json = WireJson.Serialize<EventPayload>(new SequenceStarted(Guid.Empty, "hold", new SequenceContext(null, [], [], null)));
         Assert.DoesNotContain("outline", json);
     }
+
+    [Fact]
+    public void A_roll_carries_its_threshold_basis_and_a_record_written_before_it_reads_none()
+    {
+        var basis = new ThresholdBasis("Quality", 5, [new ThresholdChange("Reliable", 2, 0), new ThresholdChange("Steady", null, -1)]);
+        var with = new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit with { Basis = basis }], []);
+        RoundTrips<EventPayload>(with);
+        Assert.Contains("\"printed\":5", WireJson.Serialize<EventPayload>(with));
+        var old = WireJson.Serialize<EventPayload>(new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit], []));
+        Assert.DoesNotContain("\"basis\"", old);
+        Assert.Null(Assert.IsType<StepCompleted>(WireJson.Deserialize<EventPayload>(old)).Rolls[0].Basis);
+    }
 }

@@ -432,6 +432,7 @@ export interface RollRecord {
   readonly modifiers: readonly RollModifier[];
   readonly dice: readonly Die[];
   readonly requiredRaw?: number;
+  readonly basis?: ThresholdBasis;
 }
 
 export interface RoundEnded {
@@ -553,6 +554,18 @@ export interface TerrainPlacement {
 export interface TerrainVolume {
   readonly id: string;
   readonly volume: Volume;
+}
+
+export interface ThresholdBasis {
+  readonly stat: string;
+  readonly printed: number;
+  readonly changes: readonly ThresholdChange[];
+}
+
+export interface ThresholdChange {
+  readonly source: string;
+  readonly setTo?: number;
+  readonly amount: number;
 }
 
 export interface TokenSpend {
