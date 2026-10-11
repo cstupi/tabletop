@@ -11,9 +11,8 @@ public partial class StatSheet : PanelContainer
     const int StatsTab = 0, RoundTab = 1;
     static readonly Color Dim = new(1, 1, 1, 0.55f);
     Session _s = null!; TableInput _input = null!;
-    readonly SheetFocus _focus = new();
     Guid? _told;
-    public Guid? UnitId => _focus.UnitId;
+    public Guid? UnitId { get; private set; }
     public event Action<Guid?>? FocusChanged;
     readonly TabContainer _tabs = new() { CustomMinimumSize = new Vector2(420, 320) };
     readonly VBoxContainer _stats = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _round = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -33,8 +32,8 @@ public partial class StatSheet : PanelContainer
         _tabs.SetTabTitle(StatsTab, "Stats"); _tabs.SetTabTitle(RoundTab, "This round");
         _onEvents = _ => { FollowActivation(); Render(); };
         _onChanged = Render;
-        _onUnitClicked = unit => { _focus.OnClicked(unit); Render(); };
-        _onSelection = () => { if (_input.Selected is null) { _focus.OnCleared(); Render(); } };
+        _onUnitClicked = _ => Render();
+        _onSelection = Render;
         session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged;
         input.UnitClicked += _onUnitClicked; input.SelectionChanged += _onSelection;
         FollowActivation(); Render();
@@ -46,7 +45,7 @@ public partial class StatSheet : PanelContainer
         if (_input is not null && IsInstanceValid(_input)) { _input.UnitClicked -= _onUnitClicked; _input.SelectionChanged -= _onSelection; }
     }
 
-    /// <summary>A new activation frame moves the sheet to its actor's This round; its end leaves a clicked unit, or hides the sheet.</summary>
+    /// <summary>A new activation frame switches the sheet to This round.</summary>
     void FollowActivation()
     {
         var frame = _s.Projection is { } p && HeaderView.ActionFrame(p) is { Context.ActorUnitId: not null } f ? f : null;
@@ -54,19 +53,18 @@ public partial class StatSheet : PanelContainer
         {
             if (_activation is null) return;
             _activation = null;
-            _focus.OnActivationEnded();
             return;
         }
         if (frame.Id == _activation) return;
         _activation = frame.Id;
-        _focus.OnActivationStarted(frame.Context.ActorUnitId!.Value);
         _tabs.CurrentTab = RoundTab;
     }
 
     void Render()
     {
-        if (_told != _focus.UnitId) { _told = _focus.UnitId; FocusChanged?.Invoke(_told); }
-        var p = _s.Projection; var game = _s.Game; var unit = _focus.UnitId;
+        var p = _s.Projection; var game = _s.Game; var unit = p is not null && game is not null ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId) : null;
+        UnitId = unit;
+        if (_told != unit) { _told = unit; FocusChanged?.Invoke(_told); }
         Visible = p is not null && game is not null && game.Status is GameStatus.Playing or GameStatus.Ended
             && unit is { } u && p.Units.ContainsKey(u);
         if (!Visible) return;
