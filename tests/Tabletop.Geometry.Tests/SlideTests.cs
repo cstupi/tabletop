@@ -27,6 +27,7 @@ public class SlideTests
         var end = Collision.Slide(Fx.Model(2, 0), new(8, 0.3), [other], [], []);
         Assert.False(Overlap.Bases(At(Fx.Model(0, 0), end), other));
         Assert.True(end.X > 3.7);
+        Assert.True(end.Y > 0.5);                                                         // slid round it to y 0.59; a dead stop at contact is at y 0.09
     }
 
     [Fact]
