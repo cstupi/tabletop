@@ -11,6 +11,8 @@ public static class CardColours
     public static readonly Color Within = new(0.45f, 0.85f, 0.45f);
     public static readonly Color Beyond = new(0.95f, 0.55f, 0.35f);
 
-    public static Color Chip(ChipKind k) => k switch { ChipKind.Condition => new(1f, 0.75f, 0.3f), ChipKind.Activated => Dim, _ => Text };
+    public static readonly Color Condition = new(1f, 0.75f, 0.3f);
+
+    public static Color Chip(ChipKind k) => k switch { ChipKind.Condition => Condition, ChipKind.Activated => Dim, _ => Text };
     public static Color Range(bool? within) => within switch { true => Within, false => Beyond, null => Text };
 }

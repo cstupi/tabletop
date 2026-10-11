@@ -35,7 +35,7 @@ public class UnitSheetTests
         new Army(Guid.CreateVersion7(), "Squads", "grimdark-future", "test", [Squad]), Guid.CreateVersion7()))]);
 
     [Fact]
-    public void The_stats_tab_reads_the_snapshot_and_the_catalog()
+    public void The_card_reads_the_snapshot_and_the_catalog()
     {
         var s = Sheet(Applier(Samples.Board), Samples.Unit, new Dictionary<Guid, int> { [Samples.Model] = 3 });
         Assert.Equal((Samples.Unit, "Team 1", "Battle Brothers", 1, 1), (s.UnitId, s.Team, s.Name, s.Alive, s.Size));

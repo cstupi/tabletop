@@ -20,7 +20,7 @@ public enum TargetGrain { Unit, Model }
 public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null);
 
 /// <summary>One named rule. Effects may be empty: then it is a name GameRules checks for at a hook it owns. Played is false only on a generated
-/// text-only entry (army-book rules spec → Played flag): the stat sheet shows its text, and LiveProperties.Gather skips it.</summary>
+/// text-only entry (army-book rules spec → Played flag): the unit card shows its text, and LiveProperties.Gather skips it.</summary>
 public sealed record CatalogEntry(string Name, CatalogKind Kind, bool TakesParameter, Aggregation? Aggregation, int? Cost, string? Faction,
     string RuleText, SpellTargeting? Targeting, IReadOnlyList<Effect> Effects, bool Played = true);
 

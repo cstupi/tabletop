@@ -262,7 +262,7 @@ public partial class TableInput : Node
         _ => true,
     };
 
-    /// <summary>Select a unit, or one of its models, as a click would: Tab and the stat sheet's models strip.</summary>
+    /// <summary>Select a unit, or one of its models, as a click would: Tab and the unit card's wound rows.</summary>
     public void Select(Guid unitId, Guid? modelId = null)
     {
         Selected = new Selection(unitId, modelId is { } m ? [m] : []); _presenceDirty = true;

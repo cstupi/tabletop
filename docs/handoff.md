@@ -84,7 +84,7 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 ### 2. The in-game UX: the owner's on-screen check
 
 Merged to `main` (spec `docs/superpowers/specs/2026-10-08-in-game-ux-design.md`, plan
-`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, unit card, decision box,
+`docs/superpowers/plans/2026-10-08-in-game-ux/`): the table to the edges with the header, a lower-left unit panel, decision box,
 dice, log drawer and end message over it; selection, hover, formations, and target and casualty picks on the table;
 the sight check, answered by the server; hand moves under the enforcement setting, with **Undo move**. New games start
 with Frontline deployment zones, drawn through round 0. The server side is checked by
@@ -95,6 +95,12 @@ selection and the unit card, Shift for one model, formations (1–5 while holdin
 shooting targets (chips, two targets), casualties (clicks, Auto; one-wound models read `Remove N models`, Tough models take wounds one model at a time), **Undo move** and Ctrl+Z, zones during deployment and
 gone at round 1, the end message, F1, the shooting lasers (one second, shooter to nearest target model, none in melee),
 Ctrl held to measure (live for the other player, gone on release).
+
+**The unit card** (the `client-ux` branch replaces the lower-left panel; check after it merges): it shows nothing until a unit
+is selected or my activation starts; selecting another unit keeps it through my next activation; an enemy activation leaves it;
+clicking empty table returns it to my activating unit or hides it; the AP column; pips dimming on a removed model; rule hover
+text; hovering an enemy with my unit on the card shows the strip above the card with distance and each weapon's range within or
+beyond; the combat log's This unit filter follows the card.
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
