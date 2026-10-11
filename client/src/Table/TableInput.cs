@@ -24,6 +24,8 @@ public partial class TableInput : Node
     /// <summary>Models a declared move or a deployment placement is positioning: their drag streams proposed ghosts, and the release sends nothing (the decision box commits).</summary>
     public HashSet<Guid> Proposing { get; } = new();
     public double? Allowance { get; set; }
+    /// <summary>The open move Ask's region: its walls and whether it passes models. Null outside one.</summary>
+    public MoveRegion? Region { get; set; }
     /// <summary>The least each of the move step's models must move (MoveRegion.MinDistance, an Aircraft's 30"), each held to the table from where it
     /// stands (MoveRuler.Minimum): shorter shows red. Null when the Ask sets no minimum.</summary>
     public IReadOnlyDictionary<Guid, double>? Minimum { get; set; }
@@ -71,6 +73,8 @@ public partial class TableInput : Node
     /// so dragging a terrain placement does not make it climb its own hill. Volume ids and piece ids are different ids,
     /// so the exclusion is built from the placement, not by subtracting the drag's piece id.</summary>
     List<WorldVolume> _settleAgainst = [];
+    /// <summary>The models a held unit collides with: every model on the table but the held ones, taken when the drag starts.</summary>
+    IReadOnlyList<PlacedModel> _stationary = [];
 
     public void Bind(TableView view, Session session)
     {
@@ -236,6 +240,7 @@ public partial class TableInput : Node
             var starts = models.ToDictionary(m => m, m => Position(m));
             var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
             _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
+            _stationary = projection is null ? [] : DragBodies.Stationary(projection, models);
             _drag = new Drag(id, models, point, screen, starts, CurrentYaw(id));
         }
         // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's

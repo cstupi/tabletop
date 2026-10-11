@@ -16,6 +16,7 @@ public partial class KeyOverlay : PanelContainer
         ("C", "stop the move here (cast or pick), when the move box offers it"),
         ("Esc", "cancel, innermost first: a drag, the target assignments, the selection"),
         ("Shift (held)", "one model: click selects, drag moves"),
+        ("Alt (while dragging)", "place freely"),
         ("L (held)", "sight check on the hovered unit"),
         ("M", "measure tool"),
         ("Ctrl (held)", "measure: click and drag; letting go removes the line"),

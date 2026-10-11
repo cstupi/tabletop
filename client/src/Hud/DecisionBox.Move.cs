@@ -30,7 +30,7 @@ public partial class DecisionBox
             (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
             _region!.Show(MoveRuler.ExitRegion(body, new PlacedModel(BodyOf(p, containerId), at.Placement), legal, _volumes, _size), Palette.Team(ordinal));
             _note.Text = $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
-            _input.Allowance = null; _input.Minimum = null;
+            _input.Allowance = null; _input.Minimum = null; _input.Region = null;
             void StartExit() { _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position); }
             StartExit();
             _onCancel = () => { StartExit(); return true; };
@@ -43,12 +43,12 @@ public partial class DecisionBox
             // The Ask's Allowance is already what this segment has left (GfMoves reduces it by the distance a cast-split move used): never subtract `used` again.
             var remaining = Math.Max(0, legal.Allowance);
             var start = new PlacedModel(body, on.Placement);
-            var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
+            var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size, DragBodies.Stationary(p, legal.ModelIds));
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.
             var minimum = MoveRuler.Minimum(start, legal, _view.Size);
             _region!.Show(boundary, Palette.Team(ordinal), minimum is { } least ? MoveRuler.Inner(on.Placement.Position.Horizontal, boundary, least) : null);
-            _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\")." : $"Move up to {remaining:0.0}\" (used {used:0.0}\").";
-            _input.Allowance = remaining;
+            _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely." : $"Move up to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely.";
+            _input.Allowance = remaining; _input.Region = legal;
             _input.Minimum = legal.MinDistance is null ? null : legal.ModelIds.Where(id => p.Models[id].Location is OnTable)
                 .ToDictionary(id => id, id => MoveRuler.Minimum(new PlacedModel(BodyOf(p, id), ((OnTable)p.Models[id].Location).Placement), legal, _view.Size)!.Value);
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.

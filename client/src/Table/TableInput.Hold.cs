@@ -39,16 +39,25 @@ public partial class TableInput
     }
 
     /// <summary>
-    /// The held models to these points, each settled on what it stands over, and the ruler on the lead model. Inside a move
-    /// step a model past the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
+    /// The held pieces toward these points and the ruler on the lead model. Held models slide along walls and other models and
+    /// rest on the Solid tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece);
+    /// a marker rests on the Solid under its point. Alt places freely; the drop still rests. Inside a move step a model past the
+    /// allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
     /// </summary>
     void Place(IReadOnlyDictionary<Guid, Point3> targets)
     {
         var drag = _drag!;
-        foreach (var (id, to) in targets)
+        var free = Input.IsKeyPressed(Key.Alt);                                          // Alt places freely, for corrections; the drop still rests
+        var p = _session.Projection;
+        var ends = p is not null && drag.ModelIds.All(p.Models.ContainsKey)
+            ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
+                new Placement(drag.Current[id], drag.Yaw)), targets[id].Horizontal)).ToList(), _stationary, _view.Volumes, Region, free)
+            : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
+                ? DragBodies.Piece(d.Terrain, kv.Key, kv.Value.Horizontal, free)
+                : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
+        foreach (var id in targets.Keys)
         {
-            var z = Settling.SurfaceHeightAt(new Point3(to.X, to.Y, drag.Current[id].Z + 0.5), _settleAgainst);
-            drag.Current[id] = new Point3(to.X, to.Y, z);
+            drag.Current[id] = ends[id];
             MoveNode(id, drag.Current[id]);
             var piece = _view.PieceAt(id);
             if (drag.Rows > 0 && piece is not null) piece.Rotation = new Vector3(0, WorldFrame.Radians(drag.Yaw), 0);
