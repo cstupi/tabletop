@@ -254,7 +254,7 @@ on another keeps Z 0 and the two meshes interpenetrate. Base overlap is flagged,
 - `Battlefield.Settle` rests every placement it applies through `Collision.RestHeight` over the model's base and ignores
   the client's Z. Hand moves (`MoveModels`) and deployment placements are settled the same way, so a stored position is
   never inside terrain whatever the client sent. Setup terrain edits rest the piece the same way (`DraftEditor`).
-- `GfMoves.PathBreach` gains p.7's clauses, decided by the enforcement setting like every other breach:
+- `GfMoves.ContactBreach` judges p.7's clauses, decided by the enforcement setting like every other breach:
   - `move_through_models`: *"may never move through other models or units (friendly or enemy), even if they are taking
     a Charge action"*: the straight path from start to destination crosses another model's base.
   - `move_overlap`: *"or be placed in physically impossible locations"*: the destination overlaps another model's base.

@@ -1,6 +1,6 @@
 namespace Tabletop.Geometry;
 
-/// <summary>Base overlap (the server's move_overlap) and a body inside a Solid (architecture.md → Rules enforcement).</summary>
+/// <summary>Base overlap and a body inside a Solid.</summary>
 public static class Overlap
 {
     /// <summary>Two bases share area and a vertical extent. Touching is not overlapping.</summary>

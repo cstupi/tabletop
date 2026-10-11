@@ -22,7 +22,7 @@ Geometry values and computations: distance, line of sight, cover, collision (res
 - `Collision.Slide` moves a body toward a target in `Step` (0.1") increments along the Solid volumes the caller names as walls and rests it; `Collision.Separate` places a dragged group in drag order against the stationary models. `Collision.Crosses` sweeps a base along a straight move against other models' true base outlines (models overlapped at the start excluded). `Bodies.AsBlockingVolume` is the line-of-sight body only.
 - Containment is computed, never stored.
 - `Movement.Region` yields the movement boundary; `Movement.Check` judges one straight move.
-- Coherency is flagged; collision keeps bodies apart and the server judges overlap.
+- `Coherency.Check` has no production caller: nothing judges coherency. Collision keeps bodies apart in the client's drag.
 
 ## Commands
 
