@@ -17,6 +17,16 @@ public class BuiltinContentTests
     }
 
     [Fact]
+    public void Every_builtin_solid_over_three_inches_is_impassable() =>   // p.11 elevated terrain
+        Assert.All(BuiltinContent.Terrain.Values.Select(t => t.Volume).Where(v => v.Kind == VolumeKind.Solid && v.Top > 3),
+            v => Assert.True(v.Declarations.HasFlag(TerrainDeclarations.Impassable)));
+
+    [Fact]
+    public void The_ruin_is_walk_in_difficult_ground_seen_into_and_out_of() =>   // owner ruling: passable, difficult, not seen through
+        Assert.Equal((VolumeKind.Area, TerrainDeclarations.Difficult | TerrainDeclarations.Cover | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut),
+            (BuiltinContent.Terrain["ruin"].Volume.Kind, BuiltinContent.Terrain["ruin"].Volume.Declarations));
+
+    [Fact]
     public void Declarations_follow_the_rulebook_text()
     {
         Assert.Equal(TerrainDeclarations.Difficult | TerrainDeclarations.Cover | TerrainDeclarations.BlocksLineOfSight | TerrainDeclarations.SeeInAndOut, BuiltinContent.Terrain["forest"].Volume.Declarations);

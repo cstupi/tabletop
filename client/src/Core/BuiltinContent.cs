@@ -26,7 +26,7 @@ public static class BuiltinContent
         T("barricade", "Barricade", V(Solid, Footprint.Rect(3, 1), 1, Difficult | TerrainDeclarations.Cover), "wall"),        // as Wall or Fence, p.18: Cover, and Difficult when moving through it
         T("large-forest", "Large Forest", V(Area, Footprint.Circle(3), 6, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "woods"),
         T("large-field", "Large Field", V(Area, Footprint.Rect(6, 6), 1, Difficult | TerrainDeclarations.Cover), "field"),
-        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, BlocksLineOfSight), "building"),
+        T("large-sight-blocker", "Large Sight Blocker", V(Solid, Footprint.Rect(6, 6), 6, Impassable | BlocksLineOfSight), "building"),   // p.11: over 3" is elevated and impassable
         T("large-hill", "Large Hill", V(Solid, Footprint.Circle(4), 2, TerrainDeclarations.Cover, OnTop), "hill"),
         T("large-ruins", "Large Ruins", V(Area, Footprint.Rect(6, 6), 4, TerrainDeclarations.Cover, RushCharge), "ruins"),
         T("large-lake", "Large Lake", V(Area, Footprint.Circle(4), 0.5, Impassable), "water"),
@@ -61,7 +61,7 @@ public static class BuiltinContent
         T("quicksand", "Quicksand", V(Area, Footprint.Rect(4, 4), 0.1, None, RushCharge), "pad"),
         // Names the contracts plan's samples use
         T("hill-small", "Small Hill", V(Solid, Footprint.Rect(6, 6), 2, None), "hill-rect"),
-        T("ruin", "Ruin", V(Solid, Footprint.Rect(4, 4), 4, TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),
+        T("ruin", "Ruin", V(Area, Footprint.Rect(4, 4), 4, Difficult | TerrainDeclarations.Cover | BlocksLineOfSight | SeeInAndOut), "ruins"),   // owner ruling: passable, difficult
     ];
 
     /// <summary>The eleven mesh files the 35 built-ins share, by their basename under res://content/builtin/terrain/.</summary>
