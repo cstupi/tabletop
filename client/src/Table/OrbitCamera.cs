@@ -27,10 +27,19 @@ public partial class OrbitCamera : Camera3D
         if (_glide <= CameraFocus.GlideSeconds) { _glide += delta; _target = WorldFrame.ToGodot(CameraFocus.Glide(_glideFrom, _glideTo, _glide)); Apply(); }
         var ctrl = Input.IsKeyPressed(Key.Ctrl);
         var held = CameraFocus.HeldKeys.Where(k => Input.IsKeyPressed(Enum.Parse<Key>(k.ToString()))).Select(k => Hotkeys.Of(k, false, ctrl)).OfType<Intent>().ToHashSet();
-        var (forward, right, orbit) = CameraFocus.Steer(held, Holding(), GetTree().Root.GuiGetFocusOwner() is LineEdit or TextEdit);   // text fields live in the root viewport, not the table's
+        if (held.Count == 0) return;
+        var (forward, right, orbit) = CameraFocus.Steer(held, Holding(), Typing());
         if (forward == 0 && right == 0 && orbit == 0) return;
         Moved(); _yaw += orbit * (float)(CameraFocus.OrbitRadiansPerSecond * delta);
         Pan(CameraFocus.Pan(WorldFrame.FromGodot(_target).Horizontal, new Point2(-Mathf.Sin(_yaw), Mathf.Cos(_yaw)), forward, right, _distance, delta, _size));
+    }
+
+    /// <summary>A text field has focus anywhere: the root viewport (Hud, settings) or any dialog, embedded or not, since a Window is its own viewport with its own focus. A SpinBox counts whether it or its inner LineEdit owns focus.</summary>
+    bool Typing()
+    {
+        static bool In(Viewport v) => v.GuiGetFocusOwner() is LineEdit or TextEdit or SpinBox;
+        var root = GetTree().Root;
+        return In(root) || root.FindChildren("*", nameof(Window), true, false).OfType<Window>().Any(w => w.Visible && In(w));
     }
 
     public override void _UnhandledInput(InputEvent e)
