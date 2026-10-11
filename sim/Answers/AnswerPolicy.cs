@@ -163,15 +163,30 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
         }
         // The cap holds every model once any one's path enters difficult ground (MoveRegion.DifficultCap): a model sampled
         // further than it is sampled again within the cap. Nothing is redrawn when no path enters.
+        var reach = m;
         if (m.DifficultCap is { } cap && cap < m.Allowance && m.ModelIds.Any(id => view.PlacedOf(id) is { } p && destinations[id] is { } d
                 && Movement.Check(p, d, m.Allowance, impassable, difficult, cap, view.Table).EntersDifficult))
+        {
+            reach = m with { Allowance = cap };
             foreach (var id in m.ModelIds)
                 if (view.PlacedOf(id) is { } p && destinations[id] is { } d && p.Placement.Position.Horizontal.DistanceTo(d) > cap)
                 {
                     taken.Remove(id);
-                    Record(id, Sample(p, m with { Allowance = cap }, impassable, difficult, view, goal?.Invoke(id, view), landing,
-                        at => Clear(id, p, at, m, view, taken)), p);
+                    Record(id, Sample(p, reach, impassable, difficult, view, goal?.Invoke(id, view), landing, at => Clear(id, p, at, m, view, taken)), p);
                 }
+        }
+        // A capped re-sample that finds no room stands its model at its start, where a model sampled after it may since have landed. Any
+        // landing no longer Clear is drawn again within the same reach, once; a second time its model stands still (or stays inside), which
+        // the server does not judge. Each model is redrawn at most once and then stands, so this ends.
+        var redrawn = new HashSet<Guid>();
+        while (m.ModelIds.FirstOrDefault(id => destinations[id] is { } d && !Clear(id, view.PlacedOf(id), d, m, view, taken)) is var bad && bad != Guid.Empty)
+        {
+            var p = view.PlacedOf(bad);
+            taken.Remove(bad);
+            Record(bad, p is { } s && redrawn.Add(bad)
+                ? Sample(s, reach, impassable, difficult, view, goal?.Invoke(bad, view), landing, at => Clear(bad, s, at, m, view, taken))
+                : null, p);
+        }
         var moves = new List<ModelRelocation>();
         var sampled = false;
         foreach (var id in m.ModelIds)
