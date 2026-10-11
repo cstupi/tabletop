@@ -10,6 +10,8 @@ public sealed class Animator : IDisposable
     readonly Session _s; readonly TableView _view; readonly TableInput _input; readonly AnimationQueue _queue = new();
     readonly Action<IReadOnlyList<GameEvent>> _onEvents;
     bool _busy, _disposed; int _generation;
+    /// <summary>Each event as it plays; with Animate off, a whole batch at once.</summary>
+    public event Action<GameEvent>? Played;
 
     public Animator(Session s, TableView view, TableInput input)
     {
@@ -35,6 +37,7 @@ public sealed class Animator : IDisposable
         while (!_busy && _queue.Count > 0)
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
+            Played?.Invoke(e);
             List<ModelsMoved> moves = e.Payload switch { ModelsMoved m => [m], StepCompleted s => [.. s.Changes.OfType<ModelsMoved>()], _ => [] };
             // The player's own drops are already on the table where they put them: consume the holds, and glide only the rest.
             foreach (var relocation in moves.SelectMany(m => m.Moves).Where(r => !_input.ConsumeOwn(r)).ToList())
