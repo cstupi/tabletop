@@ -31,7 +31,7 @@ public partial class SettingsDialog : AcceptDialog
     public static void Open(Node parent, Session session)
     {
         var d = new SettingsDialog(session); parent.AddChild(d);
-        d.Confirmed += d.QueueFree; d.CloseRequested += d.QueueFree;
+        d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };   // Close, the title bar's ✕ and Escape all hide it
         d.PopupCentered(new Vector2I(360, 0));
     }
 }

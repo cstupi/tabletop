@@ -102,7 +102,7 @@ public partial class GameScreen
             HudPlacement.Bottom(_dice!, slot);
         }
         if (_logDrawer is { } log && IsInstanceValid(log))
-            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(panel) : null);
+            log.Place(r[HudPart.LogButton], r.TryGetValue(HudPart.LogPanel, out var panel) ? AboveBottomStack(BelowHeader(panel)) : null);
     }
 
     /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume:
@@ -113,6 +113,15 @@ public partial class GameScreen
         foreach (var part in new Control?[] { _decision, _dice })
             if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) bottom = Math.Min(bottom, part.Position.Y - HudLayout.M);
         return panel with { H = Math.Max(0, bottom - panel.Y) };
+    }
+
+    /// <summary>The log panel starts HudLayout.M below the header as it is, not as its 96 px slot assumes: three lines can be
+    /// taller. Only when the panel's columns span the header's; the height never goes negative.</summary>
+    HudRect BelowHeader(HudRect panel)
+    {
+        if (!Shows(_header) || !panel.SpansX(new HudRect(_header!.Position.X, 0, _header.Size.X, 1))) return panel;
+        var top = Math.Max(panel.Y, _header.Position.Y + _header.Size.Y + HudLayout.M);
+        return panel with { Y = top, H = Math.Max(0, panel.Bottom - top) };
     }
 
     static bool Shows(Control? c) => c is not null && IsInstanceValid(c) && c.Visible;

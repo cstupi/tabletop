@@ -89,10 +89,11 @@ public partial class GameScreen : Control
         ShowPlayPanels(playing);
     }
 
-    /// <summary>A theme switch: the panels and the team colours on the table again, and the undo button's theme, which its CanvasLayer does not inherit.</summary>
+    /// <summary>A theme switch: the team panels' and the table's team colours, and the undo button's theme, which its CanvasLayer does not
+    /// inherit. Nothing is recreated, so the lobby's and the setup toolbar's input survives; the Hud parts re-render themselves.</summary>
     void OnTheme()
     {
-        Rebuild();
+        foreach (var t in _teams) if (IsInstanceValid(t)) t.Recolour();
         if (_session.GameId is not null) Table.Redraw();   // the table is bound only for a game
         if (_undo is not null && IsInstanceValid(_undo)) _undo.Theme = Ui.Theme;
     }
