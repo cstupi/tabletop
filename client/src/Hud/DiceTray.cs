@@ -7,7 +7,7 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Hud;
 
 /// <summary>Bottom centre, above the decision box (GameScreen.Layout places it): the latest roll as the combat log's collapsed entry (client UX spec → Dice tray).
-/// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling.</summary>
+/// Clicking it opens the log there; with Animate on the faces tumble for 0.4 s before settling, changing in place each frame.</summary>
 public partial class DiceTray : PanelContainer
 {
     const double TumbleSeconds = 0.4;
@@ -15,8 +15,8 @@ public partial class DiceTray : PanelContainer
     readonly Button _line = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton };
     readonly HBoxContainer _row = new() { MouseFilter = MouseFilterEnum.Ignore };
     readonly Random _faces = new();   // decoration while tumbling; the dice shown settled are the record's
-    RollEntry? _shown; double _tumble;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onBoard, _onTheme;
+    RollEntry? _shown; double _tumble; readonly List<Control> _tumbling = [];
+    Action<RenderCause>? _onFrame; Action? _onTheme;
 
     /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
     public event Action<Guid>? RollClicked;
@@ -30,8 +30,8 @@ public partial class DiceTray : PanelContainer
         _row.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         _row.MinimumSizeChanged += () => _line.CustomMinimumSize = _row.GetCombinedMinimumSize();
         _line.Pressed += () => { if (_shown is { } r) RollClicked?.Invoke(r.Record.Id); };
-        _onEvents = _ => Render(); _onBoard = Render;
-        session.EventsApplied += _onEvents; session.BoardChanged += _onBoard;
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(); };
+        session.Frame.Render += _onFrame;
         _onTheme = Paint; Ui.Changed += _onTheme;   // the dice faces are the theme's
         Render();
     }
@@ -39,12 +39,12 @@ public partial class DiceTray : PanelContainer
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
-        if (_s is not null) { _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onBoard; }
+        if (_s is not null) _s.Frame.Render -= _onFrame;
     }
 
     void Render()
     {
-        var latest = _s.Projection is { } p && _s.Game is { } g ? CombatLog.Latest(_s.Log, new Names(g, p)) : null;
+        var latest = _s.Projection is not null ? _s.CombatLog?.Latest : null;
         Visible = latest is not null;
         var changed = latest is not null && (_shown is null || _shown.Record.Id != latest.Record.Id || !_shown.Dice.SequenceEqual(latest.Dice));
         _shown = latest;
@@ -57,7 +57,8 @@ public partial class DiceTray : PanelContainer
     {
         if (_tumble <= 0) return;
         _tumble -= delta;
-        Paint();
+        if (_tumble <= 0) { Paint(); return; }                      // settled: the record's dice and the result
+        foreach (var face in _tumbling) DiceFaces.SetRaw(face, _faces.Next(1, 7));   // tumbling: the faces change in place
     }
 
     void Paint()
@@ -65,12 +66,15 @@ public partial class DiceTray : PanelContainer
         if (_shown is not { } r) return;
         var settled = _tumble <= 0;
         foreach (var c in _row.GetChildren()) { _row.RemoveChild(c); c.QueueFree(); }
+        _tumbling.Clear();
         Add(new Label { Text = r.Title });
         foreach (var d in r.Dice)
         {
             var face = settled ? d.Raw : _faces.Next(1, 7);
             // An unjudged die shows neither pass nor fail, so it is drawn as a plain (unfaded) face.
-            Add(DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success)));
+            var c = DiceFaces.Of(!settled ? new Die(face, face, true) : new Die(d.Raw, d.Modified, !(r.Judged && d.Judged) || d.Success));
+            Add(c);
+            if (!settled) _tumbling.Add(c);
         }
         // An unjudged roll has no pass or fail, so no result label.
         if (settled && r.Judged) Add(new Label { Text = r.Result, ThemeTypeVariation = r.Successes > 0 ? Variation.Success : Variation.Dim });

@@ -53,6 +53,13 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>From a board until the join's log has arrived: the first ModelFacts after it, or an empty page (the end of setup).
     /// The server pages the log 500 events at a time, so one batch is not the whole catch-up.</summary>
     public bool CatchingUp { get; private set; }
+    /// <summary>The coalesced render: marked with each EventsApplied, GameChanged, BoardChanged and FactsChanged, raised once per
+    /// dispatcher turn. Parts that redraw from the current state subscribe here; parts that read the batch keep EventsApplied.</summary>
+    public RenderScheduler Frame { get; } = new(dispatcher);
+    readonly CombatLogCache _combatLog = new();
+    /// <summary>The combat log of the current log state, built once and shared by the log panel, the dice tray and the undo button.
+    /// Null without a game.</summary>
+    public CombatLogState? CombatLog => Game is { } game ? _combatLog.Of(Log, PendingUndoTo, game, Projection) : null;
 
     public event Action? PhaseChanged;
     public event Action? GameChanged;
@@ -250,10 +257,10 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         catch (Exception)
         {
             _predicted = null; PendingUndoTo = null;
-            EventsApplied?.Invoke([]);
+            RaiseEvents([]);
             throw;
         }
-        EventsApplied?.Invoke([]);
+        RaiseEvents([]);
     }
 
     public Task SendPresenceAsync(Presence value) => Welcomed()?.SendAsync(new PresenceMessage(value)) ?? Task.CompletedTask;
@@ -277,24 +284,24 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 _welcomed = true; _attempt = 0;
                 ParticipantId = w.ParticipantId; Game = w.Game;
                 SetPhase(SessionPhase.Connected);
-                GameChanged?.Invoke();
+                RaiseGame();
                 EnsureRuleTexts();
                 break;
             case GameInfoMessage g:
                 Game = g.Game;
-                GameChanged?.Invoke();
+                RaiseGame();
                 EnsureRuleTexts();
                 break;
             case BoardMessage b when Game is { Status: GameStatus.Playing or GameStatus.Ended }:
                 Draft = null; _predicted = null; PendingUndoTo = null;
                 Applier = new EventApplier(b.Board, Game);
                 CatchingUp = true;
-                BoardChanged?.Invoke();
+                RaiseBoard();
                 break;
             case BoardMessage b:
                 Draft = b.Board.Table;          // a setup edit replaces the draft
                 CatchingUp = true;
-                BoardChanged?.Invoke();
+                RaiseBoard();
                 break;
             case EventsMessage e when Applier is not null:
                 var shots = new List<Shot>();
@@ -306,7 +313,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 catch (ProjectionDesyncException desync) { OnDesync(desync); return; }   // partially applied: unusable
                 if (PendingUndoTo is { } to && e.Events.Any(x => x.Payload is Undone u && u.ToSeq == to)) ClearPrediction();
                 if (e.Events.Count == 0) CatchingUp = false;
-                EventsApplied?.Invoke(e.Events);
+                RaiseEvents(e.Events);
                 if (shots.Count > 0) Fired?.Invoke(shots);
                 break;
             case PresenceMessage p:
@@ -319,11 +326,11 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             case ModelFacts f:
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
                 CatchingUp = false;
-                FactsChanged?.Invoke();
+                RaiseFacts();
                 break;
             case SightAnswer a: SightAnswered?.Invoke(a); break;
             case Refused r:
-                if (r.MessageId == _pendingUndoCommand) { ClearPrediction(); EventsApplied?.Invoke([]); }
+                if (r.MessageId == _pendingUndoCommand) { ClearPrediction(); RaiseEvents([]); }
                 RefusedReceived?.Invoke(r);
                 break;
             case Rejected r:
@@ -360,7 +367,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             _fetchingRules.Remove(hash);
             if (loaded is null) return;
             _ruleTexts[hash] = loaded;
-            if (Game?.PropertiesHash == hash) FactsChanged?.Invoke();
+            if (Game?.PropertiesHash == hash) RaiseFacts();
         });
     }
 
@@ -417,8 +424,14 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         ClearPrediction(); Others.Clear();
         _maxWounds = new Dictionary<Guid, int>();
         CatchingUp = true;
-        BoardChanged?.Invoke();
+        RaiseBoard();
     }
+
+    // Each change raises its own event first (per-batch readers), then marks the coalesced render.
+    void RaiseGame() { GameChanged?.Invoke(); Frame.Mark(RenderCause.Game); }
+    void RaiseBoard() { BoardChanged?.Invoke(); Frame.Mark(RenderCause.Board); }
+    void RaiseFacts() { FactsChanged?.Invoke(); Frame.Mark(RenderCause.Facts); }
+    void RaiseEvents(IReadOnlyList<GameEvent> events) { EventsApplied?.Invoke(events); Frame.Mark(RenderCause.Events); }
 
     void SetPhase(SessionPhase phase) { if (Phase == phase) return; Phase = phase; PhaseChanged?.Invoke(); }
 }

@@ -54,16 +54,16 @@ sequenceDiagram
   P->>LP: Undo to here on row 12
   LP->>S: UndoToAsync(12)
   S->>S: _predicted = Applier.ProjectTo(12), PendingUndoTo = 12
-  S->>LP: EventsApplied([]) -> redraw against the prediction
+  S->>LP: Frame.Render(Events) -> redraw against the prediction
   S->>GS: CommandMessage(id, Undo(12))
   alt accepted
     GS-->>S: EventsMessage([... Undone(ToSeq 12)])
     S->>S: ApplyAll, then ClearPrediction
-    S->>LP: EventsApplied -> the truth is now the prediction
+    S->>LP: Frame.Render(Events) -> the truth is now the prediction
   else refused
     GS-->>S: Refused(id, Illegal, detail)
     S->>S: ClearPrediction
-    S->>LP: EventsApplied([]) -> back to the truth
+    S->>LP: Frame.Render(Events) -> back to the truth
   end
 ```
 

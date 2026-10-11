@@ -70,8 +70,11 @@ public static class CombatLog
     };
 
     /// <summary>The last roll still standing: what the dice tray shows.</summary>
-    public static RollEntry? Latest(IReadOnlyList<GameEvent> log, Names n) =>
-        Build(log, n).SelectMany(e => e is ActivationBlock b ? b.Entries : (IEnumerable<LogEntry>)[e]).OfType<RollEntry>().LastOrDefault(r => !r.Undone);
+    public static RollEntry? Latest(IReadOnlyList<GameEvent> log, Names n) => Latest(Build(log, n));
+
+    /// <summary>The last roll still standing in entries already built.</summary>
+    public static RollEntry? Latest(IReadOnlyList<LogEntry> entries) =>
+        entries.SelectMany(e => e is ActivationBlock b ? b.Entries : (IEnumerable<LogEntry>)[e]).OfType<RollEntry>().LastOrDefault(r => !r.Undone);
 
     static LogEntry? RollsOnly(LogEntry e) => e switch
     {

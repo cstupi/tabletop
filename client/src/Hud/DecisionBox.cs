@@ -16,16 +16,16 @@ public partial class DecisionBox : PanelContainer
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _controls = new();
     readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
-        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim };
+        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim };
     MoveRegionNode? _region;
-    Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly HashSet<Guid> _sealed = new();
+    Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly SealedReveals _reveals = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
     Action? _onEnter, _onStop; Func<bool>? _onCancel; Action<string>? _onNumber; Action<Guid>? _onTarget; Action<Guid, bool>? _onModel; Action<Guid>? _onUnit;
     /// <summary>What glows on the table for the open Ask: model ids, unit ids, or both. A unit id lights every model of the unit.</summary>
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged; Action<Refused>? _onRefused;
+    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
     Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
@@ -38,9 +38,9 @@ public partial class DecisionBox : PanelContainer
         _s = s; _view = view; _input = input;
         CustomMinimumSize = new Vector2(420, 0);
         var box = new VBoxContainer(); AddChild(box);
-        foreach (var c in new Control[] { _title, _note, _controls, _refusalLabel, _hint }) box.AddChild(c);
+        foreach (var c in new Control[] { _title, _revealLabel, _note, _controls, _refusalLabel, _hint }) box.AddChild(c);
         view.AddChild(_region = new MoveRegionNode());
-        _onEvents = events => { Reveal(events); Render(); }; _onChanged = Render;
+        _onEvents = Reveal; _onFrame = _ => Render();   // the batch for the sealed reveal; the render once per frame, on every cause
         _onRefused = r =>
         {
             if (r.MessageId != _lastCommand) return;
@@ -49,7 +49,7 @@ public partial class DecisionBox : PanelContainer
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
         _onUnitClicked = id => _onUnit?.Invoke(id);
-        s.EventsApplied += _onEvents; s.GameChanged += _onChanged; s.BoardChanged += _onChanged; s.FactsChanged += _onChanged; s.RefusedReceived += _onRefused;
+        s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
         input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked;
         Render();
     }
@@ -57,7 +57,7 @@ public partial class DecisionBox : PanelContainer
     public override void _ExitTree()
     {
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; _s.RefusedReceived -= _onRefused;
+        _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
@@ -69,13 +69,16 @@ public partial class DecisionBox : PanelContainer
         RenderAsk();
         _refusalLabel.Text = _refusal ?? ""; _refusalLabel.Visible = _refusal is not null;
         _hint.Visible = _hint.Text != "";
-        Visible = _title.Text != "" || _note.Text != "" || _refusal is not null;
+        _revealLabel.Text = _revealed ?? ""; _revealLabel.Visible = _revealed is not null;
+        Visible = _title.Text != "" || _note.Text != "" || _refusal is not null || _revealed is not null;
     }
 
     void RenderAsk()
     {
         var p = _s.Projection; var game = _s.Game;
         if (p is null || game is null || game.Status != GameStatus.Playing) { Reset(); _renderedAsk = null; _title.Text = _note.Text = _hint.Text = ""; return; }
+        var fresh = _reveals.Drain();                                           // every reveal since the last render, in order
+        if (fresh.Count > 0) _revealed = string.Join("\n", fresh);
         var mine = AskViewModel.Mine(p, game, _s.MyTeamId, _s.Settings.MutedWindowKinds);
         if (mine?.Ask.Id != _refusalAsk) _refusal = null;                       // a different Ask, or none: the refusal is spent
         var names = new Names(game, p);
@@ -84,13 +87,14 @@ public partial class DecisionBox : PanelContainer
         {
             var mid = DeployView.MidDeploy(p, _s.Log, _s.MyTeamId);
             if (_renderedAsk is not null || mid?.UnitId != _deployUnit) { Reset(); _renderedAsk = null; }
-            _note.Text = _revealed ?? "";                                       // a sealed Ask's reveal stays up until the next Ask
+            _note.Text = "";                                                    // a sealed Ask's reveal (its own line) stays up until the next Ask
             if (mid is null) { _title.Text = HeaderView.Waiting(p, names) ?? ""; _hint.Text = ""; }   // the header's waiting line, its one source
             else if (_deployUnit is null) StartDeploy(mid, names);
             return;
         }
         if (_renderedAsk == mine.Ask.Id) return;
-        Reset(); _renderedAsk = mine.Ask.Id; _note.Text = ""; _revealed = null;
+        Reset(); _renderedAsk = mine.Ask.Id; _note.Text = "";
+        if (fresh.Count == 0) _revealed = null;                                 // a reveal is cleared only after a render has shown it
         _title.Text = model.Title; _hint.Text = model.Hint; _numbered = model.Numbered;
         Glow(mine.Highlights);
         if (model.AutoPass && _refusal is null)   // a failed auto-pass falls through to the normal render with its Pass button, so a dead socket cannot loop
@@ -236,13 +240,7 @@ public partial class DecisionBox : PanelContainer
     void Reveal(IReadOnlyList<GameEvent> events)
     {
         if (_s.Game is null || _s.Projection is null) return;
-        var names = new Names(_s.Game, _s.Projection);
-        foreach (var payload in events.Select(e => e.Payload))
-        {
-            if (payload is AskOpened o && o.Ask.Sealed) _sealed.Add(o.Ask.Id);
-            if (payload is AskClosed c && _sealed.Remove(c.AskId) && c.Answers.Count > 0)
-                _revealed = "Revealed: " + string.Join(", ", c.Answers.Select(a => $"{names.Team(a.TeamId)} {LogText.Answer(a.Answer, names)}"));
-        }
+        _reveals.Read(events, new Names(_s.Game, _s.Projection));
     }
 
     void Send(Ask ask, AskAnswer answer) => Guarded.Run(() => Answer(ask, answer), message => Report(ask.Id, message));

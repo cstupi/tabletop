@@ -18,5 +18,16 @@ public static class DiceFaces
         return face;
     }
 
+    /// <summary>A plain face from <see cref="Of"/> (raw equal to modified) shows another raw value in place: the dice tray's tumble.</summary>
+    public static void SetRaw(Control face, int raw)
+    {
+        if (face.GetChildCount() == 0 || face.GetChild(0) is not HBoxContainer row || row.GetChildCount() == 0) return;
+        switch (row.GetChild(0))
+        {
+            case TextureRect t when Ui.Current.Dice.FaceTexture(raw) is { } path: t.Texture = GD.Load<Texture2D>(path); break;
+            case Label l: l.Text = raw.ToString(); break;
+        }
+    }
+
     static Label Numeral(string text) => new() { Text = text, ThemeTypeVariation = Variation.Numerals, HorizontalAlignment = HorizontalAlignment.Center };
 }

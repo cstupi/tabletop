@@ -94,6 +94,23 @@ frames arriving on the read loop's thread are handled on Godot's main thread.
 `ImmediateDispatcher` runs them inline for tests. That seam and its two implementations are the
 client's whole threading model.
 
+`Session.Frame` (`RenderScheduler`) coalesces renders. Each `EventsApplied`, `GameChanged`, `BoardChanged` and
+`FactsChanged` is raised as before, then marks the frame with its `RenderCause`. The first mark posts one flush through
+`IDispatcher`; every mark before it runs folds in, and the flush raises `Render(RenderCause)` once with all the causes.
+On Godot the post is a deferred call, so the batches already queued for the frame are applied first and the parts render
+once, in subscription order, within the same frame. The parts that redraw from the current state subscribe to
+`Frame.Render` and filter on the causes they used to subscribe to: `HeaderBar`, `Roster`, `UnitCard`, `DecisionBox`,
+`DiceTray`, `UndoButton`, `CombatLogPanel`, `EndMessage`, `UnitMarkerNodes`, `HoverLabels`, `RangeRingNode`,
+`TargetLines`, `SightLines`, and `GameScreen.RefreshAll`, whose deferred `ShowSelection` so still lands after the
+decision box's render. The parts that read the batch keep `EventsApplied`: `FloatingText`, `TurnBanner`,
+`DecisionBox`'s sealed reveal (`SealedReveals` queues each batch's "Revealed: …" line until a render shows it), `Animator`, the camera follow, and `TableView`, which `Animator.Pump` also redraws.
+
+`Session.CombatLog` (`CombatLogState`, from a `CombatLogCache`) is the combat log of the current log state, built at
+most once and shared. The key is the log instance, its count and last seq, `PendingUndoTo`, the `GameInfo` and the
+`Projection` instance (a prediction or a rebuild after an `Undone` is a new one). `Entries` is `CombatLog.Build` over
+`Session.Log` (the log panel), `Latest` is the dice tray's roll, and `Undo` is the undo button's `UndoPlan`: over the
+same entries, or, while an undo travels, over the log with its `Undone` marker appended.
+
 One session object costs size: roughly forty public members across login, connection, projection
 and presence. Accepted because the spec's structure requires a single owner, and because the type
 is Godot-free and so the most heavily tested one in the client.

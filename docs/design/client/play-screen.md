@@ -15,7 +15,7 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
 | `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
-| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is not an `Undone` marker, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans on `EventsApplied` and `BoardChanged`, and while an undo travels as if its marker had landed; a failure is a toast |
+| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is not an `Undone` marker, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
 | `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
@@ -235,7 +235,7 @@ picked.
 
 ## The combat log
 
-`CombatLog` builds the play log from `Session.Log`, and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled. A
+`CombatLog` builds the play log from `Session.Log`, once per log state (`Session.CombatLog`, shared with the dice tray and the undo button), and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled. A
 block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
 frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. A live block closes only
 at a live finish (a dead one stays inside the block, struck through); a block whose start is undone closes at its own undone

@@ -16,7 +16,7 @@ public partial class UnitCard : VBoxContainer
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     Guid? _unit, _hovered; HudRect? _slot; bool _fitQueued;
     UnitSheetModel? _sheet; Names? _names;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme; Action<Guid?>? _onHover;
+    Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Guid?>? _onHover;
     public Guid? UnitId => _unit;
     public event Action<Guid>? ModelPicked;
     public event Action<Guid?>? FocusChanged;
@@ -29,8 +29,8 @@ public partial class UnitCard : VBoxContainer
         var panel = new PanelContainer { SizeFlagsVertical = SizeFlags.ShrinkEnd }; AddChild(panel); panel.AddChild(_card); _card.AddChild(_body);
         // A ScrollContainer reports no content height: the card takes the body's, capped by the slot, whenever the body's changes.
         _body.MinimumSizeChanged += QueueFit;
-        _onEvents = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };
-        session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged;
+        _onFrame = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };   // the frame: every cause
+        session.Frame.Render += _onFrame;
         input.SelectionChanged += _onChanged; input.HoveredUnitChanged += _onHover;
         _onTheme = Render; Ui.Changed += _onTheme;
         Render();
@@ -39,7 +39,7 @@ public partial class UnitCard : VBoxContainer
     public override void _ExitTree()
     {
         Ui.Changed -= _onTheme;
-        if (_s is not null) { _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; }
+        if (_s is not null) _s.Frame.Render -= _onFrame;
         if (_input is not null && IsInstanceValid(_input)) { _input.SelectionChanged -= _onChanged; _input.HoveredUnitChanged -= _onHover; }
     }
 

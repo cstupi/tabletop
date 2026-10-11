@@ -16,7 +16,7 @@ public partial class GameScreen : Control
     Label _status = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
     Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
+    Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
 
     public override void _Ready()
     {
@@ -46,12 +46,12 @@ public partial class GameScreen : Control
         _bottom = new HBoxContainer(); _side.AddChild(_bottom);
         if (_session.GameId is not null) { Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session); }
         Input.SelectionChanged += ShowSelection;
-        _onEvents = _ => RefreshAll();
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) RefreshAll(); };
         _onRefused = r => Toast($"{r.Reason}: {r.Detail}");
         _onLost = (c, will) => Toast(c.Error is ProjectionDesyncException
             ? will ? "The table fell out of step with the server; rebuilding it from the log…" : $"This game's log cannot be replayed: {c.Reason}"
             : will ? $"Connection lost ({c.Reason}); reconnecting…" : $"Disconnected: {c.Reason}");
-        _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.BoardChanged += RefreshAll; _session.EventsApplied += _onEvents;
+        _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;
         Rebuild();
@@ -65,7 +65,7 @@ public partial class GameScreen : Control
         if (IsInstanceValid(_side)) { _side.Resized -= _onLayout; _side.VisibilityChanged -= _onLayout; }
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
-        _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.BoardChanged -= RefreshAll; _session.EventsApplied -= _onEvents;
+        _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.Frame.Render -= _onFrame;
         _session.RefusedReceived -= _onRefused; _session.ConnectionLost -= _onLost;
         if (Input is not null && IsInstanceValid(Input)) Input.SelectionChanged -= ShowSelection;
         FreePlayPanels();
@@ -98,7 +98,7 @@ public partial class GameScreen : Control
         if (_undo is not null && IsInstanceValid(_undo)) _undo.Theme = Ui.Theme;
     }
 
-    /// <summary>Teams now; the selection once every other handler of this change has run, since the decision box clears highlights when it renders.</summary>
+    /// <summary>Teams now; the selection once every other handler of this frame's render has run, since the decision box clears highlights when it renders.</summary>
     void RefreshAll() { RefreshTeams(); Callable.From(ShowSelection).CallDeferred(); }
 
     /// <summary>The selected unit's models lit and its name and model count in the status area. The Ask's own highlights are put back where the selection leaves them.</summary>

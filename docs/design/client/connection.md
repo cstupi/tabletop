@@ -134,7 +134,7 @@ The client adds three things around it:
 
 Undo is local first. `UndoToAsync(seq)` computes `Applier.ProjectTo(seq)`, a fresh projection of
 the live log up to `seq`. It stores that in `_predicted`, records `PendingUndoTo` and the command
-id, sends `Undo(seq)`, and raises `EventsApplied([])` so every panel redraws against the
+id, sends `Undo(seq)`, and raises `EventsApplied([])`, whose frame render redraws every panel against the
 prediction. The prediction clears on one of two frames: an `EventsMessage` containing an `Undone`
 whose `ToSeq` equals `PendingUndoTo`, or a `Refused` whose `MessageId` equals the pending command
 id. There is no rollback machinery and no reconciliation. On either answer the client shows

@@ -16,22 +16,22 @@ public partial class HoverLabels : Node3D
     readonly Label3D _lock = new() { Text = "Locked — right-click to unlock", Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 40, PixelSize = 0.01f, OutlineSize = 8, NoDepthTest = true, Visible = false };
     readonly CanvasLayer _layer = new(); readonly Label _shift = new() { Text = "Shift: one model", Visible = false };
     Guid? _hovered, _marker;
-    Action<Guid?>? _onHover, _onMarker; Action? _onChanged; Action<IReadOnlyList<GameEvent>>? _onEvents;
+    Action<Guid?>? _onHover, _onMarker; Action? _onChanged; Action<RenderCause>? _onFrame;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session; _view = view; _input = input;
         AddChild(_name); AddChild(_line); AddChild(_wounds); AddChild(_lock); AddChild(_layer); _layer.AddChild(_shift);
-        _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onEvents = _ => Draw();
+        _onHover = id => { _hovered = id; Draw(); }; _onMarker = id => { _marker = id; Draw(); }; _onChanged = Draw; _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Facts)) != 0) Draw(); };
         input.HoveredUnitChanged += _onHover; input.HoveredMarkerChanged += _onMarker; input.SelectionChanged += _onChanged; input.EligibleChanged += _onChanged;
         input.Locks.Changed += _onChanged;
-        session.EventsApplied += _onEvents; session.FactsChanged += _onChanged;
+        session.Frame.Render += _onFrame;
     }
 
     public override void _ExitTree()
     {
         if (_s is null) return;
-        _s.EventsApplied -= _onEvents; _s.FactsChanged -= _onChanged;
+        _s.Frame.Render -= _onFrame;
         if (IsInstanceValid(_input))
         {
             _input.HoveredUnitChanged -= _onHover; _input.HoveredMarkerChanged -= _onMarker; _input.SelectionChanged -= _onChanged; _input.EligibleChanged -= _onChanged;

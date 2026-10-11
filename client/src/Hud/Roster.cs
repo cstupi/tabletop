@@ -5,7 +5,7 @@ namespace Tabletop.Client.Hud;
 public partial class Roster : PanelContainer
 {
     Session _s = null!; readonly VBoxContainer _list = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }; bool _collapsed;
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged;
+    Action<RenderCause>? _onFrame; Action? _onChanged;
     HudRect? _slot; bool _fitQueued; ScrollContainer _scroll = null!;
     public event Action<Guid>? UnitPicked;
 
@@ -13,12 +13,12 @@ public partial class Roster : PanelContainer
     {
         _s = session; _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }; AddChild(_scroll); _scroll.AddChild(_list);
         _list.MinimumSizeChanged += QueueFit;                                                                           // a ScrollContainer reports no content height
-        _onEvents = _ => Render(); _onChanged = Render;
-        session.EventsApplied += _onEvents; session.GameChanged += _onChanged; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged;
+        _onFrame = _ => Render(); _onChanged = Render;
+        session.Frame.Render += _onFrame;                                                                              // every cause the frame carries
         Ui.Changed += _onChanged;                                                                                      // the theme's icons
         Render();
     }
-    public override void _ExitTree() { Ui.Changed -= _onChanged; if (_s is null) return; _s.EventsApplied -= _onEvents; _s.GameChanged -= _onChanged; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; }
+    public override void _ExitTree() { Ui.Changed -= _onChanged; if (_s is null) return; _s.Frame.Render -= _onFrame; }
     /// <summary>Into its HudLayout slot: the slot's width, the list's height up to the slot's, against the slot's top.</summary>
     public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Top(this, slot); }
 

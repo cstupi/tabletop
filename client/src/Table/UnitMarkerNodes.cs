@@ -5,15 +5,15 @@ namespace Tabletop.Client.Table;
 public partial class UnitMarkerNodes : Control
 {
     Session _s = null!; TableView _view = null!; readonly List<(Vector3 At, HBoxContainer Row)> _rows = new();
-    Action<IReadOnlyList<GameEvent>>? _onEvents; Action? _onChanged, _onTheme;
+    Action<RenderCause>? _onFrame; Action? _onTheme;
 
     public void Bind(Session session, TableView view)
     {
         _s = session; _view = view; SetAnchorsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Ignore;
-        _onEvents = _ => Render(); _onChanged = Render; _onTheme = () => { Theme = Ui.Theme; Render(); };
-        session.EventsApplied += _onEvents; session.BoardChanged += _onChanged; session.FactsChanged += _onChanged; Ui.Changed += _onTheme; _onTheme();
+        _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board | RenderCause.Facts)) != 0) Render(); }; _onTheme = () => { Theme = Ui.Theme; Render(); };
+        session.Frame.Render += _onFrame; Ui.Changed += _onTheme; _onTheme();
     }
-    public override void _ExitTree() { Ui.Changed -= _onTheme; if (_s is null) return; _s.EventsApplied -= _onEvents; _s.BoardChanged -= _onChanged; _s.FactsChanged -= _onChanged; }
+    public override void _ExitTree() { Ui.Changed -= _onTheme; if (_s is null) return; _s.Frame.Render -= _onFrame; }
 
     void Render()
     {
