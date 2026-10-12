@@ -4,7 +4,8 @@ The game is built end to end and playable from the server's side: a Grimdark Fut
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
 after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (193 sim games over every catalog
 rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
-the client UX spec, both merged to `main` (`1a4ae07`, PR #1), and waits for the owner's on-screen check (*Next* 2).
+the client UX spec, both merged to `main` (`1a4ae07`, PR #1); the performance set from the review is merged (`7684021`).
+Both wait for the owner's on-screen checks (*Next* 0 and 2).
 An undone roll's dice stay spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -244,8 +245,9 @@ only `Bases.Round`. Owner ruling: the base set is picked when the army is import
 
 ### 5. Smaller items
 
-- Apply section 6 of `.superpowers/reports/spells.md` (docs corrections) to `docs/schema.md` and the interpreter design
-  doc.
+- `docs/schema.md` and `docs/design/interpreter/design.md` were never reconciled with the spell-library build; the
+  correction list that named the stale lines is lost (a local report, deleted in cleanup). Reconcile both against
+  `docs/superpowers/specs/2026-10-02-spell-library-design.md` by reading them.
 - Cleanup the owner runs; the permission check refuses these from Claude: `git worktree remove .worktrees/spells`,
   `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
   (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`, `agent-a926f6b5bf678900a`).
