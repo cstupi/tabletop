@@ -100,7 +100,7 @@ public partial class GameScreen
         if (_layoutPasses == LayoutPasses + 1) GD.PushWarning($"Hud layout did not settle in {LayoutPasses} passes this frame; continuing next frame. Changed in the last pass: {_layoutChanged}");
         GetTree().Connect(SceneTree.SignalName.ProcessFrame, Callable.From(Layout), (uint)ConnectFlags.OneShot);
     }
-    const int LayoutPasses = 4;
+    const int LayoutPasses = 8;   // the first frame of play settles in five or six: the header wraps, then the decision box, then the dice
     ulong _layoutFrame; int _layoutPasses;
     // Each part's minimum size, size and visibility after the last pass, so an unsettled layout names what keeps changing.
     readonly Dictionary<string, string> _layoutSeen = new(); string _layoutChanged = "";

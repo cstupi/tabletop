@@ -6,7 +6,7 @@ after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rule
 rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
 the client UX spec, both merged to `main` (`1a4ae07`, PR #1); the performance set from the review is merged (`7684021`).
 Both wait for the owner's on-screen checks (*Next* 0 and 2). The owner's first two-player session on 2026-10-12 found a
-Hud crash, an undo that stranded a game and a combat log that does not show what was rolled against what; *Today* below
+Hud layout loop (fixed, *Today* A), an undo that stranded a game and a combat log that does not show what was rolled against what; *Today* below
 is where to start.
 An undone roll's dice stay spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
@@ -64,18 +64,16 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 Everything below is committed on `main` in the commit that carries this handoff. Built and tested, not yet seen working
 in Godot unless it says so.
 
-**A. The Hud layout never settles: fix it first.** Three crashes in one session (Ctrl+Z after choosing Rush, the log
-button while choosing an activation, a Shaken unit going idle) printed an endless "Object was deleted while awaiting a
-callback". That is Godot's `MessageQueue`: a deferred call whose node was freed, printed while the queue fills until it
-overflows ("Message queue out of memory" sits beside it in the engine). Something in the Hud requeues
-`GameScreen.QueueLayout` forever through a part's `MinimumSizeChanged` or `VisibilityChanged`.
-- In place: every `ScrollContainer` reserves its vertical bar (`ScrollMode.Reserve`, horizontal `Disabled`), and
-  `QueueLayout` runs at most four passes a frame, then waits for the next frame and warns "Hud layout did not settle …".
-- The last run (before the next item) logged that warning 1304 times from startup on, so a part's size still flips
-  every pass. The warning now ends with "Changed in the last pass:" and each Hud part whose minimum size, size, position
-  or visibility changed, before and after (`GameScreen.NoteLayout`).
-- Next: the owner runs the client and plays; read `godot.log`, find the part and the two sizes it alternates between,
-  fix that part, then remove `NoteLayout` and keep the cap. Ask whether the app crashed, froze or only stuttered.
+**A. Hud layout loop: fixed, for the owner to check on screen.** A fractional slot height (an odd window height halved by
+`HudLayout`) against a VBox, which sums its children's minimums in whole pixels, flipped the decision box's and the unit card's
+minimum by 1 px every pass; `QueueLayout` requeued forever and, before the pass cap, overflowed Godot's message queue ("Object
+was deleted while awaiting a callback"). `HudLayout.Of` now gives whole-pixel slots (`Every_slot_is_whole_pixels`), the three
+`Fit`s floor the scroll height, and `QueueLayout` allows 8 passes a frame (the first frame of play takes 6). A headless Godot
+replay at 1920×1009, 1152×449, 1152×551, 1366×705, 1152×649, 1920×1011, 1280×720 and 1920×1080, log open and closed, logs no
+warning; the old build logs 571 at 1920×1009. Not replayed: an undo after Rush and a Shaken unit's idle activation (no fixture
+has them).
+- Next: the owner plays at an odd window height with the log open; `godot.log` should hold no "Hud layout did not settle". Then
+  remove `GameScreen.NoteLayout` and keep the cap.
 
 **B. The combat log needs a redesign.** The owner: the log is "99% unhelpful noise"; it shows impossible values such as
 a roll of -1 (a die's modified value read as a roll), does not show cover, and does not show the dice and what they were

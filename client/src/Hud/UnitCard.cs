@@ -59,12 +59,13 @@ public partial class UnitCard : VBoxContainer
     }
 
     /// <summary>The card's height: the body's, or what the slot leaves after the strip, the panel's chrome and the separation.
-    /// A change raises this part's MinimumSizeChanged, and the screen places it again.</summary>
+    /// A change raises this part's MinimumSizeChanged, and the screen places it again. Whole pixels: a box container sums its children's minimums as
+    /// integers, so a fractional height (a slot from an odd window height) reads back as different chrome every pass and never settles.</summary>
     void Fit()
     {
         if (_slot is not { } slot || !IsInstanceValid(_card)) return;
         var chrome = GetCombinedMinimumSize().Y - _card.GetCombinedMinimumSize().Y;
-        _card.CustomMinimumSize = new Vector2(0, Math.Max(0, Math.Min(_body.GetCombinedMinimumSize().Y, slot.H - chrome)));
+        _card.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_body.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
     void Render()

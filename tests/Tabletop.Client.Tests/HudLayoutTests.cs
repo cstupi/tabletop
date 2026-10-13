@@ -29,6 +29,15 @@ public class HudLayoutTests
         }
     }
 
+    /// <summary>A box container sums its children's minimums in whole pixels, so a fractional slot height never settles (DecisionBox.Fit).</summary>
+    [Theory, InlineData(1280, 720), InlineData(1920, 1009), InlineData(1152, 449), InlineData(1366, 705), InlineData(1281, 721)]
+    public void Every_slot_is_whole_pixels(int w, int h)
+    {
+        foreach (var v in All())
+            foreach (var (part, x) in HudLayout.Of(w, h, v))
+                Assert.True(new[] { x.X, x.Y, x.W, x.H }.All(f => f == MathF.Floor(f)), $"{w}x{h} {v}: {part} {x}");
+    }
+
     [Fact]
     public void At_1280_the_open_log_takes_the_upper_half_of_the_right_column()
     {

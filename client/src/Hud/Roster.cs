@@ -28,7 +28,7 @@ public partial class Roster : PanelContainer
     {
         if (_slot is not { } slot || _scroll is null || !IsInstanceValid(_scroll)) return;
         var chrome = GetCombinedMinimumSize().Y - _scroll.GetCombinedMinimumSize().Y;
-        _scroll.CustomMinimumSize = new Vector2(0, Math.Max(0, Math.Min(_list.GetCombinedMinimumSize().Y, slot.H - chrome)));
+        _scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_list.GetCombinedMinimumSize().Y, slot.H - chrome))));   // whole pixels, as DecisionBox.Fit
     }
 
     public override void _Input(InputEvent e) { if (KeyOverlay.IntentOf(e, GetViewport()) == Intent.ToggleRoster) { _collapsed = !_collapsed; Render(); GetViewport().SetInputAsHandled(); } }

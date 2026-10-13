@@ -74,12 +74,13 @@ public partial class DecisionBox : PanelContainer
     void QueueFit() { if (_fitQueued) return; _fitQueued = true; Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred(); }
 
     /// <summary>The controls' height, or what the slot leaves after the title, notes, hint and the panel's chrome. A change raises this
-    /// part's MinimumSizeChanged, and the screen places it again.</summary>
+    /// part's MinimumSizeChanged, and the screen places it again. Whole pixels: a box container sums its children's minimums as
+    /// integers, so a fractional height (a slot from an odd window height) reads back as different chrome every pass and never settles.</summary>
     void Fit()
     {
         if (_slot is not { } slot || !IsInstanceValid(_scroll)) return;
         var chrome = GetCombinedMinimumSize().Y - _scroll.GetCombinedMinimumSize().Y;
-        _scroll.CustomMinimumSize = new Vector2(0, Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome)));
+        _scroll.CustomMinimumSize = new Vector2(0, MathF.Floor(Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome))));
     }
 
     /// <summary>The refusal or send error has its own label, set (not appended) on every render, so N renders show it once.</summary>
