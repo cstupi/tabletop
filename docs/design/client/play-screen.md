@@ -3,7 +3,7 @@
 ## The play screen
 
 From `playing` on the side panel goes and the table fills the window (in-game UX spec → Layout). `GameScreen`
-keeps the side panel, the team panels and the selection line for lobby and setup. An overlay `Control` added after the
+keeps the side panel, the team panels and the selection line for lobby and setup. The side panel is 360 px wide and scrolls vertically; its button rows wrap (`HFlowContainer`) and its long buttons and labels wrap their text, so nothing widens it. An overlay `Control` added after the
 table carries Home, the status and the toasts in every status, and in play `GameScreen.Play` adds the Hud to it: each
 part a control in `client/src/Hud/` with a `Bind` over the session (and, for most, the `TableView` and `TableInput`), drawing a Godot-free model.
 
@@ -12,10 +12,10 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour, a plain chip while no team controls it; a wrapping row of the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line; "Game over" with the result. A team name's right-click opens the team menu |
 | `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
-| `DecisionBox` | bottom centre | the first open Ask addressed to me (below) |
+| `DecisionBox` | right column, above the undo and log buttons | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll as the combat log's collapsed entry; a click opens the log there |
 | `LogDrawer` | lower right | `CombatLogPanel`: activation blocks, roll entries, filters All/Rolls/My units/This unit; 640 px; G opens it |
-| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is not an `Undone` marker, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
+| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is neither an `Undone` marker nor an `AskClosed`, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll in the combat log's collapsed words when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
 | `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
@@ -64,11 +64,11 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
 | `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
-| `Decision` | bottom, centred, left of the undo button | 480 x 200 |
-| `Dice` | stacked above the decision box | 480 x 96 |
+| `Decision` | right column, from below the toasts and header down to 8 px above the log button | 480 wide; the column less the dice slot, or its lower half less the dice slot while the log is open |
+| `Dice` | right column, stacked above the decision box | 480 x 96 |
 | `LogButton` | bottom right | 140 x 36 |
 | `UndoButton` | bottom right, left of the log button | 140 x 36 |
-| `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button | 640 wide, up to 720 tall |
+| `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button; with the decision box showing, the right column's upper half | 640 wide, up to 720 tall |
 | `Banner` | full-width band at the upper third | overlay; placed with `Fill` whether shown or not |
 | `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
 
@@ -78,24 +78,25 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 height capped by the slot, `Bottom` takes the slot's bottom edge by the control's actual height, so a part whose minimum
 outgrows its slot grows upward and not off the screen, and `Fill` takes the whole slot.
 
-`GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it once per frame. Its triggers are
+`GameScreen.Layout` places every part. It is not called directly: `QueueLayout` defers it, at most four passes a frame; a fifth waits for the next frame and logs a warning, so a layout that does not settle cannot fill Godot's message queue. Every scroll area reserves its vertical bar's width (`ScrollMode.Reserve`), so its content's width, and with it the height of wrapping text and flow rows, never depends on whether the bar shows. Its triggers are
 the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, roster, unit
 card, decision box and dice tray, `VisibilityChanged` on the last five, the log opening or closing, and building the play Hud. It
-subtracts the side panel's width outside play. Because the decision box and dice grow upward past their slots, `Layout`
+subtracts the side panel's width outside play. Because the decision box is only as tall as its content, `Layout`
 moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
 the actual decision box and dice tray when the panel's columns span theirs. Likewise the panel starts 8 px below the
 header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
 panel's height never goes negative. The unit card's slot starts 8 px below the roster's actual bottom
 (`HudLayout.Below`), so a roster collapsed by R gives the card the column back; the roster's half stays its ceiling. `UnitCard.Place` sizes the card to its
 content, capped by its slot, and anchors it to the slot's bottom; `Roster.Place` sizes its scroll list to its content,
-capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height.
+capped by its slot, against the slot's top, since a `ScrollContainer` reports no content height. `DecisionBox.Place` does the
+same for its controls against the slot's bottom: the title, notes, refusal and hint stay in view and the controls scroll.
 
 `Toasts` stacks the newest three messages top right in every status, each removed after 4 s. `KeyOverlay` is centred on
 the window and sits outside the frame. `EndMessage` stays a full-screen backdrop.
 
 ## The decision box
 
-One box, bottom centre over the table, rendering whatever Ask is currently addressed to the player's
+One box, in the right column above the undo and log buttons, rendering whatever Ask is currently addressed to the player's
 team through `DecisionView`, with the keys that apply in a hint line under it; with nothing addressed to me it
 shows the waiting line. It keys on the legal set, never on the question name, so a new ruleset question needs no new
 branch.
@@ -235,7 +236,7 @@ picked.
 
 ## The combat log
 
-`CombatLog` builds the play log from `Session.Log`, once per log state (`Session.CombatLog`, shared with the dice tray and the undo button), and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled. A
+`CombatLog` builds the play log from `Session.Log`, once per log state (`Session.CombatLog`, shared with the dice tray and the undo button), and `CombatLogPanel` renders it while the drawer is open, newest at the bottom, auto-scrolled: opening the drawer and every new entry show the newest, once the rows are laid out (the scroll bar's `Changed`); scrolling up lets go, scrolling back to the end follows again. A
 block (`ActivationBlock`) opens at the first `SequenceStarted` with `Context.Action` while none is open. It closes at that
 frame's `SequenceFinished` or `SequenceAbandoned`, or at an `Undone` whose `ToSeq` is before its start. A live block closes only
 at a live finish (a dead one stays inside the block, struck through); a block whose start is undone closes at its own undone

@@ -11,7 +11,7 @@ public partial class Roster : PanelContainer
 
     public void Bind(Session session)
     {
-        _s = session; _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled }; AddChild(_scroll); _scroll.AddChild(_list);
+        _s = session; _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; AddChild(_scroll); _scroll.AddChild(_list);
         _list.MinimumSizeChanged += QueueFit;                                                                           // a ScrollContainer reports no content height
         _onFrame = _ => Render(); _onChanged = Render;
         session.Frame.Render += _onFrame;                                                                              // every cause the frame carries

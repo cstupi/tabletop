@@ -26,12 +26,12 @@ public partial class LobbyPanel : VBoxContainer
     {
         var s = _session = Main.Instance.Session; var game = s.Game!;
         AddChild(new Label { Text = "Lobby" });
-        var teams = new HBoxContainer(); AddChild(teams);
+        var teams = new HFlowContainer(); AddChild(teams);
         foreach (var t in game.Teams) teams.AddChild(Btn($"Join team {t.Ordinal}", () => Guarded.Send(s, new PickTeam(t.Id))));
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
-        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
+        AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         Guarded.Run(async () =>
         {
             var list = (await s.Management.ListArmies(null)).Items;
@@ -50,7 +50,7 @@ public partial class LobbyPanel : VBoxContainer
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
-            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, new EndSetup())));
+            AddChild(_endSetup = Btn(EndText(s), () => Guarded.Send(s, new EndSetup()))); _endSetup.AutowrapMode = TextServer.AutowrapMode.WordSmart;
             _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
             s.BoardChanged += _onBoard;
         }

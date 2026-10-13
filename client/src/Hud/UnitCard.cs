@@ -11,7 +11,7 @@ namespace Tabletop.Client.Hud;
 public partial class UnitCard : VBoxContainer
 {
     Session _s = null!; TableInput _input = null!;
-    readonly ScrollContainer _card = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, SizeFlagsVertical = SizeFlags.ShrinkEnd };
+    readonly ScrollContainer _card = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _stripBody = new();
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     Guid? _unit, _hovered; HudRect? _slot; bool _fitQueued;

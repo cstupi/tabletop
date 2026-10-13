@@ -9,8 +9,9 @@ using Projection = Tabletop.Protocol.Projection;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Bottom centre: the first open Ask addressed to my team (AskViewModel.Mine), or what the game is waiting on.
-/// Buttons, Enter, Esc, 1–9 and table clicks answer it; the hint line under it lists the keys that apply.</summary>
+/// <summary>The right column, above the undo and log buttons: the first open Ask addressed to my team (AskViewModel.Mine), or what
+/// the game is waiting on. Buttons, Enter, Esc, 1–9 and table clicks answer it; the hint line under it lists the keys that apply.
+/// The controls scroll once the box reaches the top of its slot; the title, notes and hint stay in view.</summary>
 public partial class DecisionBox : PanelContainer
 {
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
@@ -18,6 +19,8 @@ public partial class DecisionBox : PanelContainer
     readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
         _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim };
     MoveRegionNode? _region;
+    readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
+    HudRect? _slot; bool _fitQueued;
     Guid? _renderedAsk, _lastCommand, _refusalAsk; string? _revealed, _refusal; readonly SealedReveals _reveals = new();
     IReadOnlyList<(int Key, string Label, string OptionId)> _numbered = [];
     // The open Ask's handlers: set by its render, dropped by Unhook whenever the Ask ends by any route.
@@ -38,7 +41,9 @@ public partial class DecisionBox : PanelContainer
         _s = s; _view = view; _input = input;
         CustomMinimumSize = new Vector2(420, 0);
         var box = new VBoxContainer(); AddChild(box);
-        foreach (var c in new Control[] { _title, _revealLabel, _note, _controls, _refusalLabel, _hint }) box.AddChild(c);
+        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _scroll.AddChild(_controls);
+        foreach (var c in new Control[] { _title, _revealLabel, _note, _scroll, _refusalLabel, _hint }) box.AddChild(c);
+        _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
         view.AddChild(_region = new MoveRegionNode());
         _onEvents = Reveal; _onFrame = _ => Render();   // the batch for the sealed reveal; the render once per frame, on every cause
         _onRefused = r =>
@@ -61,6 +66,20 @@ public partial class DecisionBox : PanelContainer
         if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
+    }
+
+    /// <summary>Into its HudLayout slot: the slot's width, the content's height up to the slot's, against the slot's bottom.</summary>
+    public void Place(HudRect slot) { _slot = slot; Fit(); HudPlacement.Bottom(this, slot); }
+
+    void QueueFit() { if (_fitQueued) return; _fitQueued = true; Callable.From(() => { _fitQueued = false; Fit(); }).CallDeferred(); }
+
+    /// <summary>The controls' height, or what the slot leaves after the title, notes, hint and the panel's chrome. A change raises this
+    /// part's MinimumSizeChanged, and the screen places it again.</summary>
+    void Fit()
+    {
+        if (_slot is not { } slot || !IsInstanceValid(_scroll)) return;
+        var chrome = GetCombinedMinimumSize().Y - _scroll.GetCombinedMinimumSize().Y;
+        _scroll.CustomMinimumSize = new Vector2(0, Math.Max(0, Math.Min(_controls.GetCombinedMinimumSize().Y, slot.H - chrome)));
     }
 
     /// <summary>The refusal or send error has its own label, set (not appended) on every render, so N renders show it once.</summary>

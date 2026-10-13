@@ -16,6 +16,7 @@ describe('glb', () => {
     const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + new DataView(glb.buffer, glb.byteOffset).getUint32(12, true))));
     expect(json.meshes[0].primitives[0].attributes).toHaveProperty('NORMAL');
     expect(json.images).toBeUndefined();
+    expect(json.scene).toBe(0);   // the default scene: without it Godot warns and picks the first
     const back = await readGlb(glb);
     expect(back.triangles).toBe(256);
     expect(bounds(back.positions)).toEqual(bounds(mesh.positions));

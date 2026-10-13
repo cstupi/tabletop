@@ -8,7 +8,7 @@ namespace Tabletop.Client.Panels;
 public partial class TeamPanel : PanelContainer
 {
     public Team Team { get; }
-    readonly Label _text = new();
+    readonly Label _text = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
     public event Action<Vector2>? RightClicked;
     public TeamPanel(Team team) { Team = team; AddChild(_text); Recolour(); }
 

@@ -29,7 +29,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
     {
         CommandClass.Override => Override(state, command, actor),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
-            ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not a live event"),
+            ? new Applied([new Undone(((Undo)command).ToSeq)], null) : new Refused(RefusalReason.Unknown, $"seq {((Undo)command).ToSeq} is not an undo point"),
         CommandClass.Abandon => Abandon(state, ((AbandonSequence)command).FrameId),
         CommandClass.Answer => Answer(state, (AnswerAsk)command, actor),
         _ => Engine(state, command, actor),

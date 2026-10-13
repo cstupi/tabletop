@@ -70,6 +70,17 @@ public class UndoPlanTests
         Assert.Null(again);
     }
 
+    /// <summary>The server stamps an Ask's close with the participant whose answer closed it; the answer is the action, so the Ask reopens unanswered.</summary>
+    [Fact]
+    public void An_answer_and_the_close_it_caused_are_one_action()
+    {
+        var answer = new Chosen("rush");
+        var plan = Plan(Engine(Round1), Engine(new AskOpened(Samples.Ask)), Me(new AskAnswered(Samples.AskId, Samples.Team1, answer, false)),
+            Me(new AskClosed(Samples.AskId, [new TeamAnswer(Samples.Team1, answer)])), Engine(new PhaseStarted("x"))).Plan!;
+        Assert.Equal(2L, plan.ToSeq);
+        Assert.Equal(3L, plan.Action.Seq);
+    }
+
     [Fact]
     public void A_range_with_no_rolls_loses_none()
     {

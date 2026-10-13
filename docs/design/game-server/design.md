@@ -354,8 +354,8 @@ the frame ignores it, as it ignores any kind it does not recognise.
 ### Undo by replay
 
 `Undo(ToSeq)` is an ordinary logged command. The dispatcher accepts it only when `ToSeq` is `0`
-or the sequence of a *live* event, checked by `Replay.IsValidUndoTarget` over
-`EventApplier.EffectiveLog`. It emits one `Undone(ToSeq)` payload, appended like anything else.
+or the sequence of a *live* event whose next live event is not an `AskClosed` (the answer that closes an Ask and
+the close are one command), checked by `Replay.IsValidUndoTarget` over `EventApplier.EffectiveLog`. It emits one `Undone(ToSeq)` payload, appended like anything else.
 The log stays append-only. An undo is a marker in it.
 
 ```mermaid
@@ -1302,7 +1302,7 @@ end to end in-process.
 | --- | --- | --- |
 | `StytchJwtVerifier` | `TestKeys` mints RS256 tokens against an in-process `StaticJwksSource`; one good token and five flawed ones (issuer, audience, expiry, missing claim, garbage) | no |
 | `IEventLog` | `EventLogContract`, an abstract test class run twice, as `InMemoryEventLogTests` and `PostgresEventLogTests`, so the fake and the real implementation are proven to agree | for one of the two |
-| `Replay` | a scripted log with an `Undone` marker, replayed to each sequence and asserted against a table of expected states; `IsValidUndoTarget` over live, undone and future targets | no |
+| `Replay` | a scripted log with an `Undone` marker, replayed to each sequence and asserted against a table of expected states; `IsValidUndoTarget` over live, undone and future targets and the seq between an answer and its close | no |
 | `LegalSetMembership`, `EnforcementPolicy`, `EventFilter` | pure functions; the policy is a nine-row theory over the three settings times the four legalities | no |
 | `CommandDispatcher` | over `InertEngine` and `FixedAskEngine`; menu edits under every setting, out-of-set answers under each setting, sealed collection, abandon-closes-asks-first, enumeration | no |
 | `DraftEditor` | fourteen edit kinds in, drafts out, plus the corner-origin off-slab rule | no |

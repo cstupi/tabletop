@@ -129,10 +129,11 @@ An **Undo** button is always shown during play, lower right, left of the log but
 undoable. Ctrl+Z presses it.
 
 It undoes the last action in the game, whoever took it: the newest event of the effective log
-(`EventApplier.EffectiveLog`) that has an actor and is not an `Undone` marker. An actor marks a participant's command: an
-answer, a move, a deployment, a menu edit, a dice command. Engine events have no actor; they are never an action and are
+(`EventApplier.EffectiveLog`) that has an actor and is neither an `Undone` marker nor an `ask_closed`. An actor marks a
+participant's command: an answer, a move, a deployment, a menu edit, a dice command. Engine events have no actor; they are never an action and are
 undone with the action they followed. The target is the live seq immediately before that event, 0 when there is none;
-the server accepts only a live seq (`Replay.IsValidUndoTarget`). Each press steps back one more action, and while an undo
+the server accepts only a live seq that is not just before an `ask_closed` (`Replay.IsValidUndoTarget`). An `ask_closed`
+carries the actor of the answer that closed it and is part of that answer, so undoing an answer reopens its Ask. Each press steps back one more action, and while an undo
 travels the next press plans as if its marker had landed. The tooltip reads `Undo: ` and `LogText.Describe` of the action.
 
 If any live event after the target is a `step_completed` with rolls, a `dice_rerolled` or a `dice_edited`, a dialog asks
@@ -333,7 +334,8 @@ Adding a theme is a `UiTheme` value in `UiThemes` and its asset folder.
 
 One layout for every Hud part: an 8 px margin, the parts anchored to their corner or edge, and no two overlapping at
 1280×720 and up. The undo button sits in the log button's row, to its left. The roster and the unit card share the left column and split its height; the log drawer and the
-dice tray never cover the decision box. Toasts use one style and stack top right. `HudLayout` (Core) computes the
+dice tray never cover the decision box. The decision box and the dice tray stack in the right column above the undo and log buttons, the
+decision box's controls scrolling once it fills the column; an open log takes the column's upper half. Toasts use one style and stack top right. `HudLayout` (Core) computes the
 rectangles from the viewport size and which parts are visible, and is tested at 1280×720, 1920×1080 and 2560×1440.
 
 ## Client structure

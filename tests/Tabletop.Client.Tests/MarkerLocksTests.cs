@@ -90,3 +90,12 @@ public class MarkerLocksTests
         Assert.DoesNotContain("Remove", MenuModel.ForMarker(Game, a.Projection, setup).Select(i => i.Label));
     }
 }
+
+public class TerrainLockTests
+{
+    /// <summary>Setup content: terrain is placed during setup and locked from then on, so a drag on it starts only in setup.</summary>
+    [Theory]
+    [InlineData(GameStatus.Setup, true)] [InlineData(GameStatus.Playing, false)] [InlineData(GameStatus.Ended, false)]
+    [InlineData(GameStatus.Lobby, false)] [InlineData(null, false)]
+    public void Terrain_drags_only_during_setup(GameStatus? status, bool drags) => Assert.Equal(drags, TerrainLock.MayDrag(status));
+}

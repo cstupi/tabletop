@@ -13,7 +13,7 @@ public partial class GameScreen : Control
     Session _session = null!;
     public TableView Table { get; private set; } = null!;
     public TableInput Input { get; private set; } = null!;
-    Label _status = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; HBoxContainer _bottom = null!;
+    Label _status = null!, _selection = null!; VBoxContainer _corner = null!; Toasts _toasts = null!; readonly HashSet<Guid> _lit = new(); VBoxContainer _side = null!; ScrollContainer _sidePanel = null!; HBoxContainer _bottom = null!;
     Control? _lobby, _setup; readonly List<TeamPanel> _teams = new();
     Control _hud = null!; Viewport.GuiFocusChangedEventHandler? _onFocus;   // the signal's own delegate type, not Action<Control>
     Action<RenderCause>? _onFrame; Action<Refused>? _onRefused; Action<SocketClosed, bool>? _onLost; Action? _onTheme, _onLayout;
@@ -27,8 +27,10 @@ public partial class GameScreen : Control
         Table = GD.Load<PackedScene>("res://scenes/TableView.tscn").Instantiate<TableView>(); viewport.AddChild(Table);
         Input = new TableInput(); Table.AddChild(Input);
         var overlay = new PresenceOverlay(); Table.AddChild(overlay);
-        _side = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; root.AddChild(_side);
-        _side.AddChild(_selection = new Label());
+        // The side panel scrolls: a selected terrain piece lists every volume's fields, more than a window's height.
+        _sidePanel = new ScrollContainer { CustomMinimumSize = new Vector2(360, 0), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve }; root.AddChild(_sidePanel);
+        _sidePanel.AddChild(_side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        _side.AddChild(_selection = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart });
         // Over the table in every status, after the root so it draws on top and hears keys first: Home and the status in the
         // corner, the toasts top right. GameScreen.Play adds the play Hud to it; Layout places all of it.
         _hud = new Control { MouseFilter = MouseFilterEnum.Ignore }; _hud.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(_hud);
@@ -38,7 +40,7 @@ public partial class GameScreen : Control
         top.AddChild(_status = new Label());
         _hud.AddChild(_toasts = new Toasts());
         _onLayout = QueueLayout;
-        _hud.Resized += _onLayout; _side.Resized += _onLayout; _side.VisibilityChanged += _onLayout;
+        _hud.Resized += _onLayout; _sidePanel.Resized += _onLayout; _sidePanel.VisibilityChanged += _onLayout;
         _corner.MinimumSizeChanged += QueueLayout; _toasts.MinimumSizeChanged += QueueLayout;   // children of the screen: they die with it
         // A Hud button that keeps the focus would be pressed by Space, the camera key: buttons give it straight back.
         _onFocus = c => { if (c is BaseButton) c.ReleaseFocus(); };
@@ -62,7 +64,7 @@ public partial class GameScreen : Control
     {
         Ui.Changed -= _onTheme;
         if (IsInstanceValid(_hud)) _hud.Resized -= _onLayout;
-        if (IsInstanceValid(_side)) { _side.Resized -= _onLayout; _side.VisibilityChanged -= _onLayout; }
+        if (IsInstanceValid(_sidePanel)) { _sidePanel.Resized -= _onLayout; _sidePanel.VisibilityChanged -= _onLayout; }
         if (_session is null) return;
         if (_onFocus is not null) GetViewport().GuiFocusChanged -= _onFocus;
         _session.GameChanged -= Rebuild; _session.PhaseChanged -= Rebuild; _session.Frame.Render -= _onFrame;
@@ -81,7 +83,7 @@ public partial class GameScreen : Control
         _lobby?.QueueFree(); _setup?.QueueFree(); _lobby = _setup = null;
         if (game is null) return;
         var playing = game.Status is GameStatus.Playing or GameStatus.Ended;
-        _side.Visible = !playing;                                      // play is the table to the edges (spec → Layout)
+        _sidePanel.Visible = !playing;                                      // play is the table to the edges (spec → Layout)
         if (!playing) foreach (var team in game.Teams) { var panel = new TeamPanel(team); _teams.Add(panel); _side.AddChild(panel); }
         RefreshTeams();
         if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel());

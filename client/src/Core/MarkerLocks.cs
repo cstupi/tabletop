@@ -41,3 +41,10 @@ public sealed class MarkerLocks
     static bool IsObjective(Projection? p, Guid id) =>
         (p?.Markers.GetValueOrDefault(id) ?? p?.Board.Table.Markers.FirstOrDefault(m => m.Id == id))?.Kind == MarkerKind.Objective;
 }
+
+/// <summary>Terrain is placed during setup and locked from then on (setup content: the lock is structural), so a drag on a
+/// terrain piece starts only while the game is in Setup.</summary>
+public static class TerrainLock
+{
+    public static bool MayDrag(GameStatus? status) => status == GameStatus.Setup;
+}

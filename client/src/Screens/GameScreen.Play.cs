@@ -87,12 +87,36 @@ public partial class GameScreen
         QueueLayout();
     }
 
-    /// <summary>Lay the Hud out once, at the end of this frame, however many changes asked for it.</summary>
+    /// <summary>Lay the Hud out once, at the end of this frame, however many changes asked for it. A layout that keeps changing a
+    /// part's minimum size would queue itself again inside the same deferred flush, which Godot drains until its message queue
+    /// overflows; past <see cref="LayoutPasses"/> passes in one frame the next pass waits for the next frame.</summary>
     void QueueLayout()
     {
         if (_layoutQueued) return;
         _layoutQueued = true;
-        Callable.From(Layout).CallDeferred();
+        var frame = Engine.GetProcessFrames();
+        if (frame != _layoutFrame) { _layoutFrame = frame; _layoutPasses = 0; }
+        if (++_layoutPasses <= LayoutPasses) { Callable.From(Layout).CallDeferred(); return; }
+        if (_layoutPasses == LayoutPasses + 1) GD.PushWarning($"Hud layout did not settle in {LayoutPasses} passes this frame; continuing next frame. Changed in the last pass: {_layoutChanged}");
+        GetTree().Connect(SceneTree.SignalName.ProcessFrame, Callable.From(Layout), (uint)ConnectFlags.OneShot);
+    }
+    const int LayoutPasses = 4;
+    ulong _layoutFrame; int _layoutPasses;
+    // Each part's minimum size, size and visibility after the last pass, so an unsettled layout names what keeps changing.
+    readonly Dictionary<string, string> _layoutSeen = new(); string _layoutChanged = "";
+
+    void NoteLayout()
+    {
+        var changed = new List<string>();
+        foreach (var (name, part) in new (string, Control?)[] { ("corner", _corner), ("toasts", _toasts), ("header", _header), ("roster", _roster), ("card", _card),
+            ("decision", _decision), ("dice", _dice), ("log", _logDrawer), ("undo", _undo) })
+        {
+            if (part is null || !IsInstanceValid(part)) continue;
+            var now = $"min {part.GetCombinedMinimumSize()} size {part.Size} at {part.Position} visible {part.Visible}";
+            if (_layoutSeen.GetValueOrDefault(name) != now) changed.Add($"{name} [{_layoutSeen.GetValueOrDefault(name) ?? "-"} -> {now}]");
+            _layoutSeen[name] = now;
+        }
+        _layoutChanged = changed.Count == 0 ? "nothing" : string.Join("; ", changed);
     }
 
     /// <summary>Every Hud part into its HudLayout slot (spec → Layout), over the width the side panel leaves. Outside play only the
@@ -102,14 +126,14 @@ public partial class GameScreen
     {
         _layoutQueued = false;
         if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
-        var w = _hud.Size.X - (IsInstanceValid(_side) && _side.Visible ? _side.Size.X : 0);
+        var w = _hud.Size.X - (IsInstanceValid(_sidePanel) && _sidePanel.Visible ? _sidePanel.Size.X : 0);
         var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card), Shows(_decision), Shows(_dice), _logDrawer is { } l && IsInstanceValid(l) && l.Open));
         HudPlacement.Top(_corner, r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
         if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
         if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
         if (Shows(_card)) _card!.Place(Shows(_roster) ? HudLayout.Below(r[HudPart.UnitCard], _roster!.Position.Y + _roster.Size.Y) : r[HudPart.UnitCard]);
-        if (Shows(_decision)) HudPlacement.Bottom(_decision!, r[HudPart.Decision]);
+        if (Shows(_decision)) _decision!.Place(r[HudPart.Decision]);
         if (Shows(_dice))
         {
             var slot = r[HudPart.Dice];
@@ -121,6 +145,7 @@ public partial class GameScreen
         if (_undo is { } undo && IsInstanceValid(undo)) HudPlacement.Bottom(undo, r[HudPart.UndoButton]);
         // Placed while hidden too: the banner shows itself between layouts, and nothing queues one when it does.
         if (_banner is { } banner && IsInstanceValid(banner)) HudPlacement.Fill(banner, r[HudPart.Banner]);
+        NoteLayout();
     }
 
     /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume:

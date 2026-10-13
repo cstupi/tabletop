@@ -31,7 +31,7 @@ The table fills the window. Every part floats over it:
 | --- | --- |
 | Header | top centre |
 | Stat sheet | lower left |
-| Decision box, with the hint line under it | bottom centre |
+| Decision box, with the hint line under it | right column, above the undo and log buttons; its controls scroll |
 | Dice | above the decision box |
 | Log | lower right, minimized to a button |
 | End-of-game message | centre, dismissable |
@@ -83,7 +83,7 @@ its dice. A unit that has not activated reads "Not yet activated" above anything
 
 ## Decision box
 
-Bottom centre, rendering the first open Ask addressed to my team (`AskViewModel.Mine`). When nothing is addressed to
+In the right column above the undo and log buttons, so the table's centre stays clear, rendering the first open Ask addressed to my team (`AskViewModel.Mine`). When nothing is addressed to
 me it shows the waiting line instead.
 
 | Ask (legal type) | Decision box | Table |

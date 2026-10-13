@@ -1,11 +1,13 @@
-# Handoff — 2026-10-11
+# Handoff — 2026-10-12
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
 after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (193 sim games over every catalog
 rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
 the client UX spec, both merged to `main` (`1a4ae07`, PR #1); the performance set from the review is merged (`7684021`).
-Both wait for the owner's on-screen checks (*Next* 0 and 2).
+Both wait for the owner's on-screen checks (*Next* 0 and 2). The owner's first two-player session on 2026-10-12 found a
+Hud crash, an undo that stranded a game and a combat log that does not show what was rolled against what; *Today* below
+is where to start.
 An undone roll's dice stay spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -30,6 +32,11 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - Never `docker compose down -v`: the Postgres volume holds the schema the server tests read.
 - Godot's import step wipes the client's build output. If every script fails with "class could not be found", run
   `./scripts/client` again.
+- `./scripts/client` runs the game, not the editor, so it never imports. After a new font, texture or mesh lands
+  (a pull, a merge), run `./scripts/godot --headless --import` once, then `./scripts/client`; otherwise the client fails
+  at `ThemeBuilder.FontOf` with "Error loading resource".
+- The client's log is `/mnt/c/Users/clays/AppData/Roaming/Godot/app_userdata/Tabletop/logs/godot.log` (the latest run;
+  older runs are the dated files beside it). A crash can cut its tail off.
 
 **The rules suite.** `dotnet run --project sim -- suite` plays every suite game in-process (about 45 s);
 `--driver socket` plays them against the compose stack (about 12 min) on the fixed accounts `sim-player-0..3` and deletes
@@ -41,15 +48,71 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 193 of 193 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes 2169 with the stack up: Geometry 174, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 51,
-Viewer 9, Client 246, GameServer 1061, Management 96, Sim 474. `cd viewer && npm run check && npm test` passes (111);
-`cd web && npm test` covers the web app.
+`dotnet test` passes with the stack up: Geometry 174, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 51,
+Viewer 9, Client 280, GameServer 1069, Management 96, Sim 474 (Client and GameServer rerun on 2026-10-12; the rest are the
+2026-10-11 counts). `cd viewer && npm run check && npm test` passes (111);
+`cd web && npm test` passes 62 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
+
+### Today (2026-10-12): open first
+
+Everything below is committed on `main` in the commit that carries this handoff. Built and tested, not yet seen working
+in Godot unless it says so.
+
+**A. The Hud layout never settles: fix it first.** Three crashes in one session (Ctrl+Z after choosing Rush, the log
+button while choosing an activation, a Shaken unit going idle) printed an endless "Object was deleted while awaiting a
+callback". That is Godot's `MessageQueue`: a deferred call whose node was freed, printed while the queue fills until it
+overflows ("Message queue out of memory" sits beside it in the engine). Something in the Hud requeues
+`GameScreen.QueueLayout` forever through a part's `MinimumSizeChanged` or `VisibilityChanged`.
+- In place: every `ScrollContainer` reserves its vertical bar (`ScrollMode.Reserve`, horizontal `Disabled`), and
+  `QueueLayout` runs at most four passes a frame, then waits for the next frame and warns "Hud layout did not settle …".
+- The last run (before the next item) logged that warning 1304 times from startup on, so a part's size still flips
+  every pass. The warning now ends with "Changed in the last pass:" and each Hud part whose minimum size, size, position
+  or visibility changed, before and after (`GameScreen.NoteLayout`).
+- Next: the owner runs the client and plays; read `godot.log`, find the part and the two sizes it alternates between,
+  fix that part, then remove `NoteLayout` and keep the cap. Ask whether the app crashed, froze or only stuttered.
+
+**B. The combat log needs a redesign.** The owner: the log is "99% unhelpful noise"; it shows impossible values such as
+a roll of -1 (a die's modified value read as a roll), does not show cover, and does not show the dice and what they were
+compared against in a few words. It "needs to get much tighter and much more low level with what and how it calculates.
+Looking at the log should allow the user to see exactly what was rolled and what it was compared against."
+- The wire already carries what is needed: `RollRecord` holds each die's `Raw` and `Modified`, `Threshold`,
+  `RequiredRaw`, every `RollModifier` (source and amount) and `Basis` (stat, printed value, each change); cover reaches a
+  roll only as a named modifier, if the engine records it.
+- Next: a design session (`superpowers:brainstorming`), not code. Read the rulebook for each roll (quality, defense,
+  morale, casting, dangerous terrain, the roll-off), pull the current log text from game `01a126db-…` (1261 events) to
+  show the noise, and propose one line per roll, e.g. `Defense 5+ (+1 cover, -1 AP) · rolled 4 2 · 1 save · 1 wound`.
+  Spec it, review it with the owner, then plan.
+
+**C. Undo.** `UndoPlan` took an `ask_closed` as the action, because the server stamps the close with the answering
+participant; undoing a Rush choice then went to the seq between the answer and its close, where the Ask stays answered
+and open and nothing reopens it. Fixed: the answer is the action (an `ask_closed` is never one), and the server refuses a
+target just before an `ask_closed` (`Replay.IsValidUndoTarget`, "seq N is not an undo point").
+- Game `01a13331-384a-743b-aa85-7de31559f6b8` is stranded at seq 64 (`undone` to 57). One Undo press in the new client
+  plans seq 56 and should reopen the activation choice; the owner has not confirmed it.
+- Open: "Undo to here" in the log can still target any entry, including the middle of an engine run after an action,
+  which may strand a game the same way. Decide whether it offers only action boundaries.
+
+**D. Built today, for the owner to check on screen.**
+- The decision box sits in the right column above the undo and log buttons and its controls scroll; the dice tray stays
+  above it; an open log takes the column's upper half (`HudLayout`, `DecisionBox.Place`).
+- Terrain is locked from the end of setup: a drag on a terrain piece starts only while the game is in Setup
+  (`TerrainLock`).
+- The lobby and setup side panel scrolls, 360 px wide, with wrapping rows and labels; a terrain piece's volumes no
+  longer fall off the bottom.
+- The log opens at the newest entry and follows new entries; scrolling up lets go.
+- Every built-in terrain GLB declares a default scene (`scene: 0`), and the web app's converter sets one
+  (`setDefaultScene`), so Godot no longer warns "The load-time scene is not defined". Terrain uploaded before this still
+  warns until it is uploaded again.
+
+**E. Owner question pending.** The other player's cursor is a small cone in their team colour
+(`PresenceOverlay.Draw`); the owner read it as "a random red cone". Offered: the player's name over it, and a point aimed
+down at the table. No answer yet.
 
 ### 0. Performance
 
@@ -141,8 +204,9 @@ drawn through round 0.
    wounds one model at a time), zones during deployment and gone at round 1, the end message, F1,
    the shooting lasers (one second, shooter to nearest target model, none in melee), Ctrl held to measure (live for the
    other player, gone on release).
-2. At 1280×720 and 1920×1080, with the log open and a decision taken, nothing overlaps: the log sits above the decision and
-   dice and below a three-line header, toasts stack top right, "Close log (G)" fits its button, and the unit card stays in its
+2. At 1280×720 and 1920×1080, with the log open and a decision taken, nothing overlaps: the decision box and dice sit in the
+   right column above the undo and log buttons, the log above them and below a three-line header, toasts stack top right,
+   "Close log (G)" fits its button, a long activation list scrolls inside the decision box, and the unit card stays in its
    column.
 
 *Collision*
@@ -229,7 +293,7 @@ drawn through round 0.
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
-menu unlocks them (client-local); a terrain drag in play starts under every setting, sends nothing and snaps back; the e2e sight check's
+menu unlocks them (client-local); terrain is locked from the end of setup, so a drag on it starts only in Setup (`TerrainLock`); the e2e sight check's
 observer has only melee weapons, so it never proves a non-empty `CanShoot` (the unit tests do).
 
 ### 3. Check the built-in terrain meshes in the client

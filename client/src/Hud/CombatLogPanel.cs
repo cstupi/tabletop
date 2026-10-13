@@ -13,7 +13,7 @@ public partial class CombatLogPanel : VBoxContainer
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
     Session _s = null!; TableView _view = null!; Action<string> _report = _ => { };
     readonly OptionButton _filter = new();
-    readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+    readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
     readonly HashSet<string> _open = [];
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
@@ -34,6 +34,11 @@ public partial class CombatLogPanel : VBoxContainer
         _filter.Selected = (int)s.Settings.LogFilter;
         _filter.ItemSelected += i => { _s.UpdateSettings(x => x with { LogFilter = (LogFilter)(int)i }); Render(false); };
         AddChild(_filter); AddChild(_scroll); _scroll.AddChild(_rows);
+        // The newest entry stays in view: the bar's range changes after the rows are laid out, a frame after a render, so the jump
+        // to the end happens then. Scrolling away from the end lets go; scrolling back to it follows again.
+        var bar = _scroll.GetVScrollBar();
+        bar.Changed += () => { if (_toEnd && _revealed is null) _scroll.ScrollVertical = (int)bar.MaxValue; };
+        bar.ValueChanged += v => _toEnd = v >= bar.MaxValue - bar.Page - 1;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) Render(true); };
         s.Frame.Render += _onFrame;
         _onTheme = () => Render(false); Ui.Changed += _onTheme;   // the rows' dice faces are the theme's
@@ -46,11 +51,17 @@ public partial class CombatLogPanel : VBoxContainer
         if (_s is not null) _s.Frame.Render -= _onFrame;
     }
 
-    /// <summary>Whether the drawer shows the panel. Closed, a render only marks the rows stale; opening renders them.</summary>
+    /// <summary>Whether the drawer shows the panel. Closed, a render only marks the rows stale; opening renders them and shows the newest entry.</summary>
     public bool Shown
     {
         get => _shown;
-        set { _shown = value; if (value && _stale) Render(true); }
+        set
+        {
+            _shown = value;
+            if (!value) return;
+            if (_stale) Render(true);
+            else { _toEnd = true; CallDeferred(nameof(Scroll)); }
+        }
     }
 
     /// <summary>Expand the block and the roll holding this RollRecord and scroll to it.</summary>
@@ -61,7 +72,7 @@ public partial class CombatLogPanel : VBoxContainer
         if (!_shown) { _stale = true; return; }
         _stale = false;
         foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }
-        _revealed = null; _toEnd = toEnd;
+        _revealed = null; if (toEnd) _toEnd = true;
         if (_s.Projection is null || _s.CombatLog is not { } log) return;
         var n = log.Names;
         foreach (var e in CombatLog.Filter(log.Entries, _s.Settings.LogFilter, u => n.TeamOfUnit(u) is { } t && t == _s.MyTeamId, _focus))
@@ -135,6 +146,6 @@ public partial class CombatLogPanel : VBoxContainer
     {
         if (!IsInstanceValid(_scroll)) return;
         if (_revealed is not null && IsInstanceValid(_revealed)) _scroll.EnsureControlVisible(_revealed);
-        else if (_toEnd) _scroll.ScrollVertical = (int)_scroll.GetVScrollBar().MaxValue;
+        else if (_toEnd) _scroll.ScrollVertical = (int)_scroll.GetVScrollBar().MaxValue;   // the bar's Changed finishes it once the rows are laid out
     }
 }

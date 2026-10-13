@@ -853,8 +853,9 @@ builds a throwaway projection of the effective log up to `seq`. That is the clie
 prediction: `Session.Projection` returns `Applier.ProjectTo(n)` until the server's `undone` arrives
 or the command is `Refused`.
 
-`ToSeq` must be `0` or the seq of a **live** event. The game server refuses anything else
-(`Replay.IsValidUndoTarget`). The applier does not check it. Because `Undone` markers are dropped
+`ToSeq` must be `0` or the seq of a **live** event whose next live event is not an `ask_closed`: the answer
+that closes an Ask and the close are one command, and between them the Ask is answered but open with nothing to
+reopen it. The game server refuses anything else (`Replay.IsValidUndoTarget`). The applier does not check it. Because `Undone` markers are dropped
 from the effective log, undoing to a sequence number that has already been undone past re-truncates
 rather than resurrecting the events between. The server-side guard is the only thing keeping `undo`
 from meaning that.
@@ -1531,8 +1532,8 @@ would cost nothing and is not in the plan.
 
 ### Undo guard
 
-`Undone(N)` is only meaningful when `N` is `0` or the seq of a live event. The game server enforces
-that (`Replay.IsValidUndoTarget`). `EventApplier` does not. Because `EffectiveLog` drops the `Undone`
+`Undone(N)` is only meaningful when `N` is `0` or the seq of a live event, and never the seq just before an
+`ask_closed`. The game server enforces that (`Replay.IsValidUndoTarget`). `EventApplier` does not. Because `EffectiveLog` drops the `Undone`
 markers, undoing to a sequence that has already been undone past re-truncates rather than restoring
 anything, so an unguarded call loses events a user expected back.
 

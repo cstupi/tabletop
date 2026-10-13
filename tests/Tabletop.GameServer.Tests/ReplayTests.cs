@@ -33,4 +33,19 @@ public class ReplayTests
         Assert.False(Replay.IsValidUndoTarget(applier, 4));   // the marker itself
         Assert.False(Replay.IsValidUndoTarget(applier, 6));   // the future
     }
+
+    /// <summary>The answer that closes an Ask and the close are one command: between them the Ask is answered but open, and nothing reopens it.</summary>
+    [Fact]
+    public void The_seq_between_an_answer_and_its_close_is_not_a_target()
+    {
+        var answer = new Chosen("rush");
+        var applier = new EventApplier(Samples.Board, Samples.Game);
+        applier.ApplyAll([
+            Ev(1, new AskOpened(Samples.Ask)), Ev(2, new AskAnswered(Samples.AskId, Samples.Team1, answer, false)),
+            Ev(3, new AskClosed(Samples.AskId, [new TeamAnswer(Samples.Team1, answer)])), Ev(4, new ScoreSet(Samples.Team1, 1)),
+        ]);
+        Assert.True(Replay.IsValidUndoTarget(applier, 1));
+        Assert.False(Replay.IsValidUndoTarget(applier, 2));
+        Assert.True(Replay.IsValidUndoTarget(applier, 3));
+    }
 }

@@ -17,7 +17,7 @@ export async function exportGlb(mesh: IndexedMesh, name: string): Promise<Uint8A
   const material = doc.createMaterial('default').setBaseColorFactor([0.8, 0.8, 0.8, 1]).setMetallicFactor(0).setRoughnessFactor(0.8);
   const primitive = doc.createPrimitive().setAttribute('POSITION', position).setAttribute('NORMAL', normal).setIndices(indices).setMaterial(material);
   const node = doc.createNode(name).setMesh(doc.createMesh(name).addPrimitive(primitive));
-  doc.createScene(name).addChild(node);
+  doc.getRoot().setDefaultScene(doc.createScene(name).addChild(node));   // Godot warns on a GLB with no default scene
   doc.getRoot().getAsset().generator = 'tabletop-web mesh conversion';
   return io.writeBinary(doc);
 }

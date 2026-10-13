@@ -30,12 +30,27 @@ public class HudLayoutTests
     }
 
     [Fact]
-    public void At_1280_the_open_log_sits_above_the_dice_and_beside_the_header()
+    public void At_1280_the_open_log_takes_the_upper_half_of_the_right_column()
     {
         var r = HudLayout.Of(1280, 720, new HudVisible(Roster: true, UnitCard: true, Decision: true, Dice: true, LogOpen: true));
         Assert.Equal(
-            (new HudRect(436, 512, 480, 200), new HudRect(632, 136, 640, 264), new HudRect(8, 56, 420, 324)),
-            (r[HudPart.Decision], r[HudPart.LogPanel], r[HudPart.Roster]));
+            (new HudRect(792, 510, 480, 158), new HudRect(792, 406, 480, 96), new HudRect(632, 136, 640, 262), new HudRect(8, 56, 420, 324)),
+            (r[HudPart.Decision], r[HudPart.Dice], r[HudPart.LogPanel], r[HudPart.Roster]));
+    }
+
+    /// <summary>The decision box leaves the table's centre clear: the right column, from below the toasts down to the undo and log buttons.</summary>
+    [Theory, MemberData(nameof(Sizes))]
+    public void The_decision_box_takes_the_right_column_above_the_buttons(int w, int h)
+    {
+        foreach (var v in All().Where(v => v.Decision))
+        {
+            var r = HudLayout.Of(w, h, v);
+            var d = r[HudPart.Decision];
+            Assert.Equal(w - 8, d.Right);
+            Assert.Equal(r[HudPart.LogButton].Y - 8, d.Bottom);
+            Assert.True(d.Y >= r[HudPart.Toasts].Bottom + 8, $"{v}: {d}");
+            if (!v.LogOpen) Assert.Equal(r[HudPart.Toasts].Bottom + 8, v.Dice ? r[HudPart.Dice].Y : d.Y);
+        }
     }
 
     [Fact]
