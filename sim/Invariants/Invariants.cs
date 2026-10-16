@@ -210,7 +210,7 @@ public static class Invariants
         _ => [],
     };
 
-    /// <summary>The round does not advance on its own: the next round's RoundStarted follows the first answer to the end_round Ask, or carries the actor of a menu override (scheduler design → There is no round limit).</summary>
+    /// <summary>The round does not advance on its own: the next round's RoundStarted follows the first answer to the end_round Ask (and, under warn past the last round, the game_over Ask's Continue), or carries the actor of a menu override (scheduler design → There is no round limit).</summary>
     public static InvariantResult TheRoundAdvancedOnlyThroughTheBoundaryAsk(IReadOnlyList<GameEvent> log)
     {
         var effective = EventApplier.EffectiveLog(log);
@@ -219,7 +219,7 @@ public static class Invariants
         {
             if (effective[i].Payload is not RoundStarted { Round: >= 2 } started) continue;
             if (effective[i].Actor is not null) continue;                                   // the menu's set_round: an override, and logged
-            var closed = effective.Take(i).LastOrDefault(e => e.Payload is AskClosed);
+            var closed = effective.Take(i).LastOrDefault(e => e.Payload is AskClosed c && asked.GetValueOrDefault(c.AskId)?.Question != AskQuestions.GameOver);   // warn's game_over follows end_round
             var question = closed?.Payload is AskClosed c && asked.TryGetValue(c.AskId, out var ask) ? ask.Question : null;
             if (question != AskQuestions.EndRound)
                 return new InvariantResult(nameof(TheRoundAdvancedOnlyThroughTheBoundaryAsk), false,

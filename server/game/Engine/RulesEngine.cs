@@ -52,14 +52,16 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
     }
 
     /// <summary>
-    /// Nothing while the game has ended. A framed Ask blocks everything; an unframed one is the scheduler's to wait on or close.
-    /// The proposal — the interpreter's while frames exist, the scheduler's otherwise — is judged by the ruleset and decided by the
-    /// game's enforcement: through as it is, through with a warning, or replaced by game_ended.
+    /// Nothing while the game has ended. A framed Ask blocks everything; an unframed one is the scheduler's to wait on or close, except
+    /// game_over, which GameOverAsk settles first. The proposal — the interpreter's while frames exist, the scheduler's otherwise — is
+    /// judged by the ruleset and decided by the game's enforcement: through as it is, through with a warning, replaced by game_ended, or,
+    /// under warn, held behind the game_over Ask whose answers choose between the last two.
     /// </summary>
     public Emit Advance(GameState state)
     {
         if (state.Projection.Ended is not null) return Emit.None;
         if (state.Projection.OpenAsks.Values.Any(a => a.Ask.FrameId is not null)) return Emit.None;
+        if (GameOverAsk.Settle(state) is { Count: > 0 } settled) return new Emit(settled);
         var proposed = state.Projection.Stack.Count > 0 ? Interpreter.Advance(state) : scheduler.Advance(state, Interpreter);
         if (proposed.Count == 0) return Emit.None;
         var found = rules.JudgeAdvance(state, properties, proposed);
@@ -68,6 +70,13 @@ public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceS
         {
             Accept a => new Emit(proposed, a.Warning),
             EndGame e => new Emit(EnforcementPolicy.EndGamePayloads(state.Projection, e.Reason, e.Winners)),
+            OfferEnd o => GameOverAsk.Read(state) switch
+            {
+                GameOverAsk.Decision.Continue => new Emit(proposed, o.Reason),
+                GameOverAsk.Decision.End => new Emit(EnforcementPolicy.EndGamePayloads(state.Projection, o.Reason, o.Winners)),
+                GameOverAsk.Decision.Waiting => Emit.None,
+                _ => GameOverAsk.Teams(state) is { Count: > 0 } teams ? new Emit([new AskOpened(GameOverAsk.Of(teams, o.Reason))]) : new Emit(proposed, o.Reason),
+            },
             Refuse r => throw new InvalidOperationException($"a breach in the engine's own proposal cannot refuse it: {r.Detail}"),
             var v => throw new UnreachableException(v.GetType().Name),
         };

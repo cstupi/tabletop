@@ -155,6 +155,11 @@ with every model on the shelf is dimmed: off the table (not deployed, set aside,
 Clicking a row selects the unit and centres the camera on it (`OrbitCamera.Centre`). The roster collapses to its team
 headers with **R**.
 
+Right-clicking a row of my team while playing opens the piece menu with `MenuModel.ForRosterUnit`: **Set aside**
+(`SetCondition(unit, "set-aside", true)`), or **Return to deployment** (false) when the unit has it. Offered only for a
+unit whose unit or model properties include `Ambush` or `Scout` and whose every model is on the shelf unwounded, so
+never deployed. The condition chip shows on the row.
+
 `RosterView` (Core) reads only the projection: `UnitInPlay.Actions`, `Conditions`, model locations and wounds.
 
 ## Header additions
@@ -169,15 +174,22 @@ headers with **R**.
 ## Table markers and floating results
 
 **Markers.** Over each unit, at its models' centroid above the tallest model, a billboard row of icons: activated this
-round, each condition, and for a unit with any model above one wound, the wounded model's pips. Hidden while the camera
-is at table level (End) so the sight check stays clean. Icons come from the theme by condition name, with a text chip
-for a name the theme has no icon for.
+round and each condition. Hidden while the camera is at table level (End) so the sight check stays clean. Icons come
+from the theme by condition name, with a text chip for a name the theme has no icon for.
+
+**Model marks.** Over each model on the table, billboarded just above its height: a row of red dots, one per wound left,
+on a model with more than one wound (`ModelFacts.MaxWounds`), and above it a row of blue dots, one per spell token, on a
+model holding any. Hidden at table level with the unit icons. Every model on the table whose unit (or itself) has the
+condition `shaken` wears a flat yellow star ring around its base: a band from just outside the base's outline to twelve
+spikes 0.45" beyond it, an oval base's ring stretched to match and a rectangular base's drawn round its corners. The ring
+goes when the condition clears. Marks follow their model's node through glides and drags.
 
 **Floating results.** After a `StepCompleted` whose changes remove models, wound a model or set a condition, a label rises
 over the unit for 1.2 s: `-2 models`, `-1 wound`, `Shaken`. Paced by the `AnimationQueue` with Animate on; with Animate
 off they show together.
 
-`UnitMarkers` (Core) computes each unit's icon list and floating results from the projection and the applied events.
+`UnitMarkers` (Core) computes each unit's icon list and floating results from the projection and the applied events;
+`ModelMarks` (Core) each model's dots, the ringed models and the ring's outline.
 
 ## Range rings
 
@@ -347,6 +359,7 @@ rectangles from the viewport size and which parts are visible, and is tested at 
 | `UndoPlan` | `Hud/UndoButton`, replacing `Table/UndoMoveButton` and `HandMoveUndo` |
 | `RosterView` | `Hud/Roster` |
 | `UnitMarkers` | `Table/UnitMarkerNodes`, `Table/FloatingText` |
+| `ModelMarks` | `Table/ModelMarkNodes` |
 | `RangeRings` | `Table/RangeRingNode` |
 | `HudLayout` | `Screens/GameScreen.Play` places parts by it |
 | `UiTheme`, `UiThemes` | `Theme/ThemeBuilder`, `Screens/SettingsDialog` |

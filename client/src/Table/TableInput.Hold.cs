@@ -5,28 +5,35 @@ using Tabletop.Geometry;
 namespace Tabletop.Client.Table;
 
 /// <summary>
-/// A unit in hand (spec → Formations): 1–5 lay it out in that many rows about the cursor, the rows across the screen as the
-/// camera sees it; Q/E turn the rows 15°. The drop is the drag's: a move step waits for Enter, anything else is a hand move.
+/// Models in hand (spec → Formations): 1–5 lay them out in that many rows about the cursor, the rows across the screen as the
+/// camera sees it; Q/E turn the rows 15°, or with no rows turn each held model 15° about its own centre (p.7: models may move and
+/// turn in any direction). The drop is the drag's: a move step waits for Enter, anything else is a hand move.
 /// </summary>
 public partial class TableInput
 {
     /// <summary>Holding models of the projection: a terrain piece or a marker in hand takes no formation.</summary>
     bool HoldingModels => _drag is { Armed: true } d && _session.Projection is { } p && d.ModelIds.All(p.Models.ContainsKey);
 
+    /// <summary>One ruler per held piece, from where it stands in the projection to where it is now; kept and reused.</summary>
+    readonly List<RulerNode> _rulers = [];
+
     void Arrange(int rows) { _drag!.Rows = rows; Place(Arranged(_drag.Cursor)); }
 
     void Turn(double degrees)
     {
-        if (_drag is not { Rows: > 0 } drag) return;                    // the turn is the arrangement's; an unarranged unit keeps its shape
-        drag.Turn += degrees; Place(Arranged(drag.Cursor));
+        if (_drag is not { } drag) return;
+        if (drag.Rows > 0) { drag.Turn += degrees; Place(Arranged(drag.Cursor)); return; }
+        foreach (var id in drag.ModelIds) drag.Yaws[id] = new Yaw(drag.Yaws[id].Degrees + degrees);
+        Place(drag.Current.ToDictionary(kv => kv.Key, kv => kv.Value));
     }
 
     /// <summary>The held models in Rows rows about the point, facing away from the viewer turned by Q/E; the models take that facing.</summary>
     Dictionary<Guid, Point3> Arranged(Point3 centre)
     {
         var drag = _drag!; var p = _session.Projection!;
-        drag.Yaw = new Yaw(CameraYaw() + drag.Turn);
-        var at = Formation.Arrange(drag.ModelIds.Select(id => p.Models[id].Slot.Base).ToList(), drag.Rows, centre, drag.Yaw);
+        var yaw = new Yaw(CameraYaw() + drag.Turn);
+        foreach (var id in drag.ModelIds) drag.Yaws[id] = yaw;
+        var at = Formation.Arrange(drag.ModelIds.Select(id => p.Models[id].Slot.Base).ToList(), drag.Rows, centre, yaw);
         return drag.ModelIds.Select((id, i) => (id, at[i])).ToDictionary(x => x.id, x => x.Item2);
     }
 
@@ -38,35 +45,48 @@ public partial class TableInput
         return Math.Atan2(-x, y) * 180 / Math.PI;
     }
 
+    void Face(Guid id, Yaw yaw) { if (_view.PieceAt(id) is { } piece) piece.Rotation = new Vector3(0, WorldFrame.Radians(yaw), 0); }
+
     /// <summary>
-    /// The held pieces toward these points and the ruler on the lead model. Held models slide along walls and other models and
-    /// rest on the Solid tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece);
-    /// a marker rests on the Solid under its point. Alt places freely; the drop still rests. Inside a move step a model past the
-    /// allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
+    /// The held pieces toward these points, each facing its own yaw, and a ruler on each. Inside a move step each model's target is
+    /// held to the allowance from its origin (MoveRuler.Clamp). Held models slide along walls and other models and rest on the Solid
+    /// tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece); a marker rests
+    /// on the Solid under its point. Alt places freely, past the allowance too; the drop still rests. Inside a move step a model past
+    /// the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
     /// </summary>
     void Place(IReadOnlyDictionary<Guid, Point3> targets)
     {
         var drag = _drag!;
         var free = Input.IsKeyPressed(Key.Alt);                                          // Alt places freely, for corrections; the drop still rests
         var p = _session.Projection;
+        Point2 To(Guid id) => !free && Allowance is { } a && Proposing.Contains(id)
+            ? MoveRuler.Clamp(drag.Origins[id].Horizontal, targets[id].Horizontal, a) : targets[id].Horizontal;
         var ends = p is not null && drag.ModelIds.All(p.Models.ContainsKey)
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
-                new Placement(drag.Current[id], drag.Yaw)), targets[id].Horizontal)).ToList(), _stationary, _view.Volumes, Region, free)
+                new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free)
             : targets.ToDictionary(kv => kv.Key, kv => _session.Draft is { } d && d.Terrain.Any(t => t.Id == kv.Key)
                 ? DragBodies.Piece(d.Terrain, kv.Key, kv.Value.Horizontal, free)
                 : new Point3(kv.Value.X, kv.Value.Y, Collision.RestHeight(kv.Value.Horizontal, _settleAgainst)));   // a marker rests on the Solid under its point
+        var lines = new List<(Point3 From, Point3 To, RulerReadout Readout)>();
         foreach (var id in targets.Keys)
         {
             drag.Current[id] = ends[id];
             MoveNode(id, drag.Current[id]);
-            var piece = _view.PieceAt(id);
-            if (drag.Rows > 0 && piece is not null) piece.Rotation = new Vector3(0, WorldFrame.Radians(drag.Yaw), 0);
+            Face(id, drag.Yaws[id]);
             ModelDragged?.Invoke(id, drag.Current[id]);
-            if (Allowance is { } allowance && Proposing.Contains(id) && piece is not null)
-                piece.SetHighlight(MoveRuler.Read(drag.Starts[id].Horizontal, drag.Current[id].Horizontal, allowance, Minimum?.GetValueOrDefault(id)).OutOfRange ? Colors.Red : Palette.Selected);
+            var readout = MoveRuler.Read(drag.Origins[id].Horizontal, drag.Current[id].Horizontal, Proposing.Contains(id) ? Allowance : null, Proposing.Contains(id) ? Minimum?.GetValueOrDefault(id) : null);
+            if (Allowance is not null && Proposing.Contains(id) && _view.PieceAt(id) is { } piece) piece.SetHighlight(readout.OutOfRange ? Colors.Red : Palette.Selected);
+            lines.Add((drag.Origins[id], drag.Current[id], readout));
         }
-        var lead = drag.ModelIds[0];
-        _ruler.Show(drag.Starts[lead], drag.Current[lead],
-            MoveRuler.Read(drag.Starts[lead].Horizontal, drag.Current[lead].Horizontal, Proposing.Contains(lead) ? Allowance : null, Proposing.Contains(lead) ? Minimum?.GetValueOrDefault(lead) : null), Colors.White);
+        ShowRulers(lines);
     }
+
+    void ShowRulers(IReadOnlyList<(Point3 From, Point3 To, RulerReadout Readout)> lines)
+    {
+        while (_rulers.Count < lines.Count) { var r = new RulerNode(); _view.AddChild(r); _rulers.Add(r); }
+        for (var i = 0; i < _rulers.Count; i++)
+            if (i < lines.Count) _rulers[i].Show(lines[i].From, lines[i].To, lines[i].Readout, Colors.White); else _rulers[i].Hide();
+    }
+
+    void HideRulers() { foreach (var r in _rulers) r.Hide(); }
 }

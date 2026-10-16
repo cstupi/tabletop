@@ -147,7 +147,7 @@ public sealed partial class RunLoop(
         return new RunOutcome.Stuck(StuckReason.NoAskNoEvents, $"the loop ran {_settings.MaxSteps} steps without an end");
     }
 
-    /// <summary>An unsealed Ask is answered once, by the first listed team that has not answered; a sealed Ask by every addressed team.</summary>
+    /// <summary>An unsealed Ask is answered once, by the first listed team that has not answered; a sealed Ask by every addressed team while it stays open.</summary>
     private async Task<RunOutcome?> AnswerAsync(OpenAsk open, Projection projection, CancellationToken ct)
     {
         // The whole state: an answer may read anything the engine exposes. AnswerPolicy, the
@@ -168,7 +168,7 @@ public sealed partial class RunLoop(
                 foreach (var unitId in selected.PieceIds)
                     if (await PlaceAsync(teamId, unitId, ct) is { } refusal) return refusal;
 
-            if (open.Ask.Sealed) continue;
+            if (open.Ask.Sealed && (await driver.ProjectionAsync(ct)).OpenAsks.ContainsKey(open.Ask.Id)) continue;   // a sealed Ask the server closed early (game_over's End) takes no more answers
             break;
         }
         return null;

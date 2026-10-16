@@ -74,6 +74,7 @@ export interface AskOption {
   readonly id: string;
   readonly label: string;
   readonly pieces: readonly string[];
+  readonly note?: string;
 }
 
 export interface Assigned {
@@ -134,6 +135,13 @@ export interface Connect {
   readonly clientVersion: number;
 }
 
+export interface CoverVerdict {
+  readonly inCover: boolean;
+  readonly models: number;
+  readonly of: number;
+  readonly ignoredBy?: string;
+}
+
 export interface DeploymentZone {
   readonly id: string;
   readonly shape: string;
@@ -164,6 +172,7 @@ export interface Die {
   readonly raw: number;
   readonly modified: number;
   readonly success: boolean;
+  readonly triggered?: readonly string[];
 }
 
 export interface DieReplacement {
@@ -423,6 +432,7 @@ export interface Rejected {
 export interface RollModifier {
   readonly source: string;
   readonly amount: number;
+  readonly via?: string;
 }
 
 export interface RollRecord {
@@ -433,6 +443,7 @@ export interface RollRecord {
   readonly dice: readonly Die[];
   readonly requiredRaw?: number;
   readonly basis?: ThresholdBasis;
+  readonly cover?: CoverVerdict;
 }
 
 export interface RoundEnded {

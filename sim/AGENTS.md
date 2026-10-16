@@ -23,6 +23,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `ScenarioCompiler` turns it into a `CompiledScenario`; `Program.PlayAsync` builds `ComposedAnswers`: the script first, then `Scenario.Policy()` unless `ScriptOnly`.
 - `RunLoop` asks the driver for open Asks, answers each, drains events, and ends in a `RunOutcome`: `Ended`, `RoundLimit`, `Stuck`, `Failed` or `Paused`.
 - `AnswerPolicy` picks uniformly over exactly the legal set the server sent, one case per `LegalSet` shape. It never narrows the set.
+  The one Ask it does not draw is `game_over` (warn's End or Continue after round 4), which it answers End, so a `warn` run finishes.
 - `AnswerPolicy` reads a `MoveRegion` as the server judges it: once any model's sampled path enters a difficult volume, every model
   sampled further than `DifficultCap` is sampled again within it (p.11); a disembark is sampled until the base is fully within
   `ExitWithin` of the container and fully on the table; a `MinDistance` is sampled above (or, where the table has no room for it, met at
@@ -36,7 +37,7 @@ Consumed by developers, `tests/Tabletop.Sim.Tests` and `tests/Tabletop.Viewer.Te
 - `sim/` holds no second implementation of the rules. It asserts invariants over the log and projection.
 - `InProcessDriver` hosts the engine in the process. `SocketDriver` seeds rows in Postgres, mints sessions and plays over the game server's WebSocket.
 - `DriverMode.StepAndWait` stops with one Ask open and answers nothing (`RunOutcome.Paused`).
-- `Invariants.CheckAll` runs eight checks: replay reproduces the projection, an undo keeps the earlier dice, every Ask answered by an addressed team, no model in two places or off the slab, the round advances only through the boundary Ask, nothing advances after the end, control follows the markers, spells come from the caster's book.
+- `Invariants.CheckAll` runs eight checks: replay reproduces the projection, an undo keeps the earlier dice, every Ask answered by an addressed team, no model in two places or off the slab, the round advances only through the boundary Ask (a `game_over` Ask between them is skipped), nothing advances after the end, control follows the markers, spells come from the caster's book.
 - One file per run: `<scenario>-<seed>.json` in `--out` (default `./recordings`, git-ignored), plus `summary.json`.
 - A recording is a projection frame per event, not an event log. It is never replayed into the engine.
 - Exit code: 0 when no run failed, 1 otherwise, 2 for usage errors.

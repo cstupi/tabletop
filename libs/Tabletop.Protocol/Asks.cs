@@ -11,8 +11,12 @@ public sealed record Ask(
     Guid Id, string Question, string Prompt, IReadOnlyList<Guid> Teams, LegalSet Legal,
     bool AllowPass, bool Sealed, string? WindowKind, Guid? FrameId);
 
-/// <summary>A discrete choice. Pieces are the ids to highlight (for activate: the unit).</summary>
-public sealed record AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces);
+/// <summary>
+/// A discrete choice. Pieces are the ids to highlight (for activate: the unit). Note, when set, is the ruleset's reason this
+/// choice's set is limited, in the book's words with its page (activate: every option of a limited unit carries the same note);
+/// null when nothing limits it. Clients show the text as sent.
+/// </summary>
+public sealed record AskOption(string Id, string Label, IReadOnlyList<Guid> Pieces, string? Note = null);
 
 /// <summary>The engine-owned questions. Ruleset questions are GameRules' own names.</summary>
 public static class AskQuestions
@@ -27,6 +31,14 @@ public static class AskQuestions
     public const string Confirm = "confirm";
     public const string React = "react";
     public const string SpendTokens = "spend_tokens";
+    /// <summary>warn's answer to a breach that ends the game: an unframed, sealed Options Ask to every team, End or Continue. Any End ends the game; it goes on only when every team continues.</summary>
+    public const string GameOver = "game_over";
+}
+
+/// <summary>The option ids of the game_over Ask.</summary>
+public static class GameOverChoices
+{
+    public const string End = "end", Continue = "continue";
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

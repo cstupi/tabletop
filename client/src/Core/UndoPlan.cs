@@ -33,7 +33,7 @@ public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IRea
             if (e is RollEntry r)
             {
                 if (r.Seq > to) lost.Add((r.Seq, r.Collapsed(CombatLog.Pip)));
-                else lost.AddRange(r.Amendments.Where(a => !a.Undone && a.Seq > to).Select(a => (a.Seq, $"{r.Title} · {a.Text}")));
+                else lost.AddRange(r.Amendments.Where(a => !a.Undone && a.Seq > to).Select(a => (a.Seq, $"{r.Title} · {a.Line(CombatLog.Pip)}")));
             }
             else if (e is LineEntry { Event.Payload: DiceRerolled or DiceEdited } line && line.Seq > to) lost.Add((line.Seq, line.Text));
         }

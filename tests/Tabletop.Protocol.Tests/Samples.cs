@@ -11,7 +11,7 @@ public static class Samples
     public static readonly Army Army = ArmyTests.Sample();
     public static Guid Unit => Army.Units[0].Id;
     public static Guid Model => Army.Units[0].Models[0].Id;
-    static Placement At(double x, double y) => new(new Point3(x, y, 0), new Yaw(0));
+    public static Placement At(double x, double y) => new(new Point3(x, y, 0), new Yaw(0));
     public static ModelRelocation Deploy => new(Model, new OnShelf(), new OnTable(At(12, 12)));
     public static readonly Guid Container = Guid.CreateVersion7();
     /// <summary>A move action that ended inside a container (game flow → Inside a container); the reverse is the disembark.</summary>
@@ -28,7 +28,7 @@ public static class Samples
 
     public static readonly LegalSet[] LegalSets =
     [
-        new Options([new AskOption("a", "Advance", [Unit])]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
+        new Options([new AskOption("a", "Advance", [Unit]), new AskOption("h", "Hold", [Unit], "Immobile: may only use Hold actions (p.14)")]), new PieceSelection([Unit], 1, 2), new Allocation([Model], 3),
         new PieceSelection([Model], 1, 1),                                                                  // model grain: a Takedown's target (p.14)
         new Assignment([new AskOption("g1", "Rifles", [Model])], [Unit], 2),
         new Assignment([new AskOption("g1", "Rifles", [Model]), new AskOption("g2", "Pistols", [Model])], [Unit, Container], 2,

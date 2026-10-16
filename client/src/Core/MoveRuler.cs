@@ -11,12 +11,37 @@ public sealed record RulerReadout(double Distance, double? Remaining, bool OverA
     public bool OutOfRange => OverAllowance || UnderMinimum;
 }
 
+/// <summary>Whether a move's commit may go, and the line that says how many models are out of range.</summary>
+public sealed record MoveGate(bool Allowed, string? Reason);
+
 public static class MoveRuler
 {
     public static RulerReadout Read(Point2 start, Point2 current, double? allowance, double? minimum = null)
     {
         var d = start.DistanceTo(current);
         return new RulerReadout(d, allowance is { } a ? Math.Max(0, a - d) : null, allowance is { } b && d > b + 1e-6, minimum is { } m && d < m - 1e-6);
+    }
+
+    /// <summary>Where a drag may put a model: the target pulled back along the line from the model's origin to the allowance (p.7: no
+    /// part of the base moves further than the total movement distance).</summary>
+    public static Point2 Clamp(Point2 origin, Point2 target, double allowance)
+    {
+        var d = origin.DistanceTo(target);
+        return d <= allowance ? target : origin + (target - origin) * (allowance / d);
+    }
+
+    /// <summary>The commit against every held model's readout: any out of range is named, and under strict disables it; under warn and
+    /// silent it goes and the server judges.</summary>
+    public static MoveGate Gate(IEnumerable<RulerReadout> readouts, Enforcement enforcement)
+    {
+        var all = readouts.ToList();
+        int over = all.Count(r => r.OverAllowance), under = all.Count(r => r.UnderMinimum);
+        if (over + under == 0) return new MoveGate(true, null);
+        static string Models(int n, string what) => n == 1 ? $"1 model {what} its" : $"{n} models {what} their";
+        var parts = new List<string>();
+        if (over > 0) parts.Add($"{Models(over, "past")} allowance");
+        if (under > 0) parts.Add($"{Models(under, "short of")} minimum");
+        return new MoveGate(enforcement != Enforcement.Strict, string.Join(" · ", parts) + ".");
     }
 
     /// <summary>The least this model must move: the Ask's MinDistance, or as far as the table lets its whole base go when that is less

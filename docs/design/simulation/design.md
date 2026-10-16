@@ -197,7 +197,7 @@ The ten catalog scenarios and what each exists to exercise:
 | `stalemate` | alternating activation | one model a side and `RoundCap(3)`, so the run must hit the cap |
 | `casting` | alternating activation | a `Caster(2)` and one scenario-declared spell, so casting's two player decisions open in a whole-game run |
 | `final-round` | alternating activation | one model a side and `RoundCap(6)`, so the run reaches the end of round 4 under `strict` and `game_ended` follows |
-| `final-round-warn` | alternating activation | the same under `warn`: round 5 starts with a warning and the run stops at the cap |
+| `final-round-warn` | alternating activation | the same under `warn`: the `game_over` Ask follows round 4, `AnswerPolicy` answers End, and `game_ended` follows |
 | `final-round-silent` | alternating activation | the same under `silent`: round 5 starts with no warning |
 | `objectives` | alternating activation | three units of three a side and four objective markers, so the game ends after round 4 with the teams holding the most markers named on `game_ended` (`MostMarkersWin`, any seed, a tie included). Opts into `ObjectiveGoal.Nearest`, so every seed seizes at least once (`EventOfKind("round_ended")`). Blue home sits in Blue's zone, against p.6's "outside of the deployment zones", on purpose |
 
@@ -302,7 +302,7 @@ hole rather than a runtime one.
 
 | `LegalSet` | Answer | How it is chosen |
 | --- | --- | --- |
-| `Options` | `Chosen(optionId)` | `Chooser.Pick` over `Choices`; empty set passes if it may, else `NoLegalAnswerException` |
+| `Options` | `Chosen(optionId)` | `Chooser.Pick` over `Choices`; empty set passes if it may, else `NoLegalAnswerException`; the `game_over` Ask is answered End, not drawn, so a `warn` run finishes |
 | `PieceSelection` | `SelectedPieces` | a size uniform in `[Min, min(Max, Eligible.Count)]`, then `Chooser.Subset` |
 | `Allocation` | `Allocated` | `Amount` independent picks over `Targets`, counted into a dictionary |
 | `Assignment` | `Assigned` | a subset of `Targets` capped at `MaxDistinctTargets` in which every item has one of its own targets (`TargetsOf`), else one covering the most items, then one pick per covered item within it; an uncovered item holds fire |

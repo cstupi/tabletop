@@ -2,6 +2,7 @@ using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
+using Tabletop.Client.Theming;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
 using Projection = Tabletop.Protocol.Projection;
@@ -13,11 +14,14 @@ public partial class DecisionBox
     Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit;
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
+    /// <summary>The move's commit against where its ghosts stand, read again on every drag and reset.</summary>
+    Action? _regate; MoveGate _gate = new(true, null);
 
     void RenderMove(Ask ask, MoveRegion legal, Projection p, Names names)
     {
         if (legal.ModelIds.Count == 0) return;                                      // nothing to move; the server closes the Ask
         var lead = p.Models[legal.ModelIds[0]];
+        double? allowance = null;
         var body = BodyOf(p, lead.Id);
         var ordinal = _s.Game?.Teams.FirstOrDefault(t => t.Id == _s.MyTeamId)?.Ordinal ?? 1;
         _input.Proposing.Clear(); foreach (var id in legal.ModelIds) _input.Proposing.Add(id);
@@ -41,7 +45,7 @@ public partial class DecisionBox
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             // The Ask's Allowance is already what this segment has left (GfMoves reduces it by the distance a cast-split move used): never subtract `used` again.
-            var remaining = Math.Max(0, legal.Allowance);
+            var remaining = Math.Max(0, legal.Allowance); allowance = remaining;
             var start = new PlacedModel(body, on.Placement);
             var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size, DragBodies.Stationary(p, legal.ModelIds));
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.
@@ -54,24 +58,37 @@ public partial class DecisionBox
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
             StartMove();
-            _onCancel = () => { StartMove(); return true; };
+            _onCancel = () => { StartMove(); _regate?.Invoke(); return true; };
             OfferEmbark(ask, legal, p, names);
         }
         // A stop (p.13 Caster(X) "at any point before attacking") sends the ghosts as they stand: with no drag, that is a stop before moving.
         void Relocate(bool continues)
         {
-            if (_proposed is not { } proposed) return;
+            if (_proposed is not { } proposed || !_gate.Allowed) return;
             Send(ask, new Destinations(legal.ModelIds.Select(id => new ModelRelocation(id, p.Models[id].Location, new OnTable(new Placement(proposed[id], YawOf(p, id))))).ToList(), continues));
         }
         void Commit() => Relocate(false);
         _onEnter = Commit;
-        Add(Btn("Commit move (Enter)", Commit));
+        var commit = Btn("Commit move (Enter)", Commit); Add(commit);
+        Button? stop = null;
         if (legal.Stoppable && !MoveRuler.IsDisembark(legal))
         {
             void Stop() => Relocate(true);
             _onStop = Stop;
-            Add(Btn("Stop here (C)", Stop));
+            Add(stop = Btn($"{DecisionView.StopLabel(p, legal)} (C)", Stop));
         }
+        // Any ghost out of range names how many; under strict the commit and the stop wait until none is.
+        var reason = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false }; Add(reason);
+        _regate = () =>
+        {
+            if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
+            _gate = allowance is null ? new MoveGate(true, null) : MoveRuler.Gate(legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
+                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, allowance, _input.Minimum?.GetValueOrDefault(id))),
+                _s.Game?.Enforcement ?? Enforcement.Strict);
+            commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
+            reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
+        };
+        _regate();
     }
 
     /// <summary>p.15: "only one model needs to reach the Transport for everyone to embark". A click on a listed container answers the
@@ -107,7 +124,7 @@ public partial class DecisionBox
 
     void OnDragged(Guid modelId, Point3 position)
     {
-        if (_proposed is not null && _proposed.ContainsKey(modelId)) _proposed[modelId] = position;
+        if (_proposed is not null && _proposed.ContainsKey(modelId)) { _proposed[modelId] = position; _regate?.Invoke(); }
         if (_deployAt is not null && _deployAt.ContainsKey(modelId)) _deployAt[modelId] = position;
     }
 

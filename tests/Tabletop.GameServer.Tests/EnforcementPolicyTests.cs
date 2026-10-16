@@ -31,7 +31,9 @@ public class EnforcementPolicyTests
     public void A_breach_takes_the_settings_three_positions()
     {
         Assert.Equal(new Accept(null), EnforcementPolicy.Decide(Enforcement.Silent, Ends));
-        Assert.Equal(new Accept("4 rounds have been played"), EnforcementPolicy.Decide(Enforcement.Warn, Ends));
+        var offer = Assert.IsType<OfferEnd>(EnforcementPolicy.Decide(Enforcement.Warn, Ends));
+        Assert.Equal("4 rounds have been played", offer.Reason);
+        Assert.Equal([Samples.Team1], offer.Winners);
         var end = Assert.IsType<EndGame>(EnforcementPolicy.Decide(Enforcement.Strict, Ends));
         Assert.Equal("4 rounds have been played", end.Reason);
         Assert.Equal([Samples.Team1], end.Winners);

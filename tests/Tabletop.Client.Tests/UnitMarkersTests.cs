@@ -12,9 +12,10 @@ public class UnitMarkersTests
     public void Icons_sit_over_the_centroid_above_the_tallest_model()
     {
         var p = TableUx.After(TableUx.Deploy, new ActionRecorded(TableUx.Squad.Id, "Advance"), new ConditionSet(new Subject(SubjectKind.Model, A), "shaken", true), new WoundsSet(B, 1));
-        var m = UnitMarkers.Of(p, new Dictionary<Guid, int> { [B] = 3 }).Single();                 // Orcs carry nothing; Reserve is off the table
+        var m = UnitMarkers.Of(p).Single();                 // Orcs carry nothing; Reserve is off the table
         Assert.Equal((TableUx.Squad.Id, new Point3(12, 10, 1.5)), (m.UnitId, m.Anchor));
-        Assert.Equal(new MarkerIcon[] { new("activated", "✓"), new("shaken", "Shaken"), new(null, "●●○") }, m.Icons);
+        Assert.Equal(new MarkerIcon[] { new("activated", "✓"), new("shaken", "Shaken") }, m.Icons);                // wounds are per model (ModelMarks)
+        Assert.Empty(UnitMarkers.Of(TableUx.After(TableUx.Deploy, new WoundsSet(B, 1))));
     }
 
     [Fact]

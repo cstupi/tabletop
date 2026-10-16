@@ -73,17 +73,20 @@ internal static partial class CoreGames
         return new[] { "advance", "rush", "charge", "melee" }.Except(seen).ToList() is { Count: > 0 } missing ? $"no {string.Join(", ", missing)} move was made" : null;
     });
 
-    /// <summary>p.7: "After 4 rounds have been played the game ends" — strict ends it, warn starts round 5 with a warning, silent starts it quietly.</summary>
+    /// <summary>p.7: "After 4 rounds have been played the game ends" — strict ends it, warn asks every team End or Continue and (the game scripted to
+    /// continue) starts round 5 with a warning, silent starts it quietly.</summary>
     static GameCheck FinalRound(Enforcement enforcement) => Check($"p.7: \"After 4 rounds have been played the game ends\" ({enforcement.ToString().ToLowerInvariant()})", log =>
     {
         var fifth = log.Events.FirstOrDefault(e => e.Payload is RoundStarted { Round: 5 });
         var ended = log.Events.FirstOrDefault(e => e.Payload is GameEnded);
+        var asked = log.Events.FirstOrDefault(e => e.Payload is AskOpened { Ask.Question: AskQuestions.GameOver });
         if (!log.Events.Any(e => e.Payload is RoundStarted { Round: 4 })) return "round 4 never started";
         return enforcement switch
         {
-            Enforcement.Strict => ended is null ? "no game_ended" : fifth is not null ? "round 5 started" : null,
-            Enforcement.Warn => ended is not null ? "the game ended" : fifth is null ? "round 5 never started" : fifth.Warning is null ? "round 5 started with no warning" : null,
-            _ => ended is not null ? "the game ended" : fifth is null ? "round 5 never started" : fifth.Warning is not null ? $"round 5 warned: {fifth.Warning}" : null,
+            Enforcement.Strict => ended is null ? "no game_ended" : fifth is not null ? "round 5 started" : asked is not null ? "game_over was asked" : null,
+            Enforcement.Warn => ended is not null ? "the game ended" : asked is null ? "game_over was never asked" : fifth is null ? "round 5 never started"
+                : fifth.Seq < asked.Seq ? "round 5 started before game_over was asked" : fifth.Warning is null ? "round 5 started with no warning" : null,
+            _ => asked is not null ? "game_over was asked" : ended is not null ? "the game ended" : fifth is null ? "round 5 never started" : fifth.Warning is not null ? $"round 5 warned: {fifth.Warning}" : null,
         };
     });
 

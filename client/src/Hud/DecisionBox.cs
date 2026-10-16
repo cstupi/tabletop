@@ -155,8 +155,13 @@ public partial class DecisionBox : PanelContainer
             if (!IsInstanceValid(list)) return;
             foreach (var c in list.GetChildren()) { list.RemoveChild(c); c.QueueFree(); }
             _numbered = numbered;
-            foreach (var c in shown)
+            foreach (var row in DecisionView.Rows(shown))
             {
+                if (row.Option is not { } c)
+                {
+                    list.AddChild(new Label { Text = row.Note, ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+                    continue;
+                }
                 var key = _numbered.FirstOrDefault(n => n.OptionId == c.Id).Key;
                 var b = Btn(key > 0 ? $"{key}. {c.Label}" : c.Label, () => Send(mine.Ask, new Chosen(c.Id)));
                 var pieces = c.Pieces;
@@ -284,7 +289,7 @@ public partial class DecisionBox : PanelContainer
     void Unhook()
     {
         _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
-        _proposed = null; _deployAt = null; _deployUnit = null;
+        _proposed = null; _deployAt = null; _deployUnit = null; _regate = null; _gate = new(true, null);
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Minimum = null; _input.Region = null; _input.Eligible = new HashSet<Guid>(); }

@@ -35,7 +35,7 @@ public partial class TableInput
     /// <summary>L or Ctrl released while the window was elsewhere never arrives: losing focus lets go of it.</summary>
     public override void _Notification(int what) { if (what == NotificationApplicationFocusOut) { SetSight(false); SetMeasureHeld(false); } }
 
-    /// <summary>True when the key was used. Option1–5, Q and E are the held unit's while one is held, the decision box's otherwise.</summary>
+    /// <summary>True when the key was used. Option1–5, Q and E are the held models' while any are held, the decision box's and the camera's otherwise.</summary>
     bool Act(Intent intent)
     {
         switch (intent)
@@ -58,12 +58,12 @@ public partial class TableInput
         }
     }
 
-    /// <summary>Esc, innermost first: the drag (its models back where they started); the decision box has already taken an Esc it used for assignments; then the selection and the measurement.</summary>
+    /// <summary>Esc, innermost first: the drag (its models back where they were picked up, facing as they did); the decision box has already taken an Esc it used for assignments; then the selection and the measurement.</summary>
     void Cancel()
     {
         if (_drag is { } drag)
         {
-            foreach (var (id, at) in drag.Starts) { MoveNode(id, at); ModelDragged?.Invoke(id, at); }
+            foreach (var (id, at) in drag.Grabs) { MoveNode(id, at.Position); Face(id, at.Yaw); ModelDragged?.Invoke(id, at.Position); }
             CancelDrag();
             return;
         }

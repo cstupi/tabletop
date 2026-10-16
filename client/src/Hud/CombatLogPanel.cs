@@ -7,7 +7,8 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>The play log (client UX spec → Combat log): a filter over CombatLog's blocks, rolls and lines. Renders only; every word is CombatLog's.</summary>
+/// <summary>The play log (combat-log spec → The log): a filter over CombatLog's blocks, rolls and lines. A block shows its lines beneath its header
+/// until the header is clicked; a roll shows its raw faces bright or faded and expands on click. Renders only; every word is CombatLog's.</summary>
 public partial class CombatLogPanel : VBoxContainer
 {
     static readonly string[] FilterLabels = ["All", "Rolls", "My units", "This unit"];   // LogFilter's order
@@ -15,7 +16,7 @@ public partial class CombatLogPanel : VBoxContainer
     readonly OptionButton _filter = new();
     readonly ScrollContainer _scroll = new() { SizeFlagsVertical = SizeFlags.ExpandFill, SizeFlagsHorizontal = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-    readonly HashSet<string> _open = [];
+    readonly HashSet<string> _open = [], _folded = [];   // rolls opened, blocks folded
     Guid? _reveal, _focus; Control? _revealed; bool _toEnd, _shown, _stale;
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
@@ -86,22 +87,25 @@ public partial class CombatLogPanel : VBoxContainer
 
     void Add(VBoxContainer into, LogEntry e)
     {
-        if (Holds(e)) _open.Add(Key(e));
-        var open = _open.Contains(Key(e));
+        if (Holds(e)) { _open.Add(Key(e)); _folded.Remove(Key(e)); }
+        var open = e is ActivationBlock ? !_folded.Contains(Key(e)) : _open.Contains(Key(e));
         var text = e switch
         {
             ActivationBlock b => $"{(open ? "▾" : "▸")} {b.Header}{(open || b.Chain.Length == 0 ? "" : $"  ·  {b.Chain}")}",
-            RollEntry r => $"{(open ? "▾" : "▸")} {r.Collapsed(CombatLog.Pip)}",
-            LineEntry l => $"#{l.Seq}  {l.Text}",
+            RollEntry r => $"{(open ? "▾" : "▸")} {r.Title}",
+            LineEntry l => l.Text,
             _ => "",
         };
         var row = new HBoxContainer(); into.AddChild(row);
+        var faded = e.Undone || _s.PendingUndoTo is { } to && e.Seq > to;
         var button = new Button { Text = e.Undone ? Strike(text) : text, Flat = true, ThemeTypeVariation = Variation.FlatButton, Alignment = HorizontalAlignment.Left, SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
-        if (e.Undone || _s.PendingUndoTo is { } to && e.Seq > to) button.Modulate = Ui.Faded;
-        button.Pressed += () => { Highlight(e); if (e is LineEntry) return; if (!_open.Remove(Key(e))) _open.Add(Key(e)); Render(false); };
+        if (faded) button.Modulate = Ui.Faded;
+        var set = e is ActivationBlock ? _folded : _open;   // a block starts open, a roll closed
+        button.Pressed += () => { Highlight(e); if (e is LineEntry) return; if (!set.Remove(Key(e))) set.Add(Key(e)); Render(false); };
         row.AddChild(button);
+        if (e is RollEntry line) Faces(row, line, faded);
         if (e is RollEntry shown && shown.Record.Id == _reveal) _revealed = button;
-        if (!e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
+        if (e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
         if (!open) return;
         var inner = new VBoxContainer(); var indent = new MarginContainer(); indent.AddThemeConstantOverride("margin_left", 16);
         indent.AddChild(inner); into.AddChild(indent);
@@ -109,9 +113,17 @@ public partial class CombatLogPanel : VBoxContainer
         if (e is RollEntry roll) Details(inner, roll);
     }
 
+    /// <summary>The roll's raw faces, bright on a success and faded on a failure (an unjudged die plain), then its result and live amendments.</summary>
+    static void Faces(HBoxContainer row, RollEntry r, bool faded)
+    {
+        foreach (var d in r.Dice) row.AddChild(DiceFaces.Of(new Die(d.Raw, d.Modified, !d.Judged || d.Success)));
+        var tail = string.Join(" · ", new[] { r.Result }.Concat(r.Amendments.Where(a => !a.Undone).Select(a => a.Line(CombatLog.Pip))).Where(t => t.Length > 0));
+        if (tail.Length > 0) row.AddChild(new Label { Text = tail, ThemeTypeVariation = faded ? Variation.Dim : "" });
+    }
+
     void Details(VBoxContainer into, RollEntry r)
     {
-        foreach (var line in r.Basis.Concat(r.Modifiers)) into.AddChild(new Label { Text = line });
+        foreach (var line in r.Details) into.AddChild(new Label { Text = line });
         foreach (var d in r.Dice)
         {
             // An unjudged die shows neither pass nor fail: a plain face and an unstyled label.
@@ -124,6 +136,7 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
         if (r.Undone) return;
         var actions = new HBoxContainer(); into.AddChild(actions);
+        AddButton(actions, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
         AddButton(actions, "Reroll all", () => Send(new RerollDice(r.FrameId, r.Record.Id, [])));
         AddButton(actions, "Set die 1…", () => PieceMenu.AskInteger(this, "Raw value for die 1", v => Send(new SetDice(r.FrameId, r.Record.Id, [new DieValue(0, v)]))));
         AddButton(actions, "+1", () => Send(new AddModifier(r.FrameId, r.Record.Roll, 1)));

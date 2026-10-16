@@ -1,15 +1,15 @@
 using Tabletop.Geometry; using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-/// <summary>Key looks up the theme's icon (null: wound pips, always text); Text shows when the theme has none.</summary>
+/// <summary>Key looks up the theme's icon; Text shows when the theme has none.</summary>
 public sealed record MarkerIcon(string? Key, string Text);
 public sealed record UnitMarker(Guid UnitId, Point3 Anchor, IReadOnlyList<MarkerIcon> Icons);
 public sealed record FloatingResult(Guid UnitId, string Text, Point3? At);
 
-/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated, each condition, each wounded multi-wound model's pips.</summary>
+/// <summary>Spec → Markers: over each unit on the table, at its models' centroid above the tallest model: activated and each condition. Per-model marks are ModelMarks.</summary>
 public static class UnitMarkers
 {
-    public static IReadOnlyList<UnitMarker> Of(Projection p, IReadOnlyDictionary<Guid, int> maxWounds)
+    public static IReadOnlyList<UnitMarker> Of(Projection p)
     {
         var list = new List<UnitMarker>();
         foreach (var u in p.Units.Values)
@@ -18,7 +18,6 @@ public static class UnitMarkers
             var icons = new List<MarkerIcon>();
             if (u.Actions.Count > 0) icons.Add(new("activated", "✓"));
             icons.AddRange(u.Conditions.Concat(on.SelectMany(m => m.Conditions)).Distinct().Order(StringComparer.Ordinal).Select(c => new MarkerIcon(c, RosterView.Words(c))));
-            foreach (var m in on) if (maxWounds.GetValueOrDefault(m.Id, 1) is var max && max > 1 && m.Wounds > 0) icons.Add(new(null, RosterView.Pips(Math.Max(0, max - m.Wounds), max)));
             if (on.Count == 0 || icons.Count == 0) continue;
             var at = on.Select(m => ((OnTable)m.Location).Placement.Position).ToList();
             list.Add(new(u.Id, new Point3(at.Average(q => q.X), at.Average(q => q.Y), on.Max(m => ((OnTable)m.Location).Placement.Position.Z + m.Slot.Height)), icons));

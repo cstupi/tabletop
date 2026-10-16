@@ -79,7 +79,7 @@ public partial class UnitCard : VBoxContainer
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
-        RenderCard(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0);
+        RenderCard(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u));
         RenderStrip(p!, game!, names, sheet);
     }
 
@@ -90,7 +90,8 @@ public partial class UnitCard : VBoxContainer
         RenderStrip(p, game, _names, _sheet);
     }
 
-    void RenderCard(UnitSheetModel m, int team)
+    /// <summary>Note: why my open choice limits this unit (AskOption.Note), under its chips; null shows nothing.</summary>
+    void RenderCard(UnitSheetModel m, int team, string? note)
     {
         Clear(_body);
         _body.AddChild(new ColorRect { Color = Palette.Team(team), CustomMinimumSize = new Vector2(0, 4) });
@@ -98,6 +99,7 @@ public partial class UnitCard : VBoxContainer
         var badges = new HBoxContainer(); _body.AddChild(badges);
         badges.AddChild(Badge($"Quality {m.Quality ?? "-"}")); badges.AddChild(Badge($"Defense {m.Defense ?? "-"}"));
         _body.AddChild(Flow(m.Chips.Select(StatusChip)));
+        if (note is not null) _body.AddChild(Wrap(note, Variation.Warning));
         foreach (var model in m.Models) _body.AddChild(WoundRow(model));
         if (m.Weapons.Count > 0) _body.AddChild(WeaponTable(m.Weapons));
         _body.AddChild(Flow(m.Rules.Select(RuleChip)));

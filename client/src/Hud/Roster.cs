@@ -1,13 +1,14 @@
 using Godot; using Tabletop.Client.Core; using Tabletop.Client.Table; using Tabletop.Client.Theming; using Tabletop.Protocol;
 namespace Tabletop.Client.Hud;
 
-/// <summary>Left column, above the unit card: team headers and unit rows; a click selects and centres the unit, R collapses to the headers.</summary>
+/// <summary>Left column, above the unit card: team headers and unit rows; a click selects and centres the unit, a right-click asks for the unit's menu, R collapses to the headers.</summary>
 public partial class Roster : PanelContainer
 {
     Session _s = null!; readonly VBoxContainer _list = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }; bool _collapsed;
     Action<RenderCause>? _onFrame; Action? _onChanged;
     HudRect? _slot; bool _fitQueued; ScrollContainer _scroll = null!;
     public event Action<Guid>? UnitPicked;
+    public event Action<Guid, Vector2>? UnitMenuRequested;
 
     public void Bind(Session session)
     {
@@ -49,7 +50,11 @@ public partial class Roster : PanelContainer
                 line.AddChild(new Label { Text = row.Max <= 12 ? RosterView.Pips(row.Left, row.Max) : $"{row.Left}/{row.Max}", ThemeTypeVariation = v });
                 foreach (var c in row.Conditions) line.AddChild(Icon(c));
                 var id = row.UnitId;
-                line.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) UnitPicked?.Invoke(id); };
+                line.GuiInput += e =>
+                {
+                    if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) UnitPicked?.Invoke(id);
+                    else if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } b) UnitMenuRequested?.Invoke(id, b.GlobalPosition);
+                };
                 _list.AddChild(line);
             }
         }

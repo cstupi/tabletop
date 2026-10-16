@@ -48,7 +48,7 @@ public static class ScenarioCatalog
 
         ["final-round-warn"] = () => new ScenarioBuilder("final-round-warn", seed: 1)
             .Enforcing(Enforcement.Warn).RoundCap(6).Army("Red", 1, 1).Army("Blue", 1, 1)
-            .Expect(new Expectation.Outcome("round_limit"), new Expectation.NoEventOfKind("game_ended"), new Expectation.Warnings("round_started", 2))
+            .Expect(new Expectation.Outcome("ended"), new Expectation.ReachedRound(4), new Expectation.AskAsked(AskQuestions.GameOver), new Expectation.EventOfKind("game_ended"))
             .Build(),
 
         ["final-round-silent"] = () => new ScenarioBuilder("final-round-silent", seed: 1)

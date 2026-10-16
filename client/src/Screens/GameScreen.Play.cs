@@ -18,7 +18,7 @@ public partial class GameScreen
     HeaderBar? _header; UnitCard? _card; DecisionBox? _decision; DiceTray? _dice; LogDrawer? _logDrawer; UndoButton? _undo; EndMessage? _end; KeyOverlay? _keys;
     HoverLabels? _hover; SightLines? _sight; TargetLines? _targets; Lasers? _lasers; CanvasLayer? _tableLayer;
     Animator? _animator; PieceMenu? _menu; bool _layoutQueued;
-    Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; Action<IReadOnlyList<GameEvent>>? _onFollow;
+    Roster? _roster; TurnBanner? _banner; UnitMarkerNodes? _markers; FloatingText? _floating; RangeRingNode? _rings; ModelMarkNodes? _modelMarks; Action<IReadOnlyList<GameEvent>>? _onFollow;
     // Input outlives the play parts: its subscriptions are fields and come off when they go.
     Action<Guid, Vector2>? _onPieceRight; Action<Vector3>? _onTableRight; Action<MenuItem>? _onItem;
     readonly MenuItem _leave = new("Leave the game", MenuInput.None, _ => null);
@@ -49,6 +49,7 @@ public partial class GameScreen
         Table.AddChild(_targets = new TargetLines()); _targets.Bind(_session, Table, Input);
         Table.AddChild(_lasers = new Lasers()); _lasers.Bind(_session, Table, Input);
         Table.AddChild(_rings = new RangeRingNode()); _rings.Bind(_session, Input);
+        Table.AddChild(_modelMarks = new ModelMarkNodes()); _modelMarks.Bind(_session, Table);
         Table.AddChild(_tableLayer = new CanvasLayer());
 
         // The floating text subscribes before the Animator is made, so it hears each batch before the Animator plays it.
@@ -78,6 +79,8 @@ public partial class GameScreen
         _undo.Reported += Toast;
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
+        _roster.UnitMenuRequested += (id, at) => { if (_session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId), at); };
+        _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.
         _onFollow = batch => { if (!_session.CatchingUp && _session.Projection is { } p && CameraFocus.FollowTarget(batch, p) is { } at) Table.Camera.Follow(WorldFrame.ToGodot(at), _session.Settings.CameraFollow); };
@@ -175,11 +178,11 @@ public partial class GameScreen
         if (_onFollow is not null) _session.EventsApplied -= _onFollow;
         _onFollow = null;
         _animator?.Dispose(); _animator = null;
-        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _markers, _floating, _tableLayer, _menu })
+        foreach (var node in new Node?[] { _header, _roster, _card, _decision, _dice, _logDrawer, _undo, _banner, _end, _keys, _hover, _sight, _targets, _lasers, _rings, _modelMarks, _markers, _floating, _tableLayer, _menu })
             if (node is not null && IsInstanceValid(node)) node.QueueFree();
         _header = null; _card = null; _decision = null; _dice = null; _logDrawer = null; _end = null; _keys = null;
         _hover = null; _sight = null; _targets = null; _lasers = null; _tableLayer = null; _undo = null; _menu = null;
-        _roster = null; _banner = null; _markers = null; _floating = null; _rings = null;
+        _roster = null; _banner = null; _markers = null; _floating = null; _rings = null; _modelMarks = null;
         _onPieceRight = null; _onTableRight = null; _onItem = null;
     }
 

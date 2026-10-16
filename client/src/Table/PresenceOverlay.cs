@@ -41,6 +41,9 @@ public partial class PresenceOverlay : Node3D
         if (value.Cursor is { } c)
         {
             var cone = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 0, BottomRadius = 0.25f, Height = 0.8f }, Position = WorldFrame.ToGodot(c.Point) + Vector3.Up * 0.5f, MaterialOverride = Palette.Translucent(colour) };
+            var name = _session.Game is { } game ? new Names(game, null).Participant(participantId) : Names.Short(participantId);
+            cone.AddChild(new Label3D { Text = name, Modulate = colour, Billboard = BaseMaterial3D.BillboardModeEnum.Enabled, FontSize = 44, PixelSize = 0.01f, OutlineSize = 10, NoDepthTest = true,
+                HorizontalAlignment = HorizontalAlignment.Left, Offset = new Vector2(30, 0) });
             AddChild(cone); _cursors[participantId] = cone;
             if (c.Target is { } target) _view.PieceAt(target)?.SetHighlight(colour);
         }

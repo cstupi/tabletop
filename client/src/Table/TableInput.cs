@@ -36,6 +36,8 @@ public partial class TableInput : Node
     public MarkerLocks Locks { get; } = new();
     /// <summary>The marker under the cursor, or null.</summary>
     public Guid? HoveredMarker { get; private set; }
+    /// <summary>The terrain piece under the cursor, or null.</summary>
+    public Guid? HoveredTerrain { get; private set; }
     /// <summary>A drag is armed: past the threshold, models in hand.</summary>
     public bool Holding => _drag is { Armed: true };
     public event Action<Guid, Point3>? ModelDragged;
@@ -45,6 +47,7 @@ public partial class TableInput : Node
     public event Action<Guid>? PieceLeftClicked;
     public event Action<Guid?>? HoveredUnitChanged;
     public event Action<Guid?>? HoveredMarkerChanged;
+    public event Action<Guid?>? HoveredTerrainChanged;
     public event Action<Guid>? UnitClicked;
     public event Action<Guid>? TargetClicked;
     public event Action<Guid, bool>? ModelClicked;
@@ -52,16 +55,22 @@ public partial class TableInput : Node
     public event Action<Intent>? IntentPressed;
     public event Action? EligibleChanged, SightHeldChanged;
 
-    /// <summary>A drag in hand. Armed once the cursor has travelled <see cref="DragThreshold"/> pixels. Rows above zero is a formation about the cursor, turned by Turn degrees from the camera's heading.</summary>
-    sealed class Drag(Guid pieceId, IReadOnlyList<Guid> modelIds, Point3 start, Vector2 screen, Dictionary<Guid, Point3> starts, Yaw yaw)
+    /// <summary>
+    /// A drag in hand. Armed once the cursor has travelled <see cref="DragThreshold"/> pixels. Grabs are where each piece stood when
+    /// it was picked up (a proposed ghost where it is drawn): the cursor offsets and Esc go from them. Origins are where each stands
+    /// in the projection: the ruler and the allowance go from them. Each piece keeps its own yaw; Rows above zero is a formation
+    /// about the cursor, turned by Turn degrees from the camera's heading, and every model takes its facing.
+    /// </summary>
+    sealed class Drag(Guid pieceId, IReadOnlyList<Guid> modelIds, Point3 start, Vector2 screen, Dictionary<Guid, Placement> grabs, Dictionary<Guid, Point3> origins)
     {
         public Guid PieceId { get; } = pieceId;
         public IReadOnlyList<Guid> ModelIds { get; } = modelIds;
         public Point3 Start { get; } = start;
         public Vector2 Screen { get; } = screen;
-        public Dictionary<Guid, Point3> Starts { get; } = starts;
-        public Dictionary<Guid, Point3> Current { get; } = new(starts);
-        public Yaw Yaw { get; set; } = yaw;
+        public Dictionary<Guid, Placement> Grabs { get; } = grabs;
+        public Dictionary<Guid, Point3> Origins { get; } = origins;
+        public Dictionary<Guid, Point3> Current { get; } = grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position);
+        public Dictionary<Guid, Yaw> Yaws { get; } = grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Yaw);
         public bool Armed { get; set; }
         public int Rows { get; set; }
         public double Turn { get; set; }
@@ -104,7 +113,7 @@ public partial class TableInput : Node
     }
 
     Presence Snapshot() => new(_session.ParticipantId ?? Guid.Empty, _cursor, Selected,
-        _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaw, Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _measurement);
+        _drag is not { Armed: true } ? [] : _drag.Current.Select(kv => new PresencePlacement(kv.Key, kv.Value, _drag.Yaws[kv.Key], Proposing.Contains(kv.Key) ? PlacementKind.Proposed : PlacementKind.Held)).ToList(), _measurement);
 
     (Point3 Point, Node3D? Piece) Pick(Vector2 screen)
     {
@@ -175,7 +184,7 @@ public partial class TableInput : Node
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
         _drag.Armed = true; _drag.Cursor = point;
         var dx = point.X - _drag.Start.X; var dy = point.Y - _drag.Start.Y;
-        Place(_drag.Rows > 0 ? Arranged(point) : _drag.Starts.ToDictionary(kv => kv.Key, kv => new Point3(kv.Value.X + dx, kv.Value.Y + dy, kv.Value.Z)));
+        Place(_drag.Rows > 0 ? Arranged(point) : _drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + dx, Y = kv.Value.Position.Y + dy }));
     }
 
     /// <summary>The unit under the cursor, raised on change; an eligible piece takes the pointing hand.</summary>
@@ -185,6 +194,8 @@ public partial class TableInput : Node
         Input.SetDefaultCursorShape(over is not null && (Eligible.Contains(over.ModelId) || Eligible.Contains(over.UnitId)) ? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
         var marker = (piece as MarkerNode)?.MarkerId;
         if (marker != HoveredMarker) { HoveredMarker = marker; HoveredMarkerChanged?.Invoke(marker); }
+        var terrain = (piece as TerrainNode)?.PlacementId;
+        if (terrain != HoveredTerrain) { HoveredTerrain = terrain; HoveredTerrainChanged?.Invoke(terrain); }
         if (over?.UnitId == _hovered) return;
         _hovered = over?.UnitId; HoveredUnitChanged?.Invoke(_hovered);
     }
@@ -206,7 +217,7 @@ public partial class TableInput : Node
     public Action<Point3>? PlacementPoint { get; set; }
 
     /// <summary>Abandon the drag in progress and send nothing. The decision box calls it when the click that started the drag turned out to be an answer — clicking an enterable container embarks the unit rather than shoving the transport about.</summary>
-    public void CancelDrag() { _drag = null; _ruler.Hide(); _presenceDirty = true; _view.Redraw(); }
+    public void CancelDrag() { _drag = null; HideRulers(); _presenceDirty = true; _view.Redraw(); }
 
     void OnLeftDown(Vector2 screen, bool shift)
     {
@@ -238,13 +249,15 @@ public partial class TableInput : Node
         SelectionChanged?.Invoke(); _presenceDirty = true;
         if (MayDrag(piece, models))
         {
-            var starts = models.ToDictionary(m => m, m => Position(m));
+            // A proposed ghost is picked up where it is drawn and facing the way it was turned; everything else where the projection has it.
+            var grabs = models.ToDictionary(m => m, m => Proposing.Contains(m) && _view.PieceAt(m) is { } ghost
+                ? new Placement(WorldFrame.FromGodot(ghost.Position), WorldFrame.YawFrom(ghost.Rotation.Y)) : new Placement(Position(m), CurrentYaw(m)));
             var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
             _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
             // The Ask's other models are ghosts: they collide where they are drawn, a disembark ghost included.
             _stationary = projection is null ? [] : DragBodies.Stationary(projection, models, Proposing.Where(m => !models.Contains(m) && _view.PieceAt(m) is not null)
                 .ToDictionary(m => m, m => new Placement(WorldFrame.FromGodot(_view.PieceAt(m)!.Position), WorldFrame.YawFrom(_view.PieceAt(m)!.Rotation.Y))));
-            _drag = new Drag(id, models, point, screen, starts, CurrentYaw(id));
+            _drag = new Drag(id, models, point, screen, grabs, models.ToDictionary(m => m, Position));
         }
         // Last, with the drag already made, so a listener that treats the click as an answer can CancelDrag() it: the piece's
         // own id, which for a model is the model, not the unit Selection widens it to (MoveContainment.Enterable is model ids).
@@ -310,8 +323,8 @@ public partial class TableInput : Node
             return;
         }
         if (_drag is null) return;
-        var drag = _drag; _drag = null; _ruler.Hide(); _presenceDirty = true;
-        var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Starts[kv.Key]);
+        var drag = _drag; _drag = null; HideRulers(); _presenceDirty = true;
+        var moved = drag.Armed && drag.Current.Any(kv => kv.Value != drag.Grabs[kv.Key].Position || drag.Yaws[kv.Key] != drag.Grabs[kv.Key].Yaw);
         if (!moved) return;
         var status = _session.Game?.Status;
         var p = _session.Projection; var draft = _session.Draft;
@@ -325,17 +338,17 @@ public partial class TableInput : Node
             if (p is not null && drag.ModelIds.All(p.Models.ContainsKey))
             {
                 // The nodes stay where they were dropped until the server's event (or a refusal) lands; the Animator skips this move.
-                var moves = drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(new Placement(drag.Starts[m], drag.Yaw)), new OnTable(new Placement(drag.Current[m], drag.Yaw)))).ToList();
+                var moves = drag.ModelIds.Select(m => new ModelRelocation(m, new OnTable(drag.Grabs[m]), new OnTable(new Placement(drag.Current[m], drag.Yaws[m])))).ToList();
                 freeMove = true; _drops.Add(held, moves);
                 await _session.SendCommandAsync(new MoveModels(moves), held);
                 HandMoved?.Invoke(drag.ModelIds);                         // the undo button waits for this move's event
             }
             else if (status == GameStatus.Setup && draft is not null && draft.Terrain.Any(t => t.Id == drag.PieceId))
-                await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+                await _session.SendEditAsync(new MoveTerrain(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
             else if (status == GameStatus.Setup && draft is not null && draft.Markers.Any(m => m.Id == drag.PieceId))
-                await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+                await _session.SendEditAsync(new MoveSetupMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
             else if (p is not null && (p.Markers.ContainsKey(drag.PieceId) || p.Board.Table.Markers.Any(m => m.Id == drag.PieceId)))   // a play marker, or a setup one (an unlocked objective)
-                await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaw));
+                await _session.SendCommandAsync(new MoveMarker(drag.PieceId, drag.Current[drag.PieceId], drag.Yaws[drag.PieceId]));
         }
         catch (Exception ex) { GD.PushWarning($"Send failed: {ex.Message}"); _drops.Refuse(held); freeMove = false; }
         if (!freeMove && IsInstanceValid(this) && IsInstanceValid(_view)) _view.Redraw();   // an edit or a marker move still snaps back until its event lands; a free move waits for its event or a refusal

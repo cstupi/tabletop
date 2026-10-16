@@ -34,7 +34,7 @@ public sealed partial class GrimdarkFutureRules
         var actionRows = props.Actions.Select(a => a.Name).ToList();
         var options = TeamUnits.Of(state, teamId)
             .Where(u => u.Actions.Count == 0 && TeamUnits.AnyOnTable(state, u))
-            .SelectMany(u => ActionsFor(state, props, u, actionRows).Select(a => ActivationOption.For(u, a))).ToList();
+            .SelectMany(u => { var (actions, note) = ActivationChoices(state, props, u, actionRows); return actions.Select(a => ActivationOption.For(u, a, note)); }).ToList();
         return options.Count == 0 ? null : new TurnAsk(AskQuestions.Activate, "Activate a unit", new Options(options), AllowPass: true);
     }
 
@@ -44,14 +44,27 @@ public sealed partial class GrimdarkFutureRules
     /// Page 10: every other Shaken unit "must spend their activation being idle". Page 14: Immobile and page 13: Artillery mean Hold only.
     /// Page 7: Charge needs an enemy unit within charge distance.
     /// </summary>
-    public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
+    public static IReadOnlyList<string> ActionsFor(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows) =>
+        ActivationChoices(state, props, unit, actionRows).Actions;
+
+    /// <summary>ActionsFor with the reason the set is limited, in the book's words and page, for AskOption.Note; null when nothing limits it.</summary>
+    public static (IReadOnlyList<string> Actions, string? Note) ActivationChoices(GameState state, PropertySet props, UnitInPlay unit, IReadOnlyList<string> actionRows)
     {
-        if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return actionRows.Where(a => a == Advance).ToList();
-        if (unit.Conditions.Contains(Shaken)) return [ActivationOption.Idle];
-        if (Lookup.UnitHas(state, props, unit.Id, Immobile) || Lookup.UnitHas(state, props, unit.Id, Artillery)) return actionRows.Where(a => a == Hold).ToList();
+        if (Lookup.UnitHas(state, props, unit.Id, Aircraft)) return (actionRows.Where(a => a == Advance).ToList(), AircraftNote);
+        if (unit.Conditions.Contains(Shaken)) return ([ActivationOption.Idle], ShakenNote);
+        if (Lookup.UnitHas(state, props, unit.Id, Immobile)) return (actionRows.Where(a => a == Hold).ToList(), ImmobileNote);
+        if (Lookup.UnitHas(state, props, unit.Id, Artillery)) return (actionRows.Where(a => a == Hold).ToList(), ArtilleryNote);
         // p.7: "Units may only take a Charge action if at least one model is within charge distance of the target unit".
-        return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0 ? actionRows.Where(a => a != Charge).ToList() : actionRows;
+        return actionRows.Contains(Charge) && GfMelee.ChargeTargets(state, props, unit.Id).Count == 0
+            ? (actionRows.Where(a => a != Charge).ToList(), NoChargeNote)
+            : (actionRows, null);
     }
+
+    public const string AircraftNote = "Aircraft: may only use Advance actions, even if Shaken (p.13)";
+    public const string ShakenNote = "Shaken: must spend this activation being idle, which stops it being Shaken at the end of the activation (p.10)";
+    public const string ImmobileNote = "Immobile: may only use Hold actions (p.14)";
+    public const string ArtilleryNote = "Artillery: may only use Hold actions (p.13)";
+    public const string NoChargeNote = "No Charge: no enemy unit within charge distance (p.7)";
 
     public Activation? ReadAnswer(GameState state, Guid teamId, AskAnswer answer) => answer switch
     {

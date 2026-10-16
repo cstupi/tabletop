@@ -69,10 +69,13 @@ public static class HeaderView
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
-    static string? Result(GameEnded? ended, Names n) => ended is null ? null : "Game over · " + (ended.Winners.Count switch
+    static string? Result(GameEnded? ended, Names n) => ended is null ? null : "Game over · " + Outcome(ended, n);
+
+    /// <summary>One winner wins, several draw, none is no result.</summary>
+    public static string Outcome(GameEnded ended, Names n) => ended.Winners.Count switch
     {
         0 => "No result",
         1 => $"{n.Team(ended.Winners[0])} wins",
         _ => "Draw",
-    });
+    };
 }

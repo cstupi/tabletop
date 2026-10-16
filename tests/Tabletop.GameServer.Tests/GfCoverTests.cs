@@ -132,4 +132,77 @@ public class GfCoverTests
         Assert.Empty(Battlefield.ModelsBehindSightBlockers(sim.State, pair.Id, [shooter.Models[0].Id]));
         Assert.False(GfRolls.InCover(sim.State, pair.Id, [shooter.Models[0].Id], ignoresSightObstructions: false));
     }
+
+    // Combat-log spec → What the server adds: every defense roll of a shooting attack carries the target unit's one verdict.
+    static SequenceContext Fire(Unit a, Unit t) => new(a.Id, [t.Id], a.Models.SelectMany(m => m.Weapons.Select(w => w.Id)).ToList(), GfNames.Hold);
+    static IReadOnlyList<RollRecord> Blocks(Sim sim) => sim.Steps("roll-to-block").SelectMany(s => s.Rolls).ToList();
+
+    [Fact]
+    public void A_screened_single_model_blocks_with_a_verdict_of_one_of_one_in_cover()
+    {
+        var (shooter, target, screen) = (Rifle(), Unit("Lone", "4+", "6+", [], 1, []), Wall());
+        var sim = Laid(shooter, target, screen, [Screened], wood: false, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(shooter, target));
+        Assert.Equal(new CoverVerdict(true, 1, 1), Blocks(sim).Single().Cover);
+    }
+
+    [Fact]
+    public void One_screened_model_of_two_blocks_with_a_verdict_of_one_of_two_not_in_cover()
+    {
+        var (shooter, target, screen) = (Rifle(), Unit("Pair", "4+", "6+", [], 2, []), Wall());
+        var sim = Laid(shooter, target, screen, [Screened, Open], wood: false, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(shooter, target));
+        var block = Blocks(sim).Single();
+        Assert.Equal(new CoverVerdict(false, 1, 2), block.Cover);
+        Assert.DoesNotContain(block.Modifiers, m => m.Source == "cover");
+    }
+
+    [Fact]
+    public void Blast_at_a_unit_in_cover_records_the_verdict_and_names_blast_as_what_ignored_it()
+    {
+        var shooter = Unit("Mortar", "4+", "4+", [], 1, [], Gun("Mortar", "36\"", 1, P("Blast", 3)));
+        var (target, screen) = (Unit("Lone", "4+", "6+", [], 1, []), Wall());
+        var sim = Laid(shooter, target, screen, [Screened], wood: false, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(shooter, target));
+        var block = Blocks(sim).Single();
+        Assert.Equal(new CoverVerdict(true, 1, 1, "Blast"), block.Cover);
+        Assert.DoesNotContain(block.Modifiers, m => m.Source == "cover");
+    }
+
+    [Fact]
+    public void Indirect_dropping_the_sight_half_names_indirect_and_cover_terrain_stands()
+    {
+        var mortar = Unit("Mortar", "4+", "4+", [], 1, [], Gun("Mortar", "36\"", 1, P("Indirect")));
+        var (screened, screen) = (Unit("Lone", "4+", "6+", [], 1, []), Wall());
+        var sim = Laid(mortar, screened, screen, [Screened], wood: false, 6, 5);
+        sim.Start(GfNames.AttackSequence, Fire(mortar, screened));
+        Assert.Equal(new CoverVerdict(true, 1, 1, "Indirect"), Blocks(sim).Single().Cover);
+
+        var (wooded, screen2) = (Unit("Lone", "4+", "6+", [], 1, []), Wall());
+        var inWood = Laid(mortar, wooded, screen2, [InWood], wood: true, 6, 5);
+        inWood.Start(GfNames.AttackSequence, Fire(mortar, wooded));
+        Assert.Equal(new CoverVerdict(true, 1, 1), Blocks(inWood).Single().Cover);
+    }
+
+    [Fact]
+    public void A_hold_action_gives_every_block_group_the_verdict_fire_groups_settled()
+    {
+        var shooter = Unit("Shooter", "4+", "4+", [], 1, [], Gun("Rifle", "36\"", 2, P("Rending")));
+        var (target, screen) = (Unit("Lone", "4+", "6+", [], 1, []), Wall());
+        var sim = Laid(shooter, target, screen, [Screened], wood: false, 6, 5, 5, 5);
+        sim.Start(GfNames.Shooting, new SequenceContext(shooter.Id, [], [], GfNames.Hold));
+        sim.Answer(Tabletop.Protocol.Tests.Samples.Team1, new Assigned(new Dictionary<string, Guid> { ["Rifle"] = target.Id }));
+        var blocks = Blocks(sim);
+        Assert.Equal(2, blocks.Count);                                                                  // the Rending six and the plain five
+        Assert.All(blocks, b => Assert.Equal(new CoverVerdict(true, 1, 1), b.Cover));
+    }
+
+    [Fact]
+    public void A_melee_block_has_no_verdict()
+    {
+        var (fighter, target) = (Unit("F", "4+", "4+", [], 1, [], Melee("Axe", 1)), Unit("T", "4+", "6+", [], 1, []));
+        var sim = Sim.Gf(State([fighter], [target], x1: -1, x2: 1), 6, 5);
+        sim.Start(GfNames.AttackSequence, new SequenceContext(fighter.Id, [target.Id], fighter.Models[0].Weapons.Select(w => w.Id).ToList(), GfNames.Charge));
+        Assert.Null(Blocks(sim).Single().Cover);
+    }
 }

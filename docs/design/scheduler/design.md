@@ -613,7 +613,8 @@ player may have edited at the gate.
 The round does not advance on its own: a player ends it, because advancing automatically when no
 unspent units remain risks an accidental advance. The final round is the ruleset's, and its end
 follows the enforcement setting: Grimdark Future's is round 4, after which `silent` starts round 5,
-`warn` starts it with a warning, and `strict` ends the game. Game flow → *Flow* and the scheduler spec → *The final round is the ruleset's* both state the
+`warn` asks every team End or Continue (the `game_over` Ask; End ends the game, every team's Continue
+starts round 5 with a warning), and `strict` ends the game. Game flow → *Flow* and the scheduler spec → *The final round is the ruleset's* both state the
 rule, and it is one rule for the ordinary boundary and the degenerate one:
 
 > When no team can take another turn, the scheduler stops at the boundary, opens one unframed Ask

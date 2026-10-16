@@ -5,7 +5,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Panels;
 
-/// <summary>The right-click menu: every property editable, each item one ordinary command. No admin mode, no confirmation dialog — the log is the accountability.</summary>
+/// <summary>The right-click menu: every property editable, each item one ordinary command (in setup, one setup edit). No admin mode, no confirmation dialog — the log is the accountability.</summary>
 public partial class PieceMenu : PopupMenu
 {
     readonly Session _s; readonly Action<string> _report; IReadOnlyList<MenuItem> _items = [];
@@ -30,15 +30,20 @@ public partial class PieceMenu : PopupMenu
         ItemChosen?.Invoke(item);
         switch (item.Input)
         {
-            case MenuInput.None: Send(item.Build(null)); break;
-            case MenuInput.Integer: AskInteger(this, item.Label, v => Send(item.Build(v.ToString()))); break;
-            case MenuInput.Text: AskText(this, item.Label, t => Send(item.Build(t))); break;
-            case MenuInput.PieceId: PickPieceRequested?.Invoke(picked => Send(item.Build(picked.ToString()))); break;
-            case MenuInput.TablePoint: PickPointRequested?.Invoke(at => Send(item.Build(FormattableString.Invariant($"{at.X},{at.Y},{at.Z}")))); break;
+            case MenuInput.None: Send(item, null); break;
+            case MenuInput.Integer: AskInteger(this, item.Label, v => Send(item, v.ToString())); break;
+            case MenuInput.Text: AskText(this, item.Label, t => Send(item, t)); break;
+            case MenuInput.PieceId: PickPieceRequested?.Invoke(picked => Send(item, picked.ToString())); break;
+            case MenuInput.TablePoint: PickPointRequested?.Invoke(at => Send(item, FormattableString.Invariant($"{at.X},{at.Y},{at.Z}"))); break;
         }
     }
 
-    void Send(Command? command) { if (command is not null) Guarded.Command(_s, command, _report); }
+    /// <summary>A setup item sends its edit; any other its command.</summary>
+    void Send(MenuItem item, string? input)
+    {
+        if (item.Edit is { } edit) { if (edit(input) is { } e) Guarded.Send(_s, e); }
+        else if (item.Build(input) is { } command) Guarded.Command(_s, command, _report);
+    }
 
     public static void AskInteger(Node host, string title, Action<int> then)
     {

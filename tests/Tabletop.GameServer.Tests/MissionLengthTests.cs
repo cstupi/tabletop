@@ -4,7 +4,7 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests;
 
-/// <summary>GF p.7: "After 4 rounds have been played the game ends". silent lets round 5 start, warn marks it, strict ends the game.</summary>
+/// <summary>GF p.7: "After 4 rounds have been played the game ends". silent lets round 5 start, warn asks every team End or Continue, strict ends the game.</summary>
 public class MissionLengthTests
 {
     static SchedulerHarness Game(Enforcement enforcement)
@@ -40,23 +40,84 @@ public class MissionLengthTests
         Assert.Equal(4, h.P.Scheduler.Round);
         Assert.Same(end, h.P.Ended);
         Assert.Empty(h.P.OpenAsks);
+        Assert.DoesNotContain(h.Log, e => e.Payload is AskOpened { Ask.Question: AskQuestions.GameOver });
         Assert.Empty(h.Run());                                         // the judge does not fire again, and nothing else advances
         h.Rehydrate(); Assert.Empty(h.Run());
     }
 
+    static void GameOver(SchedulerHarness h, int team, string choice) => h.Answer(team, new Chosen(choice));
+
     [Fact]
-    public void Warn_marks_round_five_and_every_round_after()
+    public void Warn_asks_every_team_end_or_continue_when_round_four_is_ended()
     {
         var h = Game(Enforcement.Warn);
         for (var r = 0; r < 4; r++) PlayRound(h);
+        var ask = h.Open;
+        Assert.Equal(AskQuestions.GameOver, ask.Question);
+        Assert.Equal(h.Teams, ask.Teams);
+        Assert.True(ask.Sealed);
+        Assert.Null(ask.FrameId);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(4), ask.Prompt);
+        Assert.Equal([GameOverChoices.End, GameOverChoices.Continue], ((Options)ask.Legal).Choices.Select(c => c.Id));
+        Assert.Equal(4, h.P.Scheduler.Round);
+        Assert.Null(h.P.Ended);
+        Assert.Empty(h.Run());                                         // waits for the answers
+        h.Rehydrate(); Assert.Empty(h.Run());
+    }
+
+    [Fact]
+    public void Warn_ends_the_game_at_one_teams_end_with_the_strict_result()
+    {
+        var h = Game(Enforcement.Warn);
+        for (var r = 0; r < 4; r++) PlayRound(h);
+        GameOver(h, 1, GameOverChoices.End);
+        var end = Assert.IsType<GameEnded>(h.Log[^1].Payload);
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. {GfObjectives.Standing(h.State)}", end.Reason);     // the strict breach's detail and winners
+        Assert.Equal(GfObjectives.Winners(h.State), end.Winners);
+        Assert.Empty(h.P.OpenAsks);
+        Assert.Equal(4, h.P.Scheduler.Round);
+        Assert.DoesNotContain(h.Log, e => e.Payload is RoundStarted { Round: 5 });
+        Assert.Empty(h.Run());
+    }
+
+    [Fact]
+    public void Warn_ends_the_game_when_one_continues_and_the_other_ends()
+    {
+        var h = Game(Enforcement.Warn);
+        for (var r = 0; r < 4; r++) PlayRound(h);
+        GameOver(h, 0, GameOverChoices.Continue);
+        Assert.Null(h.P.Ended);
+        Assert.Equal(AskQuestions.GameOver, h.OpenAsk(1)!.Question);
+        GameOver(h, 1, GameOverChoices.End);
+        Assert.IsType<GameEnded>(h.Log[^1].Payload);
+    }
+
+    [Fact]
+    public void Warn_continues_into_round_five_when_every_team_continues_and_asks_again_at_its_end()
+    {
+        var h = Game(Enforcement.Warn);
+        for (var r = 0; r < 4; r++) PlayRound(h);
+        GameOver(h, 0, GameOverChoices.Continue);
+        GameOver(h, 1, GameOverChoices.Continue);
         var fifth = LastOf<RoundStarted>(h);
         Assert.Equal(5, ((RoundStarted)fifth.Payload).Round);
         Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(4), fifth.Warning);
         Assert.Null(h.P.Ended);
-        Assert.Equal(1, h.Log.Count(e => e.Warning is not null));      // once, not on every Advance
         PlayRound(h);
-        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(5), LastOf<RoundStarted>(h).Warning);
-        Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
+        Assert.Equal(AskQuestions.GameOver, h.Open.Question);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(5), h.Open.Prompt);
+        GameOver(h, 0, GameOverChoices.End);
+        Assert.StartsWith(GrimdarkFutureRules.MissionLengthDetail(5), Assert.IsType<GameEnded>(h.Log[^1].Payload).Reason);
+    }
+
+    [Fact]
+    public void A_menu_round_closes_an_open_game_over_ask()
+    {
+        var h = Game(Enforcement.Warn);
+        for (var r = 0; r < 4; r++) PlayRound(h);
+        h.Dispatch(new SetRound(3), team: 0);
+        Assert.DoesNotContain(h.P.OpenAsks.Values, a => a.Ask.Question == AskQuestions.GameOver);
+        Assert.Equal((3, AskQuestions.Activate), (h.P.Scheduler.Round, h.Open.Question));
     }
 
     [Fact]
@@ -67,6 +128,7 @@ public class MissionLengthTests
         Assert.Equal(5, h.P.Scheduler.Round);
         Assert.All(h.Log, e => Assert.Null(e.Warning));
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);
+        Assert.DoesNotContain(h.Log, e => e.Payload is AskOpened { Ask.Question: AskQuestions.GameOver });
     }
 
     [Fact]

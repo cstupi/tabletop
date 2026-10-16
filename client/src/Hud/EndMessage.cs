@@ -1,33 +1,40 @@
 using Godot;
 using Tabletop.Client.Core;
+using Tabletop.Client.Panels;
 using Tabletop.Client.Table;
 using Tabletop.Client.Theming;
 using Tabletop.Protocol;
 
 namespace Tabletop.Client.Hud;
 
-/// <summary>Centre: the result, its reason (the mission result or the strict breach's detail) and each team's score.</summary>
+/// <summary>The Game over modal over the table. While warn's game_over Ask is open (GameOverView): its prompt and each team's score, with End and
+/// Continue answering the Ask until my team has answered, then "Waiting for the other player". Once the game has ended: the result, its reason
+/// (the mission result or the strict breach's detail) and the scores; Stay (or Esc) closes it and keeps the table, the log and undo, Leave goes
+/// home. The header's "Game over" button opens it again.</summary>
 public partial class EndMessage : Control
 {
-    Session _s = null!; bool _opened;
+    Session _s = null!; Guid? _shownFor; bool _endedShown;
     readonly PanelContainer _panel = new();
-    readonly Label _result = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _reason = new();
+    readonly Label _result = new() { ThemeTypeVariation = Variation.Display, HorizontalAlignment = HorizontalAlignment.Center },
+        _reason = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart, HorizontalAlignment = HorizontalAlignment.Center },
+        _note = new() { HorizontalAlignment = HorizontalAlignment.Center };
     readonly VBoxContainer _scores = new();
+    readonly HBoxContainer _buttons = new() { Alignment = BoxContainer.AlignmentMode.Center };
     Action<RenderCause>? _onFrame; Action? _onTheme;
+    public event Action? LeaveRequested;
 
     public void Bind(Session session, TableView view, TableInput input)
     {
         _s = session;
         SetAnchorsPreset(LayoutPreset.FullRect);
-        MouseFilter = MouseFilterEnum.Stop;
+        MouseFilter = MouseFilterEnum.Stop;                                         // modal: the backdrop takes every click that misses the panel
         Visible = false;
         var centre = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore }; centre.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(centre);
         centre.AddChild(_panel);
-        var box = new VBoxContainer { CustomMinimumSize = new Vector2(360, 0) }; _panel.AddChild(box);
-        var top = new HBoxContainer(); box.AddChild(top);
-        top.AddChild(_result);
-        var close = new Button { Text = "✕", Flat = true, ThemeTypeVariation = Variation.FlatButton }; close.Pressed += Close; top.AddChild(close);
-        box.AddChild(_reason); box.AddChild(_scores);
+        var box = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) }; box.AddThemeConstantOverride("separation", 12); _panel.AddChild(box);
+        box.AddChild(new Label { Text = "Game over", ThemeTypeVariation = Variation.Banner, HorizontalAlignment = HorizontalAlignment.Center });
+        box.AddChild(_result); box.AddChild(_reason); box.AddChild(_scores); box.AddChild(_note);
+        _buttons.AddThemeConstantOverride("separation", 16); box.AddChild(_buttons);
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Game)) != 0) Render(); };
         session.Frame.Render += _onFrame;
         _onTheme = Render; Ui.Changed += _onTheme;
@@ -44,36 +51,59 @@ public partial class EndMessage : Control
     public void Open() { if (Fill()) Visible = true; }
     public void Close() => Visible = false;
 
+    GameOverModel? Model() => _s.Projection is { } p && _s.Game is { } game ? GameOverView.Of(p, game, _s.MyTeamId) : null;
+
+    /// <summary>Opens once for each game_over Ask and once when the game ends; an undo past the end closes it and arms it again.</summary>
     void Render()
     {
-        if (_s.Projection?.Ended is null) { _opened = false; Visible = false; return; }
-        if (!_opened) { _opened = true; Open(); }
+        var m = Model();
+        if (m is null || m.Stage == GameOverStage.None) { _shownFor = null; _endedShown = false; Visible = false; return; }
+        if (m.Stage == GameOverStage.Ended ? !_endedShown : _shownFor != m.AskId)
+        {
+            _endedShown = m.Stage == GameOverStage.Ended; _shownFor = m.AskId;
+            Open();
+        }
         else if (Visible) Fill();
     }
 
     bool Fill()
     {
         var p = _s.Projection; var game = _s.Game;
-        if (p?.Ended is not { } ended || game is null) return false;
+        if (Model() is not { Stage: not GameOverStage.None } model || p is null || game is null) return false;
         var names = new Names(game, p);
         var m = HeaderView.Of(p, game, names);
-        _result.Text = m.Result ?? "Game over";
-        _reason.Text = ended.Reason;
+        _result.Text = model.Result ?? "End or continue?";
+        _reason.Text = model.Reason;
+        _note.Text = model.Note ?? ""; _note.Visible = model.Note is not null;
         foreach (var c in _scores.GetChildren()) { _scores.RemoveChild(c); c.QueueFree(); }
         foreach (var team in game.Teams.OrderBy(t => t.Ordinal))
         {
             var name = names.Team(team.Id);
-            var score = new Label { Text = $"{name}  {m.Scores.FirstOrDefault(s => s.Team == name).Score}" };
+            var score = new Label { Text = $"{name}  {m.Scores.FirstOrDefault(s => s.Team == name).Score}", HorizontalAlignment = HorizontalAlignment.Center };
             score.AddThemeColorOverride("font_color", Palette.Team(team.Ordinal));
             _scores.AddChild(score);
         }
+        foreach (var c in _buttons.GetChildren()) { _buttons.RemoveChild(c); c.QueueFree(); }
+        if (model.Stage == GameOverStage.Ended)
+        {
+            AddButton("Stay", Close);
+            AddButton("Leave", () => LeaveRequested?.Invoke());
+        }
+        foreach (var choice in model.Choices)
+            AddButton(choice.Label, () => Answer(model.AskId!.Value, choice.Id));
         return true;
     }
 
-    /// <summary>The backdrop takes the clicks that miss the panel: a click outside closes the message.</summary>
-    public override void _GuiInput(InputEvent e)
+    void AddButton(string text, Action pressed)
     {
-        if (e is InputEventMouseButton { Pressed: true } b && !_panel.GetGlobalRect().HasPoint(b.GlobalPosition)) { Close(); AcceptEvent(); }
+        var b = new Button { Text = text, FocusMode = FocusModeEnum.None }; b.Pressed += pressed; _buttons.AddChild(b);
+    }
+
+    /// <summary>One answer per Ask: the buttons go at once, and the next render shows the waiting line or the end.</summary>
+    void Answer(Guid askId, string optionId)
+    {
+        foreach (var c in _buttons.GetChildren()) if (c is Button b) b.Disabled = true;
+        Guarded.Run(() => _s.SendCommandAsync(new AnswerAsk(askId, new Chosen(optionId))), message => { GD.PushWarning($"Answer failed: {message}"); if (IsInstanceValid(this)) Fill(); });
     }
 
     public override void _Input(InputEvent e)

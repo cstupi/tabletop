@@ -109,11 +109,11 @@ public class UndoPlanTests
         var (plan, log, n) = Plan([.. before.Select(Engine), Me(reroll)]);
         var roll = CombatLog.Build(log, n).OfType<RollEntry>().Single();
         Assert.Equal(3L, plan!.ToSeq);
-        Assert.Equal([$"{roll.Title} · Rerolled: replaced 2"], plan.LostRolls);
+        Assert.Equal([$"{roll.Title} · rerolled ⚁ → ⚄"], plan.LostRolls);
 
         var edit = new DiceEdited(Samples.Frame, Samples.Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]);
         var (edited, elog, en) = Plan([.. before.Select(Engine), Me(edit)]);
-        Assert.Equal([$"{CombatLog.Build(elog, en).OfType<RollEntry>().Single().Title} · Set by hand: replaced 6"], edited!.LostRolls);
+        Assert.Equal([$"{CombatLog.Build(elog, en).OfType<RollEntry>().Single().Title} · set by hand ⚅ → ⚀"], edited!.LostRolls);
     }
 
     [Fact]

@@ -4,8 +4,10 @@ namespace Tabletop.GameServer.Effects;
 
 /// <summary>One instance of a catalog entry in play: who holds it and where it came from. A granted instance (spell library → A grant is its
 /// effect row) exposes only the row its grant holds, and that row's children. A carried pick entry (one with targeting) exposes none: its once
-/// rows act only through the grants its pick writes (army-book rules spec → the pick). Every other instance exposes its entry's effects.</summary>
-public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null)
+/// rows act only through the grants its pick writes (army-book rules spec → the pick). Every other instance exposes its entry's effects.
+/// Via: the rule whose per-die grant put this instance here (WithGranted), for RollModifier.Via.</summary>
+public sealed record LiveProperty(Side Holder, CatalogEntry Entry, int? Parameter, Guid? ModelId, Guid? WeaponId, Guid? GrantId, Effect? GrantRow = null, IReadOnlyList<Effect>? Chosen = null,
+    string? Via = null)
 {
     public IReadOnlyList<Effect> Effects => Chosen ?? (GrantRow is { } row ? [row] : Entry.Targeting is not null ? [] : Entry.Effects);
     public Side ActedOn(Effect e) => e.Subject == EffectSubject.Self ? Holder : Interaction.Other(Holder);
@@ -107,8 +109,21 @@ public sealed class LiveSet(Interaction interaction, IReadOnlyList<LiveProperty>
         Live.SelectMany(p => p.Effects.Where(e => p.ActedOn(e) == side && e.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values.Contains(point))
                 && Conditions.Hold(Interaction, p.Holder, e, p, null)).Select(e => (p, e)));
 
+    /// <summary>The live set with one per-die grant added (a block group's hits, keyed by score-hits). The added instance's Via is the
+    /// live rule whose per-die grant_property row names that entry and amount, which is what the dice set off.</summary>
     public LiveSet WithGranted(Side holder, string entry, int? parameter) =>
-        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null)], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
+        Interaction.Properties.Entry(entry) is { } ce ? new LiveSet(Interaction, [.. Live, new LiveProperty(holder, ce, parameter, null, null, null, Via: PerDieGrantor(holder, entry, parameter))], SuppressedModifiers, Applied, _read, _acts, recorder) : this;
+
+    string? PerDieGrantor(Side holder, string entry, int? parameter) =>
+        Live.FirstOrDefault(p => p.Effects.Any(e => e.Kind == EffectKind.GrantProperty && e.TargetEntry == entry && (e.Amount ?? 0) == (parameter ?? 0)
+            && p.ActedOn(e) == holder && e.Conditions.Any(c => c.Kind == ConditionKind.RollResult)))?.Entry.Name;
+
+    /// <summary>The entry that granted this instance: pass one's grantor, or a per-die grant's (Via). Null for a property held outright.</summary>
+    public string? GrantorOf(LiveProperty p) => p.Via ?? (_acts.GrantedBy.TryGetValue(p, out var by) ? by.Entry.Name : null);
+
+    /// <summary>The entries whose pass-one rows suppressed this modifier class.</summary>
+    public IReadOnlyList<string> Suppressors(TargetModifier modifier) =>
+        _acts.SuppressedModifiers.Where(x => x.Modifier == modifier).Select(x => x.Source.Entry.Name).Distinct().ToList();
 }
 
 /// <summary>What pass one did, kept so a consumer that reads the affected item can mark the granted source that acted on it: properties removed, parameters modified, modifier classes suppressed,

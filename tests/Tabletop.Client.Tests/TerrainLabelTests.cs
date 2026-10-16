@@ -1,0 +1,23 @@
+using Tabletop.Client.Core; using Tabletop.Content; using Tabletop.Geometry;
+using static Tabletop.Geometry.TerrainDeclarations;
+namespace Tabletop.Client.Tests;
+
+public class TerrainLabelTests
+{
+    static TerrainVolume V(double bottom, double top, TerrainDeclarations d) =>
+        new(Guid.CreateVersion7(), new Volume(VolumeKind.Area, Footprint.Rect(6, 6), new Point2(0, 0), new Yaw(0), bottom, top, d, null));
+
+    [Fact]
+    public void A_builtin_piece_reads_its_label_then_each_volume_s_declarations_and_heights()
+    {
+        var ruin = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfBuiltin("ruin"), new Point3(0, 0, 0), new Yaw(0), 1, [V(0, 4, BlocksLineOfSight | SeeInAndOut | Difficult | TerrainDeclarations.Cover)]);
+        Assert.Equal("Ruin · Cover, Difficult, Blocks LOS, See in/out · 0–4\"", TerrainLabel.Of(ruin));
+    }
+
+    [Fact]
+    public void Scale_and_elevation_raise_the_heights_and_each_volume_gets_its_own_line()
+    {
+        var piece = new TerrainPlacement(Guid.CreateVersion7(), VisualRef.OfAsset(Guid.CreateVersion7()), new Point3(0, 0, 1), new Yaw(0), 0.5, [V(0, 3, Impassable), V(3, 5, None)]);
+        Assert.Equal("Terrain · Impassable · 1–2.5\"\nTerrain · Open · 2.5–3.5\"", TerrainLabel.Of(piece));
+    }
+}

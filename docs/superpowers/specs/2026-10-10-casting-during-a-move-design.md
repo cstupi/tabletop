@@ -56,10 +56,11 @@ This leaves four gaps:
 
 ### Client: move box (in-game UX spec → Decision box, `move`)
 
-- With `Stoppable`, the box shows **Stop here (C)** next to **Commit move (Enter)**. It sends the current ghosts as
+- With `Stoppable`, the box shows a stop button next to **Commit move (Enter)**: **Cast a spell (C)** when a moving model
+  holds spell tokens, else **Stop here to use a rule (C)** (`DecisionView.StopLabel`). It sends the current ghosts as
   `Destinations` with `Continues: true`. With no drag that is the zero-distance stop, which is how a unit casts before
   moving.
-- The hint line adds `C: stop here to cast or pick` when `Stoppable`.
+- The hint line adds `C: cast a spell` or `C: stop here to use a rule` when `Stoppable`.
 - Commit, Esc and the move-range circle are unchanged. After a stop the next move Ask's region is the remaining distance,
   as the client-shell spec already draws it.
 - **C** joins the hotkey table: *stop the move here (cast or pick), when the move box offers it*.

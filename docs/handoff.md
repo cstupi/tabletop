@@ -1,14 +1,11 @@
-# Handoff — 2026-10-12
+# Handoff — 2026-10-15
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
-through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner
-after round 4. `sim/` plays whole games headless; `viewer/` draws them. The rules suite (193 sim games over every catalog
-rule and spell) found sixteen engine defects, D1-D16, all fixed. The in-game client is built to the in-game UX spec and
-the client UX spec, both merged to `main` (`1a4ae07`, PR #1); the performance set from the review is merged (`7684021`).
-Both wait for the owner's on-screen checks (*Next* 0 and 2). The owner's first two-player session on 2026-10-12 found a
-Hud layout loop (fixed, *Today* A), an undo that stranded a game and a combat log that does not show what was rolled against what; *Today* below
-is where to start.
-An undone roll's dice stay spent: an undo always draws fresh dice (`DiceCursor.DrawnSoFar` counts the whole log).
+through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
+`sim/` plays whole games headless; `viewer/` draws them. On 2026-10-15 the owner played in the client and reported setup,
+movement, log, marker and game-end problems; everything below *Today* was built in response and committed on `main`,
+not yet seen working in Godot. An undone roll's dice stay spent: an undo always draws fresh
+dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
 
@@ -59,58 +56,75 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
-### Today (2026-10-12): open first
+### Today (2026-10-15): open first
 
-Everything below is committed on `main` in the commit that carries this handoff. Built and tested, not yet seen working
-in Godot unless it says so.
+All built and tested, none of it seen working in Godot. Checks before F: `dotnet build` clean
+(9 analyzer warnings in test files), `./scripts/check-client` clean; Protocol 52, Client 315, GameServer 1082, Sim 474;
+the in-process rules suite 193/193 games, 428/428 entries. Viewer `npm test` not run.
 
-**A. Hud layout loop: fixed, for the owner to check on screen.** A fractional slot height (an odd window height halved by
-`HudLayout`) against a VBox, which sums its children's minimums in whole pixels, flipped the decision box's and the unit card's
-minimum by 1 px every pass; `QueueLayout` requeued forever and, before the pass cap, overflowed Godot's message queue ("Object
-was deleted while awaiting a callback"). `HudLayout.Of` now gives whole-pixel slots (`Every_slot_is_whole_pixels`), the three
-`Fit`s floor the scroll height, and `QueueLayout` allows 8 passes a frame (the first frame of play takes 6). A headless Godot
-replay at 1920×1009, 1152×449, 1152×551, 1366×705, 1152×649, 1920×1011, 1280×720 and 1920×1080, log open and closed, logs no
-warning; the old build logs 571 at 1920×1009. Not replayed: an undo after Rush and a Shaken unit's idle activation (no fixture
-has them).
-- Next: the owner plays at an odd window height with the log open; `godot.log` should hold no "Hud layout did not settle". Then
-  remove `GameScreen.NoteLayout` and keep the cap.
+**A. Setup panel** (`SetupToolbar`). The selected piece's controls are first; Table, Terrain, Markers, Zones and Layouts
+collapse under headings. In setup Delete/Backspace (`Intent.Remove`) removes the selected terrain or marker, and a
+right-click on one opens `MenuModel.ForSetupPiece` (Remove). Objectives were always placeable; the button was buried.
 
-**B. The combat log needs a redesign.** The owner: the log is "99% unhelpful noise"; it shows impossible values such as
-a roll of -1 (a die's modified value read as a roll), does not show cover, and does not show the dice and what they were
-compared against in a few words. It "needs to get much tighter and much more low level with what and how it calculates.
-Looking at the log should allow the user to see exactly what was rolled and what it was compared against."
-- The wire already carries what is needed: `RollRecord` holds each die's `Raw` and `Modified`, `Threshold`,
-  `RequiredRaw`, every `RollModifier` (source and amount) and `Basis` (stat, printed value, each change); cover reaches a
-  roll only as a named modifier, if the engine records it.
-- Next: a design session (`superpowers:brainstorming`), not code. Read the rulebook for each roll (quality, defense,
-  morale, casting, dangerous terrain, the roll-off), pull the current log text from game `01a126db-…` (1261 events) to
-  show the noise, and propose one line per roll, e.g. `Defense 5+ (+1 cover, -1 AP) · rolled 4 2 · 1 save · 1 wound`.
-  Spec it, review it with the owner, then plan.
+**B. Move step** (`TableInput`, `.Hold`, `MoveRuler`). A drag picks a ghost up where it stands (`Drag.Grabs`; distance
+from `Origins`), so Shift-adjusting one model keeps the unit's move. Q/E with no rows turn each held model 15° (p.7), each
+with its own facing. One ruler per held model; without Alt a model is held to its allowance (`MoveRuler.Clamp`);
+`MoveRuler.Gate` counts models out of range — under strict Enter and C wait, under warn and silent they send. Not done:
+the clamp is straight-line (ignores difficult terrain); the move region outline is still drawn around the first model.
 
-**C. Undo.** `UndoPlan` took an `ask_closed` as the action, because the server stamps the close with the answering
-participant; undoing a Rush choice then went to the seq between the answer and its close, where the Ask stays answered
-and open and nothing reopens it. Fixed: the answer is the action (an `ask_closed` is never one), and the server refuses a
-target just before an `ask_closed` (`Replay.IsValidUndoTarget`, "seq N is not an undo point").
-- Game `01a13331-384a-743b-aa85-7de31559f6b8` is stranded at seq 64 (`undone` to 57). One Undo press in the new client
-  plans seq 56 and should reopen the activation choice; the owner has not confirmed it.
-- Open: "Undo to here" in the log can still target any entry, including the middle of an engine run after an action,
-  which may strand a game the same way. Decide whether it offers only action boundaries.
+**C. Combat log** (spec `2026-10-13-combat-log-design.md`, plan `docs/superpowers/plans/2026-10-15-combat-log.md`).
+One line per roll, faces against the target its modifiers make; question/answer/close, empty steps, sequence and turn
+boundaries are dropped; a failed morale reads `<unit> Fled!`. Wire: `RollModifier.Via`, `Die.Triggered`, and
+`RollRecord.Cover` (`CoverVerdict`: InCover, Models, Of, IgnoredBy) on every shooting defense roll, from
+`GfRolls.InCover`. Lines read e.g. `Block · Defense 4+ (no cover: 0/3 models) · ⚀ ⚄ · 1 blocked, 1 wound`.
+Not built from the spec: the nested `Cast [spell]` header, `Hold → shoots [target]`, `failed → Shaken` on one line, the
+roll-off's winner; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
+- **Reconcile first:** an earlier session built the same spec on branch `combat-log` (13 commits ahead of `main`,
+  2026-10-13, worktree `.claude/worktrees/agent-a2e178ee30d9e5f0b`), never merged. Today's build was done without it.
+  That branch has Hud row wrapping and tray clipping, roll-off tie names, spell hit-dice triggers and review fixes;
+  today's has the cover verdict and the `Fled!` line. Compare the two, keep one, port the other's extras, delete the branch.
 
-**D. Built today, for the owner to check on screen.**
-- The decision box sits in the right column above the undo and log buttons and its controls scroll; the dice tray stays
-  above it; an open log takes the column's upper half (`HudLayout`, `DecisionBox.Place`).
-- Terrain is locked from the end of setup: a drag on a terrain piece starts only while the game is in Setup
-  (`TerrainLock`).
-- The lobby and setup side panel scrolls, 360 px wide, with wrapping rows and labels; a terrain piece's volumes no
-  longer fall off the bottom.
-- The log opens at the newest entry and follows new entries; scrolling up lets go.
-- Every built-in terrain GLB declares a default scene (`scene: 0`), and the web app's converter sets one
-  (`setDefaultScene`), so Godot no longer warns "The load-time scene is not defined". Terrain uploaded before this still
-  warns until it is uploaded again.
+**D. Markers, casting, set-aside, terrain labels.** Per-model red wound pips and blue spell-token dots
+(`ModelMarks`, `ModelMarkNodes`); a yellow 12-spike ring round every base of a Shaken unit. The move step's stop button
+reads **Cast a spell (C)** when a moving model holds tokens (`DecisionView.StopLabel`); tokens were always gained and spent
+automatically (`GfHooks`, `GfCasting`). A roster row's right-click offers **Set aside** / **Return to deployment** for my
+fully shelved Ambush or Scout unit (`MenuModel.ForRosterUnit`, condition `set-aside`). Hovering terrain in play shows
+`TerrainLabel` (name, each volume's declarations and height); a click pins it. Uploaded terrain reads "Terrain": the asset
+manifest has no names.
 
-**E. Owner question pending.** The other player's cursor is a small cone in their team colour
-(`PresenceOverlay.Draw`); the owner read it as "a random red cone". Offered: the player's name over it, and a point aimed
-down at the table. No answer yet.
+**E. Game end.** Ruling: strict ends after round 4; under warn each round end from round 4 asks every team
+**End or Continue** (`Engine/GameOverAsk.cs`) — any End ends the game with strict's result and scores, all Continue plays
+on; silent continues. After the end everyone stays in to view the board and score. `EndMessage` is a modal: End/Continue
+while asked, then Stay/Leave. The sim answers End. Before this, warn games never ended, which is why the owner never saw
+the end message.
+
+**F. Team tint and limited-choice reasons: built, stopped before its last checks.** Every model takes a light tint of
+its team colour (`Palette`, `PieceNode`, `TableView`); yellow stays the selection. `AskOption.Note` carries the ruleset's
+reason an activation choice is limited (`GfRules.Scheduling`: Shaken → Idle p.10, Aircraft → Advance, Immobile/Artillery →
+Hold, no Charge without an enemy in range); the decision box shows it. Build, check-client, Protocol 53, Client 317 and
+GameServer 1084 pass. Not done: the note on the unit card, the Sim tests and rules suite after this change, a socket check
+with a Shaken unit, and the docs (protocol design, client/AGENTS.md, in-game UX spec) for `Note` and the tint.
+
+**G. Owner rulings and requests.**
+- Line of sight: the owner's "no line of sight" screenshot (game TestSetupCaster, `01a142ac-…`) was not a sight bug:
+  every model draws in the same placeholder green (hence F), the yellow unit was their own Mutant Brutes, and the
+  Assassins were really behind the 8" Large Building. A replay of every seq found no false block.
+- "Your own units DO screen": a target unit's models screening its other models (`Sight.cs`) stays the default.
+- Optional rules: the owner wants per-game configuration of the rulebook's optional rules. Spec written, not reviewed:
+  `docs/superpowers/specs/2026-10-15-optional-rules-design.md` (`game.optional_rules` jsonb, a typed `GfOptions`,
+  first settings `line_of_sight` core|hybrid_true (p.56, the owner's "higher wound models shoot over lower"),
+  `unit_sight_blocking` per_model|perimeter, `melee_separation`; frozen from `playing`). Open: Tough values between
+  Hybrid size classes (proposed: the lower class); "perimeter" undefined in the book (proposed: convex hull of the bases).
+  Next: review it with the owner, then plan and build.
+
+**H. Still to check on screen from 2026-10-12:** the Hud layout at odd window heights (`godot.log` should hold no "Hud
+layout did not settle"; then remove `GameScreen.NoteLayout`); Undo on the stranded game `01a13331-…` (one press should
+reopen the activation choice); the decision box column, terrain lock, the 360 px side panel, log follow, the other
+player's cursor name. Open: whether "Undo to here" offers only action boundaries.
+
+**Housekeeping.** The `game` container's `dotnet watch` crashed on hot reload during today's server edits (Exited 1);
+`docker compose up -d game` brings it back. Old agent worktrees under `.claude/worktrees/` and `.worktrees/spells` are all
+merged except `combat-log` (C); remove them once C is settled.
 
 ### 0. Performance
 
@@ -180,10 +194,7 @@ drawn through round 0.
   and judges a move answer's p.7 contact clauses under the enforcement setting (`GfMoves.ContactBreach`: `move_overlap`,
   `move_through_models` by `Collision.Crosses`, `move_separation`) and a hand placement's overlap (`PlacementBreach`). The
   built-in `ruin` is a walk-in Area; `large-sight-blocker` is Impassable.
-- **Combat log.** `CombatLog` groups `Session.Log` into activation blocks with a result chain, roll entries with the
-  threshold's basis (`RollRecord.Basis`: stat, printed value, each change), filters All, Rolls, My units, This unit;
-  `CombatLogPanel` renders it in `LogDrawer` while the drawer is open. The dice tray shows `CombatLog.Latest` and opens the log
-  at that roll.
+- **Combat log.** One line per roll (Today → C); the drawer, filters, dice tray and Undo are as the client UX spec says.
 - **Unit card.** `UnitCard` replaces `StatSheet`: weapons with AP, wound rows, rule chips with text, and the hovered-enemy
   strip with distance and each weapon's range.
 - **Themes, settings, Hud frame.** Fantasy and Sci-fi (`UiThemes`, `ThemeBuilder`), a Settings dialog (theme, Animate, Camera
@@ -215,10 +226,10 @@ drawn through round 0.
 7. The move circle goes around other models, except for a Flying unit. Models walk into the built-in ruin.
 
 *Combat log and dice*
-8. The drawer opens 640 px wide. An activation is one `Round · Team · Unit · Action` row with its chain
-   (`Hit 3 → Defense 2 → 2 models removed → Morale passed`).
-9. Expanding a roll shows the basis (`Quality 4+`, each change, `Target N+`), the modifiers, each die's pass or fail
-   (`(raw face)` on fatigued hits), rerolls and edits with the faces they replaced, and rule chips with hover text.
+8. The drawer opens 640 px wide. An action is one `R2 · Team 1 · [unit] · Charge → [target]` header with its lines
+   beneath; no question, answer or close lines.
+9. Each roll is one line: faces against the target its modifiers make (`Block · Defense 4+ (cover +1) → needs 3 · …`), a
+   shooting block always states cover or no cover with the model count; clicking a line expands its actions and rule chips.
 10. Undo to here, Reroll all, Set die 1… and +1 act; clicking an entry highlights what it touched; undone entries are struck
     through, and several undone activations show as separate blocks.
 11. The filters work, This unit follows the card's unit (including an enemy activation that shot it), and the filter and the

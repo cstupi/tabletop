@@ -206,7 +206,7 @@ At `round_started`, after the order is set and before the first turn, the schedu
   `turn_started`/`turn_ended` is written, and a pass there stands for the boundary only, so it
   cannot mark the team as passed for the round.
 
-**The final round is the ruleset's, and its end follows the enforcement setting.** Rounds count up. Grimdark Future's final round is 4 (p.7): when a player ends it, `silent` starts round 5, `warn` starts it with a warning, and `strict` ends the game ([the enforcement engine](2026-10-02-enforcement-engine-design.md)).
+**The final round is the ruleset's, and its end follows the enforcement setting.** Rounds count up. Grimdark Future's final round is 4 (p.7): when a player ends it, `silent` starts round 5, `warn` asks every team End or Continue (End ends the game; every team's Continue starts round 5 with a warning), and `strict` ends the game ([the enforcement engine](2026-10-02-enforcement-engine-design.md)).
 
 **A round's end comes between the answer and the next round.** Once a player has ended the round, the scheduler asks the ruleset for the round's end changes (`IGameRules.OnRoundEnded`) and writes them as one `round_ended` event when there are any; then the next `round_started` is proposed. Grimdark Future seizes objectives there ([objectives](2026-10-02-objectives-design.md)).
 

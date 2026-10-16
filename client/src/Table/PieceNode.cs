@@ -14,7 +14,8 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
     public Guid UnitId { get; init; }
     MeshInstance3D _proxy = null!;
     Node3D? _mesh;
-    Color _base = Palette.Proxy;
+    Color _base = Palette.Proxy, _tint = Palette.Proxy;
+    bool _highlighted;
 
     public void SetBody(Base b, double height)
     {
@@ -37,11 +38,23 @@ public partial class PieceNode : Node3D, IDrawn<ModelInPlay>
         if (scene is not null) { AddChild(scene); _proxy.MaterialOverride = Palette.Translucent(_base with { A = 0.12f }); }
     }
 
+    /// <summary>A highlight (selection, glow, eligibility, ghost) over the team tint; null goes back to the tint.</summary>
     public void SetHighlight(Color? colour)
     {
-        _base = colour is { } c ? new Color(c, 0.6f) : Palette.Proxy;
-        _proxy.MaterialOverride = Palette.Translucent(_mesh is null ? _base : _base with { A = 0.12f });
+        _highlighted = colour is not null;
+        _base = colour is { } c ? new Color(c, 0.6f) : _tint;
+        Apply();
     }
+
+    /// <summary>The unhighlighted colour: Palette.Tinted for the model's team. A highlight keeps precedence until it is cleared.</summary>
+    public void SetTint(Color tint)
+    {
+        if (tint == _tint) return;
+        _tint = tint;
+        if (!_highlighted) { _base = tint; Apply(); }
+    }
+
+    void Apply() => _proxy.MaterialOverride = Palette.Translucent(_mesh is null ? _base : _base with { A = 0.12f });
 
     public Aabb Bounds => _proxy.GlobalTransform * _proxy.GetAabb();
 }

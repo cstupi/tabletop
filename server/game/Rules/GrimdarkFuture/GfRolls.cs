@@ -79,14 +79,25 @@ public static class GfRolls
     /// the terrain test stands. Blast's *"Ignores cover"* (p.13) is the whole modifier and is suppressed in the roll instead.
     /// The fraction is a ruleset number, so it is here and `Battlefield` only lists.
     /// </summary>
-    public static bool InCover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions)
+    public static bool InCover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions) =>
+        Cover(state, targetUnit, attackerModels, ignoresSightObstructions).Majority;
+
+    /// <summary>InCover's count: the living models that pass either test (only the terrain test once it is a majority, or under
+    /// Indirect), of the unit's living models. The log's cover verdict carries both numbers.</summary>
+    public static CoverCount Cover(GameState state, Guid targetUnit, IReadOnlyList<Guid> attackerModels, bool ignoresSightObstructions)
     {
         var models = Lookup.LivingModels(state, targetUnit).Count;
-        if (models == 0) return false;
+        if (models == 0) return new CoverCount(0, 0);
         var covered = Battlefield.ModelsInCoverTerrain(state, targetUnit, wholeBase: GfHooks.StartingSize(state, targetUnit) > 1).ToHashSet();
-        if (covered.Count * 2 > models || ignoresSightObstructions) return covered.Count * 2 > models;
+        if (covered.Count * 2 > models || ignoresSightObstructions) return new CoverCount(covered.Count, models);
         covered.UnionWith(Battlefield.ModelsBehindSightBlockers(state, targetUnit, attackerModels));
-        return covered.Count * 2 > models;
+        return new CoverCount(covered.Count, models);
+    }
+
+    /// <summary>Models of Of in cover; a majority is strictly more than half.</summary>
+    public sealed record CoverCount(int Models, int Of)
+    {
+        public bool Majority => Models * 2 > Of;
     }
 
     /// <summary>
@@ -98,15 +109,20 @@ public static class GfRolls
     /// than a live one: p.8 fires a unit's weapons simultaneously, so a second group must not find the hero alone that
     /// the first group left it. A model without a slot Defense reads the unit's through the same call, so nothing branches on `Hero`.
     /// </summary>
-    public static RollPlan DefensePlan(StepContext ctx, LiveSet live, bool inCover, int defenderModels)
+    /// `verdict` is the unit's cover verdict for the log (RollRecord.Cover); when the +1 it grants is suppressed (Blast), the verdict
+    /// names the suppressor as IgnoredBy.
+    public static RollPlan DefensePlan(StepContext ctx, LiveSet live, bool inCover, int defenderModels, CoverVerdict? verdict = null)
     {
+        var shooting = live.Interaction.Attack == AttackKind.Shooting;
+        if (shooting && inCover && verdict is { IgnoredBy: null } && live.SuppressedModifiers.Contains(TargetModifier.Cover))
+            verdict = verdict with { IgnoredBy = live.Suppressors(TargetModifier.Cover).FirstOrDefault() };
         var living = Lookup.LivingModels(ctx.State, live.Interaction.Defender!.UnitId);
         var alone = defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null;
         if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => p.Name == GfNames.Hero) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
             ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Defender, GfNames.DefenseRoll,
-            live.Interaction.Attack == AttackKind.Shooting && inCover ? [new RollModifier("cover", 1)] : [],
-            threshold: alone is { } id ? StatReader.TargetNumber(live, Side.Defender, ModelDefense, id) : null);
+            shooting && inCover ? [new RollModifier("cover", 1)] : [],
+            threshold: alone is { } id ? StatReader.TargetNumber(live, Side.Defender, ModelDefense, id) : null, cover: shooting ? verdict : null);
     }
 
     /// <summary>

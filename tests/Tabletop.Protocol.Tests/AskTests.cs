@@ -96,4 +96,16 @@ public class AskTests
         var back = Assert.IsType<MoveRegion>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(plain with { Separation = 1, PassesModels = true })));
         Assert.Equal(((double?)1, true), (back.Separation, back.PassesModels));
     }
+
+    [Fact]
+    public void An_option_carries_an_optional_note_that_is_left_off_the_wire_when_absent()
+    {
+        var unit = Guid.CreateVersion7();
+        var plain = new AskOption("u/Hold", "Hold", [unit]);
+        Assert.Null(plain.Note);
+        Assert.DoesNotContain("note", WireJson.Serialize<LegalSet>(new Options([plain])));
+        var noted = plain with { Note = "Immobile: may only use Hold actions (p.14)" };
+        var back = Assert.IsType<Options>(WireJson.Deserialize<LegalSet>(WireJson.Serialize<LegalSet>(new Options([noted])))).Choices.Single();
+        Assert.Equal(noted.Note, back.Note);
+    }
 }

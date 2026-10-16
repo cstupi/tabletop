@@ -148,7 +148,7 @@ public class RulesEngineTests
     }
 
     [Fact]
-    public void Silent_lets_the_breach_through_and_warn_marks_it()
+    public void Silent_lets_the_breach_through_and_warn_asks_then_marks_it_when_every_team_continues()
     {
         var silent = Judged(Enforcement.Silent);
         var quiet = silent.Engine.Advance(silent.State);
@@ -156,6 +156,12 @@ public class RulesEngineTests
         Assert.Null(quiet.Warning);
 
         var warn = Judged(Enforcement.Warn);
+        var asked = Assert.IsType<AskOpened>(Assert.Single(warn.Engine.Advance(warn.State).Events)).Ask;
+        Assert.Equal((AskQuestions.GameOver, "past the end", true), (asked.Question, asked.Prompt, asked.Sealed));
+        warn.Append([new AskOpened(asked)]);
+        Assert.Empty(warn.Engine.Advance(warn.State).Events);                 // waiting on the answers
+        warn.Append([.. asked.Teams.Select(t => (EventPayload)new AskAnswered(asked.Id, t, new Chosen(GameOverChoices.Continue), false)),
+            new AskClosed(asked.Id, asked.Teams.Select(t => new TeamAnswer(t, new Chosen(GameOverChoices.Continue))).ToList())]);
         var marked = warn.Engine.Advance(warn.State);
         Assert.Equal([Fifth], marked.Events);
         Assert.Equal("past the end", marked.Warning);

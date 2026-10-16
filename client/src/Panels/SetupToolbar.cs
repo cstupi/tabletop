@@ -1,6 +1,7 @@
 using Godot;
 using Tabletop.Client.Core;
 using Tabletop.Client.Screens;
+using Tabletop.Client.Theming;
 using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Protocol;
@@ -11,14 +12,15 @@ namespace Tabletop.Client.Panels;
 public partial class SetupToolbar : VBoxContainer
 {
     readonly GameScreen _screen;
-    Session _session = null!; VBoxContainer _selected = null!; SpinBox _width = null!, _length = null!;
-    Action? _onSelection, _onBoard;
+    Session _session = null!; VBoxContainer _selected = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
+    Action? _onSelection, _onBoard; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
     public SetupToolbar(GameScreen screen) => _screen = screen;
 
     public override void _ExitTree()
     {
         if (_session is null) return;
         _screen.Input.SelectionChanged -= _onSelection; _session.BoardChanged -= _onBoard;
+        _screen.Input.PieceRightClicked -= _onRight; _screen.Input.IntentPressed -= _onIntent;
     }
 
     public override void _Ready()
@@ -26,40 +28,42 @@ public partial class SetupToolbar : VBoxContainer
         var s = _session = Main.Instance.Session; var size0 = SizeNow(s);   // the board may not have arrived yet
         AddChild(new Label { Text = "Setup" });
 
-        var size = new HFlowContainer(); AddChild(size);
+        // First, so a click on the table shows the piece's controls without scrolling.
+        AddChild(new Label { Text = "Selected placement" });
+        _selected = new VBoxContainer(); AddChild(_selected);
+
+        var table = Section("Table");
+        var size = new HFlowContainer(); table.AddChild(size);
         var width = _width = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Width, Suffix = "\"" }; var length = _length = new SpinBox { MinValue = 12, MaxValue = 144, Value = size0.Length, Suffix = "\"" };
         size.AddChild(width); size.AddChild(length);
         size.AddChild(Btn("Set size", () => Guarded.Send(s, new SetTableSize(new TableSize(width.Value, length.Value)))));
-
-        var texture = new OptionButton(); foreach (var t in BuiltinContent.Textures) texture.AddItem(t); AddChild(texture);
+        var texture = new OptionButton(); foreach (var t in BuiltinContent.Textures) texture.AddItem(t); table.AddChild(texture);
         texture.ItemSelected += i => Guarded.Send(s, new SetTexture(VisualRef.OfBuiltin(BuiltinContent.Textures[(int)i])));
 
-        var terrain = new OptionButton(); foreach (var t in BuiltinContent.Terrain.Values.OrderBy(t => t.Label)) terrain.AddItem(t.Label, 0); AddChild(terrain);
+        var terrainSection = Section("Terrain");
+        var terrain = new OptionButton(); foreach (var t in BuiltinContent.Terrain.Values.OrderBy(t => t.Label)) terrain.AddItem(t.Label, 0); terrainSection.AddChild(terrain);
         var terrainNames = BuiltinContent.Terrain.Values.OrderBy(t => t.Label).Select(t => t.Name).ToList();
-        AddChild(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))));
-        AddChild(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)));
-
-        var generators = new HFlowContainer(); AddChild(generators);
+        terrainSection.AddChild(Wide("Add built-in terrain (beside the table)", () => Guarded.Send(s, new AddTerrain(BuiltinContent.Place(terrainNames[terrain.Selected], Beside(SizeNow(s)), new Yaw(0))))));
+        terrainSection.AddChild(Wide("Add my terrain…", () => Guarded.Run(() => AddLibraryTerrain(s), _screen.Toast)));
+        var generators = new HFlowContainer(); terrainSection.AddChild(generators);
         foreach (var planet in Enum.GetValues<Planet>())
             generators.AddChild(Btn($"{planet} planet", () => Guarded.Run(async () => { foreach (var add in TerrainGenerators.Generate(planet, SizeNow(s), Random.Shared)) await s.SendEditAsync(add); }, _screen.Toast)));
 
-        var markers = new HFlowContainer(); AddChild(markers);
+        var markers = new HFlowContainer(); Section("Markers").AddChild(markers);
         markers.AddChild(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Centre(SizeNow(s)), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))));
         markers.AddChild(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Centre(SizeNow(s)), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))));
 
-        var zones = new HFlowContainer(); AddChild(zones);
+        var zones = new HFlowContainer(); Section("Zones").AddChild(zones);
         var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(z); zones.AddChild(style);
         zones.AddChild(Btn("Set zones", () => Guarded.Send(s, new SetZoneStyle(ZoneStyles.All[style.Selected], ZoneStyles.ShapesOf(ZoneStyles.All[style.Selected])))));
         var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1 }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2 }; zones.AddChild(a); zones.AddChild(b);
         zones.AddChild(Btn("Swap", () => Guarded.Send(s, new SwapZones((int)a.Value, (int)b.Value))));
 
-        var layouts = new HFlowContainer(); AddChild(layouts);
+        var layouts = new HFlowContainer(); Section("Layouts").AddChild(layouts);
         layouts.AddChild(Btn("Load layout…", () => Guarded.Run(() => LoadLayout(s), _screen.Toast)));
         var layoutName = new LineEdit { PlaceholderText = "layout name" }; layouts.AddChild(layoutName);
         layouts.AddChild(Btn("Save as", () => Guarded.Run(async () => { await s.Management.SaveLayout((s.Draft ?? throw new InvalidOperationException("The table has not arrived yet.")) with { Name = layoutName.Text }); _screen.Toast("Layout saved."); }, _screen.Toast)));
 
-        AddChild(new Label { Text = "Selected placement" });
-        _selected = new VBoxContainer(); AddChild(_selected);
         _onSelection = () => RenderSelected(s, _selected);
         _onBoard = () =>
         {
@@ -68,6 +72,25 @@ public partial class SetupToolbar : VBoxContainer
         };
         _screen.Input.SelectionChanged += _onSelection; s.BoardChanged += _onBoard;   // a draft edit changes what the selected piece shows
         RenderSelected(s, _selected);
+
+        // Right-click a terrain piece or setup marker: its menu. Delete or Backspace removes the selected one, unless a text field has the key.
+        AddChild(_menu = new PieceMenu(s, _screen.Toast));
+        _onRight = (id, at) => { if (s.Draft is { } d) _menu.Open(MenuModel.ForSetupPiece(d, id), at); };
+        _onIntent = i =>
+        {
+            if (i == Intent.Remove && GetViewport().GuiGetFocusOwner() is not (LineEdit or TextEdit) && s.Draft is { } d && _screen.Input.Selected is { } sel
+                && MenuModel.RemoveFromDraft(d, sel.PieceId) is { } remove) Guarded.Send(s, remove);
+        };
+        _screen.Input.PieceRightClicked += _onRight; _screen.Input.IntentPressed += _onIntent;
+    }
+
+    /// <summary>A heading that shows and hides the section under it; every section starts open.</summary>
+    VBoxContainer Section(string title)
+    {
+        var body = new VBoxContainer();
+        var head = new Button { Text = $"▾ {title}", Flat = true, ThemeTypeVariation = Variation.FlatButton, ToggleMode = true, ButtonPressed = true, Alignment = HorizontalAlignment.Left, FocusMode = FocusModeEnum.None };
+        head.Toggled += open => { body.Visible = open; head.Text = $"{(open ? "▾" : "▸")} {title}"; };
+        AddChild(head); AddChild(body); return body;
     }
 
     static TableSize SizeNow(Session s) => s.Draft?.Size ?? new TableSize(72, 48);

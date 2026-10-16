@@ -58,6 +58,7 @@ public sealed class AnswerPolicy(Chooser chooser, PolicyOptions? options = null,
     private AskAnswer AnswerOptions(Ask ask, Options o)
     {
         if (o.Choices.Count == 0) return ask.AllowPass ? new Passed() : throw new NoLegalAnswerException(ask);
+        if (ask.Question == AskQuestions.GameOver) return new Chosen(GameOverChoices.End);      // the one Ask not drawn: a warn game finishes when it is offered the end
         return Pass(ask) ?? new Chosen(chooser.Pick(o.Choices).Id);
     }
 

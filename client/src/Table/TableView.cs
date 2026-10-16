@@ -70,8 +70,11 @@ public partial class TableView : Node3D
         Sync(_zones, ZonesShown(table, _session.Projection, teams).Select(z => (Zone: z, Size, Colour: ZoneColour(z, teams))).ToList(), x => x.Zone.Id, (a, b) => a == b,
             x => { var n = new ZoneNode(); n.Build(x.Zone, x.Size, x.Colour); return n; }, (_, _) => { });
         var onTable = _session.Projection?.Models.Values.Where(m => m.Location is OnTable).ToList() ?? [];
+        // Each model's proxy takes its team's tint, recoloured on every redraw so it follows ownership as GameInfo arrives.
+        Color Tint(ModelInPlay m) => Palette.Tinted(_session.Projection is { } p && _session.Game is { } g ? SheetFocus.TeamOf(p, g, m.UnitId)?.Ordinal : null);
         Sync(_pieces, onTable, m => m.Id, (_, _) => true,
-            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); Place(n, m); LoadPieceMesh(n, m); return n; }, Place);
+            m => { var n = new PieceNode { ModelId = m.Id, UnitId = m.UnitId }; n.SetBody(m.Slot.Base, m.Slot.Height); n.SetTint(Tint(m)); Place(n, m); LoadPieceMesh(n, m); return n; },
+            (n, m) => { n.SetTint(Tint(m)); Place(n, m); });
     }
 
     /// <summary>Put the named models' nodes back on the projection's placements, held or not: a move Ask that starts again from the server's positions.</summary>

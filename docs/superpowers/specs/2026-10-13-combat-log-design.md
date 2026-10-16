@@ -41,8 +41,10 @@ R2 · Team 1 · [unit] · Hold → shoots [target]
 
 ```
 Hit · Quality 3+ · 8 dice: ⚁ ⚅ ⚀ ⚅ ⚅ ⚀ ⚄ ⚀ · 4 hits (3 sixes: Rending)
-Block · Defense 5+ · 3 hits at AP(1) + Rending AP(+4) → needs 6 · ⚅ ⚁ ⚀ · 1 blocked, 2 wounds
-Block · Defense 5+ · 1 hit at AP(1) → needs 6 · ⚀ · 0 blocked, 1 wound
+Block · Defense 5+ (cover +1, AP -1) → needs 5 · 3 dice: ⚅ ⚁ ⚀ · 1 blocked, 2 wounds
+Block · Defense 5+ (no cover: 2/6 models, AP -1, Rending AP -4) → needs 6 · ⚀ · 0 blocked, 1 wound
+Block · Defense 4+ (cover ignored (Blast)) · ⚁ ⚅ · 1 blocked, 1 wound
+Block · 5+ (AP -1) → needs 6 · ⚀ · 0 blocked, 1 wound
 Regeneration · 5+ · 3 wounds: ⚀ ⚅ ⚀ · 1 ignored, 2 wounds stand
 Morale · Quality 4+ · ⚀ · failed → Shaken
 Casting · 4+ (+1 token) · ⚅ · cast
@@ -51,8 +53,13 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
 ```
 
 - **Faces only.** A die shows its raw face. The modifiers fold into the target instead: the printed value (`Defense 5+`), each
-  change with the rule behind it (`cover +1`, `AP(1)`, `Rending AP(+4)`, a spell's `-1`), then `needs N`. Past 6 it reads
-  `needs 6` and below 2 `needs 2`, by p.5. With no modifier the `needs` part is left off.
+  change with the rule behind it and its signed amount as the record carries it (`cover +1`, `AP -1`, `Rending AP -4`, a
+  spell's `-1`), then `needs N`. Past 6 it reads `needs 6` and below 2 `needs 2`, by p.5. With no modifier the `needs` part is
+  left off. A record without a basis (a log written before it) starts from its threshold: `Block · 5+ (AP -1) → needs 6`.
+- **Cover on every shooting block.** The clause is the target unit's one verdict (p.11's majority), the same on every block group
+  of the attack, and always on the collapsed line: `cover +1` in cover, `no cover: M/N models` when the majority failed (M models
+  fully inside cover terrain or behind a sight blocker, of N living), `cover ignored (Rule)` when the unit was in cover and a
+  rule took the +1 away (Blast, Ignores Cover, Indirect's dropped sight half). Melee blocks have none.
 - **What the dice set off.** A die that triggered a rule is counted on the line: `(3 sixes: Rending)`, `(2 sixes: Furious +2
   hits)`. The hit total is the successes plus the extra hits, so the line adds up.
 - **Pass and fail** are shown by the die (bright or faded, per theme), not by words. The result uses p.8's words: hits,
@@ -61,7 +68,8 @@ Roll-off · Team 1 ⚃ · Team 2 ⚀ · Team 1 wins
 - A roll with no threshold and no required face (a property's own roll) shows its faces and no result.
 
 **Change.** What a step did to the table, after the rolls that caused it: `2 models removed`, `1 model wounded`, `Shaken`,
-`Shaken cleared`.
+`Shaken cleared`, and `[unit] Fled!` for models a step sent to the shelf with no wound on them (a rout after a failed morale
+test).
 
 **Outside any action:** `Round 2`; deployment, one line per unit placed; an objective seized or contested; a menu edit, tagged
 `by hand`; `Undone to: [the action's header]`, the undone lines struck through; the game's end.
@@ -76,16 +84,23 @@ follow-the-newest scrolling and the dice tray (the latest roll's line) are uncha
 
 ## What the server adds
 
-Two optional fields on the wire. A log written before them reads as before, with no rule names on modifiers and no triggers
-on dice.
+Three optional fields on the wire. A log written before them reads as before, with no rule names on modifiers, no triggers
+on dice and no cover verdict.
 
 - **`RollModifier.Via`** (string, optional): the rule that granted the property whose effect made this modifier, when it was
-  granted. Rending's hits carry `AP` with `Via` `Rending`; a weapon's own AP has none. `RollEffects.Attributed` reads it from
-  `LiveSet`'s `GrantedBy`; a per-die grant applied with `LiveSet.WithGranted` for a block group carries its grantor, which the
-  `granted_` key of `score-hits` names alongside the entry.
-- **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hits`, written when the hit roll is
-  recorded, from `RollEffects.PerDie` on that die. It names the rule (Rending, Furious, Relentless, Surge) that acted on
-  the die, so the client counts sixes by rule without knowing any rule.
+  granted. Rending's hits carry `AP` with `Via` `Rending`; a weapon's own AP has none. `RollEffects.Attributed` reads it with
+  `LiveSet.GrantorOf`: pass one's `GrantedBy`, or for a per-die grant applied with `LiveSet.WithGranted` for a block group, the
+  live rule whose per-die `grant_property` row names that entry and amount. The `granted_` key of `score-hits` is unchanged.
+- **`Die.Triggered`** (list of string, optional): what this die set off, as `Rule` or `Rule +N hit(s)` (attacks, wounds), written
+  when the hit roll is recorded, from `RollEffects.Triggers` on that die (pure; `PerDie` still records in `score-hits`). It names
+  the rule (Rending, Furious, Relentless, Surge) that acted on the die, so the client counts sixes by rule without knowing any
+  rule. A die a reroll or an edit replaced carries none.
+- **`RollRecord.Cover`** (`CoverVerdict { InCover, Models, Of, IgnoredBy? }`, optional): on every defense roll of a shooting attack,
+  the target unit's p.11 verdict: `InCover` the majority test passed, `Models` of `Of` living models fully inside cover terrain or
+  behind a sight blocker, `IgnoredBy` the rule that took the +1 away from a unit in cover (a `suppress_modifiers` cover row such
+  as Blast or Ignores Cover, or Indirect, when dropping the sight half lost the majority). The +1 applies when `InCover` and
+  nothing ignored it. `fire-groups` and `determine-attacks` settle it as `in_cover`, `cover_models`, `cover_of` and
+  `cover_indirect`; `roll-to-block` passes the one verdict to every group's `GfRolls.DefensePlan`. Melee and spell hits carry none.
 - A threshold's `ThresholdBasis` (stat, printed value, changes) is already on the wire and is the `Quality 3+` / `Defense 5+`
   part of the line.
 
@@ -93,13 +108,15 @@ The rules stay on the server: the client reads names and numbers from the record
 
 ## Where it lands
 
-- `libs/Tabletop.Protocol`: `RollModifier.Via`, `Die.Triggered`; the viewer's generated types regenerated
-  (`TABLETOP_WRITE_GENERATED=1`).
-- `server/game`: `RollEffects`, `GfAttack` (`score-hits` keys, `roll-to-block` groups), `Roller` / `StepContext.Roll` for the
-  die triggers. Tests in `Gf*Tests` on a Rending weapon with AP(1) and a Furious charge.
+- `libs/Tabletop.Protocol`: `RollModifier.Via`, `Die.Triggered`, `CoverVerdict` and `RollRecord.Cover`; the viewer's generated
+  types regenerated (`TABLETOP_WRITE_GENERATED=1`).
+- `server/game`: `RollEffects`, `LiveSet`, `GfRolls` (`Cover`, `DefensePlan`), `GfAttack` (`roll-to-block` groups, the cover
+  values), `GfShooting` (`fire-groups`), `RollPlan` / `Roller` / `StepContext.Roll` for the die triggers and the verdict. Tests in
+  `GfCombatLogTests` (a Rending weapon with AP(1), a Furious charge) and `GfCoverTests` (screened, half, Blast, Indirect, a Hold
+  action, melee).
 - `client/src/Core`: `CombatLog` and `RollEntry` produce the three line kinds and the dropped set; `LogText` keeps its words for
-  the lines outside actions. `CombatLogTests` against a recording of `01a126db` seq 299–307 and a sim game with Furious,
-  cover, a spell modifier, a reroll and an edit.
+  the lines outside actions. `CombatLogTests` on built records: cover in, out and ignored, an old record, Rending and Furious
+  triggers, a basis change, a reroll and an edit, a fled unit, the dropped set, the header's move.
 - `client/src/Hud/CombatLogPanel.cs`, `DiceTray.cs`: one line per entry, expand on click.
 - `viewer/src/lib/live/logLines.ts` reads the same records; it is not changed by this spec.
 

@@ -21,5 +21,6 @@ public static class ActivationOption
         return true;
     }
 
-    public static AskOption For(UnitInPlay unit, string action) => new(Id(unit.Id, action), $"{unit.Definition.Name}: {action}", [unit.Id]);
+    /// <summary>Note: the ruleset's reason the unit's actions are limited (AskOption.Note), on every option of that unit.</summary>
+    public static AskOption For(UnitInPlay unit, string action, string? note = null) => new(Id(unit.Id, action), $"{unit.Definition.Name}: {action}", [unit.Id], note);
 }

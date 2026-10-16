@@ -1,7 +1,7 @@
 using Godot; using Tabletop.Client.Core; using Tabletop.Client.Hud; using Tabletop.Client.Theming; using Tabletop.Protocol;
 namespace Tabletop.Client.Table;
 
-/// <summary>A row of icons over each unit (UnitMarkers), hidden at table level (End) and behind the camera. Its CanvasLayer inherits no theme, so it sets its own.</summary>
+/// <summary>A row of icons over each unit (UnitMarkers): activated and conditions; wounds and tokens are per model (ModelMarkNodes). Hidden at table level (End) and behind the camera. Its CanvasLayer inherits no theme, so it sets its own.</summary>
 public partial class UnitMarkerNodes : Control
 {
     Session _s = null!; TableView _view = null!; readonly List<(Vector3 At, HBoxContainer Row)> _rows = new();
@@ -19,7 +19,7 @@ public partial class UnitMarkerNodes : Control
     {
         foreach (var (_, row) in _rows) row.QueueFree(); _rows.Clear();
         if (_s.Projection is not { } p) return;
-        foreach (var m in UnitMarkers.Of(p, _s.MaxWounds))
+        foreach (var m in UnitMarkers.Of(p))
         {
             var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
             foreach (var i in m.Icons)

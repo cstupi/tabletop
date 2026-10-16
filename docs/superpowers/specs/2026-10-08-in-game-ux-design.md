@@ -34,7 +34,7 @@ The table fills the window. Every part floats over it:
 | Decision box, with the hint line under it | right column, above the undo and log buttons; its controls scroll |
 | Dice | above the decision box |
 | Log | lower right, minimized to a button |
-| End-of-game message | centre, dismissable |
+| Game over popup | modal over the table: End, Continue while `warn` asks; Stay, Leave once ended |
 
 The play-time side panel (`TeamPanel`s, `AskPanel`, `LogPanel`, the Animate checkbox) is removed from the play
 screen. Right-click menus (`PieceMenu`, `MenuModel`) stay as they are; the team menu moves from the team panel's
@@ -116,6 +116,13 @@ it today (undo-to-here, struck-through undone events), with each roll's dice inl
 the name (`Red Warriors · 8.4"`), measured between the closest models of the two units, base edge to base edge (p.5),
 and a thin line joins those two bases. Each model with more than one wound shows its wounds left above it (`2/3`).
 
+**Hover a terrain piece.** In play (`Playing` or `Ended`, not setup) a label floats over it, one line per volume: the
+piece's name (the built-in's label; an asset piece reads `Terrain`, since the game's asset manifest carries no names),
+the volume's declarations in the order Cover, Difficult, Dangerous, Impassable, Blocks LOS, See in/out (`Open` with none)
+and its height range on the table: `Ruin · Cover, Difficult, Blocks LOS, See in/out · 0–4"`. A left-click selects the
+piece and pins its label until the selection moves elsewhere. `TerrainLabel` (Core) builds the text;
+`TableInput.HoveredTerrain` names the piece under the cursor.
+
 **Select.** Left-click a unit selects it: its models light and the stat sheet shows it. Left-click on empty table or
 **Esc** clears the selection. **Shift**+click selects one model. While Shift is held a "Shift: one model" tag shows.
 
@@ -124,8 +131,17 @@ and a thin line joins those two bases. Each model with more than one wound shows
 
 **Moves.** A plain drag moves the whole unit; **Shift**+drag moves one model.
 
-- During my move step (MoveRegion Ask), a drag positions ghosts inside the move-range circle and **Enter** commits,
-  as today. **C** (**Stop here**) sends them as a stop instead when the Ask is `Stoppable`.
+- During my move step (MoveRegion Ask), a drag positions ghosts and **Enter** commits; **C** sends them as a stop instead when the Ask is
+  `Stoppable`: the button reads **Cast a spell** when a moving model holds spell tokens, else **Stop here to use a rule**
+  (`DecisionView.StopLabel`). With no drag that is a stop before moving, which is how a caster casts before it moves (p.13
+  "at any point before attacking"); the other casting points, before attacking and in Hold, are the reaction window's own
+  **Cast a spell** option. A drag picks each ghost up where it stands, so a model already placed
+  moves on from there, and a ruler runs from each held model's start position to where it is now. Each model's drag is
+  held to its allowance from its own start position; **Alt** places freely, past it too. **Q/E** turn each held model
+  15° about its own centre (p.7: "Models may move and turn in any direction regardless of their facing"), and each
+  keeps its own facing in the answer. While any ghost is beyond its allowance or short of the Ask's minimum, the box
+  names how many; under `strict` **Enter** and **C** wait until none is, under `warn` and `silent` they send and the
+  server judges.
 - Outside a move step, a drag is a hand move (`MoveModels`) and follows the game's enforcement setting. Under
   `strict` the drag does not start and the server refuses the command. Under `warn` and `silent` the move is sent on
   release; the **Undo** button takes it back (client UX spec → Undo).
@@ -184,7 +200,7 @@ The answer is the same `Sight` the rules use, so the check tests the server.
 | --- | --- |
 | 1–9 | pick the numbered option in the decision box |
 | 1–5, while holding a unit | arrange it in that many rows |
-| Q / E, while holding a unit | turn the arrangement |
+| Q / E, while holding models | turn the arrangement, or with no rows each held model about its own centre |
 | Enter | confirm the decision: commit, fire, remove |
 | C | stop the move here (cast or pick), when the move box offers it |
 | Esc | cancel, innermost first: a drag, the target assignments, the selection |
@@ -202,9 +218,20 @@ The answer is the same `Sight` the rules use, so the check tests the server.
 
 ## End of game
 
-When the log ends the game, a message covers the centre: the result (`Blue wins`, `Draw`) and its reason (the mission
-result, or the `strict` breach's detail), and each team's score. ✕, **Esc** or a click outside closes it; the table
-stays browsable, and the header's "Game over" reopens it.
+The round-4 end is the `mission_length` breach (`GfRules.MissionLength.cs`), decided by the game's enforcement:
+`strict` ends the game; `warn` asks every team End or Continue (the `game_over` Ask, enforcement spec → *Warn asks to
+end*); `silent` starts round 5 quietly.
+
+`EndMessage` over `GameOverView` is one modal for both. While the `game_over` Ask is open: **Game over** in the banner
+style, "End or continue?", the Ask's prompt (the round count and the standing), each team's score, and **End** and
+**Continue**, which answer the Ask (`AnswerAsk`). Once my team has answered: "Waiting for the other player". The decision
+box offers the same two answers.
+
+When the log ends the game (`Projection.Ended`): the result (`Blue wins`, `Draw`, `No result`; `HeaderView.Outcome`), its
+reason (the mission result, or the `strict` breach's detail), each team's score, and two buttons. **Leave** goes home
+(`Session.DisconnectAsync`, the Home button's path: the participant row stays). **Stay** or **Esc** closes it; the
+table, the log, the roster and undo stay available, and the header's "Game over · …" button reopens it. A click outside
+does nothing. Nobody is removed at the end: the socket stays open, and sight and model facts are answered as before.
 
 ## Server and protocol changes
 

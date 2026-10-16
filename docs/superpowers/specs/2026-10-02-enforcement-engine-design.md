@@ -3,14 +3,17 @@
 The game's enforcement setting (`GameInfo.Enforcement`, `silent | warn | strict`, chosen at creation) is
 one policy that every system hands a breach to. A breach says what was broken, the detail players read,
 and what `strict` does about it. The policy turns the breach and the setting into one verdict: proceed
-silently, proceed with a warning on the event, refuse the command, or end the game. Two kinds of caller
+silently, proceed with a warning on the event, refuse the command, end the game, or (under `warn`) ask
+every team whether to end it. Two kinds of caller
 exist: the dispatcher, which judges a player's command before it runs, and the engine, which judges its
 own proposed events before it returns them. The end of round 4 (GF p.7) is the first breach raised at
 state time; command legality is the existing client.
 
-Ruled by the owner on 2026-10-02: the round-4 end follows the enforcement setting, `warn` warns that the
-final round has finished, `strict` ends the game, `silent` leaves it to the players; and the mechanism is
-generic, so that any system passes in what it needs and the game handles it. The same day the owner
+Ruled by the owner: the round-4 end follows the enforcement setting. `strict` ends the game, `silent`
+leaves it to the players, and `warn` asks every team End or Continue when round 4 ends (2026-10-15);
+End ends the game as `strict` does, and only every team's Continue starts round 5. The policy is one
+function over a breach, so any system passes in what it needs and the game handles it; a generic
+enforcement engine beyond that is deferred. The same day the owner
 ruled that the engine scores the core mission, so `game_ended` carries the winner; how the winner is
 found is [the objectives spec](2026-10-02-objectives-design.md).
 
@@ -44,19 +47,20 @@ namespace, so `CommandDispatcher` and `RulesEngine` keep their `using` lines.
 ## The policy
 
 `EnforcementPolicy.Decide(Enforcement, Breach?)` is a pure function. It returns the existing `Verdict`
-union with one new member:
+union:
 
 ```csharp
-public sealed record Accept(string? Warning) : Verdict;                        // unchanged
-public sealed record Refuse(RefusalReason Reason, string Detail) : Verdict;    // unchanged
-public sealed record EndGame(string Reason, IReadOnlyList<Guid> Winners) : Verdict;   // new
+public sealed record Accept(string? Warning) : Verdict;
+public sealed record Refuse(RefusalReason Reason, string Detail) : Verdict;
+public sealed record EndGame(string Reason, IReadOnlyList<Guid> Winners) : Verdict;
+public sealed record OfferEnd(string Reason, IReadOnlyList<Guid> Winners) : Verdict;   // warn: ask End or Continue
 ```
 
 | Breach | `silent` | `warn` | `strict` |
 | --- | --- | --- | --- |
 | none | `Accept(null)` | `Accept(null)` | `Accept(null)` |
 | `StrictRefuses(r)` | `Accept(null)` | `Accept(Detail)` | `Refuse(r, Detail)` |
-| `StrictEndsGame(w)` | `Accept(null)` | `Accept(Detail)` | `EndGame(Detail, w)` |
+| `StrictEndsGame(w)` | `Accept(null)` | `OfferEnd(Detail, w)` | `EndGame(Detail, w)` |
 
 The existing `Decide(Enforcement, Legality, string detail)` stays as an overload that maps a
 `Legality` to a breach and delegates: `AlwaysAccepted` and `Legal` to none, `OutsideLegalSet` to
@@ -103,7 +107,8 @@ and returns:
 
 - the proposal unchanged, when the hook returns null or the verdict is `Accept(null)`;
 - the proposal with the verdict's warning, on `Accept(warning)`;
-- `EndGamePayloads(state.Projection, reason, winners)` in place of the proposal, on `EndGame`.
+- `EndGamePayloads(state.Projection, reason, winners)` in place of the proposal, on `EndGame`;
+- on `OfferEnd`, what the round's `game_over` Ask says (*Warn asks to end*, below).
 
 Judging the proposal, rather than threading a breach out of each producer, keeps `SequenceInterpreter`
 and `IStep` unchanged: whatever the scheduler or a step proposes passes the same gate. The hook sees the
@@ -198,8 +203,31 @@ the judge never sees it.
 | Setting | At the boundary after round 4 |
 | --- | --- |
 | `silent` | `round_started` for round 5, as today. |
-| `warn` | `round_started` for round 5, its `GameEvent.Warning` the detail above, standing included. Each later round's `round_started` carries the same warning with its own count and standing. |
+| `warn` | The `game_over` Ask to every team (*Warn asks to end*). End: `game_ended` as under `strict`. Every team's Continue: `round_started` for round 5, its `GameEvent.Warning` the detail above, standing included. Each later boundary asks again, with its own count and standing. |
 | `strict` | `game_ended` in place of `round_started`, with the winners. The round stays 4. |
+
+### Warn asks to end
+
+`Engine/GameOverAsk.cs`. On `OfferEnd`, `RulesEngine.Advance` reads the log since the last
+`round_started`:
+
+- **No `game_over` Ask there** (or one closed with neither an End nor every team's Continue, as an
+  abandon leaves it): it emits `ask_opened` in place of the proposal. The Ask is unframed and sealed,
+  question `AskQuestions.GameOver` (`game_over`), prompt the breach's detail, `Options` End and Continue
+  (`GameOverChoices.End`, `GameOverChoices.Continue`), no pass, addressed to every team with a
+  participant (as `end_round` is). With no team to ask, the proposal goes through with its warning.
+- **Open:** nothing. The scheduler waits on any open unframed Ask.
+- **Closed with an End:** `EndGamePayloads` with the breach's detail and winners, read again from the
+  state now, so the result is the one `strict` writes.
+- **Closed with every team's Continue:** the proposal, with the warning.
+
+Sealed, the dispatcher closes it only when every addressed team has answered. Before the scheduler
+runs, `GameOverAsk.Settle` closes an open `game_over` Ask early when any answer is End (with the answers
+so far), so one team's End ends the game without waiting for the other; and closes, with no answers, one
+opened before the latest `round_started` (a menu `set_round` while it was open).
+
+Undo of `game_ended` alone leaves the End answer in the log, so the game ends again at once, as under
+`strict`.
 
 ### The `game_ended` event
 
@@ -294,7 +322,12 @@ game is just one marked ended*), and commands are already accepted while the gam
 - **The status.** `GameInfoMessage` arrives with `Status = Ended`. The client's `GameScreen` header
   already prints the status, and `Session` already rebuilds the screen on `GameChanged`; the play
   panels stay, because `GameScreen` shows them for `Playing` and `Ended` alike.
-- **Asks.** None are open after the end.
+- **Asks.** None are open after the end. Under `warn`, the `game_over` Ask is the client's Game over
+  popup (`EndMessage`, `GameOverView`): the prompt, the scores and End and Continue, then "Waiting for the
+  other player" once the team has answered. After the end the same popup shows the result, the reason and
+  the scores, with Stay (close it; the table, log, roster and undo stay) and Leave (home through
+  `Session.DisconnectAsync`). Nobody is removed from the game: sockets stay open and sight questions
+  and model facts are answered at `ended` as before.
 - **Commands.** Accepted as before. With no open Ask and an empty stack, the useful ones are the
   menu's: `set_score`, marker and model edits, `undo`, and `set_round` to play on.
 
@@ -305,7 +338,8 @@ The end-round question's wording does not change (manager ruling, 2026-10-02): a
 
 None. `SchedulerBase.Advance` reaches the boundary only when `Projection.OpenAsks` is empty, and
 `RulesEngine.Advance` reaches the scheduler only when the stack is empty and no framed Ask is open. The
-`end_round` Ask that led there is already closed by its answer. `EndGamePayloads` asserts both.
+`end_round` Ask that led there is already closed by its answer, and under `warn` so is the `game_over`
+Ask. `EndGamePayloads` asserts both.
 
 ### Playing on after a `strict` end
 
@@ -323,7 +357,7 @@ None. `SchedulerBase.Advance` reaches the boundary only when `Projection.OpenAsk
 
 The final round is ruleset C#, not authored properties, so it is not pinned by `PropertySet` hash and
 applies to games already in progress, as any change to `GrimdarkFutureRules` does. A `strict` game
-already past round 4 ends at its next boundary. A `warn` game warns from its next boundary on.
+already past round 4 ends at its next boundary. A `warn` game asks from its next boundary on.
 
 ## Clients now, and candidates
 
@@ -373,8 +407,9 @@ and the boundary question still reaches every team with a participant.
 
 - **`RunOutcome.Ended(int Round, IReadOnlyList<Guid> Winners)`**, kind `ended`, replaces it.
   `RunLoop.DriveAsync` checks `Projection.Ended` after each step, before the round cap. Under `strict`
-  every run that is not stuck or failed ends `ended` at round 4; under `warn` and `silent` runs end
-  `round_limit` as today. `RunOutcome.Kind`, `RunReport.Passed`, `Summary.OutcomeJson` and
+  every run that is not stuck or failed ends `ended` at round 4; under `warn` `AnswerPolicy` answers
+  the `game_over` Ask End (the one Ask it does not draw), so a run ends `ended` at round 4 too; under
+  `silent` runs end `round_limit`. `RunOutcome.Kind`, `RunReport.Passed`, `Summary.OutcomeJson` and
   `RunLoop.Recording.OutcomeOf` follow. `RecordingMeta.Outcome` writes `ended` instead of `decided`;
   `RecordingMeta.WinningTeamId` is the sole winner, null for a tie, and `OutcomeDetail` names a tie's
   teams. `Expectation.Outcome("decided")` is no longer written by any scenario.
@@ -387,8 +422,8 @@ and the boundary question still reaches every team with a participant.
   `game_ended` and the next `round_started` has an actor. It reads the log only and names no rule.
 - **Three catalog scenarios**, two one-unit armies (as `stalemate`) and a round cap of 6:
   `final-round` (`strict`: `Outcome("ended")`, `ReachedRound(4)`, `EventOfKind("game_ended")`),
-  `final-round-warn` (`warn`: `Outcome("round_limit")`, `NoEventOfKind("game_ended")`,
-  `Warnings("round_started", 2)`) and `final-round-silent` (`silent`: `Outcome("round_limit")`,
+  `final-round-warn` (`warn`: `Outcome("ended")`, `ReachedRound(4)`, `AskAsked("game_over")`,
+  `EventOfKind("game_ended")`) and `final-round-silent` (`silent`: `Outcome("round_limit")`,
   `NoEventOfKind("game_ended")`, `Warnings("round_started", 0)`). `Expectation.Warnings(string Kind,
   int Count)` counts the effective-log events of that kind that carry a warning. The objectives spec adds
   the scenario that ends with a scored winner.

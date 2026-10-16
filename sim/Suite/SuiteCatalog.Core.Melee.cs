@@ -13,7 +13,7 @@ internal static partial class CoreGames
 
     /// <summary>
     /// p.9–10 melee: armies with only hand weapons close in and charge. The first hit roll of the game (a charge's) is fixed to test the Quality threshold.
-    /// Round 4's end is under warn.
+    /// Round 4's end is under warn, and both players continue at the game_over Ask.
     /// </summary>
     public static TestGame ChargeAndStrikeBack()
     {
@@ -23,6 +23,7 @@ internal static partial class CoreGames
             .Army("Red", 4, 3, weapons: [HandWeapon(2)])
             .Army("Blue", 4, 3, weapons: [HandWeapon(2)])
             .Seeking(NearestEnemy)
+            .Scripted(AnswerScript.Build().Match(AskQuestions.GameOver, (ask, _) => AskPicks.Labeled(ask, "Continue")).Build())
             .Build();
         return Game(name, scenario,
         [

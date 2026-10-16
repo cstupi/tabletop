@@ -7,8 +7,13 @@ namespace Tabletop.Client.Core;
 
 public enum MenuInput { None, Integer, Text, PieceId, TablePoint }
 
-/// <summary>One menu entry: a label, what it asks the player for, and the command it becomes. Null from Build means the input did not parse.</summary>
-public sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build);
+/// <summary>One menu entry: a label, what it asks the player for, and the command it becomes. Null from Build means the input did not parse.
+/// A setup item builds a setup edit instead (<see cref="Edit"/>), and its Build is null.</summary>
+public sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)
+{
+    public Func<string?, Edit?>? Edit { get; init; }
+    public static MenuItem OfEdit(string label, MenuInput input, Func<string?, Edit?> edit) => new(label, input, _ => null) { Edit = edit };
+}
 
 /// <summary>Every property is editable, each item one ordinary command through the same path automation uses. No admin mode.</summary>
 public static class MenuModel
@@ -66,6 +71,21 @@ public static class MenuModel
             .Select(m => BackOnTable(m, m.Location is Inside ? $"Take {names.Model(m.Id)} out of the container, here" : $"Place {names.Model(m.Id)} on the table, here"))
             .ToList();
 
+    /// <summary>The condition the server reads as a unit kept off the deployment (setup phase → Ambush and Scout), and the properties whose units may take it.</summary>
+    public const string SetAside = "set-aside";
+    static readonly string[] SetsAside = ["Ambush", "Scout"];
+
+    /// <summary>The roster's right-click on a unit of my team while playing, every model on the shelf unwounded (never deployed), carrying one of SetsAside: set it aside, or return it.</summary>
+    public static IReadOnlyList<MenuItem> ForRosterUnit(GameInfo game, Projection p, Guid unitId, Guid? myTeam)
+    {
+        if (game.Status != GameStatus.Playing || myTeam is null || p.Units.GetValueOrDefault(unitId) is not { } u) return [];
+        if (game.Participants.FirstOrDefault(x => x.Id == u.ParticipantId)?.TeamId != myTeam) return [];
+        if (p.Models.Values.Any(m => m.UnitId == unitId && (m.Location is not OnShelf || m.Wounds > 0))) return [];   // wounded on the shelf: removed, not waiting
+        if (!u.Definition.Properties.Concat(u.Definition.Models.SelectMany(s => s.Properties)).Any(x => SetsAside.Contains(x.Name))) return [];
+        var aside = u.Conditions.Contains(SetAside);
+        return [new(aside ? "Return to deployment" : "Set aside", MenuInput.None, _ => new SetCondition(new Subject(SubjectKind.Unit, unitId), SetAside, !aside))];
+    }
+
     public static IReadOnlyList<MenuItem> ForTeam(GameInfo game, Projection p, Guid teamId) =>
     [
         new("Set score", MenuInput.Integer, s => Int(s) is { } n ? new SetScore(teamId, n) : null),
@@ -90,6 +110,14 @@ public static class MenuModel
         if (locks?.ItemFor(game.Status, p, markerId) is { } lockItem) items.Add(lockItem);
         return items;
     }
+
+    /// <summary>Setup: a draft terrain piece's or setup marker's removal; null for any other id.</summary>
+    public static SetupEdit? RemoveFromDraft(TableState draft, Guid id) =>
+        draft.Terrain.Any(t => t.Id == id) ? new RemoveTerrain(id) : draft.Markers.Any(m => m.Id == id) ? new RemoveSetupMarker(id) : null;
+
+    /// <summary>Setup's right-click on a terrain piece or setup marker.</summary>
+    public static IReadOnlyList<MenuItem> ForSetupPiece(TableState draft, Guid id) =>
+        RemoveFromDraft(draft, id) is { } remove ? [MenuItem.OfEdit("Remove", MenuInput.None, _ => remove)] : [];
 
     /// <summary>Abandon the top frame: pops it and everything above; applied effects stay applied.</summary>
     public static IReadOnlyList<MenuItem> ForFrame(Projection p) =>

@@ -21,7 +21,7 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
     public RollResult Roll(Guid frameId, RollPlan plan, int count)
     {
         var rolled = Enumerable.Range(0, count).Select(_ => Judge(plan, Draw(plan))).ToList();
-        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis);
+        var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis, plan.Cover);
         var replaced = new List<DieReplacement>();
         for (var i = 0; i < rolled.Count; i++)
             if (plan.Rerolls(rolled[i])) replaced.Add(new DieReplacement(i, rolled[i], Judge(plan, Draw(plan))));   // once, never again

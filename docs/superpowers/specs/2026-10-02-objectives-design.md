@@ -69,8 +69,8 @@ is proposed. In `SchedulerBase.Advance`, once `RoundEnded` reports the `end_roun
    reads (enforcement spec, *Where it is detected*).
 
 So at the boundary after round 4 the log reads: `end_round` answered, `round_ended` with round 4's
-seizures, then `round_started` for round 5 under `silent` and `warn`, or `game_ended` with the winners
-under `strict`. The judge counts markers from a projection that already holds round 4's result, which
+seizures, then `round_started` for round 5 under `silent`, the `game_over` Ask under `warn` (then
+`game_ended` or `round_started` for round 5 by its answers), or `game_ended` with the winners under `strict`. The judge counts markers from a projection that already holds round 4's result, which
 is what "after 4 rounds have been played ... the player that controls most markers wins" needs.
 
 `round_ended` is proposed only when control changes. A round in which nothing is seized or contested
@@ -164,11 +164,11 @@ alike, and `Projection.Control` holds the standing at every moment of every game
 | Setting | After round 4 |
 | --- | --- |
 | `silent` | Round 5 starts. The standing is the projection's control; nothing else is written. |
-| `warn` | Round 5 starts, and its `round_started` warning reads "4 rounds have been played: the game ends after 4 (p.7). Markers held: team 1: 2, team 2: 1." The warning is the record of the standing at the end of round 4; seizing continues in later rounds and each later warning carries its own standing. |
+| `warn` | The `game_over` Ask's prompt reads "4 rounds have been played: the game ends after 4 (p.7). Markers held: team 1: 2, team 2: 1." End: `game_ended` as under `strict`. Every team's Continue: round 5 starts with that sentence as its `round_started` warning; seizing continues in later rounds and each later boundary asks again with its own standing. |
 | `strict` | `game_ended` with `Winners`, and the same sentence as its `Reason`. |
 
-No winner is recorded under `silent` or `warn`: the game has not ended, so there is no result to record,
-and the players decide what round 4's standing means for their game.
+No winner is recorded under `silent`, or under `warn` when every team continues: the game has not ended, so
+there is no result to record, and the players decide what round 4's standing means for their game.
 
 ## What players see
 

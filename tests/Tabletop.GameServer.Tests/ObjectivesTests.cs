@@ -225,11 +225,13 @@ public class ObjectivesTests
     }
 
     [Fact]
-    public void Under_warn_the_warning_names_the_standing_and_the_game_plays_on()
+    public void Under_warn_the_game_over_ask_and_the_warning_name_the_standing_and_the_game_plays_on_when_both_continue()
     {
         var h = Seizing(Enforcement.Warn, judge: true);
         OntoTheObjective(h);
         for (var r = 0; r < 4; r++) { PlayTurns(h); h.EndRound(); }
+        Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", h.Open.Prompt);
+        h.Answer(0, new Chosen(GameOverChoices.Continue)); h.Answer(1, new Chosen(GameOverChoices.Continue));
         var fifth = h.Log.Last(e => e.Payload is RoundStarted);
         Assert.Equal($"{GrimdarkFutureRules.MissionLengthDetail(4)}. Markers held: team 1: 1, team 2: 0.", fifth.Warning);
         Assert.DoesNotContain(h.Log, e => e.Payload is GameEnded);

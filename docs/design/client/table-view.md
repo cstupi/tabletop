@@ -179,7 +179,7 @@ selects. The drag slides along impassable terrain and stops at other models' bas
 places freely, and the F1 overlay and the move hint say so. A placement that overlaps another base is `move_overlap` under the
 same setting. A drag arms after 6 px, so a click never moves anything. The declared move and the deployment placement
 belong to the decision box: while one is open it fills `TableInput.Proposing`, the same drag streams `proposed`
-ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask, C (**Stop here**) sends the same ghosts
+ghosts, the release sends nothing, and Enter commits. On a `Stoppable` move Ask, C (**Cast a spell**, or **Stop here to use a rule** when no moving model holds tokens) sends the same ghosts
 with `Destinations.Continues`: the move goes on after the before-attacking window. While a unit is held, 1–5 arrange it in that many rows about
 the cursor (`Formation.Arrange`), the rows across the screen as the camera sees it, and Q/E turn them 15°.
 

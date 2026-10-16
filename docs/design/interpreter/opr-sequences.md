@@ -94,7 +94,7 @@ for a strike-back.
 
 | Step | Does |
 | --- | --- |
-| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]` and `Values["in_cover"]`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
+| `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]`, `Values["in_cover"]` and the cover verdict's `cover_models`, `cover_of`, `cover_indirect`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then `PieceSelection(Lookup.AliveModels(target), 1, 1)` to the **attacker's** team, which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
 | `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
 | `score-hits` | Every `hit` roll of the frame as it now stands, through `RollEffects.PerDie`. Writes `Values["extra_hits"]` (`Surge`/`Relentless` per unmodified 6 on a success) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["self_wounds"]` (`Hazardous`'s 1s) with `Values["wounds"]` equal to it. Consumes the per-die grants |
@@ -118,8 +118,10 @@ per-die grant are rolled separately with that property folded into the live set 
 `LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(+4)* reaches the defence
 roll. Every one of those plans takes `Values["defender_models"]` off the `attack-sequence` frame,
 because p.14 lets a joined hero block on its own `Defense` only *"until all other models have been
-killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.InCover(target, eligible attacker models)` asked once for the whole action
-(p.11). p.11's one majority lives in that call: more than half of the target's living models are
+killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.Cover(target, eligible attacker models)` asked once for the whole action
+(p.11). The verdict travels with it as `Values["cover_models"]`, `Values["cover_of"]` and, when Indirect's dropped sight half
+lost the majority, `Values["cover_indirect"]`; `roll-to-block` puts the one verdict on every group's defense roll as
+`RollRecord.Cover`, with a cover suppressor (Blast) named as `IgnoredBy`. p.11's one majority lives in that call: more than half of the target's living models are
 in cover terrain, screened by a sight blocker, or unseen. `Battlefield` supplies only the two
 model lists, `ModelsInCoverTerrain` and `ModelsBehindSightBlockers`, and the fraction is the size
 of their union, because the fraction is a ruleset number. Sight is measured from the whole
@@ -309,7 +311,7 @@ assigned only a unit on its own list. `GfShooting.Declared` drops any aim off th
 answer leaves out holds fire (p.8: models "may" shoot); `fire-groups` fires only the groups with a target. `fire-groups` reads that `Assigned` answer back off `Frame.Frame.Steps[0].Answer`, records
 every group's attack counts and the defending unit's model count as `Values["attacks_<i>"]`, one
 `Values["attacks_<i>_q<n>"]` per Quality value that group's models bring, and
-`Values["defender_models_<i>"]` and `Values["in_cover_<i>"]`, before it pushes anything, pushes
+`Values["defender_models_<i>"]`, `Values["in_cover_<i>"]` with `cover_models_<i>`, `cover_of_<i>` and `cover_indirect_<i>`, before it pushes anything, pushes
 one `attack-sequence` per group with `Takedown` groups first (p.14), and completes when the last has
 finished.
 

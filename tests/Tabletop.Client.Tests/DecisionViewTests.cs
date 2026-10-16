@@ -53,11 +53,24 @@ public class DecisionViewTests
     }
 
     [Fact]
+    public void A_stoppable_move_offers_cast_when_a_moving_model_holds_spell_tokens()
+    {
+        var stoppable = new MoveRegion([Samples.Model], 6, [], [], null, Stoppable: true);
+        var a = new EventApplier(Samples.Board, Game);
+        Assert.Equal("Stop here to use a rule", DecisionView.StopLabel(a.Projection, stoppable));
+        Assert.Null(DecisionView.StopLabel(a.Projection, stoppable with { Stoppable = false }));
+        a.Apply(new GameEvent(1, null, new SpellTokensSet(Samples.Model, 2), null));
+        Assert.Equal("Cast a spell", DecisionView.StopLabel(a.Projection, stoppable));
+        a.Apply(new GameEvent(2, null, new AskOpened(AskOf("move", stoppable)), null));
+        Assert.Contains("C: cast a spell · ", DecisionView.Of(a.Projection, Game, new Names(Game, a.Projection), Samples.Team1, Unmuted).Hint);
+    }
+
+    [Fact]
     public void Each_mode_has_its_hint_and_casualties_title_the_count()
     {
         Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · Esc: reset",
             Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null)), Samples.Team1).Hint);
-        Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to cast or pick · Esc: reset",
+        Assert.Equal("Drag to move · Shift: one model · 1–5 while holding: rows · Q/E: turn · Enter: commit · C: stop here to use a rule · Esc: reset",
             Of(AskOf("move", new MoveRegion([Samples.Model], 6, [], [], null, Stoppable: true)), Samples.Team1).Hint);
         Assert.Equal("Click a target · Click a chip: that group alone · Enter: fire · Esc: clear",
             Of(AskOf("declare_targets", new Assignment([new AskOption("Rifles", "Rifles", [])], [Samples.Unit], 2)), Samples.Team1).Hint);
@@ -108,5 +121,30 @@ public class DecisionViewTests
         Assert.Equal(["a", "m"], narrowed.Select(c => c.Id));                                    // by the unit id, or by one of its models
         Assert.Equal(new[] { (1, "Advance", "a"), (2, "Charge", "m") }, DecisionView.Number(narrowed));
         Assert.Empty(DecisionView.ChoicesOf(options, a.Projection, Guid.CreateVersion7()));
+    }
+
+    const string ShakenNote = "Shaken: must spend this activation being idle (p.10)";
+
+    [Fact]
+    public void A_unit_s_note_shows_once_after_its_buttons_and_an_unnoted_unit_shows_none()
+    {
+        var other = Guid.CreateVersion7();
+        var rows = DecisionView.Rows([
+            new AskOption("i", "Squad: Idle", [Samples.Unit], ShakenNote),
+            new AskOption("h", "Other: Hold", [other]), new AskOption("a", "Other: Advance", [other])]);
+        Assert.Equal([("i", null), (null, ShakenNote), ("h", null), ("a", null)], rows.Select(r => (r.Option?.Id, r.Note)));
+        var two = DecisionView.Rows([new AskOption("h", "Gun: Hold", [Samples.Unit], "Artillery"), new AskOption("x", "Gun: Advance", [Samples.Unit], "Artillery")]);
+        Assert.Equal([("h", null), ("x", null), (null, "Artillery")], two.Select(r => (r.Option?.Id, r.Note)));
+    }
+
+    [Fact]
+    public void The_selected_unit_s_note_is_read_off_my_open_choice()
+    {
+        var ask = AskOf(AskQuestions.Activate, new Options([new AskOption("i", "Squad: Idle", [Samples.Unit], ShakenNote), new AskOption("o", "Other: Hold", [Guid.CreateVersion7()])]));
+        var a = new EventApplier(Samples.Board, Game);
+        a.Apply(new GameEvent(1, null, new AskOpened(ask), null));
+        Assert.Equal(ShakenNote, DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Unmuted, Samples.Unit));
+        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team2, Unmuted, Samples.Unit));          // not my Ask
+        Assert.Null(DecisionView.NoteOf(a.Projection, Game, Samples.Team1, Unmuted, Guid.CreateVersion7()));  // a unit with no choice
     }
 }

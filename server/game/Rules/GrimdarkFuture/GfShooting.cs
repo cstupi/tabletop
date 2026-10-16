@@ -87,7 +87,8 @@ public static class GfShooting
     /// A group's attacks are recorded per Quality value as `attacks_&lt;i&gt;_q&lt;n&gt;`, since p.4 tests each against *"the model's Quality
     /// value"* and a joined hero brings its own, with `attacks_&lt;i&gt;` kept as the group's total for a reader that wants one number.
     /// `defender_models_&lt;i&gt;` is read by p.13's `Blast` cap and by p.14's *"until all other models have been killed"*.
-    /// `in_cover_&lt;i&gt;` is p.11's majority, settled here for the same reason and read by `roll-to-block`.
+    /// `in_cover_&lt;i&gt;` is p.11's majority, with `cover_models_&lt;i&gt;`, `cover_of_&lt;i&gt;` and `cover_indirect_&lt;i&gt;` (the verdict the log
+    /// carries), settled here for the same reason and read by `roll-to-block`.
     /// </summary>
     sealed class FireGroupsStep : IStep
     {
@@ -109,7 +110,7 @@ public static class GfShooting
                     settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);
                     foreach (var (quality, attacks) in byQuality) settled[$"attacks_{i}_q{quality}"] = attacks;
                     settled[$"defender_models_{i}"] = Lookup.LivingModels(ctx.State, assigned.Targets[g.Name]).Count;   // p.13's Blast cap and p.14's Hero sunset, frozen with the counts
-                    settled[$"in_cover_{i}"] = GfAttack.InCoverAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds) ? 1 : 0;   // p.11's majority, frozen with them
+                    GfAttack.WriteCover(settled, GfAttack.InCoverAgainst(ctx, unit, assigned.Targets[g.Name], g.WeaponIds), $"_{i}");   // p.11's majority, frozen with them
                 }
                 return new Complete(spent.Distinct().ToList(), settled, Repeat: true);
             }

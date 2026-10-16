@@ -11,6 +11,8 @@ public sealed record Accept(string? Warning) : Verdict;
 public sealed record Refuse(RefusalReason Reason, string Detail) : Verdict;
 /// <summary>Strict's answer to a breach whose consequence is the end: game_ended with these winners in place of what was proposed.</summary>
 public sealed record EndGame(string Reason, IReadOnlyList<Guid> Winners) : Verdict;
+/// <summary>Warn's answer to the same breach: every team is asked End or Continue (GameOverAsk); End is the strict EndGame, Continue lets the proposal through with the warning.</summary>
+public sealed record OfferEnd(string Reason, IReadOnlyList<Guid> Winners) : Verdict;
 
 /// <summary>What was broken (a snake_case rule name, never on the wire), the sentence players read, and what strict does about it (enforcement spec → The breach).</summary>
 public sealed record Breach(string Rule, string Detail, StrictConsequence Strict);
@@ -28,6 +30,7 @@ public static class EnforcementPolicy
     {
         (null, _) => new Accept(null),
         (_, Enforcement.Silent) => new Accept(null),
+        ({ Strict: StrictEndsGame e }, Enforcement.Warn) => new OfferEnd(breach.Detail, e.Winners),
         (_, Enforcement.Warn) => new Accept(breach.Detail),
         ({ Strict: StrictRefuses r }, Enforcement.Strict) => new Refuse(r.Reason, breach.Detail),
         ({ Strict: StrictEndsGame e }, Enforcement.Strict) => new EndGame(breach.Detail, e.Winners),

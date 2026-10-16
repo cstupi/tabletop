@@ -276,13 +276,38 @@ public static partial class GfAttack
         return eligible;
     }
 
-    /// <summary>p.11's majority with p.14 Indirect's "ignores cover from sight obstructions": Indirect acted when dropping the sight half took the cover away.</summary>
-    static bool InCover(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible)
+    /// <summary>p.11's majority with p.14 Indirect's "ignores cover from sight obstructions": Indirect acted when dropping the sight half took the cover away,
+    /// and the verdict then is the full test's, ignored by Indirect. The +1 applies when the verdict is in cover and nothing ignored it (Applies).</summary>
+    static CoverVerdict CoverOf(GameState state, LiveSet live, Guid target, IReadOnlyList<Guid> eligible)
     {
         var indirect = live.Has(Side.Attacker, GfNames.Indirect);
-        var covered = GfRolls.InCover(state, target, eligible, indirect);
-        if (indirect && !covered && GfRolls.InCover(state, target, eligible, ignoresSightObstructions: false)) live.Record(Side.Attacker, GfNames.Indirect);
-        return covered;
+        var count = GfRolls.Cover(state, target, eligible, indirect);
+        if (indirect && !count.Majority && GfRolls.Cover(state, target, eligible, ignoresSightObstructions: false) is { Majority: true } full)
+        {
+            live.Record(Side.Attacker, GfNames.Indirect);
+            return new CoverVerdict(true, full.Models, full.Of, GfNames.Indirect);
+        }
+        return new CoverVerdict(count.Majority, count.Models, count.Of);
+    }
+
+    static bool Applies(CoverVerdict c) => c is { InCover: true, IgnoredBy: null };
+
+    /// <summary>The verdict as Values: `in_cover` (the +1 test passed), `cover_models`, `cover_of`, and `cover_indirect` when Indirect's dropped
+    /// sight half lost the cover, each with the pusher's `_&lt;i&gt;` suffix when fire-groups settles it.</summary>
+    public static void WriteCover(IDictionary<string, int> values, CoverVerdict c, string suffix = "")
+    {
+        values[$"in_cover{suffix}"] = Applies(c) ? 1 : 0;
+        values[$"cover_models{suffix}"] = c.Models;
+        values[$"cover_of{suffix}"] = c.Of;
+        if (c.IgnoredBy == GfNames.Indirect) values[$"cover_indirect{suffix}"] = 1;
+    }
+
+    /// <summary>The verdict a frame's Values hold; null when it holds no `cover_of` (a frame written before the verdict).</summary>
+    static CoverVerdict? ReadCover(IReadOnlyDictionary<string, int> values)
+    {
+        if (!values.TryGetValue("cover_of", out var of)) return null;
+        var indirect = values.GetValueOrDefault("cover_indirect") == 1;
+        return new CoverVerdict(values.GetValueOrDefault("in_cover") == 1 || indirect, values.GetValueOrDefault("cover_models"), of, indirect ? GfNames.Indirect : null);
     }
 
     /// <summary>
@@ -303,10 +328,10 @@ public static partial class GfAttack
     /// of models in a unit"* against the unit as it stood when the action started. Positions do not change
     /// between groups; only the count does.
     /// </summary>
-    public static bool InCoverAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons)
+    public static CoverVerdict InCoverAgainst(StepContext ctx, Guid attacker, Guid target, IReadOnlyList<Guid> weapons)
     {
         var live = ctx.Settle(AttackInteraction(ctx, attacker, target, weapons, AttackKind.Shooting, ctx.Frame.Context.Action));
-        return InCover(ctx.State, live, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting));
+        return CoverOf(ctx.State, live, target, EligibleModels(ctx.State, live, attacker, target, weapons, AttackKind.Shooting));
     }
 
     /// <summary>
@@ -384,8 +409,14 @@ public static partial class GfAttack
                 ["attacks"] = settled ?? byQuality.Sum(x => x.Attacks),
                 ["eligible_models"] = eligible.Count,
                 ["defender_models"] = Pushed(ctx.Frame, "defender_models") ?? Lookup.LivingModels(ctx.State, ix.Defender.UnitId).Count,
-                ["in_cover"] = Pushed(ctx.Frame, "in_cover") ?? (kind == AttackKind.Shooting && InCover(ctx.State, live, ix.Defender.UnitId, eligible) ? 1 : 0),
             };
+            if (Pushed(ctx.Frame, "in_cover") is { } pushedCover)
+            {
+                values["in_cover"] = pushedCover;
+                foreach (var key in new[] { "cover_models", "cover_of", "cover_indirect" }) if (Pushed(ctx.Frame, key) is { } v) values[key] = v;
+            }
+            else if (kind == AttackKind.Shooting) WriteCover(values, CoverOf(ctx.State, live, ix.Defender.UnitId, eligible));
+            else values["in_cover"] = 0;
             foreach (var (quality, attacks) in byQuality) values[$"attacks_q{quality}"] = attacks;
             return values["attacks"] == 0 ? new Finish(Consumed(live), values) : new Complete(Consumed(live), values);
         }
@@ -452,9 +483,10 @@ public static partial class GfAttack
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
                 var plan = GfRolls.HitPlan(ctx, live, kind, quality);
-                var added = ctx.Roll(plan, attacks).Dice.Sum(d => AddedAttacks(live, d));
+                IReadOnlyList<string>? Triggers(Die d) => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
+                var added = ctx.Roll(plan, attacks, Triggers).Dice.Sum(d => AddedAttacks(live, d));
                 // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                if (added > 0) ctx.Roll(plan, added);
+                if (added > 0) ctx.Roll(plan, added, Triggers);
             }
             return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
         }
@@ -528,9 +560,13 @@ public static partial class GfAttack
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
             // fact determine-attacks carried down. A parent that recorded none is a spell's hits or Impact's, where live is the answer.
             var defender = ix.Defender!.UnitId;
-            var inCover = kind == AttackKind.Shooting
-                && (parent.Values.TryGetValue("in_cover", out var settled) ? settled == 1
-                    : InCover(ctx.State, live, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind)));
+            // The verdict is the unit's, one for every block group (RollRecord.Cover); a frame written before it holds in_cover alone and logs none.
+            CoverVerdict? cover = null; var inCover = false;
+            if (kind == AttackKind.Shooting)
+            {
+                if (parent.Values.TryGetValue("in_cover", out var settled)) { inCover = settled == 1; cover = ReadCover(parent.Values); }
+                else { cover = CoverOf(ctx.State, live, defender, EligibleModels(ctx.State, live, ix.Attacker.UnitId, defender, ctx.Frame.Context.WeaponIds, kind)); inCover = Applies(cover); }
+            }
             var multiplier = Math.Max(1, parent.Value("hit_multiplier", 1));
             // p.14's Hero clause needs the defending unit's model count, and determine-attacks carried down the one settled before any
             // group fired. A parent that recorded none is a spell's hits or Impact's, where the live count is the count.
@@ -542,14 +578,14 @@ public static partial class GfAttack
             {
                 var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
                 var group = count * multiplier; plain -= group;
-                var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels);
+                var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover);
                 var record = ctx.Roll(plan, group);
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(granted, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
             if (plain > 0)
             {
-                var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels);
+                var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels, cover);
                 var record = ctx.Roll(plan, plain);
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
