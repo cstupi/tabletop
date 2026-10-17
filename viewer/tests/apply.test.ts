@@ -186,6 +186,15 @@ describe('the ported log lines', () => {
     expect(line(ev(11, { kind: 'undone', toSeq: 3 }))).toBe('undone to 3');
   });
 
+  it('labels an answer that broke a rule, and one outside the legal set, as the recording does', () => {
+    const p = initialProjection(board, game);
+    const answered = (extra: { outsideLegalSet: boolean; breach?: string }) =>
+      lineOf(ev(1, { kind: 'ask_answered', askId: A1, teamId: T1, answer: { kind: 'confirmed' }, ...extra }), p, ordinals);
+    expect(answered({ outsideLegalSet: false, breach: 'move_overlap' })).toBe('Team 1 answered yes (breaks move_overlap)');
+    expect(answered({ outsideLegalSet: true })).toBe('Team 1 answered yes (outside the legal set)');
+    expect(answered({ outsideLegalSet: false })).toBe('Team 1 answered yes');
+  });
+
   it('falls back to a short id for a team, unit or model it cannot name', () => {
     const a = new Applier(board, game);
     const e = ev(1, { kind: 'score_set', teamId: '0198b7ac-9999-7000-8000-000000000009', score: 1 });

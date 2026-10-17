@@ -168,8 +168,8 @@ public static partial class GfMoves
     /// base already touches where it stands, which again only a hand move can do, so that it can move out); p.7 "as long as no part of their bases
     /// move further than the total movement distance" (the Ask's Allowance); and p.11 "may not end their move partially overhanging gaps or terrain"
     /// with p.7 "physically impossible locations" (LandsInImpassable, against every impassable volume on the table, whether or not the Ask lists it:
-    /// a Flying unit's Ask lists none, p.13). The Aircraft move, the one Ask with a MinDistance (MoveStep), is exempt from the landing: p.13 "Aircraft
-    /// ignore all units and terrain when moving and stopping". A model answered where it stands has not moved and is not judged. A disembark is
+    /// a Flying unit's Ask lists none, p.13). An Aircraft's move, its action's or another team's (the region's IgnoresTerrain), is exempt from the
+    /// landing: p.13 "Aircraft ignore all units and terrain when moving and stopping". A model answered where it stands has not moved and is not judged. A disembark is
     /// judged by ExitPlacement instead: p.15 "must stay fully within 6" of it when exiting" and p.7's table edge. p.7's contact
     /// clauses are ContactBreach's; coherency is not judged.
     /// </summary>
@@ -177,7 +177,7 @@ public static partial class GfMoves
     {
         var terrain = Battlefield.Terrain(state);
         var impassable = terrain.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList();
-        var landing = region.MinDistance is null ? Declared(terrain, TerrainDeclarations.Impassable) : [];
+        var landing = region.IgnoresTerrain ? [] : Declared(terrain, TerrainDeclarations.Impassable);
         var size = state.Board.Table.Size;
         foreach (var m in GfAnswers.Moves(state, region, answer))
         {
@@ -398,7 +398,7 @@ public static partial class GfMoves
                 var rules = TerrainFor(ctx, unit, live);
                 var (impassable, difficult) = RegionVolumes(ctx.State, rules);
                 return new OpenAsks([ctx.Ask("move", $"{entry}: move up to {allowance}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable), allowPass: true)]);   // the cap ApplyMove holds the move to
+                    new MoveRegion(Lookup.AliveModels(ctx.State, unit), allowance, impassable, difficult, rules.DifficultCap, Separation: rules.Aircraft ? null : GfNames.Separation, PassesModels: rules.PassesImpassable, IgnoresTerrain: rules.IgnoresAllTerrain), allowPass: true)]);   // the cap ApplyMove holds the move to
             }
             var (changes, _, dice, _) = ApplyMove(ctx, unit, live, allowance, GfAnswers.Moves(ctx.State, closed));
             if (changes.Count == 0) return new Complete([]);                  // declined, or every landing refused: the grant waits for the next point

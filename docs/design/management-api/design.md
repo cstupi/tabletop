@@ -564,7 +564,8 @@ terrain.
 runs from `Sessions.Complete` when `account.starter_seeded_at` is null: it finds or creates a top-level
 `Starter` folder, writes each mesh with `IBlobStore.Put` to `Key(owner, hash)`, inserts the `blob` row
 (`uploaded = true`, on conflict do nothing), the `asset` row (`kind = miniature`) and the folder link, then
-sets the column. A throw is logged and the column stays null, so the next login retries; a retry after a
+sets the column. The `Put`s share a 5 s budget (`StarterAssets.Budget`), so an unreachable MinIO cancels them
+rather than holding the login. A throw is logged and the column stays null, so the next login retries; a retry after a
 partial seed can leave a duplicate mesh. Dev sessions pass through the same path
 ([starter meshes](../../superpowers/specs/2026-10-01-starter-meshes-design.md)).
 

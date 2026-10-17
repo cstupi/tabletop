@@ -49,7 +49,8 @@ stamped:
 
 Nothing else reads this column. An existing account gets the set on its next login. A user who
 deletes a starter asset doesn't get it back, because the column is already set. If seeding throws
-(MinIO or Postgres unavailable), the login still succeeds: the error is logged and the column stays
+(MinIO or Postgres unavailable), the login still succeeds, and the blob writes are cancelled after a 5 s budget so an
+unreachable MinIO does not hold the login: the error is logged and the column stays
 null, so the next login tries again. A retry after a partial seed can add a second copy of a mesh
 whose row was already written. The user can delete it, and nothing depends on there being one.
 

@@ -260,7 +260,8 @@ terrain, landing and table edge (`GfMoves.PathBreach`), a disembark's 6" (`move_
 (`move_not_offered`; a relocation to where the model already is stands still). p.13 Flying *"may move through units and
 terrain"* and p.11 lets *"any rules that allow them to ignore it"* pass impassable terrain, so a Flying unit's Ask lists no
 impassable volume; p.11 *"may not end their move partially overhanging gaps or terrain"* and p.7 *"physically impossible
-locations"* still hold its landing (`GfMoves.LandsInImpassable`). p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
+locations"* still hold its landing (`GfMoves.LandsInImpassable`). An Aircraft's region, its own move or a forced one, sets
+`IgnoresTerrain` (p.13 *"ignore all units and terrain when moving and stopping"*), so its landing is not judged. p.7's contact clauses are judged too (`GfMoves.ContactBreach`: `move_overlap` on a landing on another model's base,
 `move_through_models` unless the region `PassesModels`, `move_separation` within the region's `Separation`, 1 except the Charge
 move, the close-in, consolidation and an Aircraft's move (move step, forced move, reposition); a disembark keeps it). Coherency is not judged, per
 `architecture.md` → Rules enforcement. `ignoreSeparation` leaves the Ask's `Separation` null for a charge.
@@ -271,6 +272,9 @@ no impassable volume, no cap, no dangerous terrain test) and Strider (p.14 *"May
 moving"*: no cap). The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
 reposition, and a spell's forced move: the owner's ruling is *"Spells move as however that unit moves"*, so `take_test`'s
 `move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
+A target whose base already touches an impassable volume (only a hand move puts it there: p.7 *"never ... be placed in
+physically impossible locations"*; the book says nothing of moving out) is moved out of it: as `GfMoves.PathBreach` judges it,
+the volume it stands in does not block its path, and its landing is judged as any other.
 
 A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
 It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:

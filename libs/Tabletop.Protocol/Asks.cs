@@ -85,10 +85,11 @@ public sealed record Assignment(IReadOnlyList<AskOption> Items, IReadOnlyList<Gu
 /// attacking"), answered by Destinations.Continues. True only when that window has something to offer the mover now.
 /// Separation: how far the moving models must stay from models of other units (OPR p.7: 1"); null is no limit.
 /// PassesModels: the unit may move through other models (OPR p.13 Flying, Aircraft); false is "may never move through other models".
+/// IgnoresTerrain: the unit ignores terrain when moving and stopping (OPR p.13 Aircraft), so no landing in terrain is judged either.
 /// </summary>
 public sealed record MoveRegion(IReadOnlyList<Guid> ModelIds, double Allowance, IReadOnlyList<Guid> ImpassableVolumeIds,
     IReadOnlyList<Guid> DifficultVolumeIds, double? DifficultCap, MoveContainment? Containment = null, double? MinDistance = null, bool Stoppable = false,
-    double? Separation = null, bool PassesModels = false) : LegalSet;
+    double? Separation = null, bool PassesModels = false, bool IgnoresTerrain = false) : LegalSet;
 /// <summary>
 /// What containment allows on one move (rulebook p.15 Transport(X), p.21 solid buildings). Enterable are the containers a
 /// model reaching one embarks the whole unit into, so the answer is Inside(container) for every model of the unit. ExitingId
