@@ -151,6 +151,9 @@ services:
       # Caddy's address as management sees it: gateway_default's subnet (scripts/release reads it when unset in home.env).
       TABLETOP_TRUSTED_PROXIES: ${TABLETOP_TRUSTED_PROXIES:?set TABLETOP_TRUSTED_PROXIES to gateway_default's subnet}
     networks: [backend, gateway]          # gateway: Caddy in, and egress to Stytch and Army Forge
+    dns: &dns                           # upstreams for Docker's resolver: the host's resolver config has broken container DNS
+      - ${TABLETOP_DNS_1:-1.1.1.1}
+      - ${TABLETOP_DNS_2:-9.9.9.9}
 
   game:
     <<: *hardened
@@ -165,6 +168,7 @@ services:
       TABLETOP_STYTCH_BASE_URL: ${TABLETOP_STYTCH_BASE_URL:-https://api.stytch.com}
       TABLETOP_STYTCH_PROJECT_ID: ${TABLETOP_STYTCH_PROJECT_ID:?set TABLETOP_STYTCH_PROJECT_ID}
     networks: [backend, gateway]
+    dns: *dns
 
   # The static web app on :8080 (web/Dockerfile). The blob origin is fixed into its CSP at build time.
   web:

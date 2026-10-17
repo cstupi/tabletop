@@ -126,14 +126,14 @@ either directory is missing, since Docker would otherwise create it on the local
 ```bash
 sudo git clone <repo> /opt/docker/tabletop && cd /opt/docker/tabletop && sudo git checkout v1.0.0
 sudo install -m 0600 deploy/home.env.example home.env      # fill in every empty value: openssl rand -hex 32
-sudo -E scripts/release --deploy home --skip-client         # reads ./home.env, else /etc/tabletop/home.env (--env-file)
+sudo -E scripts/release --deploy home --version v1.0.0     # reads ./home.env, else /etc/tabletop/home.env (--env-file)
 ```
 
 `--deploy home` runs the unit suite, the rules suite and the web checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
-`node:24-alpine` containers over the clone (`--skip-tests` skips them), builds the images tagged with the version, runs
-`up -d`, then waits on the containers' own states: `migrate` and `minio-init` exited 0; postgres, minio, management,
-game and web healthy. `--skip-client` because the host has no Godot; client builds come from the GitHub release workflow
-or a dev machine. An update is the same command after `git fetch && git checkout vX.Y.Z`.
+`node:24-alpine` containers over the clone (`--skip-tests` skips them), exports and packages the client in the builder
+container (Client releases, below), builds the images tagged with the version, runs `up -d`, waits on the containers' own
+states (`migrate` and `minio-init` exited 0; postgres, minio, management, game and web healthy), then uploads the client.
+`--skip-client` skips the client. An update is the same command after `git fetch && git checkout vX.Y.Z`.
 
 **Trusted proxy.** Caddy's requests reach management from its address on `gateway_default`, so
 `TABLETOP_TRUSTED_PROXIES` is that network's subnet (`docker network inspect gateway_default -f '{{range
@@ -158,8 +158,20 @@ compose` needs it in `home.env`. Every container on `gateway_default` can then s
 `docker exec -i tabletop-postgres pg_restore -U postgres -d tabletop --clean --if-exists --no-owner --role=tabletop_owner
 < /mnt/tabletop/pg-backups/tabletop-<stamp>.dump`. MinIO's data is on the NAS already.
 
-**Client releases.** GitHub's release workflow uploads through the FILES host: secret `RELEASE_S3_ENDPOINT` is
-`https://files.tabletop.cstupi.com`, `RELEASE_S3_ACCESS_KEY`/`SECRET_KEY` the publisher from `home.env`.
+**Client releases.** `--deploy home` runs `scripts/release-client --in-container`, which builds the image
+`tabletop-client-build:4.7.2` from `scripts/client-build/Dockerfile` (Godot 4.7.2 .NET headless, its Windows, Linux and
+macOS release templates, the .NET 10 SDK, zip, jq, the AWS CLI; downloads pinned and hash-checked; 1.7 GB, about two
+minutes cold, cached after). Export and package run in it as the clone's owner, the clone mounted read-only, the output
+`build/release/<version>/` writable, NuGet cached in `build/nuget`, resolving through `TABLETOP_DNS_1`/`_2`. The upload
+runs in a second container on `tabletop-home_backend` (internal, no route out) against `http://tabletop-s3:9000`, given
+`RELEASE_S3_*` by name from `home.env`: the publisher's key stays on the host and off any network with egress. Those are
+the defaults when `home.env` leaves `RELEASE_S3_ENDPOINT`, `RELEASE_S3_NETWORK` or `RELEASE_S3_BUCKET` unset (bucket:
+`TABLETOP_S3_BUCKET`); another endpoint gets no network default and uploads from Docker's default bridge. GitHub's release
+workflow uploads through the FILES host instead: secret `RELEASE_S3_ENDPOINT` is `https://files.tabletop.cstupi.com`,
+`RELEASE_S3_ACCESS_KEY`/`SECRET_KEY` the publisher from `home.env`.
+
+**DNS.** management, game and the client build container use `TABLETOP_DNS_1`/`TABLETOP_DNS_2` (default 1.1.1.1,
+9.9.9.9) as upstream resolvers, whatever the host's resolver config.
 
 ## Releases
 
@@ -200,7 +212,8 @@ scripts/release --dry-run --deploy docker              # print every step, chang
 
 It reads `/etc/tabletop/prod.env` (`--env-file`; the environment wins), checks the tree is clean and the tag names
 `HEAD`, builds and runs the unit suite, the rules suite, `check-client` and the web checks (`--skip-tests`), publishes
-the client like the workflow (`--skip-client`; needs `godot` or `GODOT`, `dotnet`, `aws`, `zip`, `jq`), builds the web
+the client like the workflow (`--skip-client`; on the host with `godot` or `GODOT`, `dotnet`, `aws`, `zip`, `jq`, else in
+the builder container with `docker` only, as for home), builds the web
 app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and installs it to `TABLETOP_WEB_ROOT` (`rsync --delete`), then deploys:
 
 - `docker`: `docker compose --env-file /etc/tabletop/prod.env -f deploy/docker-compose.prod.yml up -d --build`, images
@@ -209,7 +222,8 @@ app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and installs it to `TABLETOP_WEB
   (`/opt/tabletop`), restarts `tabletop-migrate` (the migrations, as the owner role), starts management and game.
 - `home`: the home-server stack, every build and test in containers (Home server, above).
 
-Both wait for `/healthz` on 127.0.0.1:5100 and :5200 and print a summary. Export templates for a host run:
+`docker` and `systemd` wait for `/healthz` on 127.0.0.1:5100 and :5200; every deploy prints a summary. The env file is
+read as compose reads it: one pair of surrounding quotes is dropped (`KEY="x"` is `x`). Export templates for a host run:
 `~/.local/share/godot/export_templates/4.7.2.stable.mono/` (Godot's *Manage Export Templates*, or the `.tpz` from the
 Godot release page unzipped there).
 

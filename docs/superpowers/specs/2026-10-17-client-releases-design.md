@@ -63,7 +63,14 @@ writes under it. `UploadSweep` lists only `staging/`.
 - `.github/workflows/release.yml` runs on a pushed `v*.*.*` tag: build and tests, the sim's in-process rules suite,
   the web checks, then `scripts/release-client` with Godot 4.7.2 .NET and its export templates (cached).
 - `scripts/release` runs the same from a clone on the server host, then builds and installs the web app and deploys the
-  servers (`docker` or `systemd`).
+  servers (`docker`, `systemd` or `home`).
+- Without Godot on the host (`--in-container`, automatic when `godot` is not on PATH, always for `--deploy home`),
+  `scripts/release-client` runs export and package in the builder image `tabletop-client-build:<Godot version>`
+  (`scripts/client-build/Dockerfile`: Godot .NET headless, the three release templates, the .NET SDK, zip, jq, the AWS
+  CLI; pinned, hash-checked downloads) as the clone's owner, the clone read-only and the output writable, and the upload
+  in a second container given `RELEASE_S3_*` at run time and joined to `RELEASE_S3_NETWORK`. The home server uploads on
+  its internal backend network straight to its MinIO (`http://tabletop-s3:9000`), so the publisher's key never leaves
+  that host. `--deploy home` uploads after the deploy, since the deploy starts MinIO and creates the publisher.
 - Re-running a release for the same version overwrites its objects; nothing else changes.
 
 ## Serving
