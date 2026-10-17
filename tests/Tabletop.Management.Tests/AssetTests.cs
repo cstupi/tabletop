@@ -268,8 +268,8 @@ public class AssetTests : IClassFixture<ManagementFactory>
     {
         var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
         var glb = TestGlb.Build((3, null, true));
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { Kind = (AssetKind)9 }, ContentJson.Options)).StatusCode);
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { ModelledBase = new Base((BaseShape)9, 1, 1) }, ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { Kind = (AssetKind)9 }, ContentJson.Options)).StatusCode);   // enums bind by name only
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { ModelledBase = new Base((BaseShape)9, 1, 1) }, ContentJson.Options)).StatusCode);   // enums bind by name only
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { Scale = 0 }, ContentJson.Options)).StatusCode);
     }
 
@@ -360,9 +360,9 @@ public class AssetTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(Enumerable.Repeat(wall, UploadLimits.Volumes + 1).ToArray()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Notes = new string('n', Limits.Notes + 1) } }));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Notes = "bell\u0007" } }));
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Kind = (VolumeKind)9 } }));
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Declarations = (TerrainDeclarations)1024 } }));
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Footprint = new Footprint((FootprintKind)9, 1, 1) } }));
+        Assert.Equal(HttpStatusCode.BadRequest, await PutVolumes(new[] { wall with { Kind = (VolumeKind)9 } }));   // enums bind by name only
+        Assert.Equal(HttpStatusCode.BadRequest, await PutVolumes(new[] { wall with { Declarations = (TerrainDeclarations)1024 } }));   // enums bind by name only
+        Assert.Equal(HttpStatusCode.BadRequest, await PutVolumes(new[] { wall with { Footprint = new Footprint((FootprintKind)9, 1, 1) } }));   // enums bind by name only
         Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Footprint = Footprint.Rect(0, 4) } }));
         Assert.Equal(UploadLimits.Volumes, (await c.GetJson<List<TerrainVolume>>($"/v1/assets/{terrain.Id}/volumes")).Count);
     }
