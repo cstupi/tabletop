@@ -47,6 +47,7 @@ public sealed partial class GameSession
                 await rows.SetParticipantArmyAsync(me.Id, armyId, ct); break;
             case PickArmy: await rows.SetParticipantArmyAsync(me.Id, null, ct); break;
             case SetConfiguration c when !await rows.PropertiesExistAsync(c.PropertiesHash, ct): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no properties {c.PropertiesHash}"); return;
+            case SetConfiguration c when Rules.OptionProblems(c.OptionalRules) is { Count: > 0 } problems: await RefuseEdit(from, editId, RefusalReason.Unknown, string.Join("; ", problems)); return;
             case SetConfiguration c: await rows.SetConfigurationAsync(GameId, c, ct); break;
             case StartSetup when !IsCreator(from): await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator starts setup"); return;
             case StartSetup when Info.Status != GameStatus.Lobby: await RefuseEdit(from, editId, RefusalReason.WrongStatus, "setup has already started"); return;
