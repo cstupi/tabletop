@@ -91,7 +91,7 @@ public static class Samples
         new PresenceMessage(new Presence(P1, new Cursor(new Point3(1, 2, 3), Model), new Selection(Unit, []), [new PresencePlacement(Model, new Point3(1, 1, 0), new Yaw(0), PlacementKind.Held)], new Measurement(new Point3(0, 0, 0), new Point3(6, 0, 0)))),
         new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),
         new Refused(Guid.CreateVersion7(), RefusalReason.OutsideLegalSet, "unit already activated"), new Rejected(RejectReason.UpgradeRequired),
-        new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()),
+        new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()), new Reauth(Guid.CreateVersion7(), "jwt"),
         new SightAnswer(Guid.CreateVersion7(), [new SightLine(Model, Guid.CreateVersion7(), false, true, [Guid.CreateVersion7()])], [Model]),
         new ModelFacts(new Dictionary<Guid, int> { [Model] = 3 }),
     ];

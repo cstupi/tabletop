@@ -650,7 +650,7 @@ one `WireJson.Serialize`/`Deserialize` pair and one text frame format on a bidir
 
 | Direction | Kinds |
 | --- | --- |
-| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`) |
+| Client to server | `connect` (`Connect(SessionJwt, GameId, ClientVersion)`), `command`, `edit`, `sight_query` (`SightQuery(QueryId, ObserverUnitId, TargetUnitId)`), `reauth` (`Reauth(ReauthId, SessionJwt)`: a refreshed token of the same account moves the socket's expiry; anything else is `Refused(ReauthId, NotPermitted)`) |
 | Server to client | `welcome` (`Welcome(ParticipantId, GameInfo)`), `game` (`GameInfoMessage`), `board` (`BoardMessage`), `events` (`EventsMessage(IRL<GameEvent>)`), `at_rest` (`AtRest(Seq)`), `presence_ended`, `refused` (`Refused(MessageId, RefusalReason, Detail)`), `rejected` (`Rejected(RejectReason)`), `sight_answer` (`SightAnswer(QueryId, Lines, CanShoot)`, to the asker alone), `model_facts` (`ModelFacts(MaxWounds, DeployInside)`) |
 | Both | `presence`, `ping` |
 
@@ -709,7 +709,7 @@ only sometimes values in C#, and nothing in the type system distinguishes the tw
 
 ### 6. Versioning and the 426 path
 
-`ProtocolVersion` holds three constants and no logic: `Current` (2 since the optional-rules wire),
+`ProtocolVersion` holds three constants and no logic: `Current` (4 since `reauth`),
 `Header = "Tabletop-Client-Version"`, `UpgradeRequiredStatusCode = 426`. The client sends the header
 on every management request and the same integer inside `Connect.ClientVersion`. Management answers
 `426 Upgrade Required` when it is below its configured minimum. The game server answers
@@ -1154,7 +1154,7 @@ this table is the rest of the surface, with the exact member names later modules
 
 | Type | Members |
 | --- | --- |
-| `static class ProtocolVersion` | `const int Current = 2`, `const string Header = "Tabletop-Client-Version"`, `const int UpgradeRequiredStatusCode = 426` |
+| `static class ProtocolVersion` | `const int Current = 4`, `const string Header = "Tabletop-Client-Version"`, `const int UpgradeRequiredStatusCode = 426` |
 | `enum GameStatus { Lobby, Setup, Playing, Ended }` | wire `lobby setup playing ended` |
 | `enum SchedulerShape { PlayerTurn, AlternatingActivation }` | wire `player-turn`, `alternating-activation` |
 | `enum Enforcement { Silent, Warn, Strict }` | |

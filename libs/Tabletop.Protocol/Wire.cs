@@ -20,6 +20,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(Refused), "refused")]
 [JsonDerivedType(typeof(Rejected), "rejected")]
 [JsonDerivedType(typeof(SightQuery), "sight_query")]
+[JsonDerivedType(typeof(Reauth), "reauth")]
 [JsonDerivedType(typeof(SightAnswer), "sight_answer")]
 [JsonDerivedType(typeof(ModelFacts), "model_facts")]
 public abstract record SocketMessage;
@@ -31,6 +32,9 @@ public sealed record CommandMessage(Guid CommandId, Command Command) : SocketMes
 public sealed record EditMessage(Guid EditId, Edit Edit) : SocketMessage;
 /// <summary>Which models of the observer can see which of the target, and which may shoot it. Answered outside the log, to the asker alone.</summary>
 public sealed record SightQuery(Guid QueryId, Guid ObserverUnitId, Guid TargetUnitId) : SocketMessage;
+/// <summary>A refreshed session JWT for this socket, sent before the one it connected with expires. Taken silently when it verifies and
+/// names the same account: the socket then closes at the new token's expiry. Otherwise Refused by ReauthId, and the old expiry stands.</summary>
+public sealed record Reauth(Guid ReauthId, string SessionJwt) : SocketMessage;
 
 // Server → client
 /// <summary>ParticipantId is Guid.Empty for an admin watcher, which is no participant of the game.</summary>

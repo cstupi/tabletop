@@ -94,6 +94,48 @@ public class ConnectionLimitsTests
     }
 
     [Fact]
+    public async Task A_reauth_of_the_same_account_keeps_the_socket_past_its_first_expiry()
+    {
+        using var factory = GameServerFactory.WithoutScheduler(db);
+        var seeded = await PlayingWithLog();
+        await using var client = await TestClient.OpenAsync(factory);
+        await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId, jwt: TestKeys.Mint(seeded.CreatorAccountId, lifetime: TimeSpan.FromSeconds(2)));
+        await client.ExpectAsync<AtRest>();
+        await client.SendAsync(new Reauth(Guid.NewGuid(), TestKeys.Mint(seeded.CreatorAccountId)));
+        await client.AssertSilentAsync(TimeSpan.FromSeconds(3));
+        await client.SendAsync(new CommandMessage(Guid.NewGuid(), new SetScore(seeded.TeamIds[0], 1)));
+        await client.ExpectAsync<AtRest>();
+    }
+
+    [Fact]
+    public async Task A_reauth_naming_another_account_is_refused_and_the_first_expiry_stands()
+    {
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
+        await using var client = await TestClient.OpenAsync(factory);
+        await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId, jwt: TestKeys.Mint(seeded.CreatorAccountId, lifetime: TimeSpan.FromSeconds(3)));
+        await client.ExpectAsync<AtRest>();
+        var id = Guid.NewGuid();
+        await client.SendAsync(new Reauth(id, TestKeys.Mint(seeded.Participants[1].AccountId)));
+        var refused = await client.ExpectAsync<Refused>();
+        Assert.Equal((id, RefusalReason.NotPermitted), (refused.MessageId, refused.Reason));
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, await client.WaitClosedAsync());
+    }
+
+    [Fact]
+    public async Task A_reauth_that_does_not_verify_is_refused()
+    {
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
+        await using var client = await TestClient.OpenAsync(factory);
+        await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        await client.ExpectAsync<AtRest>();
+        var id = Guid.NewGuid();
+        await client.SendAsync(new Reauth(id, TestKeys.Mint(seeded.CreatorAccountId, issuer: "stytch.com/someone-else")));
+        Assert.Equal(id, (await client.ExpectAsync<Refused>()).MessageId);
+    }
+
+    [Fact]
     public async Task Pings_over_the_rate_are_dropped()
     {
         using var factory = new GameServerFactory(db);
