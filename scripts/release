@@ -11,10 +11,12 @@
 #               in containers (no host .NET or Node), the web app as an image; none: build and publish only.
 # --env-file    the settings, KEY=VALUE lines; the environment wins over the file. Default /etc/tabletop/prod.env; for home,
 #               home.env in the clone if present, else /etc/tabletop/home.env.
-# --skip-client no Godot export or upload.  --skip-tests  no build, tests or checks.  --dry-run  print what would change.
+# --skip-client no client export or upload: on the host with Godot, else (and always for home) in the builder container.
+# --skip-tests  no build, tests or checks.  --dry-run  print what would change.
 #
 # Settings read: TABLETOP_WEB_URL (the client's web origin), TABLETOP_S3_PUBLIC_ENDPOINT (the web build's blob origin),
-# TABLETOP_WEB_ROOT (where the static site goes; required to deploy), RELEASE_S3_* (scripts/release-client upload),
+# TABLETOP_WEB_ROOT (where the static site goes; required to deploy), RELEASE_S3_* and RELEASE_S3_NETWORK (scripts/release-client;
+# home defaults: endpoint http://tabletop-s3:9000 on network tabletop-home_backend, bucket TABLETOP_S3_BUCKET),
 # GODOT, TABLETOP_INSTALL_DIR, TABLETOP_RELEASE_OUT (the build output, default build/release/<version>).
 set -euo pipefail
 
@@ -35,7 +37,7 @@ while [[ $# -gt 0 ]]; do
     --skip-client) skip_client=1; shift ;;
     --skip-tests) skip_tests=1; shift ;;
     --dry-run) dry=1; shift ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -46,12 +48,26 @@ if [[ -z "$env_file" ]]; then
   else env_file=/etc/tabletop/prod.env; fi
 fi
 
-# Settings: KEY=VALUE lines, read rather than sourced; a variable already in the environment wins.
+# Settings: KEY=VALUE lines, read rather than sourced; a variable already in the environment wins. A value is read the way
+# compose's --env-file reads it, since what this exports overrides compose's own parse: one pair of matching surrounding
+# double or single quotes is removed (KEY="x" is x), an unquoted value is trimmed.
+env_value() {   # <raw value> -> the value
+  local v=$1
+  if [[ $v =~ ^\"(.*)\"[[:space:]]*$ || $v =~ ^\'(.*)\'[[:space:]]*$ ]]; then printf '%s' "${BASH_REMATCH[1]}"
+  else v=${v#"${v%%[![:space:]]*}"}; printf '%s' "${v%"${v##*[![:space:]]}"}"; fi
+}
+# Self-check of the parse; a wrong secret only surfaces as a server refusing it.
+env_raw=('"secret-live-1"' "'x y'" 'plain' ' padded ' '""' '' '"a=b"' '"mixed'"'" '"in"side"')
+env_want=('secret-live-1'  'x y'   'plain' 'padded'   ''   '' 'a=b'   '"mixed'"'" 'in"side')
+for i in "${!env_raw[@]}"; do
+  [[ "$(env_value "${env_raw[i]}")" == "${env_want[i]}" ]] \
+    || die "env file parse self-check: [${env_raw[i]}] gave [$(env_value "${env_raw[i]}")], not [${env_want[i]}]"
+done
 if [[ -f "$env_file" ]]; then
   [[ -r "$env_file" ]] || die "$env_file is not readable (run as its owner, or with sudo -E)"
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
-    key=${BASH_REMATCH[1]} value=${BASH_REMATCH[2]}
+    key=${BASH_REMATCH[1]} value=$(env_value "${BASH_REMATCH[2]}")
     [[ -n "${!key+x}" ]] || export "$key=$value"
   done < "$env_file"
 elif [[ $deploy == docker || $deploy == home ]]; then die "$env_file not found (--env-file); the $deploy deploy reads it"
@@ -71,9 +87,23 @@ else
   [[ $skip_tests == 1 ]] || need dotnet "install the .NET 10 SDK (global.json)"
   need node "install Node 24"; need npm
 fi
+# The client: on the host with Godot, else (and always for home) in the builder container (scripts/release-client).
+client_args=()
+if [[ $deploy == home ]]; then
+  # The home stack's MinIO, from a container on its internal backend network; the bucket is the servers' bucket.
+  export RELEASE_S3_ENDPOINT=${RELEASE_S3_ENDPOINT:-http://tabletop-s3:9000}
+  export RELEASE_S3_BUCKET=${RELEASE_S3_BUCKET:-${TABLETOP_S3_BUCKET:-tabletop-blobs}}
+  if [[ -z "${RELEASE_S3_NETWORK:-}" && $RELEASE_S3_ENDPOINT == http://tabletop-s3:9000* ]]; then export RELEASE_S3_NETWORK=tabletop-home_backend; fi
+fi
 if [[ $skip_client == 0 ]]; then
-  need "${GODOT:-godot}" "install Godot 4.7.2 .NET with its export templates, or set GODOT (or pass --skip-client)"
-  need dotnet "install the .NET 10 SDK (global.json)"; need aws "install the AWS CLI v2"; need zip; need jq; need sha256sum; need unzip
+  for key in TABLETOP_WEB_URL RELEASE_S3_ENDPOINT RELEASE_S3_BUCKET RELEASE_S3_ACCESS_KEY RELEASE_S3_SECRET_KEY; do
+    [[ -n "${!key:-}" ]] || die "$key is empty (the client upload needs it; or pass --skip-client)"
+  done
+  if [[ $deploy == home ]] || ! command -v "${GODOT:-godot}" >/dev/null 2>&1; then
+    client_args=(--in-container); need docker "the client builds in a container without Godot on the host"
+  else
+    need dotnet "install the .NET 10 SDK (global.json)"; need aws "install the AWS CLI v2"; need zip; need jq; need sha256sum; need unzip
+  fi
 fi
 case $deploy in
   docker) need docker; need curl ;;
@@ -138,7 +168,9 @@ fi
 if [[ $skip_client == 0 ]]; then
   step "Client builds"
   run mkdir -p "$out"
-  DRY_RUN=$dry "$root/scripts/release-client" all "$version" "$out"
+  # home: the upload waits for the deploy, which starts MinIO and creates the release publisher (minio-init).
+  if [[ $deploy == home ]]; then DRY_RUN=$dry "$root/scripts/release-client" "${client_args[@]}" build "$version" "$out"
+  else DRY_RUN=$dry "$root/scripts/release-client" "${client_args[@]}" all "$version" "$out"; fi
 fi
 
 healthy() {   # <name> <url>: up to 120 s
@@ -189,10 +221,14 @@ case $deploy in
     # management healthy, then game. up fails when migrate or minio-init fails.
     run "${compose[@]}" up -d --no-build --remove-orphans
     prefix=${TABLETOP_CONTAINER_PREFIX:-tabletop}
-    await "$prefix-migrate" done
-    await "$prefix-minio-init" done
+    await "$prefix-migrate" "done"
+    await "$prefix-minio-init" "done"
     for c in postgres minio management game web; do await "$prefix-$c" healthy; done
-    run "${compose[@]}" ps ;;
+    run "${compose[@]}" ps
+    if [[ $skip_client == 0 ]]; then
+      step "Client upload (${RELEASE_S3_ENDPOINT}${RELEASE_S3_NETWORK:+, network $RELEASE_S3_NETWORK})"
+      DRY_RUN=$dry "$root/scripts/release-client" "${client_args[@]}" upload "$version" "$out"
+    fi ;;
   docker)
     step "Deploy (docker)"
     # migrate runs first on every up; management starts after it exits 0, game after management is healthy.
