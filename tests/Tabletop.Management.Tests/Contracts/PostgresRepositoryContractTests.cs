@@ -68,4 +68,7 @@ public sealed class PostgresRepositoryContractTests : RepositoryContract, IClass
 
     protected override Task SeedGameTable(Guid gameId, Guid textureAssetId) =>
         Execute("insert into management.table_state (id, game_id, width, length, texture_asset_id) values (@id, @gameId, 72, 48, @textureAssetId)", new { id = Guid.CreateVersion7(), gameId, textureAssetId });
+
+    protected override Task BackdateBlob(Guid ownerId, string hash, TimeSpan age) =>
+        Execute("update management.blob set created_at = created_at - @age where owner_id = @ownerId and hash = @hash", new { ownerId, hash, age });
 }

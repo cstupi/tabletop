@@ -19,6 +19,12 @@ public sealed class FolderRepository(Database db) : IFolderRepository
         return folders.Select(f => new FolderDto(f.Id, f.ParentId, f.Name, members[f.Id].ToList())).ToList();
     }
 
+    public async Task<int> Count(Guid ownerId)
+    {
+        await using var c = await db.Open();
+        return await c.ExecuteScalarAsync<int>("select count(*)::int from folder where owner_id = @ownerId", new { ownerId });
+    }
+
     /// <summary>Null when the parent is not the owner's, or would make a cycle.</summary>
     public async Task<FolderDto?> Create(Guid ownerId, FolderRequest r)
     {

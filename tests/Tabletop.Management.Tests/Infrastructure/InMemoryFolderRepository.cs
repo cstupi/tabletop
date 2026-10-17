@@ -20,6 +20,11 @@ public sealed class InMemoryFolderRepository(InMemoryRows rows) : IFolderReposit
                 .Select(f => new FolderDto(f.Key, f.Value.ParentId, f.Value.Name, rows.Filed.Where(x => x.FolderId == f.Key).Select(x => x.AssetId).ToList())).ToList());
     }
 
+    public Task<int> Count(Guid ownerId)
+    {
+        lock (rows.Gate) return Task.FromResult(rows.Folders.Values.Count(f => f.Owner == ownerId));
+    }
+
     public Task<FolderDto?> Create(Guid ownerId, FolderRequest r)
     {
         lock (rows.Gate)

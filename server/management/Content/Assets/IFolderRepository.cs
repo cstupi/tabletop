@@ -5,6 +5,7 @@ public interface IFolderRepository
 {
     /// <summary>Every folder of the owner, ascending by id, each with its asset ids.</summary>
     Task<IReadOnlyList<FolderDto>> List(Guid ownerId);
+    Task<int> Count(Guid ownerId);
     /// <summary>Null when the parent is not the owner's.</summary>
     Task<FolderDto?> Create(Guid ownerId, FolderRequest r);
     /// <summary>Found is false for another owner's folder; Valid is false for a parent that is not the owner's, is the folder itself, or sits below it.</summary>

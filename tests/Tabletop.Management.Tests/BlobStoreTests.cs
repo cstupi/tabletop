@@ -47,6 +47,57 @@ public abstract class BlobStoreContract : IAsyncLifetime
         await Store.Delete([_key]);
     }
 
+    [Fact]
+    public async Task Open_read_streams_the_whole_object_and_is_null_when_absent()
+    {
+        Assert.Null(await Store.OpenRead(_key));
+        var bytes = Enumerable.Range(0, 100_000).Select(i => (byte)i).ToArray();
+        await Store.Put(_key, bytes, "model/gltf-binary");
+        await using var read = await Store.OpenRead(_key);
+        Assert.NotNull(read);
+        Assert.Equal(bytes.Length, read.Length);
+        using var ms = new MemoryStream();
+        await read.Content.CopyToAsync(ms);
+        Assert.Equal(bytes, ms.ToArray());
+    }
+
+    [Fact]
+    public async Task Copy_writes_the_destination_and_keeps_the_source()
+    {
+        var destination = _key + "-copy";
+        try
+        {
+            await Store.Put(_key, [5, 6, 7], "image/png");
+            await Store.Copy(_key, destination);
+            Assert.Equal([5, 6, 7], await Store.ReadRange(destination, 0, 2));
+            Assert.Equal(3, await Store.Size(_key));
+        }
+        finally { await Store.Delete([destination]); }
+    }
+
+    [Fact]
+    public async Task List_older_than_names_the_objects_under_a_prefix_written_before_the_cutoff()
+    {
+        var prefix = $"{IBlobStore.StagingPrefix}{Guid.CreateVersion7()}/";
+        var (a, b, outside) = (prefix + "a", prefix + "b", _key);
+        try
+        {
+            foreach (var k in new[] { a, b, outside }) await Store.Put(k, [1], "image/png");
+            Assert.Empty(await Store.ListOlderThan(prefix, DateTimeOffset.UtcNow.AddMinutes(-30)));
+            Assert.Equal([a, b], (await Store.ListOlderThan(prefix, DateTimeOffset.UtcNow.AddMinutes(30))).Order());
+        }
+        finally { await Store.Delete([a, b]); }
+    }
+
+    [Fact]
+    public void The_staging_key_sits_under_the_staging_prefix_apart_from_content_keys()
+    {
+        var (owner, asset) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        Assert.Equal($"staging/{owner}/{asset}", IBlobStore.StagingKey(owner, asset));
+        Assert.StartsWith(IBlobStore.StagingPrefix, IBlobStore.StagingKey(owner, asset));
+        Assert.False(IBlobStore.Key(owner, new string('a', 64)).StartsWith(IBlobStore.StagingPrefix));
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
     public Task DisposeAsync() => Store.Delete([_key]);
 }

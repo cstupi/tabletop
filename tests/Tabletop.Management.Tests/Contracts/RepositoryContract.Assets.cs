@@ -122,4 +122,67 @@ public abstract partial class RepositoryContract
         Assert.Equal([folder.Id], (await Folders.List(owner)).Select(f => f.Id));
         Assert.True((await Assets.Get(owner, pending.Id))!.Uploaded);
     }
+
+    [Fact]
+    public async Task Asset_create_within_a_quota_refuses_past_its_count_and_its_bytes_counting_shared_bytes_once()
+    {
+        var owner = await NewAccount();
+        var quota = new AssetQuota(2, 150);
+        var a = await Assets.Create(owner, Mini(size: 100), quota);
+        await Assets.Create(owner, Mini(a.Hash, "same bytes", 100), quota);
+        Assert.Equal(AssetQuotaExceeded.Limit.Assets, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Assets.Create(owner, Mini(size: 1), quota))).Which);
+        Assert.Equal(2, (await Assets.List(owner, new Keyset(10, null), null)).Count);
+
+        var other = await NewAccount();
+        var bytes = new AssetQuota(10, 150);
+        var b = await Assets.Create(other, Mini(size: 100), bytes);
+        Assert.Equal(AssetQuotaExceeded.Limit.Bytes, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Assets.Create(other, Mini(size: 51), bytes))).Which);
+        await Assets.Create(other, Mini(b.Hash, "same bytes", 100), bytes);
+        await Assets.Create(other, Mini(size: 50), bytes);
+        Assert.Equal(3, (await Assets.List(other, new Keyset(10, null), null)).Count);
+    }
+
+    [Fact]
+    public async Task Abandoned_uploads_past_the_cutoff_go_with_their_blob_rows()
+    {
+        var owner = await NewAccount();
+        var old = await Assets.Create(owner, Mini(name: "old"));
+        var sharing = await Assets.Create(owner, Mini(old.Hash, "same bytes"));
+        await BackdateBlob(owner, old.Hash, TimeSpan.FromHours(2));
+        var fresh = await Assets.Create(owner, Mini(name: "fresh"));
+        var done = await Assets.Create(owner, Mini(name: "done"));
+        await Assets.MarkUploaded(owner, done.Hash);
+        await BackdateBlob(owner, done.Hash, TimeSpan.FromHours(2));
+
+        var keys = await Assets.DeleteAbandoned(DateTimeOffset.UtcNow.AddHours(-1));
+        Assert.Contains(IBlobStore.Key(owner, old.Hash), keys);
+        Assert.DoesNotContain(IBlobStore.Key(owner, fresh.Hash), keys);
+        Assert.DoesNotContain(IBlobStore.Key(owner, done.Hash), keys);
+        Assert.Null(await Assets.Get(owner, old.Id));
+        Assert.Null(await Assets.Get(owner, sharing.Id));
+        Assert.NotNull(await Assets.Get(owner, fresh.Id));
+        Assert.NotNull(await Assets.Get(owner, done.Id));
+        Assert.Equal(2, (await Assets.List(owner, new Keyset(10, null), null)).Count);
+    }
+
+    [Fact]
+    public async Task Mark_uploaded_reports_whether_the_blob_row_is_there()
+    {
+        var owner = await NewAccount();
+        var pending = await Assets.Create(owner, Mini());
+        Assert.True(await Assets.MarkUploaded(owner, pending.Hash));
+        Assert.True(await Assets.MarkUploaded(owner, pending.Hash));
+        Assert.False(await Assets.MarkUploaded(owner, Mini().Hash));
+    }
+
+    [Fact]
+    public async Task Creating_an_asset_on_a_pending_blob_restarts_its_clock()
+    {
+        var owner = await NewAccount();
+        var old = await Assets.Create(owner, Mini(name: "old"));
+        await BackdateBlob(owner, old.Hash, TimeSpan.FromHours(2));
+        var again = await Assets.Create(owner, Mini(old.Hash, "again"));
+        Assert.DoesNotContain(IBlobStore.Key(owner, old.Hash), await Assets.DeleteAbandoned(DateTimeOffset.UtcNow.AddHours(-1)));
+        Assert.NotNull(await Assets.Get(owner, again.Id));
+    }
 }

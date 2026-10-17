@@ -35,6 +35,7 @@ builder.Services.AddSingleton<Tabletop.Management.Content.Assets.IBlobStore>(sp 
 builder.Services.AddSingleton<IAssetRepository, AssetRepository>();
 builder.Services.AddSingleton<IFolderRepository, FolderRepository>();
 builder.Services.AddSingleton<StarterAssets>();
+builder.Services.AddHostedService<UploadSweeper>();
 builder.Services.AddHttpClient(ArmyForgeClient.HttpClientName);
 builder.Services.AddSingleton(sp => new ArmyForgeClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient(ArmyForgeClient.HttpClientName)));
 builder.Services.AddSingleton<ICatalogKinds, CatalogKinds>();

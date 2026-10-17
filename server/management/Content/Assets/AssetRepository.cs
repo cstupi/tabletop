@@ -19,11 +19,21 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
         from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
 
-    public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r)
+    public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
     {
         await using var c = await db.Open();
         await using var tx = await c.BeginTransactionAsync();
-        await c.ExecuteAsync("insert into blob (owner_id, hash, s3_key, byte_size, content_type) values (@ownerId, @hash, @key, @size, @ct) on conflict (owner_id, hash) do nothing",
+        if (quota is not null)
+        {
+            // The account row lock serializes an owner's creates, so the count and sum below cannot be raced past the quota.
+            await c.ExecuteAsync("select 1 from account where id = @ownerId for update", new { ownerId }, tx);
+            var (assets, bytes, known) = await c.QuerySingleAsync<(int, long, bool)>(@"select (select count(*) from asset where owner_id = @ownerId)::int,
+                (select coalesce(sum(byte_size), 0) from blob where owner_id = @ownerId)::bigint,
+                exists(select 1 from blob where owner_id = @ownerId and hash = @hash)", new { ownerId, hash = r.Hash }, tx);
+            if (assets >= quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
+            if (!known && bytes + r.ByteSize > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+        }
+        await c.ExecuteAsync("insert into blob (owner_id, hash, s3_key, byte_size, content_type) values (@ownerId, @hash, @key, @size, @ct) on conflict (owner_id, hash) do update set created_at = now() where not blob.uploaded",
             new { ownerId, hash = r.Hash, key = IBlobStore.Key(ownerId, r.Hash), size = r.ByteSize, ct = r.ContentType }, tx);
         var id = Guid.CreateVersion7();
         await c.ExecuteAsync(@"insert into asset (id, owner_id, blob_hash, name, kind, scale, orientation_pitch, orientation_yaw, orientation_roll, modelled_base_shape, modelled_base_a, modelled_base_b)
@@ -60,10 +70,10 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         return n == 1 ? await Get(ownerId, id) : null;
     }
 
-    public async Task MarkUploaded(Guid ownerId, string hash)
+    public async Task<bool> MarkUploaded(Guid ownerId, string hash)
     {
         await using var c = await db.Open();
-        await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash });
+        return await c.ExecuteAsync("update blob set uploaded = true where owner_id = @ownerId and hash = @hash", new { ownerId, hash }) == 1;
     }
 
     public async Task<IReadOnlyDictionary<Guid, AssetKind>> UploadedKinds(Guid ownerId, IReadOnlyList<Guid> ids)
@@ -105,6 +115,17 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         await tx.CommitAsync();
         return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
     }
+    public async Task<IReadOnlyList<string>> DeleteAbandoned(DateTimeOffset cutoff)
+    {
+        await using var c = await db.Open();
+        await using var tx = await c.BeginTransactionAsync();
+        await c.ExecuteAsync(@"delete from asset a using blob b where b.owner_id = a.owner_id and b.hash = a.blob_hash
+            and not b.uploaded and b.created_at < @cutoff", new { cutoff }, tx);
+        var keys = (await c.QueryAsync<string>("delete from blob where not uploaded and created_at < @cutoff returning s3_key", new { cutoff }, tx)).ToList();
+        await tx.CommitAsync();
+        return keys;
+    }
+
     public async Task<bool> StarterSeeded(Guid ownerId)
     {
         await using var c = await db.Open();
