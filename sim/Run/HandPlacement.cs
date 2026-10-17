@@ -15,6 +15,7 @@ namespace Tabletop.Sim.Run;
 /// and once rounds have begun, for a set-aside unit (an Ambusher), for its distance from enemy units (ambush_distance: p.13 "anywhere over
 /// 9” away from enemy units"). So an anchor is skipped where any base would touch a model on the table or leave the zone, and an
 /// Ambusher's anchor is drawn from the whole table and skipped where any base is within 9" of an enemy model.
+/// A unit the scenario anchors (ScenarioArmy.Anchors) goes there.
 /// </summary>
 public static class HandPlacement
 {
@@ -48,9 +49,11 @@ public static class HandPlacement
         var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
         var occupied = projection.Models.Values.Where(m => m.Location is OnTable)
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        var anchor = projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
-            ? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
-            : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
+        var army = scenario.Scenario.Armies[ordinal - 1];
+        var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt
+            : projection.Scheduler.Round >= 1 && unit.Conditions.Contains(scenario.SetAsideCondition)
+                ? AmbushAnchor(shelved, offsets, table, occupied, Enemies(projection, scenario, teamId), chooser) ?? ChooseAnchor(shelved, offsets, shape, table, occupied, chooser)
+                : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();

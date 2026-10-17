@@ -27,7 +27,12 @@ public sealed record GameInfo(
     Guid Id, string Name, GameStatus Status, Guid CreatedBy,
     string GameRules, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
     long RngSeed,
-    IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants);
+    IReadOnlyList<Team> Teams, IReadOnlyList<Participant> Participants)
+{
+    /// <summary>The optional rules the players opted into: keys and values the game's ruleset defines (snake_case), opaque outside it. An absent key is that
+    /// option's default, so an empty map is the core game. Set in the lobby with SetConfiguration; frozen from playing on.</summary>
+    public IReadOnlyDictionary<string, string> OptionalRules { get; init; } = new Dictionary<string, string>();
+}
 
 public sealed record ArmyInPlay(Guid ParticipantId, ArmySnapshot Snapshot);
 

@@ -34,7 +34,11 @@ public sealed record SightQuery(Guid QueryId, Guid ObserverUnitId, Guid TargetUn
 
 // Server → client
 /// <summary>ParticipantId is Guid.Empty for an admin watcher, which is no participant of the game.</summary>
-public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage;
+public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage
+{
+    /// <summary>The game ruleset's optional rules and presets, for the lobby's controls.</summary>
+    public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty;
+}
 /// <summary>After every lobby edit.</summary>
 public sealed record GameInfoMessage(GameInfo Game) : SocketMessage;
 /// <summary>On connect from setup on, and after every setup edit (the whole draft).</summary>

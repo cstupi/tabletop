@@ -38,6 +38,8 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public Guid? GameId { get; private set; }
     public Guid? ParticipantId { get; private set; }
     public GameInfo? Game { get; private set; }
+    /// <summary>The game ruleset's optional rules and presets, from Welcome; the lobby builds its controls from it.</summary>
+    public RulesOptionCatalog Options { get; private set; } = RulesOptionCatalog.Empty;
     public TableState? Draft { get; private set; }
     public EventApplier? Applier { get; private set; }
     public Projection? Projection => _predicted ?? Applier?.Projection;
@@ -285,7 +287,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         {
             case Welcome w:
                 _welcomed = true; _attempt = 0;
-                ParticipantId = w.ParticipantId; Game = w.Game;
+                ParticipantId = w.ParticipantId; Game = w.Game; Options = w.Options;
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();

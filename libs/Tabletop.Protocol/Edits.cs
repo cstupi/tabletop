@@ -34,7 +34,9 @@ public sealed record CreateTeam : LobbyEdit;
 /// <summary>Null leaves the team: a participant with no team watches.</summary>
 public sealed record PickTeam(Guid? TeamId) : LobbyEdit;
 public sealed record PickArmy(Guid? ArmyId) : LobbyEdit;
-public sealed record SetConfiguration(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps) : LobbyEdit;
+/// <summary>OptionalRules replaces the game's map whole; the ruleset refuses a key or value it does not define (RefusalReason.Unknown).</summary>
+public sealed record SetConfiguration(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
+    IReadOnlyDictionary<string, string> OptionalRules) : LobbyEdit;
 /// <summary>Creator only. Lobby → setup; creates the draft row.</summary>
 public sealed record StartSetup : LobbyEdit;
 /// <summary>Creator only. Setup → playing; off-slab terrain dropped, snapshots written, the log opens.</summary>

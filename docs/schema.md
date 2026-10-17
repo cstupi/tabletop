@@ -318,6 +318,14 @@ both send `false`, and the column serves development.
 
 The game server writes `game.status = 'ended'` from `playing` on a strict end, and management writes it on end, leave and delete.
 
+### A game has its optional rules
+
+`game.optional_rules jsonb not null default '{}'` is the map of optional rules the players opted into
+([optional rules](superpowers/specs/2026-10-15-optional-rules-design.md)): snake_case keys and values the game's ruleset defines, an
+absent key read as that option's default, so `'{}'` is the core game. The game server writes it with the rest of the configuration
+on `set_configuration`, in `lobby` and `setup` only; management reads it and creation leaves the default. It arrives as management's
+`010_optional_rules.sql`.
+
 ### An army book is a row, and lists its spells
 
 `book (properties_hash, uid, name, version)`, keyed `(properties_hash, uid)` and cascading from `properties`, is one

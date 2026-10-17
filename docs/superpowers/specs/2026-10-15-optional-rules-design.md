@@ -46,7 +46,10 @@ The book's word is *perimeter*, so the literal reading blocks the gaps between a
 configuration option, **Unit sight blocking**: `per_model` (today's engine) or `perimeter`.
 
 - A unit's perimeter is one volume per unit: the convex hull of its on-table models' base outlines, from the lowest
-  base to the tallest body's top, keyed by the unit id.
+  base to the tallest body's top, keyed by the unit id. The book gives the word and no shape: *perimeter* appears on
+  p.5, p.11 and p.56 only, each time as *"the perimeter of other units"*, and no page says what outline a unit has,
+  whether it follows the coherency chain, or how high it stands. The convex hull is the smallest outline that holds
+  every base and needs no order of models; a unit in a line has a hull no wider than its bases.
 - The target's own unit blocks per model under both settings (owner ruling 2026-10-15). Its perimeter would hide every
   model inside it, which p.8's *"If at least one model in the unit has line of sight to an enemy model"* cannot have meant.
 - The default is `per_model`. Every game played so far ran under it, and `perimeter` is offered as the literal p.5
@@ -102,6 +105,9 @@ The owner's example is in the book: **Hybrid True Line of Sight**, p.56, in the 
 > • Small - No Tough and Tough(3) heroes • Medium - Tough(3) and Tough(6) heroes • Large - Tough(6) to Tough(12)
 > • Huge - Tough(15) to Tough(21) • Titanic - Tough(24) or higher
 >
+> To determine line of sight, simply get down to the eye level of the miniature, and check if it can see the target. If
+> the target is visible, then the model has line of sight.
+>
 > The miniature can't draw line of sight through other units, with these exceptions:
 > • Models may draw line of sight through units of smaller size class.
 > • Models may draw line of sight through units of equal or lower size class, if the target is of greater size class
@@ -113,10 +119,33 @@ It is one value of the option **Line of sight method**: `core` (p.5, the engine'
 observer see through contributes no blocker to that pair's line. Since p.11's cover reads the same sight blockers, a
 unit seen through gives no cover to that pair either.
 
+The eye-level sentence is p.5's own test, so the engine's sight line (`LineOfSight`, from `Bodies.Eye`) stands.
+
 - A model's Tough is `Lookup.ModelParameter(state, model, GfNames.Tough)`, absent read as none; a hero is a model with
-  `GfNames.Hero`. A unit's size class is its largest living model's.
-- *"On elevation"* is a model whose base rests on terrain (`Battlefield.TerrainUnder`); *"lower elevation"* is every
-  model of the unit in the way resting lower (`Bodies.Bottom`) than the observer.
+  `GfNames.Hero` among its slot's properties.
+- Size class by Tough. The bands are written on the book's Tough scale, which steps by 3 (p.15 Transport: *"Heroes with
+  up to Tough(6), and non-Heroes with up to Tough(3)"*; every shipped army book's Tough is 3, 6 or 9). *"Tough(6) to
+  Tough(12)"* is a closed range with no hero clause, so a hero with Tough(9) or (12) is Large, and only *"Tough(6)
+  heroes"* is carved out of it into Medium. The values off the scale (Tough(1), (2), (4), (5), (13), (14), (22), (23),
+  and a hero's (4) and (5)) fall in no band; a model reaches a band at the first value the band names and keeps the
+  band below until then:
+
+  | Class | Non-hero | Hero |
+  | --- | --- | --- |
+  | Small | none, 1–2 | none, 1–5 |
+  | Medium | 3–5 | 6 |
+  | Large | 6–14 | 7–14 |
+  | Huge | 15–23 | 15–23 |
+  | Titanic | 24+ | 24+ |
+
+- The book gives each model a class and compares *"units of smaller size class"*; a unit is of a class below the
+  observer's only when every one of its models is, so a unit's class is its largest on-table model's. *"The target"*
+  is the target model, the other end of the line.
+- *"On elevation"* is a model whose base does not rest on the slab (`Bodies.Bottom` above 0: `Collision.RestHeight`
+  rests a base on a terrain top or the slab); *"a lower elevation than them"* is every on-table model of the unit in
+  the way resting lower than the observer's base.
+- The exceptions apply to every unit but the observer's, the target's own included (its models still block per model
+  when no exception applies, owner ruling above).
 
 p.56's other two methods, **Top-Down Line of Sight** (heights assigned per unit, lines base to base, blocked by
 anything of the same height or higher than both models) and **Volumetric Line of Sight** (a volume per base size,
@@ -130,11 +159,11 @@ of it), and Top-Down needs a height per unit the army data does not carry.
 
 | Layer | What | Where |
 | --- | --- | --- |
-| Postgres | `game.optional_rules jsonb not null default '{}'`, beside `enforcement` | migration `server/management/Persistence/Migrations/010_optional_rules.sql`; `scripts/postgres/init/001_schema.sql`; `docs/schema.md` |
-| Protocol | `GameInfo.OptionalRules : IReadOnlyDictionary<string,string>`, after `Enforcement` | `libs/Tabletop.Protocol/Game.cs` |
-| Lobby edit | `SetConfiguration` gains `OptionalRules` | `libs/Tabletop.Protocol/Edits.cs` |
-| Catalog | `Welcome.Options : RulesOptionCatalog` | `libs/Tabletop.Protocol/Wire.cs` |
-| Management | reads and writes the column; creation writes `'{}'` | `server/management/Games/GameRepository.cs` (`GameRow`, insert, `GameInfo`) |
+| Postgres | `game.optional_rules jsonb not null default '{}'`, beside `enforcement` | migration `server/management/Persistence/Migrations/010_optional_rules.sql`; `docs/schema.md` (`001_schema.sql` is never edited) |
+| Protocol | `GameInfo.OptionalRules : IReadOnlyDictionary<string,string>`, an init property defaulting to empty, so every positional construction stays as it is | `libs/Tabletop.Protocol/Game.cs` |
+| Lobby edit | `SetConfiguration` gains a last positional `OptionalRules` | `libs/Tabletop.Protocol/Edits.cs` |
+| Catalog | `Welcome.Options : RulesOptionCatalog`, an init property defaulting to `RulesOptionCatalog.Empty` | `libs/Tabletop.Protocol/Wire.cs` |
+| Management | reads the column; creation leaves the column default `'{}'` | `server/management/Games/GameRepository.cs` (`GameRow`, insert, `GameInfo`) |
 | Game server | reads the column; writes it on `SetConfiguration` | `server/game/Persistence/PostgresGameRows.cs`, `PostgresGameRows.Writes.cs` (`SetConfigurationAsync`) |
 | Rules | `GfOptions.Of(GameState)`: the typed record | `server/game/Rules/GrimdarkFuture/GfOptions.cs` (new) |
 
@@ -187,7 +216,7 @@ Keys: `line_of_sight` (`core` | `hybrid_true`), `unit_sight_blocking` (`per_mode
 `melee_separation` (`on` | `off`). Each GF rule that an option changes calls `GfOptions.Of(state)` where it decides;
 nothing caches it, as the engine holds no state. A module enters the record when its own spec designs it, not before.
 
-`IGameRules` gains two members, default members so `StubRules` and `FakeRules` change nothing:
+`IGameRules` gains three members, default members so `StubRules` and `FakeRules` change nothing:
 
 ```csharp
 RulesOptionCatalog OptionCatalog => RulesOptionCatalog.Empty;
@@ -206,18 +235,22 @@ ISightPolicy SightPolicy(GameState state) => ISightPolicy.PerModel;
 // server/game/Interpreter/Sight.cs
 public interface ISightPolicy
 {
-    /// <summary>The volumes a unit other than the observer's puts on the table: its bodies, or one perimeter volume keyed by the unit id.</summary>
-    IReadOnlyList<WorldVolume> Blockers(GameState state, Guid unitId);
+    /// <summary>True: a unit other than the observer's blocks with one perimeter volume keyed by its id (p.5); false: each model with its body.</summary>
+    bool Perimeters { get; }
     /// <summary>True when the line from observer to target passes through blockingUnit as if it were not there (p.56 Hybrid).</summary>
-    bool SeesThrough(GameState state, Guid observerModel, Guid targetModel, Guid blockingUnit);
+    bool SeesThrough(Guid observerModel, Guid targetModel, Guid blockingUnit);
+    static ISightPolicy PerModel { get; }
 }
 ```
 
-`Sight.From` builds the target-unit-agnostic volume list once per observer: each other unit's `Blockers` plus its
-per-model bodies when those differ, both tagged with the unit. Per pair it ignores the target's own body, the target
-unit's perimeter (its models block per model, owner ruling), every unit `SeesThrough` passes, and the volumes of the
-other form. `SightBlockers.Check` and `Measure` (`libs/Tabletop.Geometry/SightBlockers.cs`) take an ignore set in place
-of the one `Guid?`. Every caller of `Sight.From` follows without change: `GfAttack.AttackInteraction` (targeting and
+`IGameRules.SightPolicy(state)` returns a policy bound to that state (Grimdark Future: `GfSight`, which caches each
+model's size class for the life of one `Sight`). The perimeter is geometry, not a rule: `Bodies.Perimeter(id,
+models)` (`libs/Tabletop.Geometry/Bodies.cs`) returns a `SightPrism` (a convex outline, bottom and top), and
+`SightBlockers` takes prisms beside its volumes. `Sight.From` builds the target-unit-agnostic blockers once per
+observer: terrain, every other unit's bodies, and each other unit's perimeter when `Perimeters`. Per pair it ignores
+the target's own body, the target unit's perimeter (its models block per model, owner ruling), the bodies of every
+other unit when perimeters stand in for them, and every unit `SeesThrough` passes. `SightBlockers.Check` and
+`Measure` (`libs/Tabletop.Geometry/SightBlockers.cs`) take an ignore predicate beside the one `Guid?`. Every caller of `Sight.From` follows without change: `GfAttack.AttackInteraction` (targeting and
 who can shoot), `GfCasting` (spell targets), `Battlefield.CanSee`, `Battlefield.ModelsBehindSightBlockers` (p.11
 cover) and `GameSession.Facts` (`SightQuery`). A `SightLine.BlockedBy` may then hold a unit id; the client's
 `client/src/Table/SightLines.cs` highlights a unit id as every model of that unit.
@@ -225,13 +258,14 @@ cover) and `GameSession.Facts` (`SightQuery`). A `SightLine.BlockedBy` may then 
 ### Wire
 
 ```csharp
-// libs/Tabletop.Protocol/Wire.cs
+// libs/Tabletop.Protocol/RulesOptions.cs
 public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IReadOnlyList<RulesPreset> Presets)
-{ public static readonly RulesOptionCatalog Empty = new([], []); }
+{ public static RulesOptionCatalog Empty { get; } = new([], []); }
 public sealed record RulesOption(string Key, string Label, string Page, IReadOnlyList<RulesOptionValue> Values, string Default);
 public sealed record RulesOptionValue(string Value, string Label);
 public sealed record RulesPreset(string Name, IReadOnlyDictionary<string, string> OptionalRules, Enforcement? Enforcement);
-public sealed record Welcome(Guid ParticipantId, GameInfo Game, RulesOptionCatalog Options) : SocketMessage;
+// libs/Tabletop.Protocol/Wire.cs
+public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage { public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty; }
 ```
 
 Labels and pages are the book's (`"Hybrid True Line of Sight"`, `"p.56"`), written once in `GfOptions` and sent as
@@ -254,32 +288,23 @@ The matching and map building are Godot-free in `client/src/Core/RulesOptions.cs
 `tests/Tabletop.Client.Tests`. `client/src/Screens/HomeScreen.cs` creates the game as today; management cannot
 validate a map it cannot read, so options are set in the lobby. `client/src/Core/ManagementDtos.cs` is unchanged.
 
-`sim/Scenarios/Scenario.cs` gains `OptionalRules`, written by `sim/Drivers/SocketRowSeeder.cs` and
-`ScenarioCompiler`, so suite games run under an option.
+`sim/Scenarios/Scenario.cs` gains `OptionalRules` (builder `Options`), written by `sim/Drivers/SocketRowSeeder.cs` and
+`ScenarioCompiler`, so suite games run under an option. A sight game needs its lines laid out, so `ScenarioArmy` also
+gains `Sizes` (a unit's model count) and `Anchors` (where a unit's first model deploys, in place of
+`HandPlacement`'s drawn anchor).
 
 ## Touch points and tests per option
 
-Rules tests are in `tests/Tabletop.GameServer.Tests` with `ScriptedDice`; each option also gets a suite game
-(`sim/Suite/SuiteCatalog.Core.*.cs`) run under the option.
+Rules tests are in `tests/Tabletop.GameServer.Tests` with `ScriptedDice`; each option value that is not the default
+also gets a suite game (`sim/Suite/SuiteCatalog.Core.Options.cs`) run under it: `core-perimeter-sight`,
+`core-hybrid-sight`, `core-melee-no-separation`.
 
 | Option | Touch points | Tests |
 | --- | --- | --- |
-| Configuration | `GfOptions.Of`, `GfOptions.Problems`; `GrimdarkFutureRules.OptionCatalog`/`OptionProblems`; `GameSession.Lobby.cs`; `PostgresGameRows` read and `SetConfigurationAsync`; `GameRepository`; migration `010` | `GfOptionsTests`: `{}` reads `GfOptions.Core`; every key and value round-trips; an unknown key or value is a problem. `LobbyTests`: an unknown option is refused `Unknown` and writes no row; a valid one is in the next `GameInfoMessage`; a `SetConfiguration` once `playing` is refused `WrongStatus`. `GameRowsReadTests` and management's `GameTests`: the map round-trips, a new game reads `{}` |
+| Configuration | `GfOptions.Of`, `GfOptions.Problems`; `GrimdarkFutureRules.OptionCatalog`/`OptionProblems`; `GameSession.Lobby.cs`; `PostgresGameRows` read and `SetConfigurationAsync`; `GameRepository`; migration `010` | `GfOptionsTests`: `{}` reads `GfOptions.Core`; every key and value round-trips; an unknown key or value is a problem. `LobbyTests`: an unknown option is refused `Unknown` and writes no row; a valid one is in the next `GameInfoMessage`; a `SetConfiguration` once `playing` is refused `WrongStatus`. `GameRowsContract` and management's `RepositoryContract.Games`: the map round-trips and is replaced whole, a new game reads `{}` |
 | Unit sight blocking `perimeter` (p.5, p.11) | `GfSight` (new, `ISightPolicy`): `Blockers` builds the hull volume; `Bodies.AsBlockingVolume` unchanged; `Sight.From`, `Sight.Ignored`; `SightBlockers.Check`/`Measure` ignore set | `GfSightOptionsTests`: a line through the gap between two models of a third unit is clear under `per_model`, blocked under `perimeter`, `BlockedBy` the unit id; the target's own models block a line to its rear model under both (owner ruling); the observer's own unit never blocks (p.5); a model behind a third unit's gap is behind a sight blocker for p.11 cover only under `perimeter` |
-| Line of sight method `hybrid_true` (p.56) | `GfSight.SeesThrough`: size class from `GfNames.Tough` and `GfNames.Hero`, elevation from `Battlefield.TerrainUnder` and `Bodies.Bottom` | `GfSightOptionsTests`: a Tough(12) model sees a Tough(1) target past a Tough(1) unit; a Tough(1) model does not; a Tough(6) unit blocks a Tough(6) observer's line to a Tough(1) target but not to a Tough(15) target; a model on a 2" ruin sees past a unit on the ground; the same unit gives the target no cover for that observer; `core` blocks every one of these |
-| Melee separation `off` (p.10) | `GfMelee.ConsolidateStep`: no `FallBack` move when neither unit is destroyed; `GfMoves.ContactBreach`: no `move_separation` for a unit starting its move in contact with the enemy it is in contact with; `GfMelee.ChargeTargets` keeps offering a unit already in contact | `GfMeleeTests`: with both units alive the charger stays in contact and the consolidation step proposes no move; `on` keeps the 1" move back. `GfMovesTests`: a unit in contact moves away and back into contact without a `move_separation` breach; a charge at a unit it touches is offered |
+| Line of sight method `hybrid_true` (p.56) | `GfSight.SeesThrough`: `GfSight.SizeClass` from `GfNames.Tough` and `GfNames.Hero`, elevation from `Bodies.Bottom` | `GfSightOptionsTests`: `SizeClass` gives the table above; a Tough(12) model sees a Tough(1) target past a Tough(1) unit; a Tough(1) model does not; a Tough(6) unit blocks a Tough(6) observer's line to a Tough(1) target but not to a Tough(15) target; a model on a 2" ruin sees past a unit on the ground; the same unit gives the target no cover for that observer; `core` blocks every one of these |
+| Melee separation `off` (p.10) | `GfMelee.ConsolidateStep`: no `FallBack` move when neither unit is destroyed; `GfMoves.ContactBreach`: no `move_separation` against a unit the mover is in contact with (within p.7's 1") when its move starts; `GfMelee.ChargeTargets` keeps offering a unit already in contact | `GfMeleeSeparationTests`: with both units alive the charger stays in contact and the consolidation step proposes no move; `on` keeps the 1" move back; a unit in contact lands within 1" of that enemy without a `move_separation` breach, and with one against a unit it was not in contact with; a charge at a unit it touches is offered |
 
 The p.10 option's breaches stay under the one enforcement setting: with `melee_separation` `on`, `move_separation` is
 judged as today.
-
-## Open questions
-
-The book leaves these open; p.4's most important rule is its own answer, so each is the owner's to settle once.
-
-1. **Hybrid size classes skip Tough values.** p.56 names *"No Tough and Tough(3) heroes"*, *"Tough(3) and Tough(6)
-   heroes"*, *"Tough(6) to Tough(12)"*, *"Tough(15) to Tough(21)"*, *"Tough(24) or higher"*. A non-hero with Tough(2),
-   (4) or (5), a hero with Tough(9) or more, and Tough(13), (14), (22) and (23) are in no band. Proposed: a value
-   between two bands takes the lower; a hero above Tough(6) takes the band its Tough names.
-2. **A perimeter's shape.** p.5 says *"the perimeter of other units"* and nothing more. Proposed: the convex hull of
-   the unit's bases, as written above; the alternative is the outline through the bases in coherency order, which a
-   unit in a line or ring makes very different.

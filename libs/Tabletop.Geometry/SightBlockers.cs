@@ -18,8 +18,9 @@ public sealed class SightBlockers
     /// <summary>The largest distance <see cref="RayMargin"/> returns: a clipped segment Tolerance.Distance long.</summary>
     const double PolygonRayBound = 4 + 2 * Tolerance.Distance;
 
-    readonly IReadOnlyList<WorldVolume> volumes;
     readonly Entry[] entries;
+    /// <summary>Every input id in input order, volumes then prisms, as the reading lists them (a volume listed twice is reported twice, as LineOfSight does).</summary>
+    readonly Guid[] inputIds;
 
     /// <summary>
     /// A blocking volume ready to test. Margin widens the box by how far outside the outline the exact test's tolerances still accept a
@@ -28,23 +29,27 @@ public sealed class SightBlockers
     readonly record struct Entry(Guid Id, Outline Outline, double Bottom, double Top, bool SeeInAndOut, bool Polygon,
         double MinX, double MinY, double MaxX, double MaxY);
 
-    public SightBlockers(IReadOnlyList<WorldVolume> volumes)
+    /// <summary>The volumes that declare BlocksLineOfSight, then the prisms (a unit's perimeter), each blocking as a Solid volume.</summary>
+    public SightBlockers(IReadOnlyList<WorldVolume> volumes, IReadOnlyList<SightPrism>? prisms = null)
     {
-        this.volumes = volumes;
-        entries = LineOfSight.Blockers(volumes).Select(Prepare).ToArray();
+        entries = LineOfSight.Blockers(volumes).Select(Prepare).Concat((prisms ?? []).Select(Prepare)).ToArray();
+        inputIds = volumes.Select(v => v.Id).Concat((prisms ?? []).Select(p => p.Id)).ToArray();
     }
 
-    static Entry Prepare(WorldVolume v)
+    static Entry Prepare(WorldVolume v) =>
+        Prepare(v.Id, v.WorldOutline(), v.WorldBottom(), v.WorldTop(), v.Volume.Declarations.HasFlag(TerrainDeclarations.SeeInAndOut));
+
+    static Entry Prepare(SightPrism p) => Prepare(p.Id, new PolygonOutline(p.Outline), p.Bottom, p.Top, seeInAndOut: false);
+
+    static Entry Prepare(Guid id, Outline outline, double bottom, double top, bool seeInAndOut)
     {
-        var outline = v.WorldOutline();
         var (minX, minY, maxX, maxY, margin) = outline switch
         {
             CircleOutline c => (c.Centre.X - c.Radius, c.Centre.Y - c.Radius, c.Centre.X + c.Radius, c.Centre.Y + c.Radius, 2 * Tolerance.Distance),
             PolygonOutline p => (p.Vertices.Min(x => x.X), p.Vertices.Min(x => x.Y), p.Vertices.Max(x => x.X), p.Vertices.Max(x => x.Y), PolygonMargin(p)),
-            _ => throw new ArgumentOutOfRangeException(nameof(v)),
+            _ => throw new ArgumentOutOfRangeException(nameof(outline)),
         };
-        return new Entry(v.Id, outline, v.WorldBottom(), v.WorldTop(), v.Volume.Declarations.HasFlag(TerrainDeclarations.SeeInAndOut),
-            outline is PolygonOutline, minX - margin, minY - margin, maxX + margin, maxY + margin);
+        return new Entry(id, outline, bottom, top, seeInAndOut, outline is PolygonOutline, minX - margin, minY - margin, maxX + margin, maxY + margin);
     }
 
     /// <summary>
@@ -78,20 +83,28 @@ public sealed class SightBlockers
         s < Tolerance.Distance ? 2 * Tolerance.Distance : 2 * (Tolerance.Distance * Math.Max(1, s) / s + Tolerance.Distance / s) + Tolerance.Distance;
 
     /// <summary>Equals <see cref="LineOfSight.Check"/> over the volumes less those whose id is <paramref name="ignoring"/>.</summary>
-    public LineOfSightResult Check(PlacedModel from, PlacedModel to, Guid? ignoring = null)
+    public LineOfSightResult Check(PlacedModel from, PlacedModel to, Guid? ignoring = null) =>
+        Check(from, to, ignoring is { } id ? x => x == id : null);
+
+    /// <summary>As <see cref="Check(PlacedModel, PlacedModel, Guid?)"/>, leaving out every blocker whose id <paramref name="ignored"/> passes.</summary>
+    public LineOfSightResult Check(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored)
     {
-        var clear = Measure(from, to, ignoring, stopAtClear: true, out var blockers);
+        var clear = Measure(from, to, ignored, stopAtClear: true, out var blockers);
         return new LineOfSightResult(clear, clear ? [] : blockers);
     }
 
     /// <summary>Every line drawn: Clear as <see cref="Check"/>, Blockers the volumes stopping any of them, in input order.</summary>
-    public SightReading Measure(PlacedModel from, PlacedModel to, Guid? ignoring = null)
+    public SightReading Measure(PlacedModel from, PlacedModel to, Guid? ignoring = null) =>
+        Measure(from, to, ignoring is { } id ? x => x == id : null);
+
+    /// <summary>As <see cref="Measure(PlacedModel, PlacedModel, Guid?)"/>, leaving out every blocker whose id <paramref name="ignored"/> passes.</summary>
+    public SightReading Measure(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored)
     {
-        var clear = Measure(from, to, ignoring, stopAtClear: false, out var blockers);
+        var clear = Measure(from, to, ignored, stopAtClear: false, out var blockers);
         return new SightReading(clear, blockers);
     }
 
-    bool Measure(PlacedModel from, PlacedModel to, Guid? ignoring, bool stopAtClear, out IReadOnlyList<Guid> blockers)
+    bool Measure(PlacedModel from, PlacedModel to, Func<Guid, bool>? ignored, bool stopAtClear, out IReadOnlyList<Guid> blockers)
     {
         var eye = from.Eye();
         Span<Point3> targets = stackalloc Point3[3 * (1 + LineOfSight.RimSamples)];
@@ -119,10 +132,10 @@ public sealed class SightBlockers
             for (var i = 0; i < entries.Length; i++)
             {
                 ref readonly var e = ref entries[i];
-                if (e.Id == ignoring) continue;
                 if (e.Bottom - Tolerance.Distance * 2 > maxZ || e.Top + Tolerance.Distance * 2 < minZ) continue;
                 var slack = e.Polygon ? PolygonRayBound : 0;
                 if (e.MinX - slack > maxX || e.MaxX + slack < minX || e.MinY - slack > maxY || e.MaxY + slack < minY) continue;
+                if (ignored is not null && ignored(e.Id)) continue;
                 candidates[n] = i;
                 hit[n++] = false;
             }
@@ -145,7 +158,7 @@ public sealed class SightBlockers
             if (!anyHit || (clear && stopAtClear)) { blockers = []; return clear; }
             var ids = new HashSet<Guid>();
             for (var c = 0; c < n; c++) if (hit[c]) ids.Add(entries[candidates[c]].Id);
-            blockers = volumes.Where(v => v.Id != ignoring && ids.Contains(v.Id)).Select(v => v.Id).ToList();
+            blockers = inputIds.Where(id => ids.Contains(id) && (ignored is null || !ignored(id))).ToList();
             return clear;
         }
         finally

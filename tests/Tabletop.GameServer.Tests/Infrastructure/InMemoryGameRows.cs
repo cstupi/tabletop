@@ -13,7 +13,11 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
 {
     public sealed record GameRow(Guid Id, string Name, GameStatus Status, string GameRules, string PropertiesHash, SchedulerShape SchedulerShape,
-        Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy);
+        Enforcement Enforcement, bool WaitsBetweenSteps, long RngSeed, Guid CreatedBy)
+    {
+        /// <summary>game.optional_rules: the column default is the empty map.</summary>
+        public IReadOnlyDictionary<string, string> OptionalRules { get; init; } = new Dictionary<string, string>();
+    }
     public sealed record TeamRow(Guid Id, Guid GameId, int Ordinal);
     public sealed record ParticipantRow(Guid Id, Guid GameId, Guid? TeamId, Guid AccountId, Guid? ArmyId, ArmySnapshot? ArmySnapshot);
     /// <summary>A table_state: a game's draft (GameId set) or a saved layout (OwnerId set).</summary>
@@ -130,7 +134,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
             var participants = _participants.Values.Where(p => p.GameId == gameId).OrderBy(p => p.Id)
                 .Select(p => new Participant(p.Id, p.AccountId, _accounts[p.AccountId], p.TeamId, p.ArmyId)).ToList();
             return Task.FromResult<GameInfo?>(new GameInfo(g.Id, g.Name, g.Status, g.CreatedBy, g.GameRules, g.PropertiesHash, g.SchedulerShape, g.Enforcement,
-                g.WaitsBetweenSteps, g.RngSeed, teams, participants));
+                g.WaitsBetweenSteps, g.RngSeed, teams, participants) { OptionalRules = new Dictionary<string, string>(g.OptionalRules) });
         }
     }
 
@@ -206,7 +210,7 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
                 _games[gameId] = g with
                 {
                     Name = c.Name, PropertiesHash = c.PropertiesHash, GameRules = set.GameRules, SchedulerShape = c.SchedulerShape,
-                    Enforcement = c.Enforcement, WaitsBetweenSteps = c.WaitsBetweenSteps,
+                    Enforcement = c.Enforcement, WaitsBetweenSteps = c.WaitsBetweenSteps, OptionalRules = new Dictionary<string, string>(c.OptionalRules),
                 };
     }
 

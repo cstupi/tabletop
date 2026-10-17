@@ -118,10 +118,15 @@ public partial class SightLines : Node3D
         _summary.Visible = true;
     }
 
-    /// <summary>A blocker's box: a model's node, or the terrain piece that owns the volume.</summary>
+    /// <summary>A blocker's box: a model's node, a unit's models together (a unit perimeter blocks as one), or the terrain piece that owns the volume.</summary>
     Aabb? BoundsOf(Projection p, Guid id)
     {
         if (_view.PieceAt(id) is { } piece) return piece.Bounds;
+        if (p.Units.ContainsKey(id))
+        {
+            var boxes = p.Models.Values.Where(m => m.UnitId == id).Select(m => _view.PieceAt(m.Id)?.Bounds).OfType<Aabb>().ToList();
+            return boxes.Count == 0 ? null : boxes.Skip(1).Aggregate(boxes[0], (all, box) => all.Merge(box));
+        }
         var placement = p.Board.Table.Terrain.FirstOrDefault(t => t.Volumes.Any(v => v.Id == id));
         return placement is not null && _view.TerrainAt(placement.Id) is { } terrain ? terrain.Bounds : null;
     }

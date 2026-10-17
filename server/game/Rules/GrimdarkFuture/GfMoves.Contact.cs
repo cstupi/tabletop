@@ -14,14 +14,31 @@ public static partial class GfMoves
     /// region that PassesModels (p.13 Flying, Aircraft). "May never be within 1” of models from other units, unless they are taking a Charge action":
     /// move_separation, the region's Separation between the bodies (Distance.BodyToBody), which a Charge's regions leave null. Owner ruling: movement
     /// takes elevation into account, so all three are judged in three dimensions and a model can cross above a model on a lower level.
+    /// A game without melee separation (p.10: "players may agree not to separate units by 1" ... units can still freely activate, move,
+    /// shoot, charge, etc. despite being in contact") holds no model to the 1" from a unit the mover was in contact with, within that 1",
+    /// when the move started.
     /// </summary>
-    public static AnswerBreachFound? ContactBreach(GameState state, MoveRegion region, Destinations answer) =>
-        Contact(state, GfAnswers.Moves(state, region, answer), region.Separation, region.PassesModels);
+    public static AnswerBreachFound? ContactBreach(GameState state, MoveRegion region, Destinations answer)
+    {
+        var moves = GfAnswers.Moves(state, region, answer);
+        var exempt = region.Separation is { } gap && !GfOptions.Of(state).MeleeSeparation ? InContact(state, moves, gap) : [];
+        return Contact(state, moves, region.Separation, region.PassesModels, exempt);
+    }
+
+    /// <summary>The other units with a model within gap of a moving model where it stands now.</summary>
+    static HashSet<Guid> InContact(GameState state, IReadOnlyList<ModelRelocation> moves, double gap)
+    {
+        var p = state.Projection;
+        var movers = moves.Where(m => p.Models.ContainsKey(m.ModelId)).Select(m => Battlefield.Placed(state, m.ModelId)).OfType<PlacedModel>().ToList();
+        var units = moves.Where(m => p.Models.ContainsKey(m.ModelId)).Select(m => p.Models[m.ModelId].UnitId).ToHashSet();
+        return p.Models.Values.Where(o => !units.Contains(o.UnitId) && Battlefield.Placed(state, o.Id) is { } at
+                && movers.Any(m => Distance.BodyToBody(m, at) < gap - 1e-6)).Select(o => o.UnitId).ToHashSet();
+    }
 
     /// <summary>A hand placement (IGameRules.PlacementBreach) is held to "physically impossible locations" only.</summary>
-    public static AnswerBreachFound? OverlapBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => Contact(state, moves, null, passesModels: true);
+    public static AnswerBreachFound? OverlapBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => Contact(state, moves, null, passesModels: true, new HashSet<Guid>());
 
-    static AnswerBreachFound? Contact(GameState state, IReadOnlyList<ModelRelocation> answered, double? separation, bool passesModels)
+    static AnswerBreachFound? Contact(GameState state, IReadOnlyList<ModelRelocation> answered, double? separation, bool passesModels, IReadOnlySet<Guid> separationExempt)
     {
         var p = state.Projection;
         var moves = answered.Where(m => m.To is OnTable && p.Models.ContainsKey(m.ModelId)).DistinctBy(m => m.ModelId).ToList();
@@ -39,7 +56,7 @@ public static partial class GfMoves
                 return new(GfNames.MoveOverlapRule, $"{name} would be placed on another model's base: models may never be placed in physically impossible locations (p.7)");
             if (!passesModels && Battlefield.Placed(state, m.ModelId) is { } start && Collision.Crosses(start, at.Placement.Position.Horizontal, standing.Select(o => o.At).ToList(), terrain))
                 return new(GfNames.MoveThroughModelsRule, $"{name} would move through another model: models may never move through other models or units (p.7)");
-            if (separation is { } gap && everyone.Any(o => o.UnitId != unit && Distance.BodyToBody(at, o.At) < gap - 1e-6))
+            if (separation is { } gap && everyone.Any(o => o.UnitId != unit && !separationExempt.Contains(o.UnitId) && Distance.BodyToBody(at, o.At) < gap - 1e-6))
                 return new(GfNames.MoveSeparationRule, $"{name} would end within {gap:0.#}\" of another unit's model: models may never be within 1\" of models from other units (p.7)");
         }
         return null;

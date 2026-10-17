@@ -75,7 +75,7 @@ public static class Samples
     ];
     public static readonly Edit[] Edits =
     [
-        new CreateTeam(), new PickTeam(Team1), new PickArmy(Army.Id), new SetConfiguration("Friday", "sha256:abc", SchedulerShape.PlayerTurn, Enforcement.Strict, true),
+        new CreateTeam(), new PickTeam(Team1), new PickArmy(Army.Id), new SetConfiguration("Friday", "sha256:abc", SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string> { ["melee_separation"] = "off" }),
         new StartSetup(), new EndSetup(), new SetTableSize(new TableSize(72, 48)), new SetTexture(VisualRef.OfBuiltin("grass")),
         new AddTerrain(TableStateTests.Sample().Terrain[0]), new MoveTerrain(Guid.CreateVersion7(), new Point3(1, 2, 0), new Yaw(0)),
         new ScaleTerrain(Guid.CreateVersion7(), 1.5), new RemoveTerrain(Guid.CreateVersion7()),

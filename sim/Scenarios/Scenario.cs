@@ -38,6 +38,14 @@ public sealed record ScenarioArmy(
 
     /// <summary>Models with their own rules, stats or weapons.</summary>
     public IReadOnlyList<ScenarioModel> Models { get; init; } = [];
+
+    /// <summary>Unit ordinal to its model count, for a unit not ModelsPerUnit strong.</summary>
+    public IReadOnlyDictionary<int, int> Sizes { get; init; } = new Dictionary<int, int>();
+
+    /// <summary>Unit ordinal to where its first model deploys: HandPlacement puts the unit's row there in place of a drawn anchor.</summary>
+    public IReadOnlyDictionary<int, Point2> Anchors { get; init; } = new Dictionary<int, Point2>();
+
+    public int SizeOf(int unit) => Sizes.GetValueOrDefault(unit, ModelsPerUnit);
 }
 
 /// <summary>
@@ -73,6 +81,9 @@ public sealed record Scenario(
     /// actor's team, so a completed step's rolls stay on the stack where SetDice can reach them. Off unless a run fixes dice.
     /// </summary>
     public bool WaitsBetweenSteps { get; init; }
+
+    /// <summary>The game's optional rules (GameInfo.OptionalRules): the ruleset's keys and values, empty for the core game.</summary>
+    public IReadOnlyDictionary<string, string> OptionalRules { get; init; } = new Dictionary<string, string>();
 
     /// <summary>The policy for a run of this scenario, seeded from it, or null for a script-only run.</summary>
     public AnswerPolicy? Policy() => ScriptOnly ? null : new AnswerPolicy(new Chooser(Seed), goal: Goal);

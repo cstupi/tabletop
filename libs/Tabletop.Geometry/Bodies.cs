@@ -59,5 +59,49 @@ public static class Bodies
     }
 
     /// <summary>Local points → world: rotate by yaw about the origin, then translate to centre.</summary>
+    /// <summary>A circle's outline in a unit's perimeter: the circumscribed polygon with this many sides, so the hull holds the whole base.</summary>
+    const int PerimeterCircleSides = 16;
+
+    /// <summary>
+    /// A unit's perimeter (rulebook p.5: models can't see through "the perimeter of other units"): the convex hull of the models' base outlines,
+    /// from the lowest base to the tallest body's top, as one sight prism with the given id. A circle base enters as its circumscribed
+    /// 16-gon. Optional-rules spec → Units as sight blockers.
+    /// </summary>
+    public static SightPrism Perimeter(Guid id, IReadOnlyList<PlacedModel> models)
+    {
+        if (models.Count == 0) throw new ArgumentException("A perimeter needs at least one model.", nameof(models));
+        var points = models.SelectMany(m => m.BaseOutline() switch
+        {
+            CircleOutline c => Enumerable.Range(0, PerimeterCircleSides).Select(i =>
+            {
+                var t = 2 * Math.PI * i / PerimeterCircleSides;
+                return c.Centre + new Point2(Math.Cos(t), Math.Sin(t)) * (c.Radius / Math.Cos(Math.PI / PerimeterCircleSides));
+            }),
+            PolygonOutline poly => poly.Vertices,
+            _ => throw new ArgumentOutOfRangeException(nameof(models)),
+        }).ToList();
+        return new SightPrism(id, ConvexHull(points), models.Min(m => m.Bottom()), models.Max(m => m.Top()));
+    }
+
+    /// <summary>Andrew's monotone chain, counter-clockwise, collinear points dropped.</summary>
+    internal static IReadOnlyList<Point2> ConvexHull(IReadOnlyList<Point2> points)
+    {
+        var sorted = points.Distinct().OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
+        if (sorted.Count < 3) return sorted;
+        var hull = new List<Point2>();
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var start = hull.Count;
+            foreach (var p in sorted)
+            {
+                while (hull.Count >= start + 2 && (hull[^1] - hull[^2]).Cross(p - hull[^2]) <= 0) hull.RemoveAt(hull.Count - 1);
+                hull.Add(p);
+            }
+            hull.RemoveAt(hull.Count - 1);
+            sorted.Reverse();
+        }
+        return hull;
+    }
+
     internal static List<Point2> Place(IEnumerable<Point2> local, Point2 centre, Yaw yaw) => local.Select(p => p.Rotate(yaw) + centre).ToList();
 }

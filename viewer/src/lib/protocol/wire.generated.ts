@@ -229,6 +229,7 @@ export interface GameInfo {
   readonly rngSeed: number;
   readonly teams: readonly Team[];
   readonly participants: readonly Participant[];
+  readonly optionalRules: { readonly [key: string]: string };
 }
 
 export interface GameInfoMessage {
@@ -466,6 +467,30 @@ export interface RoundStarted {
   readonly changes: readonly StateChange[];
 }
 
+export interface RulesOption {
+  readonly key: string;
+  readonly label: string;
+  readonly page: string;
+  readonly values: readonly RulesOptionValue[];
+  readonly default: string;
+}
+
+export interface RulesOptionCatalog {
+  readonly options: readonly RulesOption[];
+  readonly presets: readonly RulesPreset[];
+}
+
+export interface RulesOptionValue {
+  readonly value: string;
+  readonly label: string;
+}
+
+export interface RulesPreset {
+  readonly name: string;
+  readonly optionalRules: { readonly [key: string]: string };
+  readonly enforcement?: Enforcement;
+}
+
 export type SchedulerShape = 'player-turn' | 'alternating-activation';
 
 export interface ScoreSet {
@@ -651,6 +676,7 @@ export interface Welcome {
   readonly kind: 'welcome';
   readonly participantId: string;
   readonly game: GameInfo;
+  readonly options: RulesOptionCatalog;
 }
 
 export interface WoundsSet {

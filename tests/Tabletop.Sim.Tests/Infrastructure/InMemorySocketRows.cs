@@ -26,7 +26,7 @@ public sealed class InMemorySocketRows(InMemorySeeder db) : ISocketRows
         var accounts = info.Participants.Select((_, i) => credentials.AccountOf(i)).ToList();
         for (var i = 0; i < accounts.Count; i++) db.GameRows.InsertAccount(accounts[i], info.Participants[i].Name, ifAbsent: true);
         db.GameRows.InsertGame(new GameRow(info.Id, info.Name, Tabletop.Protocol.GameStatus.Lobby, info.GameRules, info.PropertiesHash, info.SchedulerShape,
-            info.Enforcement, info.WaitsBetweenSteps, info.RngSeed, accounts[0]));
+            info.Enforcement, info.WaitsBetweenSteps, info.RngSeed, accounts[0]) { OptionalRules = info.OptionalRules });
         foreach (var team in info.Teams) db.GameRows.InsertTeam(new TeamRow(team.Id, info.Id, team.Ordinal));
         for (var i = 0; i < info.Participants.Count; i++)
             db.GameRows.InsertParticipant(new ParticipantRow(info.Participants[i].Id, info.Id, info.Participants[i].TeamId, accounts[i], null, null));

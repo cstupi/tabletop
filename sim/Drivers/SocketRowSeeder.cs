@@ -40,11 +40,12 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISock
         // hydration with the rest of the game's row.
         await Execute(connection, transaction, ct,
             """
-            insert into management.game (id, name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, created_by, rng_seed)
-            values ($1, $2, 'lobby', $3, $4, $5, $6, $7, $8, $9)
+            insert into management.game (id, name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, created_by, rng_seed, optional_rules)
+            values ($1, $2, 'lobby', $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
             """,
             info.Id, info.Name, info.GameRules, info.PropertiesHash,
-            Wire(info.SchedulerShape), Wire(info.Enforcement), info.WaitsBetweenSteps, accounts[0], info.RngSeed);
+            Wire(info.SchedulerShape), Wire(info.Enforcement), info.WaitsBetweenSteps, accounts[0], info.RngSeed,
+            System.Text.Json.JsonSerializer.Serialize(info.OptionalRules));
 
         foreach (var team in info.Teams)
             await Execute(connection, transaction, ct,

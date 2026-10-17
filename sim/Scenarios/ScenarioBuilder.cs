@@ -20,9 +20,12 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     private bool _scriptOnly;
     private readonly List<Expectation> _expectations = [];
     private MoveGoal? _goal;
+    private IReadOnlyDictionary<string, string> _optionalRules = new Dictionary<string, string>();
 
     public ScenarioBuilder Shape(SchedulerShape shape) { _shape = shape; return this; }
     public ScenarioBuilder Enforcing(Enforcement e) { _enforcement = e; return this; }
+    /// <summary>The game's optional rules, as the ruleset's catalog names them.</summary>
+    public ScenarioBuilder Options(IReadOnlyDictionary<string, string> optionalRules) { _optionalRules = optionalRules; return this; }
     public ScenarioBuilder RoundCap(int rounds) { _roundCap = rounds; return this; }
     public ScenarioBuilder Table(double width, double length) { _table = new TableSize(width, length); return this; }
     /// <summary>A zone style id from Tabletop.Geometry.ZoneStyles; its shapes expand in team-ordinal order.</summary>
@@ -31,12 +34,14 @@ public sealed class ScenarioBuilder(string name, ulong seed)
     public ScenarioBuilder Army(string armyName, int units, int modelsPerUnit,
         IReadOnlyList<ScenarioRule>? unitRules = null, IReadOnlyList<ScenarioRule>? modelRules = null,
         IReadOnlyList<ScenarioWeapon>? weapons = null, IReadOnlyDictionary<string, string>? unitStats = null, string? armyBook = null,
-        IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null, IReadOnlyDictionary<int, int>? passengers = null)
+        IReadOnlyList<int>? setAside = null, IReadOnlyList<ScenarioModel>? models = null, IReadOnlyDictionary<int, int>? passengers = null,
+        IReadOnlyDictionary<int, int>? sizes = null, IReadOnlyDictionary<int, Point2>? anchors = null)
     {
         _armies.Add(new ScenarioArmy(armyName, units, modelsPerUnit, unitRules ?? [], modelRules ?? [],
             weapons ?? [new ScenarioWeapon("Rifle", new Dictionary<string, string> { ["Range"] = "24\"", ["Attacks"] = "1" }, [])],
             unitStats ?? new Dictionary<string, string> { ["Quality"] = "4+", ["Defense"] = "4+" }, armyBook)
-        { SetAside = setAside ?? [], Models = models ?? [], Passengers = passengers ?? new Dictionary<int, int>() });
+        { SetAside = setAside ?? [], Models = models ?? [], Passengers = passengers ?? new Dictionary<int, int>(),
+          Sizes = sizes ?? new Dictionary<int, int>(), Anchors = anchors ?? new Dictionary<int, Point2>() });
         return this;
     }
 
@@ -60,11 +65,13 @@ public sealed class ScenarioBuilder(string name, ulong seed)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sets aside unit {bad}; its units are 1..{a.Units}");
             if (a.Passengers.SelectMany(kv => new[] { kv.Key, kv.Value }).Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } stray)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' names passenger unit {stray}; its units are 1..{a.Units}");
-            if (a.Models.FirstOrDefault(m => m.Unit < 1 || m.Unit > a.Units || m.Model < 1 || m.Model > a.ModelsPerUnit) is { } model)
+            if (a.Sizes.Keys.Concat(a.Anchors.Keys).Where(u => u < 1 || u > a.Units).Select(u => (int?)u).FirstOrDefault() is { } unsized)
+                throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' sizes or anchors unit {unsized}; its units are 1..{a.Units}");
+            if (a.Models.FirstOrDefault(m => m.Unit < 1 || m.Unit > a.Units || m.Model < 1 || m.Model > a.SizeOf(m.Unit)) is { } model)
                 throw new InvalidOperationException($"scenario '{name}': army '{a.Name}' has no model {model.Unit}.{model.Model}");
         }
         var style = _zoneStyle ?? (_armies.Count > 2 ? ZoneStyles.FreeForAll : ZoneStyles.Frontline);
         var shapes = ZoneStyles.ShapesOf(style).Take(_armies.Count).ToList();
-        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal };
+        return new Scenario(name, seed, _shape, _enforcement, _roundCap, _table, _armies, _terrain, _markers, shapes, _script, _scriptOnly, _expectations) { Goal = _goal, OptionalRules = _optionalRules };
     }
 }

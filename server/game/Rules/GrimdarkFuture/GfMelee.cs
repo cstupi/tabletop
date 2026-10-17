@@ -312,7 +312,7 @@ public static class GfMelee
         }
     }
 
-    /// <summary>p.10: a destroyed or routed unit lets the other move 3"; otherwise the charger moves back 1".</summary>
+    /// <summary>p.10: a destroyed or routed unit lets the other move 3"; otherwise the charger moves back 1", unless the game plays without melee separation.</summary>
     sealed class ConsolidateStep : IStep
     {
         public string Name => "consolidate";
@@ -322,6 +322,8 @@ public static class GfMelee
             if (ctx.History.LastClosed() is { } closed) return Settled(ctx, closed);
             var (chargerAlive, defenderAlive) = (Lookup.LivingModels(ctx.State, charger), Lookup.LivingModels(ctx.State, defender));
             if (chargerAlive.Count == 0 && defenderAlive.Count == 0) return new Complete([]);
+            // p.10: "players may agree not to separate units by 1"" (optional rule melee_separation off): both alive, nobody moves back.
+            if (chargerAlive.Count > 0 && defenderAlive.Count > 0 && !GfOptions.Of(ctx.State).MeleeSeparation) return new Complete([]);
             var (mover, distance) = chargerAlive.Count == 0 ? (defender, GfNames.Consolidate) : defenderAlive.Count == 0 ? (charger, GfNames.Consolidate) : (charger, GfNames.FallBack);
             return new OpenAsks([ctx.Ask("move", $"Move up to {distance}\"", ctx.TeamOf(mover)!.Value, new MoveRegion(Lookup.LivingModels(ctx.State, mover), distance, Impassable(ctx, mover), [], null), allowPass: true)]);   // fall back / consolidate: impassable terrain, no difficult cap
         }

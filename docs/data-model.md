@@ -131,6 +131,7 @@ erDiagram
         enum scheduler_shape
         enum enforcement
         bool waits_between_steps
+        jsonb optional_rules
     }
     TEAM {
         uuid id
@@ -426,3 +427,4 @@ writes only events and one row: `game.status = 'ended'` when its own log ends th
 | `EFFECT.duration`, spell targeting on `CATALOGENTRY` | [Spell effects](superpowers/specs/2026-09-04-spell-effects-design.md) |
 | `BOOK`, `MODELSLOT.army_book`, `EFFECT.target_terrain` and `target_condition` | [The spell library](superpowers/specs/2026-10-02-spell-library-design.md) |
 | `GAME.name`, `enforcement`, `waits_between_steps`; nullable participant team and snapshot | [The whole-design review](superpowers/specs/2026-09-04-whole-design-review.md) |
+| `GAME.optional_rules` | [Optional rules](superpowers/specs/2026-10-15-optional-rules-design.md) |

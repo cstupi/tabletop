@@ -52,11 +52,30 @@ public class LobbyTests
     public async Task Configuration_changes_need_a_known_properties_hash()
     {
         var (f, g, creator, other) = await LobbyAsync();
-        await other.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true)));
+        await other.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
         var info = (await creator.ExpectAsync<GameInfoMessage>()).Game;
         Assert.Equal(("Saturday", SchedulerShape.PlayerTurn, Enforcement.Strict, true), (info.Name, info.SchedulerShape, info.Enforcement, info.WaitsBetweenSteps));
-        await other.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true)));
+        await other.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
         Assert.Equal(RefusalReason.Unknown, (await other.ExpectAsync<Refused>()).Reason);
+    }
+
+    [Fact]
+    public async Task Optional_rules_are_set_with_the_configuration_and_an_unknown_one_is_refused_without_a_write()
+    {
+        var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var creator = await TestClient.OpenAsync(factory);
+        var welcome = await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
+        Assert.Contains(welcome.Options.Options, o => o is { Key: "line_of_sight", Page: "p.56" });                         // the ruleset's catalog, for the lobby
+        var map = new Dictionary<string, string> { ["line_of_sight"] = "hybrid_true", ["melee_separation"] = "off" };
+        await creator.SendAsync(Edit(new SetConfiguration("Saturday", seeded.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, false, map)));
+        Assert.Equal(map.OrderBy(kv => kv.Key), (await creator.ExpectAsync<GameInfoMessage>()).Game.OptionalRules.OrderBy(kv => kv.Key));
+        await creator.SendAsync(Edit(new SetConfiguration("Sunday", seeded.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, false,
+            new Dictionary<string, string> { ["line_of_sight"] = "top_down" })));
+        var refused = await creator.ExpectAsync<Refused>();
+        Assert.Equal((RefusalReason.Unknown, "line_of_sight has no value top_down"), (refused.Reason, refused.Detail));
+        var row = (await db.GameRows.ReadGameAsync(seeded.GameId, CancellationToken.None))!;
+        Assert.Equal(("Saturday", "hybrid_true"), (row.Name, row.OptionalRules["line_of_sight"]));                          // nothing written
     }
 
     [Fact]
