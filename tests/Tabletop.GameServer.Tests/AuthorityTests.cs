@@ -25,7 +25,7 @@ public class AuthorityTests
     {
         var (f, g, creator, other, third) = await LobbyAsync();
         await using var _ = creator; await using var __ = other; await using var ___ = third; using var ____ = f;
-        await other.SendAsync(Edit(new SetConfiguration("Mine", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Silent, false)));
+        await other.SendAsync(Edit(new SetConfiguration("Mine", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Silent, false, new Dictionary<string, string>())));
         Assert.Equal(RefusalReason.NotPermitted, (await other.ExpectAsync<Refused>()).Reason);
         Assert.Equal("Friday", db.GameRows.Game(g.GameId)!.Name);
     }

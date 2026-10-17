@@ -811,7 +811,7 @@ or a record it holds (`DraftLimits`, `ArmyLimits`). The figures and why:
 | A swept check | 4096 samples (`Sampling.MaxSamples`: `Movement`, `Collision.Slide`, `Collision.Crosses`) | samples spread further apart | a forged length costs a bounded loop |
 | Rule parameter sums | ±1 000 000 in 64-bit arithmetic (`ParameterSum`) | clamped | no overflow from user data |
 | Stat text | ASCII digits, at most six (`StatValue.Read`) | `FormatException` | `\d` matches other scripts' digits |
-| Enums on the wire | by name only (`JsonStringEnumConverter(allowIntegerValues: false)` in `ContentJson`) | unreadable frame, `1007` | an integer names no member |
+| Enums on the wire | by name only (`WireJson`: `ContentJson.Configure(options, integerEnums: false)`) | unreadable frame, `1007` | an integer names no member |
 | JWKS | cached 10 min; an unknown `kid` refetches at most once per 30 s, one fetch shared; a 5 s fetch timeout; on failure the held keys serve for at most 1 h after their fetch, then verification fails closed | `1011` | a stream of made-up kids costs one request per 30 s |
 
 Close reasons sent to a peer are fixed phrases, cut to 123 UTF-8 bytes; exception text and type names go

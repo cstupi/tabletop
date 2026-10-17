@@ -47,7 +47,7 @@ public class CommandDispatcherTests
 
     public static IEnumerable<object[]> Teamless() =>
         Overrides().Where(o => (Enforcement)o[1] == Enforcement.Silent).Select(o => o[0])
-            .Concat([new Undo(0), new AbandonSequence(Samples.Frame), new RerollDice(Samples.Frame, Guid.NewGuid(), []), new MoveModels([])])
+            .Concat([new Undo(0), new AbandonSequence(Samples.Frame), new SetDice(Samples.Frame, Guid.NewGuid(), []), new MoveModels([])])
             .Select(c => new object[] { c });
 
     /// <summary>Security review H3: a participant with no team watches. Either player may still undo or correct (owner's design); a watcher may not.</summary>

@@ -76,7 +76,7 @@ public enum RefusalReason { OutsideLegalSet, Illegal, WrongStatus, NotPermitted,
 
 public static class WireJson
 {
-    public static JsonSerializerOptions Options { get; } = ContentJson.Configure(new JsonSerializerOptions());
+    public static JsonSerializerOptions Options { get; } = ContentJson.Configure(new JsonSerializerOptions(), integerEnums: false);
 
     public static string Serialize(SocketMessage message) => JsonSerializer.Serialize(message, Options);
     public static SocketMessage Deserialize(string json) => Deserialize<SocketMessage>(json);
