@@ -26,6 +26,11 @@ describe('http', () => {
     expect(await http.del('/v1/folders/x')).toBeUndefined();
   });
 
+  it('reads Retry-After from a 429 into ApiError.retryAfter', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ title: 'Too many requests' }), { status: 429, headers: { 'content-type': 'application/problem+json', 'retry-after': '42' } })));
+    await expect(http.post('/v1/auth/otp', { email: 'a' })).rejects.toMatchObject({ status: 429, retryAfter: 42 });
+  });
+
   it('calls onUnauthorized on a 401 to a bearer request but not to /v1/auth', async () => {
     const seen: string[] = [];
     http.onUnauthorized = () => seen.push('401');
