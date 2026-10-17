@@ -43,9 +43,12 @@ public class GameTests : IClassFixture<ManagementFactory>
             (game.Name, game.Status, game.CreatedBy, game.GameRules, game.PropertiesHash, game.SchedulerShape, game.Enforcement, game.WaitsBetweenSteps));
         Assert.Empty(game.Teams);
         Assert.Equal([(creator, "Clay", (Guid?)null, (Guid?)null)], game.Participants.Select(p => (p.AccountId, p.Name, p.TeamId, p.ArmyId)));
-        Assert.NotEqual(0L, game.RngSeed);                                                                      // generated at creation, not defaulted: a 0 seed would mean shared dice
-        Assert.Equal(game.RngSeed, (await c.GetJson<GameInfo>($"/v1/games/{game.Id}")).RngSeed);                 // stored, and read back unchanged
-        Assert.NotEqual(game.RngSeed, (await c.PostJson<GameInfo>("/v1/games", Friday())).RngSeed);              // per game, not per properties set
+        var stored = _f.Rows.Games[game.Id].RngSeed;
+        Assert.NotEqual(0L, stored);                                                                            // generated at creation, not defaulted: a 0 seed would mean shared dice
+        Assert.DoesNotContain("rngSeed", await c.GetStringAsync($"/v1/games/{game.Id}"), StringComparison.OrdinalIgnoreCase);   // dice are a function of the seed: never sent
+        Assert.DoesNotContain("rngSeed", await (await c.PostAsync($"/v1/games/{game.Id}/join", null)).Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        var second = await c.PostAsJsonAsync("/v1/games", Friday(), Tabletop.Content.ContentJson.Options);
+        Assert.DoesNotContain("rngSeed", await second.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/games", Friday() with { PropertiesHash = "sha256:nope" }, Tabletop.Content.ContentJson.Options)).StatusCode);
     }
 

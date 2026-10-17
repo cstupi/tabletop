@@ -20,14 +20,17 @@ public class GameTests
     }
 
     [Fact]
-    public void Game_info_carries_the_stored_rng_seed_whole()
+    public void Game_info_never_puts_the_rng_seed_on_the_wire()
     {
-        // long.MinValue + 1: signed, and past 2^53, so a JSON number that went through a double would come back changed.
+        // Every die is a pure function of the seed, so a client that knew it could predict every roll.
         var game = new GameInfo(Guid.CreateVersion7(), "Friday", GameStatus.Lobby, Guid.CreateVersion7(),
             "grimdark-future", "sha256:abc", SchedulerShape.PlayerTurn, Enforcement.Warn, false, -9223372036854775807L, [], []);
         var json = ContentJson.Serialize(game);
-        Assert.Contains("\"rngSeed\":-9223372036854775807", json);
-        Assert.Equal(game.RngSeed, ContentJson.Deserialize<GameInfo>(json).RngSeed);
+        Assert.DoesNotContain("rngSeed", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("9223372036854775807", json);
+        Assert.Equal(0L, ContentJson.Deserialize<GameInfo>(json).RngSeed);
+        Assert.Equal(0L, ContentJson.Deserialize<GameInfo>(json.Replace("\"teams\"", "\"rngSeed\":42,\"teams\"")).RngSeed);   // a sent one is ignored too
+        Assert.DoesNotContain("rngSeed", WireJson.Serialize<SocketMessage>(new GameInfoMessage(game)));
     }
 
     [Fact]

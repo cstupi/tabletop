@@ -221,7 +221,6 @@ export interface GameInfo {
   readonly schedulerShape: SchedulerShape;
   readonly enforcement: Enforcement;
   readonly waitsBetweenSteps: boolean;
-  readonly rngSeed: number;
   readonly teams: readonly Team[];
   readonly participants: readonly Participant[];
 }
