@@ -41,8 +41,7 @@ public class OutOfSetAnswerTests
         var seq = sim.State.Projection.LastSeq;
         foreach (var command in new Command[]
         {
-            new RerollDice(frame, roll.Id, [99]), new RerollDice(frame, roll.Id, [-1]), new RerollDice(frame, roll.Id, [0, 0]),
-            new SetDice(frame, roll.Id, [new DieValue(7, 3)]), new SetDice(frame, roll.Id, [new DieValue(0, 3), new DieValue(0, 4)]),
+            new SetDice(frame, roll.Id, [new DieValue(7, 3)]), new SetDice(frame, roll.Id, [new DieValue(-1, 3)]), new SetDice(frame, roll.Id, [new DieValue(0, 3), new DieValue(0, 4)]),
             new SetDice(frame, roll.Id, [new DieValue(0, 0)]), new SetDice(frame, roll.Id, [new DieValue(0, 7)]),
         })
             Assert.IsType<Refused>(sim.Dispatch(command, Samples.P1, Samples.Team1));

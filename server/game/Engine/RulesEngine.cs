@@ -8,44 +8,38 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Engine;
 
-/// <summary>The one IRulesEngine. Dice commands are judged and executed here; Advance is the interpreter while frames exist and the scheduler when they do not.</summary>
-public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler scheduler) : IRulesEngine
+/// <summary>
+/// The one IRulesEngine. Advance is the interpreter while frames exist and the scheduler when they do not. SetDice, the rules suite's
+/// way to fix a roll's faces, is judged and executed here only when acceptsSetDice is on (GameServerOptions.AcceptsSetDice: Development
+/// and the sim's in-process driver); otherwise it is refused.
+/// </summary>
+public sealed class RulesEngine(IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler scheduler, bool acceptsSetDice = false) : IRulesEngine
 {
     public SequenceInterpreter Interpreter { get; } = new(rules, properties, dice);
     public PropertySet Properties => properties;
 
     public Legality Judge(GameState state, Command command, Actor actor) => command switch
     {
-        RerollDice or SetDice or AddModifier => DiceLegal(state, command) ? Legality.Legal : Legality.Illegal,
+        SetDice s when acceptsSetDice => DiceLegal(state, s) ? Legality.Legal : Legality.Illegal,
         _ => Legality.Illegal,
     };
 
-    /// <summary>The one predicate for a dice command: the roll exists on the frame, every index is a die of it and none repeats, and every set face is on the roll's convention; a modifier names a frame on the stack and a roll the pinned set defines. Judge asks it, and Execute asks it again because warn and silent run a command Judge called illegal.</summary>
-    bool DiceLegal(GameState state, Command command) => command switch
-    {
-        RerollDice r => Find(state, r.FrameId, r.RollId) is { } rec && DistinctInRange(r.DiceIndices, rec.Dice.Count),
-        SetDice s => Find(state, s.FrameId, s.RollId) is { } rec && DistinctInRange(s.Dice.Select(d => d.Index).ToList(), rec.Dice.Count)
-            && s.Dice.All(d => d.Raw >= 1 && d.Raw <= PlanOf(rec).Convention.Sides),
-        AddModifier m => state.Projection.Stack.Any(f => f.Id == m.FrameId) && properties.HasRoll(m.Roll),
-        _ => false,
-    };
+    /// <summary>The roll exists on the frame, every index is a die of it and none repeats, and every face is on the roll's convention. Judge asks it, and Execute asks it again because warn and silent run a command Judge called illegal.</summary>
+    bool DiceLegal(GameState state, SetDice s) =>
+        Find(state, s.FrameId, s.RollId) is { } rec && DistinctInRange(s.Dice.Select(d => d.Index).ToList(), rec.Dice.Count)
+            && s.Dice.All(d => d.Raw >= 1 && d.Raw <= PlanOf(rec).Convention.Sides);
 
     public EngineResult Execute(GameState state, Command command, Actor actor)
     {
         switch (command)
         {
-            case RerollDice r when DiceLegal(state, r) && Find(state, r.FrameId, r.RollId) is { } record:
-            {
-                var roller = new Roller(dice, state.RngSeed, DiceCursor.DrawnSoFar(state));
-                return new Emit([new DiceRerolled(r.FrameId, r.RollId, RollOutcome.Reroll(PlanOf(record), record, r.DiceIndices, roller).Select(d => d with { New = record.Stamp(d.New) }).ToList())]);
-            }
+            case SetDice when !acceptsSetDice:
+                return new RefuseCommand(RefusalReason.NotPermitted, "SetDice is accepted only where the rules suite runs");
             case SetDice s when DiceLegal(state, s) && Find(state, s.FrameId, s.RollId) is { } record:
             {
                 var plan = PlanOf(record); var roller = new Roller(dice, state.RngSeed, 0);
                 return new Emit([new DiceEdited(s.FrameId, s.RollId, s.Dice.Select(d => new DieReplacement(d.Index, record.Dice[d.Index], record.Stamp(roller.Judge(plan, d.Raw)))).ToList())]);
             }
-            case AddModifier m when DiceLegal(state, m):
-                return new Emit([new ModifierAdded(m.FrameId, m.Roll, new RollModifier("player", m.Amount, state.Info.Participants.FirstOrDefault(p => p.Id == actor.ParticipantId)?.Name))]);
             default:
                 return new RefuseCommand(RefusalReason.Unknown, $"{command.GetType().Name}: no such frame, roll or die");
         }

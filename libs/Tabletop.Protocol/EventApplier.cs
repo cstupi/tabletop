@@ -83,7 +83,6 @@ public sealed class EventApplier(Board board, GameInfo game)
             {
                 var frame = FrameOf(p, s.FrameId, s);
                 frame.StepsMut.Add(new CompletedStep(s.Step, s.Answer, s.Rolls, s.Changes, s.Values, s.Applied));
-                foreach (var roll in s.Rolls) frame.PendingMut.Remove(roll.Roll);
                 foreach (var c in s.Changes) ApplyChange(p, c);
                 break;
             }
@@ -94,13 +93,6 @@ public sealed class EventApplier(Board board, GameInfo game)
             case AskClosed a: p.OpenAsksMut.Remove(a.AskId); break;
             case DiceRerolled d: ReplaceDice(p, d, d.FrameId, d.RollId, d.Replaced); break;
             case DiceEdited d: ReplaceDice(p, d, d.FrameId, d.RollId, d.Replaced); break;
-            case ModifierAdded m:
-            {
-                var frame = FrameOf(p, m.FrameId, m);
-                if (!frame.PendingMut.TryGetValue(m.Roll, out var list)) frame.PendingMut[m.Roll] = list = new List<RollModifier>();
-                list.Add(m.Modifier);
-                break;
-            }
             case Undone: throw new InvalidOperationException("Undone is applied by rebuilding; use EventApplier.Apply.");
             default: throw new NotSupportedException($"Unknown payload {e.Payload.GetType().Name}");
         }

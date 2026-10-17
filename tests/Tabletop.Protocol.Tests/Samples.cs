@@ -56,7 +56,7 @@ public static class Samples
         new AskClosed(AskId, [new TeamAnswer(Team1, new TokensSpent(new Dictionary<Guid, int> { [Model] = 2 }))]),
         new DiceRerolled(Frame, Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]),
         new DiceEdited(Frame, Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]),
-        new ModifierAdded(Frame, "hit", new RollModifier("Clay", 1)), new Undone(3),
+        new Undone(3),
         new ModelsMoved([Deploy]), new ModelsMoved([Embark]), new WoundsSet(Model, 2), new ConditionSet(new Subject(SubjectKind.Unit, Unit), "shaken", true),
         new ActionRecorded(Unit, "Advance"), new ActionRecordCleared(Unit), new GrantAdded(Unit, Grant), new GrantRemoved(Unit, Grant.Id),
         new SpellTokensSet(Model, 3), new WoundsThisActivationSet(Unit, 2), new ScoreSet(Team1, 4),
@@ -70,7 +70,7 @@ public static class Samples
         new RemoveMarker(Token.Id), new SetWounds(Model, 1), new SetCondition(new Subject(SubjectKind.Model, Model), "fatigued", false),
         new RecordAction(Unit, "Hold"), new ClearActionRecord(Unit), new AddGrant(Unit, Grant), new RemoveGrant(Unit, Grant.Id),
         new SetSpellTokens(Model, 6), new SetWoundsThisActivation(Unit, 0), new SetScore(Team2, 1), new SetActiveTeam(Team2), new SetRound(2),
-        new Undo(3), new AbandonSequence(Frame), new RerollDice(Frame, Roll, []), new SetDice(Frame, Roll, [new DieValue(0, 6)]), new AddModifier(Frame, "hit", -1),
+        new Undo(3), new AbandonSequence(Frame), new SetDice(Frame, Roll, [new DieValue(0, 6)]),
         new SetObjectiveControl(Token.Id, Team1),
     ];
     public static readonly Edit[] Edits =

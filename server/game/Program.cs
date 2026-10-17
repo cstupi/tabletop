@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(30));
 if (!builder.Environment.IsEnvironment("Test"))
-    builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration));
+    builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration, builder.Environment.IsDevelopment()));
 builder.Services.AddHttpClient<HttpJwksSource>();
 builder.Services.AddSingleton<IJwksSource>(sp => sp.GetRequiredService<HttpJwksSource>());
 builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
@@ -24,7 +24,8 @@ builder.Services.AddSingleton<IGameRows, PostgresGameRows>();
 builder.Services.AddSingleton<IEventLog, PostgresEventLog>();
 builder.Services.AddSingleton<IDiceSource, DiceSource>();
 builder.Services.AddSingleton<ISchedulerFactory, SchedulerFactory>();
-builder.Services.AddSingleton<IRulesEngineFactory, RulesEngineFactory>();
+builder.Services.AddSingleton<IRulesEngineFactory>(sp => new RulesEngineFactory(sp.GetRequiredService<IPropertiesStore>(), sp.GetRequiredService<IDiceSource>(),
+    sp.GetRequiredService<ISchedulerFactory>(), sp.GetRequiredService<GameServerOptions>().AcceptsSetDice));
 builder.Services.AddSingleton<IPropertiesStore, PostgresPropertiesStore>();
 builder.Services.AddSingleton<PropertiesSeeder>();
 builder.Services.AddSingleton<SessionServices>();

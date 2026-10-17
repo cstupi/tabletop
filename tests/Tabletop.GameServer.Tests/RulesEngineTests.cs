@@ -1,4 +1,5 @@
 using Refused = Tabletop.GameServer.Dispatch.Refused;
+using Microsoft.Extensions.Configuration;
 using Tabletop.GameServer.Dice;
 using Tabletop.GameServer.Dispatch;
 using Tabletop.GameServer.Engine;
@@ -41,7 +42,7 @@ public class RulesEngineTests
     }
 
     [Fact]
-    public void Dice_commands_naming_a_missing_or_repeated_die_or_an_impossible_face_are_illegal()
+    public void Set_dice_naming_a_missing_or_repeated_die_or_an_impossible_face_is_illegal()
     {
         var sim = Make();
         sim.Start("roller", new SequenceContext(A.Id, [], [], null));
@@ -50,9 +51,6 @@ public class RulesEngineTests
         var clay = new Actor(Samples.P1, Samples.Team1);
         Legality Judge(Command c) => sim.Engine.Judge(sim.State, c, clay);
 
-        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [roll.Dice.Count])));
-        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [-1])));
-        Assert.Equal(Legality.Illegal, Judge(new RerollDice(frame, roll.Id, [0, 0])));
         Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(roll.Dice.Count, 3)])));
         Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(-1, 3)])));
         Assert.Equal(Legality.Illegal, Judge(new SetDice(frame, roll.Id, [new DieValue(0, 3), new DieValue(0, 4)])));
@@ -62,7 +60,7 @@ public class RulesEngineTests
     }
 
     [Fact]
-    public void Reroll_set_dice_and_add_modifier_are_judged_and_executed_against_the_frame()
+    public void Set_dice_is_judged_and_executed_against_the_frame()
     {
         var sim = Make();
         sim.Start("roller", new SequenceContext(A.Id, [], [], null));
@@ -70,88 +68,47 @@ public class RulesEngineTests
         var roll = sim.Steps("roll").Single().Rolls.Single();
         Assert.Equal([3, 6, 7], roll.Dice.Select(d => d.Modified));
         var clay = new Actor(Samples.P1, Samples.Team1);
-
-        Assert.Equal(Legality.Legal, sim.Engine.Judge(sim.State, new RerollDice(frame, roll.Id, [0]), clay));
-        Assert.Equal(Legality.Illegal, sim.Engine.Judge(sim.State, new RerollDice(Guid.CreateVersion7(), roll.Id, []), clay));
-        Assert.Equal(Legality.Illegal, sim.Engine.Judge(sim.State, new AddModifier(frame, "save", 1), clay));
-        Assert.Equal(Legality.Legal, sim.Engine.Judge(sim.State, new AddModifier(frame, "defense", -1), clay));
-
-        var rerolled = Assert.IsType<Applied>(sim.Dispatch(new RerollDice(frame, roll.Id, [0]), Samples.P1, Samples.Team1));
-        var rr = Assert.IsType<DiceRerolled>(rerolled.Events.Single());
-        Assert.Equal((0, 2, 1, 2, false), (rr.Replaced[0].Index, rr.Replaced[0].Old.Raw, rr.Replaced[0].New.Raw, rr.Replaced[0].New.Modified, rr.Replaced[0].New.Success));   // the 4th scripted die, +1, under threshold 4
-        Assert.Equal(1, sim.State.Projection.Stack[0].Steps[0].Rolls[0].Dice[0].Raw);
-        Assert.Equal(4, DiceCursor.DrawnSoFar(sim.State));
+        Assert.Equal(Legality.Illegal, sim.Engine.Judge(sim.State, new SetDice(Guid.CreateVersion7(), roll.Id, [new DieValue(0, 3)]), clay));
 
         var edited = Assert.IsType<Applied>(sim.Dispatch(new SetDice(frame, roll.Id, [new DieValue(1, 3)]), Samples.P1, Samples.Team1));
         var ed = Assert.IsType<DiceEdited>(edited.Events.Single());
         Assert.Equal((5, 3, 4, true), (ed.Replaced[0].Old.Raw, ed.Replaced[0].New.Raw, ed.Replaced[0].New.Modified, ed.Replaced[0].New.Success));
-        Assert.Equal(4, DiceCursor.DrawnSoFar(sim.State));                                  // an edit draws nothing
-
-        var mod = Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "hit", 2), Samples.P1, Samples.Team1));
-        Assert.Equal(new RollModifier("player", 2, "Clay"), Assert.IsType<ModifierAdded>(mod.Events.Single()).Modifier);
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(sim.Dispatch(new RerollDice(frame, Guid.CreateVersion7(), []), Samples.P1, Samples.Team1)).Reason);
+        Assert.Equal(3, DiceCursor.DrawnSoFar(sim.State));                                  // an edit draws nothing
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(sim.Dispatch(new SetDice(frame, Guid.CreateVersion7(), [new DieValue(0, 3)]), Samples.P1, Samples.Team1)).Reason);
     }
 
-    static RollPlan Hit() => new("hit", 4, [new RollModifier("x", 1)], new RollConvention(6, null), null, new HashSet<int>());
-
-    /// <summary>An Ask, then a step with two hit pools, then a step with one more hit roll.</summary>
-    static Sequence AskThenRoll() => new("ask-then-roll", [
-        new LambdaStep("wait", ctx => ctx.History.LastClosed() is null ? new OpenAsks([ctx.Ask("go", "Go", ctx.ActorTeam!.Value, new Options([new AskOption("go", "Go", [])]))]) : new Complete([])),
-        new LambdaStep("roll", ctx => { ctx.Roll(Hit(), 2); ctx.Roll(Hit(), 1); return new Complete([]); }),
-        new LambdaStep("again", ctx => { ctx.Roll(Hit(), 1); return new Complete([]); })]);
-
-    [Fact]
-    public void A_players_modifier_folds_into_every_record_of_that_roll_in_the_frames_next_rolling_step_and_is_consumed()
+    [Theory]
+    [InlineData(Enforcement.Strict)]
+    [InlineData(Enforcement.Warn)]
+    [InlineData(Enforcement.Silent)]
+    public void An_engine_that_does_not_accept_set_dice_refuses_it_under_every_setting(Enforcement enforcement)
     {
-        var sim = new Sim(State([A], [B]), new StubRules(AskThenRoll()), TestProperties.Core, new ScriptedDice(2, 5, 6, 1, 3));
-        sim.Start("ask-then-roll", new SequenceContext(A.Id, [], [], null));
-        var frame = sim.State.Projection.Stack.Single().Id;
-        Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "hit", -2), Samples.P1, Samples.Team1));
-        Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "defense", 1), Samples.P1, Samples.Team1));
-        sim.Answer(Samples.Team1, new Chosen("go"));
-
-        var player = new RollModifier("player", -2, "Clay");
-        var pools = sim.Steps("roll").Single().Rolls;
-        Assert.All(pools, r => Assert.Equal([new RollModifier("x", 1), player], r.Modifiers));
-        Assert.Equal([1, 4, 5], pools.SelectMany(r => r.Dice).Select(d => d.Modified));            // 2, 5, 6 at net -1
-        Assert.Equal([false, true, true], pools.SelectMany(r => r.Dice).Select(d => d.Success));  // threshold 4
-
-        var later = sim.Steps("again").Single().Rolls.Single();                                     // consumed by the step that rolled it
-        Assert.Equal([new RollModifier("x", 1)], later.Modifiers);
-        Assert.Equal(2, later.Dice.Single().Modified);
-    }
-
-    [Fact]
-    public void A_players_modifier_for_another_roll_stays_pending()
-    {
-        var sim = new Sim(State([A], [B]), new StubRules(AskThenRoll()), TestProperties.Core, new ScriptedDice(2, 5, 6, 1, 3));
-        sim.Start("ask-then-roll", new SequenceContext(A.Id, [], [], null));
-        var frame = sim.State.Projection.Stack.Single().Id;
-        sim.Dispatch(new AddModifier(frame, "defense", 1), Samples.P1, Samples.Team1);
-        sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, new Chosen("go")), Samples.P1, Samples.Team1);
-        for (var i = 0; i < 10 && sim.Steps("roll").Count == 0; i++) sim.Append(sim.Engine.Advance(sim.State).Events);   // up to the roll step, before "again"
-
-        Assert.Equal([new RollModifier("x", 1)], sim.Steps("roll").Single().Rolls[0].Modifiers);
-        Assert.Equal([new RollModifier("player", 1, "Clay")], sim.State.Projection.Stack.Single().PendingModifiers["defense"]);
-    }
-
-    [Fact]
-    public void Execute_refuses_a_modifier_on_a_roll_the_pinned_set_does_not_define()
-    {
-        // Warn and silent execute what Judge called illegal, so Execute asks the same question again.
-        var sim = Make();
+        var sim = new Sim(State([A], [B], enforcement: enforcement), new StubRules(Roller()), TestProperties.Core, new ScriptedDice(2, 5, 6), acceptsSetDice: false);
         sim.Start("roller", new SequenceContext(A.Id, [], [], null));
         var frame = sim.State.Projection.Stack.Single().Id;
-        var clay = new Actor(Samples.P1, Samples.Team1);
-        Assert.IsType<RefuseCommand>(sim.Engine.Execute(sim.State, new AddModifier(frame, "save", 1), clay));
-        Assert.IsType<Emit>(sim.Engine.Execute(sim.State, new AddModifier(frame, "defense", -1), clay));
+        var roll = sim.Steps("roll").Single().Rolls.Single();
+        var seq = sim.State.Projection.LastSeq;
+        Assert.Equal(Legality.Illegal, sim.Engine.Judge(sim.State, new SetDice(frame, roll.Id, [new DieValue(0, 6)]), new Actor(Samples.P1, Samples.Team1)));
+        Assert.IsType<Refused>(sim.Dispatch(new SetDice(frame, roll.Id, [new DieValue(0, 6)]), Samples.P1, Samples.Team1));
+        Assert.Equal(seq, sim.State.Projection.LastSeq);
+    }
+
+    [Fact]
+    public void Only_the_development_environment_accepts_set_dice()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["TABLETOP_DB_CONNECTION"] = "Host=x", ["TABLETOP_STYTCH_PROJECT_ID"] = "project-test",
+        }).Build();
+        Assert.True(Tabletop.GameServer.Configuration.GameServerOptions.FromEnvironment(configuration, development: true).AcceptsSetDice);
+        Assert.False(Tabletop.GameServer.Configuration.GameServerOptions.FromEnvironment(configuration, development: false).AcceptsSetDice);
     }
 
     [Fact]
     public void The_factory_loads_the_pinned_set_and_refuses_an_unknown_hash()
     {
         var store = new InMemoryPropertiesStore().Add(TestProperties.Core);
-        var factory = new RulesEngineFactory(store, new DiceSource(), new NoSchedulerFactory());
+        var factory = new RulesEngineFactory(store, new DiceSource(), new NoSchedulerFactory());   // SetDice off unless asked for
         var game = Samples.Game with { PropertiesHash = TestProperties.Core.ContentHash };
         Assert.IsType<RulesEngine>(factory.Create(GrimdarkFutureRules.Instance, game));
         Assert.Throws<PropertiesNotFoundException>(() => factory.Create(GrimdarkFutureRules.Instance, Samples.Game with { PropertiesHash = "sha256:nope" }));

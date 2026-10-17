@@ -84,15 +84,12 @@ public sealed class SchedulerPosition
 public sealed class Frame(Guid id, string sequence, SequenceContext context, IReadOnlyList<OutlineStep>? outline = null)
 {
     internal readonly List<CompletedStep> StepsMut = new();
-    internal readonly Dictionary<string, List<RollModifier>> PendingMut = new();
     public Guid Id { get; } = id;
     public string Sequence { get; } = sequence;
     public SequenceContext Context { get; } = context;
     /// <summary>The sequence's labelled steps from SequenceStarted; empty when the event carried none.</summary>
     public IReadOnlyList<OutlineStep> Outline { get; } = outline ?? [];
     public IReadOnlyList<CompletedStep> Steps => StepsMut;
-    public IReadOnlyDictionary<string, IReadOnlyList<RollModifier>> PendingModifiers =>
-        PendingMut.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<RollModifier>)kv.Value);
 }
 
 public sealed class CompletedStep(string step, AskAnswer? answer, IReadOnlyList<RollRecord> rolls, IReadOnlyList<StateChange> changes, IReadOnlyDictionary<string, int>? values, IReadOnlyList<string>? applied = null)

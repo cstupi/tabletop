@@ -17,7 +17,6 @@ const actor = (p: Projection, id: string | undefined): string => (id === undefin
 const marker = (p: Projection, id: string): string =>
   (p.markers.get(id) ?? p.board.table.markers.find((m) => m.id === id))?.label ?? shortId(id);
 /** C#'s "+#;-#;0" custom numeric format. */
-const signed = (n: number): string => (n > 0 ? `+${n}` : n < 0 ? `${n}` : '0');
 
 // Every roll on the step, with its threshold: a ruleset splits one roll wherever a step's dice do not share one, and OPR's
 // roll-to-hit takes one pool per Quality value the attacking models bring (p.4, and a joined hero brings its own). The
@@ -66,7 +65,6 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'ask_closed': return 'ask closed';
     case 'dice_rerolled': return `rerolled ${e.replaced.length} dice`;
     case 'dice_edited': return `edited ${e.replaced.length} dice`;
-    case 'modifier_added': return `${e.modifier.source} gives ${signed(e.modifier.amount)} to ${e.roll}`;
     case 'undone': return `undone to ${e.toSeq}`;
     case 'models_moved': return `${e.moves.length} model(s) moved`;
     case 'wounds_set': return `${model(after, e.modelId)} at ${e.wounds} wound(s)`;

@@ -53,7 +53,7 @@ public sealed class InProcessDriver : IGameDriver
         var services = new SessionServices(
             new ScenarioRows(_scenario),
             new InMemoryEventLog(),
-            new RulesEngineFactory(new InMemoryPropertiesStore().Add(_scenario.Properties), new DiceSource(), new SchedulerFactory()),
+            new RulesEngineFactory(new InMemoryPropertiesStore().Add(_scenario.Properties), new DiceSource(), new SchedulerFactory(), acceptsSetDice: true),
             new GameServerOptions { DbConnection = "", StytchProjectId = "sim", StytchJwksUrl = "unused" },
             NullLoggerFactory.Instance);
 

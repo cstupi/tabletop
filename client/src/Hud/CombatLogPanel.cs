@@ -164,9 +164,6 @@ public partial class CombatLogPanel : VBoxContainer
         if (r.Undone) return;
         var actions = new HBoxContainer(); into.AddChild(actions);
         AddButton(actions, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
-        AddButton(actions, "Reroll all", () => Send(new RerollDice(r.FrameId, r.Record.Id, [])));
-        AddButton(actions, "Set die 1…", () => PieceMenu.AskInteger(this, "Raw value for die 1", v => Send(new SetDice(r.FrameId, r.Record.Id, [new DieValue(0, v)]))));
-        AddButton(actions, "+1", () => Send(new AddModifier(r.FrameId, r.Record.Roll, 1)));
     }
 
     static void AddButton(Container row, string text, Action then) { var b = new Button { Text = text, Flat = true, ThemeTypeVariation = Variation.FlatButton }; b.Pressed += then; row.AddChild(b); }
@@ -178,7 +175,6 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var id in LogText.Touched(e.Event)) _view.PieceAt(id)?.SetHighlight(Ui.Accent);
     }
 
-    void Send(Command command) => Guarded.Command(_s, command, _report);
     /// <summary>A Button has no strike style: U+0336 after each character.</summary>
     static string Strike(string s) => string.Concat(s.Select(c => $"{c}̶"));
 

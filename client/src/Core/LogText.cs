@@ -46,7 +46,6 @@ public static class LogText
                 : $"closed the question: {string.Join(", ", a.Answers.Select(x => $"{n.Team(x.TeamId)} {Answer(x.Answer, n)}"))}",   // a sealed Ask's reveal
             DiceRerolled d => $"rerolled {d.Replaced.Count} dice",
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
-            ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
             RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => RoundChange(c, n)))}")}",
             ObjectiveControlSet { TeamId: { } team } o => $"gave {n.Marker(o.MarkerId)} to {n.Team(team)}",   // a menu edit; inside round_ended the same change reads "took"

@@ -55,5 +55,5 @@ public class GameTests
     }
 
     [Fact]
-    public void Version_check_constants() => Assert.Equal((2, 426), (ProtocolVersion.Current, ProtocolVersion.UpgradeRequiredStatusCode));
+    public void Version_check_constants() => Assert.Equal((3, 426), (ProtocolVersion.Current, ProtocolVersion.UpgradeRequiredStatusCode));
 }

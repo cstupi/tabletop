@@ -24,7 +24,6 @@ public static class LogLines
         AskClosed => "ask closed",
         DiceRerolled d => $"rerolled {d.Replaced.Count} dice",
         DiceEdited d => $"edited {d.Replaced.Count} dice",
-        ModifierAdded m => $"{m.Modifier.Source} gives {m.Modifier.Amount:+#;-#;0} to {m.Roll}",
         Undone u => $"undone to {u.ToSeq}",
         ModelsMoved m => $"{m.Moves.Count} model(s) moved",
         WoundsSet w => $"{Model(after, w.ModelId)} at {w.Wounds} wound(s)",

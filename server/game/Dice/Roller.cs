@@ -35,7 +35,4 @@ public static class RollOutcome
     public static int Successes(RollRecord r) => r.Dice.Count(d => d.Success);
     public static int Failures(RollRecord r) => r.Dice.Count(d => !d.Success);
     public static int CountRaw(RollRecord r, int face) => r.Dice.Count(d => d.Raw == face);
-    /// <summary>A player's reroll: the named dice (all when empty) drawn again under the record's own threshold and modifiers.</summary>
-    public static IReadOnlyList<DieReplacement> Reroll(RollPlan plan, RollRecord record, IReadOnlyList<int> indices, Roller roller) =>
-        (indices.Count == 0 ? Enumerable.Range(0, record.Dice.Count) : indices).Select(i => new DieReplacement(i, record.Dice[i], roller.Judge(plan, roller.Draw(plan)))).ToList();
 }
