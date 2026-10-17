@@ -28,7 +28,7 @@ describe('reimport', () => {
     const del = vi.spyOn(api.armies, 'delete');
     await expect(reimport({ id: 'old', source: 'x' }, 'round')).rejects.toBeInstanceOf(ApiError);
     expect(del).not.toHaveBeenCalled();
-    expect(importErrorMessage(new ApiError(502, 'Upstream failure', 'Army Forge answered 404'))).toMatch(/Army Forge did not answer/);
+    expect(importErrorMessage(new ApiError(502, 'Upstream failure', 'Army Forge answered 404'))).toBe('Army Forge answered 404 Check the link is a public share link and try again.');
     expect(importErrorMessage(new ApiError(422, 'Unprocessable', "Only Grimdark Future and Age of Fantasy lists import; this list is 'aofs'."))).toMatch(/Age of Fantasy/);
   });
 });

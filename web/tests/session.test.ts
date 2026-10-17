@@ -53,6 +53,19 @@ describe('session', () => {
     expect(session.token).toBe('live');
   });
 
+  it('marks a session that ended under the reader as expired, but not a logout', async () => {
+    vi.spyOn(api.auth, 'logout').mockResolvedValue(undefined);
+    session.accept({ sessionJwt: 'a', account: { id: 'acc', name: 'Clay' } });
+    await session.logout();
+    expect(session.expired).toBe(false);
+    session.accept({ sessionJwt: 'b', account: { id: 'acc', name: 'Clay' } });
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(401, 'Unauthorized'));
+    await session.refresh();
+    expect(session.expired).toBe(true);
+    session.accept({ sessionJwt: 'c', account: { id: 'acc', name: 'Clay' } });
+    expect(session.expired).toBe(false);
+  });
+
   it('overlapping refreshes make one request', async () => {
     session.accept({ sessionJwt: 'old', account: { id: 'acc', name: 'Clay' } });
     const refresh = vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'new', account: { id: 'acc', name: 'Clay' } });

@@ -13,6 +13,11 @@ import { weld } from './weld';
 export interface ConversionInput { kind: 'miniature' | 'terrain'; upAxis?: UpAxis; budget?: number; creaseAngle?: number; files: { name: string; bytes: ArrayBuffer }[] }
 export interface ConversionResult { glb: Uint8Array; trianglesBefore: number; trianglesAfter: number; bounds: Bounds; proposal: Proposal; supports: SupportReport; volume: Volume }
 export type Progress = { step: 'parse' | 'weld' | 'decimate' | 'normals' | 'export' | 'analyse' };
+/** The steps in the order `convert` reports them, with what each is doing in the reader's terms. */
+export const STEPS: { step: Progress['step']; label: string }[] = [
+  { step: 'parse', label: 'Reading the STL' }, { step: 'weld', label: 'Joining the parts' }, { step: 'decimate', label: 'Simplifying the mesh' },
+  { step: 'normals', label: 'Smoothing the shading' }, { step: 'export', label: 'Writing the GLB' }, { step: 'analyse', label: 'Measuring the model' },
+];
 
 export async function convert(input: ConversionInput, onProgress: (p: Progress) => void = () => {}): Promise<ConversionResult> {
   onProgress({ step: 'parse' });
