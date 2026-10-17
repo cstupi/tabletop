@@ -159,8 +159,7 @@ layout did not settle"; then remove `GameScreen.NoteLayout`); Undo on the strand
 reopen the activation choice); the decision box column, terrain lock, the 360 px side panel, log follow, the other
 player's cursor name. Open: whether "Undo to here" offers only action boundaries.
 
-**Housekeeping.** Merged agent worktrees under `.claude/worktrees/`, `.worktrees/spells` and the `combat-log` branch can
-all be removed (the owner runs it; see 4). Docker Desktop restarting takes every container down with exit 255;
+**Housekeeping.** Docker Desktop restarting takes every container down with exit 255;
 `docker compose up -d` brings them back.
 
 ### 0. Performance
@@ -344,9 +343,6 @@ woods and buildings stand upright with their bases flush on the table, and water
 
 ### 4. Smaller items
 
-- Cleanup the owner runs; the permission check refuses these from Claude: `git worktree remove .worktrees/spells`,
-  `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
-  (every `agent-*` there is merged), then `git branch -D combat-log` and the merged `worktree-agent-*` branches.
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Counter-Attack or Unwieldy on a unit with no melee weapon stays until next used.
 
