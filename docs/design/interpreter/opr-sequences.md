@@ -267,6 +267,9 @@ no impassable volume, no cap, no dangerous terrain test) and Strider (p.14 *"May
 moving"*: no cap). The same reading builds the move step's region, `ApplyMove`, `activation-terrain`'s skip, a rule's
 reposition, and a spell's forced move: the owner's ruling is *"Spells move as however that unit moves"*, so `take_test`'s
 `move` child opens `GfMoves.ForcedMoveRegion` and applies through `GfMoves.ApplyForcedMove`, both from the target's own rules.
+A target whose base already touches an impassable volume (only a hand move puts it there: p.7 *"never ... be placed in
+physically impossible locations"*; the book says nothing of moving out) is moved out of it: as `GfMoves.PathBreach` judges it,
+the volume it stands in does not block its path, and its landing is judged as any other.
 
 A granted Flying lasts the whole activation (owner ruling: *"Granted flying applies to the whole move - its per activation"*).
 It applies when `activation-terrain` skips a test for it or a move of the unit is applied, and from then it stays on the unit:

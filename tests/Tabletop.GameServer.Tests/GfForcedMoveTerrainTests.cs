@@ -145,6 +145,19 @@ public class GfForcedMoveTerrainTests
     }
 
     [Fact]
+    public void Under_strict_a_target_standing_in_a_wall_is_moved_out_of_it_but_not_left_in_it()
+    {
+        // p.7 "never ... be placed in physically impossible locations": only a hand move puts a model in a wall, and the book does not say how it
+        // leaves one. As for an action's move (PathBreach), the volume its base already touches does not block its path out; the landing is still judged.
+        var sim = Hypnotised([], out var target, targetX: 31);
+        var m = target.Models[0].Id;
+        Assert.Equal(RefusalReason.Illegal, Assert.IsType<Refused>(Move(sim, Shifted(sim, m, 0.2))).Reason);    // p.11, p.7: still in it
+        Assert.Equal(31, X(sim, m), 6);
+        Assert.IsType<Applied>(Move(sim, Shifted(sim, m, -5)));                                                 // out
+        Assert.Equal(26, X(sim, m), 6);
+    }
+
+    [Fact]
     public void A_target_granted_flying_flies_in_the_forced_move_and_keeps_the_grant_for_its_own_activation()
     {
         // Owner ruling: the forced move is not the target's activation, so its granted Flying is read for terrain but neither spent nor held.
