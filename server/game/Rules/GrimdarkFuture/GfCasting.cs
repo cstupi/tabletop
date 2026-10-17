@@ -284,7 +284,8 @@ public static class GfCasting
                 {
                     // "Roll as many dice as hits to see if "on rolls of 6" effects trigger": every die is a hit, so the roll cannot fail. It is
                     // no test, so p.5's natural 1 does not judge it: RequiredRaw 1 succeeds on every face.
-                    ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: 1, new HashSet<int>()), n);
+                    ctx.Roll(new Dice.RollPlan(GfNames.Hit, 1, [], ctx.Rules.RollSpec(GfNames.Hit).Convention, RequiredRaw: 1, new HashSet<int>()), n,
+                        d => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit));
                     rolled = true;
                 }
                 // Blast's cap is "as many hits as models in the target unit"; a model target is a unit of one.

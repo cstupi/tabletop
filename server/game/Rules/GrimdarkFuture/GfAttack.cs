@@ -486,7 +486,7 @@ public static partial class GfAttack
                 IReadOnlyList<string>? Triggers(Die d) => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit);
                 var added = ctx.Roll(plan, attacks, Triggers).Dice.Sum(d => AddedAttacks(live, d));
                 // "This rule doesn't apply to newly generated attacks": the added dice add no attacks of their own.
-                if (added > 0) ctx.Roll(plan, added, Triggers);
+                if (added > 0) ctx.Roll(plan, added, d => RollEffects.Triggers(live, Side.Attacker, d, GfNames.Hit, attacks: false));
             }
             return new Complete(GfDeferred.Leave(Consumed(live), ix, l => RollEffects.ReadPerDie(l, Side.Attacker, GfNames.Hit)), values);
         }
@@ -579,14 +579,14 @@ public static partial class GfAttack
                 var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
                 var group = count * multiplier; plain -= group;
                 var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover);
-                var record = ctx.Roll(plan, group);
+                var record = ctx.Roll(plan, group, d => RollEffects.Triggers(granted, Side.Defender, d, GfNames.DefenseRoll));
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(granted, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
             if (plain > 0)
             {
                 var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels, cover);
-                var record = ctx.Roll(plan, plain);
+                var record = ctx.Roll(plan, plain, d => RollEffects.Triggers(live, Side.Defender, d, GfNames.DefenseRoll));
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }

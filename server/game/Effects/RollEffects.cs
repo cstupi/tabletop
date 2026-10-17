@@ -68,9 +68,10 @@ public static class RollEffects
     /// <summary>
     /// What one die set off, for the log (combat-log spec → Die.Triggered): each roll-result add_hit row as `Rule +N hit(s)` (or attack(s),
     /// or wound(s), which act on any die), and each roll-result grant_property row as the granting rule's name. Pure: it records and spends
-    /// nothing, since score-hits is where the face's decision is read. Null when the die set off nothing.
+    /// nothing, since score-hits is where the face's decision is read. Null when the die set off nothing. `attacks` false leaves out the
+    /// extra-attacks rows, for dice those rows added (they apply to no newly generated attack).
     /// </summary>
-    public static IReadOnlyList<string>? Triggers(LiveSet live, Side roller, Die die, string roll)
+    public static IReadOnlyList<string>? Triggers(LiveSet live, Side roller, Die die, string roll, bool attacks = true)
     {
         var ctx = new DieContext(roll, die.Raw, die.Modified, die.Success);
         static bool PerDie(Effect e) => e.Conditions.Any(c => c.Kind == ConditionKind.RollResult);
@@ -78,6 +79,7 @@ public static class RollEffects
         foreach (var (src, e) in live.Effects(roller, EffectKind.AddHit, ctx).Where(x => PerDie(x.Effect)))
         {
             if (e.TargetQuantity != TargetQuantity.Wounds && !die.Success) continue;
+            if (!attacks && e.TargetQuantity == TargetQuantity.Attacks) continue;
             var n = e.EffectiveAmount(src.Parameter);
             var what = (e.TargetQuantity ?? TargetQuantity.Hits).ToString().ToLowerInvariant();   // the quantity's own name: hits, attacks, wounds
             named.Add($"{src.Entry.Name} +{n} {(n == 1 ? what.TrimEnd('s') : what)}");
