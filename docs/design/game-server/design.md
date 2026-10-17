@@ -467,7 +467,8 @@ shelf to the table is legal when its unit is one the actor's team picked at the 
 that one closed: that is the placement the scheduler waits for. A relocation from the shelf inside a container is legal when
 `IGameRules.MayDeployInside(state, unit, container, deploying)` allows it, `deploying` being those picked units (Grimdark Future,
 p.15: *"units inside Transports are deployed at the same time as the Transport"*: a Transport of the picked unit, on the table
-or still on the shelf, of the actor's team, the boarding unit having no model in play elsewhere; a Transport deployed at an
+or still on the shelf, of the actor's team, the boarding unit never deployed (no model ever placed on the table or removed to the shelf) and set aside exactly when the
+Transport is, after which it counts as deployed and its set-aside clears with the Transport's; a Transport deployed at an
 earlier pick takes no one). Anything else is the breach `hand_move`, `StrictRefuses(Illegal)`, detail "{unit} deployed inside a
 container the rules do not allow" for a disallowed container and "{unit} moved by hand outside a move step" otherwise:
 `silent` accepts, `warn` accepts with the warning on the event, `strict` refuses. `HandMoves.Judge` also asks `IGameRules.PlacementBreach` (default none; `WithSequences` forwards it; Grimdark Future: `GfMoves.OverlapBreach`): a legal placement that overlaps another base is `move_overlap`, and the overlap detail is appended to a `hand_move` breach. The other override commands never reach the policy, by a `switch` arm rather

@@ -171,6 +171,50 @@ public class HandMovesTests
     }
 
     [Fact]
+    public void A_reserved_Ambusher_may_not_ride_a_Transport_into_the_ordinary_deployment()
+    {
+        var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, unitRules: [(3, Ambush, null)], modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));
+        var a = h.Units(0);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[2]), SetAside, true));
+        h.Answer(0, new SelectedPieces([a[1]]));
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        Assert.NotNull(HandMoves.Judge(h.State, Embark(h, a[2], transport), TeamOf(h, 0)));
+        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void A_unit_that_was_on_the_table_may_not_board_from_the_shelf()
+    {
+        var h = AtDeployment(Enforcement.Warn, TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
+        h.Dispatch(new MoveModels(h.P.Units[a[0]].Definition.Models.Select(m => new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new OnShelf())).ToList()), team: 0);   // removed, as casualties are
+        h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
+        h.Answer(0, new SelectedPieces([a[1]]));
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        Assert.All(h.P.Units[a[0]].Definition.Models, m => Assert.IsType<OnShelf>(h.P.Models[m.Id].Location));
+        Assert.NotNull(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[2], transport), TeamOf(h, 0)));
+    }
+
+    [Fact]
+    public void A_set_aside_unit_rides_a_Scout_Transport_and_both_stop_being_set_aside()
+    {
+        var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, unitRules: [(2, Scout, null)], modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 1, 1));
+        var a = h.Units(0);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true)); h.Dispatch(new SetCondition(TestGames.UnitSubject(a[2]), SetAside, true));
+        h.Answer(0, new SelectedPieces([a[0]])); h.Deploy(a[0]);
+        h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
+        Assert.Equal(AskQuestions.DeployScouts, h.Open.Question);
+        h.Answer(0, new SelectedPieces([a[1]]));
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        h.Dispatch(new MoveModels([.. Embark(h, a[2], transport).Moves, .. TestGames.Relocations(h.State, a[1])]), team: 0);
+        Assert.Equal(1, h.P.Scheduler.Round);
+        Assert.DoesNotContain(SetAside, h.P.Units[a[1]].Conditions);
+        Assert.DoesNotContain(SetAside, h.P.Units[a[2]].Conditions);
+    }
+
+    [Fact]
     public void A_unit_may_board_the_picked_Transport_before_the_Transport_is_placed()
     {
         var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));

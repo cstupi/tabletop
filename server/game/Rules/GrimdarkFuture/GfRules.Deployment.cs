@@ -43,8 +43,8 @@ public sealed partial class GrimdarkFutureRules
             if (answer is SelectedPieces { PieceIds: [var unit] } && state.Projection.Units.TryGetValue(unit, out var u))
             {
                 if (TeamUnits.ModelsOf(state, u).Any(m => m.Location is OnShelf)) return new HookWaiting();      // models still coming off the shelf
-                if (u.Conditions.Contains(SetAside))                                                             // arrived: no longer set aside, so casualties on the shelf are never offered again
-                    return new HookEmit([new ConditionSet(new Subject(SubjectKind.Unit, u.Id), SetAside, false)]);
+                if (GfHooks.ArrivedFromSetAside(state, u.Id) is { Count: > 0 } arrived)                          // arrived, with any unit inside: no longer set aside, so casualties on the shelf are never offered again
+                    return new HookEmit(arrived.Cast<EventPayload>().ToList());
             }
             if (answer is not SelectedPieces) passed.Add(a.Ask.Teams[0]);
         }

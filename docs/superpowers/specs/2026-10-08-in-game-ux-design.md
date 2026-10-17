@@ -251,7 +251,8 @@ policy, as it does for answers:
   the sim's `HandPlacement`. Also legal while that pick is live: a model of any unit from the shelf inside a container
   the rules allow (`IGameRules.MayDeployInside(state, unit, container, deploying)`; Grimdark Future, p.15: *"units
   inside Transports are deployed at the same time as the Transport"*, so the container is a Transport of the picked
-  unit, on the table or still on the shelf, of the actor's team, and the boarding unit has no model in play elsewhere).
+  unit, on the table or still on the shelf, of the actor's team, the boarding unit never deployed (no model ever placed on the table or removed to the shelf) and set aside exactly
+  when the Transport is; it then counts as deployed, and its set-aside clears with the Transport's).
   A Transport deployed at an earlier pick takes no one.
 - Otherwise a breach, rule `hand_move`, `StrictRefuses(Illegal)`: detail `"{unit} deployed inside a container the
   rules do not allow"` for a disallowed container, `"{unit} moved by hand outside a move step"` for anything else.

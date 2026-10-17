@@ -35,9 +35,16 @@ public static class GfHooks
             && (act.Action == Scheduler.ActivationOption.Idle || (act.Action == GfNames.Advance && Lookup.UnitHas(state, props, act.UnitId, GfNames.Aircraft))))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, act.UnitId), GfNames.Shaken, false));
         // p.14 Scout: "May be set aside before deployment. After all other units are deployed, may be deployed ..." — once deployed it is no longer set aside.
-        if (turn.Activation is { Action: GfNames.Deploy } deployed && state.Projection.Units[deployed.UnitId].Conditions.Contains(GfNames.SetAside))
-            changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, deployed.UnitId), GfNames.SetAside, false));
+        if (turn.Activation is { Action: GfNames.Deploy } deployed) changes.AddRange(ArrivedFromSetAside(state, deployed.UnitId));
         return changes;
+    }
+
+    /// <summary>The set-aside conditions a deployed unit clears: its own, and (p.15: "units inside Transports are deployed at the same time as the Transport") those of the units inside its models.</summary>
+    public static IReadOnlyList<StateChange> ArrivedFromSetAside(GameState state, Guid unitId)
+    {
+        var units = new[] { unitId }.Concat(state.Projection.Units[unitId].Definition.Models.SelectMany(m => Lookup.OccupantUnits(state, m.Id))).Distinct();
+        return units.Where(u => state.Projection.Units[u].Conditions.Contains(GfNames.SetAside))
+            .Select(u => (StateChange)new ConditionSet(new Subject(SubjectKind.Unit, u), GfNames.SetAside, false)).ToList();
     }
 
     /// <summary>p.10: at the end of an activation, a unit that took wounds leaving it at half or less tests; units that fought this melee compared wounds instead. The actor bounds "this activation".</summary>
