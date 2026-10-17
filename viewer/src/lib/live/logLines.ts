@@ -61,7 +61,8 @@ export function lineOf(event: GameEvent, after: Projection, ordinals: ReadonlyMa
     case 'sequence_abandoned': return 'sequence abandoned';
     case 'ask_opened': return `Asked ${e.ask.teams.map((t) => team(ordinals, t)).join(', ')}: ${e.ask.prompt}`;
     case 'ask_answered':
-      return `${team(ordinals, e.teamId)} answered ${answerOf(e.answer)}${e.outsideLegalSet ? ' (outside the legal set)' : ''}`;
+      return `${team(ordinals, e.teamId)} answered ${answerOf(e.answer)}${
+        e.breach !== undefined ? ` (breaks ${e.breach})` : e.outsideLegalSet ? ' (outside the legal set)' : ''}`;
     case 'ask_closed': return 'ask closed';
     case 'dice_rerolled': return `rerolled ${e.replaced.length} dice`;
     case 'dice_edited': return `edited ${e.replaced.length} dice`;
