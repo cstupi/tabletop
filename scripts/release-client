@@ -135,8 +135,10 @@ owner=$(stat -c %u:%g "$root")
 builder_image() { need docker; run docker build -q -t "$image" "$root/scripts/client-build"; }
 
 owned_dir() {   # <dir>: exists and belongs to the clone's owner, who the containers run as
+  [[ -L "$1" ]] && die "$1 is a symlink; refusing to take ownership of its target"
   run mkdir -p "$1"
-  if [[ $EUID == 0 ]]; then run chown "$owner" "$1"; fi
+  [[ -L "$1" ]] && die "$1 is a symlink; refusing to take ownership of its target"
+  if [[ $EUID == 0 ]]; then run chown -h "$owner" "$1"; fi
 }
 
 container_build() {   # <step: export|package|build> <version> <out>

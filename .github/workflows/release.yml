@@ -1,4 +1,4 @@
-# A pushed vX.Y.Z tag: build, test, then export the client for Windows, Linux and macOS and publish it to the blob store
+# Run by hand (Actions → release → Run workflow, on a vX.Y.Z tag): build, test, then export the client for Windows, Linux and macOS and publish it to the blob store
 # under releases/ (spec docs/superpowers/specs/2026-10-17-client-releases-design.md). The client steps are
 # scripts/release-client, the same script scripts/release runs on the server host.
 #
@@ -7,9 +7,9 @@
 # RELEASE_S3_REGION (optional; R2 takes auto).
 name: release
 
+# Releases are cut on the home server with scripts/release --deploy home; this workflow is the optional CI path.
 on:
-  push:
-    tags: ['v*.*.*']
+  workflow_dispatch:
 
 permissions:
   contents: read
