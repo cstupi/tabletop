@@ -1,4 +1,5 @@
 using Tabletop.Management.Configuration;
+using Tabletop.Management.Http;
 
 namespace Tabletop.Management.Identity;
 
@@ -13,12 +14,14 @@ public static class AuthEndpoints
     public static void MapAuth(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/v1/auth");
-        g.MapPost("/otp", Guard(async (EmailRequest r, StytchClient s) => Results.Ok(new OtpSentResponse((await s.SendEmailOtp(r.Email)).MethodId))));
-        g.MapPost("/otp/verify", Guard(async (OtpVerifyRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.AuthenticateOtp(r.MethodId, r.Code)))));
-        g.MapPost("/password", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.AuthenticatePassword(r.Email, r.Password)))));
-        g.MapPost("/password/signup", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Created("/v1/account", await x.Complete(await s.CreatePassword(r.Email, r.Password)))));
-        g.MapPost("/password/reset", Guard(async (EmailRequest r, StytchClient s, ManagementOptions o) => { await s.StartPasswordReset(r.Email, $"{o.WebUrl.TrimEnd('/')}/reset-password"); return Results.Accepted(); }));
-        g.MapPost("/password/reset/complete", Guard(async (ResetCompleteRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.CompletePasswordReset(r.Token, r.Password)))));
+        // The credential endpoints: a per-IP budget (RateLimiting.AuthPolicy) and, where the body names an email, a per-email one.
+        var creds = g.MapGroup("").RequireRateLimiting(RateLimiting.AuthPolicy).AddEndpointFilter(PerEmail);
+        creds.MapPost("/otp", Guard(async (EmailRequest r, StytchClient s) => Results.Ok(new OtpSentResponse((await s.SendEmailOtp(r.Email)).MethodId))));
+        creds.MapPost("/otp/verify", Guard(async (OtpVerifyRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.AuthenticateOtp(r.MethodId, r.Code)))));
+        creds.MapPost("/password", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.AuthenticatePassword(r.Email, r.Password)))));
+        creds.MapPost("/password/signup", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Created("/v1/account", await x.Complete(await s.CreatePassword(r.Email, r.Password)))));
+        creds.MapPost("/password/reset", Guard(async (EmailRequest r, StytchClient s, ManagementOptions o) => { await s.StartPasswordReset(r.Email, $"{o.WebUrl.TrimEnd('/')}/reset-password"); return Results.Accepted(); }));
+        creds.MapPost("/password/reset/complete", Guard(async (ResetCompleteRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.CompletePasswordReset(r.Token, r.Password)))));
         g.MapPost("/session/refresh", Guard(async (RefreshRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.RefreshSession(r.SessionJwt)))));
         g.MapDelete("/session", async (HttpContext ctx, StytchClient s) =>
         {
@@ -28,6 +31,14 @@ public static class AuthEndpoints
             try { await s.RevokeSession(jwt); } catch (StytchException) { }
             return Results.NoContent();
         }).RequireAuthorization();
+    }
+
+    private static async ValueTask<object?> PerEmail(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
+    {
+        var email = ctx.Arguments.Select(a => a switch { EmailRequest e => e.Email, PasswordRequest p => p.Email, _ => null }).FirstOrDefault(e => e is not null);
+        if (email is not null && !ctx.HttpContext.RequestServices.GetRequiredService<EmailThrottle>().TryAcquire(email))
+            return Problems.TooManyRequests("Too many attempts. Wait a minute and try again.");
+        return await next(ctx);
     }
 
     private static Delegate Guard<T1, T2>(Func<T1, T2, Task<IResult>> h) => async (T1 a, T2 b, HttpContext ctx) => { try { return await h(a, b); } catch (StytchException e) { return Refused(ctx, e); } };

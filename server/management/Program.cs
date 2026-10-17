@@ -3,6 +3,7 @@ using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Content.Layouts;
 using Tabletop.Management.Games;
+using Tabletop.Management.Http;
 using Tabletop.Management.Identity;
 
 DotEnv.Load();
@@ -25,6 +26,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.AddProblemDetails();
 builder.Services.AddCors();
 builder.Services.AddStytchJwt();
+builder.Services.AddProxyAndRateLimits();
 builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
 builder.Services.AddSingleton<AccountDeleter>();
 builder.Services.AddHttpClient(StytchClient.HttpClientName);
@@ -47,6 +49,7 @@ var app = builder.Build();
 // missing required configuration fails startup instead of being silently deferred to first use.
 var options = app.Services.GetRequiredService<ManagementOptions>();
 app.Services.GetRequiredService<Tabletop.Management.Persistence.IMigrator>().Run();
+app.UseForwardedHeaders();       // first: everything after sees the client's address, from a trusted proxy only
 app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
     statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error switch
     {
@@ -63,6 +66,7 @@ app.UseCors(p => p
 app.UseMiddleware<Tabletop.Management.Http.ClientVersionMiddleware>();
 app.UseMiddleware<Tabletop.Management.Http.BodySizeLimit>();
 app.UseAuthentication();
+app.UseRateLimiter();            // after authentication: the per-account budget reads the account claim
 app.UseAuthorization();
 app.MapAccount();
 app.MapAuth();
