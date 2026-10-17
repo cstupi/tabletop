@@ -170,6 +170,30 @@ the defaults when `home.env` leaves `RELEASE_S3_ENDPOINT`, `RELEASE_S3_NETWORK` 
 workflow uploads through the FILES host instead: secret `RELEASE_S3_ENDPOINT` is `https://files.tabletop.cstupi.com`,
 `RELEASE_S3_ACCESS_KEY`/`SECRET_KEY` the publisher from `home.env`.
 
+**Logs.** Every container logs to the host's journal (`driver: journald`, `tag: "{{.Name}}"`), so a redeploy, which
+recreates the containers, keeps their history. Each entry carries `CONTAINER_NAME` and `SYSLOG_IDENTIFIER` set to the
+container name:
+
+```bash
+journalctl CONTAINER_NAME=tabletop-management --since "1 hour ago"    # or --since "2026-10-17 18:00", --until …
+journalctl CONTAINER_NAME=tabletop-game -f                             # follow
+journalctl -t tabletop-game -t tabletop-management --since today       # several, by SYSLOG_IDENTIFIER
+docker logs --since 1h -f tabletop-management                          # the current container only (Docker's dual-logging cache)
+```
+
+The journal's size and age are the host's settings. Once per host, as root:
+
+```bash
+mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nStorage=persistent\nSystemMaxUse=2G\nMaxRetentionSec=30day\n' > /etc/systemd/journald.conf.d/size.conf
+systemctl restart systemd-journald
+journalctl --disk-usage            # the journal's files and their total size
+```
+
+A persistent journal lives in `/var/log/journal`. Without that directory the default `Storage=auto` keeps the journal in
+`/run/log/journal`, which a reboot clears; `ls /var/log/journal` shows which one the host has, and `Storage=persistent`
+creates the directory on the restart.
+
 **DNS.** management, game and the client build container use `TABLETOP_DNS_1`/`TABLETOP_DNS_2` (default 1.1.1.1,
 9.9.9.9) as upstream resolvers, whatever the host's resolver config.
 

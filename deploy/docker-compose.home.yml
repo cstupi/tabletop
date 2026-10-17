@@ -10,9 +10,11 @@ x-hardened: &hardened
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
   restart: unless-stopped
+  # journald keeps logs across container recreation (a json-file log goes with its container); the host's journald.conf
+  # caps it (deploy/README.md, Home server → Logs). docker logs still reads it through Docker's dual logging.
   logging:
-    driver: json-file
-    options: { max-size: 10m, max-file: "5" }
+    driver: journald
+    options: { tag: "{{.Name}}" }
 
 x-pg-image: &pg-image postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
 x-minio-image: &minio-image pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372

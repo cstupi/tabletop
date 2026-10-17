@@ -11,10 +11,17 @@ through short-lived presigned links from management; a release is cut by pushing
 - The client carries it from the build: `TabletopVersion` (MSBuild property or environment variable) becomes the
   assembly's `Version` and the `TabletopVersion` assembly metadata. `BuildInfo.Current.Version` reads it; a build
   without it is `dev`. The client shows it in the window title, under the login form and on the update-required screen.
+  A development build (no `TabletopWebUrl`) titles its window `Tabletop (dev)` and shows `Development build` under the
+  login form in warning colour; a release build shows `Tabletop <version>` and `Version <version>`.
 - The release build also carries `TabletopWebUrl`, the web app's public origin (`TABLETOP_WEB_URL`). The client's
   default settings derive from it: management at that origin, the game socket at `wss://<host>/ws` (the reverse proxy
-  fronts `/v1` and `/ws` on the web origin), the Download page at `<origin>/download`. A build without it keeps the
-  development defaults (`127.0.0.1`).
+  fronts `/v1` and `/ws` on the web origin), the Download page at `<origin>/download`. A release build always uses these
+  addresses: it ignores server addresses in `settings.json` and never writes them. A build without `TabletopWebUrl` keeps
+  the development defaults (`127.0.0.1`), which `settings.json` may override.
+- A release build keeps its files in Godot's user dir (`app_userdata/Tabletop`), a development build in the sibling
+  `app_userdata/Tabletop-dev` (`UserData`), so neither reads the other's settings or sends the other's session JWT. A release
+  build that finds server addresses in `settings.json` (written by a development build or an earlier release) clears
+  `session.bin` and rewrites the settings without them.
 - The release version and `ProtocolVersion.Current` are independent. `ProtocolVersion.Current` is the wire contract's
   integer; many releases share one. Each manifest records the `protocolVersion` its build sends.
 - Raising `TABLETOP_MIN_CLIENT_VERSION` is an operator step taken after a release whose `protocolVersion` meets the new

@@ -42,4 +42,21 @@ public class BuildInfoTests
 
     [Fact]
     public void The_test_assembly_carries_no_release_metadata() => Assert.Equal("dev", BuildInfo.Current.Version);
+
+    [Fact]
+    public void A_dev_build_names_itself_dev_in_the_title_and_on_login()
+    {
+        var info = BuildInfo.From(Meta(("TabletopVersion", "1.2.0")));
+        Assert.False(info.IsRelease);
+        Assert.Equal(("Tabletop (dev)", "Development build"), (info.WindowTitle, info.LoginFooter));
+        Assert.Equal("Tabletop (dev)", BuildInfo.From(Meta()).WindowTitle);
+    }
+
+    [Fact]
+    public void A_release_build_shows_its_version()
+    {
+        var info = BuildInfo.From(Meta(("TabletopVersion", "1.2.0"), ("TabletopWebUrl", "https://tabletop.example.org")));
+        Assert.True(info.IsRelease);
+        Assert.Equal(("Tabletop 1.2.0", "Version 1.2.0"), (info.WindowTitle, info.LoginFooter));
+    }
 }
