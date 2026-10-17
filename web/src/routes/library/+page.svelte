@@ -58,7 +58,7 @@
     {:else}
       <ul class="grid">
         {#each shown as a (a.id)}
-          <li><a href="/library/{a.id}"><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase} · {baseLabel(a.modelledBase)}{/if}{#if !a.uploaded} · upload incomplete{/if}</small></a></li>
+          <li><a href="/library/{a.id}"><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></a></li>
         {/each}
       </ul>
     {/if}

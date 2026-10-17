@@ -66,6 +66,17 @@ describe('session', () => {
     expect(session.expired).toBe(false);
   });
 
+  it('a 4xx refusal other than 429 signs out; a 429 does not', async () => {
+    session.accept({ sessionJwt: 'x', account: { id: 'acc', name: 'Clay' } });
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(429, 'Too many requests'));
+    expect(await session.refresh()).toBe(false);
+    expect(session.token).toBe('x');
+    vi.spyOn(api.auth, 'refresh').mockRejectedValue(new ApiError(422, 'Unprocessable'));
+    expect(await session.refresh()).toBe(false);
+    expect(session.token).toBeNull();
+    expect(session.expired).toBe(true);
+  });
+
   it('overlapping refreshes make one request', async () => {
     session.accept({ sessionJwt: 'old', account: { id: 'acc', name: 'Clay' } });
     const refresh = vi.spyOn(api.auth, 'refresh').mockResolvedValue({ sessionJwt: 'new', account: { id: 'acc', name: 'Clay' } });

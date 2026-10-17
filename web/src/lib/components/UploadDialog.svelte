@@ -178,7 +178,7 @@
       </form>
     </div>
   {:else if stage === 'done' && outcome}
-    <p role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if outcome.deduplicated} (these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
+    <p role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
     {#if outcome.warning}<p role="alert">{outcome.warning}</p>{/if}
     <div class="actions"><button onclick={reset}>Add another</button><a href="/library/{outcome.asset.id}" onclick={close}>Open it</a><button onclick={close}>Done</button></div>
   {/if}
