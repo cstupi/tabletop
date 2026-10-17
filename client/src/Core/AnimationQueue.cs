@@ -15,4 +15,12 @@ public sealed class AnimationQueue
         if (!animate) { var all = _pending.ToList(); _pending.Clear(); return all; }
         return _pending.Count == 0 ? [] : [_pending.Dequeue()];
     }
+
+    /// <summary>Every model an event relocates, in order: a ModelsMoved's moves, or each ModelsMoved among a step's changes. The table glides them together.</summary>
+    public static IReadOnlyList<ModelRelocation> Relocations(GameEvent e) => e.Payload switch
+    {
+        ModelsMoved m => m.Moves,
+        StepCompleted s => [.. s.Changes.OfType<ModelsMoved>().SelectMany(m => m.Moves)],
+        _ => [],
+    };
 }

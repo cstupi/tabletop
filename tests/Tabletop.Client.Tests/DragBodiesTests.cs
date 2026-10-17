@@ -94,4 +94,17 @@ public class DragBodiesTests
         Assert.Equal(new Point3(5, 0, 0), ends[x]);
         Assert.True(ends[y].X < 4 - 1.25);                                               // y alone meets the model at (4, 10)
     }
+
+    [Fact]
+    public void A_re_grabbed_proposed_model_starts_where_its_ghost_is_drawn_not_where_the_projection_has_it()
+    {
+        Guid proposed = Guid.CreateVersion7(), undrawn = Guid.CreateVersion7(), other = Guid.CreateVersion7();
+        var projected = new Placement(new Point3(0, 0, 0), new Yaw(0));
+        var ghost = new Placement(new Point3(5, 3, 0), new Yaw(45));
+        var grabs = DragBodies.Grabs([proposed, undrawn, other], new HashSet<Guid> { proposed, undrawn },
+            id => id == undrawn ? null : ghost, _ => projected);
+        Assert.Equal(ghost, grabs[proposed]);
+        Assert.Equal(projected, grabs[undrawn]);
+        Assert.Equal(projected, grabs[other]);                                          // a hand move starts from the projection
+    }
 }

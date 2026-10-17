@@ -29,7 +29,7 @@ public partial class DecisionBox : PanelContainer
     readonly HashSet<Guid> _glow = new();
     // Session and the input outlive the box: every subscription is a field and comes off in _ExitTree.
     Action<IReadOnlyList<GameEvent>>? _onEvents; Action<RenderCause>? _onFrame; Action<Refused>? _onRefused;
-    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked;
+    Action<Guid>? _onTargetClicked; Action<Guid, bool>? _onModelClicked; Action<Guid, Point3>? _onDragged; Action<Guid>? _onUnitClicked; Action<IReadOnlyList<Guid>>? _onPickedUp;
 
     /// <summary>PickPieces, Assign and Allocate: DecisionBox.Picks.cs (Task 16b).</summary>
     partial void RenderPicks(AskView mine, Projection p, Names names);
@@ -53,9 +53,9 @@ public partial class DecisionBox : PanelContainer
             Reset(); _renderedAsk = null; Render();
         };
         _onTargetClicked = id => _onTarget?.Invoke(id); _onModelClicked = (id, right) => _onModel?.Invoke(id, right); _onDragged = OnDragged;
-        _onUnitClicked = id => _onUnit?.Invoke(id);
+        _onUnitClicked = id => _onUnit?.Invoke(id); _onPickedUp = ShowRegions;
         s.EventsApplied += _onEvents; s.Frame.Render += _onFrame; s.RefusedReceived += _onRefused;
-        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked;
+        input.TargetClicked += _onTargetClicked; input.ModelClicked += _onModelClicked; input.ModelDragged += _onDragged; input.UnitClicked += _onUnitClicked; input.PickedUp += _onPickedUp;
         Render();
     }
 
@@ -63,7 +63,7 @@ public partial class DecisionBox : PanelContainer
     {
         if (_s is null) return;
         _s.EventsApplied -= _onEvents; _s.Frame.Render -= _onFrame; _s.RefusedReceived -= _onRefused;
-        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; }
+        if (IsInstanceValid(_input)) { _input.TargetClicked -= _onTargetClicked; _input.ModelClicked -= _onModelClicked; _input.ModelDragged -= _onDragged; _input.UnitClicked -= _onUnitClicked; _input.PickedUp -= _onPickedUp; }
         Unhook();
         if (_region is not null && IsInstanceValid(_region)) _region.QueueFree();
     }
@@ -289,10 +289,10 @@ public partial class DecisionBox : PanelContainer
     void Unhook()
     {
         _onEnter = null; _onStop = null; _onCancel = null; _onNumber = null; _onTarget = null; _onModel = null; _onUnit = null; _glow.Clear();
-        _proposed = null; _deployAt = null; _deployUnit = null; _regate = null; _gate = new(true, null);
+        _proposed = null; _deployAt = null; _deployUnit = null; _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
-        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Minimum = null; _input.Region = null; _input.Eligible = new HashSet<Guid>(); }
+        if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Minimum = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
         if (_view is not null && IsInstanceValid(_view)) _view.ClearExitGhosts();
     }

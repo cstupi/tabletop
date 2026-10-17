@@ -17,6 +17,11 @@ public static class DragBodies
             .Where(x => x.At is not null)
             .Select(x => new PlacedModel(new ModelBody(x.m.Slot.Base, x.m.Slot.Height), x.At!.Value)).ToList();
 
+    /// <summary>Where each picked-up piece starts: a proposed model (a move step's or a placement's ghost) where it is drawn and facing the way it
+    /// was turned, so picking it up again does not put it back; anything else, or a ghost with no node, where the projection has it.</summary>
+    public static Dictionary<Guid, Placement> Grabs(IReadOnlyList<Guid> models, IReadOnlySet<Guid> proposing, Func<Guid, Placement?> drawn, Func<Guid, Placement> projected) =>
+        models.ToDictionary(m => m, m => proposing.Contains(m) && drawn(m) is { } ghost ? ghost : projected(m));
+
     /// <summary>What a body slides along: inside a move Ask the volumes it lists as impassable, otherwise every volume declared Impassable. Collision keeps the Solid ones.</summary>
     public static IReadOnlyList<WorldVolume> Walls(IReadOnlyList<WorldVolume> volumes, MoveRegion? region) => region is not null
         ? volumes.Where(v => region.ImpassableVolumeIds.Contains(v.Id)).ToList()

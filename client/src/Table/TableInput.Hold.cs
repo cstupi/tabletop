@@ -49,7 +49,7 @@ public partial class TableInput
 
     /// <summary>
     /// The held pieces toward these points, each facing its own yaw, and a ruler on each. Inside a move step each model's target is
-    /// held to the allowance from its origin (MoveRuler.Clamp). Held models slide along walls and other models and rest on the Solid
+    /// held to its reach from its origin: the allowance, and the difficult cap on a line through difficult terrain (MoveRegions.Clamp). Held models slide along walls and other models and rest on the Solid
     /// tops under them (DragBodies.Models); a setup terrain piece slides and rests the same way (DragBodies.Piece); a marker rests
     /// on the Solid under its point. Alt places freely, past the allowance too; the drop still rests. Inside a move step a model past
     /// the allowance, or short of a minimum the Ask set, turns red (spec → Formations: "a model beyond its move distance shows red").
@@ -59,8 +59,7 @@ public partial class TableInput
         var drag = _drag!;
         var free = Input.IsKeyPressed(Key.Alt);                                          // Alt places freely, for corrections; the drop still rests
         var p = _session.Projection;
-        Point2 To(Guid id) => !free && Allowance is { } a && Proposing.Contains(id)
-            ? MoveRuler.Clamp(drag.Origins[id].Horizontal, targets[id].Horizontal, a) : targets[id].Horizontal;
+        Point2 To(Guid id) => !free && Reach is { } reach && Proposing.Contains(id) ? reach.Clamp(id, targets[id].Horizontal) : targets[id].Horizontal;
         var ends = p is not null && drag.ModelIds.All(p.Models.ContainsKey)
             ? DragBodies.Models(drag.ModelIds.Select(id => new HeldBody(id, new PlacedModel(new ModelBody(p.Models[id].Slot.Base, p.Models[id].Slot.Height),
                 new Placement(drag.Current[id], drag.Yaws[id])), To(id))).ToList(), _stationary, _view.Volumes, Region, free)

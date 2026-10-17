@@ -22,12 +22,22 @@ public static class MoveRuler
         return new RulerReadout(d, allowance is { } a ? Math.Max(0, a - d) : null, allowance is { } b && d > b + 1e-6, minimum is { } m && d < m - 1e-6);
     }
 
-    /// <summary>Where a drag may put a model: the target pulled back along the line from the model's origin to the allowance (p.7: no
-    /// part of the base moves further than the total movement distance).</summary>
-    public static Point2 Clamp(Point2 origin, Point2 target, double allowance)
+    /// <summary>How far a straight move may go along each of Movement.Rays rays: the Ask's allowance (p.7), and its difficult cap on a ray that
+    /// touches one of its difficult volumes (p.11). Walls, other models and the table edge are left out: the drag slides along those itself.</summary>
+    public static IReadOnlyList<Point2> Reach(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes) =>
+        Movement.Region(start, Math.Max(0, legal.Allowance), [], volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList(), legal.DifficultCap, null).Boundary;
+
+    /// <summary>Where a drag may put a model: the target pulled back along the line from the model's origin to the reach (Reach). Between two
+    /// rays the nearer of their two ends holds, so a cap never leaks past the ray beside it.</summary>
+    public static Point2 Clamp(Point2 origin, IReadOnlyList<Point2> reach, Point2 target)
     {
         var d = origin.DistanceTo(target);
-        return d <= allowance ? target : origin + (target - origin) * (allowance / d);
+        if (reach.Count == 0 || d < 1e-9) return target;
+        var angle = Math.Atan2(target.Y - origin.Y, target.X - origin.X);
+        var at = (angle < 0 ? angle + 2 * Math.PI : angle) / (2 * Math.PI) * reach.Count;
+        var i = (int)Math.Floor(at) % reach.Count;
+        var r = Math.Min(origin.DistanceTo(reach[i]), origin.DistanceTo(reach[(i + 1) % reach.Count]));
+        return d <= r + 1e-9 ? target : origin + (target - origin) * (r / d);
     }
 
     /// <summary>The commit against every held model's readout: any out of range is named, and under strict disables it; under warn and
