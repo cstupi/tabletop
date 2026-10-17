@@ -66,6 +66,23 @@ public class Batch7CastingTests
     }
 
     [Fact]
+    public void A_forged_cast_from_id_casts_from_the_caster_with_no_bonus()
+    {
+        var wizard = InBook(Unit("W", "4+", "4+", [], 1, [P("Caster", 3)]), "4k5amkxoybdiqotm");
+        var conduit = Unit("C", "4+", "4+", [], 1, [P("Spell Conduit")]);
+        var sim = new Sim(State([wizard, conduit], [Unit("E", "4+", "4+", [], 1, [])]), GrimdarkFutureRules.Instance, Core, new ScriptedDice([4, 4, 4, 4]));
+        sim.Append([new SpellTokensSet(wizard.Models[0].Id, 3)]);
+        sim.Start(GfNames.CastingSeq, new SequenceContext(wizard.Id, [], [], null));
+        sim.Answer(Samples.Team1, new Chosen(((Options)sim.AskFor(Samples.Team1).Legal).Choices[0].Id));
+        Assert.Equal("cast_from", sim.AskFor(Samples.Team1).Question);
+        sim.Answer(Samples.Team1, new Chosen($"{Guid.CreateVersion7():N}"));                       // accepted under warn, outside the Ask
+        if (sim.AskForOrNull(Samples.Team1) is { Question: AskQuestions.SpendTokens }) sim.Answer(Samples.Team1, new Passed());
+        var roll = sim.Steps("roll").Single().Rolls.Single();
+        Assert.DoesNotContain(roll.Modifiers, m => m.Source == "Spell Conduit");
+        Assert.DoesNotContain("Spell Conduit", sim.Steps("origin").Single().Applied ?? []);
+    }
+
+    [Fact]
     public void Extended_buff_range_lets_a_hero_buff_a_unit_with_it_within_24()
     {
         var hero = Unit("H", "4+", "4+", [], 1, [P("Hero"), P("Extended Buff Range"), P("Courage Buff")]);

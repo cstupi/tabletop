@@ -1,4 +1,4 @@
--- 010_pick_rows.sql: a pick entry may require a rule of its target ("with Caster", "with Tough"), and remove wounds ("remove D3 wounds from it")
+-- 011_pick_rows.sql: a pick entry may require a rule of its target ("with Caster", "with Tough"), and remove wounds ("remove D3 wounds from it")
 -- (docs/superpowers/specs/2026-10-09-army-book-rules-design.md → Authored rules, batch 2).
 alter table management.catalog_entry add column target_requires text check (target_requires is null or target_side is not null);
 alter table management.effect drop constraint effect_kind_check;

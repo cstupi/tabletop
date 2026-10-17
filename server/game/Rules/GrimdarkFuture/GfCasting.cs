@@ -180,12 +180,22 @@ public static class GfCasting
         }
     }
 
-    /// <summary>The conduit a cast is made from: origin's answer, read against the conduits its Ask offered. Null for the caster's own position.</summary>
-    static Guid? Origin(FrameView casting)
+    const string ConduitKey = "conduit_option";
+
+    /// <summary>
+    /// The conduit a cast is made from: the option origin validated (its index among the recorded Ask's options, as `conduit_option`), and only while
+    /// that model is still a conduit in the caster's reach. Null for the caster's own position, and for anything else: an answer outside the Ask
+    /// (accepted under warn or silent) never names a model.
+    /// </summary>
+    static Guid? Origin(GameState state, FrameView casting)
     {
         for (var f = casting; f is not null; f = f.Parent)
-            if (f.Frame.Sequence == GfNames.CastingSeq)
-                return f.Frame.Steps.FirstOrDefault(s => s.Step == "origin")?.Answer is Chosen c && Guid.TryParseExact(c.OptionId, "N", out var m) ? m : null;
+        {
+            if (f.Frame.Sequence != GfNames.CastingSeq) continue;
+            if (!f.Values.TryGetValue(ConduitKey, out var index) || FrameReader.Recorded(state, f.Id, "cast_from")?.Legal is not Options offered
+                || index < 0 || index >= offered.Choices.Count || !Guid.TryParseExact(offered.Choices[index].Id, "N", out var model)) return null;
+            return GfSpellSupport.Conduits(state, Picked(f).Caster).Contains(model) ? model : null;
+        }
         return null;
     }
 
@@ -198,8 +208,11 @@ public static class GfCasting
             var (_, caster) = Picked(ctx.Frame);
             if (ctx.History.LastClosed() is { } closed)
             {
-                if (GfAnswers.Option(closed) is { Id: not "self" }) ctx.Applied.Add(GfSpellSupport.SpellConduit);
-                return new Complete([]);
+                // Read against the Ask's own options (GfAnswers.Option): an id it did not offer casts from the caster.
+                if (GfAnswers.Option(closed) is not { Id: not "self" } option || closed.Ask.Legal is not Options offered
+                    || !Guid.TryParseExact(option.Id, "N", out var model) || !GfSpellSupport.Conduits(ctx.State, caster).Contains(model)) return new Complete([]);
+                ctx.Applied.Add(GfSpellSupport.SpellConduit);
+                return new Complete([], new Dictionary<string, int> { [ConduitKey] = offered.Choices.ToList().FindIndex(c => c.Id == option.Id) });
             }
             var conduits = GfSpellSupport.Conduits(ctx.State, caster);
             if (conduits.Count == 0) return new Complete([]);
@@ -234,7 +247,7 @@ public static class GfCasting
             var (_, caster) = Picked(ctx.Frame);
             var casterUnit = ctx.Projection.Models[caster].UnitId;
             var live = ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, casterUnit), null, null, null, null, Battlefield.TerrainUnder(ctx.State, casterUnit)));
-            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens"), conduit: Origin(ctx.Frame) is not null), 1);
+            ctx.Roll(GfRolls.CastingPlan(ctx, live, ctx.Frame.Value("net_tokens"), conduit: Origin(ctx.State, ctx.Frame) is not null), 1);
             return new Complete(RollEffects.Consume(live));
         }
     }
@@ -261,7 +274,7 @@ public static class GfCasting
             if (ctx.History.LastClosed() is not null) return new Complete([]);
             var (spellName, caster) = Picked(ctx.Frame);
             var spell = ctx.Properties.Entry(spellName)!;
-            var eligible = SpellTargets(ctx, Origin(ctx.Frame) ?? caster, spell);
+            var eligible = SpellTargets(ctx, Origin(ctx.State, ctx.Frame) ?? caster, spell);
             if (eligible.Count == 0) return new Finish([]);
             return new OpenAsks([ctx.Ask("spell_targets", $"{spellName}: pick up to {spell.Targeting!.Count}", ctx.ActorTeam!.Value, new PieceSelection(eligible, 1, Math.Min(spell.Targeting.Count, eligible.Count)))]);
         }

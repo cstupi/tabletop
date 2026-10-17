@@ -186,6 +186,7 @@ public static class GfRuleHits
             var enemies = ctx.Projection.Units.Values.Where(u => ctx.TeamOf(u.Id) != team).Select(u => u.Id).ToList();
             var bodies = enemies.ToDictionary(e => e, e => Lookup.LivingModels(ctx.State, e).Select(m => Battlefield.Placed(ctx.State, m)).OfType<PlacedModel>().ToList());
             var crossed = new HashSet<Guid>();
+            var terrain = Battlefield.Terrain(ctx.State);
             foreach (var step in ctx.Frame.Frame.Steps.Where(s => s.Step == "move"))
                 foreach (var moved in step.Changes.OfType<ModelsMoved>())
                     foreach (var mv in moved.Moves.Where(mv => mv.From is OnTable && mv.To is OnTable && ctx.Projection.Models.TryGetValue(mv.ModelId, out var mm) && mm.UnitId == unit))
@@ -193,7 +194,7 @@ public static class GfRuleHits
                         var from = ((OnTable)mv.From).Placement;
                         var body = new PlacedModel(new ModelBody(ctx.Projection.Models[mv.ModelId].Slot.Base, ctx.Projection.Models[mv.ModelId].Slot.Height), from);
                         foreach (var (enemy, models) in bodies)
-                            if (models.Count > 0 && Collision.Crosses(body, ((OnTable)mv.To).Placement.Position.Horizontal, models)) crossed.Add(enemy);
+                            if (models.Count > 0 && Collision.Crosses(body, ((OnTable)mv.To).Placement.Position.Horizontal, models, terrain)) crossed.Add(enemy);
                     }
             return [.. enemies.Where(crossed.Contains)];
         }
