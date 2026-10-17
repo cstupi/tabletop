@@ -124,6 +124,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 Accept(response);
                 _noRefreshBefore = default;
                 ok = true;
+                SendReauth(response.SessionJwt);
             }
             catch (UpdateRequiredException) { }                 // Guard has set the UpdateRequired phase
             catch (ManagementException e) when (e.Status == 401)
@@ -148,6 +149,14 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             done.SetResult(ok);
         }
     }
+
+    /// <summary>The game server closes a socket at its JWT's expiry: a welcomed socket gets each refreshed JWT. A socket not yet welcomed
+    /// sent the JWT that was current in its Connect, and a send failure is the close the socket reports anyway.</summary>
+    void SendReauth(string jwt) => dispatcher.Post(() =>
+    {
+        if (Welcomed() is not { } socket) return;
+        _ = socket.SendAsync(new Reauth(jwt)).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+    });
 
     public async Task LogoutAsync()
     {
@@ -238,15 +247,47 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     /// <summary>The caller names the message id, so it can match a Refused that arrives before the send's continuation runs.</summary>
     public async Task<Guid> SendCommandAsync(Command command, Guid id)
     {
-        await (Welcomed() ?? throw NotConnected()).SendAsync(new CommandMessage(id, command));
+        await SendOrQueue(new CommandMessage(id, command));
         return id;
     }
 
     public async Task<Guid> SendEditAsync(Edit edit)
     {
         var id = Guid.CreateVersion7();
-        await (Welcomed() ?? throw NotConnected()).SendAsync(new EditMessage(id, edit));
+        await SendOrQueue(new EditMessage(id, edit));
         return id;
+    }
+
+    /// <summary>A reconnect is under way: commands and edits wait for the next Welcome and go out in order after it.</summary>
+    public bool Queueing => !_welcomed && !_userClosed && GameId is not null && Phase == SessionPhase.Reconnecting;
+    const int MaxQueued = 16;
+    readonly List<(SocketMessage Frame, TaskCompletionSource Sent)> _queued = new();
+
+    /// <summary>Welcomed: sent now. Reconnecting: queued, and the task completes once it is sent, or fails if the session goes home first.</summary>
+    Task SendOrQueue(SocketMessage frame)
+    {
+        if (Welcomed() is { } socket) return socket.SendAsync(frame);
+        if (!Queueing) throw NotConnected();
+        if (_queued.Count >= MaxQueued) throw new InvalidOperationException("Reconnecting to the game; too many actions are already waiting.");
+        var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _queued.Add((frame, sent));
+        return sent.Task;
+    }
+
+    async Task FlushQueued(IGameSocket socket)
+    {
+        var queued = _queued.ToList(); _queued.Clear();
+        foreach (var (frame, sent) in queued)
+        {
+            try { await socket.SendAsync(frame); sent.TrySetResult(); }
+            catch (Exception e) { sent.TrySetException(e); }
+        }
+    }
+
+    void FailQueued()
+    {
+        var queued = _queued.ToList(); _queued.Clear();
+        foreach (var (_, sent) in queued) sent.TrySetException(new InvalidOperationException("Disconnected from the game before this was sent."));
     }
 
     /// <summary>Undo is local first: the prediction shows until the server's undone or refused arrives.</summary>
@@ -291,6 +332,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
                 SetPhase(SessionPhase.Connected);
                 RaiseGame();
                 EnsureRuleTexts();
+                if (_queued.Count > 0 && _socket is { } welcomed) _ = FlushQueued(welcomed);
                 break;
             case GameInfoMessage g:
                 Game = g.Game;
@@ -440,5 +482,11 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     void RaiseFacts() { FactsChanged?.Invoke(); Frame.Mark(RenderCause.Facts); }
     void RaiseEvents(IReadOnlyList<GameEvent> events) { EventsApplied?.Invoke(events); Frame.Mark(RenderCause.Events); }
 
-    void SetPhase(SessionPhase phase) { if (Phase == phase) return; Phase = phase; PhaseChanged?.Invoke(); }
+    void SetPhase(SessionPhase phase)
+    {
+        if (Phase == phase) return;
+        Phase = phase;
+        if (phase is SessionPhase.LoggedOut or SessionPhase.LoggedIn or SessionPhase.UpdateRequired) FailQueued();   // home: nothing will welcome them
+        PhaseChanged?.Invoke();
+    }
 }

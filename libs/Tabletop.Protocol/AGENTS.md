@@ -5,7 +5,7 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 
 ## Layout
 
-- `Wire.cs`: `SocketMessage` and its kinds (`Connect`, `CommandMessage`, `EditMessage`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `AtRest`, `Refused`, `Rejected`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `SightQuery`, `SightAnswer` with `SightLine`, `ModelFacts`), `RejectReason`, `RefusalReason`, `WireJson`.
+- `Wire.cs`: `SocketMessage` and its kinds (`Connect`, `CommandMessage`, `EditMessage`, `Welcome`, `GameInfoMessage`, `BoardMessage`, `EventsMessage`, `AtRest`, `Refused`, `Rejected`, `PresenceMessage`, `PingMessage`, `PresenceEnded`, `SightQuery`, `SightAnswer` with `SightLine`, `ModelFacts`, `Reauth`: a refreshed JWT for the open socket), `RejectReason`, `RefusalReason`, `WireJson`.
 - `Commands.cs`: `Command` (`AnswerAsk` and the others). `Edits.cs`: `Edit`, `LobbyEdit` (rows, never logged).
 - `Asks.cs`: `Ask`, `AskOption`, `AskAnswer`, and the `LegalSet` shapes.
 - `Events.cs`, `StateChanges.cs`: `EventPayload`, `GameEvent`, `StateChange` (the log's content). `SequenceStarted.Outline` (`OutlineStep`) is null in logs written before it, and `Frame.Outline` is then empty.
