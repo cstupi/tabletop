@@ -189,15 +189,6 @@
       ]
     },
     {
-      "name": "Crossing Attack",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, when this model moves through enemy units, pick one of them and roll X dice. For each 6\u002B the target takes one wound.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Darkborn",
       "kind": "model",
       "takesParameter": false,
@@ -224,15 +215,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Deathstrike",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this model is killed in melee, the attacking unit takes X hits.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Defensive Frenzy",
@@ -1178,22 +1160,23 @@
       ]
     },
     {
-      "name": "Protection Feat",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this unit takes wounds and all its models have this rule, you may use this rule and roll one die per wound, and on a 5\u002B it is ignored.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Protection Feat Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Protection Feat.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Protection Feat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Quick Readjustment",
@@ -1383,15 +1366,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Ravage",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When it\u0027s this model\u0027s turn to attack in melee, roll X dice. For each 6\u002B the target takes one wound.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Re-Deployment",
@@ -1596,15 +1570,6 @@
       ]
     },
     {
-      "name": "Retaliate",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model takes wounds in melee, the attacker takes X hits per wound taken.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Scout Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1679,15 +1644,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Self-Destruct",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this model is killed in melee, the attacking unit takes X hits. If this model survives melee, after both sides have finished attacking, it is immediately killed, and the enemy unit takes X hits.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Self-Repair Boost Buff",
@@ -1900,14 +1856,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Strafing",
-      "kind": "weapon",
-      "takesParameter": false,
-      "ruleText": "Once per activation, when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting. This weapon may only be used in this way.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Strider Aura",

@@ -34,6 +34,8 @@ public sealed partial class GrimdarkFutureRules
         GfChoice.ChooseEffect(),
         GfActivationEnd.Window(),
         GfActivationEnd.Coordinate(),
+        GfRuleHits.RuleHits(),
+        GfRuleHits.RuleWounds(),
         GfContainers.TransportDestroyed(),
     }.ToDictionary(s => s.Name));
 

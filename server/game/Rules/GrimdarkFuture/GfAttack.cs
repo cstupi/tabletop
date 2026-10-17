@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep(), new GfRuleHits.RetaliationStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
         AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
@@ -156,11 +156,14 @@ public static partial class GfAttack
             // Regeneration is aggregation all (3.5.1: "a unit where all models have this rule"), so LiveProperties.Gather settles it
             // as one unit-level property with no ModelId, and it applies to every wound the unit takes. p.13: instances of a rule
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
-            var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound })
-                .FirstOrDefault();
+            // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of
+            // the first attack it is rolled against, and for no later one.
+            var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
+                (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
 
             var carried = ctx.Frame.Value("wounds_carried");
             var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
+            var perModel = new Dictionary<string, int>();
             foreach (var (modelId, count) in allocation.Where(kv => kv.Value > 0))
             {
                 var model = ctx.Projection.Models[modelId];
@@ -178,8 +181,11 @@ public static partial class GfAttack
                 if (multiplier == 1) spilled += incoming - applied;   // an ordinary wound past a dead model is removed from the next one (p.8)
                 landed += applied;
                 changes.Add(new WoundsSet(modelId, model.Wounds + applied));
+                // Each model's wounds and death in this frame, for what its rules set off (retaliation: Retaliate, Deathstrike, Self-Destruct).
+                if (applied > 0) perModel[$"took_{modelId:N}"] = ctx.Frame.Value($"took_{modelId:N}") + applied;
                 // p.15: a container holding anybody stays on the table until disgorge has placed them, "before it's removed".
                 if (model.Wounds + applied < capacity) continue;
+                perModel[$"killed_{modelId:N}"] = 1;
                 dead.Add(modelId);
                 if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
@@ -189,9 +195,24 @@ public static partial class GfAttack
             changes.Add(new WoundsThisActivationSet(target, ctx.Projection.Units[target].WoundsThisActivation + landed));
             var left = takedown is null ? wounds - allocation.Values.Sum() + spilled : 0;
             var survivors = Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m));
-            var values = new Dictionary<string, int> { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
+            var values = new Dictionary<string, int>(perModel) { ["wounds_dealt"] = total, ["wounds_left"] = left, ["wounds_carried"] = takedown is null ? spilled : 0 };
             return new Complete(changes, values, Repeat: left > 0 && survivors);
         }
+    }
+
+    static bool OncePerGame(Effect roll) => roll.Conditions.Any(c => c is { Kind: ConditionKind.UsageCount, Values: ["game", ..] });
+
+    /// <summary>Whether a deal-wounds frame other than this one already rolled the rule's dice for wounds on this unit.</summary>
+    static bool RolledInAnotherFrame(StepContext ctx, string entry, Guid unit)
+    {
+        var frames = new HashSet<Guid>();
+        foreach (var p in EventApplier.EffectiveLog(ctx.State.Applier.Log).Select(e => e.Payload))
+            switch (p)
+            {
+                case SequenceStarted { Sequence: GfNames.DealWounds } s when s.FrameId != ctx.Frame.Id && s.Context.TargetUnitIds is [var t, ..] && t == unit: frames.Add(s.FrameId); break;
+                case StepCompleted { Step: "assign" } c when frames.Contains(c.FrameId) && c.Rolls.Any(r => r.Roll == entry): return true;
+            }
+        return false;
     }
 
     /// <summary>

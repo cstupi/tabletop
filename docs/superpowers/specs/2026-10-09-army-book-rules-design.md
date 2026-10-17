@@ -144,6 +144,18 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   read when the activation starts: a unit that can charge is offered only Charge, one that can shoot may not Rush and
   takes its shot without being asked; its only target is the closest valid one, and its shooting or charging attacks
   that activation get +1 to hit.
+- **Batch 5.** *"The attacking unit takes X hits"* and *"the attacker takes X hits per wound taken"* are hits with no roll to
+  hit (`rule-hits`), blocked as melee hits, dealt by the wounded model's unit; only wounds from a weapon or Impact attack in a
+  melee set them off, so they set off nothing in turn. Deathstrike and Self-Destruct count a model killed by those wounds;
+  Retaliate counts each wound a carrier took. Self-Destruct's survivors are removed after the Unwieldy strike, *"after both
+  sides have finished attacking"*, then each side's hits are dealt. Ravage rolls at its unit's turn to attack: the
+  charger's before its strikes, the defender's after it struck back (or struck first with Counter); each 6 is a wound with
+  no block (`rule-wounds`). Crossing Attack and Strafing read *"moves through enemy units"* as an action's move segment
+  crossing an enemy model's base; after the move the player picks one unit it crossed (once: one move per activation);
+  Strafing's weapon is in no shooting group (*"may only be used in this way"*) and makes its attack as a shot.
+  Protection Feat is a roll to ignore wounds at 5+, *"once per game"* read as every wound of the first attack it is
+  rolled against (it is used automatically, the first time). Regenerative Strength moves to batch 6 (a marker on a
+  model); Takedown Shot and Takedown Strike are taken with batch 3, after the Takedown changes another branch makes.
 - **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the

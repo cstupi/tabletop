@@ -21,7 +21,8 @@ public static class GfShooting
         var start = shootingFrame is { } frame ? log.FindIndex(e => e.Payload is SequenceStarted s && s.FrameId == frame) : -1;
         var used = log.Take(start < 0 ? log.Count : start).Where(e => e.Payload is SequenceStarted).SelectMany(e => ((SequenceStarted)e.Payload).Context.WeaponIds).ToHashSet();
         return GfGroups.Of(state, Lookup.AliveModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => w.Stats.ContainsKey(GfNames.Range))
-            .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id))));
+            .Where(w => !(w.Properties.Any(p => p.Name == "Limited") && used.Contains(w.Id)))
+            .Where(w => !w.Properties.Any(p => p.Name == GfNames.Strafing)));   // Strafing: "This weapon may only be used in this way" (GfRuleHits.CrossingStep)
     }
 
     public static IReadOnlyList<Guid> ValidTargets(StepContext ctx, Guid unit, WeaponGroup group)
