@@ -7,14 +7,15 @@ public sealed record ImageInfo(string ContentType, int Width, int Height);
 /// <summary>An image's format and dimensions from its header: PNG IHDR, JPEG SOFn, WebP VP8/VP8L/VP8X. Nothing is decoded.</summary>
 public static class ImageHeader
 {
-    private const int Prefix = 64 * 1024;
+    /// <summary>The one read per image: PNG and WebP need 30 bytes, a JPEG's frame header follows its metadata segments.</summary>
+    private const int Prefix = 1 << 20;
 
     /// <summary>Null when the bytes at offset..offset+length are none of the three formats or the header is cut short.</summary>
     public static async Task<ImageInfo?> Read(RangeReader read, long offset, long length)
     {
         if (length < 12) return null;
         var head = await read(offset, offset + Math.Min(length, Prefix) - 1);
-        if (head.Length >= 2 && head[0] == 0xFF && head[1] == 0xD8) return await Jpeg(read, offset, length, head);
+        if (head.Length >= 2 && head[0] == 0xFF && head[1] == 0xD8) return Jpeg(head);
         return Fixed(head);
     }
 
@@ -56,32 +57,21 @@ public static class ImageHeader
 
     private static ImageInfo Sized(string type, uint width, uint height) => new(type, (int)Math.Min(width, int.MaxValue), (int)Math.Min(height, int.MaxValue));
 
-    /// <summary>Walks the marker segments to the first frame header; a segment past the first read is fetched where it starts.</summary>
-    private static async Task<ImageInfo?> Jpeg(RangeReader read, long offset, long length, byte[] head)
+    /// <summary>Walks the marker segments of the one read to the first frame header; a header past it is not found.</summary>
+    private static ImageInfo? Jpeg(byte[] b)
     {
-        async Task<byte[]?> At(long pos, int n)
+        var at = 2;
+        while (at + 4 <= b.Length)
         {
-            if (pos < 0 || pos + n > length) return null;
-            if (pos + n <= head.Length) return head[(int)pos..(int)(pos + n)];
-            var b = await read(offset + pos, offset + pos + n - 1);
-            return b.Length == n ? b : null;
-        }
-        long at = 2;
-        for (var steps = 0; steps < 4096; steps++)
-        {
-            if (await At(at, 2) is not { } m || m[0] != 0xFF) return null;
-            var marker = m[1];
+            if (b[at] != 0xFF) return null;
+            var marker = b[at + 1];
             if (marker == 0xFF) { at++; continue; }
             if (marker is >= 0xD0 and <= 0xD7 or 0x01) { at += 2; continue; }
             if (marker is 0xD9 or 0xDA) return null;   // end of image, or scan data, before any frame header
-            if (await At(at + 2, 2) is not { } l) return null;
-            var segment = l[0] << 8 | l[1];
+            var segment = b[at + 2] << 8 | b[at + 3];
             if (segment < 2) return null;
             if (marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC)
-            {
-                if (await At(at + 4, 5) is not { } sof) return null;
-                return Sized("image/jpeg", (uint)(sof[3] << 8 | sof[4]), (uint)(sof[1] << 8 | sof[2]));
-            }
+                return at + 9 <= b.Length ? Sized("image/jpeg", (uint)(b[at + 7] << 8 | b[at + 8]), (uint)(b[at + 5] << 8 | b[at + 6])) : null;
             at += 2 + segment;
         }
         return null;

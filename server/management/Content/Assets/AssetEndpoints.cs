@@ -36,10 +36,14 @@ public static class AssetEndpoints
             if ((r.Kind == AssetKind.Miniature) != (r.ModelledBase is not null)) return Problems.Unprocessable("A miniature carries a modelledBase; terrain and textures do not.");
             if (Placement(r.Scale, r.Orientation, r.ModelledBase) is { } unusable) return Problems.Unprocessable(unusable);
             var owner = CurrentAccount.Id(user);
-            var usage = await assets.Usage(owner);
-            if (usage.Assets >= UploadLimits.AccountAssets) return Problems.Unprocessable($"An account holds at most {UploadLimits.AccountAssets} assets.");
-            if (usage.Bytes + r.ByteSize > UploadLimits.AccountBytes) return Problems.Unprocessable($"An account holds at most {UploadLimits.AccountBytes >> 30} GiB of uploads.");
-            var asset = await assets.Create(owner, r);
+            AssetDto asset;
+            try { asset = await assets.Create(owner, r, new AssetQuota(UploadLimits.AccountAssets, UploadLimits.AccountBytes)); }
+            catch (AssetQuotaExceeded e)
+            {
+                return Problems.Unprocessable(e.Which == AssetQuotaExceeded.Limit.Assets
+                    ? $"An account holds at most {UploadLimits.AccountAssets} assets."
+                    : $"An account holds at most {UploadLimits.AccountBytes >> 30} GiB of uploads.");
+            }
             var url = asset.Uploaded ? null : await blobs.PresignUpload(IBlobStore.StagingKey(owner, asset.Id), r.ContentType, UploadTtl);
             return Results.Created($"/v1/assets/{asset.Id}", new CreateAssetResponse(asset, url));
         });

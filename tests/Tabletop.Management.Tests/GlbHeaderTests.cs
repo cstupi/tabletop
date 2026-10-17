@@ -103,6 +103,21 @@ public class GlbHeaderTests
     }
 
     [Fact]
+    public async Task Offsets_that_would_overflow_are_refused()
+    {
+        await Rejected(With(r => r["accessors"]![0]!["byteOffset"] = long.MaxValue - 20));
+        await Rejected(With(r => r["bufferViews"]![0]!["byteOffset"] = long.MaxValue - 10));
+        await Rejected(With(r => r["bufferViews"]![0]!["byteLength"] = long.MaxValue));
+        await Rejected(With(r => r["buffers"]![0]!["byteLength"] = long.MaxValue));
+        await Rejected(With(r => r["accessors"]![1]!["sparse"] = new JsonObject
+        {
+            ["count"] = 1,
+            ["indices"] = new JsonObject { ["bufferView"] = 1, ["byteOffset"] = long.MaxValue - 1, ["componentType"] = 5121 },
+            ["values"] = new JsonObject { ["bufferView"] = 1, ["byteOffset"] = 0 },
+        }));
+    }
+
+    [Fact]
     public async Task Every_accessor_is_capped_even_without_a_buffer_view()
     {
         // An accessor with no bufferView is zero-filled by the loader: count is memory without a byte in the file.
@@ -195,10 +210,15 @@ public class ImageHeaderTests
     }
 
     [Fact]
-    public async Task A_jpeg_frame_header_past_the_first_read_is_found()
+    public async Task One_bounded_read_finds_a_jpeg_frame_header_behind_large_segments()
     {
         var jpeg = TestImages.Jpeg(300, 200, appSegments: 2);
-        Assert.Equal(new ImageInfo("image/jpeg", 300, 200), await ImageHeader.Read(Over(jpeg), 0, jpeg.Length));
+        var reads = 0;
+        RangeReader counted = (first, last) => { reads++; return Over(jpeg)(first, last); };
+        Assert.Equal(new ImageInfo("image/jpeg", 300, 200), await ImageHeader.Read(counted, 0, jpeg.Length));
+        Assert.Equal(1, reads);
+        var deep = TestImages.Jpeg(300, 200, appSegments: 17);   // the frame header sits past the first MiB
+        Assert.Null(await ImageHeader.Read(Over(deep), 0, deep.Length));
     }
 
     [Fact]

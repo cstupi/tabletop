@@ -124,14 +124,22 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
-    public async Task Asset_usage_counts_assets_and_sums_each_blob_once()
+    public async Task Asset_create_within_a_quota_refuses_past_its_count_and_its_bytes_counting_shared_bytes_once()
     {
-        var (owner, stranger) = (await NewAccount(), await NewAccount());
-        var a = await Assets.Create(owner, Mini(size: 100));
-        await Assets.Create(owner, Mini(a.Hash, "same bytes", 100));
-        await Assets.Create(owner, Mini(size: 50));
-        Assert.Equal(new AssetUsage(3, 150), await Assets.Usage(owner));
-        Assert.Equal(new AssetUsage(0, 0), await Assets.Usage(stranger));
+        var owner = await NewAccount();
+        var quota = new AssetQuota(2, 150);
+        var a = await Assets.Create(owner, Mini(size: 100), quota);
+        await Assets.Create(owner, Mini(a.Hash, "same bytes", 100), quota);
+        Assert.Equal(AssetQuotaExceeded.Limit.Assets, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Assets.Create(owner, Mini(size: 1), quota))).Which);
+        Assert.Equal(2, (await Assets.List(owner, new Keyset(10, null), null)).Count);
+
+        var other = await NewAccount();
+        var bytes = new AssetQuota(10, 150);
+        var b = await Assets.Create(other, Mini(size: 100), bytes);
+        Assert.Equal(AssetQuotaExceeded.Limit.Bytes, (await Assert.ThrowsAsync<AssetQuotaExceeded>(() => Assets.Create(other, Mini(size: 51), bytes))).Which);
+        await Assets.Create(other, Mini(b.Hash, "same bytes", 100), bytes);
+        await Assets.Create(other, Mini(size: 50), bytes);
+        Assert.Equal(3, (await Assets.List(other, new Keyset(10, null), null)).Count);
     }
 
     [Fact]
@@ -154,7 +162,7 @@ public abstract partial class RepositoryContract
         Assert.Null(await Assets.Get(owner, sharing.Id));
         Assert.NotNull(await Assets.Get(owner, fresh.Id));
         Assert.NotNull(await Assets.Get(owner, done.Id));
-        Assert.Equal(new AssetUsage(2, 200), await Assets.Usage(owner));
+        Assert.Equal(2, (await Assets.List(owner, new Keyset(10, null), null)).Count);
     }
 
     [Fact]

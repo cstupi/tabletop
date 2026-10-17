@@ -19,10 +19,20 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         a.modelled_base_shape as ModelledBaseShape, a.modelled_base_a::float8 as ModelledBaseA, a.modelled_base_b::float8 as ModelledBaseB
         from asset a join blob b on b.owner_id = a.owner_id and b.hash = a.blob_hash";
 
-    public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r)
+    public async Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
     {
         await using var c = await db.Open();
         await using var tx = await c.BeginTransactionAsync();
+        if (quota is not null)
+        {
+            // The account row lock serializes an owner's creates, so the count and sum below cannot be raced past the quota.
+            await c.ExecuteAsync("select 1 from account where id = @ownerId for update", new { ownerId }, tx);
+            var (assets, bytes, known) = await c.QuerySingleAsync<(int, long, bool)>(@"select (select count(*) from asset where owner_id = @ownerId)::int,
+                (select coalesce(sum(byte_size), 0) from blob where owner_id = @ownerId)::bigint,
+                exists(select 1 from blob where owner_id = @ownerId and hash = @hash)", new { ownerId, hash = r.Hash }, tx);
+            if (assets >= quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
+            if (!known && bytes + r.ByteSize > quota.Bytes) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+        }
         await c.ExecuteAsync("insert into blob (owner_id, hash, s3_key, byte_size, content_type) values (@ownerId, @hash, @key, @size, @ct) on conflict (owner_id, hash) do update set created_at = now() where not blob.uploaded",
             new { ownerId, hash = r.Hash, key = IBlobStore.Key(ownerId, r.Hash), size = r.ByteSize, ct = r.ContentType }, tx);
         var id = Guid.CreateVersion7();
@@ -105,13 +115,6 @@ public sealed class AssetRepository(Database db) : IAssetRepository
         await tx.CommitAsync();
         return rows.Select(r => new TerrainVolume(r.Id, r.ToVolume())).ToList();
     }
-    public async Task<AssetUsage> Usage(Guid ownerId)
-    {
-        await using var c = await db.Open();
-        return await c.QuerySingleAsync<AssetUsage>(@"select (select count(*) from asset where owner_id = @ownerId)::int as Assets,
-            (select coalesce(sum(byte_size), 0) from blob where owner_id = @ownerId)::bigint as Bytes", new { ownerId });
-    }
-
     public async Task<IReadOnlyList<string>> DeleteAbandoned(DateTimeOffset cutoff)
     {
         await using var c = await db.Open();

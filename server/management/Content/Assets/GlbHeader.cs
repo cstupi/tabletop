@@ -91,7 +91,7 @@ public static class GlbHeader
             var o = Obj(v, "bufferView");
             if (Int(o, "buffer") != 0) throw Bad("bufferView buffer");
             var (offset, len) = (Int(o, "byteOffset", 0), Int(o, "byteLength"));
-            if (offset < 0 || len < 1 || offset + len > bufferLength) throw Bad("bufferView outside the buffer");
+            if (len < 1 || !Fits(offset, len, bufferLength)) throw Bad("bufferView outside the buffer");
             long? stride = o.TryGetProperty("byteStride", out _) ? Int(o, "byteStride") : null;
             if (stride is { } s && (s < 4 || s > 252 || s % 4 != 0)) throw Bad("byteStride");
             views.Add(new View(offset, len, stride));
@@ -114,7 +114,8 @@ public static class GlbHeader
                 var view = ViewAt(views, Int(o, "bufferView"));
                 var offset = Int(o, "byteOffset", 0);
                 var stride = view.Stride ?? element;
-                if (offset < 0 || stride < element || offset + stride * (count - 1) + element > view.Length) throw Bad("accessor outside its bufferView");
+                // stride <= 252 and count <= AccessorElements, so the span cannot overflow; Fits bounds the offset.
+                if (stride < element || !Fits(offset, stride * (count - 1) + element, view.Length)) throw Bad("accessor outside its bufferView");
             }
             if (o.TryGetProperty("sparse", out var sp))
             {
@@ -189,8 +190,11 @@ public static class GlbHeader
 
     private static void Within(View view, long offset, long bytes)
     {
-        if (offset < 0 || offset + bytes > view.Length) throw Bad("sparse data outside its bufferView");
+        if (!Fits(offset, bytes, view.Length)) throw Bad("sparse data outside its bufferView");
     }
+
+    /// <summary>offset..offset+length lies inside 0..limit, without computing a sum that could overflow.</summary>
+    private static bool Fits(long offset, long length, long limit) => offset >= 0 && length >= 0 && offset <= limit && length <= limit - offset;
 
     private static int ComponentSize(long componentType) => componentType switch
     {

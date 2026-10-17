@@ -26,11 +26,17 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
         rows.Assets.Add(id, a);
     }
 
-    public Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r)
+    public Task<AssetDto> Create(Guid ownerId, CreateAssetRequest r, AssetQuota? quota = null)
     {
         lock (rows.Gate)
         {
             rows.RequireAccount(ownerId);
+            if (quota is not null)
+            {
+                if (rows.Assets.Values.Count(a => a.Owner == ownerId) >= quota.Assets) throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Assets);
+                if (!rows.Blobs.ContainsKey((ownerId, r.Hash)) && rows.Blobs.Where(b => b.Key.Owner == ownerId).Sum(b => b.Value.ByteSize) + r.ByteSize > quota.Bytes)
+                    throw new AssetQuotaExceeded(AssetQuotaExceeded.Limit.Bytes);
+            }
             if (!rows.Blobs.TryAdd((ownerId, r.Hash), new InMemoryRows.BlobRow { Key = IBlobStore.Key(ownerId, r.Hash), ByteSize = r.ByteSize, ContentType = r.ContentType })
                 && rows.Blobs[(ownerId, r.Hash)] is { Uploaded: false } pending) pending.CreatedAt = DateTimeOffset.UtcNow;
             var id = rows.NextId();
@@ -109,12 +115,6 @@ public sealed class InMemoryAssetRepository(InMemoryRows rows) : IAssetRepositor
             a.Volumes = volumes.Select(v => new TerrainVolume(rows.NextId(), v)).ToList();
             return Task.FromResult<IReadOnlyList<TerrainVolume>>(a.Volumes.ToList());
         }
-    }
-
-    public Task<AssetUsage> Usage(Guid ownerId)
-    {
-        lock (rows.Gate)
-            return Task.FromResult(new AssetUsage(rows.Assets.Values.Count(a => a.Owner == ownerId), rows.Blobs.Where(b => b.Key.Owner == ownerId).Sum(b => b.Value.ByteSize)));
     }
 
     public Task<IReadOnlyList<string>> DeleteAbandoned(DateTimeOffset cutoff)

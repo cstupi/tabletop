@@ -283,6 +283,19 @@ public class AssetTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
+    public async Task Parallel_creates_cannot_pass_the_asset_count()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var repo = _f.Services.GetRequiredService<IAssetRepository>();
+        for (var i = 0; i < UploadLimits.AccountAssets - 1; i++) await repo.Create(owner, Mini(TestGlb.Build((3, null, true)), $"m{i}") with { Hash = Sha(BitConverter.GetBytes(i)) });
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(i =>
+            c.PostAsJsonAsync("/v1/assets", Mini(TestGlb.Build((3, null, true)), $"race{i}") with { Hash = Sha(BitConverter.GetBytes(10_000 + i)) }, ContentJson.Options)));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Created);
+        Assert.All(responses.Where(r => r.StatusCode != HttpStatusCode.Created), r => Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode));
+    }
+
+    [Fact]
     public async Task An_account_holds_at_most_1_gib()
     {
         var owner = Guid.CreateVersion7();
