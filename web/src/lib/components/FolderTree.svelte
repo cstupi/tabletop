@@ -1,29 +1,58 @@
 <script lang="ts">
   import type { FolderDto, Guid } from '$lib/api/types';
-  import { buildTree, type FolderNode } from '$lib/library/folders';
-  let { folders, selected, onselect, oncreate, onrename, onmove, ondelete }: {
+  import { buildTree, moveTargets, type FolderNode } from '$lib/library/folders';
+  import { nameProblem } from '$lib/validation';
+  let { folders, selected, onselect, oncreate, onrename, onmove, ondelete, oninvalid }: {
     folders: FolderDto[]; selected: Guid | null; onselect: (id: Guid | null) => void; oncreate: (parentId: Guid | null, name: string) => void;
     onrename: (id: Guid, name: string) => void; onmove: (id: Guid, parentId: Guid | null) => void; ondelete: (id: Guid) => void;
+    oninvalid: (message: string) => void;
   } = $props();
   const tree = $derived(buildTree(folders));
   let dragging = $state<Guid | null>(null);
-  const create = (parentId: Guid | null) => { const name = prompt('Folder name'); if (name?.trim()) oncreate(parentId, name.trim()); };
-  const rename = (f: FolderDto) => { const name = prompt('Rename folder', f.name); if (name?.trim() && name !== f.name) onrename(f.id, name.trim()); };
+  let moving = $state<Guid | null>(null);   // the folder whose "Move to" list is open: the keyboard way to do what dragging does
+  function ask(message: string, initial = ''): string | null {
+    const name = prompt(message, initial);
+    if (name === null || !name.trim()) return null;
+    const problem = nameProblem(name, 'Folder name');
+    if (problem) { oninvalid(problem); return null; }
+    return name.trim();
+  }
+  const create = (parentId: Guid | null) => { const name = ask(parentId ? 'Name of the new sub-folder' : 'Name of the new folder'); if (name) oncreate(parentId, name); };
+  const rename = (f: FolderDto) => { const name = ask('Rename folder', f.name); if (name && name !== f.name) onrename(f.id, name); };
+  function move(f: FolderDto, value: string) {
+    moving = null;
+    const parentId = value === '' ? null : value;
+    if (parentId !== (f.parentId ?? null)) onmove(f.id, parentId);
+  }
 </script>
 
 {#snippet node(n: FolderNode)}
   <li draggable="true" ondragstart={(e) => { e.stopPropagation(); dragging = n.folder.id; }} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.stopPropagation(); if (dragging && dragging !== n.folder.id) onmove(dragging, n.folder.id); dragging = null; }}>
-    <button class:selected={selected === n.folder.id} onclick={() => onselect(n.folder.id)}>{n.folder.name} <small>({n.folder.assetIds.length})</small></button>
-    <button title="New sub-folder" onclick={() => create(n.folder.id)}>+</button>
-    <button title="Rename" onclick={() => rename(n.folder)}>✎</button>
-    <button title="Delete folder and sub-folders (assets stay)" onclick={() => confirm(`Delete "${n.folder.name}" and its sub-folders? Assets are kept.`) && ondelete(n.folder.id)}>×</button>
+    <button class:selected={selected === n.folder.id} aria-current={selected === n.folder.id ? 'true' : undefined} onclick={() => onselect(n.folder.id)}>{n.folder.name} <small>({n.folder.assetIds.length})</small></button>
+    <span class="tools">
+      <button title="New sub-folder" aria-label="New sub-folder in {n.folder.name}" onclick={() => create(n.folder.id)}>+</button>
+      <button title="Rename" aria-label="Rename {n.folder.name}" onclick={() => rename(n.folder)}>✎</button>
+      <button title="Move" aria-label="Move {n.folder.name}" aria-expanded={moving === n.folder.id} onclick={() => (moving = moving === n.folder.id ? null : n.folder.id)}>⇄</button>
+      <button title="Delete folder and sub-folders (assets stay)" aria-label="Delete {n.folder.name}" onclick={() => confirm(`Delete "${n.folder.name}" and its sub-folders? Assets are kept.`) && ondelete(n.folder.id)}>×</button>
+    </span>
+    {#if moving === n.folder.id}
+      <label class="move">Move into
+        <select value={n.folder.parentId ?? ''} onchange={(e) => move(n.folder, e.currentTarget.value)} onkeydown={(e) => e.key === 'Escape' && (moving = null)}>
+          <option value="">Top level</option>
+          {#each moveTargets(folders, n.folder.id) as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+        </select>
+      </label>
+    {/if}
     {#if n.children.length}<ul>{#each n.children as c (c.folder.id)}{@render node(c)}{/each}</ul>{/if}
   </li>
 {/snippet}
 
-<nav ondragover={(e) => e.preventDefault()} ondrop={() => { if (dragging) onmove(dragging, null); dragging = null; }}>
-  <button class:selected={selected === null} onclick={() => onselect(null)}>All assets</button>
-  <button onclick={() => create(null)}>New folder</button>
+<nav aria-label="Folders" ondragover={(e) => e.preventDefault()} ondrop={() => { if (dragging) onmove(dragging, null); dragging = null; }}>
+  <div class="actions">
+    <button class:selected={selected === null} aria-current={selected === null ? 'true' : undefined} onclick={() => onselect(null)}>All assets</button>
+    <button onclick={() => create(null)}>New folder</button>
+  </div>
+  {#if tree.length === 0}<p><small>No folders yet. Folders group assets for you; they change nothing in a game.</small></p>{/if}
   <ul>{#each tree as n (n.folder.id)}{@render node(n)}{/each}</ul>
 </nav>
-<style>.selected { font-weight: bold } ul { list-style: none; padding-left: 1rem }</style>
+<style>.selected { font-weight: bold } ul { list-style: none; padding-left: 1rem } li { margin: .15rem 0 } .tools { white-space: nowrap } .move { display: block; margin: .25rem 0 }</style>

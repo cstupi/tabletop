@@ -3,7 +3,7 @@
   import { BASE_PRESETS, presetFor } from '$lib/units/bases';
   import { inchesToMm, mmToInches, round } from '$lib/units/units';
 
-  let { value = $bindable(), allowNone = false, onchangevalue }: { value: Base | null; allowNone?: boolean; onchangevalue?: (b: Base | null) => void } = $props();
+  let { value = $bindable(), allowNone = false, label, onchangevalue }: { value: Base | null; allowNone?: boolean; label?: string; onchangevalue?: (b: Base | null) => void } = $props();
   let choice = $state<string>(value === null ? 'none' : presetFor(value)?.label ?? 'custom');
   let shape = $state<BaseShape>(value?.shape ?? 'circle');
   let aMm = $state(round(inchesToMm(value?.a ?? 32 / 25.4), 1));
@@ -30,13 +30,13 @@
   }
 </script>
 
-<select value={choice} onchange={(e) => pick(e.currentTarget.value)}>
+<select value={choice} aria-label={label} onchange={(e) => pick(e.currentTarget.value)}>
   {#if allowNone}<option value="none">No base</option>{/if}
   {#each BASE_PRESETS as p}<option value={p.label}>{p.label}</option>{/each}
   <option value="custom">Custom…</option>
 </select>
 {#if choice === 'custom'}
-  <select bind:value={shape} onchange={applyCustom}><option value="circle">round</option><option value="oval">oval</option><option value="rect">rectangle</option></select>
-  <input type="number" min="1" step="0.5" bind:value={aMm} onchange={applyCustom} aria-label={shape === 'circle' ? 'size (mm)' : 'length (mm)'} /> mm
-  {#if shape !== 'circle'}× <input type="number" min="1" step="0.5" bind:value={bMm} onchange={applyCustom} aria-label="width (mm)" /> mm{/if}
+  <select bind:value={shape} onchange={applyCustom} aria-label="Base shape"><option value="circle">round</option><option value="oval">oval</option><option value="rect">rectangle</option></select>
+  <input type="number" min="1" step="0.5" bind:value={aMm} onchange={applyCustom} aria-label={shape === 'circle' ? 'Diameter (mm)' : 'Length (mm)'} /> mm
+  {#if shape !== 'circle'}× <input type="number" min="1" step="0.5" bind:value={bMm} onchange={applyCustom} aria-label="Width (mm)" /> mm{/if}
 {/if}
