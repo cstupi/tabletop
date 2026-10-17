@@ -5,6 +5,7 @@ using Tabletop.Protocol;
 namespace Tabletop.GameServer.Tests;
 
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class PostgresEventLogTests(PostgresFixture pg) : EventLogContract
 {
     protected override async Task<(IEventLog, Guid)> CreateAsync() => (new PostgresEventLog(pg.Db), (await pg.SeedGameAsync(GameStatus.Playing)).GameId);

@@ -39,6 +39,8 @@ public class SpecialGamesTests
         Assert.All(Games.SelectMany(g => g.Covers), rule => Assert.Contains(Games, g => g.Checks.Any(c => c.Entries?.Contains(rule) == true)));
     }
 
+    // Whole games in process: E2E for the unit suite's time, as `dotnet run --project sim -- suite` plays them all.
+    [Trait("Category", "E2E")]
     [Fact]
     public async Task The_special_games_pass_in_process_but_for_their_known_defects()
     {
@@ -62,12 +64,12 @@ public class SpecialGamesTests
     }
 }
 
-/// <summary>The same games over the socket, against the in-memory game server and the Docker Postgres.</summary>
+/// <summary>The same games over the socket, against the in-process game server over the Docker Postgres.</summary>
 [Collection("Postgres")]
 [Trait("Category", "E2E")]
 public class SpecialGamesSocketTests(PostgresFixture pg) : IDisposable
 {
-    readonly GameServerFactory _factory = new();
+    readonly GameServerFactory _factory = GameServerFactory.OverPostgres(pg.Db);
 
     public void Dispose() => _factory.Dispose();
 

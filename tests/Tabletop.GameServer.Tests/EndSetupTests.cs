@@ -7,18 +7,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Tabletop.GameServer.Tests;
 
-[Collection("Postgres")]
-public class EndSetupTests(PostgresFixture pg)
+public class EndSetupTests
 {
+    readonly InMemorySeeder db = new();
     static EditMessage Edit(Edit e) => new(Guid.CreateVersion7(), e);
     static readonly Ask Deploy = new(Guid.CreateVersion7(), AskQuestions.Deploy, "Deploy", [], new PieceSelection([], 1, 1), false, false, null, null);
 
     [Fact]
     public async Task Ending_setup_freezes_armies_drops_off_slab_terrain_flips_status_opens_the_log_and_advances()
     {
-        using var factory = new GameServerFactory { ConfigureTestServices = s => s.AddSingleton<IRulesEngineFactory>(new FixedAskEngineFactory(Deploy)) };
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
-        var army = await pg.SeedArmyAsync(seeded.CreatorAccountId);
+        using var factory = new GameServerFactory(db) { ConfigureTestServices = s => s.AddSingleton<IRulesEngineFactory>(new FixedAskEngineFactory(Deploy)) };
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var army = await db.SeedArmyAsync(seeded.CreatorAccountId);
         await using var creator = await TestClient.OpenAsync(factory); await using var other = await TestClient.OpenAsync(factory);
         await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId); await other.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);
         await creator.SendAsync(Edit(new PickArmy(army.Id))); await creator.ExpectAsync<GameInfoMessage>(); await other.ExpectAsync<GameInfoMessage>();
@@ -43,9 +43,9 @@ public class EndSetupTests(PostgresFixture pg)
         Assert.IsType<AskOpened>((await other.ExpectAsync<EventsMessage>()).Events.Single().Payload);   // the engine advanced after the flip
         Assert.Equal(1L, (await other.ExpectAsync<AtRest>()).Seq);                                     // and the transition ends at rest, on the opened log
 
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1 and status = 'playing'", seeded.GameId));
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.participant where game_id = $1 and army_snapshot is not null", seeded.GameId));
-        Assert.Equal(0, await pg.CountAsync("select count(*) from management.terrain_placement where id = $1", off.Id));
+        Assert.Equal(GameStatus.Playing, db.GameRows.Game(seeded.GameId)!.Status);
+        Assert.Single(db.GameRows.ParticipantsOf(seeded.GameId), p => p.ArmySnapshot is not null);
+        Assert.DoesNotContain(db.GameRows.DraftOf(seeded.GameId)!.Terrain, t => t.Id == off.Id);
 
         await creator.SendAsync(Edit(new SetTableSize(new TableSize(1, 1))));
         Assert.Equal(RefusalReason.WrongStatus, (await creator.ExpectAsync<Refused>()).Reason);         // no way back
@@ -56,9 +56,9 @@ public class EndSetupTests(PostgresFixture pg)
     [Fact]
     public async Task A_fresh_process_hydrates_the_played_game_from_rows_and_log()
     {
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
-        var army = await pg.SeedArmyAsync(seeded.CreatorAccountId);
-        using (var first = GameServerFactory.WithoutScheduler())
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var army = await db.SeedArmyAsync(seeded.CreatorAccountId);
+        using (var first = GameServerFactory.WithoutScheduler(db))
         {
             await using var c = await TestClient.OpenAsync(first);
             await c.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
@@ -68,7 +68,7 @@ public class EndSetupTests(PostgresFixture pg)
             await c.SendAsync(new CommandMessage(Guid.CreateVersion7(), new MoveModels([new ModelRelocation(army.Units[0].Models[0].Id, new OnShelf(), new OnTable(new Placement(new Point3(12, 12, 0), new Yaw(0))))])));
             await c.ExpectAsync<EventsMessage>();
         }
-        using var second = GameServerFactory.WithoutScheduler();
+        using var second = GameServerFactory.WithoutScheduler(db);
         await using var again = await TestClient.OpenAsync(second);
         var welcome = await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         Assert.Equal(GameStatus.Playing, welcome.Game.Status);

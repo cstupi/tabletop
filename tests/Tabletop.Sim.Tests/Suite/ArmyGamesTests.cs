@@ -55,6 +55,8 @@ public class ArmyGamesTests
 
     public static TheoryData<string> Playable() => [.. Army.Where(g => !Defects.ContainsKey(g.Name)).Select(g => g.Name)];
 
+    // Whole games in process: E2E for the unit suite's time, as `dotnet run --project sim -- suite` plays them all.
+    [Trait("Category", "E2E")]
     [Theory]
     [MemberData(nameof(Playable))]
     public async Task Each_army_game_passes_in_process(string name)
@@ -63,6 +65,8 @@ public class ArmyGamesTests
         Assert.True(report.Passed, string.Join("\n", report.Games.SelectMany(g => g.Failures)));
     }
 
+    // Whole games in process: E2E for the unit suite's time, as `dotnet run --project sim -- suite` plays them all.
+    [Trait("Category", "E2E")]
     [Fact]
     public async Task A_game_that_found_a_defect_still_fails_with_it()
     {
@@ -315,12 +319,12 @@ static class ScenarioArmyRules
             .Concat(army.Weapons.SelectMany(w => w.Rules).Select(r => r.Name)).Distinct();
 }
 
-/// <summary>Every army game over the socket, against the in-memory game server and the Docker Postgres, as SuiteSocketTests runs the sample.</summary>
+/// <summary>Every army game over the socket, against the in-process game server over the Docker Postgres.</summary>
 [Collection("Postgres")]
 [Trait("Category", "E2E")]
 public class ArmyGamesSocketTests(PostgresFixture pg) : IDisposable
 {
-    readonly GameServerFactory _factory = new();
+    readonly GameServerFactory _factory = GameServerFactory.OverPostgres(pg.Db);
     public void Dispose() => _factory.Dispose();
 
     sealed class FactoryConnector(GameServerFactory factory) : IWebSocketConnector

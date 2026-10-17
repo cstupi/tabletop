@@ -6,18 +6,19 @@ using Tabletop.Sim.Scenarios;
 namespace Tabletop.Sim.Suite;
 
 /// <summary>
-/// What a socket run needs: the database the servers use, a session per participant and a connector to the game server. From the
-/// console it comes from the environment (the same variables and defaults as a scenario's socket run); a test hands in its own.
-/// The sessions are the account pool's (SocketCredentials.Pool), which every game and every run shares.
+/// What a socket run needs: the rows beside the servers' (ISocketRows), a session per participant and a connector to the game server.
+/// From the console it comes from the environment (the same variables and defaults as a scenario's socket run): SocketRowSeeder over the
+/// database the servers use. A test hands in its own. The sessions are the account pool's (SocketCredentials.Pool), which every game
+/// and every run shares.
 /// </summary>
 public sealed class SuiteSocket(
-    NpgsqlDataSource db,
+    ISocketRows rows,
     Func<CompiledScenario, CancellationToken, Task<SocketCredentials>> credentials,
     Func<IWebSocketConnector> connector,
-    bool ownsDatabase = false,
+    IAsyncDisposable? owned = null,
     Func<string, CancellationToken, Task<MintedSession>>? session = null) : IAsyncDisposable
 {
-    public NpgsqlDataSource Db => db;
+    public ISocketRows Rows => rows;
     public Task<SocketCredentials> CredentialsAsync(CompiledScenario scenario, CancellationToken ct) => credentials(scenario, ct);
     public IWebSocketConnector Connector() => connector();
 
@@ -33,13 +34,14 @@ public sealed class SuiteSocket(
             ?? throw new UsageException("TABLETOP_DB_CONNECTION is not set; --driver socket needs the same database the servers use");
         var address = new Uri(Environment.GetEnvironmentVariable("TABLETOP_SIM_WS") ?? SimOptions.DefaultWebSocket);
         var management = new Uri(Environment.GetEnvironmentVariable(SocketCredentials.ManagementUrlVariable) ?? SimOptions.DefaultManagement);
-        return new SuiteSocket(NpgsqlDataSource.Create(connection),
+        var db = NpgsqlDataSource.Create(connection);
+        return new SuiteSocket(new SocketRowSeeder(db),
             async (scenario, ct) =>
             {
                 using var http = new HttpClient { BaseAddress = management };
                 return await SocketCredentials.MintAsync(scenario, http, ct);
             },
-            () => new ClientWebSocketConnector(address), ownsDatabase: true,
+            () => new ClientWebSocketConnector(address), owned: db,
             session: async (name, ct) =>
             {
                 using var http = new HttpClient { BaseAddress = management };
@@ -49,6 +51,6 @@ public sealed class SuiteSocket(
 
     public async ValueTask DisposeAsync()
     {
-        if (ownsDatabase) await db.DisposeAsync();
+        if (owned is not null) await owned.DisposeAsync();
     }
 }

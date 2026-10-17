@@ -5,9 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Tabletop.Protocol;
 using Tabletop.Sim.Serve;
-using Tabletop.GameServer.Persistence;
-using Tabletop.GameServer.Properties;
-using Tabletop.GameServer.Rules.GrimdarkFuture;
 using Tabletop.GameServer.Tests.Infrastructure;
 using Tabletop.Sim.Drivers;
 using Tabletop.Sim.Scenarios;
@@ -17,16 +14,17 @@ using static Tabletop.Sim.Tests.Suite.SuiteFixtures;
 namespace Tabletop.Sim.Tests.Suite;
 
 /// <summary>
-/// The runner over the socket, against the in-memory game server and the Docker Postgres. Sessions are signed by TestKeys against
-/// the factory's fake JWKS, so no test reaches management or Stytch. Every run plays on one TestPool, as every console run plays on
-/// the one account pool.
+/// The runner over the socket, against the in-process game server over one InMemorySeeder's stores. Sessions are signed by TestKeys
+/// against the factory's fake JWKS, so no test reaches management or Stytch. Every run plays on one TestPool, as every console run
+/// plays on the one account pool.
 /// </summary>
-[Collection("Postgres")]
-[Trait("Category", "E2E")]
-public class SuiteSocketTests(PostgresFixture pg) : IDisposable
+public class SuiteSocketTests : IDisposable
 {
-    readonly GameServerFactory _factory = new();
-    readonly TestPool _pool = new(pg);
+    readonly InMemorySeeder db = new();
+    readonly GameServerFactory _factory;
+    readonly TestPool _pool;
+
+    public SuiteSocketTests() => (_factory, _pool) = (new GameServerFactory(db), new TestPool(db));
 
     public void Dispose() => _factory.Dispose();
 
@@ -38,8 +36,8 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
 
     async Task<SuiteSocket> SocketAsync()
     {
-        await new PostgresPropertiesStore(pg.Db).SeedAsync(
-            PropertiesSeeder.EmbeddedDocuments().Single(d => d.GameRules == GrimdarkFutureRules.RulesId), Ct);
+        db.Properties.Add(ScenarioCompiler.CoreProperties);
+        await Task.CompletedTask;
         return _pool.Socket(() => new FactoryConnector(_factory));
     }
 
@@ -55,9 +53,10 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
 
     static SuiteOptions Options(bool keep = false, string? outDir = null) => new([Name], DriverKind.Socket, keep, outDir ?? TempDir());
 
-    Task<int> Games(string prefix) => pg.CountAsync("select count(*) from management.game where starts_with(name, $1)", prefix);
-    Task<int> Accounts() => pg.CountAsync("select count(*) from management.account where id = any($1)", _pool.Accounts.ToArray());
-    Task<int> Participants(Guid gameId) => pg.CountAsync("select count(*) from management.participant where game_id = $1", gameId);
+    Task<int> Games(string prefix) => Task.FromResult(db.GameRows.Games.Count(g => g.Name.StartsWith(prefix, StringComparison.Ordinal)));
+    Task<int> Accounts() => Task.FromResult(_pool.Accounts.Count(db.GameRows.Accounts.ContainsKey));
+    Task<int> Participants(Guid gameId) => Task.FromResult(db.GameRows.ParticipantsOf(gameId).Count);
+    bool Exists(Guid gameId) => db.GameRows.Game(gameId) is not null;
 
     static string Why(SuiteReport report) => string.Join("\n", report.Games.SelectMany(g => g.Failures));
 
@@ -94,23 +93,20 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
             Assert.True(report.Passed, Why(report));
             var result = report.Games.Single();
             Assert.NotNull(result.GameId);
-            Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1 and name = $2",
-                result.GameId!.Value, SuiteRows.GameName(report.RunId, Name, keep: true)));
-            Assert.True(await pg.CountAsync("select count(*) from game.game_event where game_id = $1", result.GameId.Value) > 0);
+            Assert.Equal(SuiteRows.GameName(report.RunId, Name, keep: true), db.GameRows.Game(result.GameId!.Value)?.Name);
+            Assert.True(db.EventCount(result.GameId.Value) > 0);
             Assert.True(File.Exists(result.RecordingPath));
             Assert.Equal(_pool.Accounts.Count, await Accounts());
 
             // The spectator: a participant with no team, named by the result, that a socket can connect as.
             Assert.Equal(SuiteRows.Spectator, result.Spectator);
-            Assert.Equal(1, await pg.CountAsync(
-                "select count(*) from management.participant p join management.account a on a.id = p.account_id where p.game_id = $1 and p.team_id is null and a.name = $2",
-                result.GameId.Value, TestPool.TestName(result.Spectator!)));
+            Assert.Single(db.GameRows.ParticipantsOf(result.GameId.Value), p => p.TeamId is null && db.GameRows.Accounts[p.AccountId] == TestPool.TestName(result.Spectator!));
             var session = await socket.SessionAsync(result.Spectator!, Ct);
             Assert.IsType<Welcome>(await FirstMessageAsync(session.Jwt, result.GameId.Value));
         }
         finally
         {
-            if (report?.Games.Single().GameId is { } id) await new SuiteRows(pg.Db).DeleteGameAsync(id, Ct);
+            if (report?.Games.Single().GameId is { } id) await _pool.Rows.DeleteAsync(id, Ct);
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }
@@ -139,7 +135,7 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
         }
         finally
         {
-            if (gameId is { } id) await new SuiteRows(pg.Db).DeleteGameAsync(id, Ct);
+            if (gameId is { } id) await _pool.Rows.DeleteAsync(id, Ct);
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }
@@ -149,11 +145,11 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
     public async Task The_sweep_spares_a_live_run_and_takes_it_once_its_lock_is_gone()
     {
         var socket = await SocketAsync();
-        var rows = new SuiteRows(pg.Db);
+        var rows = _pool.Rows;
         var live = Guid.CreateVersion7();
         var c = ScenarioCompiler.Compile(Scenario());
         c = c with { Info = c.Info with { Name = SuiteRows.GameName(live, Name, keep: false) } };
-        await new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)).SeedAsync(c, await socket.CredentialsAsync(c, Ct), Ct);
+        await rows.SeedAsync(c, await socket.CredentialsAsync(c, Ct), Ct);
         try
         {
             await using (await rows.HoldAsync(live, Ct))
@@ -161,13 +157,13 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
                 var report = await new SuiteRunner([Game()], socket).RunAsync(Options(), null, Ct);
                 Assert.True(report.Passed, Why(report));
                 // The run played on the live game's accounts and deleted its own game; the live game keeps every participant.
-                Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1", c.Info.Id));
+                Assert.True(Exists(c.Info.Id));
                 Assert.Equal(c.Info.Participants.Count, await Participants(c.Info.Id));
             }
             Assert.Contains(c.Info.Id, await rows.SweepAsync(Guid.CreateVersion7(), Ct));
-            Assert.Equal(0, await pg.CountAsync("select count(*) from management.game where id = $1", c.Info.Id));
+            Assert.False(Exists(c.Info.Id));
         }
-        finally { await rows.DeleteGameAsync(c.Info.Id, Ct); }
+        finally { await rows.DeleteAsync(c.Info.Id, Ct); }
     }
 
     sealed class RefusingConnector : IWebSocketConnector
@@ -192,13 +188,13 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
     /// <summary>
     /// Two runs at once (the console suite beside the runner service) play on the same accounts, and each deletes only its own games.
     /// Each run has its own in-memory game server: two games at once on one TestServer stall at the first Ask whichever accounts they
-    /// use, which the compose game server does not do (two socket suites at once pass there). The accounts and Postgres are shared.
+    /// use, which the compose game server does not do (two socket suites at once pass there). The accounts and the stores are shared.
     /// </summary>
     [Fact]
     public async Task Two_runs_at_once_share_the_pool()
     {
         var socket = await SocketAsync();
-        using var second = new GameServerFactory();
+        using var second = new GameServerFactory(db);
 
         var reports = await Task.WhenAll(
             new SuiteRunner([Game()], socket).RunAsync(Options(), null, Ct),
@@ -216,14 +212,14 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
     public async Task A_run_sweeps_games_left_by_an_interrupted_run()
     {
         var socket = await SocketAsync();
-        var rows = new SuiteRows(pg.Db);
+        var rows = _pool.Rows;
 
         // An interrupted run's game, and a game an earlier run kept.
         async Task<CompiledScenario> SeedAsync(bool keep)
         {
             var c = ScenarioCompiler.Compile(Scenario());
             c = c with { Info = c.Info with { Name = SuiteRows.GameName(Guid.CreateVersion7(), Name, keep) } };
-            await new SocketRowSeeder(pg.Db, new PostgresGameRows(pg.Db)).SeedAsync(c, await socket.CredentialsAsync(c, Ct), Ct);
+            await rows.SeedAsync(c, await socket.CredentialsAsync(c, Ct), Ct);
             return c;
         }
         var interrupted = await SeedAsync(keep: false);
@@ -233,17 +229,16 @@ public class SuiteSocketTests(PostgresFixture pg) : IDisposable
             var report = await new SuiteRunner([Game()], socket).RunAsync(Options(), null, Ct);
             Assert.True(report.Passed, Why(report));
 
-            Assert.Equal(0, await pg.CountAsync("select count(*) from management.game where id = $1", interrupted.Info.Id));
+            Assert.False(Exists(interrupted.Info.Id));
             Assert.Equal(_pool.Accounts.Count, await Accounts());
-            Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1", kept.Info.Id));
+            Assert.True(Exists(kept.Info.Id));
             Assert.Equal(kept.Info.Participants.Count, await Participants(kept.Info.Id));
-            // Only this test's rows: other suite runs may share the Postgres, and their live games are not this run's to judge.
-            Assert.Equal(0, await Games(SuiteRows.GameName(report.RunId, "", keep: false)));
+                        Assert.Equal(0, await Games(SuiteRows.GameName(report.RunId, "", keep: false)));
         }
         finally
         {
-            await rows.DeleteGameAsync(interrupted.Info.Id, Ct);
-            await rows.DeleteGameAsync(kept.Info.Id, Ct);
+            await rows.DeleteAsync(interrupted.Info.Id, Ct);
+            await rows.DeleteAsync(kept.Info.Id, Ct);
         }
     }
 }

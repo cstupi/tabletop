@@ -5,6 +5,7 @@ using Tabletop.GameServer.Tests.Infrastructure;
 namespace Tabletop.GameServer.Tests;
 
 [Collection("Postgres")]
+[Trait("Category", "E2E")]
 public class PropertiesStoreTests(PostgresFixture pg)
 {
     readonly PostgresPropertiesStore _store = new(pg.Db);

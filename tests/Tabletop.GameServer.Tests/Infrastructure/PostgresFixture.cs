@@ -7,20 +7,18 @@ namespace Tabletop.GameServer.Tests.Infrastructure;
 [CollectionDefinition("Postgres")]
 public class PostgresCollection : ICollectionFixture<PostgresFixture>;
 
-public sealed record SeededParticipant(Guid ParticipantId, Guid AccountId, Guid? TeamId);
-public sealed record SeededGame(Guid GameId, Guid CreatorAccountId, IReadOnlyList<Guid> TeamIds, IReadOnlyList<SeededParticipant> Participants, string PropertiesHash, long RngSeed);
-
 /// <summary>
-/// Talks to the Docker Postgres from docker-compose.yml. Every row it seeds is deleted on dispose.
+/// The E2E suite's seeder: talks to the Docker Postgres from docker-compose.yml. Every row it seeds is deleted on dispose.
 /// Implements xunit's own IAsyncLifetime, not the BCL IAsyncDisposable: xUnit.net v2 only awaits the
 /// former for a collection fixture's teardown, so IAsyncDisposable alone is never invoked and every
 /// seeded row would otherwise leak into the shared database.
 /// </summary>
-public sealed class PostgresFixture : IAsyncLifetime
+public sealed class PostgresFixture : IAsyncLifetime, IRowSeeder
 {
     public static readonly string ConnectionString = Environment.GetEnvironmentVariable("TABLETOP_DB_CONNECTION")
         ?? "Host=localhost;Port=5432;Database=tabletop;Username=tabletop;Password=tabletop";
     public NpgsqlDataSource Db { get; } = NpgsqlDataSource.Create(ConnectionString);
+    public IGameRows Rows => new PostgresGameRows(Db);
     private readonly List<Guid> _games = new(), _accounts = new();
     private readonly List<string> _properties = new();
 
@@ -46,10 +44,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         return hash;
     }
 
-    /// <summary>The dice seed a seeded game gets. management.game.rng_seed has no default, so every insert names one; a fixed value keeps seeded games' dice identical run to run.</summary>
-    public const long DefaultRngSeed = 8675309;
-
-    public async Task<SeededGame> SeedGameAsync(GameStatus status, int teams = 2, int participantsPerTeam = 1, int spectators = 0, Enforcement enforcement = Enforcement.Warn, long rngSeed = DefaultRngSeed)
+    public async Task<SeededGame> SeedGameAsync(GameStatus status, int teams = 2, int participantsPerTeam = 1, int spectators = 0, Enforcement enforcement = Enforcement.Warn, long rngSeed = IRowSeeder.DefaultRngSeed)
     {
         var hash = await SeedPropertiesAsync();
         var creator = await SeedAccountAsync("Creator");

@@ -5,7 +5,7 @@ Two suites, chosen by run settings.
 | Suite | Command | Needs | Holds |
 | --- | --- | --- | --- |
 | Unit | `dotnet test` | nothing running: no Docker, Postgres, MinIO, Stytch or compose servers | every test of logic, endpoints and sessions, over in-memory fakes |
-| E2E | `dotnet test --settings tests/e2e.runsettings` | `docker compose up -d` | `[Trait("Category", "E2E")]` tests: the Postgres and S3 adapters themselves, migrations, suite games over the socket driver |
+| E2E | `dotnet test --settings tests/e2e.runsettings` | `docker compose up -d` | `[Trait("Category", "E2E")]` tests: the Postgres and S3 adapters themselves, migrations, suite games over the socket driver (against Postgres) and in process (whole games, too slow for the unit suite) |
 
 `Directory.Build.props` points every project at `tests/default.runsettings` (`Category!=E2E`); `tests/e2e.runsettings`
 (`Category=E2E`) replaces it. A `--filter` on the command line is ANDed with the settings file's filter, so it narrows a
@@ -30,8 +30,9 @@ in-memory fake from the test project's `Infrastructure/`.
   interface the endpoints depend on, with the SQL class as its Postgres implementation and an in-memory fake in the tests.
   `IBlobStore` already has its seam. `ManagementFactory` registers the fakes. The SQL classes' own tests and
   `MigrationTests` are E2E.
-- **Sim:** the socket driver runs against `GameServerFactory`, so it inherits the game server's fakes. `TestPool` seeds
-  through the in-memory seeder.
+- **Sim:** the socket driver runs against `GameServerFactory`, so it inherits the game server's fakes. A socket run's own rows
+  (management's rows for a scenario, the spectator, the run lock and sweep) sit behind `ISocketRows`: `SocketRowSeeder` over Postgres,
+  `InMemorySocketRows` over the in-memory seeder in the tests. `TestPool` seeds through the in-memory seeder.
 
 A fake behaves as the adapter's contract says, not as a stub: a game's status guards, `EndGameAsync`'s `playing → ended`
 guard, the event log's sequence check. Where an adapter's contract is subtle, one contract test runs against both the

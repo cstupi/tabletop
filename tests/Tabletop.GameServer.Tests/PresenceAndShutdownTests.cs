@@ -7,14 +7,14 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests;
 
-[Collection("Postgres")]
-public class PresenceAndShutdownTests(PostgresFixture pg)
+public class PresenceAndShutdownTests
 {
+    readonly InMemorySeeder db = new();
     [Fact]
     public async Task Presence_reaches_the_other_participant_within_a_few_ticks_and_ends_when_they_leave()
     {
-        using var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby);
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
         await using var a = await TestClient.OpenAsync(factory);
         await using var b = await TestClient.OpenAsync(factory);
         await a.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
@@ -31,8 +31,8 @@ public class PresenceAndShutdownTests(PostgresFixture pg)
     [Fact]
     public async Task Stopping_the_host_closes_every_socket_with_going_away_and_empties_the_registry()
     {
-        var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby);
+        var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby);
         await using var a = await TestClient.OpenAsync(factory);
         await a.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         var registry = factory.Services.GetRequiredService<SessionRegistry>();

@@ -3,13 +3,13 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests;
 
-[Collection("Postgres")]
-public class LobbyTests(PostgresFixture pg)
+public class LobbyTests
 {
+    readonly InMemorySeeder db = new();
     async Task<(GameServerFactory F, SeededGame G, TestClient Creator, TestClient Other)> LobbyAsync()
     {
-        var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
         var creator = await TestClient.OpenAsync(factory); var other = await TestClient.OpenAsync(factory);
         await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await other.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);
@@ -30,7 +30,7 @@ public class LobbyTests(PostgresFixture pg)
         Assert.Equal(third, (await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.Participants[1].AccountId).TeamId);
         await other.SendAsync(Edit(new PickTeam(null)));
         Assert.Null((await creator.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.Participants[1].AccountId).TeamId);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.participant where id = $1 and team_id is null", g.Participants[1].ParticipantId));
+        Assert.Null(db.GameRows.Participant(g.Participants[1].ParticipantId)!.TeamId);
         await other.SendAsync(Edit(new PickTeam(Guid.CreateVersion7())));
         Assert.Equal(RefusalReason.Unknown, (await other.ExpectAsync<Refused>()).Reason);
     }
@@ -39,7 +39,7 @@ public class LobbyTests(PostgresFixture pg)
     public async Task Picking_an_army_requires_owning_it()
     {
         var (f, g, creator, other) = await LobbyAsync();
-        var mine = await pg.SeedArmyAsync(g.CreatorAccountId);
+        var mine = await db.SeedArmyAsync(g.CreatorAccountId);
         await creator.SendAsync(Edit(new PickArmy(mine.Id)));
         Assert.Equal(mine.Id, (await other.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.AccountId == g.CreatorAccountId).ArmyId);
         await other.SendAsync(Edit(new PickArmy(mine.Id)));
@@ -70,8 +70,8 @@ public class LobbyTests(PostgresFixture pg)
         var board = (await other.ExpectAsync<BoardMessage>()).Board;
         Assert.Equal((72.0, 48.0, "grass"), (board.Table.Size.Width, board.Table.Size.Length, board.Table.Texture.Builtin));
         Assert.Empty(board.Armies);
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.table_state where game_id = $1", g.GameId));
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.game where id = $1 and status = 'setup'", g.GameId));
+        Assert.NotNull(db.GameRows.DraftOf(g.GameId));
+        Assert.Equal(GameStatus.Setup, db.GameRows.Game(g.GameId)!.Status);
         await creator.SendAsync(Edit(new StartSetup()));
         Assert.Equal(RefusalReason.WrongStatus, (await creator.ExpectAsync<Refused>()).Reason);
         await other.SendAsync(Edit(new CreateTeam()));                       // still editable during setup
@@ -81,9 +81,9 @@ public class LobbyTests(PostgresFixture pg)
     [Fact]
     public async Task Lobby_edits_are_refused_from_playing_on()
     {
-        using var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Playing);
-        await pg.SeedTableStateAsync(seeded.GameId);
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Playing);
+        await db.SeedTableStateAsync(seeded.GameId);
         await using var client = await TestClient.OpenAsync(factory);
         await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await client.SendAsync(Edit(new CreateTeam()));
@@ -96,11 +96,11 @@ public class LobbyTests(PostgresFixture pg)
     [Fact]
     public async Task A_participant_who_joins_after_hydration_is_in_their_welcome_and_can_pick_a_team()
     {
-        using var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
         await using var creator = await TestClient.OpenAsync(factory);
         await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);                 // hydrates the session from the rows as they stand
-        var joined = await pg.SeedParticipantAsync(seeded.GameId, await pg.SeedAccountAsync("Latecomer"), null);
+        var joined = await db.SeedParticipantAsync(seeded.GameId, await db.SeedAccountAsync("Latecomer"), null);
 
         await using var late = await TestClient.OpenAsync(factory);
         var welcome = await late.ConnectAsync(joined.AccountId, seeded.GameId);
@@ -116,15 +116,15 @@ public class LobbyTests(PostgresFixture pg)
     [Fact]
     public async Task Teams_are_locked_from_playing_on_but_a_rejoining_participant_keeps_their_team()
     {
-        using var factory = new GameServerFactory();
-        var seeded = await pg.SeedGameAsync(GameStatus.Playing, teams: 2, spectators: 1);
-        await pg.SeedTableStateAsync(seeded.GameId);
+        using var factory = new GameServerFactory(db);
+        var seeded = await db.SeedGameAsync(GameStatus.Playing, teams: 2, spectators: 1);
+        await db.SeedTableStateAsync(seeded.GameId);
         await using var player = await TestClient.OpenAsync(factory);
         var welcome = await player.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);
         Assert.Equal(seeded.TeamIds[1], welcome.Game.Participants.Single(p => p.Id == welcome.ParticipantId).TeamId);
         await player.SendAsync(Edit(new PickTeam(seeded.TeamIds[0])));
         Assert.Equal(RefusalReason.WrongStatus, (await player.ExpectAsync<Refused>()).Reason);   // no re-picking during play
-        Assert.Equal(1, await pg.CountAsync("select count(*) from management.participant where id = $1 and team_id = $2", seeded.Participants[1].ParticipantId, seeded.TeamIds[1]));
+        Assert.Equal(seeded.TeamIds[1], db.GameRows.Participant(seeded.Participants[1].ParticipantId)!.TeamId);
 
         await using var again = await TestClient.OpenAsync(factory);                             // the same account, a new socket
         var back = await again.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);

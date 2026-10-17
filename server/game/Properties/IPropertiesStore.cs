@@ -10,14 +10,13 @@ public interface IPropertiesStore
 
 public sealed class InMemoryPropertiesStore : IPropertiesStore
 {
-    private readonly Dictionary<string, PropertySet> _sets = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, PropertySet> _sets = new();
     public InMemoryPropertiesStore Add(PropertySet set) { _sets[set.ContentHash] = set; return this; }
     public Task<PropertySet?> LoadAsync(string contentHash, CancellationToken ct) => Task.FromResult(_sets.GetValueOrDefault(contentHash));
     public Task<bool> SeedAsync(PropertySetDocument document, CancellationToken ct)
     {
         var hash = PropertiesJson.Hash(document);
         if (_sets.ContainsKey(hash)) return Task.FromResult(false);
-        _sets[hash] = PropertiesJson.ToSet(document, Guid.CreateVersion7);
-        return Task.FromResult(true);
+        return Task.FromResult(_sets.TryAdd(hash, PropertiesJson.ToSet(document, Guid.CreateVersion7)));
     }
 }

@@ -25,6 +25,12 @@ public sealed class InMemoryEventLog : IEventLog
             return Task.FromResult<IReadOnlyList<GameEvent>>(_logs.TryGetValue(gameId, out var l) ? l.Values.Where(e => e.Seq > afterSeq).ToList() : []);
     }
 
+    /// <summary>Drops the game's log, as deleting its game.game_event rows does.</summary>
+    public void Remove(Guid gameId)
+    {
+        lock (_gate) _logs.Remove(gameId);
+    }
+
     public Task<long> LastSeqAsync(Guid gameId, CancellationToken ct)
     {
         lock (_gate) return Task.FromResult(_logs.TryGetValue(gameId, out var l) && l.Count > 0 ? l.Keys.Max() : 0L);
