@@ -1,10 +1,11 @@
-# Handoff — 2026-10-15
+# Handoff — 2026-10-16
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
 `sim/` plays whole games headless; `viewer/` draws them. On 2026-10-15 the owner played in the client and reported setup,
-movement, log, marker and game-end problems; everything below *Today* was built in response and committed on `main`,
-not yet seen working in Godot. An undone roll's dice stay spent: an undo always draws fresh
+movement, log, marker and game-end problems; *2026-10-15* below was built in response, and *2026-10-16* settled the
+combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items. All on `main`,
+none of it yet seen working in Godot. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -45,10 +46,15 @@ pick games, Keep, driver, Run; results stream in, then coverage; Watch opens a k
 Today: 193 of 193 games pass on both drivers with no pin, 428 of 428 entries covered (71 by pattern), 108 not automated. See `sim/AGENTS.md` → The rules suite.
 
 **Checks.** `dotnet build` has 0 errors (9 analyzer warnings in test files). `./scripts/check-client` prints nothing.
-`dotnet test` passes with the stack up: Geometry 174, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 51,
-Viewer 9, Client 280, GameServer 1069, Management 96, Sim 474 (Client and GameServer rerun on 2026-10-12; the rest are the
-2026-10-11 counts). `cd viewer && npm run check && npm test` passes (111);
-`cd web && npm test` passes 62 (1 skipped).
+Two suites (spec `docs/superpowers/specs/2026-10-16-test-suites-design.md`, `tests/AGENTS.md`):
+- **Unit**, `dotnet test`: needs nothing running (servers over in-memory fakes; a test that reaches a live service is a
+  defect). About 20 s. Geometry 193, Content 17, ArmyBooks 36, TerrainMeshes 5, Protocol 53, Viewer 9, Client 351,
+  GameServer 1098, Management 129, Sim 276. Five consecutive full runs clean.
+- **E2E**, `dotnet test --settings tests/e2e.runsettings` with the stack up: the Postgres and S3 adapters (shared contract
+  tests run against fake and real), migrations, and the suite games in process and over the socket. Management 33,
+  GameServer 34, Sim 212; about 15 min.
+
+`cd viewer && npm run check && npm test` passes (112); `cd web && npm test` passes 63 (1 skipped).
 In a kept socket run's games, every hit, defense and morale `RollRecord` judged on its modified result carries `basis`
 (`game.game_event`, `step_completed` payloads).
 Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `objectives` moves toward markers its team
@@ -56,11 +62,43 @@ does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_e
 
 ## Next
 
-### Today (2026-10-15): open first
+### 2026-10-16
 
-All built and tested, none of it seen working in Godot. Checks before F: `dotnet build` clean
-(9 analyzer warnings in test files), `./scripts/check-client` clean; Protocol 52, Client 315, GameServer 1082, Sim 474;
-the in-process rules suite 193/193 games, 428/428 entries. Viewer `npm test` not run.
+- **Combat log settled** (C below): `main`'s build kept; the `combat-log` branch's extras ported.
+- **F** checked over the socket: Shaken, Aircraft, Artillery and No Charge notes reach the wire.
+- **Server rules:** a Scout's `set-aside` clears on its deploy turn (p.14); `Lookup.AuraGrants` reads models in play;
+  p.15 passengers deploy only with their Transport, and only a unit never deployed and set aside exactly when the
+  Transport is (`MayDeployInside`, `hand_move` breach); p.6/p.14 "fully within" the zone is a `deploy_zone` breach before
+  round one when the game has zones (`ZoneStyles.BaseFullyWithin`); a Takedown pick offers only models the weapon reaches
+  and sees with the target's own models ignored, and cover reads the picked model alone (p.14).
+- **Movement:** `MoveRegion.IgnoresTerrain` (wire) keys the Aircraft landing exemption on Aircraft (p.13), not on
+  `MinDistance`; a forced move out of a wall applies, one that stays in it is refused under strict.
+- **Client:** every model of a move glides; `UnitCard` rebuilds only when `UnitCardContent` changes and keeps its scroll;
+  a held model shows its own move region (`MoveRegions`); the drag clamp follows `Movement.Region` (difficult cap); the
+  re-grab rule is in Core (`DragBodies.Grabs`).
+- **Base shape at import** (spec `2026-10-16-base-shape-at-import-design.md`): the web import form's Round / Square sets
+  `bases`; square gives `Base.Rect`.
+- **Management:** starter seeding's blob writes share a 5 s budget, so a MinIO outage holds a login at most that.
+  Repositories sit behind interfaces (`IAccountRepository` …, `IMigrator`).
+- **Viewer:** the live log labels a breached answer.
+- **Docs:** `docs/schema.md` and the interpreter design reconciled with the spell library; both split
+  (`docs/schema-diagram.md`; `docs/design/interpreter/` index plus `properties`, `resolution`, `decisions`,
+  `interfaces`, `operations`).
+
+**Open from today (owner):**
+- **Passengers in the client.** The client puts a passenger inside a Transport already on the table (pick the passenger,
+  then "Put inside a container"); that now breaches p.15. The legal path is to pick the Transport and board its
+  passengers before placing it, which the client has no gesture for. Needs a client change before strict games use
+  transports.
+- **Base shape:** height under square bases still comes from the round base ("height stays as imported"); Re-import uses
+  the form's current choice, since the army does not store which set it used.
+- **Account deletion** deletes every game the account joined (management-api design §13, deliberate). Since games are
+  public, a player can join a game and delete their account to wipe it. Narrowing it to games the account created would
+  close that.
+- Still not built: Ambush's "over 9" away from enemy units"; under Takedown, `Blast`'s cap and the defence roll read the
+  whole unit; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
+
+### 2026-10-15
 
 **A. Setup panel** (`SetupToolbar`). The selected piece's controls are first; Table, Terrain, Markers, Zones and Layouts
 collapse under headings. In setup Delete/Backspace (`Intent.Remove`) removes the selected terrain or marker, and a
@@ -69,20 +107,20 @@ right-click on one opens `MenuModel.ForSetupPiece` (Remove). Objectives were alw
 **B. Move step** (`TableInput`, `.Hold`, `MoveRuler`). A drag picks a ghost up where it stands (`Drag.Grabs`; distance
 from `Origins`), so Shift-adjusting one model keeps the unit's move. Q/E with no rows turn each held model 15° (p.7), each
 with its own facing. One ruler per held model; without Alt a model is held to its allowance (`MoveRuler.Clamp`);
-`MoveRuler.Gate` counts models out of range — under strict Enter and C wait, under warn and silent they send. Not done:
-the clamp is straight-line (ignores difficult terrain); the move region outline is still drawn around the first model.
+`MoveRuler.Gate` counts models out of range — under strict Enter and C wait, under warn and silent they send (its count is
+still straight-line).
 
 **C. Combat log** (spec `2026-10-13-combat-log-design.md`, plan `docs/superpowers/plans/2026-10-15-combat-log.md`).
 One line per roll, faces against the target its modifiers make; question/answer/close, empty steps, sequence and turn
 boundaries are dropped; a failed morale reads `<unit> Fled!`. Wire: `RollModifier.Via`, `Die.Triggered`, and
 `RollRecord.Cover` (`CoverVerdict`: InCover, Models, Of, IgnoredBy) on every shooting defense roll, from
 `GfRolls.InCover`. Lines read e.g. `Block · Defense 4+ (no cover: 0/3 models) · ⚀ ⚄ · 1 blocked, 1 wound`.
-Not built from the spec: the nested `Cast [spell]` header, `Hold → shoots [target]`, `failed → Shaken` on one line, the
-roll-off's winner; AP reads `AP -1`, not `AP(1)`; a rerolled or edited die loses its `Triggered`.
-- **Reconcile first:** an earlier session built the same spec on branch `combat-log` (13 commits ahead of `main`,
-  2026-10-13, worktree `.claude/worktrees/agent-a2e178ee30d9e5f0b`), never merged. Today's build was done without it.
-  That branch has Hud row wrapping and tray clipping, roll-off tie names, spell hit-dice triggers and review fixes;
-  today's has the cover verdict and the `Fled!` line. Compare the two, keep one, port the other's extras, delete the branch.
+The `combat-log` branch's extras are ported onto `main` (2026-10-16): the nested `Cast [spell]` block,
+`Hold → shoots [target]`, a single-die test's `failed → Shaken`, the roll-off's tie names and winner, grant and
+cross-unit condition lines, repeated-undo headers, Hud row wrapping with a width floor and tray clipping; spell hit dice and
+defense dice carry their triggers; an added attack die names no extra attacks. Not built: AP reads `AP -1`, not `AP(1)`;
+a rerolled or edited die loses its `Triggered`. The branch and its worktree (`.claude/worktrees/agent-a2e178ee30d9e5f0b`)
+can be deleted.
 
 **D. Markers, casting, set-aside, terrain labels.** Per-model red wound pips and blue spell-token dots
 (`ModelMarks`, `ModelMarkNodes`); a yellow 12-spike ring round every base of a Shaken unit. The move step's stop button
@@ -98,12 +136,10 @@ on; silent continues. After the end everyone stays in to view the board and scor
 while asked, then Stay/Leave. The sim answers End. Before this, warn games never ended, which is why the owner never saw
 the end message.
 
-**F. Team tint and limited-choice reasons: built, stopped before its last checks.** Every model takes a light tint of
-its team colour (`Palette`, `PieceNode`, `TableView`); yellow stays the selection. `AskOption.Note` carries the ruleset's
-reason an activation choice is limited (`GfRules.Scheduling`: Shaken → Idle p.10, Aircraft → Advance, Immobile/Artillery →
-Hold, no Charge without an enemy in range); the decision box shows it. Build, check-client, Protocol 53, Client 317 and
-GameServer 1084 pass. Not done: the note on the unit card, the Sim tests and rules suite after this change, a socket check
-with a Shaken unit, and the docs (protocol design, client/AGENTS.md, in-game UX spec) for `Note` and the tint.
+**F. Team tint and limited-choice reasons.** Every model takes a light tint of its team colour (`Palette.Tinted`);
+yellow stays the selection. `AskOption.Note` carries the ruleset's reason an activation choice is limited
+(`GfRules.ActivationChoices`: Shaken → Idle p.10, Aircraft → Advance, Immobile/Artillery → Hold, no Charge without an enemy
+in range); the decision box and the unit card show it. Checked over the socket: all four notes reach the wire.
 
 **G. Owner rulings and requests.**
 - Line of sight: the owner's "no line of sight" screenshot (game TestSetupCaster, `01a142ac-…`) was not a sight bug:
@@ -122,9 +158,9 @@ layout did not settle"; then remove `GameScreen.NoteLayout`); Undo on the strand
 reopen the activation choice); the decision box column, terrain lock, the 360 px side panel, log follow, the other
 player's cursor name. Open: whether "Undo to here" offers only action boundaries.
 
-**Housekeeping.** The `game` container's `dotnet watch` crashed on hot reload during today's server edits (Exited 1);
-`docker compose up -d game` brings it back. Old agent worktrees under `.claude/worktrees/` and `.worktrees/spells` are all
-merged except `combat-log` (C); remove them once C is settled.
+**Housekeeping.** Merged agent worktrees under `.claude/worktrees/`, `.worktrees/spells` and the `combat-log` branch can
+all be removed (the owner runs it; see 4). Docker Desktop restarting takes every container down with exit 255;
+`docker compose up -d` brings them back.
 
 ### 0. Performance
 
@@ -146,7 +182,7 @@ scrolls; Undo tooltip and dialog, Ctrl+Z twice; a sealed Ask's "Revealed:" line 
 frame; a long engine run shows all at once after the commit rather than batch by batch.
 
 **Open from the review:** range rings (24 ms per redraw, ~1.5M distance calls), an incremental combat-log panel, a by-id
-index for grant rows, `Animator.cs` glides only the first model of a multi-model move (the rest jump). Risks to watch:
+index for grant rows. Risks to watch:
 GLB parsing off the main thread, template copies of rigged or animated models.
 
 ### 1. Open items from the defect fixes
@@ -174,9 +210,7 @@ GLB parsing off the main thread, template copies of rigged or animated models.
   far as it can in the direction taken (`GfMoves.Minimum`, `Movement.RoomAlong`).
 - **Movement leftovers:** D8 suite evidence is weak; the client has no per-model cap region and no landing volumes for Flying; the
   client's Aircraft minimum ring (`MoveRuler.Minimum`) and the sim's `AnswerPolicy` still use the farthest-corner reach on a small table,
-  stricter than the server's direction-taken minimum; the Aircraft landing exemption is keyed on `MinDistance` (`GfMoves.PathBreach`), not
-  on Aircraft, so under strict a spell's forced move of an Aircraft may not land in impassable terrain; a forced move from inside a wall is a
-  silent zero move; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
+  stricter than the server's direction-taken minimum; the start-in-impassable exemption is per volume (lenient); p.36 Banner of Eternal Flame's "may ignore all terrain
   effects" is unbuilt.
 - **Content hash:** it sorts actions while the engine reads them in order (`PropertySetDocument.cs`), so reordering actions keeps the hash.
 
@@ -296,9 +330,6 @@ drawn through round 0.
 - The sim can stall under `strict`: `AnswerPolicy`'s MinDistance fallbacks bypass `Clear`, and `HandPlacement`'s
   zone-centre fallback after 40 rejected anchors is unchecked against occupied bases.
 - Range rings make about 1.5M distance calls per redraw for 20 packed carriers.
-- `UnitCard` rebuilds on every event, board and facts change, and loses its scroll position.
-- Re-grabbing a model already proposed in a move Ask starts the drag at its projected spot, so it jumps back
-  (`TableInput.Position`).
 
 **Standing rulings from the build:** the sight summary reads "k of n clear lines screened", not "in cover" (cover is a
 rule; the client holds none); objective markers are locked in play under every enforcement setting until the marker's
@@ -310,26 +341,13 @@ observer has only melee weapons, so it never proves a non-empty `CanShoot` (the 
 The built-in terrain meshes are glTF Y-up; `BuiltinContent.MeshOrientation` (pitch 90) stands them up. Check that hills,
 woods and buildings stand upright with their bases flush on the table, and water and pads lie flat.
 
-### 4. Base shape at import
+### 4. Smaller items
 
-Army Forge publishes a round and a square base for every unit (`bases.round`, `bases.square`: a tank `120x92` oval or
-`100x60` rectangle, bikers `60x35` or `50x25`), with no field saying which units are vehicles. `ArmyForgeImport` reads
-only `Bases.Round`. Owner ruling: the base set is picked when the army is imported. Model height stays as imported.
-
-### 5. Smaller items
-
-- `docs/schema.md` and `docs/design/interpreter/design.md` were never reconciled with the spell-library build; the
-  correction list that named the stale lines is lost (a local report, deleted in cleanup). Reconcile both against
-  `docs/superpowers/specs/2026-10-02-spell-library-design.md` by reading them.
 - Cleanup the owner runs; the permission check refuses these from Claude: `git worktree remove .worktrees/spells`,
   `git branch -D spells-pre-rebase-backup`, and the merged agent worktrees under `.claude/worktrees/`
-  (`agent-a1bf2de16cf5e473e`, `agent-a5a23d5dd048008b7`, `agent-a926f6b5bf678900a`).
+  (every `agent-*` there is merged), then `git branch -D combat-log` and the merged `worktree-agent-*` branches.
 - Spells rulings standing until the owner says otherwise: choosing an innate Hit & Run or Teleport then moving nothing
   spends the use; a granted Counter-Attack or Unwieldy on a unit with no melee weapon stays until next used.
-- A Scout unit keeps the `set-aside` condition after it deploys: `GfRules.Deployment.cs` clears it only for an Ambusher at the
-  round boundary. Nothing reads it once the unit is on the table (every reader also requires all its models shelved); clear it
-  when the Scout deploys.
-- Management: a login blocks up to 100 s in starter-miniature seeding while MinIO is down, contrary to its own comment.
 
 ## Defects the rules suite found
 
@@ -353,14 +371,6 @@ What the suite does not check or report today.
 
 ## Known rule gaps
 
-`Lookup.AuraGrants` reads `Definition.Models`, so a dead carrier still grants its rule by name. Harmless while only Scout Aura and
-Ambush Aura (read at deployment) use it; it must read living carriers before an Aura of another name read through `Lookup.UnitHas`
-is authored.
-
-Passengers can deploy into a transport later than the transport: p.15 says *"units inside Transports are deployed at
-the same time as the Transport"*, but deployment accepts placing a picked unit inside any friendly transport already on
-the table.
-
 **Army-book rules not yet played.** Every rule name the official books put on a unit, a weapon, an item or an upgrade
 has a catalog entry. 71 are generated template wrappers (Aura, Buff, Mark) and play; 108 are generated text-only
 entries (`played: false`): the unit card shows their Army Forge text tagged "not automated" and the engine plays them
@@ -373,9 +383,9 @@ granted by no `Lookup.AuraGrants`, which read model slots; nothing tags it "not 
 
 **Unique is a list-building rule.** The engine judges no army list, so Unique's suite game only plays to its end.
 
-Deployment is legal anywhere on the table: p.6's "fully within" the deployment zone is not checked. A new game
-starts with Frontline zones, drawn only as a guide; the owner's games created before that have none. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
-are built. Takedown's picked model still blocks line of sight and gives cover, against p.14. A
+A new game starts with Frontline zones; the owner's games created before that have none, so their deployment is not
+checked against a zone. The Aircraft move and "can't be charged" are built; the action restriction and the -12" to attackers' range
+are built. A
 Limited weapon with no eligible target is not marked used; the book is silent. `RerollDice` and `SetDice` carry no
 actor check. Side-missions, the optional extra actions (Overwatch, p.33), action boosting, Advanced Casting's optional modules, army terrain, buildings as targets
 and a second ruleset are not built.
@@ -427,4 +437,3 @@ morale, 11-12 terrain, 13-15 special rules, 17-19 terrain placement and generato
 Army books: `https://army-forge.onepagerules.com/api/army-books?filters=official&gameSystemSlug=grimdark-future` lists
 books; `.../api/army-books/{uid}?gameSystem=2` returns one. A shared list is `GET /api/tts?id={id}`, which import reads.
 `./scripts/army-books fetch` and `generate` rebuild `server/game/Content/army-books/`.
-- The viewer's live log (`viewer/src/lib/live/logLines.ts:64`) ignores `AskAnswered.Breach`, so a breach-warned answer shows no label there.
