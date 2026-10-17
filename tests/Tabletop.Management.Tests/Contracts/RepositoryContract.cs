@@ -26,6 +26,8 @@ public abstract partial class RepositoryContract
     protected abstract Task SeedProperties(string hash, string name, string gameRules, DateTimeOffset seededAt);
     /// <summary>A model entry carries aggregation "all"; the others none.</summary>
     protected abstract Task SeedCatalogEntry(string hash, string name, string kind, bool takesParameter, string ruleText, bool played);
+    /// <summary>A top-level effect row of a seeded entry, unless a parent is named.</summary>
+    protected abstract Task SeedEffect(string hash, string entryName, Guid id, int ordinal, string duration, Guid? parentId = null);
     protected abstract Task SeedGameEvent(Guid gameId, long seq);
     protected abstract Task<int> GameEventCount(Guid gameId);
     protected abstract Task PickArmy(Guid gameId, Guid accountId, Guid armyId);

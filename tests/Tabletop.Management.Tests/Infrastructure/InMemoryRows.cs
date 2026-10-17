@@ -28,6 +28,7 @@ public sealed class InMemoryRows
     public sealed class LayoutRow { public required Guid Owner; public required TableState State; }
     public sealed record PropertiesRow(string Name, string GameRules, DateTimeOffset SeededAt);
     public sealed record CatalogEntryRow(string Hash, string Name, string Kind, bool TakesParameter, string RuleText, bool Played);
+    public sealed record EffectRow(string Hash, string EntryName, Guid Id, int Ordinal, string Duration, Guid? ParentId);
     public sealed class GameRow
     {
         public required string Name; public GameStatus Status; public required string GameRules; public required string PropertiesHash;
@@ -49,6 +50,7 @@ public sealed class InMemoryRows
     public readonly Dictionary<Guid, LayoutRow> Layouts = new();
     public readonly Dictionary<string, PropertiesRow> Properties = new();
     public readonly List<CatalogEntryRow> CatalogEntries = new();
+    public readonly List<EffectRow> Effects = new();
     public readonly Dictionary<Guid, GameRow> Games = new();
     public readonly List<ParticipantRow> Participants = new();
     /// <summary>A game's table_state: the draft the game server writes during setup.</summary>
@@ -86,6 +88,15 @@ public sealed class InMemoryRows
             if (!Properties.ContainsKey(hash)) throw new InvalidOperationException($"foreign key violation: no properties {hash}");
             if (CatalogEntries.Any(e => e.Hash == hash && e.Name == name)) throw new InvalidOperationException($"duplicate key: catalog entry {hash}/{name}");
             CatalogEntries.Add(new CatalogEntryRow(hash, name, kind, takesParameter, ruleText, played));
+        }
+    }
+
+    public void SeedEffect(string hash, string entryName, Guid id, int ordinal, string duration, Guid? parentId = null)
+    {
+        lock (Gate)
+        {
+            if (!CatalogEntries.Any(e => e.Hash == hash && e.Name == entryName)) throw new InvalidOperationException($"foreign key violation: no catalog entry {hash}/{entryName}");
+            Effects.Add(new EffectRow(hash, entryName, id, ordinal, duration, parentId));
         }
     }
 

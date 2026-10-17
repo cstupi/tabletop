@@ -113,6 +113,24 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
+    public async Task Grantable_effects_are_a_sets_top_level_non_interaction_rows_by_entry_then_ordinal()
+    {
+        var hash = await NewProperties();
+        await SeedCatalogEntry(hash, "Hex", "unit", false, "Target gets -1 to hit once.", true);
+        await SeedCatalogEntry(hash, "Growth", "unit", false, "Gets a marker.", true);
+        await SeedCatalogEntry(hash, "Fearless", "unit", false, "+1 to morale.", true);
+        Guid hexB = Guid.CreateVersion7(), hexA = Guid.CreateVersion7(), growth = Guid.CreateVersion7(), fearless = Guid.CreateVersion7(), child = Guid.CreateVersion7();
+        await SeedEffect(hash, "Hex", hexB, 2, "once");
+        await SeedEffect(hash, "Hex", hexA, 1, "once");
+        await SeedEffect(hash, "Hex", child, 1, "once", parentId: hexA);
+        await SeedEffect(hash, "Growth", growth, 1, "marker");
+        await SeedEffect(hash, "Fearless", fearless, 1, "interaction");
+        Assert.Equal([new GrantableEffect("Growth", growth, "marker"), new GrantableEffect("Hex", hexA, "once"), new GrantableEffect("Hex", hexB, "once")],
+            await Games.GrantableEffects(hash));
+        Assert.Null(await Games.GrantableEffects("sha256:contract-unknown"));
+    }
+
+    [Fact]
     public async Task Rule_texts_are_a_sets_entries_by_name_and_catalog_kinds_read_its_unit_and_model_entries()
     {
         var rules = "contract-rules-" + Guid.NewGuid().ToString("N")[..6];

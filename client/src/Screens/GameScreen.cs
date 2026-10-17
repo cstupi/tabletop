@@ -85,7 +85,7 @@ public partial class GameScreen : Control
         _sidePanel.Visible = !playing;                                      // play is the table to the edges (spec → Layout)
         if (!playing) foreach (var team in game.Teams) { var panel = new TeamPanel(team); _teams.Add(panel); _side.AddChild(panel); }
         RefreshTeams();
-        if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel());
+        if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel { Leave = ConfirmLeave });
         if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this));
         ShowPlayPanels(playing);
     }

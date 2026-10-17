@@ -10,7 +10,7 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | Part | Where | Draws |
 | --- | --- | --- |
 | `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour, a plain chip while no team controls it; a wrapping row of the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line (`HeaderView.Waiting` with my team: `Your move: …` first, then each other team's; for a watcher `HeaderView.Watching`); "Game over" with the result. A team name's right-click opens the team menu |
-| `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed. A click selects and centres the unit; R collapses to the team headers |
+| `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed; a `Reserve: {property} ({unit})` chip on a unit the army holds off the table until a property places it (`RosterView.ReserveOf`), also on its card. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | right column, above the undo and log buttons | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll's log line, its height only (a long line clips; the tooltip holds all of it); a click opens the log there, expanded |
@@ -167,17 +167,18 @@ to the same command, and the menu already has *Set the round* for a player who w
 
 Two ruleset question names arrive carrying a `move_region`: `move` from the move step of
 hold/advance/rush/charge, and `disembark` from `transport-destroyed`'s place step. Neither belongs
-in `AskQuestions`. A disembark is the same `RenderMove` with three things swapped:
+in `AskQuestions`. A third, `place` from `place-reserve` (a Spawn or Split reserve), is the disembark's
+shape over models on the shelf, anchored on a model on the table (`MoveRuler.IsShelfPlacement`). A disembark is the same `RenderMove` with three things swapped:
 
-| | ordinary move | disembark (`Containment.ExitingId` set) |
-| --- | --- | --- |
-| region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's |
-| clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none |
-| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node |
-| `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` |
-| ruler | start to current, with remaining allowance | container to current, distance only |
-| `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through |
-| yaw | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` |
+| | ordinary move | disembark (`Containment.ExitingId` set) | reserve placement (movers on the shelf) |
+| --- | --- | --- | --- |
+| region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's | the same, about the anchor model |
+| clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none | none |
+| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node | `TableView.ShowGhosts` in rings about the anchor (`DeployView.Around`) |
+| `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` | `null` |
+| ruler | start to current, with remaining allowance | container to current, distance only | anchor to current, distance only |
+| `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through | `OnShelf` |
+| yaw | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` | the ghost's (Q/E) |
 
 Embarking answers with the unit, not the model: one `ModelRelocation` per model of the unit, all to
 the same `Inside(container)`. P.14 embarks the whole unit when one model reaches the transport.
@@ -287,13 +288,13 @@ The rules roll every die and apply every modifier; a roll entry offers no way to
 The menu is where every property is editable. It has no admin mode and no confirmation dialog.
 `MenuModel` is Godot-free and returns `MenuItem(Label, MenuInput, Func<string?, Command?> Build)`
 lists. `PieceMenu` is the `PopupMenu` that shows them. It pops a one-field dialog for an `Integer`
-or `Text` item, borrows the next click for a `PieceId` or `TablePoint` item, and sends whatever
+or `Text` item, a filtered list for a `Choice` item (`MenuItem.Choices`), borrows the next click for a `PieceId` or `TablePoint` item, and sends whatever
 `Build` returns through `SendCommandAsync`.
 
 | Wiring | Items |
 | --- | --- |
 | right-click a model | `ForBoarding` while my move Ask moves it and offers containers (Board transport per `MoveContainment.Enterable`, answering the Ask), then `ForModel` + `ForFrame`: wounds, conditions, spell tokens, shelf, container, place here |
-| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, grants, wounds-this-activation |
+| Shift-right-click a model | `ForUnit`: mark as having taken an action, clear the action record, conditions, Add a grant (a `Choice` of `Session.Grantable`: the pinned set's grantable effects from `GET /v1/properties/{hash}/grants`, `GrantChoices`; one use, the unit as its own grantor) and Remove grant, wounds-this-activation |
 | right-click a marker | `ForMarker`: remove a play marker, give an objective to a team or make it neutral; in play, Unlock or Lock an objective (local, `MarkerLocks`) |
 | right-click a roster row of my team | `ForRosterUnit`: Set aside / Return to deployment (a shelved Ambush or Scout unit), Put in transport per Transport `ModelFacts.DeployInside` names, Take out of transport while that Transport is on the shelf (passengers spec) |
 | right-click a team name in the header | `ForTeam` + `OffTable`: score, set the active team, set the round, and one place-here item per shelf or container model of that team |

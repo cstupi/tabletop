@@ -1,8 +1,9 @@
 using Tabletop.Protocol;
 namespace Tabletop.Client.Core;
 
-/// <summary>Inside: the name of the unit whose model holds this one (passengers spec: the roster's "in {Transport}"), else null.</summary>
-public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Left, int Max, bool OffTable, IReadOnlyList<string> Conditions, string? Inside = null);
+/// <summary>Inside: the name of the unit whose model holds this one (passengers spec: the roster's "in {Transport}"), else null. Reserve: the unit is
+/// held off the table until a property places it (ReserveOf), else null.</summary>
+public sealed record RosterRow(Guid UnitId, string Name, bool Activated, int Left, int Max, bool OffTable, IReadOnlyList<string> Conditions, string? Inside = null, string? Reserve = null);
 public sealed record RosterTeam(Guid TeamId, string Name, int Ordinal, IReadOnlyList<RosterRow> Rows);
 
 /// <summary>The roster (spec → Army roster) from the projection only: my team first, the rest by ordinal, units in army order. Left is wounds left over
@@ -21,7 +22,16 @@ public static class RosterView
         bool OnTable(ModelInPlay m) => m.Location is OnTable || (m.Location is Inside i && p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable);
         return new(u.Id, u.Definition.Name, u.Actions.Count > 0, left, models.Sum(x => x.Max), !models.Any(x => OnTable(x.M)),
             u.Conditions.Concat(models.SelectMany(x => x.M.Conditions)).Distinct().Order(StringComparer.Ordinal).ToList(),
-            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null);
+            holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u));
+    }
+
+    /// <summary>"Reserve: {property} ({unit})" for a unit the army holds off the table until that property, held at a model or a unit of the same army,
+    /// places it (the snapshot's Unit.Reserve, as imported); null for any other unit. The property is the snapshot's name, not one the client knows.</summary>
+    public static string? ReserveOf(Projection p, UnitInPlay u)
+    {
+        if (u.Definition.Reserve is not { } r) return null;
+        var at = p.Units.GetValueOrDefault(r.Of)?.Definition.Name ?? (p.Models.GetValueOrDefault(r.Of) is { } m ? p.Units.GetValueOrDefault(m.UnitId)?.Definition.Name : null);
+        return at is null ? $"Reserve: {r.Property}" : $"Reserve: {r.Property} ({at})";
     }
 
     public static string Pips(int left, int max) => new string('●', left) + new string('○', Math.Max(0, max - left));

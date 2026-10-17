@@ -71,7 +71,8 @@ code field; its buttons are disabled while a request is out, and its line says w
 management's default `Player-xxxx` (`TextLimits.IsDefaultName`), a line asking for a real one. The game
 list shows a disabled row for loading, no games, or no match; Join is disabled without a selection
 and while a join is out, More once every page is listed, each with the reason as tooltip; double-click
-or Enter joins. Create game loads the rule sets and armies first, and its OK waits for a valid name.
+or Enter joins. End game and Delete game (`GameRowActions`) are enabled on a game I created (End only before it has ended), each
+asked first, and the list reloads after. Create game loads the rule sets and armies first, and its OK waits for a valid name.
 The game screen's corner reads `Connecting…`, the game and its status (`— watching` for a watcher), or
 `reconnecting, attempt N; Home stops it…`.
 

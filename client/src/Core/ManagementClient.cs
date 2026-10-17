@@ -26,8 +26,12 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task<GameInfo> GetGame(Guid id) => Get<GameInfo>($"/v1/games/{id}");
     public Task<GameInfo> JoinGame(Guid id) => Post<GameInfo>($"/v1/games/{id}/join", new { });
     public Task LeaveGame(Guid id) => Send(HttpMethod.Post, $"/v1/games/{id}/leave", null, false);
+    /// <summary>The creator's: the game ends for everyone. DeleteGame removes it and its log.</summary>
+    public Task EndGame(Guid id) => Send(HttpMethod.Post, $"/v1/games/{id}/end", null, false);
+    public Task DeleteGame(Guid id) => Send(HttpMethod.Delete, $"/v1/games/{id}", null, false);
     public Task<IReadOnlyList<PropertiesSummary>> ListProperties() => Get<IReadOnlyList<PropertiesSummary>>("/v1/properties");
     public Task<IReadOnlyList<RuleTextDto>> GetRuleTexts(string propertiesHash) => Get<IReadOnlyList<RuleTextDto>>($"/v1/properties/{propertiesHash}/rules");
+    public Task<IReadOnlyList<GrantableEffectDto>> GetGrantableEffects(string propertiesHash) => Get<IReadOnlyList<GrantableEffectDto>>($"/v1/properties/{propertiesHash}/grants");
     public Task<Page<ArmySummary>> ListArmies(Guid? after) => Get<Page<ArmySummary>>("/v1/armies?limit=200" + (after is null ? "" : $"&after={after}"));
     public Task<Army> GetArmy(Guid id) => Get<Army>($"/v1/armies/{id}");
     public Task<IReadOnlyList<LayoutSummary>> ListLayouts() => Get<IReadOnlyList<LayoutSummary>>("/v1/layouts");

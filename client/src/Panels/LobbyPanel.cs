@@ -9,6 +9,8 @@ namespace Tabletop.Client.Panels;
 public partial class LobbyPanel : VBoxContainer
 {
     Label _error = null!; Button? _endSetup; Session _session = null!; Action? _onBoard;
+    /// <summary>The game screen's Leave, which asks first; lobby and setup have no Hud menu to hold it.</summary>
+    public Action? Leave { get; init; }
 
     public override void _ExitTree()
     {
@@ -38,6 +40,7 @@ public partial class LobbyPanel : VBoxContainer
         }
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
+        AddChild(Seats(s, game));
         var armies = new OptionButton(); armies.AddItem("No army"); AddChild(armies);
         AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         Guarded.Run(async () =>
@@ -73,6 +76,7 @@ public partial class LobbyPanel : VBoxContainer
                 if (control is LineEdit l) l.Editable = false;
                 if (control is BaseButton or LineEdit) control.TooltipText = LobbyView.CreatorOnly;
             }
+        if (Leave is { } leave && s.ParticipantId is { } me && me != Guid.Empty) AddChild(Btn("Leave game", leave));   // gives the seat up, asked first
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
@@ -80,6 +84,24 @@ public partial class LobbyPanel : VBoxContainer
             _onBoard = () => { if (IsInstanceValid(_endSetup)) _endSetup!.Text = EndText(s); };
             s.BoardChanged += _onBoard;
         }
+    }
+
+    /// <summary>Every participant, teamless ones included. The creator's rows carry a team picker that places that participant (PickTeam with its id).</summary>
+    static Container Seats(Session s, GameInfo game)
+    {
+        var list = new VBoxContainer();
+        list.AddChild(new Label { Text = "Players" });
+        foreach (var seat in LobbyView.Players(game))
+        {
+            var row = new HFlowContainer(); list.AddChild(row);
+            row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), AutowrapMode = TextServer.AutowrapMode.WordSmart });
+            if (!s.IsCreator) { row.AddChild(new Label { Text = seat.Seat }); continue; }
+            var picker = new OptionButton(); foreach (var c in LobbyView.SeatChoices(game)) picker.AddItem(c.Label);
+            picker.Select(seat.Selected);
+            picker.ItemSelected += i => Guarded.Send(s, LobbyView.Place(game, seat.ParticipantId, (int)i));
+            row.AddChild(picker);
+        }
+        return list;
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }

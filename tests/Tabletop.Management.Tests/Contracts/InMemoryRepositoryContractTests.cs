@@ -34,6 +34,7 @@ public sealed class InMemoryRepositoryContractTests : RepositoryContract
 
     protected override Task SeedProperties(string hash, string name, string gameRules, DateTimeOffset seededAt) { _rows.SeedProperties(hash, name, gameRules, seededAt); return Task.CompletedTask; }
     protected override Task SeedCatalogEntry(string hash, string name, string kind, bool takesParameter, string ruleText, bool played) { _rows.SeedCatalogEntry(hash, name, kind, takesParameter, ruleText, played); return Task.CompletedTask; }
+    protected override Task SeedEffect(string hash, string entryName, Guid id, int ordinal, string duration, Guid? parentId = null) { _rows.SeedEffect(hash, entryName, id, ordinal, duration, parentId); return Task.CompletedTask; }
     protected override Task SeedGameEvent(Guid gameId, long seq) { _rows.SeedGameEvent(gameId, seq); return Task.CompletedTask; }
     protected override Task<int> GameEventCount(Guid gameId) { lock (_rows.Gate) return Task.FromResult(_rows.GameEvents.Count(e => e.GameId == gameId)); }
     protected override Task PickArmy(Guid gameId, Guid accountId, Guid armyId) { _rows.PickArmy(gameId, accountId, armyId); return Task.CompletedTask; }

@@ -8,6 +8,7 @@ public class RuleTextTests : IClassFixture<ManagementFactory>
     private readonly ManagementFactory _f;
     public RuleTextTests(ManagementFactory f) => _f = f;
     const string Hash = "sha256:test-rule-texts", Bare = "sha256:test-rule-texts-bare";
+    static readonly Guid HexEffect = Guid.CreateVersion7();
 
     Task Seed()
     {
@@ -20,6 +21,8 @@ public class RuleTextTests : IClassFixture<ManagementFactory>
             _f.Rows.SeedCatalogEntry(Hash, "AP", "weapon", true, "Targets get -X to Defense rolls when blocking hits.");
             _f.Rows.SeedCatalogEntry(Hash, "Fearless", "unit", false, "Gets +1 to morale tests.");
             _f.Rows.SeedCatalogEntry(Hash, "Precise", "model", false, "Gets +1 to hit when attacking.", played: false);
+            _f.Rows.SeedCatalogEntry(Hash, "Hex", "unit", false, "Target gets -1 to hit once.");
+            _f.Rows.SeedEffect(Hash, "Hex", HexEffect, 1, "once");
         }
         return Task.CompletedTask;
     }
@@ -38,9 +41,23 @@ public class RuleTextTests : IClassFixture<ManagementFactory>
         Assert.Equal([
             ("AP", "weapon", true, "Targets get -X to Defense rolls when blocking hits.", true),
             ("Fearless", "unit", false, "Gets +1 to morale tests.", true),
+            ("Hex", "unit", false, "Target gets -1 to hit once.", true),
             ("Precise", "model", false, "Gets +1 to hit when attacking.", false),
             ("Tough", "model", true, "Must take X wounds before being killed.", true),
         ], rows);
+    }
+
+    [Fact]
+    public async Task Grants_lists_the_effects_a_grant_can_carry_and_is_404_for_an_unknown_hash()
+    {
+        await Seed();
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7(), "Clay");
+        var response = await c.GetAsync($"/v1/properties/{Uri.EscapeDataString(Hash)}/grants");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var row = Assert.Single(json.RootElement.EnumerateArray());
+        Assert.Equal(("Hex", HexEffect, "once"), (row.GetProperty("entryName").GetString(), row.GetProperty("effectId").GetGuid(), row.GetProperty("duration").GetString()));
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/v1/properties/sha256%3Anope/grants")).StatusCode);
     }
 
     [Fact]

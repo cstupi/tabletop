@@ -18,8 +18,11 @@ tooltip. A seat line (`LobbyView.Seat`) says which team I am on, or that I have 
 once play starts. `LobbyView.Teams` makes the team buttons: `Join team N` on an empty team, `On team N`
 (disabled) on mine, and a team another participant holds named `Team N: {holders}`, disabled with
 "ask the creator to place you on it", except for the creator, who may join it. The game name is held
-to 64 characters (`TextLimits`). A forged edit is refused with `NotPermitted`, so the UI is a
-convenience over a server rule rather than the rule itself. The "End setup" button notes how many placements are still off the slab, because the
+to 64 characters (`TextLimits`). The Players list (`LobbyView.Players`) shows every participant, teamless
+ones included, with their team or "No team"; for the creator each row is a team picker (No team, then
+the teams by ordinal) sending `PickTeam(teamId, participantId)` (`LobbyView.Place`), the server's path
+for putting a second player on a held team. A forged edit is refused with `NotPermitted`, so the UI is a
+convenience over a server rule rather than the rule itself. A Leave game button (the game screen's confirm, then `Session.LeaveAsync`) gives the seat up from lobby and setup. The "End setup" button notes how many placements are still off the slab, because the
 end-setup command deletes those rows before flipping.
 
 `SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add
