@@ -35,7 +35,9 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data      # local disk, not the NAS
       - ../scripts/postgres/roles.sh:/docker-entrypoint-initdb.d/000_roles.sh:ro
-    networks: [backend]
+    networks:
+      backend:
+        aliases: [tabletop-db]          # unique: a bare "postgres" can resolve to another stack's container on gateway_default
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d tabletop"]
       interval: 5s
@@ -53,7 +55,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment:
-      PGHOST: postgres
+      PGHOST: tabletop-db
       PGDATABASE: tabletop
       PGUSER: tabletop_owner
       PGPASSWORD: ${TABLETOP_DB_OWNER_PASSWORD:?set TABLETOP_DB_OWNER_PASSWORD}
@@ -81,7 +83,10 @@ services:
       MC_CONFIG_DIR: /tmp/mc
     volumes:
       - ${TABLETOP_MINIO_DATA:-/mnt/tabletop/minio}:/data
-    networks: [backend, gateway]
+    networks:
+      backend:
+        aliases: [tabletop-s3]          # unique on every network the servers join (see tabletop-db)
+      gateway: {}
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -99,7 +104,7 @@ services:
     volumes:
       - ../scripts/minio:/scripts:ro
     environment:
-      MINIO_URL: http://minio:9000
+      MINIO_URL: http://tabletop-s3:9000
       MINIO_ROOT_USER: ${TABLETOP_MINIO_ROOT_USER:-tabletop-root}
       MINIO_ROOT_PASSWORD: ${TABLETOP_MINIO_ROOT_PASSWORD:?set TABLETOP_MINIO_ROOT_PASSWORD}
       S3_BUCKET: ${TABLETOP_S3_BUCKET:-tabletop-blobs}
@@ -121,7 +126,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment:
-      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;GSS Encryption Mode=Disable;Username=tabletop_owner;Password=${TABLETOP_DB_OWNER_PASSWORD:?set TABLETOP_DB_OWNER_PASSWORD}"
+      TABLETOP_DB_CONNECTION: "Host=tabletop-db;Port=5432;Database=tabletop;GSS Encryption Mode=Disable;Username=tabletop_owner;Password=${TABLETOP_DB_OWNER_PASSWORD:?set TABLETOP_DB_OWNER_PASSWORD}"
     networks: [backend]
 
   management:
@@ -133,8 +138,8 @@ services:
       migrate: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }
     environment:
-      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_management;Password=${TABLETOP_DB_MANAGEMENT_PASSWORD:?set TABLETOP_DB_MANAGEMENT_PASSWORD}"
-      TABLETOP_S3_ENDPOINT: http://minio:9000
+      TABLETOP_DB_CONNECTION: "Host=tabletop-db;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_management;Password=${TABLETOP_DB_MANAGEMENT_PASSWORD:?set TABLETOP_DB_MANAGEMENT_PASSWORD}"
+      TABLETOP_S3_ENDPOINT: http://tabletop-s3:9000
       TABLETOP_S3_PUBLIC_ENDPOINT: ${TABLETOP_S3_PUBLIC_ENDPOINT:?set TABLETOP_S3_PUBLIC_ENDPOINT}
       TABLETOP_S3_BUCKET: ${TABLETOP_S3_BUCKET:-tabletop-blobs}
       TABLETOP_S3_ACCESS_KEY: ${TABLETOP_S3_ACCESS_KEY:?set TABLETOP_S3_ACCESS_KEY}
@@ -156,7 +161,7 @@ services:
     depends_on:
       management: { condition: service_healthy }
     environment:
-      TABLETOP_DB_CONNECTION: "Host=postgres;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_game;Password=${TABLETOP_DB_GAME_PASSWORD:?set TABLETOP_DB_GAME_PASSWORD}"
+      TABLETOP_DB_CONNECTION: "Host=tabletop-db;Port=5432;Database=tabletop;Search Path=management,game,public;GSS Encryption Mode=Disable;Username=tabletop_game;Password=${TABLETOP_DB_GAME_PASSWORD:?set TABLETOP_DB_GAME_PASSWORD}"
       TABLETOP_STYTCH_BASE_URL: ${TABLETOP_STYTCH_BASE_URL:-https://api.stytch.com}
       TABLETOP_STYTCH_PROJECT_ID: ${TABLETOP_STYTCH_PROJECT_ID:?set TABLETOP_STYTCH_PROJECT_ID}
     networks: [backend, gateway]

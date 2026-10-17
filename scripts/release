@@ -58,6 +58,13 @@ elif [[ $deploy == docker || $deploy == home ]]; then die "$env_file not found (
 else echo "release: no $env_file; using the environment"; fi
 
 step "Preflight"
+# A deploy needs every secret its compose file requires; an empty one otherwise surfaces only as a server failing to start.
+if [[ $deploy == docker || $deploy == home ]]; then
+  for key in TABLETOP_STYTCH_PROJECT_ID TABLETOP_STYTCH_SECRET TABLETOP_DB_OWNER_PASSWORD TABLETOP_DB_MANAGEMENT_PASSWORD \
+             TABLETOP_DB_GAME_PASSWORD TABLETOP_S3_ACCESS_KEY TABLETOP_S3_SECRET_KEY TABLETOP_WEB_URL TABLETOP_S3_PUBLIC_ENDPOINT; do
+    [[ -n "${!key:-}" ]] || die "$key is empty in $env_file"
+  done
+fi
 need git
 if [[ $deploy == home ]]; then need docker
 else
