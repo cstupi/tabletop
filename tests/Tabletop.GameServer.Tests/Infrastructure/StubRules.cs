@@ -72,4 +72,5 @@ public sealed class WithSequences(IGameRules inner, params Sequence[] extra) : I
     public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => inner.PlacementBreach(state, moves);
     public RulesOptionCatalog OptionCatalog => inner.OptionCatalog;
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => inner.OptionProblems(optionalRules);
+    public Interpreter.ISightPolicy SightPolicy(GameState state) => inner.SightPolicy(state);
 }

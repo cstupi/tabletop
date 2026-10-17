@@ -7,4 +7,5 @@ public sealed partial class GrimdarkFutureRules
 {
     public RulesOptionCatalog OptionCatalog => GfOptions.Catalog;
     public IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => GfOptions.Problems(optionalRules);
+    public Interpreter.ISightPolicy SightPolicy(GameState state) => GfSight.For(state);
 }

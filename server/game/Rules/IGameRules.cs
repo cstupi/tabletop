@@ -84,6 +84,8 @@ public interface IGameRules
     RulesOptionCatalog OptionCatalog => RulesOptionCatalog.Empty;
     /// <summary>What is wrong with an optional-rules map: an unknown key or value. A set_configuration with any is refused. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<string> OptionProblems(IReadOnlyDictionary<string, string> optionalRules) => optionalRules.Keys.Select(k => $"unknown option {k}").ToList();
+    /// <summary>What blocks sight in this state under the game's optional rules (Sight.From reads it). Each model's body, by default. Wrapping rulesets must forward it.</summary>
+    ISightPolicy SightPolicy(GameState state) => ISightPolicy.PerModel;
 
     // Asked by dispatch's answer judge.
     /// <summary>A rule an Ask answer inside its legal set still breaks, which set membership cannot see because it needs the table (OPR p.11: every model of a
