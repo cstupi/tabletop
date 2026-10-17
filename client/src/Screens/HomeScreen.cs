@@ -15,7 +15,7 @@ public partial class HomeScreen : Control
     Guid? _next;
     bool _loaded, _busy;
     ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!; Label _error = null!, _name = null!, _hint = null!;
-    Button _join = null!, _more = null!;
+    Button _join = null!, _more = null!, _end = null!, _delete = null!;
     Action? _onAccount;
 
     public override void _Ready()
@@ -42,6 +42,8 @@ public partial class HomeScreen : Control
         _list.ItemSelected += _ => ShowButtons();
         var bottom = new HBoxContainer(); root.AddChild(bottom);
         bottom.AddChild(_join = Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) JoinRow(sel[0]); }));
+        bottom.AddChild(_end = Btn("End game", () => ConfirmOnSelected(false)));
+        bottom.AddChild(_delete = Btn("Delete game", () => ConfirmOnSelected(true)));
         bottom.AddChild(_more = Btn("More", () => Run(LoadPage)));
         bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _loaded = false; Render(); Run(LoadPage); }));
         root.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
@@ -105,8 +107,35 @@ public partial class HomeScreen : Control
     {
         _join.Disabled = _busy || _list.GetSelectedItems().Length == 0;
         _join.TooltipText = _busy ? "Joining…" : _join.Disabled ? "Select a game first" : "Join the selected game (or double-click it)";
+        var actions = GameRowActions.Of(Selected(), Main.Instance.Session.Account?.Id);
+        _end.Disabled = _busy || !actions.CanEnd; _delete.Disabled = _busy || !actions.CanDelete;
+        _end.TooltipText = actions.CanEnd ? "End the selected game for everyone" : "Only the game's creator ends a game that has not ended";
+        _delete.TooltipText = actions.CanDelete ? "Delete the selected game and its log" : "Only the game's creator deletes it";
         _more.Disabled = _busy || _loaded && _next is null;
         _more.TooltipText = _loaded && _next is null ? "Every game is listed" : "Load the next 50 games";
+    }
+
+    GameSummary? Selected() => _list.GetSelectedItems() is { Length: > 0 } sel && sel[0] < Filtered().Count ? Filtered()[sel[0]] : null;
+
+    /// <summary>End or Delete on the selected game, the creator's only, asked first; the list reloads after.</summary>
+    void ConfirmOnSelected(bool delete)
+    {
+        if (Selected() is not { } game) return;
+        var d = new ConfirmationDialog
+        {
+            Title = delete ? "Delete this game?" : "End this game?", OkButtonText = delete ? "Delete" : "End game", DialogAutowrap = true,
+            DialogText = delete ? $"{game.Name} and its whole log are deleted for every player. This cannot be undone." : $"{game.Name} ends for every player.",
+        };
+        d.Confirmed += () => Run(async () =>
+        {
+            var m = Main.Instance.Session.Management;
+            if (delete) await m.DeleteGame(game.Id); else await m.EndGame(game.Id);
+            if (!IsInstanceValid(this)) return;
+            Show(delete ? $"Deleted {game.Name}." : $"Ended {game.Name}.");
+            _games.Clear(); _next = null; _loaded = false; Render(); await LoadPage();
+        });
+        d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        AddChild(d); d.PopupCentered(new Vector2I(380, 0));
     }
 
     async Task LoadPage()

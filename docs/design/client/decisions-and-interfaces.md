@@ -47,7 +47,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | --- | --- |
 | `sealed record ClientSettings(bool Animate, IReadOnlySet<string> MutedWindowKinds, bool RememberMe, string ManagementUrl, string GameServerUrl, LogFilter LogFilter, bool LogOpen)` with init properties `Theme`, `CameraFollow`, `TurnBanner`, `RangeRings` | `static Default`, `static Load(path)`, `Save(path)`, `Mute(kind)`, `Unmute(kind)` |
 | `sealed class SessionStore(string path)` | `string? Read()`, `Write(jwt)`, `Clear()` |
-| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload`, `GetRuleTexts(propertiesHash)` |
+| `sealed class ManagementClient(HttpClient, Uri baseUrl)` | `string? Jwt`; `SendOtp`, `VerifyOtp`, `LoginWithPassword`, `SignUp`, `Refresh`, `Logout`, `GetAccount`, `ListGames(after, limit)`, `CreateGame`, `GetGame`, `JoinGame`, `LeaveGame`, `EndGame`, `DeleteGame`, `ListProperties`, `ListArmies`, `GetArmy`, `ListLayouts`, `GetLayout`, `SaveLayout`, `GetManifest`, `ListAssets(kind, after)`, `GetAssetVolumes`, `GetDownload`, `GetRuleTexts(propertiesHash)` |
 | `interface IGameSocket : IAsyncDisposable` | `event Action<SocketMessage> FrameReceived`, `event Action<SocketClosed> Closed`, `ConnectAsync(Uri, ct)`, `SendAsync(SocketMessage)`, `CloseAsync()` |
 | `interface IGameSocketFactory` | `IGameSocket Create()` |
 | `sealed record SocketClosed(int? Code, string? Reason, Exception? Error)` | |
@@ -121,7 +121,7 @@ semantics.
 Management HTTP: `GET /healthz`; `POST /v1/auth/otp`, `/otp/verify`, `/password`,
 `/password/signup`, `/session/refresh`, `DELETE /v1/auth/session`; `GET /v1/account`;
 `GET /v1/properties`; `GET /v1/games`, `POST /v1/games`, `GET /v1/games/{id}`,
-`POST /v1/games/{id}/join`, `POST /v1/games/{id}/leave`, `GET /v1/games/{id}/assets`;
+`POST /v1/games/{id}/join`, `POST /v1/games/{id}/leave`, `POST /v1/games/{id}/end`, `DELETE /v1/games/{id}`, `GET /v1/games/{id}/assets`;
 `GET /v1/armies`, `GET /v1/armies/{id}`; `GET /v1/layouts`, `GET /v1/layouts/{id}`,
 `POST /v1/layouts`; `GET /v1/assets?kind=terrain|texture`, `GET /v1/assets/{id}/volumes`,
 `GET /v1/assets/{id}/download`. `Page<T>(Items, Next)` with `?limit&after`; problem+json on

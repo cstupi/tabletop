@@ -9,6 +9,8 @@ namespace Tabletop.Client.Panels;
 public partial class LobbyPanel : VBoxContainer
 {
     Label _error = null!; Button? _endSetup; Session _session = null!; Action? _onBoard;
+    /// <summary>The game screen's Leave, which asks first; lobby and setup have no Hud menu to hold it.</summary>
+    public Action? Leave { get; init; }
 
     public override void _ExitTree()
     {
@@ -74,6 +76,7 @@ public partial class LobbyPanel : VBoxContainer
                 if (control is LineEdit l) l.Editable = false;
                 if (control is BaseButton or LineEdit) control.TooltipText = LobbyView.CreatorOnly;
             }
+        if (Leave is { } leave && s.ParticipantId is { } me && me != Guid.Empty) AddChild(Btn("Leave game", leave));   // gives the seat up, asked first
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
