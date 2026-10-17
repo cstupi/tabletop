@@ -48,6 +48,8 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `cd web && npm run check`: `svelte-kit sync` and `svelte-check`.
 - `cd web && npm run build`: static output to `web/build`, SPA fallback `index.html`. Production builds set `TABLETOP_BLOB_ORIGIN`
   (the presigned URLs' origin) for the CSP; Caddy serves `web/build` (`deploy/README.md`).
+- `web/Dockerfile` (context: repo root, build arg `TABLETOP_BLOB_ORIGIN`): the same build served by Caddy on :8080 with SPA
+  fallback and the `frame-ancestors` header (`web/Caddyfile`); the home-server stack's `web` service.
 - `cd web && npm run fixtures`: regenerates the STL fixtures.
 
 ## Conventions and pitfalls

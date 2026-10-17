@@ -37,6 +37,7 @@ export/
 .env
 .env.*
 !.env.example
+/home.env
 
 # OS noise
 .DS_Store
