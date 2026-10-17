@@ -114,15 +114,6 @@
       ]
     },
     {
-      "name": "Caster Group",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Pick one model with this rule in this unit to have Caster(X), where X is the total number of models with this rule in this unit. If the model is killed, pick another to be the new caster, and transfer all spell tokens to it. The caster loses all unspent spell tokens at the end of the round.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Changebound Boost Aura",
       "kind": "model",
       "takesParameter": false,
@@ -272,15 +263,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Extended Buff Range",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "If this unit is within 24\u0022 of another friendly unit with this rule that has a Hero in it, then that Hero may use special rules that allow it to pick friendly units within 12\u0022 (except for spells) on this unit as if it was in range.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Fanatic",
@@ -1266,8 +1248,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Reanimation.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Reanimation",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Regeneration Aura",
@@ -1633,24 +1625,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Spell Accumulator",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Gets X accumulator tokens at the start of each round, but can\u2019t hold more than 6 tokens at once. Casters from other friendly units within 12\u0022 may spend this model\u0027s accumulator tokens as if they were their own spell tokens. Friendly casters may only use this rule if this unit isn\u0027t Shaken.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Spell Conduit",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Casters within 12\u0022 that are from other friendly units may cast spells as if they were in this model\u0027s position, and get \u002B1 to casting rolls when doing so. Friendly casters may only use this rule if this unit isn\u0027t Shaken.",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Split",

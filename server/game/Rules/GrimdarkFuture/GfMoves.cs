@@ -252,7 +252,9 @@ public static partial class GfMoves
                 var marks = GfChoice.Cleared(ctx.State, ctx.Properties, unit).ToList();
                 if (GrimdarkFutureRules.InstinctiveAttack(ctx.State, ctx.Properties, ctx.Projection.Units[unit]) is not null)
                     marks.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.InstinctiveCondition, true));
-                if (marks.Count > 0) return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1 }, Repeat: true);
+                // Reanimation: "When a unit … is activated, roll as many dice as … it could restore" (GfReanimation).
+                marks.AddRange(GfReanimation.Reanimate(ctx, unit));
+                if (marks.Count > 0 || ctx.Rolls.Count > 0) return new Complete(marks, new Dictionary<string, int> { ["activation_marked"] = 1 }, Repeat: true);
             }
             var live = Lone(ctx, unit, ctx.Frame.Context.Action);
             var rules = TerrainFor(ctx, unit, live);

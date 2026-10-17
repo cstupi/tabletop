@@ -167,6 +167,18 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   reads them. A marker its holder's own side placed (Fortified Growth's *"enemies attacking this unit get AP(-1)"*)
   reaches every opponent. Regenerative Strength's markers are the wounds its model ignored, and its *"+X attacks"* go to
   the model's first melee weapon.
+- **Batch 7.** Caster Group's caster is the group's first model in play (the pick made for the player), Caster(X) with X its
+  models in play; it gets X tokens at the round start in place of what it held, and a killed caster's tokens pass to the
+  next. Spell Accumulator's tokens pay a friendly caster's spell value after the caster's own, and count in its spend for
+  the roll, from a model within 12" of the caster in another unit that is not Shaken. Spell Conduit adds a `cast_from`
+  choice after the spell is picked; a cast from a conduit measures its targets from the conduit and rolls +1. Extended
+  Buff Range adds to a Hero's Buff picks (range alone, unit grain) the friendly units holding it within 24" of the Hero's
+  unit, when that unit holds it too. Reanimation rolls as its activation starts, one die per killed model and per wound
+  its models carry; each 5+ restores a killed model first (placed by the engine within 1" of a model in play, on no base),
+  then a wound. Any X or count from an imported army is bounded where it becomes grants or dice: 20 markers of one rule
+  on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement are not built: each places a unit the army
+  snapshot does not hold (*"a new unit of X"*, *"a new copy of it"*); the build path is the import adding the units X
+  names, from the book's units, as reserve units of the army, which the rule then places.
 - **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the

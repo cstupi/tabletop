@@ -134,6 +134,8 @@ public static class GfPick
                     : already ? []
                     : entry.Effects.Where(e => e.Duration == EffectDuration.Once).Select(e => (StateChange)new GrantAdded(targetUnit, new Grant(Guid.CreateVersion7(), e.Id, entry.Name, unit, 1))).ToList();
                 ctx.Applied.Add(entry.Name);
+                // A unit picked beyond the pick's range was reached through Extended Buff Range (GfCasting.Targets).
+                if (Battlefield.UnitDistance(ctx.State, unit, targetUnit) is { } apart && apart > entry.Targeting!.Range) ctx.Applied.Add(GfCasting.ExtendedBuffRange);
                 return new Complete(grants, new Dictionary<string, int> { ["picked"] = 1, ["pick_index"] = index + 1 }, Repeat: index + 1 < count);
             }
             var eligible = GfCasting.Targets(ctx.State, model, entry.Targeting!);

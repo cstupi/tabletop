@@ -20,6 +20,9 @@ public static class GfMarkers
     public static readonly string[] Growths = ["Fortified Growth", "Defensive Growth", "Piercing Growth", "Precision Growth"];
     public const int GrowthCap = 4;
     public const string Vengeance = "Vengeance";
+    /// <summary>The most markers of one rule a unit holds, each a grant: X comes from imported army data, and the shipped books' largest is a Tag's or
+    /// Target's X of 1 and Vengeance's one per model of a unit (20 at most), so 20 bounds every rule while no imported X can grow the grants without end.</summary>
+    public const int MaxHeld = 20;
     /// <summary>"If a unit where all models have this rule is Shaken at the beginning of the round, roll one die. On a 4+, it stops being Shaken."</summary>
     public static readonly string[] RoundStartRallies = ["Steadfast", "Battleborn", "Honor Code"];
 
@@ -33,7 +36,8 @@ public static class GfMarkers
         var rows = Rows(entry);
         if (rows.Count == 0) return [];
         var have = unit.Grants.Count(g => g.EntryName == entry.Name);
-        var add = Math.Max(0, cap is { } c ? Math.Min(n, c - have) : n);
+        var limit = Math.Min(cap ?? MaxHeld, MaxHeld);
+        var add = Math.Max(0, Math.Min(n, limit - have));
         return Enumerable.Range(0, add).Select(i => (StateChange)new GrantAdded(unit.Id, new Grant(Guid.CreateVersion7(), rows[(have + i) % rows.Count].Id, entry.Name, caster, 1))).ToList();
     }
 

@@ -109,6 +109,20 @@ public class Batch6MarkersTests
     }
 
     [Fact]
+    public void An_imported_x_places_no_more_than_the_marker_bound_and_deals_no_more_than_the_dealt_bound()
+    {
+        var tag = Unit("T", "4+", "4+", [], 1, [P("Piercing Tag", 1_000_000)]); var e = Unit("E", "4+", "4+", [], 1, []);
+        var sim = new Sim(State([tag], [e]), GrimdarkFutureRules.Instance, Core, new ScriptedDice([4]));
+        sim.Append([new ActionRecorded(tag.Id, GfNames.Hold)]);
+        sim.Start(GfNames.HoldSeq, new SequenceContext(tag.Id, [], [], GfNames.Hold));
+        sim.Answer(Samples.Team1, new Chosen(GfPick.Key("Piercing Tag", tag.Models[0].Id)));
+        sim.Answer(Samples.Team1, new SelectedPieces([e.Id]));
+        Assert.Equal(GfMarkers.MaxHeld, sim.Unit(e.Id).Grants.Count);
+        Assert.Equal(("Ravage", GfRuleHits.MaxDealt), GfRuleHits.Parse(GfRuleHits.Key("Ravage", int.MaxValue)));
+        Assert.Equal(("Ravage", GfRuleHits.MaxDealt), GfRuleHits.Parse("Ravage|999999999"));
+    }
+
+    [Fact]
     public void Regenerative_strength_counts_the_wounds_its_model_ignored()
     {
         var a = Unit("A", "4+", "4+", [], 1, [P("Regenerative Strength"), P("Regeneration"), P("Tough", 6)]);

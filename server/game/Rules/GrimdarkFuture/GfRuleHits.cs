@@ -19,9 +19,12 @@ public static class GfRuleHits
     /// <summary>`rule-wounds`: n dice, each 6+ one wound on the target with no block.</summary>
     public static Sequence RuleWounds() => new(GfNames.RuleWoundsSeq, [new WoundDiceStep(), new GfAttack.PushStep("deal", GfNames.DealWounds, ctx => new SequenceContext(null, [ctx.Frame.Context.TargetUnitIds[0]], [], null))]);
 
-    public static string Key(string rule, int n) => $"{rule}|{n}";
+    /// <summary>The most hits or dice one use deals or rolls. X and its multiples come from imported army data; the books' largest is a Retaliate or Deathstrike of a few
+    /// per wound, so 60 bounds every play while no imported X makes the engine roll or deal without end.</summary>
+    public const int MaxDealt = 60;
+    public static string Key(string rule, int n) => $"{rule}|{Math.Clamp(n, 0, MaxDealt)}";
     public static (string Rule, int N)? Parse(string? key) =>
-        key is not null && key.LastIndexOf('|') is var cut and > 0 && int.TryParse(key.AsSpan(cut + 1), out var n) ? (key[..cut], n) : null;
+        key is not null && key.LastIndexOf('|') is var cut and > 0 && int.TryParse(key.AsSpan(cut + 1), out var n) ? (key[..cut], Math.Clamp(n, 0, MaxDealt)) : null;
 
     sealed class HitsStep : IStep
     {
