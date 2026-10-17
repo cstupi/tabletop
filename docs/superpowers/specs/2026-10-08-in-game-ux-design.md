@@ -245,13 +245,16 @@ does nothing. Nobody is removed at the end: the socket stays open, and sight and
 `MoveModels` stops bypassing `EnforcementPolicy`. The dispatcher judges a hand move and hands any breach to the
 policy, as it does for answers:
 
-- Legal: every relocation moves a model from the shelf to the table, or inside a container the rules allow
-  (`IGameRules.MayDeployInside`; Grimdark Future, p.15: a Transport on the table belonging to another unit of the
-  actor's team), and the model belongs to the unit the actor's
-  team last picked in a deploy answer (`deploy`, `deploy_scouts`, `deploy_ambusher`) while that unit still has models
-  on the shelf; this is the state in which `GfRules.Deployment` waits (`HookWaiting`). It covers the client's
-  *Deployment placement* and the sim's `HandPlacement`.
-- Otherwise a breach, rule `hand_move`, detail `"{unit} moved by hand outside a move step"`, `StrictRefuses(Illegal)`:
+- Legal: every relocation moves a model of the unit the actor's team last picked in a deploy answer (`deploy`,
+  `deploy_scouts`, `deploy_ambusher`) from the shelf to the table while that unit still has models on the shelf; this
+  is the state in which `GfRules.Deployment` waits (`HookWaiting`). It covers the client's *Deployment placement* and
+  the sim's `HandPlacement`. Also legal while that pick is live: a model of any unit from the shelf inside a container
+  the rules allow (`IGameRules.MayDeployInside(state, unit, container, deploying)`; Grimdark Future, p.15: *"units
+  inside Transports are deployed at the same time as the Transport"*, so the container is a Transport of the picked
+  unit, on the table or still on the shelf, of the actor's team, and the boarding unit has no model in play elsewhere).
+  A Transport deployed at an earlier pick takes no one.
+- Otherwise a breach, rule `hand_move`, `StrictRefuses(Illegal)`: detail `"{unit} deployed inside a container the
+  rules do not allow"` for a disallowed container, `"{unit} moved by hand outside a move step"` for anything else.
   `silent` accepts, `warn` accepts with the warning, `strict` refuses.
 
 The other `Override` commands (wounds, conditions, markers, score, round) are unchanged.

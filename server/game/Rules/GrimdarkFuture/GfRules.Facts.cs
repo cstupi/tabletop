@@ -29,6 +29,16 @@ public sealed partial class GrimdarkFutureRules
         }).Distinct().ToList();
     }
 
-    /// <summary>p.15: "Transports may deploy with units inside" — a friendly Transport already on the table (GfMoves.IsFriendlyContainer).</summary>
-    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => GfMoves.IsFriendlyContainer(state, unitId, containerModelId);
+    /// <summary>
+    /// p.15: "Transports may deploy with units inside", and "units inside Transports are deployed at the same time as the Transport": a Transport
+    /// of another unit of the same team, whose unit is the one being deployed, on the table or still on the shelf. The unit boarding has no model
+    /// in play anywhere else. A Transport deployed earlier takes no one at deployment.
+    /// </summary>
+    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying)
+    {
+        var p = state.Projection;
+        if (!p.Models.TryGetValue(containerModelId, out var c) || c.UnitId == unitId || !deploying.Contains(c.UnitId) || !GfMoves.IsContainer(state, c.Id)) return false;
+        if (Teams.Of(state, c.UnitId) is not { } team || team != Teams.Of(state, unitId)) return false;
+        return Lookup.AliveModels(state, unitId).All(m => p.Models[m].Location is Inside i && p.Models.TryGetValue(i.ContainerId, out var holder) && holder.UnitId == c.UnitId);
+    }
 }

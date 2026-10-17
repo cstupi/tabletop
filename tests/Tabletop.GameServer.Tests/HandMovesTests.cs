@@ -144,11 +144,45 @@ public class HandMovesTests
         new(h.P.Units[unit].Definition.Models.Select(m => new ModelRelocation(m.Id, new OnShelf(), new Inside(container))).ToList());
 
     [Fact]
-    public void Placing_the_picked_unit_inside_a_friendly_Transport_on_the_table_is_placement()
+    public void Placing_the_picked_unit_inside_a_Transport_deployed_earlier_is_a_breach()
     {
         var (h, a) = PickingAfter(1);
-        var transport = h.P.Units[a[1]].Definition.Models[0].Id;                              // p.15: units may deploy inside a Transport
-        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;                              // p.15: "units inside Transports are deployed at the same time as the Transport"
+        Assert.IsType<OnTable>(h.P.Models[transport].Location);
+        var breach = HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0));
+        Assert.Equal(new Breach(HandMoves.Rule, $"{h.P.Units[a[0]].Definition.Name} deployed inside a container the rules do not allow", new StrictRefuses(RefusalReason.Illegal)), breach);
+        Assert.Throws<InvalidOperationException>(() => h.Dispatch(Embark(h, a[0], transport), team: 0));   // strict refuses
+    }
+
+    [Fact]
+    public void The_picked_Transport_deploys_with_a_unit_inside_in_one_placement()
+    {
+        var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[1]]));                                              // p.15: "Transports may deploy with units inside"
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        var together = new MoveModels([.. TestGames.Relocations(h.State, a[1]), .. Embark(h, a[0], transport).Moves]);
+        Assert.Null(HandMoves.Judge(h.State, together, TeamOf(h, 0)));
+        h.Dispatch(together, team: 0);
+        Assert.All(h.P.Units[a[0]].Definition.Models, m => Assert.Equal(new Inside(transport), h.P.Models[m.Id].Location));
+        Assert.Equal(h.Teams[1], h.Open.Teams.Single());
+        h.Answer(1, new SelectedPieces([h.Units(1)[0]])); h.Deploy(h.Units(1)[0]);
+        Assert.Equal([a[2]], Assert.IsType<PieceSelection>(h.Open.Legal).Eligible);                // the unit inside deployed with its Transport
+    }
+
+    [Fact]
+    public void A_unit_may_board_the_picked_Transport_before_the_Transport_is_placed()
+    {
+        var h = AtDeployment(Enforcement.Strict, TestArmies.Build("A", 3, 2, modelRules: [(2, Transport, 11)]), TestArmies.Build("B", 2, 1));
+        var a = h.Units(0);
+        h.Answer(0, new SelectedPieces([a[1]]));
+        var transport = h.P.Units[a[1]].Definition.Models[0].Id;
+        Assert.IsType<OnShelf>(h.P.Models[transport].Location);
+        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));       // the Transport's deployment is under way
+        h.Dispatch(Embark(h, a[0], transport), team: 0);
+        Assert.Empty(h.P.OpenAsks);                                                            // still A's deploy: the Transport is on the shelf
+        Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);
+        Assert.Null(HandMoves.Judge(h.State, TestGames.Move(h.State, a[1]), TeamOf(h, 0)));
     }
 
     [Fact]
@@ -174,8 +208,9 @@ public class HandMovesTests
     {
         var (h, a) = PickingAfter(1);
         var wrapped = new WithSequences(GrimdarkFutureRules.Instance);
-        Assert.True(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[1]].Definition.Models[0].Id));
-        Assert.False(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[2]].Definition.Models[0].Id));
+        Assert.True(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[1]].Definition.Models[0].Id, new HashSet<Guid> { a[1] }));
+        Assert.False(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[1]].Definition.Models[0].Id, new HashSet<Guid> { a[0] }));
+        Assert.False(wrapped.MayDeployInside(h.State, a[0], h.P.Units[a[2]].Definition.Models[0].Id, new HashSet<Guid> { a[2] }));
     }
 
     [Fact]

@@ -83,8 +83,9 @@ public interface IGameRules
     AnswerBreachFound? AnswerBreach(GameState state, Ask ask, AskAnswer answer) => null;
 
     // Asked by dispatch's hand-move judge.
-    /// <summary>May the unit deploy from the shelf inside this model (OPR p.15: a friendly Transport on the table). False by default. Wrapping rulesets must forward it.</summary>
-    bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId) => false;
+    /// <summary>May the unit deploy from the shelf inside this model while <paramref name="deploying"/> are the units the actor's team picked to deploy
+    /// (OPR p.15: a friendly Transport whose own deployment this is). False by default. Wrapping rulesets must forward it.</summary>
+    bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => false;
     /// <summary>A rule a hand placement breaks wherever it is legal to make (OPR p.7: a model on another's base). Null when nothing is broken. Wrapping rulesets must forward it.</summary>
     AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => null;
 }
