@@ -272,9 +272,9 @@ public partial class TableInput : Node
     /// <summary>
     /// Under strict a hand move is refused (spec → Moves), so a model drag starts only when every model is Proposing: a move
     /// step, or a deployment placement's ghosts. A locked objective marker never drags, under every enforcement. Terrain drags
-    /// only in setup (TerrainLock). Neither is a hand move.
+    /// only in setup (TerrainLock). Neither is a hand move. A watcher drags nothing: the server refuses every change from one.
     /// </summary>
-    bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) => piece switch
+    bool MayDrag(Node3D piece, IReadOnlyList<Guid> models) => !_session.IsWatching && piece switch
     {
         PieceNode => models.All(Proposing.Contains) || _session.Game?.Enforcement != Enforcement.Strict,
         MarkerNode m => Locks.MayDrag(_session.Game?.Status, _session.Projection, m.MarkerId),

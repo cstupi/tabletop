@@ -45,7 +45,7 @@ public static class SetupLimits
 {
     public const int Terrain = 64, Markers = 32;
     /// <summary>The toolbar's smallest table edge; the largest is the table's own bound.</summary>
-    public const double MinEdge = 12, MaxEdge = Table.MaxEdge;
+    public const double MinEdge = 12, MaxEdge = Tabletop.Geometry.Table.MaxEdge;
 
     public static string SizeHint => $"Width × length, {MinEdge}–{MaxEdge}\" a side";
 

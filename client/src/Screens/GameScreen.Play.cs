@@ -65,8 +65,9 @@ public partial class GameScreen
             else Input.Locks.Chosen(item);                                                // Unlock and Lock are local
         };
         _menu.ItemChosen += _onItem;
-        _onPieceRight = (id, at) => _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at);
-        _onTableRight = at => _menu?.Open([Token(at), _leave], GetViewport().GetMousePosition());
+        // A watcher changes nothing (Session.IsWatching): no piece, team or roster menu, and the table's menu offers only Leave.
+        _onPieceRight = (id, at) => { if (!_session.IsWatching) _menu?.Open(ItemsFor(id, Godot.Input.IsKeyPressed(Key.Shift)), at); };
+        _onTableRight = at => _menu?.Open(_session.IsWatching ? [_leave] : [Token(at), _leave], GetViewport().GetMousePosition());
         Input.PieceRightClicked += _onPieceRight; Input.TableRightClicked += _onTableRight;
 
         // The parts die with the screen, so their own events need no unsubscribing.
@@ -79,7 +80,7 @@ public partial class GameScreen
         _undo.Reported += Toast;
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
-        _roster.UnitMenuRequested += (id, at) => { if (_session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId, _session.DeployInside), at); };
+        _roster.UnitMenuRequested += (id, at) => { if (!_session.IsWatching && _session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId, _session.DeployInside), at); };
         _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.
@@ -189,7 +190,7 @@ public partial class GameScreen
     /// <summary>The team menu, from the header's team names (spec → Layout): what the team panel's right-click opened.</summary>
     void OpenTeamMenu(Guid teamId, Vector2 at)
     {
-        if (_session.Game is { } game && _session.Projection is { } p)
+        if (!_session.IsWatching && _session.Game is { } game && _session.Projection is { } p)
             _menu?.Open(MenuModel.ForTeam(game, p, teamId).Concat(MenuModel.OffTable(p, teamId, new Names(game, p))).ToList(), at);
     }
 
