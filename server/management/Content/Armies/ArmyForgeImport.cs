@@ -7,6 +7,10 @@ namespace Tabletop.Management.Content.Armies;
 
 public enum PropertyLevel { Unit, Model }
 
+/// <summary>Which of Army Forge's two published bases an import writes, for the whole army: `bases.round` (circle or oval)
+/// or `bases.square` (square or rectangle).</summary>
+public enum BaseSet { Round, Square }
+
 public sealed class UnsupportedGameSystemException(string gameSystem) : Exception($"Only Grimdark Future and Age of Fantasy lists import; this list is '{gameSystem}'.")
 {
     public string GameSystem { get; } = gameSystem;
@@ -28,10 +32,10 @@ public static class ArmyForgeImport
     /// 1.5" for a 25.4 mm circle, 3.54" for a 60x35 mm oval. The player corrects it per slot.</summary>
     public static double HeightFromBase(Base b) => HeightScale * b.A;
 
-    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog)
+    public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
     {
         if (!GameRules.TryGetValue(list.GameSystem, out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem);
-        var units = Merge(list.Units).Select((m, i) => Unit(m, i + 1, catalog)).ToList();
+        var units = Merge(list.Units).Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
     }
 
@@ -67,21 +71,21 @@ public static class ArmyForgeImport
         return result;
     }
 
-    private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog)
+    private static Unit Unit(Merged m, int ordinal, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set)
     {
         var host = m.Host;
         var stats = new Dictionary<string, string> { ["Quality"] = TargetNumber(host.Quality), ["Defense"] = TargetNumber(host.Defense) };
         var unitProps = new List<PropertyInstance>();
         var models = new List<ModelSlot>();
-        Section(host, catalog, unitProps, models);
-        foreach (var joined in m.Joined) Section(joined, catalog, null, models);
+        Section(host, catalog, set, unitProps, models);
+        foreach (var joined in m.Joined) Section(joined, catalog, set, null, models);
         return new Unit(Guid.CreateVersion7(), ordinal, host.Name, stats, unitProps, models);
     }
 
     /// <summary>One entry's slots, appended to the unit being built. `unitProps` is null for a joined entry: every rule of it goes on
     /// its own slots whatever level the catalog gives the name, and its Quality and Defense become slot stats, because the unit's own
     /// stats and properties stay the host's. The cursor is per section, so a joined hero's loadout never reaches a host slot.</summary>
-    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, List<PropertyInstance>? unitProps, List<ModelSlot> into)
+    private static void Section(AfUnit u, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set, List<PropertyInstance>? unitProps, List<ModelSlot> into)
     {
         var slotProps = Enumerable.Range(0, u.Size).Select(_ => new List<PropertyInstance>()).ToList();
         var slotWeapons = Enumerable.Range(0, u.Size).Select(_ => new List<Weapon>()).ToList();
@@ -116,7 +120,7 @@ public static class ArmyForgeImport
                 foreach (var rule in item.Content ?? []) Place(new PropertyInstance(rule.Name, Rating(rule.Rating)), item.Count);
         }
 
-        var body = ParseBase(u.Bases?.Round) is { } published ? new ModelBody(published, HeightFromBase(published)) : DefaultBody;
+        var body = Body(u.Bases, set);
         var slotStats = unitProps is null
             ? new Dictionary<string, string> { ["Quality"] = TargetNumber(u.Quality), ["Defense"] = TargetNumber(u.Defense) }
             : new Dictionary<string, string>();
@@ -125,13 +129,25 @@ public static class ArmyForgeImport
                 slotProps[i], body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
     }
 
-    /// <summary>"32" → circle 32 mm; "60x35" → oval 60×35 mm; anything else → null. Inches out.</summary>
-    public static Base? ParseBase(string? round)
+    /// <summary>The chosen set's base, or DefaultBody when that field is absent. The height is the round import's whatever the set,
+    /// so choosing square changes bases and nothing else; an entry with no round base scales from its square one.</summary>
+    private static ModelBody Body(AfBases? bases, BaseSet set)
     {
-        if (string.IsNullOrWhiteSpace(round)) return null;
-        var parts = round.ToLowerInvariant().Split('x');
-        if (parts.Length == 1 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var d)) return Base.Circle(d / 25.4);
-        if (parts.Length == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var l) && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var w)) return Base.Oval(l / 25.4, w / 25.4);
+        if (ParseBase(set == BaseSet.Round ? bases?.Round : bases?.Square, set) is not { } chosen) return DefaultBody;
+        var heightFrom = ParseBase(bases?.Round, BaseSet.Round) ?? chosen;
+        return new ModelBody(chosen, HeightFromBase(heightFrom));
+    }
+
+    /// <summary>Round: "32" → circle 32 mm, "60x35" → oval 60×35 mm. Square: "30" → rect 30×30 mm, "50x25" → rect 50×25 mm.
+    /// Anything else → null. Inches out.</summary>
+    public static Base? ParseBase(string? text, BaseSet set)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var parts = text.ToLowerInvariant().Split('x');
+        if (parts.Length == 1 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
+            return set == BaseSet.Round ? Base.Circle(d / 25.4) : Base.Rect(d / 25.4, d / 25.4);
+        if (parts.Length == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var l) && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var w))
+            return set == BaseSet.Round ? Base.Oval(l / 25.4, w / 25.4) : Base.Rect(l / 25.4, w / 25.4);
         return null;
     }
 

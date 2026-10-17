@@ -7,7 +7,7 @@ using Tabletop.Management.Persistence;
 namespace Tabletop.Management.Content.Armies;
 
 public sealed record ArmySummary(Guid Id, string Name, string GameSystem, string Source, int Units, int Models);
-public sealed record ImportRequest(string Source);
+public sealed record ImportRequest(string Source, BaseSet Bases = BaseSet.Round);
 public sealed record UnitPatch(Guid UnitId, Guid? AssetId);
 public sealed record SlotPatch(Guid SlotId, Guid? AssetId, bool ClearAsset, Base? Base, double? Height);
 public sealed record PatchArmyRequest(string? Name, IReadOnlyList<UnitPatch>? Units, IReadOnlyList<SlotPatch>? Slots);

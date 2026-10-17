@@ -18,7 +18,7 @@ public static class ArmyEndpoints
             catch (ArmyForgeException e) { return Problems.BadGateway($"Army Forge answered {e.Status} for list {listId}"); }
             catch (HttpRequestException e) { return Problems.BadGateway($"Army Forge unreachable: {e.Message}"); }
             if (!ArmyForgeImport.GameRules.TryGetValue(list.GameSystem, out var gameRules)) return Problems.Unprocessable($"Only Grimdark Future and Age of Fantasy lists import; this list is '{list.GameSystem}'.");
-            var army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules));
+            var army = ArmyForgeImport.ToArmy(list, r.Source, await kinds.For(gameRules), r.Bases);
             await armies.Insert(CurrentAccount.Id(u), army);
             return Results.Created($"/v1/armies/{army.Id}", army);
         });

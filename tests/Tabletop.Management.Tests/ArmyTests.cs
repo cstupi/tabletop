@@ -56,4 +56,18 @@ public class ArmyTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.NoContent, (await mine.DeleteAsync($"/v1/armies/{army.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await mine.GetAsync($"/v1/armies/{army.Id}")).StatusCode);
     }
+    [Fact]
+    public async Task Import_writes_the_chosen_base_set_and_defaults_to_round()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        static Base Riders(Army a) => a.Units.Single(u => u.Name == "Beast Riders").Models[0].Base;
+        var square = await c.PostJson<Army>("/v1/armies/import", new ImportRequest(Share, BaseSet.Square));
+        Assert.Equal(Base.Rect(50 / 25.4, 25 / 25.4), Riders(square));
+        Assert.Equal(Base.Rect(50 / 25.4, 25 / 25.4), Riders(await c.GetJson<Army>($"/v1/armies/{square.Id}")));
+        var plain = await c.PostAsJsonAsync("/v1/armies/import", new { source = Share });   // a caller that sends no base set
+        var round = (await plain.Content.ReadFromJsonAsync<Army>(ContentJson.Options))!;
+        Assert.Equal(Base.Oval(60 / 25.4, 35 / 25.4), Riders(round));
+        var wire = await c.PostAsJsonAsync("/v1/armies/import", new { source = Share, bases = "square" });
+        Assert.Equal(Base.Rect(50 / 25.4, 25 / 25.4), Riders((await wire.Content.ReadFromJsonAsync<Army>(ContentJson.Options))!));
+    }
 }

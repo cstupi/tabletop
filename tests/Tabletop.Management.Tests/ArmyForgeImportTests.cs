@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Tabletop.Content;
 using Tabletop.Geometry;
 using Tabletop.Management.Content.Armies;
 
@@ -150,5 +151,45 @@ public class ArmyForgeImportTests
         var unit = army.Units.Single(u => u.Models.Any(m => m.Name == "Visiting Hero 1"));
         Assert.Equal("another-book", unit.Models.Single(m => m.Name == "Visiting Hero 1").ArmyBook);
         Assert.All(unit.Models.Where(m => m.Name != "Visiting Hero 1"), m => Assert.Equal("prsajf5ot936qznk", m.ArmyBook));
+    }
+    [Fact]
+    public void The_square_set_gives_rect_bases_and_the_round_set_heights()
+    {
+        var round = ArmyForgeImport.ToArmy(Fixture(), "x", Catalog);
+        var square = ArmyForgeImport.ToArmy(Fixture(), "x", Catalog, BaseSet.Square);
+        var riders = square.Units.Single(u => u.Name == "Beast Riders").Models;
+        Assert.All(riders, m => Assert.Equal((Base.Rect(50 / 25.4, 25 / 25.4), 1.5 * 60 / 25.4), (m.Base, m.Height)));
+        var warriors = square.Units.First(u => u.Name == "Blood Warriors").Models;
+        Assert.All(warriors, m => Assert.Equal(Base.Rect(30 / 25.4, 30 / 25.4), m.Base));
+        Assert.Equal(round.Units.SelectMany(u => u.Models).Select(m => m.Height), square.Units.SelectMany(u => u.Models).Select(m => m.Height));
+        Assert.Equal(ArmyForgeImport.ToArmy(Fixture(), "x", Catalog, BaseSet.Round).Units.SelectMany(u => u.Models).Select(m => m.Base),
+            round.Units.SelectMany(u => u.Models).Select(m => m.Base));                     // round is the default
+    }
+
+    [Fact]
+    public void A_missing_chosen_base_is_the_default_hull_and_a_square_only_entry_scales_from_its_square()
+    {
+        var json = """
+          {"id":"t","name":"T","gameSystem":"gf","units":[
+          {"selectionId":"a","name":"RoundOnly","size":1,"quality":4,"defense":4,"rules":[],"combined":false,"joinToUnit":null,"bases":{"round":"32"},"loadout":[]},
+          {"selectionId":"b","name":"SquareOnly","size":1,"quality":4,"defense":4,"rules":[],"combined":false,"joinToUnit":null,"bases":{"square":"100x60"},"loadout":[]},
+          {"selectionId":"c","name":"Neither","size":1,"quality":4,"defense":4,"rules":[],"combined":false,"joinToUnit":null,"loadout":[]}]}
+          """;
+        var army = ArmyForgeImport.ToArmy(ArmyForgeClient.Parse(json), "x", Catalog, BaseSet.Square);
+        ModelSlot M(string n) => army.Units.Single(u => u.Name == n).Models[0];
+        Assert.Equal(ArmyForgeImport.DefaultBody, new ModelBody(M("RoundOnly").Base, M("RoundOnly").Height));    // the other set is not consulted
+        Assert.Equal((Base.Rect(100 / 25.4, 60 / 25.4), 1.5 * 100 / 25.4), (M("SquareOnly").Base, M("SquareOnly").Height));
+        Assert.Equal(ArmyForgeImport.DefaultBody, new ModelBody(M("Neither").Base, M("Neither").Height));
+    }
+
+    [Fact]
+    public void ParseBase_reads_each_set()
+    {
+        Assert.Equal(Base.Circle(32 / 25.4), ArmyForgeImport.ParseBase("32", BaseSet.Round));
+        Assert.Equal(Base.Oval(120 / 25.4, 92 / 25.4), ArmyForgeImport.ParseBase("120x92", BaseSet.Round));
+        Assert.Equal(Base.Rect(30 / 25.4, 30 / 25.4), ArmyForgeImport.ParseBase("30", BaseSet.Square));
+        Assert.Equal(Base.Rect(100 / 25.4, 60 / 25.4), ArmyForgeImport.ParseBase("100X60", BaseSet.Square));
+        Assert.Null(ArmyForgeImport.ParseBase("", BaseSet.Square));
+        Assert.Null(ArmyForgeImport.ParseBase("big", BaseSet.Round));
     }
 }
