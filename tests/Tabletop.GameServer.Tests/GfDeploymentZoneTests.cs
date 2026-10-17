@@ -95,4 +95,40 @@ public class GfDeploymentZoneTests
         Assert.Equal(1, h.P.Scheduler.Round);
         Assert.Null(GrimdarkFutureRules.ZoneBreach(h.State, At(h, a[1], 40, 24).Moves));        // p.13: from round two, "anywhere over 9” away from enemy units"
     }
+
+    /// <summary>Round two's deploy_ambusher Ask, A's Ambusher picked: A's first unit stands at (10, 44), B's at (10, 4).</summary>
+    static (SchedulerHarness H, Guid Ambusher) AmbusherPicked(Enforcement enforcement)
+    {
+        var h = AtDeployment(enforcement, TestArmies.Build("A", 2, 1, unitRules: [(2, Ambush, null)]), TestArmies.Build("B", 1, 1));
+        var a = h.Units(0); var b = h.Units(1);
+        h.Dispatch(new SetCondition(TestGames.UnitSubject(a[1]), SetAside, true));
+        h.Answer(0, new SelectedPieces([a[0]])); h.Dispatch(At(h, a[0], 10, 44), team: 0);
+        h.Answer(1, new SelectedPieces([b[0]])); h.Dispatch(At(h, b[0], 10, 4), team: 1);
+        h.Dispatch(new SetRound(2), team: 0);
+        Assert.Equal(AskQuestions.DeployAmbusher, h.Open.Question);
+        h.Answer(h.Teams.ToList().IndexOf(h.Open.Teams.Single()), new SelectedPieces([a[1]]));
+        return (h, a[1]);
+    }
+
+    [Fact]
+    public void Strict_refuses_an_Ambusher_placed_within_9_inches_of_an_enemy_unit()
+    {
+        var (h, ambusher) = AmbusherPicked(Enforcement.Strict);
+        var name = h.P.Units[ambusher].Definition.Models[0].Name;
+        var refused = Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, ambusher, 10, 12), team: 0));     // 8" between centres of B's model
+        Assert.Equal($"{RefusalReason.Illegal}: {name} would be placed within 9\" of an enemy unit: Ambushers deploy over 9\" away from enemy units (p.13)", refused.Message);
+        Assert.Throws<InvalidOperationException>(() => h.Dispatch(At(h, ambusher, 10, 4 + AmbushDistance + 1), team: 0));   // centres 10" apart: the bases close the gap to under 9"
+        h.Dispatch(At(h, ambusher, 40, 24), team: 0);
+        Assert.DoesNotContain(SetAside, h.P.Units[ambusher].Conditions);
+    }
+
+    [Fact]
+    public void Warn_accepts_an_Ambusher_within_9_inches_with_the_warning_and_friendly_units_do_not_count()
+    {
+        var (h, ambusher) = AmbusherPicked(Enforcement.Warn);
+        Assert.Null(GrimdarkFutureRules.Instance.PlacementBreach(h.State, At(h, ambusher, 10, 40).Moves));             // beside A's own unit
+        var seq = h.P.LastSeq;
+        h.Dispatch(At(h, ambusher, 10, 12), team: 0);
+        Assert.Contains("within 9\" of an enemy unit", h.Log.Single(e => e.Seq == seq + 1).Warning);
+    }
 }

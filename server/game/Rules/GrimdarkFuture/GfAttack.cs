@@ -497,7 +497,9 @@ public static partial class GfAttack
             // weapons simultaneously, so the cap is fixed at the same moment as the attack counts: this reads the defender's model
             // count that determine-attacks carried down from the pushing frame.
             if (kind == AttackKind.Shooting) live.Spend(Side.Attacker, GfNames.Indirect);   // p.14: applies to this attack (its to-hit row is read below), so a granted one is spent here; it is recorded where it acts (EligibleModels, InCover, its to-hit row)
-            var cap = ctx.Frame.Value("defender_models", Lookup.LivingModels(ctx.State, ix.Defender!.UnitId).Count);
+            // p.14 Takedown: the picked model is "resolved as if it was a unit of [1]", so a Takedown group's cap is that one model.
+            var living = Lookup.LivingModels(ctx.State, ix.Defender!.UnitId);
+            var cap = TakedownModel(ctx.Frame) is { } picked && living.Contains(picked) ? 1 : ctx.Frame.Value("defender_models", living.Count);
             var values = new Dictionary<string, int> { ["hit_multiplier"] = RollEffects.HitMultiplier(live, Side.Attacker, cap) };
             foreach (var (quality, attacks) in ByQuality(ctx.Frame.Values, "attacks_q"))
             {
@@ -600,14 +602,14 @@ public static partial class GfAttack
             {
                 var granted = ParseGrantSet(key).Aggregate(live, (l, g) => l.WithGranted(Side.Attacker, g.Entry, g.Amount));
                 var group = count * multiplier; plain -= group;
-                var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover);
+                var plan = GfRolls.DefensePlan(ctx, granted, inCover, defenderModels, cover, picked);
                 var record = ctx.Roll(plan, group, d => RollEffects.Triggers(granted, Side.Defender, d, GfNames.DefenseRoll));
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(granted, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);
             }
             if (plain > 0)
             {
-                var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels, cover);
+                var plan = GfRolls.DefensePlan(ctx, live, inCover, defenderModels, cover, picked);
                 var record = ctx.Roll(plan, plain, d => RollEffects.Triggers(live, Side.Defender, d, GfNames.DefenseRoll));
                 wounds += Dice.RollOutcome.Failures(record);
                 extraWounds += record.Dice.Sum(d => RollEffects.PerDie(live, Side.Defender, d, GfNames.DefenseRoll).ExtraWounds);

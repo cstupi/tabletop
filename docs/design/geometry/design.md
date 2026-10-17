@@ -113,7 +113,7 @@ separation, the 6" cap, melee reach `EdgeToEdge <= 2 && Vertical <= 4`, objectiv
 `EdgeToMarker <= 3`, Ambush `> 9`, and for Scouts the deployment zone grown by 12", which is
 p.14's *"fully within 12" of their deployment zone"* and not a distance from a placed position:
 3.4.1 had a Scout deploy and then reposition *"anywhere within 12" of their position"*. The game
-server's deployment check (`GrimdarkFutureRules.ZoneBreach`) reads it as `ZoneStyles.BaseFullyWithin(shapeId, table, model, 12)`.
+server's deployment check (`GrimdarkFutureRules.ZoneBreach`) reads it as `ZoneStyles.BaseFullyWithin(shapeId, table, model, 12)`. Ambush's is `GrimdarkFutureRules.AmbushBreach`: `Distance.EdgeToEdge` from every placed base to every enemy model over 9.
 
 Coherency is two distances per pair, so p.11's *"If not all models in a unit can fit on elevation,
 then a coherency of 3" is allowed to models at different elevation"* is served for the allowance and

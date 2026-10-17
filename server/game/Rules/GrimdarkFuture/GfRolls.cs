@@ -113,16 +113,17 @@ public static class GfRolls
     /// `defenderModels` is that clause's *all other models*, and it is the count `fire-groups` settled before any group fired rather
     /// than a live one: p.8 fires a unit's weapons simultaneously, so a second group must not find the hero alone that
     /// the first group left it. A model without a slot Defense reads the unit's through the same call, so nothing branches on `Hero`.
+    /// `takedown` is p.14 Takedown's picked model, "resolved as if it was a unit of [1]": it stands alone, so its own Defense is read.
     /// </summary>
     /// `verdict` is the unit's cover verdict for the log (RollRecord.Cover); when the +1 it grants is suppressed (Blast), the verdict
     /// names the suppressor as IgnoredBy.
-    public static RollPlan DefensePlan(StepContext ctx, LiveSet live, bool inCover, int defenderModels, CoverVerdict? verdict = null)
+    public static RollPlan DefensePlan(StepContext ctx, LiveSet live, bool inCover, int defenderModels, CoverVerdict? verdict = null, Guid? takedown = null)
     {
         var shooting = live.Interaction.Attack == AttackKind.Shooting;
         if (shooting && inCover && verdict is { IgnoredBy: null } && live.SuppressedModifiers.Contains(TargetModifier.Cover))
             verdict = verdict with { IgnoredBy = live.Suppressors(TargetModifier.Cover).FirstOrDefault() };
         var living = Lookup.LivingModels(ctx.State, live.Interaction.Defender!.UnitId);
-        var alone = defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null;
+        var alone = takedown ?? (defenderModels == 1 && living.Count == 1 ? living[0] : (Guid?)null);
         if (alone is { } hero && ctx.Projection.Models[hero].Slot.Properties.Any(p => p.Name == GfNames.Hero) && ctx.Projection.Models[hero].Slot.Stats.ContainsKey(GfNames.Defense))
             ctx.Applied.Add(GfNames.Hero);
         return ctx.Plan(live, Side.Defender, GfNames.DefenseRoll,

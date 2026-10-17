@@ -100,6 +100,43 @@ public class GfAttackTests
     }
 
     [Fact]
+    public void A_takedown_blast_is_capped_at_the_picked_model_alone()
+    {
+        // p.14: the picked model is "resolved as if it was a unit of [1]"; p.13 Blast: "X is up to as many hits as models in the target unit".
+        var sniper = Unit("Sniper", "4+", "4+", [], 1, [], Gun("Launcher", "30\"", 1, P("Takedown"), P("Blast", 3)));
+        var trio = Unit("Trio", "4+", "6+", [], 3, []);
+        var sim = Sim.Gf(State([sniper], [trio], x1: -6, x2: 6), 5, 1);
+        sim.Start(GfNames.AttackSequence, Attack(sniper, trio, GfNames.Hold));
+        sim.Answer(Samples.Team1, new SelectedPieces([trio.Models[1].Id]));
+        Assert.Equal(1, sim.Steps("roll-to-hit").Single().Values!["hit_multiplier"]);                   // 3 capped at the one picked model
+        Assert.Single(sim.Steps("roll-to-block").Single().Rolls.Single().Dice);
+        Assert.IsType<OnShelf>(sim.Model(trio.Models[1].Id).Location);
+        Assert.Equal(2, sim.Alive(trio.Id));
+    }
+
+    [Fact]
+    public void A_takedown_at_a_joined_hero_blocks_at_the_heros_own_defense()
+    {
+        // p.14 Hero: "must use the unit's Defense until all other models have been killed"; Takedown resolves the pick "as if it was a unit of [1]".
+        var sniper = Unit("Sniper", "4+", "4+", [], 1, [], Gun("Long Rifle", "30\"", 1, P("Takedown")));
+        var squad = Unit("Squad", "5+", "6+", [], 3, []);
+        var joined = squad with { Models = [squad.Models[0] with { Name = "Captain", Stats = new Dictionary<string, string> { ["Quality"] = "3+", ["Defense"] = "2+" }, Properties = [P("Hero")] }, squad.Models[1], squad.Models[2]] };
+        var sim = Sim.Gf(State([sniper], [joined], x1: -6, x2: 6), 5, 2);
+        sim.Start(GfNames.AttackSequence, Attack(sniper, joined, GfNames.Hold));
+        sim.Answer(Samples.Team1, new SelectedPieces([joined.Models[0].Id]));
+        var block = sim.Steps("roll-to-block").Single().Rolls.Single();
+        Assert.Equal(2, block.Threshold);
+        Assert.True(block.Dice.Single().Success);
+        Assert.Equal(0, sim.Model(joined.Models[0].Id).Wounds);
+
+        // Picking a squad-mate reads the unit's 6+.
+        var other = Sim.Gf(State([sniper], [joined], x1: -6, x2: 6), 5, 2);
+        other.Start(GfNames.AttackSequence, Attack(sniper, joined, GfNames.Hold));
+        other.Answer(Samples.Team1, new SelectedPieces([joined.Models[1].Id]));
+        Assert.Equal(6, other.Steps("roll-to-block").Single().Rolls.Single().Threshold);
+    }
+
+    [Fact]
     public void No_model_is_picked_for_a_plain_group_or_a_single_model_target()
     {
         var riflemen = Unit("Riflemen", "4+", "4+", [], 1, [], Gun("Rifle", "24\"", 1));

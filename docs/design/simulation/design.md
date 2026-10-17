@@ -525,10 +525,11 @@ and the phase ends when the last model of that unit has a placement. Moving mode
 ordinary `MoveModels` command, not an Ask: the scheduler spec's *The turn is an Ask* says moving
 models by hand never ends one. So after a `deploy` answer the loop puts that unit's models on
 the table itself, inside the team's own zone, resolving the shape with `ZoneStyles.Resolve`.
-That is geometry from a library, not a rules outcome the engine should have computed. Nothing
-checks whether the placement is good, except that an anchor is chosen where no base touches a model already on the table:
-a hand placement is judged for overlap (`IGameRules.PlacementBreach`, `move_overlap`; `architecture.md` → Rules
-enforcement), and coherency is not judged.
+That is geometry from a library, not a rules outcome the engine should have computed. An anchor is chosen where
+no base touches a model already on the table and every base is fully within the zone; an Ambusher (a set-aside unit placed
+once rounds have begun) is anchored anywhere on the table with every base over 9" (plus a quarter inch) from every enemy model.
+A hand placement is judged for overlap, zone and Ambush distance (`IGameRules.PlacementBreach`: `move_overlap`, `deploy_zone`,
+`ambush_distance`; `architecture.md` → Rules enforcement), and coherency is not judged.
 
 `HandPlacement.IntoZone` writes `Z = 0`; the server rests every hand move (`Battlefield.Settle` ignores the client's
 `Z`), so a model deployed onto a hill stands on it.

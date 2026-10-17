@@ -100,7 +100,7 @@ for a strike-back.
 | --- | --- |
 | `determine-attacks` | `GfAttack.EligibleModels` for the attacker's models that can reach the target, then `StatReader.Attacks` summed over the group's weapons on those models, **grouped by the Quality value each model tests against** (p.4: *"the model's Quality value"*, so a joined hero's own). Writes `Values["attacks"]` (the total), one `Values["attacks_q<n>"]` per value, `Values["eligible_models"]`, `Values["defender_models"]`, `Values["in_cover"]` and the cover verdict's `cover_models`, `cover_of`, `cover_indirect`. The counts come from `Values["attacks_<i>_q<n>"]` on the pushing frame, which `fire-groups` settled for every group before it pushed the first, so an earlier group's casualties do not shorten a later group (p.8 fires a unit's weapons simultaneously). It counts for itself only when the pushing step recorded nothing, which is every melee push: p.9 sequences melee by hand, so each push is already at the moment the rulebook fires it. `eligible_models` is the live figure either way |
 | `pick-target-model` | Nothing, unless the group shoots and carries `Takedown` and the target has more than one living model. Then a `PieceSelection(models, 1, 1)` to the **attacker's** team, `models` being the target's living models the group's weapon is in range of and, shooting without Indirect, sees with the target's own models ignored (p.14: *"other models in the target's unit don't block line of sight"*; all of `AliveModels(target)` if none qualifies), which names the model this group's wounds land on (p.14). One pick per group, and `GfShooting.Groups` makes a takedown weapon type one group per model, so the pick is that model's own. The answer stays on this step for `GfAttack.TakedownModel` to read |
-| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`); an added die leaves out the extra-attacks rows, which do not apply to newly generated attacks. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
+| `roll-to-hit` | `GfRolls.HitPlan`, one pooled roll per `Values["attacks_q<n>"]`, ascending, and the dice a success's extra-attacks row adds, judged on the faces as rolled. Each die carries what it set off as `Die.Triggered` (`RollEffects.Triggers`); an added die leaves out the extra-attacks rows, which do not apply to newly generated attacks. Writes `Values["hit_multiplier"]` (`Blast(X)`, capped at `Values["defender_models"]`, which is p.13's models in the target counted with the attack counts rather than when this group fires; at one for a `Takedown` group's picked model, p.14's unit of [1]). Nothing a face decides: that is `score-hits`' (→ Dice edits). Consumes the grants it read except those `score-hits` reads |
 | `score-hits` | Every `hit` roll of the frame as it now stands, through `RollEffects.PerDie`. Writes `Values["extra_hits"]` (`Surge`/`Relentless` per unmodified 6 on a success) and `Values["granted_<entry>_<amount>"]` counts for per-die grants (`Rending`'s 6s), both summed over every pool, and `Values["self_wounds"]` (`Hazardous`'s 1s) with `Values["wounds"]` equal to it. Consumes the per-die grants |
 | `resolve` | `Push(resolve-hits, ...)` |
 | `self-wounds` | `Push(deal-wounds)` at the attacker's own unit, with no actor, when `self_wounds` is above 0 |
@@ -122,7 +122,8 @@ per-die grant are rolled separately with that property folded into the live set 
 `LiveSet.WithGranted`, which is how `Rending`'s *unmodified 6s get AP(+4)* reaches the defence
 roll. Every one of those plans takes `Values["defender_models"]` off the `attack-sequence` frame,
 because p.14 lets a joined hero block on its own `Defense` only *"until all other models have been
-killed"* and that count is settled with the attack counts. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.Cover(target, eligible attacker models)` asked once for the whole action
+killed"* and that count is settled with the attack counts. A `Takedown` group's picked model is the lone model
+instead (p.14: *"resolved as if it was a unit of [1]"*), so its own `Defense` is read. Cover is a base modifier of +1, read off the frozen `Values["in_cover"]` that `fire-groups` settled with `GfAttack.InCoverAgainst`, which is `GfRolls.Cover(target, eligible attacker models)` asked once for the whole action
 (p.11). The verdict travels with it as `Values["cover_models"]`, `Values["cover_of"]` and, when Indirect's dropped sight half
 lost the majority, `Values["cover_indirect"]`; `roll-to-block` puts the one verdict on every group's defense roll as
 `RollRecord.Cover`, with a cover suppressor (Blast) named as `IgnoredBy`. p.11's one majority lives in that call: more than half of the target's living models are
@@ -340,9 +341,9 @@ follows `determine-attacks`, so a group with nothing in range never asks. `GfAtt
 is the one predicate: `WeaponGroup.Takedown` and the step read it, so a group cannot be ordered
 first without also being offered the pick. The pick is per **model**, which is what the group split
 buys: p.14 reads *"This model may pick"*, so two takedown models sharing a weapon
-type are two groups and name a model each. One part of p.14's sentence is still not modelled,
-*resolved as if it was a unit of [1]*, so cover, `Blast`'s cap and the defence roll read the whole
-target unit and only the wound is redirected (the plan's ruling 7).
+type are two groups and name a model each. The picked model is *resolved as if it was a unit of [1]*:
+`roll-to-hit` caps `Blast` at one model, and `roll-to-block` reads cover over that model alone and passes it to
+`GfRolls.DefensePlan` as the lone model, so a picked joined hero blocks on its own `Defense` (the plan's ruling 7).
 
 ## Charge and melee
 

@@ -49,6 +49,30 @@ public sealed partial class GrimdarkFutureRules
         return null;
     }
 
+    /// <summary>
+    /// A set-aside unit arriving from the shelf once rounds have begun is an Ambusher (Scouts arrive before round one). Page 13 Ambush: "At the
+    /// start of any round after the first, may be deployed anywhere over 9” away from enemy units": every base of it stays over 9" from every
+    /// enemy model on the table, measured base to base (p.5).
+    /// </summary>
+    public static AnswerBreachFound? AmbushBreach(GameState state, IReadOnlyList<ModelRelocation> moves)
+    {
+        var p = state.Projection;
+        if (p.Scheduler.Round < 1) return null;
+        var moving = moves.Select(m => m.ModelId).ToHashSet();
+        foreach (var move in moves)
+        {
+            if (move.To is not OnTable { Placement: var at } || !p.Models.TryGetValue(move.ModelId, out var model) || model.Location is not OnShelf) continue;
+            if (!p.Units[model.UnitId].Conditions.Contains(SetAside)) continue;
+            var team = Teams.Of(state, model.UnitId);
+            var placed = Battlefield.At(state, model.Id, at);
+            var near = p.Models.Values.Any(o => !moving.Contains(o.Id) && o.Location is OnTable && Teams.Of(state, o.UnitId) != team
+                && Distance.EdgeToEdge(placed, Battlefield.Placed(state, o.Id)!.Value) <= AmbushDistance + 1e-6);
+            if (near)
+                return new(AmbushDistanceRule, $"{model.Slot.Name} would be placed within 9\" of an enemy unit: Ambushers deploy over 9\" away from enemy units (p.13)");
+        }
+        return null;
+    }
+
     public static IReadOnlyList<Guid> Ambushers(GameState state, PropertySet props, Guid teamId) =>
         TeamUnits.Of(state, teamId).Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Ambush) && TeamUnits.AllShelved(state, u)).Select(u => u.Id).ToList();
 
