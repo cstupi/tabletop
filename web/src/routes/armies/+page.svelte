@@ -3,6 +3,7 @@
   import { api } from '$lib/api/client';
   import type { ArmySummary, BaseSet } from '$lib/api/types';
   import { importErrorMessage, normaliseSource, reimport } from '$lib/armies/import';
+  import Icon from '$lib/components/Icon.svelte';
 
   let armies = $state<ArmySummary[]>([]); let next = $state<string | undefined>(); let source = $state(''); let bases = $state<BaseSet>('round');
   let busy = $state<string | null>(null); let loading = $state(true); let loadingMore = $state(false);
@@ -47,7 +48,7 @@
 <svelte:head><title>Armies · Tabletop</title></svelte:head>
 
 <h1>Armies</h1>
-<section aria-labelledby="import-heading">
+<section class="panel" aria-labelledby="import-heading">
   <h2 id="import-heading">Import from Army Forge</h2>
   <form class="stack" onsubmit={doImport}>
     <label>Army Forge share link or list id
@@ -59,36 +60,39 @@
       <label><input type="radio" bind:group={bases} value="round" /> Round</label>
       <label><input type="radio" bind:group={bases} value="square" /> Square</label>
     </fieldset>
-    <div class="actions"><button type="submit" disabled={!!busy || !normalised}>Import</button></div>
+    <div class="actions"><button type="submit" class="primary" disabled={!!busy || !normalised}><Icon name="import" />Import</button></div>
     <p><small>Grimdark Future and Age of Fantasy lists import; the skirmish and regiment variants do not. The army keeps its own copy of every value. Army Forge publishes a round and a square base for every unit; the choice applies to the whole army, and to Re-import.</small></p>
   </form>
 </section>
 
 <div aria-live="polite">
-  {#if busy}<p>{busy}</p>{/if}
-  {#if notice}<p>{notice}</p>{/if}
+  {#if busy}<p class="loading">{busy}</p>{/if}
+  {#if notice}<p class="notice">{notice}</p>{/if}
 </div>
 {#if error}<p role="alert">{error}</p>{/if}
 
-<section aria-labelledby="list-heading">
+<section class="panel" aria-labelledby="list-heading">
   <h2 id="list-heading">Your armies</h2>
   {#if loading}
-    <p role="status">Loading…</p>
+    <p class="loading" role="status">Loading…</p>
   {:else if armies.length === 0}
-    <p>No armies yet. Import one from Army Forge above.</p>
+    <div class="empty"><Icon name="armies" size="2.5rem" /><p>No armies yet. Import one from Army Forge above.</p></div>
   {:else}
     <div class="scroll-x">
       <table>
-        <thead><tr><th scope="col">Name</th><th scope="col">System</th><th scope="col">Units</th><th scope="col">Models</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">System</th><th scope="col" class="num">Units</th><th scope="col" class="num">Models</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
           {#each armies as a (a.id)}
-            <tr><th scope="row"><a href="/armies/{a.id}">{a.name}</a></th><td>{a.gameSystem}</td><td>{a.units}</td><td>{a.models}</td>
-              <td><button onclick={() => doReimport(a)} disabled={!!busy} aria-label="Re-import {a.name}">Re-import</button> <button onclick={() => remove(a)} disabled={!!busy || loadingMore} aria-label="Delete {a.name}">Delete</button></td></tr>
+            <tr><th scope="row"><a href="/armies/{a.id}">{a.name}</a></th><td>{a.gameSystem}</td><td class="num">{a.units}</td><td class="num">{a.models}</td>
+              <td class="row-actions"><button onclick={() => doReimport(a)} disabled={!!busy} aria-label="Re-import {a.name}">Re-import</button> <button class="danger" onclick={() => remove(a)} disabled={!!busy || loadingMore} aria-label="Delete {a.name}">Delete</button></td></tr>
           {/each}
         </tbody>
       </table>
     </div>
-    {#if next}<button onclick={() => load(true)} disabled={loadingMore || !!busy}>{loadingMore ? 'Loading…' : 'Load more'}</button>{/if}
+    {#if next}<div class="actions"><button onclick={() => load(true)} disabled={loadingMore || !!busy}>{loadingMore ? 'Loading…' : 'Load more'}</button></div>{/if}
   {/if}
 </section>
-<style>td, th { text-align: left; vertical-align: top; padding: .25rem .5rem } tbody th { font-weight: normal }</style>
+<style>
+  tbody th a { font-weight: 700 } td { vertical-align: middle } tbody th { vertical-align: middle }
+  .row-actions { white-space: nowrap; text-align: right } .row-actions button { min-height: 2rem; padding-inline: var(--s3) }
+</style>

@@ -7,6 +7,7 @@
   import MeshPreview from '$lib/components/MeshPreview.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
   import VolumeEditor from '$lib/components/VolumeEditor.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { formatBytes, MAX_NAME, nameProblem } from '$lib/validation';
 
   const id = $derived(page.params.id!);
@@ -19,9 +20,10 @@
     glb = null; error = null; loadFailed = false;
     const t = ++loadToken;
     try {
-      asset = await api.assets.get(id); if (t !== loadToken) return;
+      const a = await api.assets.get(id); if (t !== loadToken) return;
       folders = await api.folders.list(); if (t !== loadToken) return;
-      ({ name, scale, orientation } = asset); base = asset.modelledBase ?? null;
+      // the fields before the asset: BasePicker reads its value once, when the form first renders
+      ({ name, scale, orientation } = a); base = a.modelledBase ?? null; asset = a;
       if (asset.uploaded && asset.contentType === 'model/gltf-binary') {
         downloading = true;
         const response = await fetch((await api.assets.download(id)).url); if (t !== loadToken) return;
@@ -51,16 +53,16 @@
 
 <svelte:head><title>{asset ? `${asset.name} · Library` : 'Asset'} · Tabletop</title></svelte:head>
 
-<p><a href="/library">← Library</a></p>
+<p><a class="back" href="/library"><Icon name="back" />Library</a></p>
 {#if asset}
   <h1>{asset.name}</h1>
   <div class="layout">
-    <div class="view">
+    <div class="panel view">
       {#if glb}<MeshPreview {glb} {scale} {orientation} {base} onerror={(m) => (error = `The preview could not show this mesh: ${m}`)} />
-      {:else if downloading}<p role="status">Downloading the mesh…</p>
-      {:else}<p>{asset.kind === 'texture' ? 'A board texture.' : error ? '' : 'No preview: the upload never finished. Delete this asset and upload the file again.'}</p>{/if}
+      {:else if downloading}<p class="loading" role="status">Downloading the mesh…</p>
+      {:else}<p class="placeholder">{asset.kind === 'texture' ? 'A board texture.' : error ? '' : 'No preview: the upload never finished. Delete this asset and upload the file again.'}</p>{/if}
     </div>
-    <aside>
+    <aside class="panel">
       <form class="stack" onsubmit={save}>
         <label>Name <input bind:value={name} maxlength={MAX_NAME} aria-invalid={!!nameError} aria-describedby={nameError ? 'name-error' : undefined} oninput={() => (saved = false)} /></label>
         {#if nameError}<p id="name-error"><small>{nameError}</small></p>{/if}
@@ -73,23 +75,29 @@
         {#if asset.kind === 'miniature'}<label>Modelled base <BasePicker bind:value={base} label="Modelled base" /></label>{/if}
         {#if !numbersOk}<p role="alert">Scale must be a number above zero, and the orientation numbers.</p>{/if}
         <div class="actions">
-          <button type="submit" disabled={busy || !numbersOk || !!nameError}>Save</button>
-          <span role="status">{#if saved}Saved.{/if}</span>
+          <button type="submit" class="primary" disabled={busy || !numbersOk || !!nameError}>Save</button>
+          <span class="saved" role="status">{#if saved}Saved.{/if}</span>
         </div>
       </form>
       <h2>Folders</h2>
       {#each folders as f (f.id)}<label class="check"><input type="checkbox" checked={f.assetIds.includes(id)} onchange={(e) => void toggleFolder(f, e.currentTarget.checked)} /> {f.name}</label>{:else}<p><small>No folders yet. Make one in the <a href="/library">Library</a>.</small></p>{/each}
-      <p><small>{asset.kind} · {formatBytes(asset.byteSize)} · <span title={asset.hash}>{asset.hash.slice(0, 12)}…</span></small></p>
-      <button onclick={remove} disabled={busy}>Delete asset</button>
+      <p class="meta"><small>{asset.kind} · {formatBytes(asset.byteSize)} · <span class="num" title={asset.hash}>{asset.hash.slice(0, 12)}…</span></small></p>
+      <button class="danger" onclick={remove} disabled={busy}>Delete asset</button>
     </aside>
   </div>
   {#if asset.kind === 'terrain' && glb}<VolumeEditor assetId={id} {glb} {scale} {orientation} />{/if}
 {:else if !loadFailed}
-  <p role="status">Loading…</p>
+  <p class="loading" role="status">Loading…</p>
 {/if}
 {#if error}<p role="alert">{error}</p>{/if}
 <style>
-  .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem }
-  @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr) } }
-  .view { min-height: 24rem } .check { display: block }
+  .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s5); align-items: start }
+  @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: 0 } }
+  .view { min-height: 24rem; padding: 0; background: var(--view-bg); display: grid; overflow: hidden }
+  .view > p { margin: auto; padding: var(--s5); text-align: center }
+  :global([data-theme='fantasy']) .view { background: var(--view-bg) }
+  .check { display: flex; align-items: center; gap: var(--s1); margin: var(--s1) 0 }
+  aside h2 { margin-top: var(--s5) }
+  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0 }
+  .meta { margin: var(--s4) 0 var(--s3); overflow-wrap: anywhere }
 </style>

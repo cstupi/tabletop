@@ -40,10 +40,12 @@
 
 <svelte:head><title>Sign in · Tabletop</title></svelte:head>
 
-<h1>Sign in</h1>
-{#if expired}<p role="status">Your session has ended. Sign in again to carry on.</p>{/if}
+<div class="auth">
+<section class="panel" aria-labelledby="sign-in-heading">
+<h1 id="sign-in-heading">Sign in</h1>
+{#if expired}<p class="notice" role="status">Your session has ended. Sign in again to carry on.</p>{/if}
 
-<div class="actions" role="group" aria-label="Sign-in method">
+<div class="seg method" role="group" aria-label="Sign-in method">
   <button type="button" aria-pressed={method === 'password'} onclick={() => choose('password')}>Password</button>
   <button type="button" aria-pressed={method === 'code'} onclick={() => choose('code')}>Email me a code</button>
 </div>
@@ -53,31 +55,38 @@
     <label>Email <input type="email" bind:value={email} autocomplete="email" required /></label>
     <label>Password <input type="password" bind:value={password} autocomplete="current-password" required /></label>
     <div class="actions">
-      <button type="submit" disabled={!!busy || !emailOk || !password}>Sign in</button>
+      <button type="submit" class="primary" disabled={!!busy || !emailOk || !password}>Sign in</button>
       <button type="button" onclick={signUp} disabled={!!busy || !emailOk || !password}>Create account</button>
-      <button type="button" onclick={forgot} disabled={!!busy || !emailOk}>Forgot password</button>
+      <button type="button" class="quiet" onclick={forgot} disabled={!!busy || !emailOk}>Forgot password</button>
     </div>
     <p><small>New here? Enter your email and a password, then Create account. Forgot password emails a reset link to the address above.</small></p>
   </form>
 {:else if methodId === null}
   <form class="stack" onsubmit={submit(sendCode)}>
     <label>Email <input type="email" bind:value={email} autocomplete="email" required /></label>
-    <div class="actions"><button type="submit" disabled={!!busy || !emailOk}>Send code</button></div>
+    <div class="actions"><button type="submit" class="primary" disabled={!!busy || !emailOk}>Send code</button></div>
     <p><small>No password needed. A new address gets a new account.</small></p>
   </form>
 {:else}
   <form class="stack" onsubmit={submit(verifyCode)}>
     <label>6-digit code <input bind:this={codeInput} bind:value={code} inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{'{'}6{'}'}" required /></label>
     <div class="actions">
-      <button type="submit" disabled={!!busy || !/^\d{6}$/.test(code.trim())}>Verify</button>
+      <button type="submit" class="primary" disabled={!!busy || !/^\d{6}$/.test(code.trim())}>Verify</button>
       <button type="button" onclick={sendCode} disabled={!!busy}>Send again</button>
-      <button type="button" onclick={() => (methodId = null)} disabled={!!busy}>Use another email</button>
+      <button type="button" class="quiet" onclick={() => (methodId = null)} disabled={!!busy}>Use another email</button>
     </div>
   </form>
 {/if}
 
 <div aria-live="polite">
-  {#if busy}<p>{busy}</p>{/if}
-  {#if notice}<p>{notice}</p>{/if}
+  {#if busy}<p class="loading">{busy}</p>{/if}
+  {#if notice}<p class="notice">{notice}</p>{/if}
 </div>
 {#if error}<p role="alert">{error}</p>{/if}
+</section>
+</div>
+
+<style>
+  .method { margin: 0 0 var(--s3); }
+  .method > button { flex: 1 1 auto; }
+</style>
