@@ -14,8 +14,12 @@ public sealed class GameServerOptions
     public double DefaultTableWidth { get; init; } = 72;
     public double DefaultTableLength { get; init; } = 48;
     public string DefaultTextureBuiltin { get; init; } = "grass";
-    /// <summary>Whether the engine takes SetDice, the rules suite's way to fix a roll's faces. On only in the Development environment (the compose game server the suite's socket driver targets); players never set dice.</summary>
+    /// <summary>Whether the engine takes SetDice, the rules suite's way to fix a roll's faces. On only in dev mode (StartupGuard.DevMode: Development and TABLETOP_DEV_MODE=1; the compose game server the suite's socket driver targets); players never set dice.</summary>
     public bool AcceptsSetDice { get; init; }
+
+    /// <summary>TABLETOP_STYTCH_JWKS_URL, else derived from TABLETOP_STYTCH_BASE_URL (default Stytch's test environment) and the project id.</summary>
+    public static string JwksUrl(IConfiguration configuration, string projectId) => configuration["TABLETOP_STYTCH_JWKS_URL"]
+        ?? $"{(configuration["TABLETOP_STYTCH_BASE_URL"] ?? "https://test.stytch.com").TrimEnd('/')}/v1/sessions/jwks/{projectId}";
 
     public static GameServerOptions FromEnvironment(IConfiguration configuration, bool development)
     {
@@ -25,8 +29,7 @@ public sealed class GameServerOptions
         {
             DbConnection = Require("TABLETOP_DB_CONNECTION"),
             StytchProjectId = projectId,
-            StytchJwksUrl = configuration["TABLETOP_STYTCH_JWKS_URL"]
-                ?? $"{(configuration["TABLETOP_STYTCH_BASE_URL"] ?? "https://test.stytch.com").TrimEnd('/')}/v1/sessions/jwks/{projectId}",
+            StytchJwksUrl = JwksUrl(configuration, projectId),
             MinimumClientVersion = int.TryParse(configuration["TABLETOP_MIN_CLIENT_VERSION"], out var v) ? v : Tabletop.Protocol.ProtocolVersion.Current,
             AcceptsSetDice = development,
         };

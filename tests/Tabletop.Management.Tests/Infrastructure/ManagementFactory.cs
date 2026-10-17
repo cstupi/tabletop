@@ -22,6 +22,8 @@ public class ManagementFactory : WebApplicationFactory<Program>
     public InMemoryBlobStore Blobs { get; } = new();
     public FakeStytch Stytch { get; } = new();
     public string HostEnvironment { get; init; } = "Testing";
+    /// <summary>Settings on top of the defaults below, by name without the TABLETOP_ prefix.</summary>
+    public Dictionary<string, string?> Settings { get; init; } = [];
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -35,7 +37,7 @@ public class ManagementFactory : WebApplicationFactory<Program>
             ["S3_BUCKET"] = "none",
             ["S3_ACCESS_KEY"] = "none",
             ["S3_SECRET_KEY"] = "none",
-        }));
+        }).AddInMemoryCollection(Settings));
         builder.ConfigureTestServices(s =>
         {
             s.AddHttpClient(StytchAuthentication.JwksClient).ConfigurePrimaryHttpMessageHandler(() => TestKeys.JwksHandler);
@@ -66,5 +68,6 @@ public class ManagementFactory : WebApplicationFactory<Program>
     private sealed class NoMigrations : IMigrator
     {
         public void Run() { }
+        public IReadOnlyList<string> Pending() => [];
     }
 }

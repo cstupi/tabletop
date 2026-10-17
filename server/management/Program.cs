@@ -4,11 +4,17 @@ using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Content.Layouts;
 using Tabletop.Management.Games;
 using Tabletop.Management.Identity;
+using Tabletop.Management.Persistence;
 
-DotEnv.Load();
-var builder = WebApplication.CreateBuilder(args);
+DotEnv.LoadForDevelopment(Directory.GetCurrentDirectory(), DotEnv.ProcessEnvironment());
+var builder = WebApplication.CreateBuilder(args.Where(a => a != MigrateCommand.Flag).ToArray());
 builder.Configuration.AddEnvironmentVariables("TABLETOP_");
-builder.WebHost.UseUrls(builder.Configuration["MANAGEMENT_URL"] ?? "http://0.0.0.0:5100");
+if (args.Contains(MigrateCommand.Flag))
+{
+    Environment.ExitCode = MigrateCommand.Run(builder.Environment.EnvironmentName, builder.Configuration);
+    return;
+}
+builder.WebHost.UseUrls(builder.Configuration["MANAGEMENT_URL"] ?? "http://127.0.0.1:5100");
 // Registered as a factory (not from builder.Configuration here) because WebApplicationFactory
 // applies its ConfigureAppConfiguration overrides during builder.Build(), after this point in the
 // file runs.
@@ -40,7 +46,13 @@ var app = builder.Build();
 // Resolved eagerly, right after Build() (once ConfigureAppConfiguration overrides have landed), so
 // missing required configuration fails startup instead of being silently deferred to first use.
 var options = app.Services.GetRequiredService<ManagementOptions>();
-app.Services.GetRequiredService<Tabletop.Management.Persistence.IMigrator>().Run();
+StartupGuard.Enforce(app.Environment.EnvironmentName, app.Configuration, options);
+var devMode = StartupGuard.DevMode(app.Environment.EnvironmentName, app.Configuration);
+// Dev mode migrates at startup. Anywhere else the runtime role cannot, so a schema behind the build refuses to start: run --migrate as the owner role first.
+var migrator = app.Services.GetRequiredService<Tabletop.Management.Persistence.IMigrator>();
+if (devMode) migrator.Run();
+else if (migrator.Pending() is { Count: > 0 } pending)
+    throw new InvalidOperationException($"The database is behind this build ({string.Join(", ", pending)}); run `Tabletop.Management --migrate` with the owner role's TABLETOP_DB_CONNECTION first.");
 app.UseExceptionHandler(h => h.Run(ctx => Results.Problem(
     statusCode: ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error switch
     {
@@ -65,7 +77,7 @@ app.MapLayouts();
 app.MapProperties();
 app.MapGames();
 app.MapManifest();
-if (app.Environment.IsDevelopment()) app.MapDevSession();
+if (devMode) app.MapDevSession();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.Run();
 

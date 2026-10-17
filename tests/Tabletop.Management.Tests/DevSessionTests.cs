@@ -6,8 +6,25 @@ namespace Tabletop.Management.Tests;
 
 public class DevSessionTests(ManagementFactory f) : IClassFixture<ManagementFactory>, IDisposable
 {
-    private readonly ManagementFactory _dev = new() { HostEnvironment = "Development" };
+    private readonly ManagementFactory _dev = new() { HostEnvironment = "Development", Settings = { ["DEV_MODE"] = "1" } };
     public void Dispose() => _dev.Dispose();
+
+    [Fact]
+    public void Development_without_the_opt_in_refuses_to_start()
+    {
+        using var bare = new ManagementFactory { HostEnvironment = "Development" };
+        var e = Assert.Throws<InvalidOperationException>(() => bare.CreateClient());
+        Assert.Contains("TABLETOP_DEV_MODE", e.Message);
+    }
+
+    [Fact]
+    public void Production_refuses_the_dev_stack_settings()
+    {
+        using var prod = new ManagementFactory { HostEnvironment = "Production" };
+        var e = Assert.Throws<InvalidOperationException>(() => prod.CreateClient());
+        Assert.Contains("TABLETOP_STYTCH_BASE_URL", e.Message);
+        Assert.Contains("TABLETOP_WEB_URL", e.Message);
+    }
 
     [Fact]
     public async Task The_mint_is_absent_outside_a_development_environment()
