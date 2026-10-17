@@ -6,8 +6,8 @@ namespace Tabletop.Client.Core;
 /// The Undo button and Ctrl+Z (client UX spec → Undo): undo the last action in the game, whoever took it. An action is a live event with
 /// an actor (an engine event has none) that is neither an Undone marker nor an AskClosed: the close carries the actor of the answer that
 /// caused it, and is part of that answer. The engine events after it go with it. The target is the live seq
-/// immediately before the action, 0 when none: the server accepts only a live seq. LostRolls: each live roll after the target in the
-/// combat log's collapsed words, and each live reroll or hand edit after it of a roll at or before it.
+/// immediately before the action, 0 when none: the server accepts only a live seq. LostRolls: each live roll, as the combat log's line,
+/// once, when it or a live reroll or hand edit of it is after the target, ordered by the earliest such seq.
 /// </summary>
 public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IReadOnlyList<string> LostRolls)
 {
@@ -27,13 +27,13 @@ public sealed record UndoPlan(long ToSeq, GameEvent Action, string Tooltip, IRea
     static IReadOnlyList<string> Lost(IReadOnlyList<LogEntry> entries, long to)
     {
         var lost = new List<(long Seq, string Text)>();
-        foreach (var e in entries.SelectMany(e => e is ActivationBlock b ? b.Entries : (IEnumerable<LogEntry>)[e]))
+        foreach (var e in CombatLog.Flatten(entries))
         {
             if (e.Undone) continue;
             if (e is RollEntry r)
             {
-                if (r.Seq > to) lost.Add((r.Seq, r.Collapsed(CombatLog.Pip)));
-                else lost.AddRange(r.Amendments.Where(a => !a.Undone && a.Seq > to).Select(a => (a.Seq, $"{r.Title} · {a.Line(CombatLog.Pip)}")));
+                var seqs = r.Amendments.Where(a => !a.Undone).Select(a => a.Seq).Prepend(r.Seq).Where(s => s > to).ToList();
+                if (seqs.Count > 0) lost.Add((seqs.Min(), r.Collapsed(CombatLog.Pip)));   // the line already ends with its live amendments
             }
             else if (e is LineEntry { Event.Payload: DiceRerolled or DiceEdited } line && line.Seq > to) lost.Add((line.Seq, line.Text));
         }

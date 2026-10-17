@@ -48,7 +48,7 @@ public static class LogText
             DiceEdited d => $"set {d.Replaced.Count} dice by hand",
             ModifierAdded m => $"added {m.Modifier.Amount:+#;-#;0} to the {m.Roll} roll",
             Undone u => $"undid back to #{u.ToSeq}",
-            RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => Change(c, n)))}")}",
+            RoundEnded r => $"ended round {r.Round}{(r.Changes.Count == 0 ? "" : $": {string.Join(", ", r.Changes.Select(c => RoundChange(c, n)))}")}",
             ObjectiveControlSet { TeamId: { } team } o => $"gave {n.Marker(o.MarkerId)} to {n.Team(team)}",   // a menu edit; inside round_ended the same change reads "took"
             ObjectiveControlSet o => $"made {n.Marker(o.MarkerId)} neutral",
             GameEnded g => $"Game ended: {g.Reason}{Result(g.Winners, n)}",
@@ -67,7 +67,7 @@ public static class LogText
     };
 
     /// <summary>A round end's change in words. Only objective control is written there today; anything else reads by its kind.</summary>
-    static string Change(StateChange c, Names n) => c switch
+    public static string RoundChange(StateChange c, Names n) => c switch
     {
         ObjectiveControlSet { TeamId: { } team } o => $"{n.Team(team)} took {n.Marker(o.MarkerId)}",
         ObjectiveControlSet o => $"{n.Marker(o.MarkerId)} became neutral",
