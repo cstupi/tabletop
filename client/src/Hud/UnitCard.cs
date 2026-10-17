@@ -15,7 +15,7 @@ public partial class UnitCard : VBoxContainer
     readonly VBoxContainer _body = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill }, _stripBody = new();
     readonly PanelContainer _strip = new() { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkEnd };
     Guid? _unit, _hovered; HudRect? _slot; bool _fitQueued;
-    UnitSheetModel? _sheet; Names? _names;
+    UnitSheetModel? _sheet; Names? _names; UnitCardContent? _content;
     Action<RenderCause>? _onFrame; Action? _onChanged, _onTheme; Action<Guid?>? _onHover;
     public Guid? UnitId => _unit;
     public event Action<Guid>? ModelPicked;
@@ -32,7 +32,7 @@ public partial class UnitCard : VBoxContainer
         _onFrame = _ => Render(); _onChanged = Render; _onHover = id => { _hovered = id; OnHover(); };   // the frame: every cause
         session.Frame.Render += _onFrame;
         input.SelectionChanged += _onChanged; input.HoveredUnitChanged += _onHover;
-        _onTheme = Render; Ui.Changed += _onTheme;
+        _onTheme = () => { _content = null; Render(); }; Ui.Changed += _onTheme;   // a new theme rebuilds whatever the content
         Render();
     }
 
@@ -75,13 +75,25 @@ public partial class UnitCard : VBoxContainer
             ? SheetFocus.Of(p, game, _s.MyTeamId, _input.Selected?.PieceId) : null;
         if (unit != _unit) { _unit = unit; FocusChanged?.Invoke(unit); }
         Visible = unit is not null;
-        if (unit is not { } u) { _sheet = null; _names = null; return; }
+        if (unit is not { } u) { _sheet = null; _names = null; _content = null; return; }
         var names = new Names(game!, p!);
         var sheet = UnitSheet.Of(p!, names, u, _s.Rules, _s.MaxWounds);
         _sheet = sheet; _names = names;
-        RenderCard(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u));
+        var content = new UnitCardContent(sheet, SheetFocus.TeamOf(p!, game!, u)?.Ordinal ?? 0, DecisionView.NoteOf(p!, game!, _s.MyTeamId, _s.Settings.MutedWindowKinds, u));
+        if (content != _content)
+        {
+            // The same unit's card keeps its place in the scroll; another unit's starts at the top.
+            var scroll = _content?.Sheet.UnitId == u ? _card.ScrollVertical : 0;
+            _content = content;
+            RenderCard(content.Sheet, content.Team, content.Note);
+            if (scroll > 0) RestoreScroll(scroll);
+        }
         RenderStrip(p!, game!, names, sheet);
     }
+
+    /// <summary>After the rebuilt body's layout, which sets the scroll range the position is clamped to: the next process frame.</summary>
+    void RestoreScroll(int scroll) =>
+        GetTree().Connect(SceneTree.SignalName.ProcessFrame, Callable.From(() => { if (IsInstanceValid(_card)) _card.ScrollVertical = scroll; }), (uint)ConnectFlags.OneShot);
 
     /// <summary>A hovered-unit change redraws only the strip, so the card keeps its scroll position and open tooltip.</summary>
     void OnHover()

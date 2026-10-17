@@ -102,7 +102,8 @@ once, in subscription order, within the same frame. The parts that redraw from t
 `Frame.Render` and filter on the causes they used to subscribe to: `HeaderBar`, `Roster`, `UnitCard`, `DecisionBox`,
 `DiceTray`, `UndoButton`, `CombatLogPanel`, `EndMessage`, `UnitMarkerNodes`, `HoverLabels`, `RangeRingNode`,
 `TargetLines`, `SightLines`, and `GameScreen.RefreshAll`, whose deferred `ShowSelection` so still lands after the
-decision box's render. The parts that read the batch keep `EventsApplied`: `FloatingText`, `TurnBanner`,
+decision box's render. `UnitCard` rebuilds its body only when its `UnitCardContent` (the sheet, team and note, equal
+by value) changed, and a rebuild of the same unit's card keeps its scroll position. The parts that read the batch keep `EventsApplied`: `FloatingText`, `TurnBanner`,
 `DecisionBox`'s sealed reveal (`SealedReveals` queues each batch's "Revealed: …" line until a render shows it), `Animator`, the camera follow, and `TableView`, which `Animator.Pump` also redraws.
 
 `Session.CombatLog` (`CombatLogState`, from a `CombatLogCache`) is the combat log of the current log state, built at
