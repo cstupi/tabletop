@@ -18,6 +18,10 @@ public partial class DiceTray : PanelContainer
     RollEntry? _shown; double _tumble; readonly List<Control> _tumbling = [];
     Action<RenderCause>? _onFrame; Action? _onTheme;
 
+    bool _covered;
+    /// <summary>The log is open and holds the same roll: the tray hides and gives its slot to the decision box.</summary>
+    public bool Covered { get => _covered; set { if (_covered == value) return; _covered = value; Render(); } }
+
     /// <summary>The shown roll's RollRecord id, when the player clicks it.</summary>
     public event Action<Guid>? RollClicked;
 
@@ -46,7 +50,7 @@ public partial class DiceTray : PanelContainer
     void Render()
     {
         var latest = _s.Projection is not null ? _s.CombatLog?.Latest : null;
-        Visible = latest is not null;
+        Visible = latest is not null && !_covered;
         var changed = latest is not null && (_shown is null || _shown.Record.Id != latest.Record.Id || !_shown.Dice.SequenceEqual(latest.Dice));
         _shown = latest;
         if (latest is null) return;

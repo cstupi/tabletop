@@ -38,7 +38,7 @@ public partial class DecisionBox
             (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
             _region!.Show(MoveRuler.ExitRegion(body, new PlacedModel(BodyOf(p, containerId), at.Placement), legal, _volumes, _size), Palette.Team(ordinal));
             var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
-            _note.Text = fromShelf ? $"{ask.Prompt}. Drag them into place, then commit."
+            _note.Text = fromShelf ? "Drag them into place, then commit."   // the title is the Ask's prompt
                 : $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
             _input.Allowance = null; _input.Minimum = null; _input.Region = null;
             void StartExit()

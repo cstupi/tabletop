@@ -161,6 +161,22 @@ public partial class TableInput : Node
 
     static Guid IdOf(Node3D piece) => piece switch { PieceNode p => p.ModelId, TerrainNode t => t.PlacementId, MarkerNode m => m.MarkerId, _ => Guid.Empty };
 
+    /// <summary>A release the table's viewport never heard (after a drag it can reach the window and not the table's container)
+    /// still drops what is held: the button's state, not the event, ends the drag, so no drag outlives the press.</summary>
+    public override void _Process(double delta)
+    {
+        if (_drag is not null && !Input.IsMouseButtonPressed(MouseButton.Left)) Observe(OnLeftUp());
+    }
+
+    /// <summary>A move that ends while its models are in hand (a reconnect, an undo, the Ask closing): the drag goes with it, its
+    /// models back where they were picked up, and nothing is sent.</summary>
+    public void DropProposed()
+    {
+        if (_drag is not { } drag || !drag.ModelIds.Any(Proposing.Contains)) return;
+        foreach (var (id, at) in drag.Grabs) { MoveNode(id, at.Position); Face(id, at.Yaw); }
+        CancelDrag();
+    }
+
     public override void _UnhandledInput(InputEvent e)
     {
         switch (e)
@@ -191,6 +207,9 @@ public partial class TableInput : Node
         var dx = point.X - _drag.Start.X; var dy = point.Y - _drag.Start.Y;
         Place(_drag.Rows > 0 ? Arranged(point) : _drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + dx, Y = kv.Value.Position.Y + dy }));
     }
+
+    /// <summary>The pointer left the table for a Hud part: nothing is hovered.</summary>
+    public void ClearHover() { if (_drag is null) Hover(null); }
 
     /// <summary>The unit under the cursor, raised on change; an eligible piece takes the pointing hand.</summary>
     void Hover(Node3D? piece)

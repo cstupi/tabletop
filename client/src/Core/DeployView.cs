@@ -10,7 +10,7 @@ public sealed record MidDeploy(Guid UnitId, string Question, IReadOnlyList<Guid>
 public static class DeployView
 {
     static readonly HashSet<string> Questions = [AskQuestions.Deploy, AskQuestions.DeployScouts, AskQuestions.DeployAmbusher, AskQuestions.DeployReinforcement];
-    const int PerRow = 5; const double Gap = 0.2;
+    const int PerRow = 5, MaxRings = 64; const double Gap = 0.2;
 
     /// <summary>
     /// The unit my team picked at the latest Ask, when that Ask is a deploy question that has closed with a unit and some of its
@@ -44,7 +44,7 @@ public static class DeployView
 
     /// <summary>
     /// Shelf models placed relative to a model on the table (a Spawn or Split reserve, placed "fully within 6\"" of its anchor): rings about the anchor's
-    /// centre, the first just clear of its base, each as many models as fit a pitch apart, yaw 0, each centre held on the table. A row of
+    /// centre, the first clear of its base by the separation, each as many models as fit a pitch apart, yaw 0; a spot whose base would leave the table is skipped. A row of
     /// <see cref="Layout"/> would reach past 6" for five wide bases; a ring keeps every model as close as it can go.
     /// </summary>
     public static IReadOnlyList<ModelRelocation> Around(IReadOnlyList<ModelInPlay> models, Placement anchor, Base anchorBase, TableSize size, double? clearance = null)
@@ -52,22 +52,24 @@ public static class DeployView
         if (models.Count == 0) return [];
         var widest = models.Max(m => Math.Max(m.Slot.Base.A, m.Slot.Base.B));
         var pitch = widest + Gap;
-        var radius = Math.Max(anchorBase.A, anchorBase.B) / 2 + Math.Max(Gap, clearance ?? 0) + widest / 2;   // clear of the anchor by the Ask's separation
+        // The anchor's farthest edge from its centre: a rectangle's corner, else its long half.
+        var reach = anchorBase.Shape == BaseShape.Rect ? Math.Sqrt(anchorBase.A * anchorBase.A + anchorBase.B * anchorBase.B) / 2 : Math.Max(anchorBase.A, anchorBase.B) / 2;
+        var radius = reach + Math.Max(Gap, clearance ?? 0) + widest / 2;   // clear of the anchor by the Ask's separation
         var placed = new List<ModelRelocation>(models.Count);
         var next = 0;
-        while (next < models.Count)
+        // Ring by ring outward: a spot whose base would leave the table is skipped (pulling it back on would bring it toward the anchor).
+        for (var rings = 0; next < models.Count && rings < MaxRings; rings++, radius += pitch)
         {
             var room = Math.Max(1, (int)Math.Floor(2 * Math.PI * radius / pitch));
-            var ring = Math.Min(room, models.Count - next);
-            for (var i = 0; i < ring; i++, next++)
+            for (var i = 0; i < room && next < models.Count; i++)
             {
-                var angle = 2 * Math.PI * i / ring;
+                var angle = 2 * Math.PI * i / room;
                 var m = models[next]; var half = Math.Max(m.Slot.Base.A, m.Slot.Base.B) / 2;
-                var x = Math.Clamp(anchor.Position.X + radius * Math.Cos(angle), half, size.Width - half);
-                var y = Math.Clamp(anchor.Position.Y + radius * Math.Sin(angle), half, size.Length - half);
+                var x = anchor.Position.X + radius * Math.Cos(angle); var y = anchor.Position.Y + radius * Math.Sin(angle);
+                if (x < half || x > size.Width - half || y < half || y > size.Length - half) continue;
                 placed.Add(new ModelRelocation(m.Id, m.Location, new OnTable(new Placement(new Point3(x, y, anchor.Position.Z), new Yaw(0)))));
+                next++;
             }
-            radius += pitch;
         }
         return placed;
     }

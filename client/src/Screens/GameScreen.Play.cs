@@ -88,6 +88,7 @@ public partial class GameScreen
         _session.EventsApplied += _onFollow;
         foreach (var part in new Control[] { _header, _roster, _card, _decision, _dice }) { part.MinimumSizeChanged += QueueLayout; part.VisibilityChanged += QueueLayout; }
         _logDrawer.OpenChanged += QueueLayout;
+        foreach (var button in new Control[] { _undo, _logDrawer.Toggle }) button.MinimumSizeChanged += QueueLayout;   // a theme's taller button face moves the column's foot
         QueueLayout();
     }
 
@@ -131,8 +132,11 @@ public partial class GameScreen
         _layoutQueued = false;
         if (!IsInstanceValid(_hud) || _hud.Size.X <= 0 || _hud.Size.Y <= 0) return;
         var w = _hud.Size.X - (IsInstanceValid(_sidePanel) && _sidePanel.Visible ? _sidePanel.Size.X : 0);
-        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card), Shows(_decision), Shows(_dice), _logDrawer is { } l && IsInstanceValid(l) && l.Open));
-        HudPlacement.Top(_corner, r[HudPart.Corner]);
+        var logOpen = _logDrawer is { } l && IsInstanceValid(l) && l.Open;
+        var buttonH = _undo is { } u && IsInstanceValid(u) ? Math.Max(u.GetCombinedMinimumSize().Y, _logDrawer?.Toggle.GetCombinedMinimumSize().Y ?? 0) : HudLayout.LogButtonH;
+        var r = HudLayout.Of(w, _hud.Size.Y, new HudVisible(Shows(_roster), Shows(_card), Shows(_decision), Shows(_dice), logOpen), buttonH);
+        if (_dice is { } tray && IsInstanceValid(tray)) tray.Covered = logOpen;   // the open log holds the latest roll: the tray gives its slot up
+        PlaceCorner(r[HudPart.Corner]);
         HudPlacement.Top(_toasts, r[HudPart.Toasts]);
         if (Shows(_header)) HudPlacement.Top(_header!, r[HudPart.Header]);
         if (Shows(_roster)) _roster!.Place(r[HudPart.Roster]);
@@ -152,14 +156,26 @@ public partial class GameScreen
         NoteLayout();
     }
 
-    /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume:
-    /// both grow upward past their slots. Only when the panel's columns span theirs.</summary>
+    /// <summary>The corner keeps to its slot's width: the game's name gives up what Home and the tail take, and clips.</summary>
+    void PlaceCorner(HudRect slot)
+    {
+        var others = _corner.GetCombinedMinimumSize().X - _status.GetCombinedMinimumSize().X;   // Home, the tail and the gaps
+        var full = _status.GetThemeFont("font").GetStringSize(_status.Text, HorizontalAlignment.Left, -1, _status.GetThemeFontSize("font_size")).X;
+        var width = new Vector2(MathF.Ceiling(Math.Min(full, Math.Max(0, slot.W - others))), 0);
+        if (_status.CustomMinimumSize != width) _status.CustomMinimumSize = width;   // only a change: each set queues another layout
+        HudPlacement.Top(_corner, slot);
+    }
+
+    /// <summary>The log panel ends HudLayout.M above the decision box and dice tray as they are, not as their slots assume: either
+    /// may grow upward past its slot, and a short decision box leaves the log the room above it, up to HudLayout.LogMaxH. Only
+    /// when the panel's columns span theirs.</summary>
     HudRect AboveBottomStack(HudRect panel)
     {
-        var bottom = panel.Bottom;
+        float? top = null;
         foreach (var part in new Control?[] { _decision, _dice })
-            if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) bottom = Math.Min(bottom, part.Position.Y - HudLayout.M);
-        return panel with { H = Math.Max(0, bottom - panel.Y) };
+            if (Shows(part) && panel.SpansX(new HudRect(part!.Position.X, 0, part.Size.X, 1))) top = Math.Min(top ?? float.MaxValue, part.Position.Y);
+        var bottom = top is { } t ? t - HudLayout.M : panel.Bottom;
+        return panel with { H = Math.Clamp(bottom - panel.Y, 0, HudLayout.LogMaxH) };
     }
 
     /// <summary>The log panel starts HudLayout.M below the header as it is, not as its 96 px slot assumes: three lines can be

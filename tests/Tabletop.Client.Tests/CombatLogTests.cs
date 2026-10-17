@@ -327,4 +327,21 @@ public class CombatLogTests
         Assert.Single(blocks[0].Entries.OfType<RollEntry>());
         Assert.Single(blocks[1].Entries.OfType<RollEntry>());
     }
+
+    /// <summary>The engine records the action as the frame starts; the block's header already says it, so no line of its own (B: "the game recorded Idle" above its header).</summary>
+    [Fact]
+    public void The_engine_s_action_record_draws_no_line_and_a_hand_record_does()
+    {
+        var a = new EventApplier(Samples.Board, Samples.Game);
+        a.ApplyAll([
+            new GameEvent(1, Samples.P1, Round1, null),
+            new GameEvent(2, null, new ActionRecorded(Samples.Unit, "Hold"), null),
+            new GameEvent(3, null, new SequenceStarted(Samples.Frame, "activation", new SequenceContext(Samples.Unit, [], [], "Hold")), null),
+            new GameEvent(4, null, new SequenceFinished(Samples.Frame), null),
+            new GameEvent(5, Samples.P1, new ActionRecorded(Samples.Unit, "Advance"), null)]);
+        var n = new Names(Samples.Game, a.Projection);
+        var lines = CombatLog.Flatten(CombatLog.Build(a.Log, n)).OfType<LineEntry>().Select(l => l.Text).ToList();
+        Assert.DoesNotContain(lines, l => l.Contains("recorded Hold"));
+        Assert.Contains(lines, l => l.Contains("recorded Advance") && l.EndsWith("· by hand"));
+    }
 }

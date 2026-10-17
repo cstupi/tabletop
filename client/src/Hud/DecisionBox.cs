@@ -17,7 +17,7 @@ public partial class DecisionBox : PanelContainer
     Session _s = null!; TableView _view = null!; TableInput _input = null!;
     readonly VBoxContainer _controls = new();
     readonly Label _title = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _note = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart },
-        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim };
+        _refusalLabel = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart }, _revealLabel = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart }, _hint = new() { ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart };
     MoveRegionNode? _region;
     readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.Reserve };
     HudRect? _slot; bool _fitQueued;
@@ -36,12 +36,17 @@ public partial class DecisionBox : PanelContainer
     /// <summary>The picks' own state (target assignment, casualty marks), dropped with the Ask's handlers.</summary>
     partial void UnhookPicks();
 
+    /// <summary>The gap between scrolled content and its bar.</summary>
+    public const int ScrollGap = 8;
+
     public void Bind(Session s, TableView view, TableInput input)
     {
         _s = s; _view = view; _input = input;
         CustomMinimumSize = new Vector2(420, 0);
         var box = new VBoxContainer(); AddChild(box);
-        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; _scroll.AddChild(_controls);
+        // The controls keep clear of the scroll bar: a margin between their right edge and the bar's.
+        var inset = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; inset.AddThemeConstantOverride("margin_right", ScrollGap);
+        _controls.SizeFlagsHorizontal = SizeFlags.ExpandFill; inset.AddChild(_controls); _scroll.AddChild(inset);
         foreach (var c in new Control[] { _title, _revealLabel, _note, _scroll, _refusalLabel, _hint }) box.AddChild(c);
         _controls.MinimumSizeChanged += QueueFit;                                  // a ScrollContainer reports no content height
         view.AddChild(_region = new MoveRegionNode());
@@ -88,7 +93,7 @@ public partial class DecisionBox : PanelContainer
     {
         RenderAsk();
         _refusalLabel.Text = _refusal ?? ""; _refusalLabel.Visible = _refusal is not null;
-        _hint.Visible = _hint.Text != "";
+        _hint.Visible = _hint.Text != ""; _title.Visible = _title.Text != ""; _note.Visible = _note.Text != "";   // an empty label still takes a line
         _revealLabel.Text = _revealed ?? ""; _revealLabel.Visible = _revealed is not null;
         Visible = _title.Text != "" || _note.Text != "" || _refusal is not null || _revealed is not null;
     }
@@ -140,7 +145,7 @@ public partial class DecisionBox : PanelContainer
         }
         if (mine.Ask.AllowPass) Add(Btn("Pass", () => Send(mine.Ask, new Passed())));
         if (mine.Ask.WindowKind is { } kind) Add(Btn($"Mute '{kind}' windows", () => _s.UpdateSettings(x => x.Mute(kind))));
-        if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, names) is { } who) _note.Text = $"{who} answered for your team";
+        if (AskViewModel.AnsweredBy(_s.Log, mine.Ask.Id, _s.MyTeamId, _s.ParticipantId, names) is { } who) _note.Text = $"{who} answered for your team";
     }
 
     /// <summary>
@@ -296,6 +301,7 @@ public partial class DecisionBox : PanelContainer
         _proposed = null; _deployAt = null; _deployUnit = null; _turned.Clear(); _regate = null; _gate = new(true, null); _regions = null;
         if (_input is not null && IsInstanceValid(_input)) _input.PlacementPoint = null;   // a deploy's unused point pick would eat the next table click
         UnhookPicks();
+        if (_input is not null && IsInstanceValid(_input)) _input.DropProposed();   // before Proposing clears: a held ghost would otherwise drop as a hand move
         if (_input is not null && IsInstanceValid(_input)) { _input.Proposing.Clear(); _input.Allowance = null; _input.Minimum = null; _input.Region = null; _input.Reach = null; _input.Eligible = new HashSet<Guid>(); }
         if (_region is not null && IsInstanceValid(_region)) _region.Hide();
         if (_view is not null && IsInstanceValid(_view)) _view.ClearExitGhosts();

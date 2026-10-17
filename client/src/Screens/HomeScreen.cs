@@ -21,7 +21,9 @@ public partial class HomeScreen : Control
     public override void _Ready()
     {
         var session = Main.Instance.Session;
-        var root = new VBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
+        var margin = new MarginContainer(); margin.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(margin);
+        foreach (var side in new[] { "margin_left", "margin_top", "margin_right", "margin_bottom" }) margin.AddThemeConstantOverride(side, Margin);
+        var root = new VBoxContainer(); margin.AddChild(root);
         var top = new HBoxContainer(); root.AddChild(top);
         top.AddChild(_name = new Label());
         top.AddChild(Btn("Rename…", RenameDialog));
@@ -58,6 +60,24 @@ public partial class HomeScreen : Control
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
 
+    /// <summary>The screen's margin to the window, the Hud's 8 px.</summary>
+    const int Margin = (int)HudLayout.M;
+
+    /// <summary>A dialog's width: its wrapping labels wrap at it, so the dialog's height follows its text and never the window's.</summary>
+    const int DialogWidth = 420;
+
+    /// <summary>A dialog field under its name.</summary>
+    static Control Field(string label, Control field)
+    {
+        var box = new VBoxContainer(); box.AddChild(new Label { Text = label, ThemeTypeVariation = Variation.Dim }); box.AddChild(field); return box;
+    }
+
+    /// <summary>A label that wraps inside a dialog: a fixed width, since a wrapping label in an auto-sized window otherwise measures one word a line.</summary>
+    static Label DialogText(string text = "", string variation = "") => new()
+    {
+        Text = text, ThemeTypeVariation = variation, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(DialogWidth - 40, 0),
+    };
+
     /// <summary>The name everyone sees, and while it is still the default Player-xxxx, a line asking for a real one.</summary>
     void ShowName()
     {
@@ -74,10 +94,12 @@ public partial class HomeScreen : Control
         catch (Exception e) { Show(Feedback.Error(e, Main.Instance.Session.Settings.ManagementUrl)); }
     }
 
-    /// <summary>The screen may have been freed by the navigation the action caused.</summary>
-    void Show(string message)
+    /// <summary>The line under the list: a problem in warning colour, a finished action in success colour, progress plain. The screen
+    /// may have been freed by the navigation the action caused.</summary>
+    void Show(string message, string variation = Variation.Warning)
     {
-        if (IsInstanceValid(this) && IsInstanceValid(_error)) _error.Text = message;
+        if (!IsInstanceValid(this) || !IsInstanceValid(_error)) return;
+        _error.Text = message; _error.ThemeTypeVariation = variation;
     }
 
     List<GameSummary> Filtered()
@@ -131,11 +153,11 @@ public partial class HomeScreen : Control
             var m = Main.Instance.Session.Management;
             if (delete) await m.DeleteGame(game.Id); else await m.EndGame(game.Id);
             if (!IsInstanceValid(this)) return;
-            Show(delete ? $"Deleted {game.Name}." : $"Ended {game.Name}.");
+            Show(delete ? $"Deleted {game.Name}." : $"Ended {game.Name}.", Variation.Success);
             _games.Clear(); _next = null; _loaded = false; Render(); await LoadPage();
         });
         d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
-        AddChild(d); d.PopupCentered(new Vector2I(380, 0));
+        AddChild(d); d.PopupCentered(new Vector2I(DialogWidth, 0));
     }
 
     async Task LoadPage()
@@ -150,7 +172,7 @@ public partial class HomeScreen : Control
     {
         if (_busy || row < 0 || row >= Filtered().Count) return;
         var game = Filtered()[row];
-        _busy = true; ShowButtons(); Show($"Joining {game.Name}…");
+        _busy = true; ShowButtons(); Show($"Joining {game.Name}…", "");
         Run(async () =>
         {
             try { await Join(game.Id); }
@@ -185,19 +207,19 @@ public partial class HomeScreen : Control
         var session = Main.Instance.Session;
         var dialog = new ConfirmationDialog { Title = "Your name", OkButtonText = "Rename" };
         var form = new VBoxContainer(); dialog.AddChild(form);
-        form.AddChild(new Label { Text = "The name other players see in games and lobbies." });
-        var problem = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        form.AddChild(DialogText("The name other players see in games and lobbies."));
+        var problem = DialogText(variation: Variation.Warning);
         var name = NameField(dialog, problem, session.Account?.Name ?? "", "A name");
         form.AddChild(name); form.AddChild(problem);
-        dialog.Confirmed += () => Run(async () => { await session.RenameAsync(name.Text); Show($"Renamed to {session.Account?.Name}."); });
+        dialog.Confirmed += () => Run(async () => { await session.RenameAsync(name.Text); Show($"Renamed to {session.Account?.Name}.", Variation.Success); });
         dialog.VisibilityChanged += () => { if (!dialog.Visible) dialog.QueueFree(); };
-        AddChild(dialog); dialog.PopupCentered(new Vector2I(380, 0)); name.CallDeferred(Control.MethodName.GrabFocus);
+        AddChild(dialog); dialog.PopupCentered(new Vector2I(DialogWidth, 0)); name.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     async Task CreateDialog()
     {
         var session = Main.Instance.Session;
-        Show("Loading rule sets and armies…");
+        Show("Loading rule sets and armies…", "");
         var packs = await session.Management.ListProperties();
         var armies = (await session.Management.ListArmies(null)).Items;
         if (!IsInstanceValid(this)) return;
@@ -205,16 +227,16 @@ public partial class HomeScreen : Control
         Show("");
         var dialog = new ConfirmationDialog { Title = "Create game", OkButtonText = "Create" };
         var form = new VBoxContainer(); dialog.AddChild(form);
-        var problem = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        var name = NameField(dialog, problem, "", "A game name"); name.PlaceholderText = "game name"; form.AddChild(name); form.AddChild(problem);
-        var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(pack);
-        var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(shape);
-        var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
-        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
-        if (armies.Count == 0) form.AddChild(new Label { Text = "You have no armies yet: import one in the web app.", ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        var problem = DialogText(variation: Variation.Warning);
+        var name = NameField(dialog, problem, "", "A game name"); name.PlaceholderText = "game name"; form.AddChild(Field("Game name", name)); form.AddChild(problem);
+        var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(Field("Rule set", pack));
+        var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(Field("Activation", shape));
+        var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(Field("Enforcement", enforcement));
+        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(Field("Army", army));
+        if (armies.Count == 0) form.AddChild(DialogText("You have no armies yet: import one in the web app.", Variation.Dim));
         dialog.Confirmed += () => Run(async () =>
         {
-            Show("Creating the game…");
+            Show("Creating the game…", "");
             // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
             var game = await session.Management.CreateGame(new CreateGameRequest(name.Text.Trim(), packs[pack.Selected].ContentHash,
                 shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
@@ -237,6 +259,6 @@ public partial class HomeScreen : Control
             await session.ConnectAsync(game.Id);
         });
         dialog.Canceled += () => dialog.QueueFree();
-        AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320)); name.CallDeferred(Control.MethodName.GrabFocus);
+        AddChild(dialog); dialog.PopupCentered(new Vector2I(DialogWidth, 0)); name.CallDeferred(Control.MethodName.GrabFocus);
     }
 }

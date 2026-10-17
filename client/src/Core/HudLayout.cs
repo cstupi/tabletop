@@ -21,9 +21,13 @@ public static class HudLayout
 
     public static readonly IReadOnlySet<HudPart> Overlays = new HashSet<HudPart> { HudPart.Banner, HudPart.EndMessage };
 
-    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v)
+    /// <summary>The slots. buttonH is the undo and log buttons' actual height (a theme's button face may be taller than 36 px), never under LogButtonH.
+    /// While the log is open it holds the latest roll, so the dice tray takes no slot.</summary>
+    public static IReadOnlyDictionary<HudPart, HudRect> Of(float w, float h, HudVisible v, float buttonH = LogButtonH)
     {
         var r = new Dictionary<HudPart, HudRect>();
+        v = v with { Dice = v.Dice && !v.LogOpen };
+        var bh = MathF.Ceiling(Math.Max(LogButtonH, buttonH));
         var corner = r[HudPart.Corner] = new(M, M, Column, CornerH);
         var toasts = r[HudPart.Toasts] = new(w - M - ToastW, M, ToastW, ToastH);
         float bandL = M + Column + M, bandR = toasts.X - M, hw = Math.Min(HeaderW, bandR - bandL);
@@ -31,8 +35,8 @@ public static class HudLayout
         float top = corner.Bottom + M, colH = h - M - top, half = MathF.Floor((colH - M) / 2);
         if (v.Roster) r[HudPart.Roster] = new(M, top, Column, v.UnitCard ? half : colH);
         if (v.UnitCard) r[HudPart.UnitCard] = v.Roster ? new(M, top + half + M, Column, half) : new(M, top, Column, colH);
-        var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - LogButtonH, LogButtonW, LogButtonH);
-        r[HudPart.UndoButton] = new(button.X - M - UndoButtonW, button.Y, UndoButtonW, LogButtonH);
+        var button = r[HudPart.LogButton] = new(w - M - LogButtonW, h - M - bh, LogButtonW, bh);
+        r[HudPart.UndoButton] = new(button.X - M - UndoButtonW, button.Y, UndoButtonW, bh);
         // The right column, below the toasts and the header down to the buttons: the decision box at its foot, the dice above it,
         // and the open log over them. With the decision box showing, the log takes the upper half.
         var span = new HudRect(w - M - Math.Max(LogW, DecisionW), 0, Math.Max(LogW, DecisionW), h);

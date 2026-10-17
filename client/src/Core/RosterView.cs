@@ -25,11 +25,12 @@ public static class RosterView
             holder is not null && p.Units.GetValueOrDefault(holder.UnitId) is { } h ? h.Definition.Name : null, ReserveOf(p, u));
     }
 
-    /// <summary>"Reserve: {property} ({unit})" for a unit the army holds off the table until that property, held at a model or a unit of the same army,
+    /// <summary>"Reserve: {property} ({unit})" for a unit the army holds off the table (every model on the shelf) until that property, held at a model or a unit of the same army,
     /// places it (the snapshot's Unit.Reserve, as imported); null for any other unit. The property is the snapshot's name, not one the client knows.</summary>
     public static string? ReserveOf(Projection p, UnitInPlay u)
     {
         if (u.Definition.Reserve is not { } r) return null;
+        if (p.Models.Values.Any(m => m.UnitId == u.Id && (m.Location is not OnShelf || m.Wounds > 0))) return null;   // placed (and maybe since destroyed): no longer held
         var at = p.Units.GetValueOrDefault(r.Of)?.Definition.Name ?? (p.Models.GetValueOrDefault(r.Of) is { } m ? p.Units.GetValueOrDefault(m.UnitId)?.Definition.Name : null);
         return at is null ? $"Reserve: {r.Property}" : $"Reserve: {r.Property} ({at})";
     }

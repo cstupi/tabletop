@@ -47,4 +47,12 @@ public class LobbyViewTests
         Assert.Equal("Waiting for the creator to start setup.", LobbyView.WaitingForCreator(Lobby(null, null), isCreator: false));
         Assert.Equal("Anyone may edit the table. Waiting for the creator to end setup.", LobbyView.WaitingForCreator(Lobby(null, null) with { Status = GameStatus.Setup }, isCreator: false));
     }
+
+    [Fact]
+    public void A_team_card_lists_its_players_or_says_it_has_none()
+    {
+        var game = Lobby(Samples.Team1, null, myArmy: Guid.CreateVersion7());
+        Assert.Equal("Clay ⚔", LobbyView.Members(game, Samples.Team1));
+        Assert.Equal("No players yet", LobbyView.Members(game, Samples.Team2));
+    }
 }

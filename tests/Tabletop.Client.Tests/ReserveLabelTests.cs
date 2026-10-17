@@ -35,6 +35,19 @@ public class ReserveLabelTests
         Assert.Equal([null, "Reserve: Spawn (Brood)", "Reserve: Reinforcement (Brood)", null], rows.Select(r => r.Reserve));
     }
 
+    /// <summary>Placed by its property, the unit is no longer held off the table: no chip.</summary>
+    [Fact]
+    public void A_placed_unit_drops_it()
+    {
+        var game = TableUx.Game;
+        var board = new Board(TableStateTests.Sample(), [new ArmyInPlay(TableUx.P1, ArmySnapshot.Of(new Army(Guid.CreateVersion7(), "A", "grimdark-future", "x", [Brood, Spawned, Copy, Plain]), Guid.CreateVersion7()))]);
+        var a = new EventApplier(board, game);
+        var spawned = Spawned.Models[0].Id;
+        a.ApplyAll([new GameEvent(1, null, new ModelsMoved([new ModelRelocation(spawned, new OnShelf(), new OnTable(new Placement(new Point3(10, 10, 0), new Yaw(0))))]), null)]);
+        Assert.Null(RosterView.ReserveOf(a.Projection, a.Projection.Units[Spawned.Id]));
+        Assert.Equal("Reserve: Reinforcement (Brood)", RosterView.ReserveOf(a.Projection, a.Projection.Units[Copy.Id]));
+    }
+
     [Fact]
     public void The_card_carries_it_as_a_chip()
     {

@@ -61,6 +61,24 @@ public static class SetupLimits
         _ => $"These {adding} pieces would take the table past {Terrain} terrain pieces (it has {d.Terrain.Count}): remove some first.",
     };
 
+    /// <summary>Where a new setup marker goes: the table's centre, else the first spot on rings 6" apart about it (eight, then sixteen,
+    /// … points a ring) whose marker would sit on the table and clear every marker already placed, base to base. The centre when none is.</summary>
+    public static Point3 FreeSpot(TableSize size, IReadOnlyList<Marker> markers, double diameter)
+    {
+        var centre = new Point2(size.Width / 2, size.Length / 2);
+        bool Free(Point2 p) => p.X - diameter / 2 >= 0 && p.X + diameter / 2 <= size.Width && p.Y - diameter / 2 >= 0 && p.Y + diameter / 2 <= size.Length
+            && markers.All(m => m.Position.Horizontal.DistanceTo(p) >= (m.Diameter + diameter) / 2);
+        if (Free(centre)) return new Point3(centre.X, centre.Y, 0);
+        for (var ring = 1; ring * 6 <= Math.Max(size.Width, size.Length); ring++)
+            for (var i = 0; i < 8 * ring; i++)
+            {
+                var angle = 2 * Math.PI * i / (8 * ring);
+                var p = new Point2(Math.Round(centre.X + ring * 6 * Math.Cos(angle), 2), Math.Round(centre.Y + ring * 6 * Math.Sin(angle), 2));
+                if (Free(p)) return new Point3(p.X, p.Y, 0);
+            }
+        return new Point3(centre.X, centre.Y, 0);
+    }
+
     public static string? CannotAddMarker(TableState? d) => d switch
     {
         null => "The table has not arrived yet.",

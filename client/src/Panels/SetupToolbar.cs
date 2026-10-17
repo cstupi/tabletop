@@ -12,7 +12,7 @@ namespace Tabletop.Client.Panels;
 public partial class SetupToolbar : VBoxContainer
 {
     readonly GameScreen _screen;
-    Session _session = null!; VBoxContainer _selected = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
+    Session _session = null!; VBoxContainer _selected = null!; Label _selectedHead = null!; SpinBox _width = null!, _length = null!; PieceMenu _menu = null!;
     Action? _onSelection, _onBoard; Action<Guid, Vector2>? _onRight; Action<Intent>? _onIntent;
     public SetupToolbar(GameScreen screen) => _screen = screen;
 
@@ -29,7 +29,7 @@ public partial class SetupToolbar : VBoxContainer
         AddChild(new Label { Text = "Setup" });
 
         // First, so a click on the table shows the piece's controls without scrolling.
-        AddChild(new Label { Text = "Selected placement" });
+        AddChild(_selectedHead = new Label { Text = "Selected placement", Visible = false });
         _selected = new VBoxContainer(); AddChild(_selected);
 
         var table = Section(_ => "Table");
@@ -57,13 +57,13 @@ public partial class SetupToolbar : VBoxContainer
             }, _screen.Toast)), d => SetupLimits.CannotAddTerrain(d)));
 
         var markers = new HFlowContainer(); Section(SetupLimits.MarkersHeading).AddChild(markers);
-        markers.AddChild(Gated(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Centre(SizeNow(s)), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))), SetupLimits.CannotAddMarker));
-        markers.AddChild(Gated(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Centre(SizeNow(s)), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add objective", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Objective, Spot(s, 3), new Yaw(0), 3, null, VisualRef.OfBuiltin("objective-ring"))))), SetupLimits.CannotAddMarker));
+        markers.AddChild(Gated(Btn("Add token", () => Guarded.Send(s, new AddSetupMarker(new Marker(Guid.CreateVersion7(), MarkerKind.Token, Spot(s, 1), new Yaw(0), 1, "token", VisualRef.OfBuiltin("chip"))))), SetupLimits.CannotAddMarker));
 
         var zones = new HFlowContainer(); Section(_ => "Zones").AddChild(zones);
         var style = new OptionButton(); foreach (var z in ZoneStyles.All) style.AddItem(z); zones.AddChild(style);
         zones.AddChild(Btn("Set zones", () => Guarded.Send(s, new SetZoneStyle(ZoneStyles.All[style.Selected], ZoneStyles.ShapesOf(ZoneStyles.All[style.Selected])))));
-        var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1 }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2 }; zones.AddChild(a); zones.AddChild(b);
+        var a = new SpinBox { MinValue = 1, MaxValue = 8, Value = 1, Prefix = "Team" }; var b = new SpinBox { MinValue = 1, MaxValue = 8, Value = 2, Prefix = "Team" }; zones.AddChild(a); zones.AddChild(b);
         zones.AddChild(Btn("Swap", () => Guarded.Send(s, new SwapZones((int)a.Value, (int)b.Value))));
 
         var layouts = new HFlowContainer(); Section(_ => "Layouts").AddChild(layouts);
@@ -130,7 +130,8 @@ public partial class SetupToolbar : VBoxContainer
 
     static TableSize SizeNow(Session s) => s.Draft?.Size ?? new TableSize(72, 48);
     static Point3 Beside(TableSize d) => new(d.Width + 4 + Random.Shared.Next(0, 3) * 8, 4 + Random.Shared.Next(0, 4) * 8, 0);
-    static Point3 Centre(TableSize d) => new(d.Width / 2, d.Length / 2, 0);
+    /// <summary>A new marker's spot: the centre, else clear of the markers already placed (SetupLimits.FreeSpot).</summary>
+    static Point3 Spot(Session s, double diameter) => SetupLimits.FreeSpot(SizeNow(s), s.Draft?.Markers ?? [], diameter);
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
     /// <summary>A button across the panel: its text wraps, so a long label never widens the side panel.</summary>
     static Button Wide(string text, Action a) { var b = Btn(text, a); b.AutowrapMode = TextServer.AutowrapMode.WordSmart; return b; }
@@ -189,9 +190,11 @@ public partial class SetupToolbar : VBoxContainer
 
     void RenderSelected(Session s, VBoxContainer box)
     {
-        foreach (var c in box.GetChildren()) c.QueueFree();
+        foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
         var sel = _screen.Input.Selected; var draft = s.Draft;
+        _selectedHead.Visible = false;                                              // the heading only over something to show
         if (sel is null || draft is null) return;
+        _selectedHead.Visible = draft.Markers.Any(m => m.Id == sel.PieceId) || draft.Terrain.Any(x => x.Id == sel.PieceId);
         if (draft.Markers.FirstOrDefault(m => m.Id == sel.PieceId) is { } marker) { box.AddChild(Btn("Remove marker", () => Guarded.Send(s, new RemoveSetupMarker(marker.Id)))); return; }
         var t = draft.Terrain.FirstOrDefault(x => x.Id == sel.PieceId); if (t is null) return;
         box.AddChild(new Label { Text = t.Mesh.IsBuiltin ? BuiltinContent.Terrain.GetValueOrDefault(t.Mesh.Builtin!)?.Label ?? t.Mesh.Builtin : $"asset {Names.Short(t.Mesh.AssetId!.Value)}" });

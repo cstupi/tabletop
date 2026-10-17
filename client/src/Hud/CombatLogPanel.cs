@@ -108,7 +108,7 @@ public partial class CombatLogPanel : VBoxContainer
             if (faded) button.Modulate = Ui.Faded;
             button.Pressed += Toggle;
             row.AddChild(button);
-            if (e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
+            if (!_s.IsWatching && e is not RollEntry && !e.Undone && e.Event.Payload is not Undone) AddButton(row, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(e.Seq), _report));
             shown = button;
         }
         if (e is RollEntry revealed && revealed.Record.Id == _reveal) _revealed = shown;
@@ -161,7 +161,7 @@ public partial class CombatLogPanel : VBoxContainer
         foreach (var a in r.Amendments) into.AddChild(new Label { Text = a.Undone ? Strike(a.Text) : a.Text, ThemeTypeVariation = a.Undone ? Variation.Dim : "" });
         var chips = new HFlowContainer(); if (r.Applied.Count > 0) into.AddChild(chips); else chips.QueueFree();   // the rules that acted in the step, with their catalog text
         foreach (var name in r.Applied) chips.AddChild(new Button { Text = name, Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = _s.Rules.TextOf(name) ?? name });
-        if (r.Undone) return;
+        if (r.Undone || _s.IsWatching) return;
         var actions = new HBoxContainer(); into.AddChild(actions);
         AddButton(actions, "Undo to here", () => Guarded.Run(() => _s.UndoToAsync(r.Seq), _report));
     }

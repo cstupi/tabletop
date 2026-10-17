@@ -79,6 +79,19 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void Answered_by_names_a_teammate_s_live_answer_for_my_team_only()
+    {
+        var a = Applier(new AskOpened(SpendTokens), new AskAnswered(SpendTokens.Id, Samples.Team2, null, false));
+        var names = new Names(Game, a.Projection);
+        Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, Samples.Team2, Guid.Empty, names));
+        Assert.Null(AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, Samples.Team1, Guid.Empty, names));   // the other team's answer is not my team's
+        Assert.Null(AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, Samples.Team2, Samples.P1, names));   // my own answer is not news to me
+        Assert.Null(AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, null, Guid.Empty, names));            // a watcher has no team
+        var undone = Applier(new AskOpened(SpendTokens), new AskAnswered(SpendTokens.Id, Samples.Team2, null, false), new Undone(1));
+        Assert.Null(AskViewModel.AnsweredBy(undone.Log, SpendTokens.Id, Samples.Team2, Guid.Empty, new Names(Game, undone.Projection)));   // an undo took the answer back
+    }
+
+    [Fact]
     public void A_muted_window_auto_passes_and_a_simultaneous_spend_shows_who_answered_without_what()
     {
         var a = Applier(new AskOpened(SpendTokens), new AskAnswered(SpendTokens.Id, Samples.Team2, null, false));
@@ -90,7 +103,7 @@ public class ViewModelTests
         Assert.Equal(new Dictionary<Guid, int> { [Samples.Model] = 2 }, AskViewModel.SpendableBy(a.Projection, Game, Samples.Team1, (TokenSpend)SpendTokens.Legal));
         Assert.Equal(["Team 2"], mine.AnsweredTeams);
         Assert.Null(AskViewModel.Mine(a.Projection, Game, Samples.Team2, new HashSet<string>()));     // already answered
-        Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, new Names(Game, a.Projection)));
+        Assert.Equal("Clay", AskViewModel.AnsweredBy(a.Log, SpendTokens.Id, Samples.Team2, Guid.Empty, new Names(Game, a.Projection)));
         Assert.Equal(AskMode.Confirm, AskViewModel.ModeOf(new Confirmation()));
         Assert.Equal(AskMode.Move, AskViewModel.ModeOf(new MoveRegion([Samples.Model], 6, [], [], null)));
         // A containment offer is still a move: the mode is the legal set's kind, and the containers it names are highlights too (p.14).

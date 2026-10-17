@@ -10,7 +10,7 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | Part | Where | Draws |
 | --- | --- | --- |
 | `HeaderBar` | top centre | `HeaderView`: round, turn, scores; a wrapping row of teams, each with `· k not activated` (units with a model on the table and no action recorded this round), and an objective chip per objective marker, bordered and filled in its controller's team colour, a plain chip while no team controls it; a wrapping row of the active unit, its action and the step strip from the action frame's `Outline`, led by `Team 2 activating: ` for another team's activation (`ActivationLine`); the waiting line (`HeaderView.Waiting` with my team: `Your move: …` first, then each other team's; for a watcher `HeaderView.Watching`); "Game over" with the result. A team name's right-click opens the team menu |
-| `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed; a `Reserve: {property} ({unit})` chip on a unit the army holds off the table until a property places it (`RosterView.ReserveOf`), also on its card. A click selects and centres the unit; R collapses to the team headers |
+| `Roster` | left column, above the unit card | `RosterView`: per team, my team first, each unit's activated tick, wound pips summed over models not removed, condition icons or text chips; off-table units dimmed; a `Reserve: {property} ({unit})` chip, on its own line under the row, on a unit the army holds off the table (every model on the shelf, none wounded) until a property places it (`RosterView.ReserveOf`), also on its card. A click selects and centres the unit; R collapses to the team headers |
 | `UnitCard` | lower left | `UnitSheet` for the unit `SheetFocus` names (the selected unit, else my team's activating unit): Quality and Defense badges, state chips, wound pips per model from `ModelFacts`, weapons with an AP column, rules with their `rule_text` and *not automated*; above it `EnemyStrip` for a hovered enemy (Defense, models alive, distance, each weapon's range within or beyond) |
 | `DecisionBox` | right column, above the undo and log buttons | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll's log line, its height only (a long line clips; the tooltip holds all of it); a click opens the log there, expanded |
@@ -60,14 +60,14 @@ anchored to an edge, and no two parts overlap from 1280 x 720 up (`HudRect.Overl
 
 | Slot | Where | Size |
 | --- | --- | --- |
-| `Corner` | top left | 420 x 40: Home and the status |
+| `Corner` | top left | 420 x 40: Home, the game's name clipped with an ellipsis to what the slot leaves, and `CornerLine`'s tail (status, `— watching`, the reconnect), never clipped |
 | `Toasts` | top right | 360 x 120 |
 | `Header` | top, centred in the band between corner and toasts | up to 760 x 96 |
 | `Roster`, `UnitCard` | left column under the corner, 420 wide | the column's height, halved when both show; the card's slot then starts at the roster's actual bottom |
-| `Decision` | right column, from below the toasts and header down to 8 px above the log button | 480 wide; the column less the dice slot, or its lower half less the dice slot while the log is open |
-| `Dice` | right column, stacked above the decision box | 480 x 96 |
-| `LogButton` | bottom right | 140 x 36 |
-| `UndoButton` | bottom right, left of the log button | 140 x 36 |
+| `Decision` | right column, from below the toasts and header down to 8 px above the log button | 480 wide; the column less the dice slot, or its lower half while the log is open |
+| `Dice` | right column, stacked above the decision box; no slot while the log is open (the log holds the same roll, and `DiceTray.Covered` hides the tray) | 480 x 96 |
+| `LogButton` | bottom right | 140 wide; as tall as the undo and log buttons' actual minimum (`HudLayout.Of`'s `buttonH`), never under 36 |
+| `UndoButton` | bottom right, left of the log button | as `LogButton` |
 | `LogPanel` | right, under the toasts and header, down to the decision/dice stack or the log button; with the decision box showing, the right column's upper half | 640 wide, up to 720 tall |
 | `Banner` | full-width band at the upper third | overlay; placed with `Fill` whether shown or not |
 | `EndMessage` | centre | overlay; computed but not placed: the message stays a full-screen backdrop centring its panel |
@@ -82,8 +82,8 @@ outgrows its slot grows upward and not off the screen, and `Fill` takes the whol
 the Hud or side panel resizing, the side panel's visibility, `MinimumSizeChanged` on the corner, toasts, header, roster, unit
 card, decision box and dice tray, `VisibilityChanged` on the last five, the log opening or closing, and building the play Hud. It
 subtracts the side panel's width outside play. Because the decision box is only as tall as its content, `Layout`
-moves the dice slot to end 8 px above the decision box's actual top, and clips the open log's panel to end 8 px above
-the actual decision box and dice tray when the panel's columns span theirs. Likewise the panel starts 8 px below the
+moves the dice slot to end 8 px above the decision box's actual top, and ends the open log's panel 8 px above
+the actual decision box and dice tray when the panel's columns span theirs, so a short decision box leaves the log the room above it (up to 720 px). Likewise the panel starts 8 px below the
 header's actual bottom when their columns overlap, since the header's three lines can outgrow its 96 px slot; the
 panel's height never goes negative. The unit card's slot starts 8 px below the roster's actual bottom
 (`HudLayout.Below`), so a roster collapsed by R gives the card the column back; the roster's half stays its ceiling. `UnitCard.Place` sizes the card to its
@@ -143,8 +143,8 @@ reaches `Mine` with a null team and a returning player is never rendered as a wa
 
 Behaviour the specs demand, and where it lives:
 
-- Any team member may answer, and the box shows who did. `AnsweredBy` reads the last
-  `AskAnswered` for that ask id and names its actor.
+- Any team member may answer, and the box shows who did. `AnsweredBy` reads the effective log's last
+  `AskAnswered` for that ask id and my team and names its actor, unless that is me; an answer an undo took back names no one.
 - Mutes auto-pass. A `WindowKind` in `ClientSettings.MutedWindowKinds` with `AllowPass` set sends
   `Passed` at once and shows "auto-passed (muted: {kind})" with an Unmute link. The pass is logged
   as that player's own. It is a client convenience, not part of the model.
@@ -174,7 +174,7 @@ shape over models on the shelf, anchored on a model on the table (`MoveRuler.IsS
 | --- | --- | --- | --- |
 | region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's | the same, about the anchor model |
 | clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none | none |
-| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node | `TableView.ShowGhosts` in rings about the anchor (`DeployView.Around`) |
+| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node | `TableView.ShowGhosts` in rings about the anchor (`DeployView.Around`): the first ring clear of the anchor's base (a rectangle's corner) by the Ask's separation, a spot whose base would leave the table skipped |
 | `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` | `null` |
 | ruler | start to current, with remaining allowance | container to current, distance only | anchor to current, distance only |
 | `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through | `OnShelf` |
