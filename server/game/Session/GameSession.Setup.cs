@@ -34,9 +34,10 @@ public sealed partial class GameSession
         };
         var ids = refs.Select(v => v.AssetId).OfType<Guid>().Distinct().ToList();
         if (ids.Count == 0) return null;
+        if (ids.Contains(Guid.Empty)) return "an asset id is empty";
         var owners = await _services.Rows.AssetOwnersAsync(ids, CancellationToken.None);
         var accounts = Info.Participants.Select(p => p.AccountId).ToHashSet();
-        return ids.FirstOrDefault(id => !owners.TryGetValue(id, out var owner) || !accounts.Contains(owner)) is var bad && bad != Guid.Empty
-            ? $"asset {bad} is not in a participant's library" : null;
+        var foreign = ids.Where(id => !owners.TryGetValue(id, out var owner) || !accounts.Contains(owner)).ToList();
+        return foreign.Count > 0 ? $"asset {foreign[0]} is not in a participant's library" : null;
     }
 }

@@ -22,7 +22,8 @@ public class AssetReferenceTests
         await client.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
         await client.ExpectAsync<AtRest>();
 
-        foreach (var asset in new[] { theirs, missing })
+        db.GameRows.InsertAsset(Guid.Empty, stranger);   // the empty id is no sentinel: it is refused like any other foreign id
+        foreach (var asset in new[] { theirs, missing, Guid.Empty })
         {
             await client.SendAsync(new EditMessage(Guid.NewGuid(), new SetTexture(VisualRef.OfAsset(asset))));
             Assert.Equal(RefusalReason.NotPermitted, (await client.ExpectAsync<Refused>()).Reason);

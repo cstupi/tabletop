@@ -41,6 +41,7 @@ public class DraftLimitsTests
         Assert.NotNull(Refusal(Empty, new AddTerrain(Hill() with { Volumes = [Volume(notes: new string('n', 501))] })));
         Assert.NotNull(Refusal(Empty, new SetTexture(VisualRef.OfBuiltin(new string('g', 65)))));
         Assert.NotNull(Refusal(Empty, new SetTexture(VisualRef.OfBuiltin("../../etc/passwd"))));
+        Assert.NotNull(Refusal(Empty, new SetTexture(VisualRef.OfAsset(Guid.Empty))));
     }
 
     [Theory]

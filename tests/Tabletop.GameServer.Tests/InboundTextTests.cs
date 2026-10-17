@@ -22,6 +22,10 @@ public class InboundTextTests
     public void Ordinary_text_passes(string text) => Assert.True(Clean(Label(text)));
 
     [Fact]
+    public void Json_too_deep_to_walk_is_not_clean() =>
+        Assert.False(InboundText.IsClean(Encoding.UTF8.GetBytes(new string('[', 100) + new string(']', 100))));
+
+    [Fact]
     public void A_property_name_is_checked_too() =>
         Assert.False(InboundText.IsClean(Encoding.UTF8.GetBytes("{\"kind\":\"ping\",\"a\\u0000\":1}")));
 

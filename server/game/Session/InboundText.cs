@@ -11,7 +11,9 @@ public static class InboundText
 {
     public static bool IsForbidden(char c) => c < ' ' || c == '\u007F' || c is >= '‪' and <= '‮' || c is >= '⁦' and <= '⁩';
 
-    /// <summary>True when no string or property name in the JSON holds a forbidden character. Unreadable JSON is left to the parser.</summary>
+    /// <summary>True when no string or property name in the JSON holds a forbidden character. JSON this reader cannot walk (too deep,
+    /// malformed) is not clean: the frame is refused rather than passed unchecked. A string converter on the wire options was not used,
+    /// because the same options read the server's own frames on the client, where rule text legitimately holds line breaks.</summary>
     public static bool IsClean(ReadOnlySpan<byte> json)
     {
         var reader = new Utf8JsonReader(json, new JsonReaderOptions { MaxDepth = 64 });
@@ -21,7 +23,7 @@ public static class InboundText
                 if (reader.TokenType is JsonTokenType.String or JsonTokenType.PropertyName && (reader.ValueIsEscaped || HasHighOrControl(reader.ValueSpan)))
                     foreach (var c in reader.GetString() ?? "") if (IsForbidden(c)) return false;
         }
-        catch (JsonException) { return true; }
+        catch (JsonException) { return false; }
         return true;
     }
 

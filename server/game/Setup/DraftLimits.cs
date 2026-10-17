@@ -68,7 +68,8 @@ public sealed partial record DraftLimits(int Terrain = 64, int VolumesPerPiece =
         !ZoneStyles.All.Contains(style) ? "an unknown zone style"
         : shapes.Any(s => !ZoneStyles.ShapesOf(style).Contains(s)) ? "a shape that is not the style's own" : null;
 
-    string? Visual(VisualRef v) => v.Builtin is { } b && !BuiltinName().IsMatch(b) ? "is not a built-in name" : null;
+    string? Visual(VisualRef v) => v.Builtin is { } b && !BuiltinName().IsMatch(b) ? "is not a built-in name"
+        : v.AssetId == Guid.Empty ? "names an empty asset id" : null;
     static bool Finite(double v) => double.IsFinite(v);
     static bool Near(TableSize size, Point3 p) =>
         Finite(p.X) && Finite(p.Y) && Finite(p.Z) && Math.Abs(p.X - size.Width / 2) <= Table.MaxEdge && Math.Abs(p.Y - size.Length / 2) <= Table.MaxEdge
