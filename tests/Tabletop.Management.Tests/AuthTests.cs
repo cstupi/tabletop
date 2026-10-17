@@ -115,6 +115,22 @@ public class AuthTests : IClassFixture<ManagementFactory>
         Assert.Contains(refreshed.SessionJwt, _f.Stytch.Revoked);
     }
 
+    [Theory]
+    [InlineData(400, HttpStatusCode.Unauthorized)]
+    [InlineData(401, HttpStatusCode.Unauthorized)]
+    [InlineData(404, HttpStatusCode.Unauthorized)]
+    [InlineData(422, HttpStatusCode.Unauthorized)]
+    [InlineData(429, HttpStatusCode.TooManyRequests)]
+    [InlineData(503, HttpStatusCode.BadGateway)]
+    public async Task A_refresh_stytch_refuses_answers_401_and_other_failures_keep_their_status(int stytchStatus, HttpStatusCode expected)
+    {
+        var c = _f.CreateClient();
+        var s = await (await c.PostAsJsonAsync("/v1/auth/password/signup", new { email = $"dead{stytchStatus}@example.com", password = "long enough password" })).Content.ReadFromJsonAsync<SessionResponse>();
+        _f.Stytch.Break = ("/v1/sessions/authenticate", stytchStatus, "{\"error_type\":\"session_not_found\"}");
+        var r = await c.PostAsJsonAsync("/v1/auth/session/refresh", new { sessionJwt = s!.SessionJwt });
+        Assert.Equal(expected, r.StatusCode);
+    }
+
     [Fact]
     public async Task A_non_json_stytch_response_maps_to_502()
     {

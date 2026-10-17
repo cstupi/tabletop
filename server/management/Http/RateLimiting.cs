@@ -49,7 +49,7 @@ public static class RateLimiting
         services.AddOptions<RateLimiterOptions>().Configure<RateLimits>((o, limits) =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            o.OnRejected = (ctx, _) => new ValueTask(Problems.TooManyRequests("Too many requests. Wait a minute and try again.").ExecuteAsync(ctx.HttpContext));
+            o.OnRejected = (ctx, _) => new ValueTask(Problems.TooManyRequests("Too many requests. Wait a minute and try again.", RetryAfterSeconds(ctx.Lease)).ExecuteAsync(ctx.HttpContext));
             o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
                 PartitionedRateLimiter.Create<HttpContext, string>(ctx => Window("ip:" + Ip(ctx), limits.PerIp)),
                 PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
@@ -59,11 +59,17 @@ public static class RateLimiting
         return services;
     }
 
+    public static readonly TimeSpan WindowLength = TimeSpan.FromMinutes(1);
+
+    /// <summary>Whole seconds until the partition's window frees: the lease's own RetryAfter when it has one, else the window length.</summary>
+    public static int RetryAfterSeconds(RateLimitLease lease) =>
+        lease.TryGetMetadata(MetadataName.RetryAfter, out var after) ? Math.Max(1, (int)Math.Ceiling(after.TotalSeconds)) : (int)WindowLength.TotalSeconds;
+
     public static string Ip(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private static RateLimitPartition<string> Window(string key, int perMinute) => perMinute <= 0
         ? RateLimitPartition.GetNoLimiter(key)
-        : RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+        : RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = WindowLength, QueueLimit = 0 });
 }
 
 /// <summary>The per-email budget on the credential endpoints, which the IP limiter cannot see: the email is in the body.</summary>
@@ -71,13 +77,13 @@ public sealed class EmailThrottle(RateLimits limits) : IDisposable
 {
     private readonly PartitionedRateLimiter<string> _limiter = PartitionedRateLimiter.Create<string, string>(email => limits.AuthPerEmail <= 0
         ? RateLimitPartition.GetNoLimiter(email)
-        : RateLimitPartition.GetFixedWindowLimiter(email, _ => new FixedWindowRateLimiterOptions { PermitLimit = limits.AuthPerEmail, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        : RateLimitPartition.GetFixedWindowLimiter(email, _ => new FixedWindowRateLimiterOptions { PermitLimit = limits.AuthPerEmail, Window = RateLimiting.WindowLength, QueueLimit = 0 }));
 
-    /// <summary>False when this email has used its budget for the minute.</summary>
-    public bool TryAcquire(string? email)
+    /// <summary>Null when the email is within its budget; otherwise the seconds until its window frees.</summary>
+    public int? TryAcquire(string? email)
     {
         using var lease = _limiter.AttemptAcquire((email ?? "").Trim().ToLowerInvariant());
-        return lease.IsAcquired;
+        return lease.IsAcquired ? null : RateLimiting.RetryAfterSeconds(lease);
     }
 
     public void Dispose() => _limiter.Dispose();

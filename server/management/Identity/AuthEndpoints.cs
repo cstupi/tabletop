@@ -22,7 +22,12 @@ public static class AuthEndpoints
         creds.MapPost("/password/signup", Guard(async (PasswordRequest r, StytchClient s, Sessions x) => Results.Created("/v1/account", await x.Complete(await s.CreatePassword(r.Email, r.Password)))));
         creds.MapPost("/password/reset", Guard(async (EmailRequest r, StytchClient s, ManagementOptions o) => { await s.StartPasswordReset(r.Email, $"{o.WebUrl.TrimEnd('/')}/reset-password"); return Results.Accepted(); }));
         creds.MapPost("/password/reset/complete", Guard(async (ResetCompleteRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.CompletePasswordReset(r.Token, r.Password)))));
-        g.MapPost("/session/refresh", Guard(async (RefreshRequest r, StytchClient s, Sessions x) => Results.Ok(await x.Complete(await s.RefreshSession(r.SessionJwt)))));
+        g.MapPost("/session/refresh", Guard(async (RefreshRequest r, StytchClient s, Sessions x) =>
+        {
+            // A session Stytch will not extend (expired, revoked, unknown, malformed) is unauthenticated, not unprocessable.
+            try { return Results.Ok(await x.Complete(await s.RefreshSession(r.SessionJwt))); }
+            catch (StytchException e) when (e.Status is >= 400 and < 500 and not 429) { return Results.Problem(title: "Unauthorized", detail: "The session has ended. Sign in again.", statusCode: 401); }
+        }));
         g.MapDelete("/session", async (HttpContext ctx, StytchClient s) =>
         {
             var jwt = ctx.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
@@ -36,8 +41,8 @@ public static class AuthEndpoints
     private static async ValueTask<object?> PerEmail(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {
         var email = ctx.Arguments.Select(a => a switch { EmailRequest e => e.Email, PasswordRequest p => p.Email, _ => null }).FirstOrDefault(e => e is not null);
-        if (email is not null && !ctx.HttpContext.RequestServices.GetRequiredService<EmailThrottle>().TryAcquire(email))
-            return Problems.TooManyRequests("Too many attempts. Wait a minute and try again.");
+        if (email is not null && ctx.HttpContext.RequestServices.GetRequiredService<EmailThrottle>().TryAcquire(email) is { } wait)
+            return Problems.TooManyRequests("Too many attempts. Wait a minute and try again.", wait);
         return await next(ctx);
     }
 
