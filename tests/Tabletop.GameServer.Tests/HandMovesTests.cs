@@ -239,12 +239,12 @@ public class HandMovesTests
     }
 
     [Fact]
-    public void Placing_the_picked_unit_inside_a_Transport_still_on_the_shelf_is_a_breach()
+    public void The_picked_unit_may_go_inside_a_Transport_still_on_the_shelf_and_deploys_with_it()
     {
         var (h, a) = PickingAfter(2);
         var transport = h.P.Units[a[1]].Definition.Models[0].Id;
         Assert.IsType<OnShelf>(h.P.Models[transport].Location);
-        Assert.NotNull(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));
+        Assert.Null(HandMoves.Judge(h.State, Embark(h, a[0], transport), TeamOf(h, 0)));       // passengers spec: a Transport not yet deployed takes it
     }
 
     [Fact]

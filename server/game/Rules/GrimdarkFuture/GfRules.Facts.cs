@@ -30,34 +30,100 @@ public sealed partial class GrimdarkFutureRules
     }
 
     /// <summary>
-    /// p.15: "Transports may deploy with units inside", and "units inside Transports are deployed at the same time as the Transport": a Transport
-    /// of another unit of the same team, whose unit is the one being deployed, on the table or still on the shelf. A Transport deployed earlier
-    /// takes no one at deployment. The unit boarding is one that has not deployed (NeverDeployed) and deploys when the Transport does: set aside
-    /// exactly when the Transport is, so a reserved unit never rides into the ordinary deployment and an ordinary one never into a Scout's or an
-    /// Ambusher's. The scheduler then counts it deployed (it is no longer all on the shelf), and its set-aside clears with the Transport's.
+    /// p.15: "Transports may deploy with units inside", and "units inside Transports are deployed at the same time as the Transport" (passengers
+    /// spec). The container is a Transport model of another unit of the same team whose unit is being placed now (<paramref name="deploying"/>) or has
+    /// never deployed, so it is on the shelf: a Transport deployed earlier takes no one at deployment. The unit boarding has not deployed
+    /// (NeverDeployed) and is set aside exactly when the Transport is, so a reserved unit never rides into the ordinary deployment and an ordinary one
+    /// never into a Scout's or an Ambusher's. It fits: p.15's spaces (Spaces) of the Transport's other occupants plus its own are at most X.
+    /// The scheduler then counts it deployed with the Transport, and its set-aside clears with the Transport's.
     /// </summary>
-    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying)
+    public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) =>
+        MayDeployInside(state, unitId, containerModelId, deploying, Deployed(state));
+
+    static bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying, IReadOnlySet<Guid> deployed)
     {
         var p = state.Projection;
-        if (!p.Models.TryGetValue(containerModelId, out var c) || c.UnitId == unitId || !deploying.Contains(c.UnitId) || !GfMoves.IsContainer(state, c.Id)) return false;
+        if (!p.Models.TryGetValue(containerModelId, out var c) || c.UnitId == unitId || !GfMoves.IsContainer(state, c.Id)) return false;
         if (!p.Units.TryGetValue(unitId, out var unit) || Teams.Of(state, c.UnitId) is not { } team || team != Teams.Of(state, unitId)) return false;
-        if (unit.Conditions.Contains(GfNames.SetAside) != p.Units[c.UnitId].Conditions.Contains(GfNames.SetAside)) return false;
-        return NeverDeployed(state, unit, c.UnitId);
+        var transport = p.Units[c.UnitId];
+        if (!deploying.Contains(c.UnitId) && !(Scheduler.TeamUnits.AllShelved(state, transport) && transport.Definition.Models.All(m => !deployed.Contains(m.Id)))) return false;
+        if (unit.Conditions.Contains(GfNames.SetAside) != transport.Conditions.Contains(GfNames.SetAside)) return false;
+        return NeverDeployed(state, unit, c.UnitId, deployed) && Fits(state, unit, c.Id);
     }
 
     /// <summary>
-    /// Every model of the unit is on the shelf or already boarded into the deploying Transport's unit, and the effective log never put one of them
-    /// in play by any other way: no model ever placed on the table, none ever removed back to the shelf. A unit that deployed, lost models or was
-    /// destroyed is not undeployed, whatever the shelf shows now.
+    /// Every model of the unit is on the shelf or already inside the Transport's unit, and none is in <paramref name="deployed"/>: a unit that deployed,
+    /// lost models or was destroyed is not undeployed, whatever the shelf shows now.
     /// </summary>
-    static bool NeverDeployed(GameState state, UnitInPlay unit, Guid transportUnit)
+    static bool NeverDeployed(GameState state, UnitInPlay unit, Guid transportUnit, IReadOnlySet<Guid> deployed)
     {
         var p = state.Projection;
-        var models = unit.Definition.Models.Select(m => m.Id).ToHashSet();
+        var models = unit.Definition.Models.Select(m => m.Id).ToList();
         if (models.Any(m => p.Models[m].Location is not (OnShelf or Inside))) return false;
         if (models.Any(m => p.Models[m].Location is Inside i && (!p.Models.TryGetValue(i.ContainerId, out var holder) || holder.UnitId != transportUnit))) return false;
-        return !EventApplier.EffectiveLog(state.Applier.Log)
-            .SelectMany(e => e.Payload is StepCompleted sc ? sc.Changes.Cast<EventPayload>() : [e.Payload]).OfType<ModelsMoved>()
-            .SelectMany(m => m.Moves).Any(r => models.Contains(r.ModelId) && (r.To is OnTable || (r.To is OnShelf && r.From is not OnShelf)));
+        return !models.Any(deployed.Contains);
+    }
+
+    /// <summary>
+    /// The models the effective log has put in play: placed on the table, or moved to the shelf from anywhere but the shelf or the inside of a container
+    /// that had never been on the table. Taking a passenger back out of a Transport still waiting on the shelf is not deploying; a casualty is.
+    /// </summary>
+    static HashSet<Guid> Deployed(GameState state)
+    {
+        var deployed = new HashSet<Guid>();
+        foreach (var r in EventApplier.EffectiveLog(state.Applier.Log)
+            .SelectMany(e => e.Payload is StepCompleted sc ? sc.Changes.Cast<EventPayload>() : [e.Payload]).OfType<ModelsMoved>().SelectMany(m => m.Moves))
+        {
+            if (r.To is OnTable) deployed.Add(r.ModelId);
+            else if (r.To is OnShelf && r.From is not OnShelf && !(r.From is Inside i && !deployed.Contains(i.ContainerId))) deployed.Add(r.ModelId);
+        }
+        return deployed;
+    }
+
+    /// <summary>
+    /// p.15: "May transport up to X models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which occupy 3 spaces each", and its
+    /// example: "Regular models and Heroes with Tough(3) or Tough(6) occupy 1 space, Tough(3) models occupy 3 spaces, and models with Tough(6) or
+    /// higher can't be transported". The unit's models plus the other units already inside take at most X spaces.
+    /// </summary>
+    static bool Fits(GameState state, UnitInPlay unit, Guid containerModelId)
+    {
+        if (Lookup.ModelParameter(state, containerModelId, GfNames.Transport) is not { } room) return false;
+        var mine = unit.Definition.Models.Select(m => Spaces(state, m.Id)).ToList();
+        if (mine.Any(s => s is null)) return false;
+        var others = state.Projection.Models.Values.Where(m => m.UnitId != unit.Id && m.Location is Inside i && i.ContainerId == containerModelId)
+            .Sum(m => Spaces(state, m.Id) ?? 0);
+        return others + mine.Sum(s => s!.Value) <= room;
+    }
+
+    /// <summary>p.15: the spaces a model takes in a Transport, or null when it can't be transported.</summary>
+    static int? Spaces(GameState state, Guid modelId)
+    {
+        var tough = Lookup.ModelParameter(state, modelId, GfNames.Tough);
+        var hero = state.Projection.Models[modelId].Slot.Properties.Any(p => p.Name == GfNames.Hero);
+        return (tough, hero) switch
+        {
+            (null, _) => 1,
+            (<= 6, true) => 1,
+            (<= 3, false) => 3,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Passengers spec → What the client is told: for each unit that may be put in a Transport now (every model on the shelf), the Transport models
+    /// MayDeployInside allows with nothing being placed. Empty once no Transport waits on the shelf, without reading the log.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state)
+    {
+        var p = state.Projection;
+        var waiting = p.Models.Values.Where(m => m.Location is OnShelf && GfMoves.IsContainer(state, m.Id) && Scheduler.TeamUnits.AllShelved(state, p.Units[m.UnitId]))
+            .Select(m => m.Id).ToList();
+        if (waiting.Count == 0) return new Dictionary<Guid, IReadOnlyList<Guid>>();
+        var deployed = Deployed(state);
+        var none = new HashSet<Guid>();
+        var result = new Dictionary<Guid, IReadOnlyList<Guid>>();
+        foreach (var unit in p.Units.Values.Where(u => Scheduler.TeamUnits.AllShelved(state, u)))
+            if (waiting.Where(c => MayDeployInside(state, unit.Id, c, none, deployed)).ToList() is { Count: > 0 } into) result[unit.Id] = into;
+        return result;
     }
 }

@@ -135,4 +135,22 @@ public class SightAndFactsSessionTests
             Assert.Equal(3, c.Received.OfType<ModelFacts>().Single().MaxWounds[hurt]);
         }
     }
+
+    [Fact]
+    public async Task Facts_carry_DeployInside_and_are_broadcast_when_it_changes()
+    {
+        var rules = FakeRules.Gf();
+        rules.DeployInsideHook = s => s.Projection.Scores.Values.Sum() > 0
+            ? new Dictionary<Guid, IReadOnlyList<Guid>> { [Samples.Unit] = [s.Projection.Models.Keys.First()] } : new Dictionary<Guid, IReadOnlyList<Guid>>();
+        var (session, _, state, _, _) = await PlayingAsync(rules: rules);
+        var clay = new RecordingClient(Samples.P1);
+        await session.ConnectAsync(clay);
+        Assert.Empty(clay.Received.OfType<ModelFacts>().Single().DeployInside!);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 2)));
+        Assert.Equal([state.Projection.Models.Keys.First()], clay.Received.OfType<ModelFacts>().Single().DeployInside![Samples.Unit]);
+        clay.Received.Clear();
+        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 3)));
+        Assert.DoesNotContain(clay.Received, m => m is ModelFacts);
+    }
 }

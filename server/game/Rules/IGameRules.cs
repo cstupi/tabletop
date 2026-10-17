@@ -75,6 +75,9 @@ public interface IGameRules
     int MaxWounds(GameState state, Guid modelId) => 1;
     /// <summary>The unit's models that may fire at the target unit now (OPR p.8, Who can shoot). Empty when either unit is unknown or off the table. Wrapping rulesets must forward it.</summary>
     IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => [];
+    /// <summary>For each unit that may be put inside a container now, before either deploys, the container models it may go in (OPR p.15: "Transports may
+    /// deploy with units inside"; passengers spec). Empty by default. Wrapping rulesets must forward it.</summary>
+    IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => new Dictionary<Guid, IReadOnlyList<Guid>>();
 
     // Asked by dispatch's answer judge.
     /// <summary>A rule an Ask answer inside its legal set still breaks, which set membership cannot see because it needs the table (OPR p.11: every model of a
@@ -84,7 +87,7 @@ public interface IGameRules
 
     // Asked by dispatch's hand-move judge.
     /// <summary>May the unit deploy from the shelf inside this model while <paramref name="deploying"/> are the units the actor's team picked to deploy
-    /// (OPR p.15: a friendly Transport whose own deployment this is). False by default. Wrapping rulesets must forward it.</summary>
+    /// (OPR p.15: a friendly Transport whose own deployment this is, or one that has not deployed yet; passengers spec). False by default. Wrapping rulesets must forward it.</summary>
     bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => false;
     /// <summary>A rule a hand placement breaks wherever it is legal to make (OPR p.7: a model on another's base). Null when nothing is broken. Wrapping rulesets must forward it.</summary>
     AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => null;

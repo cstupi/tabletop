@@ -12,9 +12,9 @@ public static class Lookup
     public static IReadOnlyList<Guid> LivingModels(GameState state, Guid unitId) =>
         state.Projection.Models.Values.Where(m => m.UnitId == unitId && m.Location is OnTable).Select(m => m.Id).ToList();
 
-    /// <summary>The unit's models still in play — on the table or inside a container. Counts, wound allocation and "is it destroyed" ask this one (game flow → Inside a container: the shelf is out of play; a transported model is not).</summary>
+    /// <summary>The unit's models still in play — on the table or inside a container in play (TeamUnits.InPlay). Counts, wound allocation and "is it destroyed" ask this one (game flow → Inside a container: the shelf is out of play; a model inside a container is not, unless that container is still on the shelf).</summary>
     public static IReadOnlyList<Guid> AliveModels(GameState state, Guid unitId) =>
-        state.Projection.Models.Values.Where(m => m.UnitId == unitId && m.Location is not OnShelf).Select(m => m.Id).ToList();
+        state.Projection.Models.Values.Where(m => m.UnitId == unitId && Scheduler.TeamUnits.InPlay(state, m)).Select(m => m.Id).ToList();
 
     /// <summary>The container this unit is inside, or null. A unit embarks and disembarks whole, so the first occupant model answers for all.</summary>
     public static Guid? ContainerOf(GameState state, Guid unitId) =>

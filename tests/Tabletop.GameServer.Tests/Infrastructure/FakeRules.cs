@@ -36,6 +36,8 @@ public sealed class FakeRules : IGameRules
     public Func<GameState, PropertySet, int, IReadOnlyList<StateChange>>? RoundEndedHook { get; set; }
     /// <summary>Replaces Grimdark Future's MaxWounds: how a session test makes the facts change between batches.</summary>
     public Func<GameState, Guid, int>? MaxWoundsHook { get; set; }
+    /// <summary>Replaces Grimdark Future's DeployInside, likewise.</summary>
+    public Func<GameState, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>>? DeployInsideHook { get; set; }
 
     public FirstTeamDecision FirstTeam(GameState state, int round, IReadOnlyList<Guid> teams) => FirstTeamHook?.Invoke(state, round, teams) ?? new OrderedTeams(teams);
     public TurnAsk? LegalTurn(GameState state, PropertySet properties, Guid teamId) => LegalTurnHook is { } h ? h(state, properties, teamId) : _inner.LegalTurn(state, properties, teamId);
@@ -48,6 +50,7 @@ public sealed class FakeRules : IGameRules
     public int MaxWounds(GameState state, Guid modelId) => MaxWoundsHook?.Invoke(state, modelId) ?? _inner.MaxWounds(state, modelId);
     public IReadOnlyList<Guid> Shooters(GameState state, PropertySet properties, Guid unitId, Guid targetUnitId) => _inner.Shooters(state, properties, unitId, targetUnitId);
     public bool MayDeployInside(GameState state, Guid unitId, Guid containerModelId, IReadOnlySet<Guid> deploying) => _inner.MayDeployInside(state, unitId, containerModelId, deploying);
+    public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside(GameState state) => DeployInsideHook?.Invoke(state) ?? _inner.DeployInside(state);
 
     // The interpreter plan's members.
     public Func<string, Sequence>? SequenceHook { get; set; }

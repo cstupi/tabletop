@@ -8,7 +8,7 @@ namespace Tabletop.GameServer.Session;
 public sealed partial class GameSession
 {
     /// <summary>The last ModelFacts sent; null before any. Facts change only through a batch, and every batch compares against this.</summary>
-    private IReadOnlyDictionary<Guid, int>? _factsSent;
+    private ModelFacts? _factsSent;
 
     /// <summary>One line per observer model and target model on the table, in unit order, and who may shoot — to the asker alone.</summary>
     private async Task HandleSightAsync(ISessionClient from, SightQuery query)
@@ -30,14 +30,19 @@ public sealed partial class GameSession
     static List<Guid> OnTable(GameState state, UnitInPlay unit) =>
         unit.Definition.Models.Select(m => m.Id).Where(id => state.Projection.Models[id].Location is OnTable).ToList();
 
-    ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)));
+    ModelFacts Facts(GameState state) => new(state.Projection.Models.Keys.ToDictionary(id => id, id => state.Rules.MaxWounds(state, id)), state.Rules.DeployInside(state));
+
+    static bool Same(ModelFacts a, ModelFacts b) =>
+        a.MaxWounds.Count == b.MaxWounds.Count && b.MaxWounds.All(kv => a.MaxWounds.TryGetValue(kv.Key, out var v) && v == kv.Value)
+        && (a.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var x && (b.DeployInside ?? new Dictionary<Guid, IReadOnlyList<Guid>>()) is var y
+        && x.Count == y.Count && y.All(kv => x.TryGetValue(kv.Key, out var v) && v.SequenceEqual(kv.Value));
 
     /// <summary>On connect, once playing: every model's facts, after the log.</summary>
     private async Task SendFactsAsync(ISessionClient client)
     {
         if (Play is null) return;
         var facts = Facts(Play);
-        _factsSent = facts.MaxWounds;
+        _factsSent = facts;
         await client.SendAsync(facts);
     }
 
@@ -46,8 +51,8 @@ public sealed partial class GameSession
     {
         if (Play is null) return;
         var facts = Facts(Play);
-        if (_factsSent is { } sent && sent.Count == facts.MaxWounds.Count && facts.MaxWounds.All(kv => sent.TryGetValue(kv.Key, out var v) && v == kv.Value)) return;
-        _factsSent = facts.MaxWounds;
+        if (_factsSent is { } sent && Same(sent, facts)) return;
+        _factsSent = facts;
         await BroadcastAsync(facts);
     }
 }
