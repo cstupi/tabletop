@@ -249,9 +249,9 @@ public partial class TableInput : Node
         SelectionChanged?.Invoke(); _presenceDirty = true;
         if (MayDrag(piece, models))
         {
-            // A proposed ghost is picked up where it is drawn and facing the way it was turned; everything else where the projection has it.
-            var grabs = models.ToDictionary(m => m, m => Proposing.Contains(m) && _view.PieceAt(m) is { } ghost
-                ? new Placement(WorldFrame.FromGodot(ghost.Position), WorldFrame.YawFrom(ghost.Rotation.Y)) : new Placement(Position(m), CurrentYaw(m)));
+            var grabs = DragBodies.Grabs(models, Proposing,
+                m => _view.PieceAt(m) is { } ghost ? new Placement(WorldFrame.FromGodot(ghost.Position), WorldFrame.YawFrom(ghost.Rotation.Y)) : null,
+                m => new Placement(Position(m), CurrentYaw(m)));
             var own = (_session.Projection?.Board.Table ?? _session.Draft)?.Terrain.FirstOrDefault(t => t.Id == id)?.Volumes.Select(v => v.Id).ToHashSet() ?? [];
             _settleAgainst = _view.Volumes.Where(v => !own.Contains(v.Id)).ToList();
             // The Ask's other models are ghosts: they collide where they are drawn, a disembark ghost included.
