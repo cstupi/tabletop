@@ -88,6 +88,20 @@ public class HeaderViewTests
     }
 
     [Fact]
+    public void The_waiting_line_says_you_for_my_team_and_puts_me_first()
+    {
+        var casualties = new Ask(Guid.Parse("0198b7ac-5555-7000-8000-000000000005"), "remove_casualties", "Assign 2 wound(s)", [Samples.Team1], new Allocation([Samples.Model], 2), false, false, null, null);
+        var endRound = new Ask(Guid.Parse("0198b7ac-4444-7000-8000-000000000004"), AskQuestions.EndRound, "End the round", [Samples.Team2], new Confirmation(), false, false, null, null);
+        var p = After(new AskOpened(endRound), new AskOpened(casualties));
+        Assert.Equal("Your move: remove casualties · Team 2: end round", HeaderView.Waiting(p, new Names(Game, p), Samples.Team1));
+        Assert.Equal("Team 2: end round · Team 1: remove casualties", HeaderView.Waiting(p, new Names(Game, p), null));
+    }
+
+    [Fact]
+    public void A_watcher_is_told_they_watch() =>
+        Assert.Equal("Watching: you have no team in this game, so you see everything and change nothing.", HeaderView.Watching);
+
+    [Fact]
     public void Game_over_carries_the_result()
     {
         Assert.Equal("Game over · Team 1 wins", Of(After(new GameEnded("4 rounds have been played", [Samples.Team1]))).Result);

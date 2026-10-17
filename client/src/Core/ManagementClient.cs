@@ -20,6 +20,7 @@ public sealed class ManagementClient(HttpClient http, Uri baseUrl)
     public Task Logout() => Send(HttpMethod.Delete, "/v1/auth/session", null, false);
 
     public Task<AccountRow> GetAccount() => Get<AccountRow>("/v1/account");
+    public async Task<AccountRow> RenameAccount(string name) => Read<AccountRow>(await Send(HttpMethod.Patch, "/v1/account", new { name }, false));
     public Task<Page<GameSummary>> ListGames(Guid? after, int limit = 50) => Get<Page<GameSummary>>($"/v1/games?limit={limit}" + (after is null ? "" : $"&after={after}"));
     public Task<GameInfo> CreateGame(CreateGameRequest request) => Post<GameInfo>("/v1/games", request);
     public Task<GameInfo> GetGame(Guid id) => Get<GameInfo>($"/v1/games/{id}");
