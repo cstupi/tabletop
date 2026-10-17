@@ -23,6 +23,17 @@ public class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void The_web_url_round_trips_and_names_the_download_page()
+    {
+        var path = Path.Combine(_dir, "settings.json");
+        var s = ClientSettings.Default with { WebUrl = "https://play.example.org/" };
+        s.Save(path);
+        var back = ClientSettings.Load(path);
+        Assert.Equal(s, back);
+        Assert.Equal("https://play.example.org/download", back.DownloadUrl);
+    }
+
+    [Fact]
     public void Unreadable_settings_fall_back_to_defaults()
     {
         var path = Path.Combine(_dir, "settings.json");

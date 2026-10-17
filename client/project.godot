@@ -23,3 +23,4 @@ project/assembly_name="Tabletop"
 [rendering]
 
 anti_aliasing/quality/msaa_3d=2
+textures/vram_compression/import_etc2_astc=true
