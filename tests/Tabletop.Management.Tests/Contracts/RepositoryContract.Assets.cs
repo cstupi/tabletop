@@ -122,4 +122,49 @@ public abstract partial class RepositoryContract
         Assert.Equal([folder.Id], (await Folders.List(owner)).Select(f => f.Id));
         Assert.True((await Assets.Get(owner, pending.Id))!.Uploaded);
     }
+
+    [Fact]
+    public async Task Asset_usage_counts_assets_and_sums_each_blob_once()
+    {
+        var (owner, stranger) = (await NewAccount(), await NewAccount());
+        var a = await Assets.Create(owner, Mini(size: 100));
+        await Assets.Create(owner, Mini(a.Hash, "same bytes", 100));
+        await Assets.Create(owner, Mini(size: 50));
+        Assert.Equal(new AssetUsage(3, 150), await Assets.Usage(owner));
+        Assert.Equal(new AssetUsage(0, 0), await Assets.Usage(stranger));
+    }
+
+    [Fact]
+    public async Task Abandoned_uploads_past_the_cutoff_go_with_their_blob_rows()
+    {
+        var owner = await NewAccount();
+        var old = await Assets.Create(owner, Mini(name: "old"));
+        var sharing = await Assets.Create(owner, Mini(old.Hash, "same bytes"));
+        await BackdateBlob(owner, old.Hash, TimeSpan.FromHours(2));
+        var fresh = await Assets.Create(owner, Mini(name: "fresh"));
+        var done = await Assets.Create(owner, Mini(name: "done"));
+        await Assets.MarkUploaded(owner, done.Hash);
+        await BackdateBlob(owner, done.Hash, TimeSpan.FromHours(2));
+
+        var keys = await Assets.DeleteAbandoned(DateTimeOffset.UtcNow.AddHours(-1));
+        Assert.Contains(IBlobStore.Key(owner, old.Hash), keys);
+        Assert.DoesNotContain(IBlobStore.Key(owner, fresh.Hash), keys);
+        Assert.DoesNotContain(IBlobStore.Key(owner, done.Hash), keys);
+        Assert.Null(await Assets.Get(owner, old.Id));
+        Assert.Null(await Assets.Get(owner, sharing.Id));
+        Assert.NotNull(await Assets.Get(owner, fresh.Id));
+        Assert.NotNull(await Assets.Get(owner, done.Id));
+        Assert.Equal(new AssetUsage(2, 200), await Assets.Usage(owner));
+    }
+
+    [Fact]
+    public async Task Creating_an_asset_on_a_pending_blob_restarts_its_clock()
+    {
+        var owner = await NewAccount();
+        var old = await Assets.Create(owner, Mini(name: "old"));
+        await BackdateBlob(owner, old.Hash, TimeSpan.FromHours(2));
+        var again = await Assets.Create(owner, Mini(old.Hash, "again"));
+        Assert.DoesNotContain(IBlobStore.Key(owner, old.Hash), await Assets.DeleteAbandoned(DateTimeOffset.UtcNow.AddHours(-1)));
+        Assert.NotNull(await Assets.Get(owner, again.Id));
+    }
 }

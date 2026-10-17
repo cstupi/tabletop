@@ -65,4 +65,14 @@ public abstract partial class RepositoryContract
         await Assets.Delete(owner, asset.Id);
         Assert.Empty((await Folders.List(owner)).Single().AssetIds);
     }
+
+    [Fact]
+    public async Task Folder_count_is_per_owner()
+    {
+        var (owner, stranger) = (await NewAccount(), await NewAccount());
+        var top = (await Folders.Create(owner, new FolderRequest("Top", null)))!;
+        await Folders.Create(owner, new FolderRequest("Below", top.Id));
+        Assert.Equal(2, await Folders.Count(owner));
+        Assert.Equal(0, await Folders.Count(stranger));
+    }
 }

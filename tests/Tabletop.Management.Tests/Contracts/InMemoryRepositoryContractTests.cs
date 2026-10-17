@@ -43,4 +43,10 @@ public sealed class InMemoryRepositoryContractTests : RepositoryContract
         _rows.SeedGameTable(gameId, new TableState(Guid.CreateVersion7(), null, new TableSize(72, 48), VisualRef.OfAsset(textureAssetId), [], [], []));
         return Task.CompletedTask;
     }
+
+    protected override Task BackdateBlob(Guid ownerId, string hash, TimeSpan age)
+    {
+        lock (_rows.Gate) _rows.Blobs[(ownerId, hash)].CreatedAt -= age;
+        return Task.CompletedTask;
+    }
 }

@@ -17,6 +17,18 @@ public class AssetTests : IClassFixture<ManagementFactory>
     static CreateAssetRequest Mini(byte[] glb, string name = "Marine") =>
         new(name, AssetKind.Miniature, Sha(glb), glb.Length, "model/gltf-binary", 1.0, new Orientation(0, 0, 0), Base.Circle(1.26));
 
+    static async Task<string?> Detail(HttpResponseMessage r) => System.Text.Json.JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement.TryGetProperty("detail", out var d) ? d.GetString() : null;
+
+    async Task Put(Uri url, byte[] bytes, string contentType = "model/gltf-binary")
+    {
+        using var http = _f.Blobs.Client();
+        Assert.True((await http.PutAsync(url, new ByteArrayContent(bytes) { Headers = { ContentType = new(contentType) } })).IsSuccessStatusCode);
+    }
+
+    /// <summary>Neither the staging key, the held copy nor the content key holds bytes.</summary>
+    void AssertNothingStored(Guid owner, AssetDto asset) =>
+        Assert.DoesNotContain(_f.Blobs.Keys, k => k.StartsWith(IBlobStore.StagingKey(owner, asset.Id)) || k == IBlobStore.Key(owner, asset.Hash));
+
     async Task<AssetDto> Upload(HttpClient c, byte[] glb, string name = "Marine")
     {
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, name));
@@ -84,8 +96,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
         using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
-        var store = _f.Services.GetRequiredService<IBlobStore>();
-        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+        AssertNothingStored(owner, created.Asset);
     }
 
     [Fact]
@@ -97,9 +108,10 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var req = Mini(glb) with { Name = "malformed json" };
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
         using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
-        var store = _f.Services.GetRequiredService<IBlobStore>();
-        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+        var response = await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(GlbHeader.Malformed, await Detail(response));   // fixed text: the parser's message never reaches the caller
+        AssertNothingStored(owner, created.Asset);
     }
 
     [Fact]
@@ -112,8 +124,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
         using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
-        var store = _f.Services.GetRequiredService<IBlobStore>();
-        Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
+        AssertNothingStored(owner, created.Asset);
     }
 
     [Fact]
@@ -168,5 +179,154 @@ public class AssetTests : IClassFixture<ManagementFactory>
         await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Hill") with { Kind = AssetKind.Terrain, ModelledBase = null });
         Assert.Equal([mini.Id], (await c.GetJson<Page<AssetDto>>("/v1/assets?kind=miniature")).Items.Select(a => a.Id));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.GetAsync("/v1/assets?kind=tank")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_upload_url_names_a_staging_key_and_confirm_moves_the_bytes_to_the_content_key()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.Build((36, null, true));
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb));
+        Assert.Equal("/" + IBlobStore.StagingKey(owner, created.Asset.Id), created.UploadUrl!.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);   // nothing staged yet
+        await Put(created.UploadUrl, glb);
+        Assert.Null(await _f.Blobs.Size(IBlobStore.Key(owner, created.Asset.Hash)));
+        await c.PostJson<ConfirmResponse>($"/v1/assets/{created.Asset.Id}/confirm", new { });
+        Assert.Equal(glb.Length, await _f.Blobs.Size(IBlobStore.Key(owner, created.Asset.Hash)));
+        Assert.DoesNotContain(_f.Blobs.Keys, k => k.StartsWith(IBlobStore.StagingKey(owner, created.Asset.Id)));
+    }
+
+    [Fact]
+    public async Task Bytes_that_are_not_the_declared_hash_are_refused_and_never_reach_the_content_key()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var (declared, sent) = (TestGlb.Build((36, null, true)), TestGlb.Build((33, null, true)));
+        Assert.Equal(declared.Length, sent.Length);
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(declared));
+        await Put(created.UploadUrl!, sent);
+        var response = await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("hash", await Detail(response));
+        AssertNothingStored(owner, created.Asset);
+        Assert.False((await c.GetJson<AssetDto>($"/v1/assets/{created.Asset.Id}")).Uploaded);
+    }
+
+    [Fact]
+    public async Task A_deduplicated_confirm_succeeds_without_a_put_and_counts_triangles()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var glb = TestGlb.Build((36, null, true));
+        await Upload(c, glb, "first");
+        var second = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "second"));
+        Assert.Null(second.UploadUrl);
+        var confirmed = await c.PostJson<ConfirmResponse>($"/v1/assets/{second.Asset.Id}/confirm", new { });
+        Assert.True(confirmed.Asset.Uploaded);
+        Assert.Equal(12, confirmed.Triangles);
+    }
+
+    [Fact]
+    public async Task Declared_sizes_are_capped_per_kind_at_create()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((3, null, true));
+        Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { ByteSize = UploadLimits.MeshBytes }, ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { ByteSize = UploadLimits.MeshBytes + 1 }, ContentJson.Options)).StatusCode);
+        var texture = Mini(glb) with { Kind = AssetKind.Texture, ContentType = "image/png", ModelledBase = null };
+        Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/v1/assets", texture with { ByteSize = UploadLimits.TextureBytes }, ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", texture with { ByteSize = UploadLimits.TextureBytes + 1 }, ContentJson.Options)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Undefined_kinds_and_unusable_numbers_are_refused_at_create()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((3, null, true));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { Kind = (AssetKind)9 }, ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { ModelledBase = new Base((BaseShape)9, 1, 1) }, ContentJson.Options)).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb) with { Scale = 0 }, ContentJson.Options)).StatusCode);
+    }
+
+    async Task<(HttpStatusCode Status, string? Detail)> UploadTexture(HttpClient c, byte[] bytes, string contentType)
+    {
+        var req = new CreateAssetRequest("board", AssetKind.Texture, Sha(bytes), bytes.Length, contentType, 1, new Orientation(0, 0, 0), null);
+        var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
+        await Put(created.UploadUrl!, bytes, contentType);
+        var response = await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null);
+        return (response.StatusCode, await Detail(response));
+    }
+
+    [Fact]
+    public async Task A_texture_is_the_declared_format_within_4096_square()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        Assert.Equal(HttpStatusCode.OK, (await UploadTexture(c, TestImages.Png(1024, 1024), "image/png")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await UploadTexture(c, TestImages.Jpeg(4096, 2048), "image/jpeg")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await UploadTexture(c, TestImages.WebP(512, 512), "image/webp")).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await UploadTexture(c, TestImages.Png(64, 64), "image/jpeg")).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await UploadTexture(c, TestImages.Png(4097, 64), "image/png")).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await UploadTexture(c, "GIF89a not a png"u8.ToArray(), "image/png")).Status);
+    }
+
+    [Fact]
+    public async Task An_account_holds_at_most_500_assets()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var repo = _f.Services.GetRequiredService<IAssetRepository>();
+        for (var i = 0; i < UploadLimits.AccountAssets; i++) await repo.Create(owner, Mini(TestGlb.Build((3, null, true)), $"m{i}") with { Hash = Sha(BitConverter.GetBytes(i)) });
+        var response = await c.PostAsJsonAsync("/v1/assets", Mini(TestGlb.Build((3, null, true)), "one more"), ContentJson.Options);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("500", await Detail(response));
+    }
+
+    [Fact]
+    public async Task An_account_holds_at_most_1_gib()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var repo = _f.Services.GetRequiredService<IAssetRepository>();
+        for (var i = 0; i < UploadLimits.AccountBytes / UploadLimits.MeshBytes; i++)
+            await repo.Create(owner, Mini(TestGlb.Build((3, null, true)), $"m{i}") with { Hash = Sha(BitConverter.GetBytes(i)), ByteSize = UploadLimits.MeshBytes });
+        var response = await c.PostAsJsonAsync("/v1/assets", Mini(TestGlb.Build((3, null, true)), "one more"), ContentJson.Options);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("GiB", await Detail(response));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("a name of sixty-five characters, which is one more than allowed!!")]
+    [InlineData("bell\u0007")]
+    [InlineData("rlo‮evil")]
+    public async Task Names_go_through_the_text_check_at_create_and_patch(string name)
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((3, null, true));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/assets", Mini(glb, name), ContentJson.Options)).StatusCode);
+        var ok = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "fine"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchJson($"/v1/assets/{ok.Asset.Id}", new PatchAssetRequest(name, null, null, null))).StatusCode);
+        Assert.Equal("fine", (await c.GetJson<AssetDto>($"/v1/assets/{ok.Asset.Id}")).Name);
+    }
+
+    [Fact]
+    public async Task Volumes_are_capped_checked_and_their_notes_limited()
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        var glb = TestGlb.Build((30, null, true));
+        var terrain = (await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, "Ruin") with { Kind = AssetKind.Terrain, ModelledBase = null })).Asset;
+        var wall = new Volume(VolumeKind.Solid, Footprint.Rect(6, 4), new Point2(0, 0), new Yaw(0), 0, 3, TerrainDeclarations.Cover, "multi\nline\tnotes");
+        async Task<HttpStatusCode> PutVolumes(object body) => (await c.PutAsJsonAsync($"/v1/assets/{terrain.Id}/volumes", body, ContentJson.Options)).StatusCode;
+        Assert.Equal(HttpStatusCode.OK, await PutVolumes(Enumerable.Repeat(wall, UploadLimits.Volumes).ToArray()));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(Enumerable.Repeat(wall, UploadLimits.Volumes + 1).ToArray()));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Notes = new string('n', Limits.Notes + 1) } }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Notes = "bell\u0007" } }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Kind = (VolumeKind)9 } }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Declarations = (TerrainDeclarations)1024 } }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Footprint = new Footprint((FootprintKind)9, 1, 1) } }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, await PutVolumes(new[] { wall with { Footprint = Footprint.Rect(0, 4) } }));
+        Assert.Equal(UploadLimits.Volumes, (await c.GetJson<List<TerrainVolume>>($"/v1/assets/{terrain.Id}/volumes")).Count);
     }
 }

@@ -48,4 +48,26 @@ public class FolderTests : IClassFixture<ManagementFactory>
         var tree = await c.GetJson<List<FolderDto>>("/v1/folders");
         Assert.Equal("Named", tree.Single(x => x.Id == f.Id).Name);
     }
+
+    [Theory]
+    [InlineData("a name of sixty-five characters, which is one more than allowed!!")]
+    [InlineData("tab\there")]
+    [InlineData("rlo‮evil")]
+    public async Task Names_go_through_the_text_check_at_create_and_patch(string name)
+    {
+        var c = await _f.AuthenticatedClient(Guid.CreateVersion7());
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/folders", new FolderRequest(name, null), Tabletop.Content.ContentJson.Options)).StatusCode);
+        var f = await c.PostJson<FolderDto>("/v1/folders", new FolderRequest("Named", null));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PatchJson($"/v1/folders/{f.Id}", new FolderRequest(name, null))).StatusCode);
+    }
+
+    [Fact]
+    public async Task An_account_holds_at_most_200_folders()
+    {
+        var owner = Guid.CreateVersion7();
+        var c = await _f.AuthenticatedClient(owner);
+        var repo = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IFolderRepository>(_f.Services);
+        for (var i = 0; i < Tabletop.Management.Http.Limits.PerAccount; i++) await repo.Create(owner, new FolderRequest($"f{i}", null));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsJsonAsync("/v1/folders", new FolderRequest("one more", null), Tabletop.Content.ContentJson.Options)).StatusCode);
+    }
 }
