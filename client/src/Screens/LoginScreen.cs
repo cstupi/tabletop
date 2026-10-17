@@ -4,11 +4,14 @@ using Tabletop.Client.Theming;
 
 namespace Tabletop.Client.Screens;
 
+/// <summary>Email and password, or a one-time code. Enter moves from email to password and signs in from the password or the code
+/// field; the buttons are disabled while a request is out, and the line under them says what is happening or what went wrong.</summary>
 public partial class LoginScreen : Control
 {
     LineEdit _email = null!, _password = null!, _code = null!;
     Label _error = null!;
     CheckBox _remember = null!;
+    readonly List<Button> _buttons = new();
     string? _methodId;
 
     public override void _Ready()
@@ -22,24 +25,43 @@ public partial class LoginScreen : Control
         box.AddChild(_password = new LineEdit { PlaceholderText = "password", Secret = true });
         box.AddChild(_remember = new CheckBox { Text = "Remember me on this machine", ButtonPressed = session.Settings.RememberMe });
         var row = new HBoxContainer(); box.AddChild(row);
-        row.AddChild(Button("Sign in", () => Run(s => s.LoginWithPasswordAsync(_email.Text, _password.Text))));
-        row.AddChild(Button("Sign up", () => Run(s => s.SignUpAsync(_email.Text, _password.Text))));
-        row.AddChild(Button("Email me a code", () => Run(async s => { _methodId = await s.SendOtpAsync(_email.Text); _code.Visible = true; _error.Text = "Code sent."; })));
+        row.AddChild(Button("Sign in", SignIn));
+        row.AddChild(Button("Sign up", () => Run("Creating your account…", s => s.SignUpAsync(_email.Text.Trim(), _password.Text))));
+        row.AddChild(Button("Email me a code", () => Run("Sending a code…", async s =>
+        {
+            _methodId = await s.SendOtpAsync(_email.Text.Trim());
+            _code.Visible = true; _code.GrabFocus();
+            _error.Text = "Code sent: type it below and press Enter.";
+        })));
         box.AddChild(_code = new LineEdit { PlaceholderText = "one-time code", Visible = false });
-        _code.TextSubmitted += _ => Run(s => s.VerifyOtpAsync(_methodId!, _code.Text));
-        box.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
+        _email.TextSubmitted += _ => _password.GrabFocus();
+        _password.TextSubmitted += _ => SignIn();
+        _code.TextSubmitted += _ => Run("Checking the code…", s => s.VerifyOtpAsync(_methodId!, _code.Text.Trim()));
+        box.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        _email.CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    static Button Button(string text, Action onPressed) { var b = new Button { Text = text }; b.Pressed += onPressed; return b; }
+    void SignIn() => Run("Signing in…", s => s.LoginWithPasswordAsync(_email.Text.Trim(), _password.Text));
 
-    async void Run(Func<Session, Task> action)
+    Button Button(string text, Action onPressed) { var b = new Button { Text = text }; b.Pressed += onPressed; _buttons.Add(b); return b; }
+
+    async void Run(string doing, Func<Session, Task> action)
     {
         var session = Main.Instance.Session;
+        if (_buttons.Any(b => b.Disabled)) return;                      // one request at a time
+        if (_email.Text.Trim().Length == 0) { _error.Text = "Enter your email first."; _email.GrabFocus(); return; }
         session.UpdateSettings(s => s with { RememberMe = _remember.ButtonPressed });
+        Busy(true); _error.Text = doing;
         try { await action(session); }                                  // PhaseChanged routes to Home on success
         catch (UpdateRequiredException) { }                             // routed to the update screen
-        catch (ManagementException e) { _error.Text = e.Status == 401 ? "Wrong email, password or code." : e.Message; }
-        catch (HttpRequestException e) { _error.Text = $"Cannot reach {session.Settings.ManagementUrl}: {e.Message}"; }
-        catch (Exception e) { _error.Text = e.Message; }
+        catch (ManagementException e) when (e.Status == 401) { Show("Wrong email, password or code."); }
+        catch (Exception e) { Show(Feedback.Error(e, session.Settings.ManagementUrl)); }
+        if (IsInstanceValid(this) && _error.Text == doing) _error.Text = "";
+        if (IsInstanceValid(this)) Busy(false);
     }
+
+    void Busy(bool busy) { foreach (var b in _buttons) b.Disabled = busy; }
+
+    /// <summary>The screen may have been freed by the navigation the action caused.</summary>
+    void Show(string message) { if (IsInstanceValid(this)) _error.Text = message; }
 }

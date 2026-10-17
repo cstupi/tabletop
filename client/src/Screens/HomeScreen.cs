@@ -5,20 +5,32 @@ using Tabletop.Protocol;
 
 namespace Tabletop.Client.Screens;
 
+/// <summary>
+/// The game list: filters, Join (or double-click / Enter on a row), More, Refresh, Create game, the player's name with Rename, Settings
+/// and Sign out. The line under the list says what is loading, why the list is empty, why the last game closed, or what went wrong.
+/// </summary>
 public partial class HomeScreen : Control
 {
     readonly List<GameSummary> _games = new();
     Guid? _next;
-    ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!; Label _error = null!;
+    bool _loaded, _busy;
+    ItemList _list = null!; OptionButton _status = null!; LineEdit _search = null!; CheckBox _mine = null!; Label _error = null!, _name = null!, _hint = null!;
+    Button _join = null!, _more = null!;
+    Action? _onAccount;
 
     public override void _Ready()
     {
+        var session = Main.Instance.Session;
         var root = new VBoxContainer(); root.SetAnchorsPreset(LayoutPreset.FullRect); AddChild(root);
         var top = new HBoxContainer(); root.AddChild(top);
-        top.AddChild(new Label { Text = $"Signed in as {Main.Instance.Session.Account?.Name}" });
+        top.AddChild(_name = new Label());
+        top.AddChild(Btn("Rename…", RenameDialog));
         top.AddChild(Btn("Create game", () => Run(CreateDialog)));
-        top.AddChild(Btn("Settings", () => SettingsDialog.Open(this, Main.Instance.Session)));
-        top.AddChild(Btn("Sign out", () => Run(Main.Instance.Session.LogoutAsync)));
+        top.AddChild(Btn("Settings", () => SettingsDialog.Open(this, session)));
+        top.AddChild(Btn("Sign out", () => Run(session.LogoutAsync)));
+        root.AddChild(_hint = new Label { ThemeTypeVariation = Variation.Accent, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        _onAccount = ShowName; session.AccountChanged += _onAccount;
+        ShowName();
         var filters = new HBoxContainer(); root.AddChild(filters);
         filters.AddChild(_status = new OptionButton());
         _status.AddItem("Any status"); foreach (var s in Enum.GetNames<GameStatus>()) _status.AddItem(s);
@@ -26,26 +38,38 @@ public partial class HomeScreen : Control
         filters.AddChild(_search = new LineEdit { PlaceholderText = "name", CustomMinimumSize = new Vector2(200, 0) }); _search.TextChanged += _ => Render();
         filters.AddChild(_mine = new CheckBox { Text = "Created by me" }); _mine.Toggled += _ => Render();
         root.AddChild(_list = new ItemList { SizeFlagsVertical = SizeFlags.ExpandFill });
-        _list.ItemActivated += i => Run(() => Join(Filtered()[(int)i].Id));
+        _list.ItemActivated += i => JoinRow((int)i);                    // double-click or Enter
+        _list.ItemSelected += _ => ShowButtons();
         var bottom = new HBoxContainer(); root.AddChild(bottom);
-        bottom.AddChild(Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) Run(() => Join(Filtered()[sel[0]].Id)); }));
-        bottom.AddChild(Btn("More", () => Run(LoadPage)));
-        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; Render(); Run(LoadPage); }));
-        root.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning });
+        bottom.AddChild(_join = Btn("Join", () => { if (_list.GetSelectedItems() is { Length: > 0 } sel) JoinRow(sel[0]); }));
+        bottom.AddChild(_more = Btn("More", () => Run(LoadPage)));
+        bottom.AddChild(Btn("Refresh", () => { _games.Clear(); _next = null; _loaded = false; Render(); Run(LoadPage); }));
+        root.AddChild(_error = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         // Why the last game ended, when it ended without the player asking: a replaced socket, a rejection, or a
         // desync past its bound. Session clears it on the next connect. Without this the drop to Home is silent.
-        if (Main.Instance.Session.LastCloseReason is { } why) _error.Text = $"Dropped from the last game: {why}";
+        if (session.LastCloseReason is { } why) _error.Text = $"Left the last game: {why}";
+        Render();
         Run(LoadPage);
     }
 
+    public override void _ExitTree() { if (_onAccount is not null) Main.Instance.Session.AccountChanged -= _onAccount; }
+
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
+
+    /// <summary>The name everyone sees, and while it is still the default Player-xxxx, a line asking for a real one.</summary>
+    void ShowName()
+    {
+        if (!IsInstanceValid(_name)) return;
+        var name = Main.Instance.Session.Account?.Name ?? "";
+        _name.Text = $"Signed in as {name}";
+        _hint.Text = TextLimits.IsDefaultName(name) ? $"Other players see you as {name}. Rename yourself so they know who you are." : "";
+        _hint.Visible = _hint.Text.Length > 0;
+    }
 
     async void Run(Func<Task> action)
     {
         try { await action(); }
-        catch (ManagementException e) { Show(e.Message); }
-        catch (HttpRequestException e) { Show($"Cannot reach {Main.Instance.Session.Settings.ManagementUrl}: {e.Message}"); }
-        catch (Exception e) { Show(e.Message); }
+        catch (Exception e) { Show(Feedback.Error(e, Main.Instance.Session.Settings.ManagementUrl)); }
     }
 
     /// <summary>The screen may have been freed by the navigation the action caused.</summary>
@@ -65,39 +89,105 @@ public partial class HomeScreen : Control
     void Render()
     {
         _list.Clear();
-        foreach (var g in Filtered()) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
+        var shown = Filtered();
+        foreach (var g in shown) _list.AddItem($"{g.Name}  —  {g.Status.ToString().ToLowerInvariant()}, {g.Participants} in, {g.CreatedAt.LocalDateTime:g}");
+        // The empty list says why: still loading, no games at all, or none passing the filters.
+        // A placeholder row only on an empty list, so row indices still match Filtered().
+        if (shown.Count == 0)
+        {
+            var row = _list.AddItem(!_loaded ? "Loading games…" : _games.Count == 0 ? "No games yet. Create one with Create game." : "No game matches these filters.", null, selectable: false);
+            _list.SetItemDisabled(row, true);
+        }
+        ShowButtons();
+    }
+
+    void ShowButtons()
+    {
+        _join.Disabled = _busy || _list.GetSelectedItems().Length == 0;
+        _join.TooltipText = _busy ? "Joining…" : _join.Disabled ? "Select a game first" : "Join the selected game (or double-click it)";
+        _more.Disabled = _busy || _loaded && _next is null;
+        _more.TooltipText = _loaded && _next is null ? "Every game is listed" : "Load the next 50 games";
     }
 
     async Task LoadPage()
     {
         var page = await Main.Instance.Session.Management.ListGames(_next, 50);
-        _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next;
+        if (!IsInstanceValid(this)) return;
+        _games.AddRange(page.Items.Where(g => _games.All(x => x.Id != g.Id))); _next = page.Next; _loaded = true;
         Render();
     }
 
-    async Task Join(Guid gameId)
+    void JoinRow(int row)
+    {
+        if (_busy || row < 0 || row >= Filtered().Count) return;
+        var game = Filtered()[row];
+        _busy = true; ShowButtons(); Show($"Joining {game.Name}…");
+        Run(async () =>
+        {
+            try { await Join(game.Id); }
+            finally { if (IsInstanceValid(this)) { _busy = false; ShowButtons(); } }
+        });
+    }
+
+    static async Task Join(Guid gameId)
     {
         await Main.Instance.Session.Management.JoinGame(gameId);
         await Main.Instance.Session.ConnectAsync(gameId);
     }
 
+    /// <summary>A name field that says what is wrong with it as the player types, and an OK button that waits until nothing is.</summary>
+    static LineEdit NameField(ConfirmationDialog dialog, Label problem, string text, string field)
+    {
+        var line = new LineEdit { Text = text, MaxLength = TextLimits.Name, PlaceholderText = $"at most {TextLimits.Name} characters", SelectAllOnFocus = true };
+        void Check(string value)
+        {
+            var why = TextLimits.NameProblem(value, field);
+            problem.Text = why ?? "";
+            dialog.GetOkButton().Disabled = why is not null;
+        }
+        line.TextChanged += Check;
+        dialog.RegisterTextEnter(line);
+        Check(text);
+        return line;
+    }
+
+    void RenameDialog()
+    {
+        var session = Main.Instance.Session;
+        var dialog = new ConfirmationDialog { Title = "Your name", OkButtonText = "Rename" };
+        var form = new VBoxContainer(); dialog.AddChild(form);
+        form.AddChild(new Label { Text = "The name other players see in games and lobbies." });
+        var problem = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        var name = NameField(dialog, problem, session.Account?.Name ?? "", "A name");
+        form.AddChild(name); form.AddChild(problem);
+        dialog.Confirmed += () => Run(async () => { await session.RenameAsync(name.Text); Show($"Renamed to {session.Account?.Name}."); });
+        dialog.VisibilityChanged += () => { if (!dialog.Visible) dialog.QueueFree(); };
+        AddChild(dialog); dialog.PopupCentered(new Vector2I(380, 0)); name.CallDeferred(Control.MethodName.GrabFocus);
+    }
+
     async Task CreateDialog()
     {
         var session = Main.Instance.Session;
+        Show("Loading rule sets and armies…");
         var packs = await session.Management.ListProperties();
         var armies = (await session.Management.ListArmies(null)).Items;
+        if (!IsInstanceValid(this)) return;
+        if (packs.Count == 0) { Show("The server has no rule set loaded (GET /v1/properties is empty), so no game can be created."); return; }
+        Show("");
         var dialog = new ConfirmationDialog { Title = "Create game", OkButtonText = "Create" };
         var form = new VBoxContainer(); dialog.AddChild(form);
-        var name = new LineEdit { PlaceholderText = "game name" }; form.AddChild(name);
+        var problem = new Label { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        var name = NameField(dialog, problem, "", "A game name"); name.PlaceholderText = "game name"; form.AddChild(name); form.AddChild(problem);
         var pack = new OptionButton(); foreach (var p in packs) pack.AddItem($"{p.Name} ({p.GameRules})"); form.AddChild(pack);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); form.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select(1); form.AddChild(enforcement);
-        var army = new OptionButton(); army.AddItem("No army (watch)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
+        var army = new OptionButton(); army.AddItem("No army (pick one in the lobby)"); foreach (var a in armies) army.AddItem($"{a.Name} ({a.Units} units)"); form.AddChild(army);
+        if (armies.Count == 0) form.AddChild(new Label { Text = "You have no armies yet: import one in the web app.", ThemeTypeVariation = Variation.Dim, AutowrapMode = TextServer.AutowrapMode.WordSmart });
         dialog.Confirmed += () => Run(async () =>
         {
-            if (packs.Count == 0) { _error.Text = "No Properties set is loaded on the server; GET /v1/properties is empty."; return; }
+            Show("Creating the game…");
             // WaitsBetweenSteps is a development flag (spec: in-game UX → Flow between steps); players never get the "Continue" stops.
-            var game = await session.Management.CreateGame(new CreateGameRequest(name.Text, packs[pack.Selected].ContentHash,
+            var game = await session.Management.CreateGame(new CreateGameRequest(name.Text.Trim(), packs[pack.Selected].ContentHash,
                 shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, Enum.Parse<Enforcement>(enforcement.GetItemText(enforcement.Selected)), WaitsBetweenSteps: false));
             Guid? armyId = army.Selected == 0 ? null : armies[army.Selected - 1].Id;
             if (armyId is { } id)
@@ -118,6 +208,6 @@ public partial class HomeScreen : Control
             await session.ConnectAsync(game.Id);
         });
         dialog.Canceled += () => dialog.QueueFree();
-        AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320));
+        AddChild(dialog); dialog.PopupCentered(new Vector2I(420, 320)); name.CallDeferred(Control.MethodName.GrabFocus);
     }
 }
