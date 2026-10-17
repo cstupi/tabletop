@@ -170,14 +170,15 @@ graph TD
 
 The layout does four things: `session.restore()` on mount, `session.startRefreshLoop()` with
 its teardown returned from `onMount`, an `$effect` that redirects to `/login?next=<path>` (plus `expired=1` when `session.expired`) when
-`session.ready` and no token is held on a private route, and the nav. Pages are thin over
+`session.ready` and no token is held on a private route, and the header: brand, main navigation, the theme
+switch and Log out. Pages are thin over
 tested modules. Every branch worth asserting lives in `src/lib/**` and is covered by Vitest
 under Node. `.svelte` files are verified by running the application.
 
 ```mermaid
 graph TD
     Routes["src/routes/* — pages"]
-    Comps["src/lib/components/* — MeshPreview, UploadDialog, BasePicker, FolderTree, VolumeEditor, AssetPicker"]
+    Comps["src/lib/components/* — MeshPreview, UploadDialog, BasePicker, FolderTree, VolumeEditor, AssetPicker, Icon, ThemeSwitch"]
     Sess["session/ — jwt.ts, session.svelte.ts, messages.ts, redirect.ts"]
     Api["api/ — types.ts, http.ts, client.ts, errors.ts"]
     Valid["validation.ts — name and size checks, quota usage"]
@@ -822,6 +823,39 @@ beside drag-and-drop. Unit toggles carry `aria-expanded`. The layout has a skip 
 preview stack to one column below 40–48 rem. Every page sets a `<title>`, which SvelteKit's
 route announcer reads.
 
+### 13. Themes and look
+
+The web app wears the Godot client's two themes, Sci-fi (default) and Fantasy
+(`client/src/Core/UiThemes.cs`, spec `2026-10-10-client-ux-and-themes-design.md` → Themes).
+
+- **Tokens.** `src/themes.css` holds each `UiTheme`'s colours as custom properties under
+  `:root[data-theme='scifi' | 'fantasy']`, with derived tokens for buttons, inputs, the header and the
+  page background. Fantasy's warning is darkened to `#8A4512` and its links use `#553A12` for text
+  contrast; every text pair meets WCAG AA 4.5:1 on the panel it sits on. Fantasy's dim text is
+  4.5:1 only on parchment, so text on the page background uses the text colour, and failures
+  (`role="alert"`) draw their own panel-coloured box.
+- **Fonts.** The client's files, byte-identical, under `static/themes/<id>/fonts/` with their OFL
+  texts and `LICENSES.md`: Orbitron (display), Rajdhani SemiBold (body), JetBrains Mono (numerals)
+  for Sci-fi; Cinzel (display, numerals), EB Garamond (body) for Fantasy. `font-src 'self'`.
+- **Shapes.** Sci-fi panels, buttons and inputs are clipped at the corners (`clip-path`) with a
+  1 px cyan line, the line redrawn across each cut by corner gradients, and accent bars on panel
+  edges. A clip hides an outline, so a focused Sci-fi control turns its frame light and 2 px.
+  Fantasy panels are parchment (`paper.svg`, an `feTurbulence` grain) in a dark wood frame with a
+  brass line, after the client's `panel.svg`; buttons are wood with a brass line (`button.svg`);
+  focus is a 2 px dark outline.
+- **Rules.** Theme-wide control rules sit in `:where()`, so a component's scoped style wins.
+  Buttons take `.primary`, `.danger` or `.quiet`; `.panel`, `.seg` (aria-pressed group), `.empty`,
+  `.loading`, `.notice` are the shared blocks in `src/app.css`. Spacing is `--s1`…`--s7`.
+- **Icons.** `Icon.svelte` draws paths from `components/icons.ts` on the client's 32-unit grid in
+  the current colour: Sci-fi a thin line over a wide translucent glow, Fantasy one heavier line.
+  `objective` (the brand mark) and `settings` are the client's paths. Icons are decorative; each
+  control keeps its text or `aria-label`.
+- **Switch.** `ThemeSwitch` in the header (shown signed in or out) is an aria-pressed pair.
+  `lib/theme/theme.ts` resolves an unknown id to `scifi` and stores the choice under
+  `localStorage['tabletop.theme']` inside try/catch. `static/theme-init.js`, an external script so
+  the hash-mode CSP admits it, sets `data-theme` before first paint; a test runs it against
+  `loadTheme`. `prefers-reduced-motion` turns off transitions and the loading pulse.
+
 ## Key decisions
 
 ### Decided by a spec
@@ -1190,6 +1224,7 @@ words and gates it on typing the display name.
 | Where | What | Lifetime |
 | --- | --- | --- |
 | `localStorage['tabletop.session']` | `{ sessionJwt, account }` | Until logout, a failed refresh, or a `401` |
+| `localStorage['tabletop.theme']` | `scifi` or `fantasy` | Until changed; read before first paint by `static/theme-init.js` |
 | `session` runes store | `token`, `account`, `ready` | Page lifetime; rebuilt from storage on load |
 | `UploadDialog` | `intake`, `ConversionResult`, `glb`, `meshBounds`, confirmed `scale`/`orientation`/`base`, `budget` | Until Close or *Add another*; **never persisted** |
 | `library/+page` | The whole asset list and folder list | One page visit; refetched after every write |

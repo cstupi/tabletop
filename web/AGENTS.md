@@ -13,7 +13,12 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `src/lib/upload/` `intake.ts` (`classifyFiles`), `sha256.ts`, `upload.ts` (presigned sequence, `STAGE_LABELS`, byte progress).
 - `src/lib/library/` `folders.ts` (`moveTargets`), `volume-edit.ts` (`toDraft`, `fromDraft`).
 - `src/lib/armies/` `import.ts` (`normaliseSource`, `reimport` with a `BaseSet`), `patches.ts` (`PatchArmyRequest` builders).
-- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`.
+- `src/lib/components/` `MeshPreview` (three.js), `UploadDialog`, `VolumeEditor`, `BasePicker`, `AssetPicker`, `FolderTree`, `Icon`
+  (paths in `icons.ts`), `ThemeSwitch`.
+- `src/lib/theme/theme.ts` `THEMES`, `resolveTheme`, `loadTheme`, `saveTheme`, `applyTheme` (`tabletop.theme` in `localStorage`).
+- `src/themes.css` the client's two themes as tokens and `@font-face`; `src/app.css` base, shell, panels, controls, states.
+- `static/` `theme-init.js` (sets `data-theme` before first paint), `themes/<id>/fonts/` (the client's OFL fonts, `LICENSES.md`),
+  `themes/fantasy/paper.svg`.
 - `tests/` Vitest; `tests/fixtures/` STL files and `make-fixtures.ts`.
 
 ## How it works
@@ -59,9 +64,15 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - Svelte trims whitespace at the start of an `{#if}` block: write `{' · '}` rather than a leading space inside it.
 - MinIO's CORS (`docker-compose.yml`) admits only the `5173` origins; a preview on another port cannot `PUT` presigned uploads.
 - Table frame: Z up, origin at the corner; mesh space is converted by `Proposal.orientation`, not by the page.
+- Themes mirror the client's `UiThemes` (Sci-fi default, Fantasy): change a colour or font in both. Theme-wide control rules use
+  `:where()` so scoped component styles win; buttons take `.primary`, `.danger`, `.quiet`; blocks are `.panel`, `.seg`, `.empty`,
+  `.loading`, `.notice`; spacing `--s1`…`--s7`. Sci-fi controls are clipped (`clip-path`), so their focus is the frame turning
+  light, not an outline. Text pairs meet WCAG AA on their panel; Fantasy's `--dim` is AA only on parchment, not the page background.
+- `static/theme-init.js` duplicates `loadTheme`'s read; `tests/theme.test.ts` runs it to keep them in step. It loads after
+  `%sveltekit.head%` so the CSP meta covers it.
 - `svelte.config.js` sets `kit.csp` (hash mode): `script-src 'self' 'wasm-unsafe-eval'` (meshoptimizer's WASM), `worker-src 'self' blob:`,
   `connect-src` and `img-src` add the blob origin (`TABLETOP_BLOB_ORIGIN`, default `http://127.0.0.1:9000`) and `PUBLIC_API_BASE`'s origin. A new
-  outside origin goes there.
+  outside origin goes there. `font-src 'self'`: fonts are self-hosted, never a CDN.
 
 ## Docs
 
@@ -69,3 +80,4 @@ The Svelte SPA for account, library and armies: SvelteKit 2 + Svelte 5, `adapter
 - `docs/superpowers/specs/2026-08-29-web-app-design.md`
 - `docs/superpowers/specs/2026-09-04-mesh-conversion-design.md`
 - `docs/superpowers/specs/2026-10-01-starter-meshes-design.md`
+- `docs/superpowers/specs/2026-10-10-client-ux-and-themes-design.md` (Themes)
