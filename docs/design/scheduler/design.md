@@ -458,6 +458,12 @@ record after that team's legal set emptied, the scheduler sees a non-empty set a
 and asks it again. If the team *passed*, it is not re-asked. Under the player-turn shape
 `IsFinished` reads *had a `turn_ended` this round* instead, which subsumes the pass.
 
+Grimdark Future p.7, "Players must activate one unit that has not been activated yet", makes a pass a breach
+whenever the activate Ask is open, because it is open only while the legal set is non-empty. `LegalTurn` sets
+`AllowPass` to false under `strict`, so a pass is refused as outside the set. Under `warn` and `silent` it stays in
+the set, and `AnswerBreach` flags it (`activation_required`) so `warn` accepts it with a warning and
+`AskAnswered.Breach`.
+
 ### Deployment: the phase before round one
 
 Deployment is not special-cased machinery. It is the same scheduler running a phase list the

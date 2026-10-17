@@ -12,7 +12,7 @@ public sealed partial class GrimdarkFutureRules
             ? GfMoves.NotOfferedBreach(state, region, moves) ?? GfMoves.PathBreach(state, region, moves)
               ?? GfMoves.MinimumBreach(state, region, moves) ?? GfMoves.DifficultCapBreach(state, ask, region, moves)
               ?? GfMoves.ContactBreach(state, region, moves)
-            : DeployInsideBreach(state, ask, answer);
+            : PassBreach(ask, answer) ?? DeployInsideBreach(state, ask, answer);
 
     /// <summary>
     /// p.15: "units inside Transports are deployed at the same time as the Transport". A deploy Ask lists units with every model on the shelf; one
