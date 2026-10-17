@@ -73,6 +73,14 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 - `Rules/GrimdarkFuture/` is the only place a rule is named. The interpreter, effects, dice and generic scheduler know no ruleset; the scheduler's Grimdark Future hooks are `GfRules.Scheduling.cs` and `GfRules.Deployment.cs`.
 - An army-book Buff, Mark or Debuff is a pick entry: a `model` entry with `targeting` and `once` rows at `before-attacking`. `GfHooks.ReactionsAt` offers each carrying model's use (`GfPick`); `pick-rule` asks `rule_target` and writes one grant per row on the unit picked. A carried pick entry exposes no rows, and a granted row's `at_point` holds wherever it is read.
 - `CatalogEntry.Played` is false only on a generated text-only entry; `LiveProperties.Gather` skips it as an absent name.
+- Optional rules (optional-rules spec): `GameInfo.OptionalRules` is `game.optional_rules`, an opaque map. `IGameRules.OptionCatalog` goes out in
+  `Welcome.Options`; a `set_configuration` whose map `IGameRules.OptionProblems` finds fault with is refused `Unknown` before any write; from
+  `playing` on the map is frozen with the rest of the configuration. Grimdark Future reads it as `GfOptions.Of(state)`: `unit_sight_blocking`
+  (`per_model` | `perimeter`), `line_of_sight` (`core` | `hybrid_true`), `melee_separation` (`on` | `off`).
+- `Sight.From` asks `IGameRules.SightPolicy(state)` (`ISightPolicy`; Grimdark Future: `GfSight`): with `Perimeters` each other unit blocks with
+  `Bodies.Perimeter` keyed by its id in place of its bodies, except the target's own unit, which blocks per model; a unit `SeesThrough` passes
+  (p.56 Hybrid: `GfSight.SizeClass`, elevation) blocks nothing on that pair's line, cover included. Melee separation `off`: `consolidate` moves
+  nobody when both units stand, and `GfMoves.ContactBreach` skips `move_separation` against a unit the mover was within 1" of when its move started.
 
 ## Commands
 
@@ -102,7 +110,7 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 - New content files need the `EmbeddedResource` globs in `Tabletop.GameServer.csproj`; the three patterns there are `*.properties.json`, `*.part.json`, `army-books/*.book.json`.
 - The game server writes a game's rows only in `lobby` or `setup`, plus `playing` to `ended` once. Management writes at creation, end, leave and delete.
 - `WaitsBetweenSteps` is the per-game flag behind every "Continue" Ask (`SequenceInterpreter.cs`). Players never see it.
-- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside`, `AnswerBreach` and `PlacementBreach`, or a wrapped ruleset answers 1, nobody, never, nothing and nothing broken.
+- Every `IGameRules` wrapper that forwards by hand (the tests' `WithSequences`) forwards `MaxWounds`, `Shooters`, `MayDeployInside`, `DeployInside`, `AnswerBreach`, `PlacementBreach`, `OptionCatalog`, `OptionProblems` and `SightPolicy`, or a wrapped ruleset answers 1, nobody, never, nothing, nothing broken, no options and core sight.
 - `ProjectionDesyncException` at hydration is a server bug: every reconnect replays the same event.
 - The first `Connect` frame has `HandshakeTimeout` (10 s by default).
 - Schema changes are management migrations, never made here.
@@ -118,4 +126,4 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 ## Docs
 
 - `docs/design/game-server/design.md`, `docs/design/interpreter/design.md` (an index: `properties.md`, `resolution.md`, `decisions.md`, `interfaces.md`, `operations.md`, `effect-grammar.md`, `opr-sequences.md`), `docs/design/scheduler/design.md`.
-- Specs: `docs/superpowers/specs/2026-09-04-scheduler-design.md`, `2026-10-02-enforcement-engine-design.md`, `2026-10-02-army-rule-hooks-design.md`, `2026-10-02-spell-library-design.md`, `2026-08-29-effect-grammar-design.md`, `2026-09-03-action-sequences-design.md`, `2026-09-04-spell-effects-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-28-resolution-design.md`, `2026-09-04-setup-phase-design.md`, `2026-09-06-ruleset-3-5-1-design.md`, `2026-10-02-objectives-design.md`, `2026-10-09-admin-watch-design.md`, `2026-10-09-army-book-rules-design.md`, `2026-10-16-passengers-design.md`.
+- Specs: `docs/superpowers/specs/2026-09-04-scheduler-design.md`, `2026-10-02-enforcement-engine-design.md`, `2026-10-02-army-rule-hooks-design.md`, `2026-10-02-spell-library-design.md`, `2026-08-29-effect-grammar-design.md`, `2026-09-03-action-sequences-design.md`, `2026-09-04-spell-effects-design.md`, `2026-08-28-game-flow-design.md`, `2026-08-28-resolution-design.md`, `2026-09-04-setup-phase-design.md`, `2026-09-06-ruleset-3-5-1-design.md`, `2026-10-02-objectives-design.md`, `2026-10-09-admin-watch-design.md`, `2026-10-09-army-book-rules-design.md`, `2026-10-16-passengers-design.md`, `2026-10-15-optional-rules-design.md`.

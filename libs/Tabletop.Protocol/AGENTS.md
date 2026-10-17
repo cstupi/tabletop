@@ -13,6 +13,7 @@ Every socket message, the wire JSON, the event log's payloads, and the projectio
 - `EventApplier.cs`: applies events to a `Projection`; `EffectiveLog` drops undone events; `ProjectTo(seq)`.
 - `Projection.cs`: `Projection`, `UnitInPlay`, `ModelInPlay`; only `EventApplier` writes it.
 - `Presence.cs`: presence, cursor, selection, measurement; latest wins, never logged.
+- `RulesOptions.cs`: `RulesOptionCatalog` (`RulesOption`, `RulesOptionValue`, `RulesPreset`), a ruleset's optional rules as data, sent in `Welcome.Options`. `GameInfo.OptionalRules` and `SetConfiguration.OptionalRules` carry the map; only the ruleset reads its keys.
 - `ProtocolVersion.cs`: `Current`, the `Tabletop-Client-Version` header, the 426 status.
 
 ## How it works

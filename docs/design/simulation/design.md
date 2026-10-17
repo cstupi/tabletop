@@ -1155,7 +1155,7 @@ log, through the same code the servers use.
 | Table | Written by | Columns `sim/` sets |
 | --- | --- | --- |
 | `management.account` | `SocketRowSeeder`, raw SQL | `id` from the JWT's `account_id` claim |
-| `management.game` | `SocketRowSeeder`, raw SQL | `id`, `name`, `status`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`, `created_by`, `rng_seed` |
+| `management.game` | `SocketRowSeeder`, raw SQL | `id`, `name`, `status`, `game_rules`, `properties_hash`, `scheduler_shape`, `enforcement`, `waits_between_steps`, `created_by`, `rng_seed`, `optional_rules` |
 | `management.team` | `SocketRowSeeder`, raw SQL | `id`, `game_id`, `ordinal` |
 | `management.participant` | `SocketRowSeeder`, raw SQL | `id`, `game_id`, `team_id`, `account_id`, `army_id` |
 | `management.table_state` and its tree | `IGameRows.StartSetupAsync` | the whole snapshot |

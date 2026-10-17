@@ -258,13 +258,14 @@ cover) and `GameSession.Facts` (`SightQuery`). A `SightLine.BlockedBy` may then 
 ### Wire
 
 ```csharp
-// libs/Tabletop.Protocol/Wire.cs
+// libs/Tabletop.Protocol/RulesOptions.cs
 public sealed record RulesOptionCatalog(IReadOnlyList<RulesOption> Options, IReadOnlyList<RulesPreset> Presets)
-{ public static readonly RulesOptionCatalog Empty = new([], []); }
+{ public static RulesOptionCatalog Empty { get; } = new([], []); }
 public sealed record RulesOption(string Key, string Label, string Page, IReadOnlyList<RulesOptionValue> Values, string Default);
 public sealed record RulesOptionValue(string Value, string Label);
 public sealed record RulesPreset(string Name, IReadOnlyDictionary<string, string> OptionalRules, Enforcement? Enforcement);
-public sealed record Welcome(Guid ParticipantId, GameInfo Game, RulesOptionCatalog Options) : SocketMessage;
+// libs/Tabletop.Protocol/Wire.cs
+public sealed record Welcome(Guid ParticipantId, GameInfo Game) : SocketMessage { public RulesOptionCatalog Options { get; init; } = RulesOptionCatalog.Empty; }
 ```
 
 Labels and pages are the book's (`"Hybrid True Line of Sight"`, `"p.56"`), written once in `GfOptions` and sent as
@@ -287,20 +288,23 @@ The matching and map building are Godot-free in `client/src/Core/RulesOptions.cs
 `tests/Tabletop.Client.Tests`. `client/src/Screens/HomeScreen.cs` creates the game as today; management cannot
 validate a map it cannot read, so options are set in the lobby. `client/src/Core/ManagementDtos.cs` is unchanged.
 
-`sim/Scenarios/Scenario.cs` gains `OptionalRules`, written by `sim/Drivers/SocketRowSeeder.cs` and
-`ScenarioCompiler`, so suite games run under an option.
+`sim/Scenarios/Scenario.cs` gains `OptionalRules` (builder `Options`), written by `sim/Drivers/SocketRowSeeder.cs` and
+`ScenarioCompiler`, so suite games run under an option. A sight game needs its lines laid out, so `ScenarioArmy` also
+gains `Sizes` (a unit's model count) and `Anchors` (where a unit's first model deploys, in place of
+`HandPlacement`'s drawn anchor).
 
 ## Touch points and tests per option
 
-Rules tests are in `tests/Tabletop.GameServer.Tests` with `ScriptedDice`; each option also gets a suite game
-(`sim/Suite/SuiteCatalog.Core.*.cs`) run under the option.
+Rules tests are in `tests/Tabletop.GameServer.Tests` with `ScriptedDice`; each option value that is not the default
+also gets a suite game (`sim/Suite/SuiteCatalog.Core.Options.cs`) run under it: `core-perimeter-sight`,
+`core-hybrid-sight`, `core-melee-no-separation`.
 
 | Option | Touch points | Tests |
 | --- | --- | --- |
-| Configuration | `GfOptions.Of`, `GfOptions.Problems`; `GrimdarkFutureRules.OptionCatalog`/`OptionProblems`; `GameSession.Lobby.cs`; `PostgresGameRows` read and `SetConfigurationAsync`; `GameRepository`; migration `010` | `GfOptionsTests`: `{}` reads `GfOptions.Core`; every key and value round-trips; an unknown key or value is a problem. `LobbyTests`: an unknown option is refused `Unknown` and writes no row; a valid one is in the next `GameInfoMessage`; a `SetConfiguration` once `playing` is refused `WrongStatus`. `GameRowsReadTests` and management's `GameTests`: the map round-trips, a new game reads `{}` |
+| Configuration | `GfOptions.Of`, `GfOptions.Problems`; `GrimdarkFutureRules.OptionCatalog`/`OptionProblems`; `GameSession.Lobby.cs`; `PostgresGameRows` read and `SetConfigurationAsync`; `GameRepository`; migration `010` | `GfOptionsTests`: `{}` reads `GfOptions.Core`; every key and value round-trips; an unknown key or value is a problem. `LobbyTests`: an unknown option is refused `Unknown` and writes no row; a valid one is in the next `GameInfoMessage`; a `SetConfiguration` once `playing` is refused `WrongStatus`. `GameRowsContract` and management's `RepositoryContract.Games`: the map round-trips and is replaced whole, a new game reads `{}` |
 | Unit sight blocking `perimeter` (p.5, p.11) | `GfSight` (new, `ISightPolicy`): `Blockers` builds the hull volume; `Bodies.AsBlockingVolume` unchanged; `Sight.From`, `Sight.Ignored`; `SightBlockers.Check`/`Measure` ignore set | `GfSightOptionsTests`: a line through the gap between two models of a third unit is clear under `per_model`, blocked under `perimeter`, `BlockedBy` the unit id; the target's own models block a line to its rear model under both (owner ruling); the observer's own unit never blocks (p.5); a model behind a third unit's gap is behind a sight blocker for p.11 cover only under `perimeter` |
 | Line of sight method `hybrid_true` (p.56) | `GfSight.SeesThrough`: `GfSight.SizeClass` from `GfNames.Tough` and `GfNames.Hero`, elevation from `Bodies.Bottom` | `GfSightOptionsTests`: `SizeClass` gives the table above; a Tough(12) model sees a Tough(1) target past a Tough(1) unit; a Tough(1) model does not; a Tough(6) unit blocks a Tough(6) observer's line to a Tough(1) target but not to a Tough(15) target; a model on a 2" ruin sees past a unit on the ground; the same unit gives the target no cover for that observer; `core` blocks every one of these |
-| Melee separation `off` (p.10) | `GfMelee.ConsolidateStep`: no `FallBack` move when neither unit is destroyed; `GfMoves.ContactBreach`: no `move_separation` against a unit the mover is in contact with (within p.7's 1") when its move starts; `GfMelee.ChargeTargets` keeps offering a unit already in contact | `GfMeleeTests`: with both units alive the charger stays in contact and the consolidation step proposes no move; `on` keeps the 1" move back. `GfMovesTests`: a unit in contact moves away and back into contact without a `move_separation` breach; a charge at a unit it touches is offered |
+| Melee separation `off` (p.10) | `GfMelee.ConsolidateStep`: no `FallBack` move when neither unit is destroyed; `GfMoves.ContactBreach`: no `move_separation` against a unit the mover is in contact with (within p.7's 1") when its move starts; `GfMelee.ChargeTargets` keeps offering a unit already in contact | `GfMeleeSeparationTests`: with both units alive the charger stays in contact and the consolidation step proposes no move; `on` keeps the 1" move back; a unit in contact lands within 1" of that enemy without a `move_separation` breach, and with one against a unit it was not in contact with; a charge at a unit it touches is offered |
 
 The p.10 option's breaches stay under the one enforcement setting: with `melee_separation` `on`, `move_separation` is
 judged as today.
