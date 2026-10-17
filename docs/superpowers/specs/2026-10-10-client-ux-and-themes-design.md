@@ -65,43 +65,15 @@ The *This round* tab goes; its content is the combat log's *This unit* filter.
 
 ## Combat log
 
-`CombatLog` (Core) turns the effective log into entries. `LogText` keeps the one-line wording for every event that is
-not a roll.
+The combat log's lines are settled by 2026-10-13-combat-log-design.md. What stands here:
 
-**Roll entry.** One per `RollRecord` in a `StepCompleted`. The frame's `SequenceContext` (from its `SequenceStarted`)
-names the actor, the targets and the weapons; `Names` gives their words, and a weapon id resolves to its snapshot name.
-Collapsed:
-
-```
-Assault Squad → Orc Boyz · Rifles · Hit 5+ · ⚂ ⚄ ⚅ ⚅ ⚀ · 3 hits
-```
-
-Expanded:
-
-- The target number's basis (*Target number basis*): `Quality 4+`, each change with its source, the result.
-- Each roll modifier: `+1 cover`, `-1 AP`, `+1 player`, from `RollRecord.Modifiers`.
-- Each die: raw face, modified result when it differs, pass or fail; a die judged on its raw face (`RequiredRaw`) is
-  marked as such.
-- Rerolls (`DiceRerolled`) and hand edits (`DiceEdited`) attach to the roll they name by `RollId`, each listing the
-  faces it replaced. A player's `ModifierAdded` is its own line (`LogText`); a `player` modifier on a record shows with
-  that roll's modifiers.
-- `StepCompleted.Applied`: the rules that acted in the step, as chips with hover text.
-
-A roll's result word is the server's roll name and the count of successes (`3 hits`, `2 defenses`), or `passed` /
-`failed` for one die; the client maps no roll name to other words, since that would name a rule.
-
-**Activation block.** Entries from a `SequenceStarted` with `Context.Action` set through its `SequenceFinished` or
-`SequenceAbandoned` group under one header: `Round 2 · Team 1 · Assault Squad · Advance`. A collapsed block shows a
-chain summary of its rolls and changes in order, e.g. `Hit 3 → Defense 2 → 2 models removed → Morale passed`,
-built from the roll entries and the `StateChange`s (wounds, models to the shelf, conditions set). Events outside any
-action frame (round start, deployment, hand moves, edits) are single lines between blocks.
-
-**Filters:** All, Rolls, My units, This unit (the unit on the card: blocks where it is the actor or a target).
-
-**Kept from `LogPanel`:** undo to here, undone events struck through, click an entry to highlight what it touched
-(`LogText.Touched`), the reroll and edit actions on a roll. The Animate toggle moves to Settings.
-
-The drawer opens wider (640 px) and remembers its filter and open state in `ClientSettings`.
+- A block folds on a click to its header and a chain summary of its rolls and changes in order (`Hit 3 → 2 models removed →
+  Morale failed → Shaken`).
+- **Filters:** All, Rolls, My units, This unit (the unit on the card: blocks where it is the actor or a target).
+- **Kept from `LogPanel`:** undo to here, undone events struck through, click an entry to highlight what it touched
+  (`LogText.Touched`), the reroll and edit actions on a roll. The Animate toggle moves to Settings.
+- The drawer opens 640 px wide and remembers its filter and open state in `ClientSettings`.
+- The dice tray (*Dice tray*) shows the latest roll as the combat log's roll line; Undo (*Undo*) is its own button.
 
 ## Target number basis
 
