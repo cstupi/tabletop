@@ -226,7 +226,7 @@ public abstract class GameRowsContract
     {
         var seeded = await Seeder.SeedGameAsync(GameStatus.Lobby, rngSeed: 42);
         var hash = await Seeder.SeedPropertiesAsync();
-        await Rows.SetConfigurationAsync(seeded.GameId, new SetConfiguration("Saturday", hash, SchedulerShape.PlayerTurn, Enforcement.Strict, true), Ct);
+        await Rows.SetConfigurationAsync(seeded.GameId, new SetConfiguration("Saturday", hash, SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string> { ["line_of_sight"] = "hybrid_true" }), Ct);
         var game = (await Rows.ReadGameAsync(seeded.GameId, Ct))!;
         Assert.Equal(("Saturday", hash, "grimdark-future", SchedulerShape.PlayerTurn, Enforcement.Strict, true, 42L, GameStatus.Lobby),
             (game.Name, game.PropertiesHash, game.GameRules, game.SchedulerShape, game.Enforcement, game.WaitsBetweenSteps, game.RngSeed, game.Status));

@@ -52,10 +52,10 @@ public class LobbyTests
     public async Task Configuration_changes_need_a_known_properties_hash()
     {
         var (f, g, creator, other) = await LobbyAsync();
-        await other.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true)));
+        await other.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
         var info = (await creator.ExpectAsync<GameInfoMessage>()).Game;
         Assert.Equal(("Saturday", SchedulerShape.PlayerTurn, Enforcement.Strict, true), (info.Name, info.SchedulerShape, info.Enforcement, info.WaitsBetweenSteps));
-        await other.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true)));
+        await other.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
         Assert.Equal(RefusalReason.Unknown, (await other.ExpectAsync<Refused>()).Reason);
     }
 
