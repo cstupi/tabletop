@@ -5,6 +5,17 @@ public static class Distance
 {
     public static double EdgeToEdge(PlacedModel a, PlacedModel b) => Outline.Separation(a.BaseOutline(), b.BaseOutline()).Distance;
 
+    /// <summary>
+    /// Between the two bodies (each base outline extruded from its settled height to its top), in three dimensions: the horizontal edge-to-edge
+    /// distance and the gap between their height intervals, combined. Equal to <see cref="EdgeToEdge(PlacedModel, PlacedModel)"/> when the heights overlap.
+    /// </summary>
+    public static double BodyToBody(PlacedModel a, PlacedModel b)
+    {
+        var across = EdgeToEdge(a, b);
+        var up = Math.Max(0, Math.Max(a.Bottom(), b.Bottom()) - Math.Min(a.Top(), b.Top()));
+        return Math.Sqrt(across * across + up * up);
+    }
+
     public static double EdgeToEdge(PlacedModel a, Point2 point) => a.BaseOutline().DistanceTo(point);
 
     /// <summary>Base edge to a placed volume's footprint edge.</summary>

@@ -9,10 +9,11 @@ public static partial class GfMoves
     /// <summary>
     /// p.7's contact clauses for a move answer, read as the steps apply it and judged at the rested landing. "Or be placed in physically
     /// impossible locations": move_overlap, a landing on any other model's base, the moving unit's own landings included. "May never move
-    /// through other models or units (friendly or enemy), even if they are taking a Charge action": move_through_models, the base's true outline swept
-    /// from its start across a model the answer does not move, less one it already overlaps (Collision.Crosses); not for a region that PassesModels (p.13 Flying,
-    /// Aircraft). "May never be within 1” of models from other units, unless they are taking a Charge action": move_separation, the region's
-    /// Separation, which a Charge's regions leave null.
+    /// through other models or units (friendly or enemy), even if they are taking a Charge action": move_through_models, the body swept from its
+    /// start, rested on the terrain at each sample, across a model the answer does not move, less one it already overlaps (Collision.Crosses); not for a
+    /// region that PassesModels (p.13 Flying, Aircraft). "May never be within 1” of models from other units, unless they are taking a Charge action":
+    /// move_separation, the region's Separation between the bodies (Distance.BodyToBody), which a Charge's regions leave null. Owner ruling: movement
+    /// takes elevation into account, so all three are judged in three dimensions and a model can cross above a model on a lower level.
     /// </summary>
     public static AnswerBreachFound? ContactBreach(GameState state, MoveRegion region, Destinations answer) =>
         Contact(state, GfAnswers.Moves(state, region, answer), region.Separation, region.PassesModels);
@@ -28,6 +29,7 @@ public static partial class GfMoves
         var landed = moves.ToDictionary(m => m.ModelId, m => Battlefield.At(state, m.ModelId, Battlefield.Settle(state, m.ModelId, ((OnTable)m.To).Placement)));
         var standing = p.Models.Values.Where(x => !moving.Contains(x.Id) && x.Location is OnTable)
             .Select(x => (x.Id, x.UnitId, At: Battlefield.Placed(state, x.Id)!.Value)).ToList();
+        var terrain = Battlefield.Terrain(state);
         var everyone = standing.Concat(landed.Select(kv => (Id: kv.Key, p.Models[kv.Key].UnitId, At: kv.Value))).ToList();
         foreach (var m in moves.Where(m => p.Models[m.ModelId].Location is not OnTable f
                      || f.Placement.Position.Horizontal.DistanceTo(landed[m.ModelId].Placement.Position.Horizontal) > 1e-6))
@@ -35,9 +37,9 @@ public static partial class GfMoves
             var (name, unit, at) = (p.Models[m.ModelId].Slot.Name, p.Models[m.ModelId].UnitId, landed[m.ModelId]);
             if (everyone.Any(o => o.Id != m.ModelId && Overlap.Bases(at, o.At)))
                 return new(GfNames.MoveOverlapRule, $"{name} would be placed on another model's base: models may never be placed in physically impossible locations (p.7)");
-            if (!passesModels && Battlefield.Placed(state, m.ModelId) is { } start && Collision.Crosses(start, at.Placement.Position.Horizontal, standing.Select(o => o.At).ToList()))
+            if (!passesModels && Battlefield.Placed(state, m.ModelId) is { } start && Collision.Crosses(start, at.Placement.Position.Horizontal, standing.Select(o => o.At).ToList(), terrain))
                 return new(GfNames.MoveThroughModelsRule, $"{name} would move through another model: models may never move through other models or units (p.7)");
-            if (separation is { } gap && everyone.Any(o => o.UnitId != unit && Distance.EdgeToEdge(at, o.At) < gap - 1e-6))
+            if (separation is { } gap && everyone.Any(o => o.UnitId != unit && Distance.BodyToBody(at, o.At) < gap - 1e-6))
                 return new(GfNames.MoveSeparationRule, $"{name} would end within {gap:0.#}\" of another unit's model: models may never be within 1\" of models from other units (p.7)");
         }
         return null;

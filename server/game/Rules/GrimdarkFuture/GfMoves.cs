@@ -424,13 +424,18 @@ public static partial class GfMoves
             var models = holders.Count > 0 ? holders : Lookup.AliveModels(ctx.State, unit).ToList();   // held by a grant: the whole unit
             if (ctx.History.LastClosed("move") is not { } placed)
                 return new OpenAsks([ctx.Ask("move", $"{entry}: place anywhere fully within {distance:0.#}\"", ctx.ActorTeam!.Value,
-                    new MoveRegion(models, distance, [], [], null, Separation: GfNames.Separation, PassesModels: true), allowPass: true)]);   // a placement has no path; its landing is still judged by move_overlap and move_separation
+                    PlacementRegion(models, distance, IsAircraft(ctx, unit)), allowPass: true)]);
             var changes = ApplyPlacement(ctx, unit, distance, models, GfAnswers.Moves(ctx.State, placed)).ToList();
             if (changes.Count == 0) return new Complete([]);
             live.Read(source);
             changes.AddRange(RollEffects.Consume(live));
             return new Complete(changes);
         }
+
+        /// <summary>A placement has no path (PassesModels); its landing is judged by move_overlap, by move_separation and against impassable terrain,
+        /// except an Aircraft's, p.13: "Aircraft ignore all units and terrain when moving and stopping".</summary>
+        internal static MoveRegion PlacementRegion(IReadOnlyList<Guid> models, double distance, bool aircraft) =>
+            new(models, distance, [], [], null, Separation: aircraft ? null : GfNames.Separation, PassesModels: true, IgnoresTerrain: aircraft);
 
         /// <summary>The first move or place row of the rule whose conditions other than at_point and usage_count hold.</summary>
         internal static (LiveProperty Source, Effect Row)? Offered(LiveSet live, string entry) =>
@@ -449,11 +454,12 @@ public static partial class GfMoves
     }
 
     /// <summary>A placement (army-rule hooks → A placement): each listed model's landing, settled on the surface, is at most `distance` from where it
-    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it). Terrain and models between are not swept. A landing that fails stays where it was. Under strict,
+    /// stood and its base touches no impassable volume (LandsInImpassable, as PathBreach judges it), unless the unit is an Aircraft (p.13 "Aircraft ignore
+    /// all units and terrain when moving and stopping"). Terrain and models between are not swept. A landing that fails stays where it was. Under strict,
     /// dispatch also refuses a landing off the table (PathBreach, p.7); p.7's contact clauses are ContactBreach's, as for every move.</summary>
     public static IReadOnlyList<StateChange> ApplyPlacement(StepContext ctx, Guid unit, double distance, IReadOnlyList<Guid> models, IReadOnlyList<ModelRelocation> proposed)
     {
-        var impassable = Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);
+        IReadOnlyList<WorldVolume> impassable = IsAircraft(ctx, unit) ? [] : Declared(Battlefield.Terrain(ctx.State), TerrainDeclarations.Impassable);
         var moves = new List<ModelRelocation>();
         foreach (var m in proposed.Where(m => models.Contains(m.ModelId) && m.To is OnTable && ctx.Projection.Models[m.ModelId].Location is OnTable))
         {

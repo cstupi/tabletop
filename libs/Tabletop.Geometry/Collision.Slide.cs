@@ -10,7 +10,7 @@ public static partial class Collision
     {
         var from = moving.Placement.Position.Horizontal;
         Outline[] shape = [moving.BaseOutline()];
-        var bodies = models.Select(m => (Body: m, Outline: m.BaseOutline())).Where(b => !Outline.InteriorsIntersect(shape[0], b.Outline)).ToList();
+        var bodies = models.Where(m => !Overlap.Bases(moving, m)).Select(m => (Body: m, Outline: m.BaseOutline())).ToList();
         var sides = Sides(walls, shape);
         Outline? Obstacle(IReadOnlyList<Outline> at)
         {

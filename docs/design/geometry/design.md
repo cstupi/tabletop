@@ -346,16 +346,24 @@ a physics query, and names no rule: what a body may climb, and what it may not c
   footprints, its own volumes and every Area ignored. `RestHeight(Point2, volumes)` rests a marker, boundary inclusive.
 - `Slide(PlacedModel, to, models, walls, volumes)` moves the base from its placement toward `to`, sampled every `Step` (0.1")
   and bisected to contact, so a 0.5" wall cannot be stepped over. It stops at the first contact with a wall's footprint or a
-  model's base, slides once along the contact tangent, and returns the landing with its `RestHeight`. **The caller names the
+  model's body, slides once along the contact tangent, and returns the landing with its `RestHeight`. **The caller names the
   walls**: during a move Ask the Ask's `ImpassableVolumeIds`, otherwise every Solid declared `Impassable`; every other Solid is
-  climbed. A body that starts inside a wall or on another base can leave it. `Slide(piece, to, walls, volumes)` does the same
+  climbed. A body that starts inside a wall or inside another model's body can leave it. `Slide(piece, to, walls, volumes)` does the same
   for a terrain piece and returns its `TerrainTransform`.
+- **Model against model is three-dimensional.** A model's body is its base outline extruded from its settled Z by its height
+  (`ModelBody.Height`; the import writes 1.5 × the base's larger dimension). The moving body is rested at each sample on what is
+  under it (`RestHeight`), and meets another model only where the outlines share area in plan *and* the height intervals
+  overlap, so a base passing above or below another model does not meet it. `Slide`, `Crosses`, `Movement.Region` and
+  `Overlap.Bases` all read it this way, and each leaves out a model whose body the mover already overlaps at the start.
 - `Separate(held, stationary, walls, volumes)` slides each held body in drag order against the stationary models and the held
   bodies already placed.
-- `Crosses(PlacedModel, to, models)` is the 2D swept-base test against true base outlines (models overlapped at the start
-  excluded; touching is not crossing). The server's `move_through_models` and the sim's `Clear` use it. `Bodies.AsBlockingVolume`
-  remains the line-of-sight body only.
-- `Movement.Region(…, models)` leaves out the sectors a model's base blocks, so the drawn boundary stops at the other models.
+- `Crosses(PlacedModel, to, models, volumes)` is the swept-body test against true base outlines and heights, the mover rested on
+  `volumes` at each sample (touching is not crossing). The server's `move_through_models` and the sim's `Clear` use it.
+  `Bodies.AsBlockingVolume` remains the line-of-sight body only.
+- `Distance.BodyToBody(a, b)` is the shortest distance between the two bodies: the horizontal edge-to-edge distance and the gap
+  between their height intervals, combined. The server's `move_separation` and the sim's `Clear` use it.
+- `Movement.Region(…, models, surfaces)` leaves out the sectors where the base's body meets another model's, the mover rested
+  on `surfaces`, so the drawn boundary stops at the other models on its level.
 
 **"What it is resting on" is not stored.** The table domain model listed it as part of a
 placement; geometry values does not carry it: `RestHeight` re-derives it on demand, and terrain is locked
@@ -861,11 +869,11 @@ plan.
 | `Polygon` | `bool Contains(Point2)`, implemented. Boundary inclusive, any vertex order, concave allowed |
 | `static class Bodies` *added* | `const int OvalVertices = 64`; ext. `double Bottom(this PlacedModel)`, `double Top(this PlacedModel)`, `Point3 Eye(this PlacedModel)`; `WorldVolume AsBlockingVolume(Guid id, PlacedModel)` |
 | `static class WorldVolumes` *added* | ext. `double WorldBottom(this WorldVolume)`, `double WorldTop(this WorldVolume)`, `Point2 WorldCentre(this WorldVolume)`, `Yaw WorldYaw(this WorldVolume)` |
-| `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)`; *added:* `double EdgeToEdge(PlacedModel, WorldVolume)`, `double EdgeToMarker(PlacedModel, Point2 centre, double diameter)`, `(Point3 OnA, Point3 OnB) ClosestPoints(PlacedModel, PlacedModel)`, `bool InRange(PlacedModel, PlacedModel, double range)`, `double Vertical(PlacedModel, PlacedModel)` |
+| `static class Distance` | `double EdgeToEdge(PlacedModel, PlacedModel)`, `double EdgeToEdge(PlacedModel, Point2)`; *added:* `double EdgeToEdge(PlacedModel, WorldVolume)`, `double EdgeToMarker(PlacedModel, Point2 centre, double diameter)`, `(Point3 OnA, Point3 OnB) ClosestPoints(PlacedModel, PlacedModel)`, `bool InRange(PlacedModel, PlacedModel, double range)`, `double Vertical(PlacedModel, PlacedModel)`, `double BodyToBody(PlacedModel, PlacedModel)` |
 | `sealed record LineOfSightResult(bool Clear, IRL<Guid> ObstructedBy)` | unchanged |
 | `static class LineOfSight` | `LineOfSightResult Check(PlacedModel from, PlacedModel to, IRL<WorldVolume>)`; *added:* `IRL<bool> VisibleModels(IRL<PlacedModel> observers, IRL<PlacedModel> unit, IRL<WorldVolume>)`, `const int RimSamples = 8` |
 | `static class Cover` *added* | `IRL<Guid> InsideCoverVolumes(PlacedModel, IRL<WorldVolume>)`, `IRL<Guid> SightBlockersBetween(PlacedModel from, PlacedModel to, IRL<WorldVolume>)` |
-| `static partial class Collision` | `double RestHeight(PlacedModel, IRL<WorldVolume>)`, `RestHeight(IRL<WorldVolume> piece, IRL<WorldVolume>)`, `RestHeight(Point2, IRL<WorldVolume>)`; `Point3 Slide(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume> walls, IRL<WorldVolume>)`, `TerrainTransform Slide(IRL<WorldVolume> piece, Point2, walls, volumes)`, `IRL<Point3> Separate(...)`, `bool Crosses(PlacedModel, Point2, IRL<PlacedModel>)`, `const double Step = 0.1` |
+| `static partial class Collision` | `double RestHeight(PlacedModel, IRL<WorldVolume>)`, `RestHeight(IRL<WorldVolume> piece, IRL<WorldVolume>)`, `RestHeight(Point2, IRL<WorldVolume>)`; `Point3 Slide(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume> walls, IRL<WorldVolume>)`, `TerrainTransform Slide(IRL<WorldVolume> piece, Point2, walls, volumes)`, `IRL<Point3> Separate(...)`, `bool Crosses(PlacedModel, Point2, IRL<PlacedModel>, IRL<WorldVolume>)`, `const double Step = 0.1` |
 | `static class Containment` | `IRL<Guid> VolumesContaining(PlacedModel, IRL<WorldVolume>)`; *added:* `IRL<Guid> VolumesFullyContaining(PlacedModel, IRL<WorldVolume>)`, `bool BaseFullyWithin(PlacedModel model, PlacedModel container, double inches)` |
 | `static class Overlap` | `bool Bases(PlacedModel, PlacedModel)`, `bool WithSolid(PlacedModel, WorldVolume)` |
 | `sealed record CoherencyResult(bool Coherent, IRL<int> OutOfCoherency)` *added* | indices into the input |
@@ -874,7 +882,7 @@ plan.
 | `Footprint` | *added:* `bool IsValid(double scale)` |
 | `sealed record MovementRegion(Point2 Origin, double Allowance, bool CappedByDifficultTerrain, IRL<Point2> Boundary)` *added* | |
 | `sealed record MoveCheck(double Distance, double EffectiveAllowance, bool WithinAllowance, bool CrossesImpassable, bool EntersDifficult, bool LeavesTable)` *added* | |
-| `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)` |
+| `static class Movement` *added* | `const int Rays = 180`, `const double Step = 0.25`; `MovementRegion Region(PlacedModel start, double allowance, IRL<WorldVolume> impassable, IRL<WorldVolume> difficult, double? difficultCap, TableSize? table, IRL<PlacedModel>? models = null, IRL<WorldVolume>? surfaces = null)`; `MoveCheck Check(PlacedModel start, Point2 destination, …same parameters…)`; `IRL<Guid> VolumesCrossed(PlacedModel start, Point2 destination, IRL<WorldVolume>)` |
 | `static class ZoneStyles` *added* | `Frontline`, `GroundWar`, `SideBattle`, `Disordered`, `Spearhead`, `OpposingForces`, `FreeForAll`; `IRL<string> All`; `IRL<string> ShapesOf(string style)`; `IRL<Polygon> Resolve(string shapeId, TableSize)`; `bool Contains(string shapeId, TableSize, Point2)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel)`; `bool BaseFullyWithin(string shapeId, TableSize, PlacedModel, double inches)` |
 
 Internal, and visible to the test project only: `Tolerance.Distance`, `Outline`,
@@ -1007,8 +1015,10 @@ ordinals that may have no team yet (the whole-design review's ruling 5). A team 
 
 The server judges a move answer at its rested landing (`GfMoves.ContactBreach`): `Overlap.Bases`
 against every other model is `move_overlap`, `Collision.Crosses` against the models the answer
-does not move is `move_through_models`, and `Distance.EdgeToEdge` under the region's `Separation`
-is `move_separation`. It warns under `warn` and refuses only under `strict`. Every placement the
+does not move is `move_through_models`, and `Distance.BodyToBody` under the region's `Separation`
+is `move_separation`, all three in three dimensions (owner ruling: movement takes elevation into
+account), so a model crossing above a model on a lower level neither moves through it nor, 1" or
+more above it, comes within 1" of it. It warns under `warn` and refuses only under `strict`. Every placement the
 server appends is rested (`Battlefield.Settle` → `Collision.RestHeight`), so no stored model is
 inside a Solid and `Overlap.WithSolid` has no production caller; crossing or landing on an
 Impassable volume is `move_impassable` (`GfMoves.PathBreach`). Coherency is not judged:

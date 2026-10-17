@@ -70,12 +70,12 @@ public static class MoveRuler
             .Where(r => r.ModelId == modelId && r.From is OnTable && r.To is OnTable)
             .Sum(r => ((OnTable)r.From).Placement.Position.Horizontal.DistanceTo(((OnTable)r.To).Placement.Position.Horizontal));
 
-    /// <summary>The reachable region: Movement.Region from the Ask's parameters — the allowance, the impassable and difficult volumes resolved by id from the board, and the cap GameRules computed. One frame, no conversion.</summary>
+    /// <summary>The reachable region: Movement.Region from the Ask's parameters — the allowance, the impassable and difficult volumes resolved by id from the board, and the cap GameRules computed; the other models stop it where the bodies meet in plan and height, the mover rested on the board's volumes. One frame, no conversion.</summary>
     public static IReadOnlyList<Point2> Region(PlacedModel start, MoveRegion legal, IReadOnlyList<WorldVolume> volumes, TableSize size, IReadOnlyList<PlacedModel>? others = null)
     {
         var impassable = volumes.Where(v => legal.ImpassableVolumeIds.Contains(v.Id)).ToList();
         var difficult = volumes.Where(v => legal.DifficultVolumeIds.Contains(v.Id)).ToList();
-        return Movement.Region(start, legal.Allowance, impassable, difficult, legal.DifficultCap, size, legal.PassesModels ? null : others).Boundary;
+        return Movement.Region(start, legal.Allowance, impassable, difficult, legal.DifficultCap, size, legal.PassesModels ? null : others, volumes).Boundary;
     }
 
     /// <summary>The unit is inside a container, so this move is a disembark and <see cref="Region"/> cannot serve it: there is no start placement to sweep from and Allowance binds nothing (contracts plan Task 8).</summary>

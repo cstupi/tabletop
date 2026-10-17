@@ -42,6 +42,15 @@ public class SlideTests
     }
 
     [Fact]
+    public void A_model_it_starts_under_blocks_once_it_climbs_to_it()
+    {
+        var step = Fx.Box(11.5, 3, 17, 10, 0, 4);                                            // x 3..20, top 4
+        var above = Fx.Model(1.5, 3, z: 4);                                                  // x 0.87..2.13, z 4..5.5, over the mover's start
+        var end = Collision.Slide(Fx.Model(1, 3), new(6, 3), [above], [], [step]);
+        Assert.True(end.X < 2.5, $"stopped at {end}");                                       // climbing the step at x 2.37 meets it
+    }
+
+    [Fact]
     public void A_terrain_piece_slides_and_rests()
     {
         var wood = Fx.Cylinder(2, 30, 3, 0, 6, VolumeKind.Area);
