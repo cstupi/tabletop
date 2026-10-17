@@ -21,7 +21,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
     {
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb, name));
         if (created!.UploadUrl is not null)
-            using (var http = new HttpClient()) Assert.True((await http.PutAsync(created.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } })).IsSuccessStatusCode);
+            using (var http = _f.Blobs.Client()) Assert.True((await http.PutAsync(created.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } })).IsSuccessStatusCode);
         var confirmed = await c.PostJson<ConfirmResponse>($"/v1/assets/{created.Asset.Id}/confirm", new { });
         return confirmed!.Asset;
     }
@@ -34,11 +34,11 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(glb));
         Assert.NotNull(created!.UploadUrl); Assert.False(created.Asset.Uploaded);
         Assert.Equal(HttpStatusCode.Conflict, (await c.GetAsync($"/v1/assets/{created.Asset.Id}/download")).StatusCode);
-        using (var http = new HttpClient()) await http.PutAsync(created.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(created.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         var confirmed = await c.PostJson<ConfirmResponse>($"/v1/assets/{created.Asset.Id}/confirm", new { });
         Assert.Equal(12, confirmed!.Triangles); Assert.Null(confirmed.Warning); Assert.True(confirmed.Asset.Uploaded);
         var dl = await c.GetJson<DownloadResponse>($"/v1/assets/{created.Asset.Id}/download");
-        using var http2 = new HttpClient();
+        using var http2 = _f.Blobs.Client();
         Assert.Equal(glb, await http2.GetByteArrayAsync(dl!.Url));
     }
 
@@ -65,10 +65,10 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var stl = "solid cube\nendsolid cube\n"u8.ToArray();
         var req = Mini(stl) with { Name = "not a glb" };
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
-        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(stl) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(stl) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
         var dense = await c.PostJson<CreateAssetResponse>("/v1/assets", Mini(TestGlb.Build((300_003, null, true)), "dense"));
-        using (var http = new HttpClient()) await http.PutAsync(dense!.UploadUrl, new ByteArrayContent(TestGlb.Build((300_003, null, true))) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(dense!.UploadUrl, new ByteArrayContent(TestGlb.Build((300_003, null, true))) { Headers = { ContentType = new("model/gltf-binary") } });
         var confirmed = await c.PostJson<ConfirmResponse>($"/v1/assets/{dense.Asset.Id}/confirm", new { });
         Assert.Equal(100_001, confirmed!.Triangles); Assert.Contains("100,000", confirmed.Warning); Assert.True(confirmed.Asset.Uploaded);
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await c.PostAsJsonAsync("/v1/assets", Mini(stl) with { ContentType = "model/stl" }, ContentJson.Options)).StatusCode);
@@ -82,7 +82,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var glb = TestGlb.BuildRaw(0x004E4942, "not json"u8.ToArray());   // "BIN\0" where "JSON" belongs
         var req = Mini(glb) with { Name = "not json chunk" };
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
-        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
         var store = _f.Services.GetRequiredService<IBlobStore>();
         Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
@@ -96,7 +96,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var glb = TestGlb.BuildRaw(0x4E4F534A, "{ not valid json"u8.ToArray());
         var req = Mini(glb) with { Name = "malformed json" };
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
-        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
         var store = _f.Services.GetRequiredService<IBlobStore>();
         Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));
@@ -110,7 +110,7 @@ public class AssetTests : IClassFixture<ManagementFactory>
         var glb = TestGlb.Build((3, null, true));
         var req = Mini(glb) with { ByteSize = glb.Length + 1 };
         var created = await c.PostJson<CreateAssetResponse>("/v1/assets", req);
-        using (var http = new HttpClient()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
+        using (var http = _f.Blobs.Client()) await http.PutAsync(created!.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new("model/gltf-binary") } });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await c.PostAsync($"/v1/assets/{created.Asset.Id}/confirm", null)).StatusCode);
         var store = _f.Services.GetRequiredService<IBlobStore>();
         Assert.Null(await store.Size(IBlobStore.Key(owner, req.Hash)));

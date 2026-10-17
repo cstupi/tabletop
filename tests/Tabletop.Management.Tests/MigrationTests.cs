@@ -3,15 +3,16 @@ using Npgsql;
 
 namespace Tabletop.Management.Tests;
 
-public class MigrationTests : IClassFixture<ManagementFactory>
+[Trait("Category", "E2E")]
+public class MigrationTests : IClassFixture<TestDatabase>
 {
-    private readonly ManagementFactory _f;
-    public MigrationTests(ManagementFactory f) { _f = f; _f.CreateClient(); }
+    private readonly TestDatabase _db;
+    public MigrationTests(TestDatabase db) => _db = db;
 
     [Fact]
     public async Task Schema_has_every_table_the_upload_columns_and_the_starter_column()
     {
-        await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
+        await using var c = new NpgsqlConnection(_db.ConnectionString);
         var tables = await c.ExecuteScalarAsync<int>("select count(*) from information_schema.tables where table_schema in ('management','game')");
         Assert.Equal(35, tables);
         var cols = (await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='blob'")).ToList();
@@ -27,5 +28,5 @@ public class MigrationTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
-    public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_f.Database.ConnectionString);
+    public void Running_the_migrator_twice_is_a_no_op() => Persistence.Migrator.Run(_db.ConnectionString);
 }

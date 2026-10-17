@@ -1,9 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 using Tabletop.Management.Identity;
-using Tabletop.Management.Persistence;
 
 namespace Tabletop.Management.Tests;
 
@@ -138,12 +136,7 @@ public class AuthTests : IClassFixture<ManagementFactory>
     public async Task A_failed_link_leaves_no_orphaned_account_and_self_heals_next_login()
     {
         var c = _f.CreateClient();
-        var db = _f.Services.GetRequiredService<Database>();
-        async Task<long> AccountCount()
-        {
-            await using var conn = await db.Open();
-            return await conn.ExecuteScalarAsync<long>("select count(*) from account");
-        }
+        Task<long> AccountCount() { lock (_f.Rows.Gate) return Task.FromResult((long)_f.Rows.Accounts.Count); }
 
         var before = await AccountCount();
         var sent = await (await c.PostAsJsonAsync("/v1/auth/otp", new { email = "orphan@example.com" })).Content.ReadFromJsonAsync<OtpSentResponse>();

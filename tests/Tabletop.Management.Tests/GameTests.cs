@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Dapper;
-using Npgsql;
 using Tabletop.Management.Games;
 using Tabletop.Management.Http;
 using Tabletop.Protocol;
@@ -14,23 +12,18 @@ public class GameTests : IClassFixture<ManagementFactory>
     public GameTests(ManagementFactory f) => _f = f;
     const string Hash = "sha256:test-properties";
 
-    async Task Seed()
+    Task Seed()
     {
-        await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
-        await c.ExecuteAsync("insert into management.properties (content_hash, name, game_rules) values (@Hash, 'Grimdark Future core', 'grimdark-future') on conflict do nothing", new { Hash });
+        lock (_f.Rows.Gate) if (!_f.Rows.Properties.ContainsKey(Hash)) _f.Rows.SeedProperties(Hash, "Grimdark Future core", "grimdark-future");
+        return Task.CompletedTask;
     }
     static CreateGameRequest Friday() => new("Friday", Hash, SchedulerShape.AlternatingActivation, Enforcement.Warn, false);
 
     [Fact]
     public async Task Properties_lists_one_set_per_name_the_most_recently_seeded()
     {
-        await using var db = new NpgsqlConnection(_f.Database.ConnectionString);
-        await db.ExecuteAsync("""
-            insert into management.properties (content_hash, name, game_rules, seeded_at) values
-                ('sha256:test-old', 'GF listing', 'grimdark-future', now() - interval '1 day'),
-                ('sha256:test-new', 'GF listing', 'grimdark-future', now())
-            on conflict do nothing
-            """);
+        _f.Rows.SeedProperties("sha256:test-old", "GF listing", "grimdark-future", DateTimeOffset.UtcNow.AddDays(-1));
+        _f.Rows.SeedProperties("sha256:test-new", "GF listing", "grimdark-future", DateTimeOffset.UtcNow);
         var c = await _f.AuthenticatedClient(Guid.CreateVersion7(), "Clay");
         var listed = (await c.GetJson<List<PropertiesSummary>>("/v1/properties")).Where(p => p.Name == "GF listing").ToList();
         Assert.Equal([new PropertiesSummary("sha256:test-new", "GF listing", "grimdark-future")], listed);
@@ -75,11 +68,10 @@ public class GameTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.NotFound, (await b.PostAsync($"/v1/games/{game.Id}/end", null)).StatusCode);  // same rule on both routes
         Assert.Equal(HttpStatusCode.NoContent, (await b.PostAsync($"/v1/games/{game.Id}/leave", null)).StatusCode);
         Assert.Equal(GameStatus.Ended, (await a.GetJson<GameInfo>($"/v1/games/{game.Id}")).Status);
-        await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
-        await c.ExecuteAsync("insert into game.game_event (game_id, seq, kind, payload) values (@id, 1, 'turn_started', '{}')", new { id = game.Id });
+        _f.Rows.SeedGameEvent(game.Id, 1);
         var again = await b.PostJson<GameInfo>($"/v1/games/{game.Id}/join", new { });
         Assert.Equal(HttpStatusCode.NoContent, (await a.DeleteAsync($"/v1/games/{game.Id}")).StatusCode);         // the creator, who left, still may
-        Assert.Equal(0, await c.ExecuteScalarAsync<int>("select count(*) from game.game_event where game_id = @id", new { id = game.Id }));
+        lock (_f.Rows.Gate) Assert.DoesNotContain(_f.Rows.GameEvents, e => e.GameId == game.Id);
         Assert.Equal(HttpStatusCode.NotFound, (await b.GetAsync($"/v1/games/{game.Id}")).StatusCode);
     }
 

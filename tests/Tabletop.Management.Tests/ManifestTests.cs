@@ -1,6 +1,4 @@
 using System.Net;
-using Dapper;
-using Npgsql;
 using Tabletop.Content;
 using Tabletop.Management.Content.Armies;
 using Tabletop.Management.Content.Assets;
@@ -17,8 +15,7 @@ public class ManifestTests : IClassFixture<ManagementFactory>
     [Fact]
     public async Task Participants_get_every_uploaded_asset_in_play_whoever_owns_it()
     {
-        await using var c = new NpgsqlConnection(_f.Database.ConnectionString);
-        await c.ExecuteAsync("insert into management.properties (content_hash, name, game_rules) values ('sha256:m', 'GF', 'grimdark-future') on conflict do nothing");
+        _f.Rows.SeedProperties("sha256:m", "GF", "grimdark-future");
         var (aId, bId, outsiderId) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
         var a = await _f.AuthenticatedClient(aId, "A"); var b = await _f.AuthenticatedClient(bId, "B"); var outsider = await _f.AuthenticatedClient(outsiderId, "O");
         var game = await a.PostJson<GameInfo>("/v1/games", new CreateGameRequest("M", "sha256:m", SchedulerShape.PlayerTurn, Enforcement.Silent, false));
@@ -28,7 +25,7 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         {
             var req = new CreateAssetRequest(name, kind, Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(glb)), glb.Length, kind == AssetKind.Texture ? "image/png" : "model/gltf-binary", 1, new(0, 0, 0), kind == AssetKind.Miniature ? Tabletop.Geometry.Base.Circle(1.26) : null);
             var created = await who.PostJson<CreateAssetResponse>("/v1/assets", req);
-            using var http = new HttpClient();
+            using var http = _f.Blobs.Client();
             await http.PutAsync(created.UploadUrl, new ByteArrayContent(glb) { Headers = { ContentType = new(req.ContentType) } });
             return (await who.PostJson<ConfirmResponse>($"/v1/assets/{created.Asset.Id}/confirm", new { })).Asset;
         }
@@ -44,9 +41,9 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         var bSnapshot = ArmySnapshot.Of(bArmy with { Units = [bArmy.Units[0] with { Models = [bArmy.Units[0].Models[0] with { AssetId = bMesh.Id }] }] }, Guid.CreateVersion7());
 
         // What the game server writes while the game is in lobby/setup: A's pick, B's frozen snapshot, the draft with B's texture.
-        await c.ExecuteAsync("update management.participant set army_id = @army where game_id = @game and account_id = @acct", new { army = aArmy.Id, game = game.Id, acct = aId });
-        await c.ExecuteAsync("update management.participant set army_snapshot = @snap::jsonb where game_id = @game and account_id = @acct", new { snap = ContentJson.Serialize(bSnapshot), game = game.Id, acct = bId });
-        await c.ExecuteAsync("insert into management.table_state (id, game_id, width, length, texture_asset_id) values (@id, @game, 72, 48, @tex)", new { id = Guid.CreateVersion7(), game = game.Id, tex = texture.Id });
+        _f.Rows.PickArmy(game.Id, aId, aArmy.Id);
+        _f.Rows.FreezeArmy(game.Id, bId, bSnapshot);
+        _f.Rows.SeedGameTable(game.Id, new TableState(Guid.CreateVersion7(), null, new Tabletop.Geometry.TableSize(72, 48), VisualRef.OfAsset(texture.Id), [], [], []));
 
         await b.PatchJson<AssetDto>($"/v1/assets/{bMesh.Id}", new PatchAssetRequest(null, 2.5, new Tabletop.Geometry.Orientation(90, 0, 0), null));   // B's import corrections
 
@@ -56,7 +53,7 @@ public class ManifestTests : IClassFixture<ManagementFactory>
         Assert.Equal((2.5, new Tabletop.Geometry.Orientation(90, 0, 0)), (bEntry.Scale, bEntry.Orientation));                  // A can draw B's mesh as B corrected it
         var aEntry = manifest.Assets.Single(m => m.AssetId == aMesh.Id);
         Assert.Equal((1.0, new Tabletop.Geometry.Orientation(0, 0, 0)), (aEntry.Scale, aEntry.Orientation));                   // untouched: the row's defaults
-        using var http = new HttpClient();
+        using var http = _f.Blobs.Client();
         Assert.Equal(TestGlb.Build((6, null, true)), await http.GetByteArrayAsync(manifest.Assets.Single(m => m.AssetId == bMesh.Id).Url));
         Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync($"/v1/games/{game.Id}/assets")).StatusCode);
     }

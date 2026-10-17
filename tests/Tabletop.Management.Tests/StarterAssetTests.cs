@@ -1,6 +1,4 @@
 using System.Net.Http.Json;
-using Dapper;
-using Npgsql;
 using Tabletop.Geometry;
 using Tabletop.Management.Content.Assets;
 using Tabletop.Management.Http;
@@ -43,7 +41,7 @@ public class StarterAssetTests : IClassFixture<ManagementFactory>
         Assert.Equal(assets.Select(a => a.Id).Order(), folder.AssetIds.Order());
 
         var dl = await c.GetJson<DownloadResponse>($"/v1/assets/{assets[1].Id}/download");
-        using var http = new HttpClient();
+        using var http = _f.Blobs.Client();
         Assert.Equal(StarterMeshes.All[1].Glb, await http.GetByteArrayAsync(dl.Url));
     }
 
@@ -64,9 +62,11 @@ public class StarterAssetTests : IClassFixture<ManagementFactory>
     {
         await Login("older@example.com", signup: true);
         var accountId = Guid.Parse(_f.Stytch.Users["older@example.com"].ExternalId!);
-        await using (var db = new NpgsqlConnection(_f.Database.ConnectionString))
+        lock (_f.Rows.Gate)
         {
-            await db.ExecuteAsync("delete from management.asset where owner_id = @accountId; delete from management.folder where owner_id = @accountId; update management.account set starter_seeded_at = null where id = @accountId", new { accountId });
+            foreach (var id in _f.Rows.Assets.Where(a => a.Value.Owner == accountId).Select(a => a.Key).ToList()) _f.Rows.RemoveAsset(id);
+            foreach (var id in _f.Rows.Folders.Where(f => f.Value.Owner == accountId).Select(f => f.Key).ToList()) _f.Rows.RemoveFolder(id);
+            _f.Rows.Accounts[accountId].StarterSeeded = false;
         }
 
         var c = await Login("older@example.com", signup: false);
