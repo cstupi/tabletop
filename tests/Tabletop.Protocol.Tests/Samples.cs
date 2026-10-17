@@ -92,6 +92,7 @@ public static class Samples
         new PingMessage(new Ping(P1, new Point3(1, 1, 0), null)), new PresenceEnded(P1), new AtRest(2),
         new Refused(Guid.CreateVersion7(), RefusalReason.OutsideLegalSet, "unit already activated"), new Rejected(RejectReason.UpgradeRequired),
         new SightQuery(Guid.CreateVersion7(), Unit, Guid.CreateVersion7()),
+        new Reauth("a.jwt.z"),
         new SightAnswer(Guid.CreateVersion7(), [new SightLine(Model, Guid.CreateVersion7(), false, true, [Guid.CreateVersion7()])], [Model]),
         new ModelFacts(new Dictionary<Guid, int> { [Model] = 3 }),
     ];
