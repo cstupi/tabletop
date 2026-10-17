@@ -5,7 +5,7 @@ namespace Tabletop.GameServer.Effects;
 
 public sealed record DieContext(string Roll, int Raw, int Modified, bool Success);
 
-/// <summary>The eight predicates. A subject-bearing predicate tests the side it names relative to the holder; relational ones test the interaction.</summary>
+/// <summary>The eleven predicates. A subject-bearing predicate tests the side it names relative to the holder; relational ones test the interaction.</summary>
 public static class Conditions
 {
     /// <summary>roll_result's optional third value: the die must have succeeded (`success`) or failed (`fail`), "successful unmodified results of 5-6".</summary>

@@ -4,7 +4,7 @@ using static Tabletop.GameServer.Persistence.RowMapping;
 
 namespace Tabletop.GameServer.Properties;
 
-/// <summary>The eight tables. Enum spellings are the schema's check-constraint values, which are the wire spellings (RowMapping).</summary>
+/// <summary>The ten tables. Enum spellings are the schema's check-constraint values, which are the wire spellings (RowMapping).</summary>
 public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesStore
 {
     public async Task<PropertySet?> LoadAsync(string hash, CancellationToken ct)

@@ -5,7 +5,7 @@ using Tabletop.Content;
 
 namespace Tabletop.GameServer.Properties;
 
-// The authored form: the eight tables without ids or the hash. Field names are the tables' columns in camelCase.
+// The authored form: the ten tables without ids or the hash. Field names are the tables' columns in camelCase.
 public sealed record PropertySetDocument(string Name, string GameRules, IReadOnlyList<StatDefinition> Stats, IReadOnlyList<ActionDefinition> Actions,
     IReadOnlyList<string> Rolls, IReadOnlyList<EntryDocument> Entries, IReadOnlyList<BookRecord>? Books = null);
 /// <summary>An army book: its Army Forge uid, name and version, and the spell entries it lists, in its own order (spell library spec).</summary>

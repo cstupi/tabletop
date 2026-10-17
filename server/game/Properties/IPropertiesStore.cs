@@ -4,7 +4,7 @@ namespace Tabletop.GameServer.Properties;
 public interface IPropertiesStore
 {
     Task<PropertySet?> LoadAsync(string contentHash, CancellationToken ct);
-    /// <summary>Writes the eight tables for the document's hash. False, and nothing written, when the hash is already present.</summary>
+    /// <summary>Writes the ten tables for the document's hash. False, and nothing written, when the hash is already present.</summary>
     Task<bool> SeedAsync(PropertySetDocument document, CancellationToken ct);
 }
 
