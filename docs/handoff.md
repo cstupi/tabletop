@@ -1,10 +1,12 @@
-# Handoff — 2026-10-16
+# Handoff — 2026-10-17
 
 The game is built end to end and playable from the server's side: a Grimdark Future game runs from lobby and setup
 through the roll-off, deployment, activations, shooting, melee, morale, casting, transports and objectives to a winner.
 `sim/` plays whole games headless; `viewer/` draws them. On 2026-10-15 the owner played in the client and reported setup,
 movement, log, marker and game-end problems; *2026-10-15* below was built in response, and *2026-10-16* settled the
-combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items. All on `main`. An undone roll's dice stay spent: an undo always draws fresh
+combat log, split the tests into a unit suite and an E2E suite, and cleared most of the open handoff items; *2026-10-17*
+finished the army-book rules, built optional rules and the production path, and hardened both servers for public hosting.
+All on `main`. An undone roll's dice stay spent: an undo always draws fresh
 dice (`DiceCursor.DrawnSoFar` counts the whole log).
 
 ## Get running
@@ -21,7 +23,7 @@ docker compose up -d     # Postgres 5432, MinIO 9000/9001, management 5100, game
 - The two servers bind `127.0.0.1` only: Development maps `POST /v1/dev/sessions`, which mints a session with no login.
   Each builds into its own `obj/Unix-<slot>/` and `bin/-<slot>/`, so host builds never disturb them. The first start
   after a clean restores NuGet for about a minute.
-- `docker compose stop management game` frees the ports for `./scripts/management` and `dotnet run --project server/game`;
+- `docker compose stop management game` frees the ports for `./scripts/management` and `./scripts/game`;
   `docker compose stop web viewer` does the same for `./scripts/web` and the viewer's `npm run dev`.
 - The web app (`http://127.0.0.1:5173`, importing armies and meshes) and the viewer (`http://127.0.0.1:5174`) run as
   Vite dev servers in `node:24.19.0` containers, proxying `/v1` to the management container. They share `node_modules`
@@ -60,6 +62,35 @@ Every catalog scenario passes `--seeds 1..10`, `objectives` `--seeds 1..20`. `ob
 does not hold (`ObjectiveGoal`), so every seed seizes at least once and `round_ended` is expected; a tie still passes.
 
 ## Next
+
+### 2026-10-17
+
+**Production path** (`deploy/README.md`): Release images (`server/*/Dockerfile`, non-root, Production) or systemd units,
+`deploy/docker-compose.prod.yml`, `deploy/Caddyfile` (`/v1/*` except `/v1/dev/*`, `/ws`, the static web build, a blob
+host for presigned URLs), `prod.env.example`. Migrations run as the owner role through `Tabletop.Management --migrate`;
+runtime roles `tabletop_management` / `tabletop_game` have DML only (`scripts/postgres/roles.sh`); MinIO signs with a
+bucket-scoped service user (`scripts/minio/init.sh`). Dev mode is `ASPNETCORE_ENVIRONMENT=Development` plus
+`TABLETOP_DEV_MODE=1` (compose, `scripts/management`, `scripts/game`); `StartupGuard` refuses dev settings anywhere else.
+Upstream MinIO images are gone; both compose files use `pgsty/minio` pinned by digest; S3 or R2 is the production store.
+
+**Security hardening** (four reviews: management, game server, deployment, uploaded content):
+- Management: the dice seed is server-only (`GameInfo.RngSeed` `[JsonIgnore]`); `ArmyLimits` bounds import and patch;
+  uploads go to `staging/`, are hashed and validated on confirm (`GlbHeader`, `ImageHeader`, `UploadLimits`), size caps
+  and a locked per-account quota, `UploadSweeper`; asset references must be the caller's; the manifest presigns only
+  participants' assets; rate limits per IP and per email behind `TABLETOP_TRUSTED_PROXIES` (addresses or CIDR); 1 MB
+  bodies; enums by name; `Limits.Text` on names; new accounts are `Player-xxxx`; generic auth errors.
+- Game server: bounded send queue, frame caps (8 KB connect, 64 KB, 512 KB for a layout), per-connection rates, 4
+  sockets per account, Kestrel connection limits, JWKS refetch floor with a 1 h stale bound, close at JWT expiry; from
+  `playing` a teamless participant is a watcher; `SetConfiguration` creator-only; `PickTeam` takes an empty team, or any
+  team when the creator places someone (`ParticipantId`; no client UI for that yet); a throwing `Advance` stores nothing
+  and the session stays live; dice per roll clamped to 1000; tables ≤ 144"; draft, army, presence and text bounds;
+  asset ids in setup edits must belong to a participant; per-game hydration lock; the draft write is one batch.
+- Client: `AssetCache` caps downloads; `GlbPreflight` checks a GLB before Godot parses it.
+- Free-text "Mark as having taken…" is refused for an action the rules don't define.
+
+**Army-book rules:** all play, including Spawn, Split, Reinforcement (reserve units the import adds,
+`ArmyBookReserves`) and Takedown Shot / Strike (`ArmyBookAdditions`). Armies imported before 2026-10-17 lack those
+reserves and weapons until re-imported.
 
 ### 2026-10-16
 
@@ -263,12 +294,6 @@ What the suite does not check or report today.
   The failure lines still carry `known defect Dn:`.
 
 ## Known rule gaps
-
-**Army-book rules not yet played.** Every rule name the official books put on a unit, a weapon, an item or an upgrade
-has a catalog entry and plays except five: Spawn, Split and Reinforcement (each places a unit the army snapshot does not
-hold; build path: the import adds the units X names as reserve units) and Takedown Shot / Takedown Strike (an attack
-profile no weapon has; build path: the import adds it as a once-per-game weapon of the carrying model). Readings of the
-batches are in `docs/superpowers/specs/2026-10-09-army-book-rules-design.md`.
 
 **Unique is a list-building rule.** The engine judges no army list, so Unique's suite game only plays to its end.
 
