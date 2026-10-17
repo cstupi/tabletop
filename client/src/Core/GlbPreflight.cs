@@ -16,10 +16,16 @@ public static class GlbPreflight
     public const int MaxImageSide = 4096;
     public const long MaxVertices = 500_000;
     public const long MaxTriangles = 1_000_000;
+    /// <summary>Per accessor: an index list of <see cref="MaxTriangles"/> triangles.</summary>
+    public const long MaxAccessorCount = 3 * MaxTriangles;
+    /// <summary>Per accessor and summed over all of them, as count × element size: what Godot may allocate, buffer view or not.</summary>
+    public const long MaxAccessorBytes = MaxBytes, MaxTotalAccessorBytes = 2 * MaxBytes;
 
+    /// <summary>No EXT_meshopt_compression: its buffer views carry compressed data this check cannot bound, and the web converter
+    /// (web/src/lib/mesh/glb.ts) writes no extensions.</summary>
     public static readonly IReadOnlySet<string> AllowedRequiredExtensions = new HashSet<string>
     {
-        "KHR_mesh_quantization", "EXT_meshopt_compression", "KHR_texture_transform", "KHR_materials_emissive_strength",
+        "KHR_mesh_quantization", "KHR_texture_transform", "KHR_materials_emissive_strength",
     };
 
     const uint Magic = 0x46546C67, JsonChunk = 0x4E4F534A, BinChunk = 0x004E4942;
@@ -39,6 +45,7 @@ public static class GlbPreflight
         try { Validate(glb); return null; }
         catch (Refused r) { return r.Message; }
         catch (JsonException e) { return $"JSON chunk does not parse: {e.Message}"; }
+        catch (Exception e) { return $"malformed: {e.GetType().Name}: {e.Message}"; }   // never accept on an unexpected shape
     }
 
     static void Validate(ReadOnlySpan<byte> glb)
@@ -70,13 +77,13 @@ public static class GlbPreflight
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) throw new Refused("JSON root is not an object");
 
-        if (root.TryGetProperty("extensionsRequired", out var required))
-            foreach (var e in ArrayItems(required, "extensionsRequired"))
+        if (Has(root, "extensionsRequired", out var required))
+            foreach (var e in ArrayItems(required, "extensionsRequired", objects: false))
                 if (e.ValueKind != JsonValueKind.String || !AllowedRequiredExtensions.Contains(e.GetString()!)) throw new Refused($"required extension {e} is not allowed");
 
         var buffers = Items(root, "buffers");
         if (buffers.Count != 1) throw new Refused($"{buffers.Count} buffers, expected exactly one");
-        if (buffers[0].TryGetProperty("uri", out _)) throw new Refused("buffer has a uri");
+        if (Has(buffers[0], "uri", out _)) throw new Refused("buffer has a uri");
         var bufferLength = Int(buffers[0], "byteLength");
         if (bufferLength > bin.Length) throw new Refused("buffer is longer than the BIN chunk");
 
@@ -86,17 +93,19 @@ public static class GlbPreflight
             if (Int(v, "buffer") != 0) throw new Refused("buffer view names a buffer that does not exist");
             var end = Int(v, "byteOffset", 0) + Int(v, "byteLength");
             if (end > bufferLength) throw new Refused("buffer view runs past its buffer");
-            if (v.TryGetProperty("byteStride", out _) && Int(v, "byteStride") is < 4 or > 252) throw new Refused("buffer view stride out of range");
+            if (Has(v, "byteStride", out _) && Int(v, "byteStride") is < 4 or > 252) throw new Refused("buffer view stride out of range");
         }
 
         var accessors = Items(root, "accessors");
-        foreach (var a in accessors) CheckAccessor(a, views);
+        long accessorBytes = 0;
+        foreach (var a in accessors) accessorBytes += CheckAccessor(a, views);
+        if (accessorBytes > MaxTotalAccessorBytes) throw new Refused($"{accessorBytes} accessor bytes in all, over {MaxTotalAccessorBytes}");
 
         var images = Items(root, "images");
         if (images.Count > MaxImages) throw new Refused($"{images.Count} images, over {MaxImages}");
         foreach (var image in images)
         {
-            if (image.TryGetProperty("uri", out _)) throw new Refused("image has a uri");
+            if (Has(image, "uri", out _)) throw new Refused("image has a uri");
             var view = Index(image, "bufferView", views.Count);
             var v = views[view];
             var bytes = bin.Slice((int)Int(v, "byteOffset", 0), (int)Int(v, "byteLength"));
@@ -108,12 +117,13 @@ public static class GlbPreflight
         foreach (var mesh in Items(root, "meshes"))
             foreach (var p in Items(mesh, "primitives"))
             {
-                if (!p.TryGetProperty("attributes", out var attributes) || attributes.ValueKind != JsonValueKind.Object) throw new Refused("primitive has no attributes");
-                long positions = 0;
-                if (attributes.TryGetProperty("POSITION", out _)) positions = Int(accessors[Index(attributes, "POSITION", accessors.Count)], "count");
-                foreach (var attribute in attributes.EnumerateObject())
-                    if (attribute.Value.ValueKind != JsonValueKind.Number || !attribute.Value.TryGetInt32(out var i) || i < 0 || i >= accessors.Count) throw new Refused($"attribute {attribute.Name} names no accessor");
-                var drawn = p.TryGetProperty("indices", out _) ? Int(accessors[Index(p, "indices", accessors.Count)], "count") : positions;
+                if (!Has(p, "attributes", out var attributes) || attributes.ValueKind != JsonValueKind.Object) throw new Refused("primitive has no attributes");
+                if (!Has(attributes, "POSITION", out _)) throw new Refused("primitive has no POSITION");
+                var positions = Int(accessors[Index(attributes, "POSITION", accessors.Count)], "count");
+                SameCounts(attributes, "attribute", positions, accessors);
+                if (Has(p, "targets", out var targets))
+                    foreach (var target in ArrayItems(targets, "targets")) SameCounts(target, "morph target attribute", positions, accessors);
+                var drawn = Has(p, "indices", out _) ? Int(accessors[Index(p, "indices", accessors.Count)], "count") : positions;
                 vertices += positions;
                 triangles += Int(p, "mode", 4) switch { 4 => drawn / 3, 5 or 6 => Math.Max(0, drawn - 2), _ => 0 };
             }
@@ -121,26 +131,41 @@ public static class GlbPreflight
         if (triangles > MaxTriangles) throw new Refused($"{triangles} triangles, over {MaxTriangles}");
     }
 
-    static void CheckAccessor(JsonElement a, List<JsonElement> views)
+    /// <summary>Every accessor an object names (attributes, or one morph target) has the primitive's POSITION count.</summary>
+    static void SameCounts(JsonElement named, string what, long positions, List<JsonElement> accessors)
+    {
+        if (named.ValueKind != JsonValueKind.Object) throw new Refused($"{what}s are not an object");
+        foreach (var attribute in named.EnumerateObject())
+        {
+            var count = Int(accessors[Index(named, attribute.Name, accessors.Count)], "count");
+            if (count != positions) throw new Refused($"{what} {attribute.Name} has {count} elements, POSITION has {positions}");
+        }
+    }
+
+    /// <summary>Checks one accessor's ranges and caps; returns its size in bytes (count × element size).</summary>
+    static long CheckAccessor(JsonElement a, List<JsonElement> views)
     {
         var count = Int(a, "count");
         if (count < 1) throw new Refused("accessor count below one");
+        if (count > MaxAccessorCount) throw new Refused($"accessor count {count}, over {MaxAccessorCount}");
         var component = ComponentSize(Int(a, "componentType"));
-        var element = component * Components(a.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : "");
-        if (a.TryGetProperty("bufferView", out _))
+        var element = component * Components(Has(a, "type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : "");
+        if (count * element > MaxAccessorBytes) throw new Refused($"accessor is {count * element} bytes, over {MaxAccessorBytes}");
+        if (Has(a, "bufferView", out _))
         {
             var view = views[Index(a, "bufferView", views.Count)];
-            var stride = view.TryGetProperty("byteStride", out _) ? Int(view, "byteStride") : element;
+            var stride = Has(view, "byteStride", out _) ? Int(view, "byteStride") : element;
             if (Int(a, "byteOffset", 0) + (count - 1) * stride + element > Int(view, "byteLength")) throw new Refused("accessor runs past its buffer view");
         }
-        if (a.TryGetProperty("sparse", out var sparse))
+        if (Has(a, "sparse", out var sparse))
         {
             var n = Int(sparse, "count");
             if (n < 1 || n > count) throw new Refused("sparse count out of range");
-            if (!sparse.TryGetProperty("indices", out var indices) || !sparse.TryGetProperty("values", out var values)) throw new Refused("sparse accessor without indices or values");
+            if (!Has(sparse, "indices", out var indices) || !Has(sparse, "values", out var values)) throw new Refused("sparse accessor without indices or values");
             if (Int(indices, "byteOffset", 0) + n * ComponentSize(Int(indices, "componentType")) > Int(views[Index(indices, "bufferView", views.Count)], "byteLength")) throw new Refused("sparse indices run past their buffer view");
             if (Int(values, "byteOffset", 0) + n * element > Int(views[Index(values, "bufferView", views.Count)], "byteLength")) throw new Refused("sparse values run past their buffer view");
         }
+        return count * element;
     }
 
     static long ComponentSize(long type) => type switch
@@ -156,20 +181,27 @@ public static class GlbPreflight
     };
 
     static List<JsonElement> Items(JsonElement parent, string name) =>
-        parent.TryGetProperty(name, out var array) ? ArrayItems(array, name) : [];
+        Has(parent, name, out var array) ? ArrayItems(array, name) : [];
 
-    static List<JsonElement> ArrayItems(JsonElement array, string name)
+    static List<JsonElement> ArrayItems(JsonElement array, string name, bool objects = true)
     {
         if (array.ValueKind != JsonValueKind.Array) throw new Refused($"{name} is not an array");
         var items = array.EnumerateArray().ToList();
-        if (name != "extensionsRequired" && items.Any(i => i.ValueKind != JsonValueKind.Object)) throw new Refused($"{name} holds a non-object");
+        if (objects && items.Any(i => i.ValueKind != JsonValueKind.Object)) throw new Refused($"{name} holds a non-object");
         return items;
+    }
+
+    /// <summary>TryGetProperty that refuses, instead of throwing, when the element is not an object.</summary>
+    static bool Has(JsonElement e, string name, out JsonElement value)
+    {
+        if (e.ValueKind != JsonValueKind.Object) throw new Refused($"expected an object holding {name}, found {e.ValueKind}");
+        return e.TryGetProperty(name, out value);
     }
 
     /// <summary>A non-negative integer property; required unless a fallback is given.</summary>
     static long Int(JsonElement e, string name, long? fallback = null)
     {
-        if (!e.TryGetProperty(name, out var v)) return fallback ?? throw new Refused($"missing {name}");
+        if (!Has(e, name, out var v)) return fallback ?? throw new Refused($"missing {name}");
         if (v.ValueKind != JsonValueKind.Number || !v.TryGetInt64(out var n) || n < 0 || n > int.MaxValue) throw new Refused($"{name} is not a non-negative integer");
         return n;
     }

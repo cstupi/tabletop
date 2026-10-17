@@ -237,8 +237,10 @@ public class GlbPreflightTests
     public void More_than_a_million_triangles_are_refused()
     {
         var (j, b) = Triangle();
-        j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5125, ["count"] = 3_000_003, ["type"] = "SCALAR" });
+        // Two primitives of 500,001 triangles each: every accessor is under its own cap, the sum is not.
+        j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5125, ["count"] = 1_500_003, ["type"] = "SCALAR" });
         j["meshes"]![0]!["primitives"]![0]!["indices"] = 2;
+        j["meshes"]![0]!["primitives"]!.AsArray().Add(new JsonObject { ["attributes"] = new JsonObject { ["POSITION"] = 0 }, ["indices"] = 2 });
         Refused(Glb(j, b), "triangles");
     }
 
@@ -272,6 +274,65 @@ public class GlbPreflightTests
         var (j, b) = Triangle();
         j["bufferViews"]![0]!["byteOffset"] = -4;
         Refused(Glb(j, b), "non-negative");
+    }
+
+    [Fact]
+    public void An_unreferenced_huge_accessor_without_a_buffer_view_is_refused()
+    {
+        var (j, b) = Triangle();
+        j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5126, ["count"] = 100_000_000, ["type"] = "MAT4" });
+        Refused(Glb(j, b), "accessor");
+    }
+
+    [Fact]
+    public void Accessors_whose_bytes_together_exceed_the_budget_are_refused()
+    {
+        var (j, b) = Triangle();
+        // Each 2.9M VEC4 floats = 46.4 MB, under the per-accessor caps; four of them blow the total.
+        for (var i = 0; i < 4; i++) j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5126, ["count"] = 2_900_000, ["type"] = "VEC4" });
+        Refused(Glb(j, b), "accessor bytes");
+    }
+
+    [Fact]
+    public void An_attribute_whose_count_differs_from_POSITION_is_refused()
+    {
+        var (j, b) = Triangle();
+        j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5126, ["count"] = 400_000, ["type"] = "VEC3" });
+        j["meshes"]![0]!["primitives"]![0]!["attributes"]!["NORMAL"] = 2;
+        Refused(Glb(j, b), "NORMAL");
+    }
+
+    [Fact]
+    public void A_morph_target_whose_count_differs_from_POSITION_is_refused()
+    {
+        var (j, b) = Triangle();
+        j["accessors"]!.AsArray().Add(new JsonObject { ["componentType"] = 5126, ["count"] = 400_000, ["type"] = "VEC3" });
+        j["meshes"]![0]!["primitives"]![0]!["targets"] = new JsonArray(new JsonObject { ["POSITION"] = 2 });
+        Refused(Glb(j, b), "target");
+    }
+
+    [Fact]
+    public void A_primitive_without_POSITION_is_refused()
+    {
+        var (j, b) = Triangle();
+        j["meshes"]![0]!["primitives"]![0]!["attributes"] = new JsonObject { ["NORMAL"] = 0 };
+        Refused(Glb(j, b), "POSITION");
+    }
+
+    [Theory]
+    [InlineData("""{"asset":{"version":"2.0"},"buffers":[{"byteLength":44}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","sparse":[1,2]}]}""")]
+    [InlineData("""{"asset":{"version":"2.0"},"buffers":[{"byteLength":44}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","sparse":{"count":1,"indices":7,"values":{}}}]}""")]
+    [InlineData("""{"asset":{"version":"2.0"},"buffers":[{"byteLength":44}],"meshes":[{"primitives":[{"attributes":{"POSITION":0},"targets":[5]}]}],"accessors":[{"componentType":5126,"count":3,"type":"VEC3"}]}""")]
+    [InlineData("""{"asset":{"version":"2.0"},"buffers":[{"byteLength":44}],"meshes":[{"primitives":[]}],"extensionsRequired":"KHR_mesh_quantization"}""")]
+    [InlineData("""[1,2,3]""")]
+    public void Malformed_shapes_are_refused_not_thrown(string json) => Assert.NotNull(GlbPreflight.Check(Glb(JsonNode.Parse(json)!, new byte[44])));
+
+    [Fact]
+    public void Meshopt_compression_is_not_an_allowed_required_extension()
+    {
+        var (j, b) = Triangle();
+        j["extensionsRequired"] = new JsonArray("EXT_meshopt_compression");
+        Refused(Glb(j, b), "EXT_meshopt_compression");
     }
 
     /// <summary>Real GLBs from scripts/terrain-meshes (gltf-transform, as the web converter writes) pass.</summary>
