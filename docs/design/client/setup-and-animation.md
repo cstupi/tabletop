@@ -75,7 +75,7 @@ game's `waits_between_steps` is on the game row, because it changes what the ser
 
 `Take(animate)` returns everything at once when animating is off, and one event at a time when it
 is on. `Animator` raises `Played` for each event as it takes it (a whole batch at once with Animate off), glides
-the pieces of a `ModelsMoved`, or of a step's moves, over 0.4 s, then pumps the next; `FloatingText` shows each
+every piece of a `ModelsMoved`, or of a step's moves (`AnimationQueue.Relocations`), together over 0.4 s, then pumps the next once the last has landed; `FloatingText` shows each
 event's results on `Played`. The queue may lag the projection and never
 delays an Ask. A player may answer while a roll's readout is still up, because the decision box reads
 the projection directly and the queue holds no lock. Presence is never animated, only drawn.

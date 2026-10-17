@@ -23,7 +23,7 @@ public sealed class Animator : IDisposable
     /// <summary>Session outlives the table: the subscription comes off when the panels go.</summary>
     public void Dispose() { _disposed = true; _s.EventsApplied -= _onEvents; }
 
-    /// <summary>The tween's end, or the fallback timer if the piece was freed mid-glide and the tween died with it; whichever comes first wins.</summary>
+    /// <summary>The last tween's end, or the fallback timer if a piece was freed mid-glide and its tween died with it; whichever comes first wins.</summary>
     void Done(int generation)
     {
         if (_disposed || generation != _generation) return;
@@ -43,23 +43,26 @@ public sealed class Animator : IDisposable
         foreach (var e in _queue.Take(_s.Settings.Animate))
         {
             Played?.Invoke(e);
-            List<ModelsMoved> moves = e.Payload switch { ModelsMoved m => [m], StepCompleted s => [.. s.Changes.OfType<ModelsMoved>()], _ => [] };
             // The player's own drops are already on the table where they put them: consume the holds, and glide only the rest.
-            var relocations = moves.SelectMany(m => m.Moves).ToList();
+            var relocations = AnimationQueue.Relocations(e);
             var others = relocations.Where(r => !_input.ConsumeOwn(r)).ToList();
             if (others.Count != relocations.Count) redraw = true;
-            foreach (var relocation in others)
-                if (_s.Settings.Animate && relocation.To is OnTable to && _view.PieceAt(relocation.ModelId) is { } node && node.IsInsideTree())
-                {
-                    if (redraw) { _view.Redraw(); redraw = false; }   // first, so it does not put the gliding piece back at its destination
-                    // The table has already redrawn the piece at its destination, so the glide starts from where it was.
-                    if (relocation.From is OnTable from) node.Position = WorldFrame.ToGodot(from.Placement.Position);
-                    var target = WorldFrame.ToGodot(to.Placement.Position);
-                    _busy = true; var generation = _generation;
-                    var tween = node.CreateTween(); tween.TweenProperty(node, "position", target, 0.4); tween.TweenCallback(Callable.From(() => Done(generation)));
-                    _view.GetTree().CreateTimer(0.6).Timeout += () => Done(generation);
-                    return;   // one at a time while animating
-                }
+            if (!_s.Settings.Animate) continue;
+            var glides = others.Where(r => r.To is OnTable).Select(r => (Relocation: r, Node: _view.PieceAt(r.ModelId)!))
+                .Where(g => g.Node is not null && g.Node.IsInsideTree()).ToList();
+            if (glides.Count == 0) continue;
+            if (redraw) { _view.Redraw(); redraw = false; }   // first, so it does not put the gliding pieces back at their destinations
+            // Every model the event moved glides at once; the next event waits for the last of them.
+            _busy = true; var generation = _generation; var left = glides.Count;
+            foreach (var (relocation, node) in glides)
+            {
+                // The table has already redrawn the piece at its destination, so the glide starts from where it was.
+                if (relocation.From is OnTable from) node.Position = WorldFrame.ToGodot(from.Placement.Position);
+                var tween = node.CreateTween(); tween.TweenProperty(node, "position", WorldFrame.ToGodot(((OnTable)relocation.To).Placement.Position), 0.4);
+                tween.TweenCallback(Callable.From(() => { if (--left == 0) Done(generation); }));
+            }
+            _view.GetTree().CreateTimer(0.6).Timeout += () => Done(generation);
+            return;   // one event at a time while animating
         }
         if (redraw) _view.Redraw();
     }
