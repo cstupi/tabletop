@@ -1,8 +1,12 @@
 using Tabletop.TerrainMeshes;
 
-// Writes the flat-topped hill meshes the built-in terrain draws: dotnet run --project scripts/TerrainMeshes -- [output directory].
+// Writes the built-in terrain meshes: dotnet run --project scripts/TerrainMeshes -- [output directory].
 var dir = args.Length > 0 ? args[0] : "client/content/builtin/terrain";
-float[] colour = [0.4f, 0.5f, 0.3f, 1];
 Directory.CreateDirectory(dir);
-File.WriteAllBytes(Path.Combine(dir, "hill.glb"), Glb.Of("hill", Plateau.Round(), colour));
-File.WriteAllBytes(Path.Combine(dir, "hill-rect.glb"), Glb.Of("hill-rect", Plateau.Square(), colour));
+foreach (var (name, build) in Catalog.All)
+{
+    var model = build();
+    var bytes = Glb.Of(model);
+    File.WriteAllBytes(Path.Combine(dir, $"{name}.glb"), bytes);
+    Console.WriteLine($"{name,-10} {model.Triangles,6} triangles {bytes.Length / 1024,5} KiB");
+}

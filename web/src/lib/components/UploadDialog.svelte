@@ -2,6 +2,7 @@
   import type { AssetKind, Base, Orientation } from '$lib/api/types';
   import MeshPreview from './MeshPreview.svelte';
   import BasePicker from './BasePicker.svelte';
+  import Icon from './Icon.svelte';
   import { BUDGETS } from '$lib/mesh/decimate';
   import { convertInWorker, describeGlb, STEPS, type ConversionResult, type Progress } from '$lib/mesh/convert';
   import type { Bounds } from '$lib/mesh/types';
@@ -112,24 +113,25 @@
 
 {#if open}
 <dialog bind:this={dialog} aria-labelledby="upload-heading" {oncancel} onclose={onDialogClose}>
-  <header class="head"><h2 id="upload-heading" tabindex="-1" bind:this={heading}>Add to library</h2><button onclick={close} disabled={stage === 'uploading'}>Close</button></header>
+  <header class="head"><h2 id="upload-heading" tabindex="-1" bind:this={heading}><Icon name="upload" />Add to library</h2><button onclick={close} disabled={stage === 'uploading'}><Icon name="close" size="1em" />Close</button></header>
 
   {#if stage === 'drop'}
     <label class="drop" class:over={dragOver} ondragenter={() => (dragOver = true)} ondragleave={() => (dragOver = false)} ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); dragOver = false; void onfiles(e.dataTransfer?.files ?? null); }}>
-      Drop one or more <code>.stl</code> (a kit's parts merge as placed), one <code>.glb</code>, or a <code>.png</code>/<code>.jpg</code>/<code>.webp</code> board texture here, or choose files:
+      <Icon name="upload" size="2.5rem" />
+      <span>Drop one or more <code>.stl</code> (a kit's parts merge as placed), one <code>.glb</code>, or a <code>.png</code>/<code>.jpg</code>/<code>.webp</code> board texture here, or choose files:</span>
       <input type="file" multiple accept=".stl,.glb,.png,.jpg,.jpeg,.webp" onchange={(e) => void onfiles(e.currentTarget.files)} />
       <small>A mesh is at most 64 MB after conversion, a texture at most 16 MB.</small>
     </label>
   {:else if stage === 'converting'}
     <div role="status">
-      <p>Converting in your browser: step {Math.max(stepIndex, 1)} of {STEPS.length}, {stepLabel.toLowerCase()}…</p>
+      <p class="loading">Converting in your browser: step {Math.max(stepIndex, 1)} of {STEPS.length}, {stepLabel.toLowerCase()}…</p>
       <progress max={STEPS.length} value={stepIndex}></progress>
       <p><small>Large files can take a minute. Nothing is uploaded until you confirm.</small></p>
     </div>
   {:else if stage === 'preview' || stage === 'uploading'}
     <div class="preview">
       {#if kind !== 'texture'}
-        <div class="view"><MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} onerror={(m) => { error = `The preview could not show this mesh: ${m}`; previewed = false; }} /></div>
+        <div class="view panel"><MeshPreview {glb} {scale} {orientation} {base} onmeasure={() => (previewed = true)} onerror={(m) => { error = `The preview could not show this mesh: ${m}`; previewed = false; }} /></div>
       {:else}<p>Texture: {name} ({formatBytes(bytes)})</p>{/if}
       <form class="stack" onsubmit={confirm}>
         <label>Name <input bind:value={name} maxlength={MAX_NAME} disabled={stage === 'uploading'} aria-invalid={!!nameError} aria-describedby={nameError ? 'upload-name-error' : undefined} /></label>
@@ -143,7 +145,7 @@
         {#if kind !== 'texture'}
           <fieldset><legend>Scale</legend>
             <input type="number" step="any" min="0" bind:value={scale} aria-label="Scale, inches per model unit" /> ×
-            <span class="actions" role="group" aria-label="The model was made in">
+            <span class="seg units" role="group" aria-label="The model was made in">
               <button type="button" onclick={() => (scale = 1 / 25.4)}>mm</button><button type="button" onclick={() => (scale = 1 / 2.54)}>cm</button><button type="button" onclick={() => (scale = 1)}>inches</button>
             </span>
           </fieldset>
@@ -171,28 +173,36 @@
           </div>
         {/if}
         <div class="actions">
-          <button type="submit" disabled={stage === 'uploading' || !numbersOk || !!nameError || !!tooBig || (kind !== 'texture' && !previewed)}>{stage === 'uploading' ? 'Uploading…' : 'Confirm and upload'}</button>
+          <button type="submit" class="primary" disabled={stage === 'uploading' || !numbersOk || !!nameError || !!tooBig || (kind !== 'texture' && !previewed)}>{stage === 'uploading' ? 'Uploading…' : 'Confirm and upload'}</button>
           <button type="button" onclick={reset} disabled={stage === 'uploading'}>Choose another file</button>
         </div>
         {#if kind !== 'texture' && !previewed && stage === 'preview'}<p><small>Waiting for the preview to draw before upload.</small></p>{/if}
       </form>
     </div>
   {:else if stage === 'done' && outcome}
-    <p role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
+    <p class="notice" role="status">Added <strong>{outcome.asset.name}</strong> to your library{#if outcome.deduplicated}{' '}(these bytes were already there, so nothing was sent){/if}{#if outcome.triangles !== undefined}, {outcome.triangles.toLocaleString()} triangles{/if}.</p>
     {#if outcome.warning}<p role="alert">{outcome.warning}</p>{/if}
-    <div class="actions"><button onclick={reset}>Add another</button><a href="/library/{outcome.asset.id}" onclick={close}>Open it</a><button onclick={close}>Done</button></div>
+    <div class="actions"><button onclick={reset}>Add another</button><a class="button" href="/library/{outcome.asset.id}" onclick={close}>Open it</a><button class="primary" onclick={close}>Done</button></div>
   {/if}
   {#if error}<p role="alert">{error}</p>{/if}
 </dialog>
 {/if}
 
 <style>
-  dialog { width: min(64rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); box-sizing: border-box; overflow: auto; }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-  .preview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; min-height: 24rem; }
+  dialog { width: min(64rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s4); margin-bottom: var(--s4); }
+  .head h2 { display: inline-flex; align-items: center; gap: var(--s2); margin: 0; font-size: 1.15rem; }
+  .preview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s5); min-height: 24rem; }
+  .view { padding: 0; margin: 0; background: var(--view-bg); min-height: 20rem; overflow: hidden; }
   @media (max-width: 48rem) { .preview { grid-template-columns: minmax(0, 1fr); } .view { height: 20rem; } }
-  .drop { display: block; border: 2px dashed currentColor; padding: 3rem 1rem; text-align: center; }
-  .drop input { display: block; margin: 1rem auto; max-width: 100%; }
-  .drop.over { border-style: solid; }
+  .drop { display: flex; flex-direction: column; align-items: center; gap: var(--s3); border: 2px dashed var(--accent); padding: var(--s7) var(--s4); text-align: center; color: var(--text); background: var(--rule); }
+  .drop :global(.icon) { color: var(--accent); }
+  .drop input { display: block; margin: var(--s2) auto; max-width: 100%; }
+  .drop.over { border-style: solid; background: var(--panel-solid); }
+  :global([data-theme='fantasy']) .drop { border-color: var(--wood); border-radius: 4px; }
+  fieldset { margin: var(--s3) 0; }
+  fieldset label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s1); margin: 0 var(--s3) var(--s2) 0; }
+  .units { vertical-align: middle; margin-left: var(--s2); }
+  .units > button { min-height: 2.25rem; }
   progress { width: 100%; }
 </style>

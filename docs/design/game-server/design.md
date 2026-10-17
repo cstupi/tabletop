@@ -800,7 +800,7 @@ or a record it holds (`DraftLimits`, `ArmyLimits`). The figures and why:
 | Text in a frame | no C0 control, DEL, or bidi override or isolate (U+202A–202E, U+2066–2069), property names included (`InboundText`) | a command or edit `Refused(Unknown)` by its id; any other frame dropped | a label that reads as something else; NUL breaks Postgres text |
 | Frame rate | commands, edits and sight queries 20/s, burst 40 (`TABLETOP_FRAME_RATE`, `TABLETOP_FRAME_BURST`; unset in dev mode, machine speed: the rules suite sends each command as the last rests); pings 3/s, burst 6; presence 30/s, burst 60 (`FrameLimiter`, `TokenBucket`) | the read loop waits for a token (the peer is slowed by its own TCP window); a ping or presence frame is dropped | a player clicks far below 20/s; the client sends presence at 20 Hz |
 | Outbound queue | 20 000 messages or 64 MB (`SocketLimits`); presence coalesced per participant, latest wins | `1013` | the connect sequence queues the whole log at once, 500 events a message |
-| Session lifetime | the JWT's `exp`, moved on by each `Reauth` with a refreshed token of the same account (an admin watcher's still an admin's) | `1008` "session expired"; a `Reauth` that does not verify or names another account is `Refused(ReauthId, NotPermitted)` and the old expiry stands | revocation reaches an open socket |
+| Session lifetime | the JWT's `exp`, moved on by each `Reauth` with a refreshed token of the same account that passes connect's authorization again (still this participant; a watcher still an admin, the game still there) | `1008` "session expired"; a `Reauth` that does not verify or names another account is `Refused(ReauthId, NotPermitted)` and the old expiry stands; one that no longer authorizes the socket is refused and closes it `1008` | revocation reaches an open socket |
 | Events per game | 200 000 (`TABLETOP_MAX_EVENTS_PER_GAME`) | every command `Refused(NotPermitted)` | many times a full game's log |
 | Draft (`DraftLimits`) | 64 pieces, 8 volumes a piece, 32 markers; labels 64, notes 500 characters; volumes from 0 to at most 24" and upward; markers 0.5–6" across; scale up to 10; positions finite within 144" of the table's centre; table edges at most 144" (`Table.MaxEdge`); a built-in visual a lowercase slug (the catalog lives in the client); zone shapes the style's own, once each | the edit `Refused(Unknown)`; removals always apply | p.6 recommends 15 or more pieces; the client's generators place 13–21 |
 | Assets in a setup edit | each must exist in `management.asset` and belong to a participant (`IGameRows.AssetOwnersAsync`) | `Refused(NotPermitted)` | a stranger's mesh id would publish their blob |
@@ -1331,7 +1331,7 @@ edge back to `absent` is recovered by hydrating again.
   the foreign key rather than on the primary key, so it is not the duplicate path.
 - **A socket lives as long as its JWT.** A timer closes it `1008` ("session expired") at the
   token's `exp`. A `Reauth` frame carrying a refreshed token of the same account re-arms the timer
-  at the new `exp`; without one the client reconnects with the token it has refreshed since (any
+  at the new `exp` when connect's authorization still holds (a participant who has left is refused and closed); without one the client reconnects with the token it has refreshed since (any
   close other than `1000` after `Welcome` reconnects). Revocation latency is at most the token's lifetime.
 
 ### Left to break

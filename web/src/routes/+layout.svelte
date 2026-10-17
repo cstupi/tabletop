@@ -1,10 +1,13 @@
 <script lang="ts">
+  import '../themes.css';
   import '../app.css';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { session } from '$lib/session/session.svelte';
   import { loginHref } from '$lib/session/redirect';
+  import Icon from '$lib/components/Icon.svelte';
+  import ThemeSwitch from '$lib/components/ThemeSwitch.svelte';
 
   let { children } = $props();
   const publicRoutes = ['/login', '/reset-password'];
@@ -23,16 +26,21 @@
 </script>
 
 <a class="skip" href="#main">Skip to content</a>
-{#if session.token}
-  <header>
-    <nav class="site-nav" aria-label="Main">
-      <a href="/armies" aria-current={current('/armies')}>Armies</a>
-      <a href="/library" aria-current={current('/library')}>Library</a>
-      <a class="push" href="/account" aria-current={current('/account')}>Account: {session.account?.name ?? '…'}</a>
-      <button onclick={logout}>Log out</button>
-    </nav>
-  </header>
-{/if}
+<header class="site-header">
+  <nav class="site-nav" aria-label="Main">
+    <a class="brand" href={session.token ? '/armies' : '/login'}><Icon name="objective" size="1.5em" />Tabletop</a>
+    {#if session.token}
+      <span class="links">
+        <a href="/armies" aria-current={current('/armies')}><Icon name="armies" />Armies</a>
+        <a href="/library" aria-current={current('/library')}><Icon name="library" />Library</a>
+        <a href="/account" aria-current={current('/account')}><Icon name="account" /><span class="visually-hidden">Account: </span><span class="account-name">{session.account?.name ?? '…'}</span></a>
+      </span>
+    {/if}
+    <span class="push"></span>
+    <ThemeSwitch />
+    {#if session.token}<button onclick={logout}><Icon name="logout" /><span class="label">Log out</span></button>{/if}
+  </nav>
+</header>
 <main id="main" tabindex="-1">
-  {#if isPublic || (session.ready && session.token)}{@render children()}{:else}<p role="status">Loading…</p>{/if}
+  {#if isPublic || (session.ready && session.token)}{@render children()}{:else}<p class="loading" role="status">Loading…</p>{/if}
 </main>

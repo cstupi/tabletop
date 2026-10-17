@@ -7,6 +7,7 @@
   import FolderTree from '$lib/components/FolderTree.svelte';
   import UploadDialog from '$lib/components/UploadDialog.svelte';
   import BasePicker from '$lib/components/BasePicker.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { filterAssets } from '$lib/library/folders';
   import { baseLabel } from '$lib/units/bases';
   import { ASSET_QUOTA, formatBytes, libraryUsage } from '$lib/validation';
@@ -37,41 +38,48 @@
 
 <h1>Library{#if folderName} <small>· {folderName}</small>{/if}</h1>
 <div class="layout">
-  <FolderTree {folders} selected={selected} onselect={(id) => goto(id ? `/library?folder=${id}` : '/library')}
+  <div class="panel folders"><FolderTree {folders} selected={selected} onselect={(id) => goto(id ? `/library?folder=${id}` : '/library')}
     oncreate={(p, name) => actFolder(() => api.folders.create({ name, parentId: p }))} onrename={(id, name) => actFolder(() => api.folders.patch(id, { name, parentId: folders.find((f) => f.id === id)?.parentId ?? null }))}
     onmove={(id, parentId) => actFolder(() => api.folders.patch(id, { name: folders.find((f) => f.id === id)!.name, parentId }))} ondelete={(id) => actFolder(() => api.folders.delete(id))}
-    oninvalid={(m) => (error = m)} />
-  <section aria-label="Assets">
+    oninvalid={(m) => (error = m)} /></div>
+  <section class="panel assets" aria-label="Assets">
     <div class="bar">
-      <button bind:this={addButton} onclick={() => (uploading = true)}>Add STL / GLB / texture</button>
+      <button class="primary" bind:this={addButton} onclick={() => (uploading = true)}><Icon name="upload" />Add STL / GLB / texture</button>
       <label>Kind <select bind:value={kind}><option value="">Any kind</option><option value="miniature">Miniatures</option><option value="terrain">Terrain</option><option value="texture">Textures</option></select></label>
       <label>Made for base <BasePicker bind:value={base} allowNone label="Made for base" /></label>
-      <span role="status">{#if !loading}Showing {shown.length} of {assets.length}{/if}</span>
+      <span class="count" role="status">{#if !loading}Showing {shown.length} of {assets.length}{/if}</span>
     </div>
     {#if error}<p role="alert">{error}</p>{/if}
     {#if loading}
-      <p role="status">Loading…</p>
+      <p class="loading" role="status">Loading…</p>
     {:else if assets.length === 0}
-      <p>Your library is empty. Add an STL (or several parts of one kit), a GLB, or a board texture to get started.</p>
+      <div class="empty"><Icon name="library" size="2.5rem" /><p>Your library is empty. Add an STL (or several parts of one kit), a GLB, or a board texture to get started.</p></div>
     {:else if shown.length === 0}
-      <p>Nothing here matches. {#if selected}This folder and its sub-folders hold no matching assets; add assets to it from an asset's page.{:else}Change the kind or base filter.{/if}</p>
+      <div class="empty"><p>Nothing here matches. {#if selected}This folder and its sub-folders hold no matching assets; add assets to it from an asset's page.{:else}Change the kind or base filter.{/if}</p></div>
     {:else}
       <ul class="grid">
         {#each shown as a (a.id)}
-          <li><a href="/library/{a.id}"><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></a></li>
+          <li><a class="tile" href="/library/{a.id}"><Icon name={a.kind} size="1.75rem" /><span><strong>{a.name}</strong><br /><small>{a.kind}{#if a.modelledBase}{' · '}{baseLabel(a.modelledBase)}{/if}{#if !a.uploaded}{' · '}upload incomplete{/if}</small></span></a></li>
         {/each}
       </ul>
     {/if}
     {#if !loading}
-      <p><small>Using {usage.assets} of {ASSET_QUOTA.assets} assets and {formatBytes(usage.bytes)} of {formatBytes(ASSET_QUOTA.bytes)}.{#if nearQuota} <strong>Nearly full: delete assets you no longer use to make room.</strong>{/if}</small></p>
+      <p class="usage"><small>Using {usage.assets} of {ASSET_QUOTA.assets} assets and {formatBytes(usage.bytes)} of {formatBytes(ASSET_QUOTA.bytes)}.{#if nearQuota} <strong>Nearly full: delete assets you no longer use to make room.</strong>{/if}</small></p>
     {/if}
   </section>
 </div>
 <UploadDialog open={uploading} onclose={closeUpload} onuploaded={() => void loadAll()} />
 <style>
-  .layout { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 1rem }
-  @media (max-width: 40rem) { .layout { grid-template-columns: minmax(0, 1fr) } }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .5rem; list-style: none; padding: 0 }
-  .grid a { display: block; padding: .25rem }
-  .bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap }
+  .layout { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: var(--s5); align-items: start }
+  @media (max-width: 48rem) { .layout { grid-template-columns: minmax(0, 1fr); gap: 0 } }
+  .bar { display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap; padding-bottom: var(--s3); border-bottom: 1px solid var(--rule) }
+  .bar label { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap }
+  .count { color: var(--dim); margin-left: auto }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--s3); list-style: none; padding: 0; margin: var(--s4) 0 }
+  .tile { display: flex; gap: var(--s3); align-items: flex-start; height: 100%; padding: var(--s3); color: var(--text); text-decoration: none; border: 1px solid var(--rule); background: var(--panel-solid); overflow-wrap: anywhere }
+  .tile :global(.icon) { color: var(--accent) }
+  .tile:hover { border-color: var(--accent); color: var(--text) }
+  :global([data-theme='fantasy']) .tile { border-radius: 4px; background: #F1E6CA; border-color: #4A2F1B55 }
+  :global([data-theme='scifi']) .tile { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px) }
+  .usage { margin-bottom: 0 }
 </style>

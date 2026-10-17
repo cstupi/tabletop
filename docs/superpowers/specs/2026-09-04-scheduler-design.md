@@ -113,9 +113,13 @@ team at all is never addressed either, and that is what a spectator is since 09-
 superseded). It is also how
 OPR's "continues until all units have activated" works when one side has more units.
 
-**Passing is a real answer**, logged, and there is one of it: a team may pass its turn while
-holding a non-empty legal set; the alternating scheduler treats it as the team finishing the
-round. There is no separate end-turn command. The menu's *mark unit activated* writes the
+**Passing is a real answer**, logged, and there is one of it. Grimdark Future p.7: "Players must activate one unit that
+has not been activated yet", so while a team holds a legal activation it may not pass. The activate Ask is open only
+while the legal set is non-empty. Under `strict` it carries `AllowPass: false`, and a pass is outside the set and
+refused. Under `warn` the pass stays in the set and is accepted with a warning, `AskAnswered.Breach` naming the rule
+(`activation_required`, `IGameRules.AnswerBreach`). Under `silent` it is accepted with no warning. An accepted pass is the
+team finishing the round, as the alternating scheduler reads it. A team with no legal activation is not asked at all
+(next paragraph). There is no separate end-turn command. The menu's *mark unit activated* writes the
 action record, and the scheduler reacts to the record.
 
 **Enforcement.** Answering with a unit or action outside the legal set is what the enforcement

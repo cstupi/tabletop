@@ -31,7 +31,7 @@
 <svelte:head><title>Account · Tabletop</title></svelte:head>
 
 <h1>Account</h1>
-<section aria-labelledby="name-heading">
+<section class="panel" aria-labelledby="name-heading">
   <h2 id="name-heading">Display name</h2>
   <p>Other players see you as <strong>{current}</strong>.{#if generated} New accounts get a generated name; choose your own below.{/if}</p>
   <form class="stack" onsubmit={rename}>
@@ -40,18 +40,19 @@
     </label>
     <p id="name-help"><small>{problem ?? `Up to ${MAX_NAME} characters.`}</small></p>
     <div class="actions">
-      <button type="submit" disabled={busy || !!problem || unchanged}>Save name</button>
-      <span role="status">{#if saved}Saved.{/if}</span>
+      <button type="submit" class="primary" disabled={busy || !!problem || unchanged}>Save name</button>
+      <span class="saved" role="status">{#if saved}Saved.{/if}</span>
     </div>
   </form>
 </section>
 
-<section aria-labelledby="delete-heading">
+<section class="panel danger-zone" aria-labelledby="delete-heading">
   <h2 id="delete-heading">Delete this account</h2>
   <p>This removes your armies, assets, folders and layouts, and deletes <strong>every game you created — for everyone in it</strong>. Games you joined go on without you. There is no undo.</p>
   <form class="stack" onsubmit={destroy}>
     <label>Type your display name, <strong>{current}</strong>, to confirm <input bind:value={confirm} autocomplete="off" /></label>
-    <div class="actions"><button type="submit" disabled={busy || confirm !== current}>Delete everything</button></div>
+    <div class="actions"><button type="submit" class="danger" disabled={busy || confirm !== current}>Delete everything</button></div>
   </form>
 </section>
 {#if error}<p role="alert">{error}</p>{/if}
+<style>.panel { max-width: 48rem } .danger-zone { --accent: var(--failure) } .danger-zone h2 { color: var(--failure) }</style>
