@@ -605,7 +605,24 @@ import*).
 
 `ArmyForgeClient.ListId(source)` accepts a share link's `id=` parameter or a bare id and returns
 null otherwise (`422`). `Fetch(listId)` calls `GET https://army-forge.onepagerules.com/api/tts?id={id}`
-and throws `ArmyForgeException(status)` on non-200, which the endpoint maps to `502`.
+with a 10 s budget (`ArmyForgeClient.DefaultTimeout`) and a 2 MB response cap (`MaxBytes`, checked on
+`Content-Length` and while reading), and throws `ArmyForgeException(status)`: a status on non-200, null when
+unreachable, timed out or oversize. The endpoint maps both to `502` with fixed text ("Army Forge did not
+return that list." / "Army Forge could not be reached."), an unreadable export to `422`, and logs the
+exception.
+
+`ToArmy` validates the list before building (`ArmyLimits`, `InvalidArmyException` → `422` with the reason):
+Quality and Defense integers 2–6; size 1–50 per entry; at most 100 units and 500 models after merging;
+weapon `Attacks` 1–100 and `Count` 0 to 4 × the entry's size; rule ratings 0–50; `range` a whole number of
+inches 0–120 (null is melee); every chosen base 0.4–12" a side; list, unit, weapon, rule and item names
+through `Limits.Text` (≤ 64, no control or bidirectional formatting characters); `source` ≤ 512; a repeated
+or missing `selectionId` and an empty list are refused. An account keeps at most 200 armies
+(`IArmyRepository.Count`).
+
+`PATCH /v1/armies/{id}` runs `ArmyLimits.Patch` first (`422`): name as above, slot bases 0.4–12" with a
+defined shape, heights 0.1–24", at most 100 unit and 500 slot patches. Every asset id it writes
+(`UnitPatch.AssetId`, `SlotPatch.AssetId`) must be an uploaded `miniature` of the caller's
+(`AssetReferences.Check`), else `422`; clearing names no asset.
 
 `ArmyForgeList.cs` is the **subset of the export this project reads**, verified against a live
 fetch (`c2-6YsWRH3py`, 26 KB, saved as a fixture). Every optional member is nullable
@@ -995,6 +1012,36 @@ joined game that survives with the account gone from its participants and a join
 account was last in, which ends.
 
 ---
+
+### 14. Abuse limits: proxy, rate limits, sizes and counts
+
+The service is hosted behind Caddy on the same machine. `UseForwardedHeaders` runs first and believes
+`X-Forwarded-For` and `X-Forwarded-Proto` only from `TABLETOP_TRUSTED_PROXIES` (comma-separated addresses,
+default `127.0.0.1,::1`), one hop deep; any other peer is its own client whatever it claims.
+
+`UseRateLimiter` runs after authentication (`Http/RateLimiting.cs`). Fixed one-minute windows, each
+overridable by a `TABLETOP_` variable, `0` turning it off:
+
+| Budget | Partition | Default | Variable |
+| --- | --- | --- | --- |
+| every request | client IP | 600 | `RATE_LIMIT_PER_IP` |
+| every authenticated request | `account_id` | 600 | `RATE_LIMIT_PER_ACCOUNT` |
+| the credential endpoints (`/v1/auth/otp`, `otp/verify`, `password`, `password/signup`, `password/reset`, `password/reset/complete`) | client IP | 20 | `RATE_LIMIT_AUTH_PER_IP` |
+| the same endpoints, by the email in the body | lowercased email (`EmailThrottle`) | 5 | `RATE_LIMIT_AUTH_PER_EMAIL` |
+
+`session/refresh` and logout are not credential endpoints and carry only the general budgets. A refusal is
+`429` with fixed text. Under `Development` (compose, `./scripts/management`) every default is `0`, so the
+simulator and the E2E suite never trip them; tests set them per host.
+
+`BodySizeLimit` refuses a request body over 1 MB with `413`, from `Content-Length` or, without one, by
+counting as it reads. Asset bytes never pass through this service.
+
+Text and counts (`Http/Limits.cs`, `422`): every stored name (account, folder, asset, game, layout, army,
+unit, weapon, rule) is at most 64 characters with no control (`Cc`) or bidirectional formatting characters
+(U+200E/F, U+061C, U+202A–E, U+2066–9); volume notes at most 2000 (line feeds and tabs allowed); an army's
+source at most 512. An account holds at most 200 armies, 200 layouts and 200 folders. Assets, layouts and
+armies carry their own caps (§6, §8, §9). Migration `011_text_limits.sql` repeats the length limits as
+`not valid` check constraints.
 
 ## Key decisions
 
