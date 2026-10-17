@@ -47,14 +47,15 @@ public partial class DecisionBox
             if (sel.Max == 1 && picked.Count == 1) { Done(); return; }
             Refresh();
         }
-        foreach (var shelved in DeployView.OffTable(p, sel.Eligible))
+        var eligible = DeployView.Pickable(p, ask);                                  // a deploy pick: units with a model on the shelf (passengers spec)
+        foreach (var shelved in DeployView.OffTable(p, eligible))
         {
             var key = _numbered.FirstOrDefault(n => n.OptionId == shelved.ToString()).Key;
             Add(Btn(key > 0 ? $"{key}. {names.Piece(shelved)}" : names.Piece(shelved), () => Toggle(shelved)));
         }
-        _onNumber = option => { if (Guid.TryParse(option, out var id) && sel.Eligible.Contains(id)) Toggle(id); };
-        _input.Eligible = sel.Eligible.ToHashSet();
-        _onTarget = clicked => { if (Resolve(clicked, sel.Eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
+        _onNumber = option => { if (Guid.TryParse(option, out var id) && eligible.Contains(id)) Toggle(id); };
+        _input.Eligible = eligible.ToHashSet();
+        _onTarget = clicked => { if (Resolve(clicked, eligible) is { } id) { _input.CancelDrag(); Toggle(id); } };
         _onEnter = Done;
         Add(done); Refresh();
     }

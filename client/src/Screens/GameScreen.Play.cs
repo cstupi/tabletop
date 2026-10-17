@@ -79,7 +79,7 @@ public partial class GameScreen
         _undo.Reported += Toast;
         _animator.Played += _floating.Show;
         _roster.UnitPicked += id => { Input.Select(id); Input.Focus(id); };
-        _roster.UnitMenuRequested += (id, at) => { if (_session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId), at); };
+        _roster.UnitMenuRequested += (id, at) => { if (_session.Game is { } g && _session.Projection is { } p) _menu?.Open(MenuModel.ForRosterUnit(g, p, id, _session.MyTeamId, _session.DeployInside), at); };
         _end.LeaveRequested += () => Guarded.Run(_session.DisconnectAsync, Toast);
         // Follow (spec → Camera): an action frame starting glides to its actor, unless the player moved the camera in the last 2 s
         // or holds a unit; never for the history replayed on join.
@@ -213,7 +213,8 @@ public partial class GameScreen
         if (p.Models.TryGetValue(id, out var model))
         {
             var known = MenuModel.KnownActionNames(p, _session.Log);
-            return shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p)).ToList();
+            var boarding = _session.Game is { } g ? MenuModel.ForBoarding(p, AskViewModel.Mine(p, g, _session.MyTeamId, _session.Settings.MutedWindowKinds)?.Ask, id) : [];
+            return [.. boarding, .. shift ? MenuModel.ForUnit(p, model.UnitId, known) : MenuModel.ForModel(p, id, known).Concat(MenuModel.ForFrame(p))];
         }
         return _session.Game is { } game ? MenuModel.ForMarker(game, p, id, Input.Locks) : [];
     }

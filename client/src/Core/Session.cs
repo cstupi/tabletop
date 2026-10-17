@@ -29,6 +29,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     readonly Dictionary<string, RuleTexts> _ruleTexts = new(StringComparer.Ordinal);   // by properties hash: a pinned set never changes
     readonly HashSet<string> _fetchingRules = new(StringComparer.Ordinal);
     IReadOnlyDictionary<Guid, int> _maxWounds = new Dictionary<Guid, int>();
+    IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
 
     public SessionPhase Phase { get; private set; } = SessionPhase.LoggedOut;
     public AccountRow? Account { get; private set; }
@@ -50,6 +51,8 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
     public RuleTexts Rules => Game?.PropertiesHash is { } hash && _ruleTexts.TryGetValue(hash, out var rules) ? rules : RuleTexts.Empty;
     /// <summary>Wounds each model takes before it is killed, from the latest ModelFacts; an absent id is 1 (in-game UX spec → Model facts).</summary>
     public IReadOnlyDictionary<Guid, int> MaxWounds => _maxWounds;
+    /// <summary>For each unit that may be put inside a Transport now, the Transport models it may go in, from the latest ModelFacts (passengers spec).</summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> DeployInside => _deployInside;
     /// <summary>From a board until the join's log has arrived: the first ModelFacts after it, or an empty page (the end of setup).
     /// The server pages the log 500 events at a time, so one batch is not the whole catch-up.</summary>
     public bool CatchingUp { get; private set; }
@@ -325,6 +328,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
             case PingMessage p: Pinged?.Invoke(p.Ping); break;
             case ModelFacts f:
                 _maxWounds = new Dictionary<Guid, int>(f.MaxWounds);
+                _deployInside = f.DeployInside is { } inside ? new Dictionary<Guid, IReadOnlyList<Guid>>(inside) : new Dictionary<Guid, IReadOnlyList<Guid>>();
                 CatchingUp = false;
                 RaiseFacts();
                 break;
@@ -423,6 +427,7 @@ public sealed class Session(ManagementClient management, IGameSocketFactory sock
         Applier = null; Draft = null; Game = null; ParticipantId = null;
         ClearPrediction(); Others.Clear();
         _maxWounds = new Dictionary<Guid, int>();
+        _deployInside = new Dictionary<Guid, IReadOnlyList<Guid>>();
         CatchingUp = true;
         RaiseBoard();
     }
