@@ -33,7 +33,7 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISock
         for (var i = 0; i < accounts.Count; i++)
             await Execute(connection, transaction, ct,
                 "insert into management.account (id, name) values ($1, $2) on conflict (id) do nothing",
-                accounts[i], info.Participants[i].Name);
+                accounts[i], Fit(info.Participants[i].Name));
 
         // rng_seed is how a socket run sets the seed: the driver writes a row rather than constructing a
         // GameInfo, so the scenario's seed goes in the insert and the game server reads it back at
@@ -43,7 +43,7 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISock
             insert into management.game (id, name, status, game_rules, properties_hash, scheduler_shape, enforcement, waits_between_steps, created_by, rng_seed, optional_rules)
             values ($1, $2, 'lobby', $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
             """,
-            info.Id, info.Name, info.GameRules, info.PropertiesHash,
+            info.Id, Fit(info.Name), info.GameRules, info.PropertiesHash,
             Wire(info.SchedulerShape), Wire(info.Enforcement), info.WaitsBetweenSteps, accounts[0], info.RngSeed,
             System.Text.Json.JsonSerializer.Serialize(info.OptionalRules));
 
@@ -153,4 +153,7 @@ public sealed class SocketRowSeeder(NpgsqlDataSource db, IGameRows rows) : ISock
         foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(ct);
     }
+
+    /// <summary>management's text limits (016_text_limits.sql) hold names to 64 characters; a suite game's name can run longer.</summary>
+    static string Fit(string name) => name.Length <= 64 ? name : name[..64];
 }
