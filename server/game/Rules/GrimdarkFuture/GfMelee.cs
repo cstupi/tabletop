@@ -14,8 +14,14 @@ public static class GfMelee
     /// <summary>Outline labels: p.9 ("Once all charging models have attacked"; Return strikes) and p.10 (Melee resolution; Consolidation moves). The Counter, Impact and Unwieldy strikes and the after-melee window are internal.</summary>
     public static Sequence Melee() => new(GfNames.Melee, [new MeleeStartStep(), new CounterStep(), new ImpactStep(), new GfRuleHits.RavageStep("charger-ravage", charger: true), new ChargerAttacksStep().Labelled("Charger attacks"), new StrikeBackStep().Labelled("Strike back"), new GfRuleHits.RavageStep("defender-ravage", charger: false), new UnwieldyStep(), new GfRuleHits.SelfDestructStep(), new CompareStep().Labelled("Melee resolution"), new ConsolidateStep().Labelled("Consolidation"), new GfMoves.PointWindowStep(GfNames.AfterMelee, "after-melee")]);
 
-    public static IReadOnlyList<Guid> MeleeWeapons(GameState state, Guid unit, Func<Weapon, bool>? filter = null) =>
-        Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons).Where(w => !w.Stats.ContainsKey(GfNames.Range) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
+    /// <summary>The unit's melee weapons. A Limited weapon fired before the melee under way (or, outside one, ever) is left out (p.14 "may only be used once
+    /// per game"), so the list is the same on each run of a melee step.</summary>
+    public static IReadOnlyList<Guid> MeleeWeapons(GameState state, Guid unit, Func<Weapon, bool>? filter = null)
+    {
+        var used = GfAttack.FiredLimited(state, state.Projection.Stack.LastOrDefault(f => f.Sequence == GfNames.Melee)?.Id);
+        return Lookup.LivingModels(state, unit).SelectMany(m => state.Projection.Models[m].Slot.Weapons)
+            .Where(w => !w.Stats.ContainsKey(GfNames.Range) && !used.Contains(w.Id) && (filter?.Invoke(w) ?? true)).Select(w => w.Id).ToList();
+    }
 
     const double Touching = 1e-6;   // "not in base contact": farther apart than float noise
     static bool IsCounter(Weapon w) => w.Properties.Any(p => p.Name == "Counter");
@@ -59,6 +65,7 @@ public static class GfMelee
         var defenderModels = Lookup.LivingModels(ctx.State, target).Count;
         foreach (var (g, i) in groups.Select((g, i) => (g, i)))
         {
+            GfAttack.ListRuleWeapons(ctx, g.WeaponIds);
             var byQuality = GfAttack.AttacksAgainst(ctx, attacker, target, g.WeaponIds, AttackKind.Melee, action);
             settled[$"attacks_{i}"] = byQuality.Sum(x => x.Attacks);
             foreach (var (quality, attacks) in byQuality) settled[$"attacks_{i}_q{quality}"] = attacks;

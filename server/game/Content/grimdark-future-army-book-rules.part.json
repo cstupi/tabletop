@@ -1764,24 +1764,6 @@
       ]
     },
     {
-      "name": "Takedown Shot",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model shoots, it may make one extra attack against the target at Quality 2\u002B with AP(2), Deadly(3), and Takedown.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Takedown Strike",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when it\u0027s this model\u0027s turn to attack in melee, it may make one attack at Quality 2\u002B with AP(2), Deadly(3), and Takedown.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Targeting Visor Boost Aura",
       "kind": "model",
       "takesParameter": false,

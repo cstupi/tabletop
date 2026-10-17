@@ -125,8 +125,11 @@ public static class ArmyForgeImport
             ? new Dictionary<string, string> { ["Quality"] = TargetNumber(u.Quality), ["Defense"] = TargetNumber(u.Defense) }
             : new Dictionary<string, string>();
         for (var i = 0; i < u.Size; i++)
+        {
+            slotWeapons[i].AddRange(ArmyBookAdditions.Weapons(slotProps[i].Concat(unitProps ?? []), slotWeapons[i]));
             into.Add(new ModelSlot(Guid.CreateVersion7(), into.Count + 1, $"{u.Name} {i + 1}", new Dictionary<string, string>(slotStats),
                 slotProps[i], body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
+        }
     }
 
     /// <summary>The chosen set's base with HeightFromBase of that base, or DefaultBody when that field is absent.</summary>

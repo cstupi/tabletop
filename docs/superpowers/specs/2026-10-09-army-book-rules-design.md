@@ -140,9 +140,14 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   `place 9` rows at a point, `after-deploy`, whose window opens when a deployment turn's unit is fully placed (a Scout's
   too; an Ambusher's arrival is a round boundary, not a deployment turn, and opens none). Surprise Attack is a pick
   entry offered only in the unit's first activation and once a game for the unit: it rolls X dice and its one target
-  takes one hit per 2+ (`rule-hits`, blocked under AP(1)). Takedown Shot and Takedown Strike are not built: each is
-  an attack with a profile no weapon carries (Quality 2+, AP(2), Deadly(3), Takedown); the build path is the import
-  adding that profile as a weapon of the carrying model, used once a game.
+  takes one hit per 2+ (`rule-hits`, blocked under AP(1)). Takedown Shot and Takedown Strike are each an attack with a
+  profile no weapon carries: the import (`ArmyBookAdditions`) gives the carrying model a weapon named after the rule, Attacks 1,
+  AP(2), Deadly(3), Reliable (p.14's Quality 2+), Takedown and Limited (p.14's once per game). The Shot's range is the model's
+  longest gun, and a model with no gun gets none; it fires as one more group of the model's shooting, which may be left
+  unassigned (*"may"*). The Strike strikes with the model's other melee weapons the first time it attacks in melee; a fired
+  Limited weapon is left out of later melee as it is out of shooting. The engine lists the rule when its weapon attacks.
+  An army imported before the import added these weapons holds the rule and no weapon: the rule does nothing until the army
+  is imported again.
 - **Batch 4.** Bounding and Dash are `place` rows of *"D3+1"* (`amountDice d3+1`); Dash's *"at the end of this unit's
   activation"* is a point, `activation-end`, whose window opens after the activation's own work. Hit & Run is Harassing's
   text and rows. A *"pick one effect"* rule (Versatile Attack, Watchborn, Versatile Defense, Versatile Reach) and Speed

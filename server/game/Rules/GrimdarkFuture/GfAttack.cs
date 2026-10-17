@@ -250,6 +250,28 @@ public static partial class GfAttack
     public static Sequence AttackSequence() => new(GfNames.AttackSequence, [new DetermineAttacksStep(), new PickTargetModelStep(), new RollToHitStep(), new ScoreHitsStep(), new PushStep("resolve", GfNames.ResolveHits), new SelfWoundsStep()]);
     public static Sequence ResolveHits() => new(GfNames.ResolveHits, [new RollToBlockStep(), new PushStep("deal", GfNames.DealWounds)]);
 
+    /// <summary>The Limited weapons an attack-sequence used before the given frame started (the whole log without one): p.14 "may only be used once per game".</summary>
+    public static HashSet<Guid> FiredLimited(GameState state, Guid? before)
+    {
+        var used = new HashSet<Guid>();
+        foreach (var e in EventApplier.EffectiveLog(state.Applier.Log))
+        {
+            if (e.Payload is not SequenceStarted s) continue;
+            if (s.FrameId == before) break;
+            if (s.Sequence == GfNames.AttackSequence) used.UnionWith(s.Context.WeaponIds);
+        }
+        used.IntersectWith(state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => w.Properties.Any(p => p.Name == "Limited")).Select(w => w.Id));
+        return used;
+    }
+
+    /// <summary>A weapon an import added for a rule of its model is named after that rule (Takedown Shot, Takedown Strike): its attack is the rule acting.</summary>
+    public static void ListRuleWeapons(StepContext ctx, IReadOnlyList<Guid> weapons)
+    {
+        foreach (var m in ctx.Projection.Models.Values)
+            foreach (var w in m.Slot.Weapons.Where(w => weapons.Contains(w.Id) && m.Slot.Properties.Any(p => p.Name == w.Name)))
+                ctx.Applied.Add(w.Name);
+    }
+
     /// <summary>p.14 Takedown is a weapon property, so a group carries it when one of its weapons does. GfGroups reads this for WeaponGroup.Takedown, and splits such a group so each holds one model's weapon.</summary>
     public static bool IsTakedownGroup(GameState state, IReadOnlyList<Guid> weapons) =>
         state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).Where(w => weapons.Contains(w.Id)).Any(w => w.Properties.Any(p => p.Name == GfNames.Takedown));
