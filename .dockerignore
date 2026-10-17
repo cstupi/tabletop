@@ -12,3 +12,5 @@ client
 web/build
 web/.svelte-kit
 viewer/.svelte-kit
+home.env
+build

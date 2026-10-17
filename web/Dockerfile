@@ -1,0 +1,19 @@
+# The web app's production image: the SvelteKit static build served by Caddy on :8080 (SPA fallback, and the headers the
+# build's CSP <meta> tag cannot carry). Build from the repo root:
+#   docker build -f web/Dockerfile --build-arg TABLETOP_BLOB_ORIGIN=https://files.example.org -t tabletop-web .
+# TABLETOP_BLOB_ORIGIN is TABLETOP_S3_PUBLIC_ENDPOINT's origin: the CSP's connect-src and img-src name it (svelte.config.js).
+FROM node:24-alpine AS build
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json web/.npmrc ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+ARG TABLETOP_BLOB_ORIGIN
+RUN test -n "$TABLETOP_BLOB_ORIGIN" || { echo "the TABLETOP_BLOB_ORIGIN build arg is required" >&2; exit 1; }; \
+    TABLETOP_BLOB_ORIGIN="$TABLETOP_BLOB_ORIGIN" npm run build
+
+FROM caddy:2-alpine
+COPY web/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/web/build /srv
+USER 65534:65534
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
