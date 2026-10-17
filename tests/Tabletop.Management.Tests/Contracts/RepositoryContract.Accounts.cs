@@ -19,7 +19,7 @@ public abstract partial class RepositoryContract
     }
 
     [Fact]
-    public async Task Account_game_ids_are_the_games_it_plays_in_and_the_games_it_created_and_left()
+    public async Task Account_hosted_games_are_the_games_it_created_and_joined_games_the_others_it_plays_in()
     {
         var hash = await NewProperties();
         var (me, other) = (await NewAccount("Me"), await NewAccount("Other"));
@@ -31,9 +31,10 @@ public abstract partial class RepositoryContract
         await Games.Join(joined, me);
         var untouched = (await Games.Create(other, GameRequest(hash)))!.Id;
 
-        var ids = await Accounts.GameIds(me);
-        Assert.Equal(new HashSet<Guid> { mine, left, joined }, ids.ToHashSet());
-        Assert.DoesNotContain(untouched, ids);
+        Assert.Equal(new HashSet<Guid> { mine, left }, (await Accounts.HostedGameIds(me)).ToHashSet());
+        Assert.Equal([joined], await Accounts.JoinedGameIds(me));
+        Assert.Equal(new HashSet<Guid> { joined, untouched }, (await Accounts.HostedGameIds(other)).ToHashSet());
+        Assert.Equal([left], await Accounts.JoinedGameIds(other));
     }
 
     [Fact]

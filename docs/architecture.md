@@ -640,7 +640,7 @@ writes only events and one row: `game.status = 'ended'` when its own log ends th
 ([the whole-design review](superpowers/specs/2026-09-04-whole-design-review.md)).
 
 `Participant` is an ordinary reference to `Account`, not a copy of a name, because deleting an
-account deletes every game it was in.
+account deletes every game it hosted and leaves every game it joined, so no `participant` row outlives it.
 
 **A game *is* a lobby.** Not `Room` plus `Game`. One entity with a status, because a room is just
 a game that has not started. Two entities would mean a handoff, a copy, and two sources of truth

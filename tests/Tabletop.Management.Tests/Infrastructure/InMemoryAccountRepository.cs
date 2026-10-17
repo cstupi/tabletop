@@ -30,11 +30,16 @@ public sealed class InMemoryAccountRepository(InMemoryRows rows) : IAccountRepos
         lock (rows.Gate) return Task.FromResult<IReadOnlyList<string>>(rows.Blobs.Where(b => b.Key.Owner == accountId).Select(b => b.Value.Key).ToList());
     }
 
-    public Task<IReadOnlyList<Guid>> GameIds(Guid accountId)
+    public Task<IReadOnlyList<Guid>> HostedGameIds(Guid accountId)
+    {
+        lock (rows.Gate) return Task.FromResult<IReadOnlyList<Guid>>(rows.Games.Where(g => g.Value.CreatedBy == accountId).Select(g => g.Key).ToList());
+    }
+
+    public Task<IReadOnlyList<Guid>> JoinedGameIds(Guid accountId)
     {
         lock (rows.Gate)
-            return Task.FromResult<IReadOnlyList<Guid>>(rows.Participants.Where(p => p.AccountId == accountId).Select(p => p.GameId)
-                .Union(rows.Games.Where(g => g.Value.CreatedBy == accountId).Select(g => g.Key)).ToList());
+            return Task.FromResult<IReadOnlyList<Guid>>(rows.Participants
+                .Where(p => p.AccountId == accountId && rows.Games.TryGetValue(p.GameId, out var g) && g.CreatedBy != accountId).Select(p => p.GameId).ToList());
     }
 
     public Task Delete(Guid accountId)

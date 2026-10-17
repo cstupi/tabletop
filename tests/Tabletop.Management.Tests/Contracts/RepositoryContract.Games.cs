@@ -94,7 +94,8 @@ public abstract partial class RepositoryContract
         Assert.Null(await Games.Get(game));
         Assert.Equal(0, await GameEventCount(game));
         Assert.False(await Games.Delete(game));
-        Assert.Empty(await Accounts.GameIds(a));
+        Assert.Empty(await Accounts.HostedGameIds(a));
+        Assert.Empty(await Accounts.JoinedGameIds(a));
     }
 
     [Fact]

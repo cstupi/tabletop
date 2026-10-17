@@ -1011,8 +1011,9 @@ Five properties of this SQL are load-bearing.
 - **`blob`'s primary key is `(owner_id, hash)`**, which makes per-user dedup a property of the schema
   rather than a rule in code.
 - **`game.game_event` has no foreign key across the schema boundary.** One shared `game_id` and no
-  joins. Account deletion is a multi-step operation in application code, because it cascades upward
-  from participant to team to game and then back down into the game schema.
+  joins. Account deletion is a multi-step operation in application code, because deleting a game it
+  hosted reaches upward through `game.created_by` and then back down into the game schema, and
+  each game it joined is left as `/leave` leaves it.
 - **The check constraints encode the same closed sets the C# encodes**, twice, with nothing linking
   them. `('solid','area')` in SQL and `enum VolumeKind { Solid, Area }` in C# are two spellings of
   one decision. Only the wire round-trip test and the naming policy keep them aligned.

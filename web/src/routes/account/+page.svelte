@@ -28,7 +28,7 @@
 
 <section>
   <h2>Delete this account</h2>
-  <p>This removes your armies, assets, folders and layouts, and deletes <strong>every game you took part in — for everyone in it</strong>. There is no undo.</p>
+  <p>This removes your armies, assets, folders and layouts, and deletes <strong>every game you created — for everyone in it</strong>. Games you joined go on without you. There is no undo.</p>
   <label>Type your display name to confirm <input bind:value={confirm} /></label>
   <button onclick={destroy} disabled={confirm !== session.account?.name}>Delete everything</button>
 </section>

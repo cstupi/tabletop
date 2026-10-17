@@ -94,20 +94,21 @@ private — and it never meant anything. It is dropped.
 
 ## Deletion is total
 
-Deleting an account destroys its armies, assets, blobs, folders and layouts, and deletes
-**every game it participated in** — the game record and its event log — and then the
-account row.
+Deleting an account destroys its armies, assets, blobs, folders and layouts, deletes **every
+game it hosted** (`game.created_by`) — the game record and its event log — **leaves every game
+it joined** exactly as `POST /v1/games/{id}/leave` does, and then deletes the account row
+(ruled by the owner 2026-10-16). Leaving removes its `participant` row; the game, its teams and
+its log stay, and the last participant's leave ends the game.
 
 No tombstone, no scrubbed name, no deactivated account, no extra game status. Nothing
-survives that would have to render a user who no longer exists.
+survives that would have to render a user who no longer exists: a game it joined loses it as a
+game loses any player who leaves, and the log names teams, not accounts.
 
-The collateral is real and accepted: a game other people played in disappears because one
-participant left.
+The collateral is the games it hosted: they disappear for everyone in them.
 
 Because nothing outlives a user, **`Participant` is an ordinary reference to `Account`**
 rather than a copy of a name. This is the one place the project does not hold its own copy,
-and it holds only because the cascade removes the thing a copy would have protected
-against.
+and it holds only because deletion removes every `participant` row the account has.
 
 ## A game is a lobby
 
@@ -148,7 +149,7 @@ row, unchanged (ruled by the owner 09-06).
 **Ending and deleting are the creator's alone** (ruled by the owner 2026-09-06, overturning any
 participant). `POST /v1/games/{id}/end` and `DELETE /v1/games/{id}` answer `404` to anyone else,
 and the right stays with the creator after they leave the game. An account deletion destroys
-every game the account created, so a game whose creator is gone is gone with them.
+every game the account hosted, so a game whose creator is gone is gone with them.
 
 **An ended game is just one marked ended.** Because state is replayed from the event log,
 restarting an ended game is the identical operation to recovering a crashed task: hydrate

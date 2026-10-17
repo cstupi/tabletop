@@ -153,17 +153,26 @@ public class ArmyForgeImportTests
         Assert.All(unit.Models.Where(m => m.Name != "Visiting Hero 1"), m => Assert.Equal("prsajf5ot936qznk", m.ArmyBook));
     }
     [Fact]
-    public void The_square_set_gives_rect_bases_and_the_round_set_heights()
+    public void The_square_set_gives_rect_bases_and_heights_from_those_bases()
     {
         var round = ArmyForgeImport.ToArmy(Fixture(), "x", Catalog);
         var square = ArmyForgeImport.ToArmy(Fixture(), "x", Catalog, BaseSet.Square);
         var riders = square.Units.Single(u => u.Name == "Beast Riders").Models;
-        Assert.All(riders, m => Assert.Equal((Base.Rect(50 / 25.4, 25 / 25.4), 1.5 * 60 / 25.4), (m.Base, m.Height)));
+        Assert.All(riders, m => Assert.Equal((Base.Rect(50 / 25.4, 25 / 25.4), 1.5 * 50 / 25.4), (m.Base, m.Height)));
         var warriors = square.Units.First(u => u.Name == "Blood Warriors").Models;
-        Assert.All(warriors, m => Assert.Equal(Base.Rect(30 / 25.4, 30 / 25.4), m.Base));
-        Assert.Equal(round.Units.SelectMany(u => u.Models).Select(m => m.Height), square.Units.SelectMany(u => u.Models).Select(m => m.Height));
+        Assert.All(warriors, m => Assert.Equal((Base.Rect(30 / 25.4, 30 / 25.4), 1.5 * 30 / 25.4), (m.Base, m.Height)));
+        Assert.All(square.Units.SelectMany(u => u.Models), m => Assert.Equal(ArmyForgeImport.HeightFromBase(m.Base), m.Height));
+        Assert.All(round.Units.SelectMany(u => u.Models), m => Assert.Equal(ArmyForgeImport.HeightFromBase(m.Base), m.Height));
         Assert.Equal(ArmyForgeImport.ToArmy(Fixture(), "x", Catalog, BaseSet.Round).Units.SelectMany(u => u.Models).Select(m => m.Base),
             round.Units.SelectMany(u => u.Models).Select(m => m.Base));                     // round is the default
+    }
+
+    [Fact]
+    public void Height_scales_off_the_larger_dimension_of_the_base()
+    {
+        Assert.Equal(1.5 * 32 / 25.4, ArmyForgeImport.HeightFromBase(Base.Circle(32 / 25.4)), 9);
+        Assert.Equal(1.5 * 60 / 25.4, ArmyForgeImport.HeightFromBase(Base.Oval(60 / 25.4, 35 / 25.4)), 9);
+        Assert.Equal(1.5 * 100 / 25.4, ArmyForgeImport.HeightFromBase(Base.Rect(60 / 25.4, 100 / 25.4)), 9);   // wider than long: still the larger side
     }
 
     [Fact]

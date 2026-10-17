@@ -3,15 +3,18 @@ using Tabletop.Management.Games;
 
 namespace Tabletop.Management.Identity;
 
-/// <summary>Deletion is total. Cascades handle what hangs below the account; games hang above it and are deleted one by one, log included.</summary>
+/// <summary>
+/// Cascades handle what hangs below the account. The games it hosted (game.created_by, which has no on-delete action) are
+/// deleted one by one, log included; the games it joined lose it as /leave would, and the last leave ends one.
+/// </summary>
 public sealed class AccountDeleter(IAccountRepository accounts, IGameRepository games, IBlobStore blobs, StytchClient stytch, ILogger<AccountDeleter> log)
 {
     public async Task<bool> Delete(Guid accountId)
     {
         if (await accounts.Get(accountId) is null) return false;
         var keys = await accounts.BlobKeys(accountId);
-        // Games it plays in, plus games it created and has since left: game.created_by has no on-delete action, so a game it created must go too.
-        foreach (var gameId in await accounts.GameIds(accountId)) await games.Delete(gameId);
+        foreach (var gameId in await accounts.HostedGameIds(accountId)) await games.Delete(gameId);
+        foreach (var gameId in await accounts.JoinedGameIds(accountId)) await games.Leave(gameId, accountId);
         await accounts.Delete(accountId);
         if (keys.Count > 0) await blobs.Delete(keys);
         try { await stytch.DeleteUser(accountId.ToString()); }

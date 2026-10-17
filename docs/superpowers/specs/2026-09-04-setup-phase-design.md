@@ -83,7 +83,7 @@ It is read for these two transitions and nothing else. The creator is not a host
 does not own the log — and after `playing` the field is never read again. `end` and delete stay
 unowned, as [the management API](2026-08-29-management-api-design.md) has them. A creator who
 disconnects is not gone (disconnecting is not leaving); one who leaves may rejoin to end setup;
-one who deletes their account destroys the game with everything else they played in, per
+one who deletes their account destroys the game with every other game they hosted, per
 accounts. There is no transfer of the role, because nothing else in the model has a role to
 transfer to.
 

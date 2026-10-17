@@ -197,7 +197,7 @@ entries that look like vehicles, because detecting a vehicle would mean a hand-w
 and 3.5.1 renamed five rules such a list would have named. The player corrects it per model through
 `SlotPatch.Base`, which the web app's base editor already writes.
 
-**The default carries its own height.** `HeightFromBase` is `1.5 × base.A`, which on 221 mm gives a
+**The default carries its own height.** `HeightFromBase` is `1.5 ×` the larger base dimension, which on 221 mm gives a
 13" tall tank. `ArmyForgeImport.DefaultBase` therefore becomes `DefaultBody`, a `ModelBody`, and
 `HeightFromBase` applies only to a base that *was* published.
 

@@ -2,7 +2,8 @@
 
 Army Forge publishes two bases per unit entry, `bases.round` and `bases.square`: a tank `120x92` or `100x60`, bikers
 `60x35` or `50x25`, infantry `32` or `30`. Nothing in the export says which units are vehicles. Owner ruling: the player
-picks the base set when the army is imported, round or square, for the whole army. Model height stays as imported.
+picks the base set when the army is imported, round or square, for the whole army. Model height is scaled from the
+base the import writes.
 
 ## Request
 
@@ -30,9 +31,9 @@ included:
 An entry whose chosen field is absent or unparseable gets `DefaultBody`, the 221 × 119 × 113 mm hull, as a missing
 `bases.round` does today. The other set is not consulted.
 
-**Height.** Height stays what a round import writes: `HeightFromBase` of the entry's round base when Army Forge
-publishes one, so choosing square changes bases and nothing else. An entry with a square base and no round base gets
-`HeightFromBase` of its square base; an entry with neither gets `DefaultBody`'s height.
+**Height.** `HeightFromBase` of the base the import writes: `1.5 ×` its larger dimension, round or square (owner
+ruling 2026-10-16: height follows the base actually imported, so a vehicle's long hull sets it). An entry with neither
+base gets `DefaultBody`'s height.
 
 ## Web app
 
@@ -43,7 +44,7 @@ the confirm dialog names the set.
 ## Tests
 
 - `ArmyForgeImportTests`: the fixture imported square gives `Rect(50, 25)` Beast Riders and Blood Hounds and
-  `Rect(30, 30)` Blood Warriors, with the same heights as the round import; a square-only and a neither entry;
-  `ParseBase` per set.
+  `Rect(30, 30)` Blood Warriors, each height `HeightFromBase` of its own base; a square-only and a neither entry;
+  `ParseBase` per set; `HeightFromBase` takes the larger dimension.
 - `ArmyTests`: `POST /v1/armies/import` with `bases: "square"` writes rect bases; without `bases` writes round ones.
 - `web/tests/armies.test.ts`: `api.armies.import` sends `bases`; `reimport` passes the chosen set.

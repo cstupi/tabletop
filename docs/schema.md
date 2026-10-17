@@ -345,8 +345,7 @@ on a spell and on a pick entry (a `model` entry an army-book Buff, Mark or Debuf
 **Added 2026-09-04 by [the setup phase](superpowers/specs/2026-09-04-setup-phase-design.md).**
 `game.created_by` is the account that called `POST /v1/games`. It is read for two socket
 commands — start setup, end setup — and nothing else; the creator is not a host. Account
-deletion already destroys every game the account played in, so a deleted creator leaves no
-orphan.
+deletion destroys every game the account created, so a deleted creator leaves no orphan.
 
 ### A game stores its dice seed
 
@@ -403,8 +402,9 @@ style, and is the same value as `Tabletop.Content.DeploymentZone.Shape`. The sty
 
 Its armies, assets, blobs, folders and layouts cascade downward normally. But
 [accounts](superpowers/specs/2026-08-29-accounts-design.md) requires deleting **every game it
-participated in**, which cascades *upward* — participant to team to game — and then back down
-to other people's participants and into the game schema's event log.
+hosted** (`game.created_by`), which reaches *upward* to the game and then back down to other
+people's participants and into the game schema's event log, and **leaving every game it joined**
+as `POST /v1/games/{id}/leave` does: its `participant` row goes and the last leave ends the game.
 
 Postgres cascades do not run that way. It is a deliberate multi-step operation in the delete
 path rather than a constraint or a trigger: a trigger would hide a destructive cross-schema

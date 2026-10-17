@@ -760,7 +760,7 @@ plus a per-slot override. A unit-level picker sets every slot's mesh. A per-slot
 overrides one, and overriding is **expected rather than exceptional**, because the models in a
 unit are often made from different meshes. Base shape and height are per slot too, defaulting
 from the import. The base is Army Forge's round or square base, by the set chosen at import; height has no source and
-import writes 1.5 × the round base's long axis.
+import writes 1.5 × the larger dimension of that base.
 
 `armies/patches.ts` is one function per edit, each returning a whole `PatchArmyRequest`:
 `unitDefault`, `slotMesh` (null becomes `clearAsset: true`, since an omitted null cannot express
@@ -1134,14 +1134,14 @@ Which fields each screen writes:
 | Folder tree | `folder.name`, `folder.parent_id`; `asset_folder` |
 | Army list | `army` and its whole subtree, inserted by import and deleted whole |
 | Army editor | `army.name`; `model_slot.asset_id`, `base_shape`, `base_a`, `base_b`, `height` |
-| Account page | `account.name`; `DELETE /v1/account` runs the total cascade |
+| Account page | `account.name`; `DELETE /v1/account` deletes the account, its content and its hosted games |
 
 Two properties of the data model shape the UI. **The army holds its own copy of every value.**
 Nothing is fetched later and nothing refers back out, and a game snapshots what it needs when it
 loads, so editing an army cannot disturb a match in progress. **Deletion is total.** Deleting an
-account destroys its armies, assets, blobs, folders and layouts, plus every game it participated
-in, for everyone in it. The account page states that collateral in those words and gates it on
-typing the display name.
+account destroys its armies, assets, blobs, folders and layouts, plus every game it hosted, for
+everyone in it, and leaves every game it joined. The account page states that collateral in those
+words and gates it on typing the display name.
 
 ### Browser-resident state
 

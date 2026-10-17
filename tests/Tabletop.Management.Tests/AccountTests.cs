@@ -26,7 +26,7 @@ public class AccountTests : IClassFixture<ManagementFactory>
     }
 
     [Fact]
-    public async Task Deletion_removes_content_blobs_every_game_played_in_and_the_stytch_user()
+    public async Task Deletion_removes_content_blobs_the_games_it_hosted_and_the_stytch_user_and_leaves_the_games_it_joined()
     {
         var rows = _f.Rows;
         rows.SeedProperties("sha256:d", "GF", "grimdark-future");
@@ -48,6 +48,10 @@ public class AccountTests : IClassFixture<ManagementFactory>
         var theirs = await other.PostJson<GameInfo>("/v1/games", new CreateGameRequest("Theirs", "sha256:d", SchedulerShape.PlayerTurn, Enforcement.Warn, false));
         await me.PostJson<GameInfo>($"/v1/games/{theirs.Id}/join", new { });
         var untouched = await other.PostJson<GameInfo>("/v1/games", new CreateGameRequest("Untouched", "sha256:d", SchedulerShape.PlayerTurn, Enforcement.Warn, false));
+        var abandoned = await other.PostJson<GameInfo>("/v1/games", new CreateGameRequest("Abandoned", "sha256:d", SchedulerShape.PlayerTurn, Enforcement.Warn, false));
+        await me.PostJson<GameInfo>($"/v1/games/{abandoned.Id}/join", new { });
+        Assert.Equal(HttpStatusCode.NoContent, (await other.PostAsync($"/v1/games/{abandoned.Id}/leave", null)).StatusCode);   // I am its last participant
+        rows.SeedGameEvent(mine.Id, 1);
         rows.SeedGameEvent(theirs.Id, 1);
 
         Assert.Equal(HttpStatusCode.NoContent, (await me.DeleteAsync("/v1/account")).StatusCode);
@@ -60,8 +64,14 @@ public class AccountTests : IClassFixture<ManagementFactory>
             Assert.DoesNotContain(rows.Armies.Values, a => a.Owner == meId);
             Assert.DoesNotContain(rows.Folders.Values, f => f.Owner == meId);
             Assert.DoesNotContain(rows.Layouts.Values, l => l.Owner == meId);
-            Assert.Empty(rows.Games.Keys.Intersect([mine.Id, theirs.Id, left.Id]));
-            Assert.DoesNotContain(rows.GameEvents, e => e.GameId == theirs.Id);
+            Assert.Empty(rows.Games.Keys.Intersect([mine.Id, left.Id]));
+            Assert.DoesNotContain(rows.GameEvents, e => e.GameId == mine.Id);
+            Assert.Contains(theirs.Id, rows.Games.Keys);
+            Assert.Contains(rows.GameEvents, e => e.GameId == theirs.Id);
+            Assert.Equal([otherId], rows.Participants.Where(p => p.GameId == theirs.Id).Select(p => p.AccountId));
+            Assert.Equal(GameStatus.Lobby, rows.Games[theirs.Id].Status);
+            Assert.DoesNotContain(rows.Participants, p => p.AccountId == meId);
+            Assert.Equal(GameStatus.Ended, rows.Games[abandoned.Id].Status);   // the last leave ends it, as /leave does
             Assert.Contains(untouched.Id, rows.Games.Keys);
             Assert.True(rows.Accounts.ContainsKey(otherId));
         }

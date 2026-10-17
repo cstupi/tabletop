@@ -28,9 +28,9 @@ public static class ArmyForgeImport
     public static readonly ModelBody DefaultBody = new(Base.Rect(221 / 25.4, 119 / 25.4), 113 / 25.4);
     public const double HeightScale = 1.5;
 
-    /// <summary>A starting height for a base that *was* published, scaled off its long axis because nothing publishes a height:
+    /// <summary>A starting height for a base that *was* published, scaled off its larger dimension because nothing publishes a height:
     /// 1.5" for a 25.4 mm circle, 3.54" for a 60x35 mm oval. The player corrects it per slot.</summary>
-    public static double HeightFromBase(Base b) => HeightScale * b.A;
+    public static double HeightFromBase(Base b) => HeightScale * Math.Max(b.A, b.B);
 
     public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
     {
@@ -129,13 +129,11 @@ public static class ArmyForgeImport
                 slotProps[i], body.Base, body.Height, null, slotWeapons[i], u.ArmyId));
     }
 
-    /// <summary>The chosen set's base, or DefaultBody when that field is absent. The height is the round import's whatever the set,
-    /// so choosing square changes bases and nothing else; an entry with no round base scales from its square one.</summary>
+    /// <summary>The chosen set's base with HeightFromBase of that base, or DefaultBody when that field is absent.</summary>
     private static ModelBody Body(AfBases? bases, BaseSet set)
     {
         if (ParseBase(set == BaseSet.Round ? bases?.Round : bases?.Square, set) is not { } chosen) return DefaultBody;
-        var heightFrom = ParseBase(bases?.Round, BaseSet.Round) ?? chosen;
-        return new ModelBody(chosen, HeightFromBase(heightFrom));
+        return new ModelBody(chosen, HeightFromBase(chosen));
     }
 
     /// <summary>Round: "32" → circle 32 mm, "60x35" → oval 60×35 mm. Square: "30" → rect 30×30 mm, "50x25" → rect 50×25 mm.

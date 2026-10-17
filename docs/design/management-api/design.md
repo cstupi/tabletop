@@ -22,7 +22,7 @@ Asset bytes never pass through the process, and the service issues no token of i
 | Subject | Surface |
 | --- | --- |
 | Identity | `POST /v1/auth/otp`, `/otp/verify`, `/password`, `/password/signup`, `/password/reset`, `/password/reset/complete`, `/session/refresh`, `DELETE /v1/auth/session` |
-| Account | `GET`, `PATCH`, `DELETE /v1/account`; deletion is total |
+| Account | `GET`, `PATCH`, `DELETE /v1/account`; deletion removes the account's content and hosted games and leaves its joined games |
 | Asset library | `/v1/assets` (keyset), create/confirm/download, `PATCH`, `DELETE`, `/volumes` |
 | Folders | `/v1/folders`, nested, many-to-many with assets |
 | Armies | `POST /v1/armies/import` from Army Forge, list (keyset), get, patch bindings and bases, delete |
@@ -230,7 +230,7 @@ graph TD
 
 *Four modules over one `Database`.*
 
-`AccountDeleter` reaches into `GameRepository` and `IBlobStore` because deletion is total.
+`AccountDeleter` reaches into `GameRepository` and `IBlobStore` because deletion deletes hosted games, leaves joined ones and removes blobs.
 `ManifestEndpoint` reaches into `IBlobStore` because it presigns. `DevSessions` is the one
 collaborator whose registration and route are conditional, on `IHostEnvironment.IsDevelopment()`. `VolumeRow` is shared because
 `asset_volume` and `terrain_volume` are the same seventeen columns.
@@ -678,7 +678,7 @@ Nothing had to be added to hold the hero. `ModelSlot` already carries `Stats` an
 `slot_stat` and `slot_property` are already among the ten tables the repository writes in one
 transaction and reads back, and the content values spec declares stats at unit, model and weapon
 level. A joining entry's own quality and defence become slot stats on the slots it contributes. Its
-base comes from its own entry in the chosen base set, and its height is scaled from its own round base.
+base comes from its own entry in the chosen base set, and its height is scaled from that base.
 
 Every rule on a joining entry becomes a slot property on that entry's slots, whatever level
 `CatalogKinds` gives the name. The unit's stats and properties stay the host's. A stat read for the unit reads the
@@ -699,9 +699,8 @@ and a cycle needs no walk.
 and `bases.square`, and nothing says which units are vehicles. `ImportRequest.Bases` (`BaseSet { Round,
 Square }`, default `Round`) picks one for the whole army. `ParseBase(text, set)` maps round `"32"` to
 `Base.Circle`, round `"60x35"` to `Base.Oval`, square `"30"` to `Base.Rect(30, 30)` and square `"50x25"` to
-`Base.Rect(50, 25)`, millimetres to inches. The height is the round import's whatever the set: `HeightFromBase` of
-the entry's round base, or of its square base when it publishes no round one, so choosing square changes bases and
-nothing else. The set is not stored on the army (base shape at import spec).
+`Base.Rect(50, 25)`, millimetres to inches. The height is `HeightFromBase` of the base the
+import writes, round or square. The set is not stored on the army (base shape at import spec).
 
 Defaults where nothing supplies one: `DefaultBody`, a 221 × 119 × 113 mm vehicle hull, when
 the chosen set's field is absent (the other set is not consulted), not a 32 mm infantry circle: Army Forge publishes `bases.round` reliably
@@ -713,8 +712,8 @@ tank. The army spec says bases default to "whatever the ruleset says" and no rul
 anywhere in the model (the plan's ruling 3; the army → *Base shape and height*). The player corrects
 it per model through `SlotPatch.Base`, which the web app's base editor already writes.
 
-`HeightFromBase(base)` is `HeightScale * base.A`, `1.5 ×` the base's long axis (the plan's ruling
-3). A 25.4 mm circle gets 1.5", a 32 mm circle 1.89", a 60x35 mm oval 3.54" and a 120x92 mm oval 7.09".
+`HeightFromBase(base)` is `HeightScale * max(base.A, base.B)`, `1.5 ×` the base's larger dimension (the plan's
+ruling 3; the owner's 2026-10-16 ruling that height follows the imported base). A 25.4 mm circle gets 1.5", a 32 mm circle 1.89", a 60x35 mm oval 3.54" and a 120x92 mm oval 7.09".
 Neither ruleset publishes a height and neither does Army Forge, so the base is the only physical
 dimension available to scale from and the factor is a guess. The player corrects it per slot with
 `SlotPatch.Height`.
@@ -900,15 +899,22 @@ instead of being redefined here. Everything with no contract type is a DTO of th
 ### 13. Total account deletion
 
 Deleting an account destroys its armies, assets, blobs, folders and layouts, then **every game it
-participated in**, both the game record and its event log, and then the account row. No tombstone,
-no scrubbed name, no deactivated state. The collateral is accepted: a game other people played in
-disappears because one participant left (accounts → *Deletion is total*).
+hosted** (`game.created_by`), both the game record and its event log, then **leaves every game it
+joined** through `IGameRepository.Leave`, the same call `POST /v1/games/{id}/leave` makes, and then
+deletes the account row. No tombstone, no scrubbed name, no deactivated state. A joined game keeps
+its teams and its log and loses the account's `participant` row; the last leave ends it. The
+collateral is the hosted games, which disappear for everyone in them (accounts → *Deletion is
+total*).
+
+Accounts are rarely deleted. The owner's expectation is that an account is more often locked so it
+cannot log in; locking is not designed.
 
 Postgres cascades cannot express this. Content hangs *below* the account and cascades normally.
-Games hang *above* it, participant to team to game, and then back down into other people's
-participants and across into the `game` schema's log. Deletion is therefore a multi-step operation
-rather than a constraint or a trigger. A trigger would hide a destructive cross-schema action
-behind an ordinary `DELETE` (`schema.md` → *Deleting an account is application logic*).
+A hosted game hangs *above* it, through `game.created_by`, and its delete reaches back down into
+other people's participants and across into the `game` schema's log. Deletion is therefore a
+multi-step operation rather than a constraint or a trigger. A trigger would hide a destructive
+cross-schema action behind an ordinary `DELETE` (`schema.md` → *Deleting an account is application
+logic*).
 
 ```mermaid
 sequenceDiagram
@@ -922,10 +928,15 @@ sequenceDiagram
     E->>D: Delete(accountId)
     D->>A: Get(accountId), null answers 401
     D->>A: BlobKeys: select s3_key from blob where owner_id = me
-    D->>A: GameIds: select game_id from participant where account_id = me<br/>UNION select id from game where created_by = me
-    loop per game id
+    D->>A: HostedGameIds: select id from game where created_by = me
+    loop per hosted game
         D->>G: Delete(gameId)
         Note over G: delete game.game_event, then game (cascades team, participant, table_state)
+    end
+    D->>A: JoinedGameIds: select game_id from participant where account_id = me, game not created_by me
+    loop per joined game
+        D->>G: Leave(gameId, me)
+        Note over G: delete my participant row; the last leave sets status ended
     end
     D->>A: Delete: delete from account (cascades army, asset, blob, folder, table_state, participant)
     D->>S3: Delete(keys)
@@ -939,13 +950,14 @@ sequenceDiagram
 A Stytch failure other than `404` answers `502` after the content is already gone. Logging in again
 then recreates an empty account with the same id, because `Sessions.Complete` inserts on conflict.
 
-The union carries the case that cascades miss. `game.created_by` is
+Hosted games are found by `game.created_by`, not by participation. `game.created_by` is
 `not null references account(id)` with **no** `on delete` action, and `/leave` deletes the
 participant row while the game survives. An account that created a game and then left is still
-named by `created_by`, so a plain `delete from account` would fail on that foreign key. The union
-over `participant.game_id` and `game.created_by` is what makes `schema.md`'s assertion true, that
-*"Account deletion already destroys every game the account played in, so a deleted creator leaves
-no orphan"*. The plan's test exercises that case: a game created, then left, then still deleted.
+named by `created_by`, so a plain `delete from account` would fail on that foreign key. Deleting
+every game it created is what makes `schema.md`'s assertion true, that a deleted creator leaves no
+orphan. `AccountTests` exercises that case, a game created, then left, then still deleted, beside a
+joined game that survives with the account gone from its participants and a joined game the
+account was last in, which ends.
 
 ---
 
@@ -967,8 +979,8 @@ no orphan"*. The plan's test exercises that case: a game created, then left, the
 | **The game server writes a game's own rows before play** | three documents said it was read-only and wrote only events. The setup phase had it flipping status, writing the draft, and taking team and army picks over the socket | keeping management the sole writer, which would have meant endpoints for every lobby and setup edit | whole-design review ruling 4 |
 | **Layouts stay management's** even though the game server owns the draft | the client saves by `POST /v1/layouts` from its own copy of the draft and loads by `GET` plus a replace-draft edit, so the game server never writes an owner-side row | letting the game server write the layout directly, which would have put an owner's row in the other service's write set | whole-design review ruling 4; setup phase → *Layouts* |
 | **Grimdark Future and Age of Fantasy both import**, both carrying `game_system = "grimdark-future"` | the mechanics are the same and only the content differs, which is what `architecture.md` → *Rules as data* already records when it rules Age of Fantasy out as a second ruleset: its terrain rules are word for word identical. One rules implementation therefore serves both, and the list's `gameSystem` selects nothing but whether the list is accepted | `gf` alone, on the reading that Age of Fantasy is not a second ruleset and so not a second import; a second `GameRules` identifier, which would need a second engine to mean anything. The skirmish and regiment variants stay refused, being different mechanics rather than different content | the plan's ruling 5; plan Task 9 |
-| **A slot's starting height is scaled from its base**, `1.5 ×` the long axis | a flat 1.5" would give a 120 mm monster the height of an infantryman, and the base is the only physical dimension Army Forge publishes. The scale is arbitrary and reads as arbitrary, which suits a value the player is expected to correct per slot through `SlotPatch.Height` | the flat `DefaultHeight = 1.5`; per-`GameRules` heights from `Properties`, which needs a table that does not exist | the plan's ruling 3; plan Task 9 |
-| **Only the creator may `/end` or `DELETE` a game**, and still may after leaving it | the creator already starts and ends setup, so ending and destroying the game belong to the same account. `game.created_by` has no `on delete` action and outlives the participant row, so leaving does not surrender the right | any participant, on the reading that the setup phase leaves a game "unowned". A game whose creator's account is deleted is not stranded: account deletion destroys every game the account created as well as every game it played in | the plan's ruling 6; plan Task 12; accounts → *Ending is a flag, not a state* |
+| **A slot's starting height is scaled from its base**, `1.5 ×` the larger dimension of the base the import writes | a flat 1.5" would give a 120 mm monster the height of an infantryman, and the base is the only physical dimension Army Forge publishes. The scale is arbitrary and reads as arbitrary, which suits a value the player is expected to correct per slot through `SlotPatch.Height` | the flat `DefaultHeight = 1.5`; per-`GameRules` heights from `Properties`, which needs a table that does not exist | the plan's ruling 3; plan Task 9 |
+| **Only the creator may `/end` or `DELETE` a game**, and still may after leaving it | the creator already starts and ends setup, so ending and destroying the game belong to the same account. `game.created_by` has no `on delete` action and outlives the participant row, so leaving does not surrender the right | any participant, on the reading that the setup phase leaves a game "unowned". A game whose creator's account is deleted is not stranded: account deletion destroys every game the account created and leaves the games it only joined | the plan's ruling 6; plan Task 12; accounts → *Ending is a flag, not a state* |
 | **A joined hero is a model of the unit it joined**, with its own quality, defence and rules on its own slot | Army Forge publishes the attachment on the joining entry, and dropping it imports a squad of five plus a hero of one where the list describes one unit of six. `ModelSlot` already carries `Stats` and `Properties`, `slot_stat` and `slot_property` are already written and read back, and content values declares stats at model level, so the merge is a restructuring of `ArmyForgeImport` and no schema change | importing the hero as its own unit and losing the join, on the reading that no column records it; a host column on `unit`, which the army tables do not have and which only import would ever write | the plan's ruling 2; plan Task 9 |
 | **A changed list means a re-import**, losing per-slot bindings | armies are cheap to rebuild and list changes are rare | reconciliation and copy-on-write, with a `Binding` table and a `list_entry` column to serve them | the army → *A changed list means a re-import*; asset library → *Binding is not a third record*; content values → *`list_entry` is dropped* |
 | **Dedup is per user**, `blob` keyed `(owner_id, hash)` | nobody shares storage, so cross-user reference counting never has to exist, and deleting an asset checks only the owner's own rows | global content addressing with reference counts | asset library → *Two records*; `schema.md` → *Identifiers* |
@@ -1064,7 +1076,7 @@ and a build whose environment is unset serves `404` for it.
 | `Identity.StytchClient` | `SendEmailOtp`, `AuthenticateOtp`, `AuthenticatePassword`, `CreatePassword`, `StartPasswordReset`, `CompletePasswordReset`, `RefreshSession`, `RevokeSession`, `SetExternalId`, `DeleteUser`, and for the development mint `FindUserId`, `CreateUser`, `CreateEmbeddableToken`, `AuthenticateMagicLink`; `HttpClientName = "stytch"`; `StytchException(Status, ErrorType)`; `StytchSession`, `StytchUser`, `StytchEmail`, `OtpSent` |
 | `Identity.Sessions` | `Complete(StytchSession) : SessionResponse`; `static Problem(StytchException) : IResult` |
 | `Identity.DevSessions`, `Identity.DevSessionEndpoint` | `Mint(name) : SessionResponse`, `static AccountIdFor(name) : Guid`, `static EmailFor(name) : string`; `DevSessionRequest(Name)`; `MapDevSession`, registered only under a development environment |
-| `Identity.IAccountRepository`, `AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)`, `BlobKeys(accountId)`, `GameIds(accountId)`, `Delete(accountId)` |
+| `Identity.IAccountRepository`, `AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)`, `BlobKeys(accountId)`, `HostedGameIds(accountId)`, `JoinedGameIds(accountId)`, `Delete(accountId)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
 | `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Put`, `Delete` |
@@ -1480,7 +1492,7 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 | `POST /v1/assets` and then no `confirm` | a `blob` row with `uploaded = false` forever, and possibly an S3 object with no confirm | **left in place.** No reaper. The row is invisible to downloads and manifests, and delete removes it with the asset |
 | Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes. The only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
 | S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
-| Account deletion: Stytch fails with anything but `404` | content and games are already gone. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
+| Account deletion: Stytch fails with anything but `404` | content and hosted games are already gone, joined games already left. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |
 | A valid JWT with no `account_id` claim | `CurrentAccount.Id` throws `UnauthorizedAccessException`. Task 4 says the Task 3 exception handler maps it to `401`; the handler as written in Task 3 maps only `ArgumentOutOfRangeException`, so this is a `500` | a gap, and untested. Listed under *Notable gaps* |
 | JWKS refetch throttle | a Stytch key rotation within 30 seconds of the last fetch yields `401`s until the window passes | accepted stampede guard |
 | Blocking key resolution | `IssuerSigningKeyResolver` calls `jwks.Resolve(kid).GetAwaiter().GetResult()`, so the first request after a cold start blocks a thread-pool thread on an outbound HTTP call, behind a semaphore every other concurrent request also waits on | not addressed. A burst at startup is the exposure |
@@ -1546,8 +1558,8 @@ live service; `--settings tests/e2e.runsettings` runs the `Category=E2E` tests a
 `Contracts/RepositoryContract` states each repository's contract once and runs twice: `InMemoryRepositoryContractTests`
 over the fakes (unit) and `PostgresRepositoryContractTests` over the SQL classes on a `TestDatabase` (E2E). It covers
 keyset paging (assets and armies ascending after the cursor, games descending before it), per-owner blob dedup and the
-last delete returning the key, account deletion cascading content and participant rows and being refused while a game
-names the account as creator, folder cycles and cascades, army patch precedence and the lobby pick cleared on army
+last delete returning the key, an account's hosted and joined game ids, account deletion cascading content and
+participant rows and being refused while a game names the account as creator, folder cycles and cascades, army patch precedence and the lobby pick cleared on army
 delete, layout copies with fresh ids, join idempotence, the last leave ending the game under concurrent leaves, the
 latest Properties set per name, rule texts, catalog kinds, and the manifest's union of picks, snapshots and the game
 table. `BlobStoreContract` does the same for `InMemoryBlobStore` (unit) and `S3BlobStore` on MinIO (E2E): a presigned
@@ -1617,7 +1629,7 @@ Stytch user and one stamp call per mint, with the second JWT accepted by `GET /v
 | --- | --- | --- |
 | 1. Custom claim by per-login `session_custom_claims` or by a Stytch dashboard claim template (`{"account_id": "{{ user.external_id }}"}`)? | **`session_custom_claims`, stamped once per new session** | the template is dashboard configuration outside the repo and its absence fails silently, so signup and sign-in could not be shown to work from the repo. Stytch keeps session custom claims on the session, so the stamp costs one extra call per new session and a refresh makes none. `external_id` links the account and `Sessions.Complete` stamps from it |
 | 2. Do joined heroes (`joinToUnit` without `combined`) import as their own unit? | **no: the hero is a model of the unit it joined** | Army Forge publishes the attachment on the joining entry, and `ModelSlot` already carries the stats and properties the hero needs, so no table records the join. `Merge` returns a host plus the entries joining it, `Section` appends one entry's slots with its own stats, base and cursor, the unit's stats and properties stay the host's, and an unresolvable `joinToUnit` imports as a unit of its own |
-| 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 221 × 119 × 113 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its long axis** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
+| 3. Default base and height when Army Forge gives none? | **`DefaultBody`, a 221 × 119 × 113 mm vehicle hull carrying its own height, when `bases.round` is absent; a published base gets `HeightFromBase`, `1.5 ×` its larger dimension** | Army Forge publishes `bases.round` reliably for infantry, so a missing base is a vehicle or monster in practice, and the base is the only physical dimension the export gives. `HeightFromBase` is one expression, and a per-`GameRules` table of heights would be the alternative |
 | 4. How are partial weapon counts dealt onto models? | **an advancing cursor**, and the flamer lands last | import expands deterministically; asking the user would need a per-slot weapon editor and a `PATCH` shape for weapons, neither designed |
 | 5. Which game systems import? | **Grimdark Future and Age of Fantasy, both as `grimdark-future`** | the mechanics are the same and only the content differs. No Age of Fantasy content set exists, so such a list imports before anything can play it, recorded against the interpreter |
 | 6. Who may `/end` and `DELETE` a game? | **the creator alone**, still so after leaving | the creator starts and ends setup, so ending and destroying the game belong to the same account. `GameRepository.IsCreator` gates both routes and anyone else gets `404` |
