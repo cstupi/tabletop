@@ -15,7 +15,7 @@ function write(s: SessionResponse | null) {
   catch { /* storage blocked or full: the session lives in memory for this tab only */ }
 }
 
-/** Management refused this token for good (401, or a 4xx such as Stytch's refusal of an unknown session as 422); a 429, a 5xx
+/** Management refused this token for good (401: a dead session; or any other 4xx); a 429, a 5xx
  *  or no answer at all is worth retrying, so it keeps the session. */
 const refused = (e: unknown) => e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 429;
 

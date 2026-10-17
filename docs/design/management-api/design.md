@@ -351,7 +351,7 @@ renamed.
 Stytch's own error never reaches the caller. `Sessions.Problem` maps a `StytchException` to a fixed detail
 and `AuthEndpoints` logs the `error_type`: `401`/`404` → `401` "Wrong email, password or code."; `429` →
 `429`; `5xx` and transport failures → `502`; `weak_password` → `422` naming the password; every other `4xx`,
-`duplicate_email` included, → `422` with one generic detail, so signup does not say whether an email has an
+`duplicate_email` included, → `422` with one generic detail (`POST /v1/auth/session/refresh` instead answers `401` for any Stytch `4xx` but `429`: a dead session is unauthenticated), so signup does not say whether an email has an
 account. A signup that succeeds still shows that the email was free; that is inherent in password signup
 without an email-verification step.
 
@@ -958,14 +958,14 @@ plus `AddProblemDetails()`. The status vocabulary across the whole surface:
 | Status | When |
 | --- | --- |
 | `400` | a malformed version header, a non-positive `limit`, a body that does not bind (an enum as an integer or an unknown name) |
-| `401` | no token, wrong issuer, expired token, Stytch `401`/`404` on a login |
+| `401` | no token, wrong issuer, expired token, Stytch `401`/`404` on a login, any Stytch `4xx` but `429` on `session/refresh` |
 | `404` | a missing row, another owner's row, a game the caller is not a participant of (for the participant-only routes) |
 | `409` | confirm before the bytes are there, download before confirm, volumes on a non-terrain asset |
 | `413` | a request body over 1 MB |
 | `415` | a content type the kind does not accept. STL is refused here, at create time |
-| `422` | validation and limits (§14), an asset reference that is not the caller's uploaded asset of a fitting kind, an unknown `properties_hash`, an unimportable game system, a folder cycle, any Stytch `4xx` other than `401`/`404`/`429` (`duplicate_email` included, with the same detail as the rest) |
+| `422` | validation and limits (§14), an asset reference that is not the caller's uploaded asset of a fitting kind, an unknown `properties_hash`, an unimportable game system, a folder cycle, any Stytch `4xx` other than `401`/`404`/`429`, except on `session/refresh` (see `401`) (`duplicate_email` included, with the same detail as the rest) |
 | `426` | `Tabletop-Client-Version` below `MinimumClientVersion` |
-| `429` | a rate limit (§14), Stytch `429` |
+| `429` | a rate limit (§14), Stytch `429`; always with `Retry-After` in whole seconds |
 | `502` | Army Forge unreachable or non-200, Stytch `5xx` |
 
 Problem details are fixed text. Upstream errors (Stytch's `error_type`, Army Forge and GLB parse
@@ -1059,7 +1059,7 @@ overridable by a `TABLETOP_` variable, `0` turning it off:
 | the same endpoints, by the email in the body | lowercased email (`EmailThrottle`) | 5 | `RATE_LIMIT_AUTH_PER_EMAIL` |
 
 `session/refresh` and logout are not credential endpoints and carry only the general budgets. A refusal is
-`429` with fixed text. Under `Development` (compose, `./scripts/management`) every default is `0`, so the
+`429` with fixed text and a `Retry-After` header: the limiter lease's retry-after, else the one-minute window length; `EmailThrottle` sets it the same way. Under `Development` (compose, `./scripts/management`) every default is `0`, so the
 simulator and the E2E suite never trip them; tests set them per host.
 
 `BodySizeLimit` refuses a request body over 1 MB with `413`, from `Content-Length` or, without one, by
