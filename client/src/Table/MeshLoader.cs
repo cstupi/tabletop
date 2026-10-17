@@ -129,7 +129,27 @@ public sealed class MeshLoader(AssetCache cache, ManagementClient management, Gu
         if (parsed is not var (d, s)) return null;
         var generated = d.GenerateScene(s);
         if (generated is not Node3D scene || _disposed) { generated?.Free(); return null; }
+        Settle(scene);
         return scene;
+    }
+
+    /// <summary>Two things Godot's runtime glTF import leaves out. COLOR_0 multiplies the base colour (glTF 2.0, Meshes), but the
+    /// import turns vertex colours on for every primitive except a mesh's first. And a node whose every surface is alpha-blended
+    /// (the built-ins' smog and water surfaces) would still cast an opaque shadow.</summary>
+    static void Settle(Node node)
+    {
+        if (node is MeshInstance3D { Mesh: { } mesh } instance)
+        {
+            var translucent = mesh.GetSurfaceCount() > 0;
+            for (var i = 0; i < mesh.GetSurfaceCount(); i++)
+            {
+                var material = mesh.SurfaceGetMaterial(i) as BaseMaterial3D;
+                if (material is not null && mesh is ArrayMesh array && (array.SurfaceGetFormat(i) & Mesh.ArrayFormat.FormatColor) != 0) material.VertexColorUseAsAlbedo = true;
+                translucent &= material is not null && material.Transparency != BaseMaterial3D.TransparencyEnum.Disabled;
+            }
+            if (translucent) instance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        }
+        foreach (var child in node.GetChildren()) Settle(child);
     }
 
     /// <summary>Frees the templates, which are never in the tree; the duplicates belong to their pieces.</summary>
