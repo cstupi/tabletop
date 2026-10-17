@@ -167,17 +167,18 @@ to the same command, and the menu already has *Set the round* for a player who w
 
 Two ruleset question names arrive carrying a `move_region`: `move` from the move step of
 hold/advance/rush/charge, and `disembark` from `transport-destroyed`'s place step. Neither belongs
-in `AskQuestions`. A disembark is the same `RenderMove` with three things swapped:
+in `AskQuestions`. A third, `place` from `place-reserve` (a Spawn or Split reserve), is the disembark's
+shape over models on the shelf, anchored on a model on the table (`MoveRuler.IsShelfPlacement`). A disembark is the same `RenderMove` with three things swapped:
 
-| | ordinary move | disembark (`Containment.ExitingId` set) |
-| --- | --- | --- |
-| region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's |
-| clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none |
-| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node |
-| `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` |
-| ruler | start to current, with remaining allowance | container to current, distance only |
-| `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through |
-| yaw | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` |
+| | ordinary move | disembark (`Containment.ExitingId` set) | reserve placement (movers on the shelf) |
+| --- | --- | --- | --- |
+| region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's | the same, about the anchor model |
+| clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none | none |
+| draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node | `TableView.ShowGhosts` in rings about the anchor (`DeployView.Around`) |
+| `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` | `null` |
+| ruler | start to current, with remaining allowance | container to current, distance only | anchor to current, distance only |
+| `ModelRelocation.From` | the model's `OnTable` | the model's `Inside`, passed through | `OnShelf` |
+| yaw | the model's own | whatever fits at the drop point, through `YawOf` → `MoveRuler.ExitYawAt` | the ghost's (Q/E) |
 
 Embarking answers with the unit, not the model: one `ModelRelocation` per model of the unit, all to
 the same `Inside(container)`. P.14 embarks the whole unit when one model reaches the transport.

@@ -37,9 +37,21 @@ public partial class DecisionBox
             var within = legal.Containment.ExitWithin ?? 0;
             (_exitWithin, _volumes, _size) = (within, _view.Volumes, _view.Size);
             _region!.Show(MoveRuler.ExitRegion(body, new PlacedModel(BodyOf(p, containerId), at.Placement), legal, _volumes, _size), Palette.Team(ordinal));
-            _note.Text = $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
+            var fromShelf = MoveRuler.IsShelfPlacement(legal, p);                   // a Spawn or Split reserve: placed around its anchor model, the Ask's prompt says what
+            _note.Text = fromShelf ? $"{ask.Prompt}. Drag them into place, then commit."
+                : $"Disembark: place every model fully within {within:0.0}\" of {names.Piece(containerId)}. Drag them out, then commit.";
             _input.Allowance = null; _input.Minimum = null; _input.Region = null;
-            void StartExit() { _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position); }
+            void StartExit()
+            {
+                if (fromShelf)
+                {
+                    var layout = DeployView.Around(legal.ModelIds.Select(id => p.Models[id]).ToList(), at.Placement, p.Models[containerId].Slot.Base, _view.Size);
+                    _view.ShowGhosts(layout);
+                    _proposed = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
+                    return;
+                }
+                _view.ShowExitGhosts(legal.ModelIds, containerId); _proposed = legal.ModelIds.ToDictionary(id => id, _ => at.Placement.Position);
+            }
             StartExit();
             _onCancel = () => { StartExit(); return true; };
         }
@@ -119,6 +131,7 @@ public partial class DecisionBox
         Inside i when p.Models.GetValueOrDefault(i.ContainerId)?.Location is OnTable c =>
             MoveRuler.ExitYawAt(BodyOf(p, modelId), new PlacedModel(BodyOf(p, i.ContainerId), c.Placement),
                 _exitWithin, _proposed![modelId].Horizontal, _volumes, _size) ?? c.Placement.Yaw,
+        OnShelf => NodeYaw(modelId) ?? new Yaw(0),                                 // a reserve placed from the shelf faces as its ghost does (Q/E)
         _ => new Yaw(0),
     };
 

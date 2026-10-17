@@ -81,6 +81,11 @@ public static class MoveRuler
     /// <summary>The unit is inside a container, so this move is a disembark and <see cref="Region"/> cannot serve it: there is no start placement to sweep from and Allowance binds nothing (contracts plan Task 8).</summary>
     public static bool IsDisembark(MoveRegion legal) => legal.Containment?.ExitingId is not null;
 
+    /// <summary>The same anchored region over models on the shelf (a Spawn or Split reserve placed within 6" of its anchor model): the ghosts start
+    /// around the anchor, not inside it, and the Ask's prompt says what is placed.</summary>
+    public static bool IsShelfPlacement(MoveRegion legal, Projection p) =>
+        IsDisembark(legal) && legal.ModelIds.Count > 0 && p.Models.GetValueOrDefault(legal.ModelIds[0])?.Location is OnShelf;
+
     /// <summary>
     /// The disembark region: rulebook p.15, "must stay fully within 6\" of it when exiting", measured edge to edge from the
     /// container's base — so it is the container's footprint grown by the exit distance, not a circle about its centre. One
