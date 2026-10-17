@@ -11,7 +11,7 @@ namespace Tabletop.Sim.Run;
 /// does that. It computes no rules outcome: the zone comes from the deployment_zone rows and
 /// Tabletop.Geometry resolves the shape. A hand placement is judged for overlap (IGameRules.PlacementBreach, move_overlap, p.7
 /// "physically impossible locations") and, before round one, for its zone (deploy_zone: p.6 fully within it, p.14 a Scout within 12" of it),
-/// so an anchor is skipped where any base would touch a model on the table or leave the zone.
+/// so an anchor is skipped where any base would touch a model on the table or leave the zone. A unit the scenario anchors (ScenarioArmy.Anchors) goes there.
 /// </summary>
 public static class HandPlacement
 {
@@ -42,7 +42,8 @@ public static class HandPlacement
         var offsets = shelved.Select((_, i) => new Point2(i % cols * spacing, i / cols * spacing)).ToList();
         var occupied = projection.Models.Values.Where(m => m.Location is OnTable)
             .Select(m => new PlacedModel(new ModelBody(m.Slot.Base, m.Slot.Height), ((OnTable)m.Location).Placement)).ToList();
-        var anchor = ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
+        var army = scenario.Scenario.Armies[ordinal - 1];
+        var anchor = army.Anchors.TryGetValue(unit.Definition.Ordinal, out var fixedAt) ? fixedAt : ChooseAnchor(shelved, offsets, shape, table, occupied, chooser);
 
         return shelved.Select((slot, i) => new ModelRelocation(slot.Id, new OnShelf(),
             new OnTable(new Placement(new Point3(anchor.X + offsets[i].X, anchor.Y + offsets[i].Y, 0), new Yaw(0))))).ToList();
