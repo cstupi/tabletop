@@ -38,7 +38,7 @@ export const api = {
     removeAsset: (id: T.Guid, assetId: T.Guid) => http.del(`/v1/folders/${id}/assets/${assetId}`),
   },
   armies: {
-    import: (source: string) => http.post<T.Army>('/v1/armies/import', { source } satisfies T.ImportRequest),
+    import: (source: string, bases: T.BaseSet = 'round') => http.post<T.Army>('/v1/armies/import', { source, bases } satisfies T.ImportRequest),
     list: (p: { limit?: number; after?: T.Guid }) => http.get<T.Page<T.ArmySummary>>(`/v1/armies${query(p)}`),
     get: (id: T.Guid) => http.get<T.Army>(`/v1/armies/${id}`),
     patch: (id: T.Guid, r: T.PatchArmyRequest) => http.patch<T.Army>(`/v1/armies/${id}`, r),

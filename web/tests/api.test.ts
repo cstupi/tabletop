@@ -47,4 +47,12 @@ describe('client', () => {
     expect(urls).toEqual(['/v1/assets?limit=20&after=abc&kind=terrain', '/v1/armies', '/v1/folders/f1/assets/a1']);
     expect((f.mock.calls[2] as unknown as [string, RequestInit])[1].method).toBe('PUT');
   });
+
+  it('sends the chosen base set with an import, round when none is given', async () => {
+    const f = fakeFetch(201, { id: 'a', name: 'A', gameSystem: 'grimdark-future', source: 's', units: [] });
+    await api.armies.import('c2-6YsWRH3py', 'square');
+    await api.armies.import('c2-6YsWRH3py');
+    const bodies = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
+    expect(bodies).toEqual([{ source: 'c2-6YsWRH3py', bases: 'square' }, { source: 'c2-6YsWRH3py', bases: 'round' }]);
+  });
 });
