@@ -18,8 +18,16 @@ public sealed class Roller(IDiceSource dice, ulong seed, long cursor)
 
     public int Draw(RollPlan plan) => dice.Draw(seed, Cursor++, plan.Convention.Sides);
 
+    /// <summary>The most dice one roll draws. The largest pool the rulebook builds (a big unit's attacks, Blast and extra-hit rules
+    /// included) is a few hundred; a larger count comes from a menu edit or a defect, and is clamped with a warning.</summary>
+    public const int MaxDice = 1000;
+    /// <summary>Where a clamp is reported; Program sets it to the host's logger. The engine has no DI of its own.</summary>
+    public static ILogger Log { get; set; } = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public RollResult Roll(Guid frameId, RollPlan plan, int count)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (count > MaxDice) { Log.LogWarning("A {Roll} roll of {Count} dice was clamped to {Max}", plan.Roll, count, MaxDice); count = MaxDice; }
         var rolled = Enumerable.Range(0, count).Select(_ => Judge(plan, Draw(plan))).ToList();
         var record = new RollRecord(Guid.CreateVersion7(), plan.Roll, plan.Threshold, plan.Modifiers, rolled, plan.RequiredRaw, plan.Basis, plan.Cover);
         var replaced = new List<DieReplacement>();

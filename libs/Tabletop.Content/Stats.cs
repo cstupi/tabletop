@@ -10,9 +10,10 @@ public enum StatKind { TargetNumber, Distance, Count, DiceExpression }
 /// <summary>A stat's text as written, read under the kind its declaration gives it.</summary>
 public readonly partial record struct StatValue(StatKind Kind, string Text)
 {
-    [GeneratedRegex(@"^\s*(\d+)\s*\+?\s*$")] private static partial Regex TargetNumberPattern();
-    [GeneratedRegex(@"^\s*(\d+(?:\.\d+)?)\s*(?:""|”|in)?\s*$")] private static partial Regex DistancePattern();
-    [GeneratedRegex(@"^\s*(\d+)\s*$")] private static partial Regex CountPattern();
+    // ASCII digits only (\d also matches other scripts' digits, which int.Parse rejects) and at most six, so no read overflows.
+    [GeneratedRegex(@"^\s*([0-9]{1,6})\s*\+?\s*$")] private static partial Regex TargetNumberPattern();
+    [GeneratedRegex(@"^\s*([0-9]{1,6}(?:\.[0-9]{1,6})?)\s*(?:""|”|in)?\s*$")] private static partial Regex DistancePattern();
+    [GeneratedRegex(@"^\s*([0-9]{1,6})\s*$")] private static partial Regex CountPattern();
 
     /// <summary>Validates <paramref name="text"/> against <paramref name="kind"/>. Dice expressions are kept as text; their grammar is undecided.</summary>
     public static StatValue Read(StatKind kind, string text)

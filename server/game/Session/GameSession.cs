@@ -130,35 +130,46 @@ public sealed partial class GameSession
     /// until it rests, every batch applied as it comes so the next Advance reads it. Then one append of every batch, one transaction, and only
     /// then each batch broadcast as its own message, in order, with each viewer's sealed answers withheld. Nothing is sent before it is stored.
     /// A failed append faults the session: the projection is ahead of the log, and only a fresh hydration from the log is trusted again.
-    /// An Advance that throws, or an event the projection cannot take, stores what was staged (the failing batch included) and then faults.
+    /// An Advance that throws, or an event the projection cannot take, rolls the whole run back (security review M8): nothing staged is stored
+    /// or sent, the projection is rebuilt from the log as stored, and false is returned so the command is refused. A stored event the server
+    /// cannot replay would fault every later hydration of the game; a refused command leaves it playable from its last good state.
     /// </summary>
-    internal async Task RunToRestAsync(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
+    internal async Task<bool> RunToRestAsync(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
     {
-        if (Play is null || Faulted) return;
+        if (Play is null || Faulted) return true;
         var endedBefore = Play.Projection.Ended is not null;
+        var stored = Play.Applier.Log.Count;
         var fault = Stage(payloads, actor, warning) ?? Advance();
         var staged = _staged.ToList();
         _staged.Clear();
+        if (fault is not null)
+        {
+            _log.LogError("Game {GameId}: {Fault}; the run of {Batches} batches is rolled back to seq {Seq}", GameId, fault, staged.Count, stored == 0 ? 0 : Play.Applier.Log[stored - 1].Seq);
+            var applier = new EventApplier(Play.Board, Play.Info);
+            applier.ApplyAll(Play.Applier.Log.Take(stored).ToList());
+            Play = new GameState(Play.Info, Play.Board, applier, Play.Rules);
+            return false;
+        }
         if (staged.Count > 0)
         {
             var events = staged.SelectMany(s => s.Batch).ToList();
             try { await _services.Log.AppendAsync(GameId, events, CancellationToken.None); }
-            catch (DuplicateSequenceException ex) { await FaultAsync($"another writer holds this game (seq {ex.Seq})"); return; }
-            catch (Exception ex) { await FaultAsync($"the append at seq {events[0].Seq} failed: {ex.Message}"); return; }
+            catch (DuplicateSequenceException ex) { await FaultAsync($"another writer holds this game (seq {ex.Seq})"); return true; }
+            catch (Exception ex) { await FaultAsync($"the append at seq {events[0].Seq} failed: {ex.Message}"); return true; }
         }
-        if (fault is not null) { await FaultAsync(fault); return; }
         foreach (var (batch, sealedBefore) in staged)
         {
             foreach (var c in _clients.ToList()) await c.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, TeamOf(c.ParticipantId), sealedBefore)));
             foreach (var w in _watchers.ToList()) await w.SendAsync(new EventsMessage(EventFilter.ForViewer(batch, null, sealedBefore)));
         }
-        if (staged.Count == 0) return;
+        if (staged.Count == 0) return true;
         await BroadcastFactsIfChangedAsync();
         if (!endedBefore && Play.Projection.Ended is not null && Info.Status == GameStatus.Playing) await MarkEndedAsync();
+        return true;
     }
 
     /// <summary>Seq assigned here, the batch applied and staged. Returns the fault reason when the server's own event does not apply to its own
-    /// projection; the batch stays staged, so it is stored as before and the next hydration faults on it too.</summary>
+    /// projection (or the projection throws on it); RunToRestAsync then rolls the run back.</summary>
     private string? Stage(IReadOnlyList<EventPayload> payloads, Guid? actor, string? warning)
     {
         if (payloads.Count == 0 || Play is null) return null;
@@ -167,7 +178,7 @@ public sealed partial class GameSession
         var batch = payloads.Select((p, i) => new GameEvent(next + i + 1, actor, p, i == 0 ? warning : null)).ToList();
         _staged.Add((batch, sealedBefore));
         try { Play.Applier.ApplyAll(batch); }
-        catch (ProjectionDesyncException ex) { return $"this server's own event does not apply to its own projection: {ex.Message}"; }
+        catch (Exception ex) { return $"this server's own event does not apply to its own projection: {ex}"; }
         return null;
     }
 
@@ -182,7 +193,7 @@ public sealed partial class GameSession
         {
             Emit emit;
             try { emit = Engine.Advance(Play); }
-            catch (Exception ex) { return $"the engine threw in Advance: {ex.Message}"; }
+            catch (Exception ex) { return $"the engine threw in Advance: {ex}"; }
             if (emit.Events.Count == 0) return null;
             if (Stage(emit.Events, null, emit.Warning) is { } fault) return fault;
         }
@@ -194,7 +205,8 @@ public sealed partial class GameSession
     {
         Faulted = true;
         _log.LogError("Game {GameId} faulted: {Reason}", GameId, reason);
-        foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, reason);
+        // The reason can carry exception text; the peer gets a fixed phrase and the log has the rest (security review L3).
+        foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted");
         _clients.Clear(); _watchers.Clear();
     }
 

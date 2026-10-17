@@ -6,9 +6,9 @@ The army snapshot and the table state: the records that describe what is brought
 ## Layout
 
 - `Army.cs`: `Army`, `Unit`, `ModelSlot`, `Weapon`, `PropertyInstance`, and `ArmySnapshot` (the army frozen into a game).
-- `Stats.cs`: `StatKind` and `StatValue` (a stat's text, read under its kind).
+- `Stats.cs`: `StatKind` and `StatValue` (a stat's text, read under its kind; numbers are ASCII digits, at most six).
 - `TableState.cs`: `VisualRef` (built-in name or library asset, exactly one), `TerrainVolume`, and the terrain and table records.
-- `ContentJson.cs`: the JSON conventions for Geometry and Content types. `Tabletop.Protocol` builds its options on `ContentJson.Configure`.
+- `ContentJson.cs`: the JSON conventions for Geometry and Content types. `Tabletop.Protocol` builds its options on `ContentJson.Configure`. `Configure(options, integerEnums: false)` (what `WireJson` uses) reads an enum by name only.
 
 ## How it works
 

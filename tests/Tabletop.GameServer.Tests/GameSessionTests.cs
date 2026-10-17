@@ -21,6 +21,7 @@ public class GameSessionTests
     static readonly TokensSpent SpentByTeam1 = new(new Dictionary<Guid, int> { [M1] = 2 }), SpentByTeam2 = new(new Dictionary<Guid, int> { [M2] = 1 });
     static readonly Ask SimultaneousSpend = new(Guid.CreateVersion7(), AskQuestions.SpendTokens, "Spend tokens", [Samples.Team1, Samples.Team2], new TokenSpend(new Dictionary<Guid, int> { [M1] = 2, [M2] = 1 }), true, true, "casting", null);
     static readonly GameServerOptions Options = new() { DbConnection = "", StytchProjectId = "p", StytchJwksUrl = "u" };
+    static GameServerOptions CappedOptions(long events) => new() { DbConnection = "", StytchProjectId = "p", StytchJwksUrl = "u", MaxEventsPerGame = events };
 
     // Rows are never touched on the playing path, so the session tests pass none; Tasks 10-12 test the row paths against Postgres.
     static SessionServices Services(IEventLog log, IRulesEngineFactory engines) => new(null!, log, engines, Options, NullLoggerFactory.Instance);
@@ -99,15 +100,19 @@ public class GameSessionTests
         }
     }
 
+    /// <summary>Security review M8: a batch the server's own projection cannot take is never stored, so the game is not bricked on rehydrate.</summary>
     [Fact]
-    public async Task An_event_the_servers_own_projection_cannot_apply_faults_the_session()
+    public async Task An_event_the_servers_own_projection_cannot_apply_rolls_the_command_back()
     {
         var (session, log, clay, opponent, _) = await PlayingAsync(new DesyncingEngineFactory());
-        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
-        Assert.True(session.Faulted);
-        Assert.Equal(WebSocketCloseStatus.InternalServerError, opponent.Closed!.Value.Status);
-        Assert.Empty(session.Clients);
-        Assert.Equal([1L, 2L], (await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Select(e => e.Seq));   // the bad event is durable; the next hydrate faults too
+        var id = Guid.CreateVersion7();
+        await session.ReceiveAsync(clay, new CommandMessage(id, new SetScore(Samples.Team1, 4)));
+        Assert.False(session.Faulted);
+        Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
+        Assert.Equal(id, clay.Received.OfType<Protocol.Refused>().Single().MessageId);
+        Assert.Empty(opponent.Events);
+        Assert.Equal(0, session.Play!.Projection.LastSeq);
+        Assert.False(session.Play.Projection.Scores.TryGetValue(Samples.Team1, out var score) && score == 4);
     }
 
     [Fact]
@@ -154,22 +159,43 @@ public class GameSessionTests
         Assert.Equal(3, session.Clients.Count);
     }
 
+    /// <summary>Security review M8: a throwing Advance rolls the whole command back; the session stays usable from the last stored state.</summary>
     [Fact]
-    public async Task An_engine_that_throws_in_advance_faults_the_session_and_closes_every_socket()
+    public async Task An_engine_that_throws_in_advance_refuses_the_command_and_stays_usable()
     {
-        var (session, _, clay, opponent, _) = await PlayingAsync(new ThrowingEngineFactory());
-        await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, 4)));
-        Assert.True(session.Faulted);
-        Assert.Equal(WebSocketCloseStatus.InternalServerError, opponent.Closed!.Value.Status);
-        Assert.Empty(session.Clients);
+        var (session, log, clay, opponent, _) = await PlayingAsync(new ThrowingEngineFactory());
+        var id = Guid.CreateVersion7();
+        await session.ReceiveAsync(clay, new CommandMessage(id, new SetScore(Samples.Team1, 4)));
+        Assert.False(session.Faulted);
+        var refused = clay.Received.OfType<Protocol.Refused>().Single();
+        Assert.Equal(id, refused.MessageId);
+        Assert.DoesNotContain("broke", refused.Detail);
+        Assert.Null(opponent.Closed);
+        Assert.Equal(3, session.Clients.Count);
+        Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
+        Assert.Equal(0, session.Play!.Projection.LastSeq);
+        Assert.IsType<AtRest>(clay.Received.Last());
     }
 
     [Fact]
-    public async Task Hydrating_a_session_whose_engine_throws_on_the_catch_up_faults_it_instead_of_throwing()
+    public async Task Hydrating_a_session_whose_engine_throws_on_the_catch_up_stores_nothing_and_stays_usable()
     {
         var log = new InMemoryEventLog();
         var session = await Hydrate(Info with { Status = GameStatus.Playing }, log, Services(log, new ThrowingEngineFactory(always: true)));
-        Assert.True(session.Faulted);
+        Assert.False(session.Faulted);
+        Assert.Empty(await log.ReadAsync(session.GameId, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_full_log_refuses_further_commands()
+    {
+        var log = new InMemoryEventLog();
+        var session = await Hydrate(Info with { Status = GameStatus.Playing }, log, new SessionServices(null!, log, new InertEngineFactory(), CappedOptions(2), NullLoggerFactory.Instance));
+        var clay = new RecordingClient(Samples.P1);
+        await session.AttachAsync(clay);
+        for (var i = 0; i < 3; i++) await session.ReceiveAsync(clay, new CommandMessage(Guid.CreateVersion7(), new SetScore(Samples.Team1, i)));
+        Assert.Equal(2, (await log.ReadAsync(session.GameId, 0, CancellationToken.None)).Count);
+        Assert.Equal(RefusalReason.NotPermitted, clay.Received.OfType<Protocol.Refused>().Single().Reason);
     }
 
     [Fact]

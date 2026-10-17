@@ -72,7 +72,7 @@ public static partial class Collision
     static (Point2 At, Outline? By) Advance(Point2 from, Point2 to, Func<Point2, Outline?> hit)
     {
         var d = to - from;
-        var steps = Math.Max(1, (int)Math.Ceiling(d.Length / Step));
+        var steps = Sampling.Steps(d.Length, Step);
         var free = 0.0;
         for (var k = 1; k <= steps; k++)
         {

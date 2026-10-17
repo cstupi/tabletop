@@ -17,7 +17,9 @@ StartupGuard.Enforce(builder.Environment.EnvironmentName, builder.Configuration)
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(30));
 if (!builder.Environment.IsEnvironment("Test"))
     builder.Services.AddSingleton(GameServerOptions.FromEnvironment(builder.Configuration, StartupGuard.DevMode(builder.Environment.EnvironmentName, builder.Configuration)));
-builder.Services.AddHttpClient<HttpJwksSource>();
+builder.Services.AddHttpClient<HttpJwksSource>(http => http.Timeout = HttpJwksSource.FetchTimeout);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<AccountSockets>();
 builder.Services.AddSingleton<IJwksSource>(sp => sp.GetRequiredService<HttpJwksSource>());
 builder.Services.AddSingleton<ISessionVerifier, StytchJwtVerifier>();
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<GameServerOptions>().DbConnection));
@@ -33,8 +35,15 @@ builder.Services.AddSingleton<SessionServices>();
 builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<ConnectionHandshake>();
 builder.Services.AddHostedService<SessionHost>();
+// Security review M2: a ceiling on open connections and upgraded sockets, so a flood is turned away by Kestrel before the handshake.
+builder.Services.AddOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>().Configure<GameServerOptions>((kestrel, options) =>
+{
+    kestrel.Limits.MaxConcurrentConnections = options.MaxConnections;
+    kestrel.Limits.MaxConcurrentUpgradedConnections = options.MaxUpgradedConnections;
+});
 
 var app = builder.Build();
+Roller.Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<Roller>();
 if (!app.Environment.IsEnvironment("Test")) await app.Services.GetRequiredService<PropertiesSeeder>().SeedEmbeddedAsync(CancellationToken.None);
 var options = app.Services.GetRequiredService<GameServerOptions>();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = options.KeepAliveInterval, KeepAliveTimeout = options.KeepAliveTimeout });

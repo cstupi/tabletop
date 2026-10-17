@@ -37,12 +37,25 @@ public class CommandDispatcherTests
     [Theory, MemberData(nameof(Overrides))]
     public void Menu_edits_are_applied_under_every_setting_with_no_warning(Command command, Enforcement enforcement)
     {
-        var outcome = Dispatcher().Dispatch(State(enforcement), command, Watcher);
+        var outcome = Dispatcher().Dispatch(State(enforcement), command, Clay);
         var applied = Assert.IsType<Applied>(outcome);
         Assert.Single(applied.Events); Assert.Null(applied.Warning);
         var expectedKind = command switch { SetActiveTeam => typeof(TurnStarted), SetRound => typeof(RoundStarted), PlaceMarker => typeof(MarkerPlaced), _ => null };
         if (expectedKind is not null) Assert.IsType(expectedKind, applied.Events[0]);
         else Assert.IsAssignableFrom<StateChange>(applied.Events[0]);
+    }
+
+    public static IEnumerable<object[]> Teamless() =>
+        Overrides().Where(o => (Enforcement)o[1] == Enforcement.Silent).Select(o => o[0])
+            .Concat([new Undo(0), new AbandonSequence(Samples.Frame), new SetDice(Samples.Frame, Guid.NewGuid(), []), new MoveModels([])])
+            .Select(c => new object[] { c });
+
+    /// <summary>Security review H3: a participant with no team watches. Either player may still undo or correct (owner's design); a watcher may not.</summary>
+    [Theory, MemberData(nameof(Teamless))]
+    public void A_teamless_actor_is_refused_every_command(Command command)
+    {
+        var refused = Assert.IsType<Refused>(Dispatcher().Dispatch(State(Enforcement.Silent), command, Watcher));
+        Assert.Equal(RefusalReason.NotPermitted, refused.Reason);
     }
 
     [Theory]
@@ -76,10 +89,10 @@ public class CommandDispatcherTests
     public void Undo_is_accepted_for_zero_or_a_live_seq_only()
     {
         var state = State(Enforcement.Strict, new ScoreSet(Samples.Team1, 1), new ScoreSet(Samples.Team1, 2), new Undone(1));
-        Assert.IsType<Undone>(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new Undo(1), Watcher)).Events[0]);
-        Assert.IsType<Applied>(Dispatcher().Dispatch(state, new Undo(0), Watcher));
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new Undo(2), Watcher)).Reason);
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new Undo(9), Watcher)).Reason);
+        Assert.IsType<Undone>(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new Undo(1), Clay)).Events[0]);
+        Assert.IsType<Applied>(Dispatcher().Dispatch(state, new Undo(0), Clay));
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new Undo(2), Clay)).Reason);
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(state, new Undo(9), Clay)).Reason);
     }
 
     [Theory]
@@ -164,7 +177,7 @@ public class CommandDispatcherTests
             new SequenceStarted(Samples.Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null)),
             new SequenceStarted(inner, "resolve-hits", new SequenceContext(Samples.Unit, [], [], null)),
             new AskOpened(innerAsk), new AskAnswered(innerAsk.Id, Samples.Team1, SpentByTeam1, false));
-        var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AbandonSequence(Samples.Frame), Watcher));
+        var ok = Assert.IsType<Applied>(Dispatcher().Dispatch(state, new AbandonSequence(Samples.Frame), Clay));
         Assert.Equal([typeof(AskClosed), typeof(SequenceAbandoned)], ok.Events.Select(e => e.GetType()));
         Assert.Single(((AskClosed)ok.Events[0]).Answers);
     }
@@ -196,9 +209,9 @@ public class CommandDispatcherTests
             var played = Samples.Token with { Kind = Tabletop.Content.MarkerKind.Objective };
             var state = State(e, new MarkerPlaced(played));
             var setup = state.Board.Table.Markers.First(m => m.Kind == Tabletop.Content.MarkerKind.Objective).Id;
-            var given = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Samples.Team2), Watcher)).Events));
+            var given = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(setup, Samples.Team2), Clay)).Events));
             Assert.Equal((setup, (Guid?)Samples.Team2), (given.MarkerId, given.TeamId));
-            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(played.Id, null), Watcher)).Events));
+            var neutral = Assert.IsType<ObjectiveControlSet>(Assert.Single(Assert.IsType<Applied>(Dispatcher().Dispatch(state, new SetObjectiveControl(played.Id, null), Clay)).Events));
             Assert.Null(neutral.TeamId);
         }
         Assert.Equal(CommandClass.Override, CommandDispatcher.Classify(new SetObjectiveControl(Guid.CreateVersion7(), null)));

@@ -52,12 +52,12 @@ public class DraftEditorTests
     [Fact]
     public void Zones_follow_the_style_by_ordinal_and_swap()
     {
-        var d = Apply(Empty, new SetZoneStyle("long-edges", ["long-edges/1", "long-edges/2", "long-edges/3"]));
-        Assert.Equal([(1, "long-edges/1"), (2, "long-edges/2"), (3, "long-edges/3")], d.Zones.Select(z => (z.TeamOrdinal, z.Shape)));
+        var d = Apply(Empty, new SetZoneStyle("free-for-all", ["free-for-all/1", "free-for-all/2", "free-for-all/3"]));
+        Assert.Equal([(1, "free-for-all/1"), (2, "free-for-all/2"), (3, "free-for-all/3")], d.Zones.Select(z => (z.TeamOrdinal, z.Shape)));
         d = Apply(d, new SwapZones(1, 2));
-        Assert.Equal([(1, "long-edges/2"), (2, "long-edges/1"), (3, "long-edges/3")], d.Zones.Select(z => (z.TeamOrdinal, z.Shape)));
+        Assert.Equal([(1, "free-for-all/2"), (2, "free-for-all/1"), (3, "free-for-all/3")], d.Zones.Select(z => (z.TeamOrdinal, z.Shape)));
         RefusedEdit(d, new SwapZones(1, 9));
-        Assert.Equal(2, Apply(d, new SetZoneStyle("corners", ["corners/1", "corners/2"])).Zones.Count);
+        Assert.Equal(2, Apply(d, new SetZoneStyle("spearhead", ["spearhead/1", "spearhead/2"])).Zones.Count);
     }
 
     [Fact]

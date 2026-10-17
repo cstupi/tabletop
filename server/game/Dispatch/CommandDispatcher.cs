@@ -25,7 +25,11 @@ public sealed class CommandDispatcher(IRulesEngine engine)
         _ => CommandClass.Engine,
     };
 
-    public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => Classify(command) switch
+    /// <summary>A participant with no team watches (game flow → a spectator): every command needs a team. Either team may undo or
+    /// correct anything (the override path), which is the owner's design; a watcher may not.</summary>
+    public DispatchOutcome Dispatch(GameState state, Command command, Actor actor) => actor.TeamId is null
+        ? new Refused(RefusalReason.NotPermitted, "a participant with no team watches")
+        : Classify(command) switch
     {
         CommandClass.Override => Override(state, command, actor),
         CommandClass.Undo => Replay.IsValidUndoTarget(state.Applier, ((Undo)command).ToSeq)
@@ -42,6 +46,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
     /// </summary>
     private DispatchOutcome Override(GameState state, Command command, Actor actor)
     {
+        if (MenuLimits.Breach(state, command, engine.Properties) is { } bound) return new Refused(RefusalReason.Unknown, bound);
         if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
             return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
         if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };

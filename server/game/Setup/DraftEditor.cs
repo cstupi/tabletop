@@ -7,7 +7,17 @@ namespace Tabletop.GameServer.Setup;
 /// <summary>TableState × SetupEdit → TableState. Pure, so the setup phase is headless logic: edits in, draft out. Null with a reason when the edit names nothing.</summary>
 public static class DraftEditor
 {
-    public static TableState? Apply(TableState d, SetupEdit edit, out string? missing)
+    /// <summary>The edit applied, then the result held to the draft limits (DraftLimits; removals and swaps always apply, so a draft over a
+    /// limit can be brought back under it).</summary>
+    public static TableState? Apply(TableState d, SetupEdit edit, out string? missing, DraftLimits? limits = null)
+    {
+        if (edit is SetZoneStyle z && DraftLimits.ZoneStyle(z.Style, z.Shapes) is { } style) return Miss(out missing, style);
+        var next = ApplyCore(d, edit, out missing);
+        if (next is null || edit is RemoveTerrain or RemoveSetupMarker or SwapZones) return next;
+        return (limits ?? DraftLimits.Default).Breach(next) is { } breach ? Miss(out missing, breach) : next;
+    }
+
+    static TableState? ApplyCore(TableState d, SetupEdit edit, out string? missing)
     {
         missing = null;
         // A JSON property left out never reaches the VisualRef converter, so the parent record receives default(VisualRef):

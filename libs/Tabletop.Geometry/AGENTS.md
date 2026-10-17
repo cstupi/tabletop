@@ -11,9 +11,10 @@ Geometry values and computations: distance, line of sight, cover, collision (res
 - `Outline.cs`: convex `Polygon` and `PolygonOutline`; every base and footprint becomes one.
 - `Distance.cs`, `LineOfSight.cs`, `Cover.cs`, `Collision.cs`, `Collision.Slide.cs`, `Collision.Crosses.cs`, `Containment.cs`, `Overlap.cs`, `Coherency.cs`, `Movement.cs`: static computations, one class each.
 - `SightBlockers.cs`: a table's blocking volumes prepared once for many sight lines (outlines, heights and boxes built once, a box test before the exact one); `Check` and `Measure` equal `LineOfSight.Check` and `Cover.SightBlockersBetween`. It also takes `SightPrism`s (a convex outline between two heights; `Bodies.Perimeter` builds a unit's from the convex hull of its bases) and an ignore predicate.
-- `Table.cs`: the slab, `Bounds`, `ContainsPoint`, `ContainsBase`, `IsValid`.
+- `Table.cs`: the slab, `Bounds`, `ContainsPoint`, `ContainsBase`, `IsValid` (edges at most `MaxEdge`, 144").
 - `ZoneStyles.cs`: the seven built-in deployment styles and `Resolve` against a `TableSize`.
 - `Tolerance.cs`: `1e-6` inches, internal.
+- `Sampling.cs`: `Steps`, the sample count of a swept check, capped at `MaxSamples` (4096).
 
 ## How it works
 

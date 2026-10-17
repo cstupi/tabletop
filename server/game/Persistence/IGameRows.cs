@@ -17,6 +17,8 @@ public interface IGameRows
     Task<IReadOnlyList<ArmyInPlay>> ReadSnapshotsAsync(Guid gameId, CancellationToken ct);
     Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct);
     Task<bool> PropertiesExistAsync(string hash, CancellationToken ct);
+    /// <summary>Each named asset that exists, with its owner's account id. A setup edit may reference only assets a participant owns.</summary>
+    Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct);
 
     /// <summary>playing → ended, guarded on playing, so management's own end and a second call change nothing.</summary>
     Task EndGameAsync(Guid gameId, CancellationToken ct);

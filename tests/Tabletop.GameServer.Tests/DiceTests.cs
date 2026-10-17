@@ -29,6 +29,17 @@ public class DiceTests
         Assert.Equal([3, 4, 5, 3], Enumerable.Range(0, 4).Select(i => new ScriptedDice(3, 4, 5).Draw(0, i, 6)));
     }
 
+    /// <summary>Security review M7: a pool a menu edit inflated cannot allocate without bound; a negative one is refused.</summary>
+    [Fact]
+    public void A_roll_is_clamped_to_the_dice_cap_and_a_negative_count_is_refused()
+    {
+        var roller = new Roller(new ScriptedDice(4), 0, 0);
+        var huge = roller.Roll(Samples.Frame, Plan(4), 5_000_000);
+        Assert.Equal(Roller.MaxDice, huge.Record.Dice.Count);
+        Assert.Equal(Roller.MaxDice, roller.Cursor);
+        Assert.Throws<ArgumentOutOfRangeException>(() => roller.Roll(Samples.Frame, Plan(4), -1));
+    }
+
     [Fact]
     public void A_roll_records_raw_modified_success_and_advances_the_cursor()
     {

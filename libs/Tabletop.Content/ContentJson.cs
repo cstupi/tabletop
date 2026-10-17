@@ -8,11 +8,13 @@ public static class ContentJson
 {
     public static JsonSerializerOptions Options { get; } = Configure(new JsonSerializerOptions());
 
-    public static JsonSerializerOptions Configure(JsonSerializerOptions options)
+    /// <param name="integerEnums">False on the game socket (WireJson): an enum is read by name only, as an integer could name no member.
+    /// Management keeps integers readable and checks Enum.IsDefined itself, so its own refusal names the field.</param>
+    public static JsonSerializerOptions Configure(JsonSerializerOptions options, bool integerEnums = true)
     {
         options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: integerEnums));
         options.AllowOutOfOrderMetadataProperties = true;
         return options;
     }

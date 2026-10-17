@@ -36,11 +36,11 @@ public class SetupEditTests
             "the added terrain never reached the draft row");
         Assert.Single(db.GameRows.DraftOf(g.GameId)!.Terrain.Single(t => t.Id == hill.Id).Volumes);
 
-        await creator.SendAsync(Edit(new SetZoneStyle("long-edges", ["long-edges/1", "long-edges/2"])));
+        await creator.SendAsync(Edit(new SetZoneStyle("spearhead", ["spearhead/1", "spearhead/2"])));
         Assert.Equal(2, (await watcher.ExpectAsync<BoardMessage>()).Board.Table.Zones.Count);
         await creator.ExpectAsync<BoardMessage>();
         await watcher.SendAsync(Edit(new SwapZones(1, 2)));
-        Assert.Equal("long-edges/2", (await creator.ExpectAsync<BoardMessage>()).Board.Table.Zones.Single(z => z.TeamOrdinal == 1).Shape);
+        Assert.Equal("spearhead/2", (await creator.ExpectAsync<BoardMessage>()).Board.Table.Zones.Single(z => z.TeamOrdinal == 1).Shape);
 
         await watcher.SendAsync(Edit(new MoveTerrain(Guid.CreateVersion7(), new Point3(0, 0, 0), new Yaw(0))));
         Assert.Equal(RefusalReason.Unknown, (await watcher.ExpectAsync<Refused>()).Reason);

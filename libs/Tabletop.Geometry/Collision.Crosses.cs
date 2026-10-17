@@ -14,7 +14,7 @@ public static partial class Collision
         var others = models.Where(m => !Overlap.Bases(moving, m)).Select(m => (Outline: m.BaseOutline(), Bottom: m.Bottom(), Top: m.Top())).ToList();
         if (others.Count == 0) return false;
         var d = to - moving.Placement.Position.Horizontal;
-        var steps = Math.Max(1, (int)Math.Ceiling(d.Length / Step));
+        var steps = Sampling.Steps(d.Length, Step);
         for (var k = 1; k <= steps; k++)
         {
             var at = start.Shift(d * ((double)k / steps));
