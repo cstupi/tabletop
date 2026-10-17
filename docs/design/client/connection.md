@@ -68,6 +68,7 @@ Reconnect policy lives in three fields:
 | any `Rejected` | do not reconnect | the reason will not change by retrying |
 | `DisconnectAsync` / `LeaveAsync` | do not reconnect | `_userClosed` |
 | `1001` (server going away) | reconnect | drain-and-hydrate is the intended path |
+| `1008` (the socket's JWT expired) | refresh the JWT, then reconnect | the server closes at the token's `exp`; the refresh makes the reconnect carry one it accepts, and a `401` there signs out |
 
 `ConnectionLost(SocketClosed, bool willReconnect)` is what the game screen toasts. A desync raises
 the same event with `SocketClosed.Error` carrying the `ProjectionDesyncException`, which is how the
@@ -77,7 +78,8 @@ Any other server-side normal close after a welcome is read as a replacement. The
 because nothing on the wire distinguishes the two and a resync never reaches it: `TearDownSocket`
 nulls `_socket` before closing it, and the `ReferenceEquals` guard then drops that socket's close.
 The silence does not stand. `Session.LastCloseReason` survives the drop and the Home screen prints
-it, so every close the player did not ask for arrives with a reason. A player-initiated
+it, so every close the player did not ask for arrives with a reason. It holds the player's words, not
+the wire's: `Feedback.Closed` by close code, `Feedback.Rejected` by reject reason. A player-initiated
 `ConnectAsync` clears it and so does `DisconnectAsync`, so Home explains only what the player did
 not choose.
 
@@ -177,7 +179,7 @@ hour later gets no attempt at all, too high and a hydrate split into 500-event b
 partial progress each batch makes. `_desyncFloor` is cleared by a player-initiated `ConnectAsync`,
 so rejoining from Home buys one more attempt and one more explanation.
 
-Reaching the bound sets `Phase = LoggedIn` with `LastCloseReason` and raises
+Reaching the bound sets `Phase = LoggedIn` with `LastCloseReason` (`This game's log cannot be replayed: …`) and raises
 `ConnectionLost(willReconnect: false)`, which is the outcome a `Rejected` already has. The bad event
 is in the server's log, so the game is unplayable for every client until that log is repaired, and
 Home with a reason is what the player can act on. The server has no equivalent recovery: applying
