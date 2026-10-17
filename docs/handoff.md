@@ -152,12 +152,10 @@ in range); the decision box and the unit card show it. Checked over the socket: 
   every model draws in the same placeholder green (hence F), the yellow unit was their own Mutant Brutes, and the
   Assassins were really behind the 8" Large Building. A replay of every seq found no false block.
 - "Your own units DO screen": a target unit's models screening its other models (`Sight.cs`) stays the default.
-- Optional rules: the owner wants per-game configuration of the rulebook's optional rules. Spec written, not reviewed:
-  `docs/superpowers/specs/2026-10-15-optional-rules-design.md` (`game.optional_rules` jsonb, a typed `GfOptions`,
-  first settings `line_of_sight` core|hybrid_true (p.56, the owner's "higher wound models shoot over lower"),
-  `unit_sight_blocking` per_model|perimeter, `melee_separation`; frozen from `playing`). Open: Tough values between
-  Hybrid size classes (proposed: the lower class); "perimeter" undefined in the book (proposed: convex hull of the bases).
-  Next: review it with the owner, then plan and build.
+- Optional rules are built per game (spec `2026-10-15-optional-rules-design.md`, plan `2026-10-17-optional-rules.md`):
+  `game.optional_rules` jsonb (migration 010), `GfOptions`, lobby buttons; `unit_sight_blocking` per_model|perimeter (convex
+  hull of the bases; the book never defines the outline), `line_of_sight` core|hybrid_true (p.56; a Tough between classes
+  stays in the lower class until the next named value), `melee_separation` on|off (p.10). Protocol version 2.
 
 **Housekeeping.** Docker Desktop restarting takes every container down with exit 255;
 `docker compose up -d` brings them back.
