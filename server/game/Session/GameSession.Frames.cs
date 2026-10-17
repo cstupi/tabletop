@@ -5,18 +5,26 @@ namespace Tabletop.GameServer.Session;
 
 public sealed partial class GameSession
 {
-    /// <summary>Every inbound frame after Connect lands here, on the mailbox. A faulted session is done: every frame kind, including presence and ping, is dropped.</summary>
-    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => Faulted ? Task.CompletedTask : _watchers.Contains(from) ? HandleWatcherFrameAsync(from, frame) : frame switch
+    /// <summary>Every inbound frame after Connect lands here, on the mailbox. A faulted session is done: every frame kind, including presence and ping, is dropped.
+    /// So is a frame from a connection the session no longer holds (replaced, or over its account's socket cap).</summary>
+    public Task ReceiveAsync(ISessionClient from, SocketMessage frame) => RunAsync(() => Faulted || !(_clients.Contains(from) || _watchers.Contains(from)) ? Task.CompletedTask
+        : Watches(from) ? HandleWatcherFrameAsync(from, frame) : frame switch
     {
         CommandMessage c => HandleCommandAsync(from, c),
         PresenceMessage p => HandlePresence(from, p.Presence),
         PingMessage p => BroadcastAsync(new PingMessage(p.Ping with { Sender = from.ParticipantId }), except: from),
         EditMessage e => HandleEditAsync(from, e),
         SightQuery q => HandleSightAsync(from, q),
-        _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
+        _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, NotAClientFrame).AsTask(),
     });
 
-    /// <summary>A watcher changes nothing (admin watch spec): a sight query is answered; a command (answers and undo included), an edit,
+    private const string NotAClientFrame = "not a client frame";
+
+    /// <summary>An admin watcher, or from playing on a participant with no team (game flow: that is what a spectator is). Before playing a
+    /// teamless participant is choosing a team and may edit and point.</summary>
+    private bool Watches(ISessionClient from) => _watchers.Contains(from) || (Info.Status is GameStatus.Playing or GameStatus.Ended && TeamOf(from.ParticipantId) is null);
+
+    /// <summary>A watcher, admin or teamless participant from playing on, changes nothing (admin watch spec; security review H3): a sight query is answered; a command (answers and undo included), an edit,
     /// presence or a ping is refused with reason watcher and nothing else follows, no rest frame included.</summary>
     private Task HandleWatcherFrameAsync(ISessionClient from, SocketMessage frame)
     {
@@ -27,7 +35,7 @@ public sealed partial class GameSession
             CommandMessage c => from.SendAsync(new Protocol.Refused(c.CommandId, RefusalReason.Watcher, Detail)).AsTask(),
             EditMessage e => from.SendAsync(new Protocol.Refused(e.EditId, RefusalReason.Watcher, Detail)).AsTask(),
             PresenceMessage or PingMessage => from.SendAsync(new Protocol.Refused(Guid.Empty, RefusalReason.Watcher, Detail)).AsTask(),
-            _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, $"{frame.GetType().Name} is not a client frame").AsTask(),
+            _ => from.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.ProtocolError, NotAClientFrame).AsTask(),
         };
     }
 

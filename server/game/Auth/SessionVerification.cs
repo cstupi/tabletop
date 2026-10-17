@@ -32,6 +32,7 @@ public sealed class HttpJwksSource(HttpClient http, GameServerOptions options, T
     public static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefetchAfter = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan StaleFor = TimeSpan.FromHours(1);
     private readonly object _gate = new();
     private JsonWebKeySet? _cached;
     private DateTimeOffset _fetchedAt, _attemptedAt = DateTimeOffset.MinValue;
@@ -50,7 +51,8 @@ public sealed class HttpJwksSource(HttpClient http, GameServerOptions options, T
         lock (_gate)
         {
             if (_inflight is not null) return _inflight.WaitAsync(ct);
-            if (_cached is not null && time.GetUtcNow() - _attemptedAt < RefetchAfter) return Task.FromResult(_cached);
+            if (_cached is not null && time.GetUtcNow() - _attemptedAt < RefetchAfter)
+                return Stale() is { } held ? Task.FromResult(held.Keys) : Task.FromException<JsonWebKeySet>(new InvalidOperationException("the JWKS could not be fetched for over an hour"));
             _attemptedAt = time.GetUtcNow();
             var fetch = FetchOnceAsync();
             if (!fetch.IsCompleted) _inflight = fetch;   // a fetch that finished synchronously has already cleared the slot
@@ -66,12 +68,19 @@ public sealed class HttpJwksSource(HttpClient http, GameServerOptions options, T
             lock (_gate) { _cached = keys; _fetchedAt = time.GetUtcNow(); }
             return keys;
         }
-        catch (Exception ex) when (_cached is { } stale)
+        catch (Exception ex) when (Stale() is { } stale)
         {
-            log.LogWarning(ex, "JWKS fetch failed; keeping the keys fetched at {FetchedAt}", _fetchedAt);
-            return stale;
+            log.LogWarning(ex, "JWKS fetch failed; keeping the keys fetched at {FetchedAt}", stale.FetchedAt);
+            return stale.Keys;
         }
         finally { lock (_gate) _inflight = null; }
+    }
+
+    /// <summary>The held keys while they are at most StaleFor old: a fetch that keeps failing past that fails closed, so a key Stytch
+    /// has rotated out is not trusted indefinitely.</summary>
+    private (JsonWebKeySet Keys, DateTimeOffset FetchedAt)? Stale()
+    {
+        lock (_gate) return _cached is { } keys && time.GetUtcNow() - _fetchedAt <= StaleFor ? (keys, _fetchedAt) : null;
     }
 }
 

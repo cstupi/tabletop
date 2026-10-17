@@ -52,11 +52,11 @@ public class LobbyTests
     public async Task Configuration_changes_need_a_known_properties_hash()
     {
         var (f, g, creator, other) = await LobbyAsync();
-        await other.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
-        var info = (await creator.ExpectAsync<GameInfoMessage>()).Game;
+        await creator.SendAsync(Edit(new SetConfiguration("Saturday", g.PropertiesHash, SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
+        var info = (await other.ExpectAsync<GameInfoMessage>()).Game;
         Assert.Equal(("Saturday", SchedulerShape.PlayerTurn, Enforcement.Strict, true), (info.Name, info.SchedulerShape, info.Enforcement, info.WaitsBetweenSteps));
-        await other.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
-        Assert.Equal(RefusalReason.Unknown, (await other.ExpectAsync<Refused>()).Reason);
+        await creator.SendAsync(Edit(new SetConfiguration("x", "sha256:nope", SchedulerShape.PlayerTurn, Enforcement.Strict, true, new Dictionary<string, string>())));
+        Assert.Equal(RefusalReason.Unknown, (await creator.ExpectAsync<Refused>()).Reason);
     }
 
     [Fact]
@@ -126,8 +126,10 @@ public class LobbyTests
         Assert.Equal(joined.ParticipantId, welcome.ParticipantId);
         Assert.Contains(welcome.Game.Participants, p => p.Id == joined.ParticipantId);
 
-        await late.SendAsync(Edit(new PickTeam(seeded.TeamIds[1])));
-        Assert.Equal(seeded.TeamIds[1], (await late.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == joined.ParticipantId).TeamId);
+        await late.SendAsync(Edit(new CreateTeam()));
+        var third = (await late.ExpectAsync<GameInfoMessage>()).Game.Teams[2].Id;
+        await late.SendAsync(Edit(new PickTeam(third)));
+        Assert.Equal(third, (await late.ExpectAsync<GameInfoMessage>()).Game.Participants.Single(p => p.Id == joined.ParticipantId).TeamId);
     }
 
     // The team list is locked at the flip to playing (game flow → Teams are frozen at the flip, and a team is a slot),

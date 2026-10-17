@@ -31,10 +31,11 @@ public abstract record Edit;
 /// <summary>Writes the game's rows; accepted at any status (teams and armies stay editable through setup).</summary>
 public abstract record LobbyEdit : Edit;
 public sealed record CreateTeam : LobbyEdit;
-/// <summary>Null leaves the team: a participant with no team watches.</summary>
-public sealed record PickTeam(Guid? TeamId) : LobbyEdit;
+/// <summary>Null leaves the team: a participant with no team watches. A team another participant holds is joined only by the creator's
+/// placing (ParticipantId names whom the creator places; null is the sender), so two players share a side only with the creator's approval.</summary>
+public sealed record PickTeam(Guid? TeamId, Guid? ParticipantId = null) : LobbyEdit;
 public sealed record PickArmy(Guid? ArmyId) : LobbyEdit;
-/// <summary>OptionalRules replaces the game's map whole; the ruleset refuses a key or value it does not define (RefusalReason.Unknown).</summary>
+/// <summary>Creator only. OptionalRules replaces the game's map whole; the ruleset refuses a key or value it does not define (RefusalReason.Unknown).</summary>
 public sealed record SetConfiguration(string Name, string PropertiesHash, SchedulerShape SchedulerShape, Enforcement Enforcement, bool WaitsBetweenSteps,
     IReadOnlyDictionary<string, string> OptionalRules) : LobbyEdit;
 /// <summary>Creator only. Lobby → setup; creates the draft row.</summary>

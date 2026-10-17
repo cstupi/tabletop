@@ -183,7 +183,7 @@ public class AlternatingSchedulerTests
         Assert.Equal((AskQuestions.EndRound, 1), (h.Open.Question, h.P.Scheduler.Round));                  // B never had a turn, so it is not asked to act — but it is asked to end the round
         h.EndRound(team: 1);
         Assert.Equal(2, h.P.Scheduler.Round);
-        h.Dispatch(new RecordAction(a0, "Hold"));                                                          // marked from the menu: the open Ask stands
+        h.Dispatch(new RecordAction(a0, "Hold"), team: 1);                                                        // marked from the menu: the open Ask stands
         Assert.Empty(h.Run()); Assert.Equal(h.Teams[0], h.P.Scheduler.ActiveTeamId);
         h.Dispatch(new MoveModels(h.P.Units[a0].Definition.Models.Select(m => new ModelRelocation(m.Id, h.P.Models[m.Id].Location, new OnShelf())).ToList()), team: 0);
         h.Answer(0, new Passed());

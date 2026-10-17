@@ -34,18 +34,26 @@ public sealed partial class GameSession
     {
         if (Info.Status is not (GameStatus.Lobby or GameStatus.Setup)) { await RefuseEdit(from, editId, RefusalReason.WrongStatus, $"the game is {Info.Status}"); return; }
         var rows = _services.Rows; var ct = CancellationToken.None;
-        var me = Info.Participants.First(p => p.Id == from.ParticipantId);
+        // The participant row can go (management's leave) while the socket is open: the edit is refused, not thrown.
+        if (Info.Participants.FirstOrDefault(p => p.Id == from.ParticipantId) is not { } me) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "not a participant of this game"); return; }
+        var creator = IsCreator(from);
         switch (edit)
         {
             case CreateTeam: await rows.CreateTeamAsync(GameId, ct); break;
             case PickTeam t when t.TeamId is { } id && Info.Teams.All(x => x.Id != id): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no team {id}"); return;
-            case PickTeam t: await rows.SetParticipantTeamAsync(me.Id, t.TeamId, ct); break;
+            case PickTeam { ParticipantId: { } whom } when whom != me.Id && !creator: await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator places another participant"); return;
+            case PickTeam { ParticipantId: { } whom } when Info.Participants.All(p => p.Id != whom): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no participant {whom}"); return;
+            // Teams are shared by design (game flow: two players on a side); joining a side someone already holds takes the creator's approval.
+            case PickTeam { TeamId: { } id } t when !creator && Info.Participants.Any(p => p.TeamId == id && p.Id != (t.ParticipantId ?? me.Id)):
+                await RefuseEdit(from, editId, RefusalReason.NotPermitted, "another participant holds this team; the creator may place you on it"); return;
+            case PickTeam t: await rows.SetParticipantTeamAsync(t.ParticipantId ?? me.Id, t.TeamId, ct); break;
             case PickArmy { ArmyId: { } armyId }:
                 var owned = await rows.ReadArmyAsync(armyId, ct);
                 if (owned is null) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no army {armyId}"); return; }
                 if (owned.OwnerId != me.AccountId) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "not your army"); return; }
                 await rows.SetParticipantArmyAsync(me.Id, armyId, ct); break;
             case PickArmy: await rows.SetParticipantArmyAsync(me.Id, null, ct); break;
+            case SetConfiguration when !creator: await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator configures the game"); return;
             case SetConfiguration c when !await rows.PropertiesExistAsync(c.PropertiesHash, ct): await RefuseEdit(from, editId, RefusalReason.Unknown, $"no properties {c.PropertiesHash}"); return;
             case SetConfiguration c when Rules.OptionProblems(c.OptionalRules) is { Count: > 0 } problems: await RefuseEdit(from, editId, RefusalReason.Unknown, string.Join("; ", problems)); return;
             case SetConfiguration c: await rows.SetConfigurationAsync(GameId, c, ct); break;

@@ -69,6 +69,21 @@ public class JwksSourceTests
     }
 
     [Fact]
+    public async Task Held_keys_older_than_an_hour_fail_closed_while_fetches_fail()
+    {
+        var (source, handler, time) = Source();
+        var verifier = new StytchJwtVerifier(source, Options);
+        await source.GetAsync(CancellationToken.None);
+        handler.Fail = true;
+        time.Advance(TimeSpan.FromMinutes(59));
+        Assert.NotNull(await verifier.VerifyAsync(TestKeys.Mint(Guid.NewGuid()), CancellationToken.None));
+        time.Advance(TimeSpan.FromMinutes(2));
+        await Assert.ThrowsAnyAsync<Exception>(() => verifier.VerifyAsync(TestKeys.Mint(Guid.NewGuid()), CancellationToken.None));
+        time.Advance(TimeSpan.FromSeconds(5));   // inside the 30 s throttle: still closed, not the old keys
+        await Assert.ThrowsAnyAsync<Exception>(() => source.GetAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task A_source_that_never_fetched_throws_when_the_fetch_fails()
     {
         var (source, handler, _) = Source();

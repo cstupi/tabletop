@@ -194,7 +194,8 @@ public sealed partial class GameSession
     {
         Faulted = true;
         _log.LogError("Game {GameId} faulted: {Reason}", GameId, reason);
-        foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, reason);
+        // The reason can carry exception text; the peer gets a fixed phrase and the log has the rest (security review L3).
+        foreach (var c in _clients.Concat(_watchers).ToList()) await c.CloseAsync(WebSocketCloseStatus.InternalServerError, "this game session has faulted");
         _clients.Clear(); _watchers.Clear();
     }
 
