@@ -24,17 +24,18 @@ public sealed class EndsOnScoreEngineFactory : IRulesEngineFactory
     public IRulesEngine Create(IGameRules rules, GameInfo game) => new EndsOnScoreEngine();
 }
 
-[Collection("Postgres")]
-public class GameEndTests(PostgresFixture pg)
+/// <summary>The session's row path at the end of a game. EndGameAsync's own guard is GameRowsContract's.</summary>
+public class GameEndTests
 {
     static readonly GameServerOptions Options = new() { DbConnection = "", StytchProjectId = "p", StytchJwksUrl = "u" };
-    readonly IGameRows _rows = new PostgresGameRows(pg.Db);
+    readonly InMemorySeeder db = new();
+    IGameRows _rows => db.Rows;
 
     async Task<(GameSession Session, InMemoryEventLog Log, RecordingClient Clay, SeededGame Seeded)> Hydrated(
         IRulesEngineFactory engines, GameStatus status = GameStatus.Playing, params EventPayload[] history)
     {
-        var seeded = await pg.SeedGameAsync(status);
-        await pg.SeedTableStateAsync(seeded.GameId);
+        var seeded = await db.SeedGameAsync(status);
+        await db.SeedTableStateAsync(seeded.GameId);
         var log = new InMemoryEventLog();
         if (history.Length > 0)
             await log.AppendAsync(seeded.GameId, history.Select((p, i) => new GameEvent(i + 1, null, p, null)).ToList(), CancellationToken.None);
@@ -59,26 +60,6 @@ public class GameEndTests(PostgresFixture pg)
         var info = clay.Received.FindIndex(m => m is GameInfoMessage g && g.Game.Status == GameStatus.Ended);
         var rest = clay.Received.FindLastIndex(m => m is AtRest);
         Assert.True(info >= 0 && info < rest, $"GameInfoMessage at {info}, at_rest at {rest}");
-    }
-
-    [Fact]
-    public async Task Only_a_playing_game_is_marked_ended()
-    {
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby);
-        await _rows.EndGameAsync(seeded.GameId, CancellationToken.None);
-        Assert.Equal(GameStatus.Lobby, await StatusOf(seeded.GameId));
-        var playing = await pg.SeedGameAsync(GameStatus.Playing);
-        await _rows.EndGameAsync(playing.GameId, CancellationToken.None);
-        await _rows.EndGameAsync(playing.GameId, CancellationToken.None);                       // a second writer of the same value changes nothing
-        Assert.Equal(GameStatus.Ended, await StatusOf(playing.GameId));
-    }
-
-    [Fact]
-    public async Task A_game_management_already_ended_is_left_alone()
-    {
-        var ended = await pg.SeedGameAsync(GameStatus.Ended);                                    // management's /end wrote the row first
-        await _rows.EndGameAsync(ended.GameId, CancellationToken.None);
-        Assert.Equal(GameStatus.Ended, await StatusOf(ended.GameId));
     }
 
     [Fact]

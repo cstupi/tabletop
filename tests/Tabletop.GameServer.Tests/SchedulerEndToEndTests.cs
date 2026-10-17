@@ -7,20 +7,20 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests;
 
-/// <summary>The real process: Program.cs's registrations (the interpreter plan's RulesEngineFactory over the seeded properties row, this plan's SchedulerFactory), only the dice scripted so the roll-off is known. Deployment needs no action rows, so the bare properties row PostgresFixture seeds is enough.</summary>
-[Collection("Postgres")]
-public class SchedulerEndToEndTests(PostgresFixture pg)
+/// <summary>The real process: Program.cs's registrations (the interpreter plan's RulesEngineFactory over the seeded properties row, this plan's SchedulerFactory), only the dice scripted so the roll-off is known. Deployment needs no action rows, so the bare properties set the seeder writes is enough.</summary>
+public class SchedulerEndToEndTests
 {
+    readonly InMemorySeeder db = new();
     static EditMessage Edit(Edit e) => new(Guid.CreateVersion7(), e);
     static CommandMessage Cmd(Command c) => new(Guid.CreateVersion7(), c);
 
     [Fact]
     public async Task Ending_setup_rolls_off_opens_deployment_and_a_deploy_answer_plus_hand_moves_end_the_turn()
     {
-        using var factory = new GameServerFactory { ConfigureTestServices = s => s.AddSingleton<IDiceSource>(new ScriptedDice(6, 1)) };   // team 1 rolls 6, team 2 rolls 1
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
-        var armyA = await pg.SeedArmyAsync(seeded.CreatorAccountId);
-        var armyB = await pg.SeedArmyAsync(seeded.Participants[1].AccountId);
+        using var factory = new GameServerFactory(db) { ConfigureTestServices = s => s.AddSingleton<IDiceSource>(new ScriptedDice(6, 1)) };   // team 1 rolls 6, team 2 rolls 1
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var armyA = await db.SeedArmyAsync(seeded.CreatorAccountId);
+        var armyB = await db.SeedArmyAsync(seeded.Participants[1].AccountId);
         await using var creator = await TestClient.OpenAsync(factory); await using var other = await TestClient.OpenAsync(factory);
         await creator.ConnectAsync(seeded.CreatorAccountId, seeded.GameId); await other.ConnectAsync(seeded.Participants[1].AccountId, seeded.GameId);
         await creator.SendAsync(Edit(new PickArmy(armyA.Id))); await creator.ExpectAsync<GameInfoMessage>(); await other.ExpectAsync<GameInfoMessage>();
@@ -44,7 +44,7 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
         var ask = ((AskOpened)released[7].Payload).Ask;
         Assert.Equal((AskQuestions.Deploy, seeded.TeamIds[0]), (ask.Question, ask.Teams.Single()));           // the creator's team rolled 6
         var unit = Assert.Single(Assert.IsType<PieceSelection>(ask.Legal).Eligible);
-        Assert.Equal(11, await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId));
+        Assert.Equal(11, db.EventCount(seeded.GameId));
 
         await other.SendAsync(Cmd(new AnswerAsk(ask.Id, new SelectedPieces([unit]))));
         Assert.Equal(RefusalReason.NotPermitted, (await other.ExpectAsync<Refused>()).Reason);                // not their team
@@ -65,9 +65,9 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
     [Fact]
     public async Task A_fresh_process_rehydrates_mid_deployment_and_re_serves_the_open_ask_without_adding_events()
     {
-        GameServerFactory Factory() => new() { ConfigureTestServices = s => s.AddSingleton<IDiceSource>(new ScriptedDice(6, 1)) };
-        var seeded = await pg.SeedGameAsync(GameStatus.Lobby, teams: 2);
-        var army = await pg.SeedArmyAsync(seeded.CreatorAccountId);
+        GameServerFactory Factory() => new(db) { ConfigureTestServices = s => s.AddSingleton<IDiceSource>(new ScriptedDice(6, 1)) };
+        var seeded = await db.SeedGameAsync(GameStatus.Lobby, teams: 2);
+        var army = await db.SeedArmyAsync(seeded.CreatorAccountId);
         using (var first = Factory())
         {
             await using var c = await TestClient.OpenAsync(first);
@@ -80,7 +80,7 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
             await c.SendAsync(Cmd(new AnswerAsk(((AskOpened)opened[2].Payload).Ask.Id, new Confirmed())));
             var got = 0; while (got < 8) got += (await c.ExpectAsync<EventsMessage>()).Events.Count;
         }
-        var before = await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId);
+        var before = db.EventCount(seeded.GameId);
         using var second = Factory();
         await using var again = await TestClient.OpenAsync(second);
         await again.ConnectAsync(seeded.CreatorAccountId, seeded.GameId);
@@ -90,6 +90,6 @@ public class SchedulerEndToEndTests(PostgresFixture pg)
         Assert.Equal(before, replayed.Count);
         Assert.IsType<AskOpened>(replayed[^1].Payload);
         await Task.Delay(200);
-        Assert.Equal(before, await pg.CountAsync("select count(*) from game.game_event where game_id = $1", seeded.GameId));   // hydrate + Advance added nothing
+        Assert.Equal(before, db.EventCount(seeded.GameId));   // hydrate + Advance added nothing
     }
 }

@@ -83,4 +83,15 @@ public class InMemoryEventLogTests : EventLogContract
 {
     readonly InMemoryEventLog _log = new();
     protected override Task<(IEventLog, Guid)> CreateAsync() => Task.FromResult<(IEventLog, Guid)>((_log, Guid.CreateVersion7()));
+
+    [Fact]
+    public async Task Removing_a_game_drops_its_log_and_no_other()
+    {
+        Guid game = Guid.CreateVersion7(), other = Guid.CreateVersion7();
+        await _log.AppendAsync(game, [new GameEvent(1, null, new PhaseStarted("deployment"), null)], CancellationToken.None);
+        await _log.AppendAsync(other, [new GameEvent(1, null, new PhaseStarted("deployment"), null)], CancellationToken.None);
+        _log.Remove(game);
+        Assert.Equal(0, await _log.LastSeqAsync(game, CancellationToken.None));
+        Assert.Equal(1, await _log.LastSeqAsync(other, CancellationToken.None));
+    }
 }
