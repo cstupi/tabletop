@@ -17,7 +17,7 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted))
         {
             timeout.CancelAfter(options.HandshakeTimeout);
-            try { first = await SocketConnection.ReadFrameAsync(socket, options.ConnectFrameBytes, timeout.Token); }
+            try { first = (await SocketConnection.ReadFrameAsync(socket, options.ConnectFrameBytes, timeout.Token))?.Message; }
             catch (Exception ex) when (ex is OperationCanceledException or System.Net.ProtocolViolationException or WebSocketException or System.IO.IOException)
             { await CloseAsync(socket, ex is ProtocolBreachException { Status: var s } ? s : WebSocketCloseStatus.ProtocolError, "expected a connect frame"); return; }
         }
@@ -79,10 +79,12 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
                     game = await registry.GetOrHydrateAsync(connect.GameId, aborted);
                     await Join(game);
                 }
-                while (connection.CloseRequested is null && await SocketConnection.ReadFrameAsync(socket, Math.Max(options.FrameBytes, options.DraftFrameBytes), reading.Token, CapOf) is { } frame)
+                while (connection.CloseRequested is null && await SocketConnection.ReadFrameAsync(socket, Math.Max(options.FrameBytes, options.DraftFrameBytes), reading.Token, CapOf) is { } inbound)
                 {
                     if (connection.CloseRequested is not null) break;
+                    var frame = inbound.Message;
                     if (!await limiter.AdmitAsync(frame, reading.Token)) continue;
+                    if (!inbound.CleanText) { await RefuseTextAsync(connection, frame); continue; }
                     await game.ReceiveAsync(connection, frame);
                 }
             }
@@ -102,6 +104,14 @@ public sealed class ConnectionHandshake(GameServerOptions options, ISessionVerif
             }
         }
         finally { await registry.ReleaseIfEmptyAsync(game); }
+    }
+
+    /// <summary>A command or edit holding a control or bidi-override character is refused by its id; any other such frame is dropped.</summary>
+    private static async Task RefuseTextAsync(SocketConnection connection, SocketMessage frame)
+    {
+        const string Detail = "text holds a control or bidi-override character";
+        var id = frame switch { CommandMessage c => c.CommandId, EditMessage e => e.EditId, _ => (Guid?)null };
+        if (id is { } refused) await connection.SendAsync(new Refused(refused, RefusalReason.Unknown, Detail));
     }
 
     /// <summary>A layout loaded whole may be larger than any other frame; presence is held smaller.</summary>

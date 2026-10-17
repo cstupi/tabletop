@@ -10,6 +10,9 @@ namespace Tabletop.GameServer.Session;
 /// <summary>How much a connection may hold for a peer that is not reading: messages and serialized bytes.</summary>
 public sealed record SocketLimits(int OutboundMessages, long OutboundBytes);
 
+/// <summary>A frame as read: the message, and whether every string in it is free of control and bidi-override characters (InboundText).</summary>
+public sealed record InboundFrame(SocketMessage Message, bool CleanText);
+
 /// <summary>A frame the peer sent that the protocol does not allow (binary, too large, unreadable). Closes with Status.</summary>
 public sealed class ProtocolBreachException(WebSocketCloseStatus status, string reason) : ProtocolViolationException(reason)
 {
@@ -126,7 +129,7 @@ public sealed class SocketConnection(WebSocket socket, Guid participantId, Guid 
 
     /// <summary>Reads one text frame of at most cap bytes, or null at the peer's close. capOf names the cap of the kind the frame parses to
     /// (a layout loaded whole may be larger than a command); a frame over its kind's cap closes 1009 as one over cap does.</summary>
-    public static async Task<SocketMessage?> ReadFrameAsync(WebSocket socket, int cap, CancellationToken ct, Func<SocketMessage, int>? capOf = null)
+    public static async Task<InboundFrame?> ReadFrameAsync(WebSocket socket, int cap, CancellationToken ct, Func<SocketMessage, int>? capOf = null)
     {
         var buffer = new byte[Math.Min(cap, 16 * 1024)];
         using var frame = new MemoryStream();
@@ -144,6 +147,6 @@ public sealed class SocketConnection(WebSocket socket, Guid participantId, Guid 
         catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException or ArgumentException or InvalidOperationException or FormatException or OverflowException)
         { throw new ProtocolBreachException(WebSocketCloseStatus.InvalidPayloadData, "unreadable frame"); }
         if (capOf is not null && frame.Length > capOf(message)) throw new ProtocolBreachException(WebSocketCloseStatus.MessageTooBig, "frame too large");
-        return message;
+        return new InboundFrame(message, InboundText.IsClean(frame.GetBuffer().AsSpan(0, (int)frame.Length)));
     }
 }

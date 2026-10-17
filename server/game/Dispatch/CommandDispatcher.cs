@@ -46,6 +46,7 @@ public sealed class CommandDispatcher(IRulesEngine engine)
     /// </summary>
     private DispatchOutcome Override(GameState state, Command command, Actor actor)
     {
+        if (MenuLimits.Breach(state, command, engine.Properties) is { } bound) return new Refused(RefusalReason.Unknown, bound);
         if (MenuTranslation.Translate(state, command, out var missing) is not { } payload)
             return new Refused(RefusalReason.Unknown, missing ?? "unknown command");
         if (payload is RoundStarted r) payload = r with { Changes = engine.RoundStartChanges(state, r.Round) };

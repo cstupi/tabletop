@@ -36,6 +36,10 @@ public sealed class GameServerOptions
     public FrameRate ActionRate { get; init; } = new(20, 40);
     public FrameRate PingRate { get; init; } = new(3, 6);
     public FrameRate PresenceRate { get; init; } = new(30, 60);
+    /// <summary>What one setup draft may hold (counts, text, sizes).</summary>
+    public Setup.DraftLimits Draft { get; init; } = Setup.DraftLimits.Default;
+    /// <summary>What a picked army may hold (bases, stats, parameters, counts).</summary>
+    public Setup.ArmyLimits Army { get; init; } = Setup.ArmyLimits.Default;
     /// <summary>A game whose log reaches this many events refuses further commands.</summary>
     public long MaxEventsPerGame { get; init; } = 200_000;
 

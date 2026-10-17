@@ -21,6 +21,9 @@ public sealed partial class GameSession
         {
             if (p.ArmyId is not { } armyId) { armies[p.Id] = null; continue; }
             var owned = await rows.ReadArmyAsync(armyId, ct);
+            // The army is snapshotted as it stands, so it is checked as it stands: it may have been edited since it was picked.
+            if (owned is not null && _services.Options.Army.Breach(owned.Army.Units) is { } unplayable)
+            { await RefuseEdit(from, editId, RefusalReason.Illegal, $"{p.Name}'s army cannot be played: {unplayable}"); return; }
             armies[p.Id] = owned is null ? null : ArmySnapshot.Of(owned.Army, Guid.CreateVersion7());
         }
         await rows.EndSetupAsync(GameId, snapshot, armies, ct);

@@ -17,6 +17,11 @@ public class WireJsonTests
     [Fact] public void Edits_round_trip() { foreach (var e in Samples.Edits) RoundTrips<Edit>(e); }
     [Fact] public void Legal_sets_and_answers_round_trip() { foreach (var l in Samples.LegalSets) RoundTrips<LegalSet>(l); foreach (var a in Samples.Answers) RoundTrips<AskAnswer>(a); }
 
+    /// <summary>An enum is read by name only: an integer would name a member no switch handles.</summary>
+    [Fact]
+    public void An_enum_given_as_an_integer_is_unreadable() =>
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => WireJson.Deserialize<Edit>("""{"kind":"set_configuration","name":"x","propertiesHash":"h","schedulerShape":7,"enforcement":"warn","waitsBetweenSteps":false}"""));
+
     [Fact]
     public void Every_concrete_kind_has_a_sample()
     {

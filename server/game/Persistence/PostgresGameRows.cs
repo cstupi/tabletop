@@ -38,6 +38,17 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
         return await cmd.ExecuteScalarAsync(ct) is Guid id ? id : null;
     }
 
+    public async Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct)
+    {
+        var owners = new Dictionary<Guid, Guid>();
+        if (assetIds.Count == 0) return owners;
+        await using var cmd = db.CreateCommand("select id, owner_id from management.asset where id = any($1)");
+        cmd.Parameters.AddWithValue(assetIds.ToArray());
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) owners[r.GetGuid(0)] = r.GetGuid(1);
+        return owners;
+    }
+
     public async Task<bool> PropertiesExistAsync(string hash, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand("select exists (select 1 from management.properties where content_hash = $1)");

@@ -36,6 +36,7 @@ public sealed class ScenarioRows(Scenarios.CompiledScenario scenario) : IGameRow
         Task.FromResult(scenario.Board.Armies);
 
     public Task<OwnedArmy?> ReadArmyAsync(Guid armyId, CancellationToken ct) => Task.FromResult<OwnedArmy?>(null);
+    public Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct) => Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(new Dictionary<Guid, Guid>());
     public Task<bool> PropertiesExistAsync(string hash, CancellationToken ct) =>
         Task.FromResult(hash == scenario.Properties.ContentHash);
 

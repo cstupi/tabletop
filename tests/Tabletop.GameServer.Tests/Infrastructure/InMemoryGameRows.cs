@@ -29,6 +29,9 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
     readonly Dictionary<Guid, TeamRow> _teams = new();
     readonly Dictionary<Guid, ParticipantRow> _participants = new();
     readonly Dictionary<Guid, OwnedArmy> _armies = new();
+    readonly Dictionary<Guid, Guid> _assets = new();
+
+    public void InsertAsset(Guid assetId, Guid ownerId) { lock (_gate) _assets[assetId] = ownerId; }
     readonly Dictionary<Guid, TableRow> _tables = new();
 
     // Management's writes, for the seeder and the sim's socket rows.
@@ -161,6 +164,11 @@ public sealed class InMemoryGameRows(IPropertiesStore properties) : IGameRows
     }
 
     public Task<bool> PropertiesExistAsync(string hash, CancellationToken ct) => Task.FromResult(PropertiesExist(hash));
+
+    public Task<IReadOnlyDictionary<Guid, Guid>> AssetOwnersAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken ct)
+    {
+        lock (_gate) return Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(assetIds.Where(_assets.ContainsKey).Distinct().ToDictionary(id => id, id => _assets[id]));
+    }
 
     public Task EndGameAsync(Guid gameId, CancellationToken ct)
     {

@@ -12,6 +12,7 @@ public sealed partial class GameSession
     {
         CommandMessage c => HandleCommandAsync(from, c),
         PresenceMessage p => HandlePresence(from, p.Presence),
+        PingMessage p when !PresenceLimits.Holds(p.Ping) => Task.CompletedTask,
         PingMessage p => BroadcastAsync(new PingMessage(p.Ping with { Sender = from.ParticipantId }), except: from),
         EditMessage e => HandleEditAsync(from, e),
         SightQuery q => HandleSightAsync(from, q),
@@ -64,6 +65,7 @@ public sealed partial class GameSession
     /// <summary>Presence is state: the latest value wins and the tick relays it. The server stamps the participant id; a client cannot speak for another.</summary>
     private Task HandlePresence(ISessionClient from, Presence value)
     {
+        if (!PresenceLimits.Holds(value)) return Task.CompletedTask;   // dropped: the next value supersedes it
         _presence.Set(value with { ParticipantId = from.ParticipantId });
         return Task.CompletedTask;
     }

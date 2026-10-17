@@ -51,6 +51,7 @@ public sealed partial class GameSession
                 var owned = await rows.ReadArmyAsync(armyId, ct);
                 if (owned is null) { await RefuseEdit(from, editId, RefusalReason.Unknown, $"no army {armyId}"); return; }
                 if (owned.OwnerId != me.AccountId) { await RefuseEdit(from, editId, RefusalReason.NotPermitted, "not your army"); return; }
+                if (_services.Options.Army.Breach(owned.Army.Units) is { } unplayable) { await RefuseEdit(from, editId, RefusalReason.Illegal, $"this army cannot be played: {unplayable}"); return; }
                 await rows.SetParticipantArmyAsync(me.Id, armyId, ct); break;
             case PickArmy: await rows.SetParticipantArmyAsync(me.Id, null, ct); break;
             case SetConfiguration when !creator: await RefuseEdit(from, editId, RefusalReason.NotPermitted, "only the creator configures the game"); return;
