@@ -7,7 +7,16 @@
 #   scripts/release-client package <version> <out>   zips, sizes, SHA-256 and <out>/manifest.json (notes: RELEASE_NOTES_FILE,
 #                                                    default <out>/notes.txt)
 #   scripts/release-client upload  <version> <out>   the zips, releases/<version>/manifest.json, then releases/latest.json
-#   scripts/release-client all     <version> <out>   the four in order
+#   scripts/release-client build   <version> <out>   export, notes, package
+#   scripts/release-client all     <version> <out>   build, then upload
+#   scripts/release-client --in-container <step> <version> <out>
+#
+# Container mode (--in-container, or automatically when GODOT/godot is not on PATH): export and package run in the
+# builder image (scripts/client-build/Dockerfile, tag tabletop-client-build:<Godot version>, built here and cached), with
+# the clone mounted read-only, <out> writable, build/nuget as the NuGet cache, as the clone's owner uid; notes runs on the
+# host, which has the tags. upload runs in a second container that gets RELEASE_S3_* from the environment and joins
+# RELEASE_S3_NETWORK when set (e.g. tabletop-home_backend, whose MinIO is http://tabletop-s3:9000). The export container
+# resolves through TABLETOP_DNS_1/TABLETOP_DNS_2 (default 1.1.1.1, 9.9.9.9) for NuGet. The host needs docker and git only.
 #
 # export needs GODOT (default: godot on PATH, Godot 4.7.2 .NET with its export templates), dotnet, and TABLETOP_WEB_URL (the web
 # app's public origin, which the build reaches management and the game socket through). upload needs aws and RELEASE_S3_ENDPOINT,
@@ -30,23 +39,34 @@ zip_of() {   # <version> <platform>
 }
 
 check_version() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version '$1' is not X.Y.Z (the tag without its v)"; }
+check_web_url() {
+  [[ -n "${TABLETOP_WEB_URL:-}" ]] || die "TABLETOP_WEB_URL is not set (the web app's public origin, e.g. https://tabletop.example.org)"
+  [[ "$TABLETOP_WEB_URL" =~ ^https?://[^/]+/?$ ]] || die "TABLETOP_WEB_URL '$TABLETOP_WEB_URL' is not an origin (scheme and host, no path)"
+}
+check_s3() { local v; for v in RELEASE_S3_ENDPOINT RELEASE_S3_BUCKET RELEASE_S3_ACCESS_KEY RELEASE_S3_SECRET_KEY; do [[ -n "${!v:-}" ]] || die "$v is not set"; done; }
 
 export_builds() {   # <version> <out>
   local version=$1 out=$2 godot=${GODOT:-godot}
   need "$godot" "install Godot 4.7.2 .NET and its export templates, or set GODOT"
   need dotnet
-  [[ -n "${TABLETOP_WEB_URL:-}" ]] || die "TABLETOP_WEB_URL is not set (the web app's public origin, e.g. https://tabletop.example.org)"
-  [[ "$TABLETOP_WEB_URL" =~ ^https?://[^/]+/?$ ]] || die "TABLETOP_WEB_URL '$TABLETOP_WEB_URL' is not an origin (scheme and host, no path)"
+  check_web_url
+  local proj=$root
+  if [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]]; then
+    # The clone is mounted read-only; Godot's import and the .NET build write into a copy of its files (<out>/.sources).
+    proj=/tmp/work; mkdir -p "$proj"
+    tar -C "$root" --null -T "$out/.sources" -cf - | tar -C "$proj" -xf -
+  fi
   # Import first: a fresh clone has no client/.godot, and the export reads the imported resources.
-  run "$godot" --headless --path "$root/client" --import
+  run "$godot" --headless --path "$proj/client" --import
   for p in "${platforms[@]}"; do
     run rm -rf "$out/$p"; run mkdir -p "$out/$p"
     run env TabletopVersion="$version" TabletopWebUrl="${TABLETOP_WEB_URL%/}" \
-      "$godot" --headless --path "$root/client" --export-release "$(preset_of "$p")" "$out/$p/$(target_of "$p")"
+      "$godot" --headless --path "$proj/client" --export-release "$(preset_of "$p")" "$out/$p/$(target_of "$p")"
     [[ "${DRY_RUN:-}" == 1 ]] && continue
     # Godot exits 0 when the .NET step fails and ships a build with no assemblies, so check for them.
     case "$p" in
-      macos) unzip -l "$out/$p/Tabletop.zip" | grep -q 'Contents/Resources/data_Tabletop_macos_arm64/Tabletop.dll' \
+      # grep reads the whole listing: -q would stop early and fail the pipe (pipefail, SIGPIPE on unzip).
+      macos) unzip -l "$out/$p/Tabletop.zip" | grep 'Contents/Resources/data_Tabletop_macos_arm64/Tabletop.dll' >/dev/null \
                || die "the macOS export has no .NET assemblies; see the Godot output above" ;;
       *) compgen -G "$out/$p/data_Tabletop_*/Tabletop.dll" >/dev/null || die "the $p export has no .NET assemblies; see the Godot output above" ;;
     esac
@@ -92,9 +112,9 @@ package_builds() {   # <version> <out>
 }
 
 upload_builds() {   # <version> <out>
-  local version=$1 out=$2 prefix=${RELEASE_S3_PREFIX:-releases} v
+  local version=$1 out=$2 prefix=${RELEASE_S3_PREFIX:-releases}
   need aws "install the AWS CLI v2"
-  for v in RELEASE_S3_ENDPOINT RELEASE_S3_BUCKET RELEASE_S3_ACCESS_KEY RELEASE_S3_SECRET_KEY; do [[ -n "${!v:-}" ]] || die "$v is not set"; done
+  check_s3
   [[ "${DRY_RUN:-}" == 1 ]] || [[ -f "$out/manifest.json" ]] || die "$out/manifest.json is missing; run package first"
   export AWS_ACCESS_KEY_ID="$RELEASE_S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$RELEASE_S3_SECRET_KEY" AWS_DEFAULT_REGION="${RELEASE_S3_REGION:-us-east-1}"
   # R2 and MinIO reject the CLI's default CRC checksums on some versions; send them only when the store asks.
@@ -108,14 +128,74 @@ upload_builds() {   # <version> <out>
   echo "release-client: published $version to $dest/"
 }
 
-[[ $# -eq 3 ]] || die "usage: scripts/release-client export|package|upload|all <version> <out>"
+# Container mode: the same steps in the builder image (header).
+image="tabletop-client-build:$(sed -nE 's/^ARG GODOT_VERSION=(.+)$/\1/p' "$root/scripts/client-build/Dockerfile")"
+owner=$(stat -c %u:%g "$root")
+
+builder_image() { need docker; run docker build -q -t "$image" "$root/scripts/client-build"; }
+
+owned_dir() {   # <dir>: exists and belongs to the clone's owner, who the containers run as
+  run mkdir -p "$1"
+  if [[ $EUID == 0 ]]; then run chown "$owner" "$1"; fi
+}
+
+container_build() {   # <step: export|package|build> <version> <out>
+  local step=$1 version=$2 out=$3
+  need git
+  [[ $step == package ]] || check_web_url
+  if [[ $step == build ]]; then
+    if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then run cp "$RELEASE_NOTES_FILE" "$out/notes.txt"; else release_notes "$version" "$out"; fi
+  fi
+  builder_image
+  owned_dir "$out"; owned_dir "$root/build/nuget"
+  # What the export copies out of the read-only clone: tracked and untracked-but-not-ignored files.
+  if [[ "${DRY_RUN:-}" == 1 ]]; then echo "+ write $out/.sources (git ls-files)"
+  else git -C "$root" ls-files -z --cached --others --exclude-standard > "$out/.sources"; fi
+  run docker run --rm -u "$owner" --dns "${TABLETOP_DNS_1:-1.1.1.1}" --dns "${TABLETOP_DNS_2:-9.9.9.9}" \
+    -v "$root:/src:ro" -v "$out:/out" -v "$root/build/nuget:/nuget" -e NUGET_PACKAGES=/nuget \
+    -e RELEASE_CLIENT_IN_CONTAINER=1 -e TABLETOP_WEB_URL -e RELEASE_S3_PREFIX \
+    "$image" /src/scripts/release-client "$step" "$version" /out
+  run rm -f "$out/.sources"
+}
+
+container_upload() {   # <version> <out>: the credentials pass by name (-e NAME), never on the command line
+  local version=$1 out=$2 net=()
+  check_s3
+  [[ "${DRY_RUN:-}" == 1 ]] || [[ -f "$out/manifest.json" ]] || die "$out/manifest.json is missing; run package first"
+  builder_image
+  [[ -z "${RELEASE_S3_NETWORK:-}" ]] || net=(--network "$RELEASE_S3_NETWORK")
+  run docker run --rm -u "$owner" "${net[@]}" -v "$root:/src:ro" -v "$out:/out:ro" -e RELEASE_CLIENT_IN_CONTAINER=1 \
+    -e RELEASE_S3_ENDPOINT -e RELEASE_S3_BUCKET -e RELEASE_S3_ACCESS_KEY -e RELEASE_S3_SECRET_KEY -e RELEASE_S3_REGION -e RELEASE_S3_PREFIX \
+    "$image" /src/scripts/release-client upload "$version" /out
+}
+
+container=0
+if [[ "${1:-}" == --in-container ]]; then container=1; shift; fi
+if [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]]; then container=0
+elif [[ $container == 0 ]] && ! command -v "${GODOT:-godot}" >/dev/null 2>&1; then
+  container=1; echo "release-client: ${GODOT:-godot} not found; running in the builder container ($image)"
+fi
+
+[[ $# -eq 3 ]] || die "usage: scripts/release-client [--in-container] export|notes|package|build|upload|all <version> <out>"
 check_version "$2"
 mkdir -p "$3"; out="$(cd "$3" && pwd)"
+if [[ $container == 1 ]]; then
+  case "$1" in
+    export|package|build) container_build "$1" "$2" "$out" ;;
+    notes) release_notes "$2" "$out" ;;
+    upload) container_upload "$2" "$out" ;;
+    all) container_build build "$2" "$out"; container_upload "$2" "$out" ;;
+    *) die "unknown step '$1'" ;;
+  esac
+  exit 0
+fi
 case "$1" in
   export) export_builds "$2" "$out" ;;
   notes) release_notes "$2" "$out" ;;
   package) package_builds "$2" "$out" ;;
   upload) upload_builds "$2" "$out" ;;
+  # In the builder the host has written notes.txt already.
+  build) export_builds "$2" "$out"; [[ -n "${RELEASE_CLIENT_IN_CONTAINER:-}" ]] || release_notes "$2" "$out"; package_builds "$2" "$out" ;;
   all) export_builds "$2" "$out"; release_notes "$2" "$out"; package_builds "$2" "$out"; upload_builds "$2" "$out" ;;
   *) die "unknown step '$1'" ;;
 esac
