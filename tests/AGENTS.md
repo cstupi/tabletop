@@ -51,4 +51,9 @@ TABLETOP_WRITE_FIXTURES=1 dotnet test tests/Tabletop.Viewer.Tests    # viewer/te
 
 - Test-driven for everything with logic. The client's Godot layer is tested by running it.
 - Tests never call Army Forge.
+- A test socket opens only once its first frame is serialized (`TestClient` opens at the first send; `SocketDriver` builds
+  its connect frame first): the server's handshake timeout (2 s in `GameServerFactory`) runs from the open, and a cold
+  `WireJson` or another socket's connect in between overruns it when every project runs at once.
+- Wait for a condition, never a fixed delay, for work the code under test puts on the thread pool (the client's reconnect:
+  `FakeSocketFactory.ConnectedAsync`).
 - The web apps' tests are Vitest in `web/` and `viewer/`, not here.

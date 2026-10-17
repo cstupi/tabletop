@@ -4,16 +4,39 @@ using Tabletop.Protocol;
 
 namespace Tabletop.GameServer.Tests.Infrastructure;
 
-public sealed class TestClient(WebSocket socket) : IAsyncDisposable
+/// <summary>
+/// A test's socket to the game server. The socket opens at the first frame, once that frame is serialized, as a real client
+/// opens and sends at once: the server's handshake timeout runs from the open, so a socket opened ahead of its connect frame
+/// (another socket's whole connect in between, or a cold serializer's first use) races that timeout on a loaded machine.
+/// </summary>
+public sealed class TestClient : IAsyncDisposable
 {
-    public static async Task<TestClient> OpenAsync(GameServerFactory factory) =>
-        new(await factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), CancellationToken.None));
+    readonly GameServerFactory _factory;
+    WebSocket? _socket;
 
-    public async Task SendAsync(SocketMessage message) =>
-        await socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(message)), WebSocketMessageType.Text, true, CancellationToken.None);
+    TestClient(GameServerFactory factory) => _factory = factory;
+
+    /// <summary>Starts the server; the socket itself opens at the first frame.</summary>
+    public static Task<TestClient> OpenAsync(GameServerFactory factory)
+    {
+        _ = factory.Server;
+        return Task.FromResult(new TestClient(factory));
+    }
+
+    async Task<WebSocket> SocketAsync() =>
+        _socket ??= await _factory.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/ws"), CancellationToken.None);
+
+    WebSocket Opened => _socket ?? throw new InvalidOperationException("nothing sent yet: the socket opens at the first frame");
+
+    public async Task SendAsync(SocketMessage message)
+    {
+        var frame = Encoding.UTF8.GetBytes(WireJson.Serialize(message));
+        await (await SocketAsync()).SendAsync(frame, WebSocketMessageType.Text, true, CancellationToken.None);
+    }
 
     public async Task<SocketMessage> ReceiveAsync(TimeSpan? timeout = null)
     {
+        var socket = Opened;
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(5));
         var buffer = new byte[4 * 1024 * 1024]; var total = 0;
         while (true)
@@ -39,6 +62,7 @@ public sealed class TestClient(WebSocket socket) : IAsyncDisposable
 
     public async Task<WebSocketCloseStatus?> WaitClosedAsync()
     {
+        var socket = Opened;
         var buffer = new byte[1024];
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseSent)
@@ -55,5 +79,5 @@ public sealed class TestClient(WebSocket socket) : IAsyncDisposable
         catch (OperationCanceledException) { }
     }
 
-    public ValueTask DisposeAsync() { socket.Dispose(); return ValueTask.CompletedTask; }
+    public ValueTask DisposeAsync() { _socket?.Dispose(); return ValueTask.CompletedTask; }
 }

@@ -97,11 +97,14 @@ public sealed class SocketDriver : IGameDriver
 
     private async Task<Peer> OpenAsync(Guid participantId, int credentialIndex, CancellationToken ct)
     {
+        // The frame is built before the socket opens: the server's handshake timeout runs from the open, and a cold
+        // serializer's first use can take seconds on a loaded machine.
+        var connect = Frame(new Connect(_credentials.For(credentialIndex), GameId, ProtocolVersion.Current));
         var socket = await _connector.ConnectAsync(ct);
         var peer = new Peer(participantId, socket);
         _all.Add(peer);
         peer.Reader = Task.Run(() => ReadLoopAsync(peer), CancellationToken.None);
-        await SendAsync(peer, new Connect(_credentials.For(credentialIndex), GameId, ProtocolVersion.Current));
+        await peer.Socket.SendAsync(connect, WebSocketMessageType.Text, true, CancellationToken.None);
         var welcome = await ReadAsync(peer, ct);
         if (welcome is Rejected rejected) throw new InvalidOperationException($"the server rejected the connection: {rejected.Reason}");
         if (welcome is not Welcome w) throw new InvalidOperationException($"expected a welcome, got {welcome.GetType().Name}");
@@ -259,8 +262,10 @@ public sealed class SocketDriver : IGameDriver
         }
     }
 
+    private static byte[] Frame(SocketMessage message) => Encoding.UTF8.GetBytes(WireJson.Serialize(message));
+
     private static async Task SendAsync(Peer peer, SocketMessage message) =>
-        await peer.Socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(message)), WebSocketMessageType.Text, true, CancellationToken.None);
+        await peer.Socket.SendAsync(Frame(message), WebSocketMessageType.Text, true, CancellationToken.None);
 
     private async Task ReadLoopAsync(Peer peer)
     {

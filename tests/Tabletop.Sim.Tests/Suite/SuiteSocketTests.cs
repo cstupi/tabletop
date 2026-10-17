@@ -44,8 +44,9 @@ public class SuiteSocketTests : IDisposable
     /// <summary>Connects with the jwt and returns the server's first message.</summary>
     async Task<SocketMessage> FirstMessageAsync(string jwt, Guid gameId)
     {
+        var connect = Encoding.UTF8.GetBytes(WireJson.Serialize(new Connect(jwt, gameId, ProtocolVersion.Current)));   // before the open, as TestClient
         using var socket = await new FactoryConnector(_factory).ConnectAsync(Ct);
-        await socket.SendAsync(Encoding.UTF8.GetBytes(WireJson.Serialize(new Connect(jwt, gameId, ProtocolVersion.Current))), WebSocketMessageType.Text, true, Ct);
+        await socket.SendAsync(connect, WebSocketMessageType.Text, true, Ct);
         var buffer = new byte[1 << 16];
         var read = await socket.ReceiveAsync(buffer, Ct);
         return WireJson.Deserialize(Encoding.UTF8.GetString(buffer, 0, read.Count));

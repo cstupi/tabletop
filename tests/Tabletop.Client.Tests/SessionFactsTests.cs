@@ -98,7 +98,7 @@ public class SessionFactsTests : IDisposable
         Assert.Equal("Must take X wounds to be killed.", _s.Rules.TextOf("Tough"));
         Assert.Equal((1, 1), (RuleRequests, raised));
         _sockets.Last.Drop(1001, "server shutting down");
-        await Task.Delay(50);
+        await _sockets.ConnectedAsync(2);
         Assert.Same(RuleTexts.Empty, _s.Rules);                   // no game, no set
         _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
         _sockets.Last.Deliver(new GameInfoMessage(Game));
