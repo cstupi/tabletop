@@ -6,7 +6,7 @@ Part of [the interpreter design](design.md).
 
 | Decision | Reason | Rejected alternative | Source |
 | --- | --- | --- | --- |
-| Ordering is an explicit `ordinal` field on the effect | The rulebook orders effects by hand, and four of seventeen kinds act on other properties, which does not commute | Registration order, on the grounds that arithmetic modifiers commute, which holds for one kind of seventeen | effect grammar → This restores explicit ordering |
+| Ordering is an explicit `ordinal` field on the effect | The rulebook orders effects by hand, and four of eighteen kinds act on other properties, which does not commute | Registration order, on the grounds that arithmetic modifiers commute, which holds for one kind of eighteen | effect grammar → This restores explicit ordering |
 | Enforcement has three positions, `silent \| warn \| strict` | `strict` refuses an out-of-set Ask answer or an illegal command, `warn` accepts and logs it, `silent` accepts it. The menu's edits are accepted under every setting, being the override path and logged with an actor | Identity and enumerations' boolean: *the server warns, or it says nothing* | whole-design review → Five rulings, 1 |
 | A spell's hits roll dice only when the spell prints *"Roll as many dice as hits"*: its `add_hit` carries `target_roll = hit` and `spell-hits` rolls one die per hit that cannot fail; otherwise the hits land with no die rolled | 20 of the 141 damage spells print the sentence and need real dice for their per-die rules; the other 121 print none, so no per-die rule triggers on them | Action sequences' *spells skip the hit roll*; spell effects' *every spell's hits are a hit roll that cannot fail* | spell library → Translation |
 | A spell's target is a **set**, from four columns on the entry | Real spells are *"pick up to two friendly units within 12 inches"* | Action sequences' *Ask the target in line of sight*, which assumed one | spell effects → Target selection |
@@ -79,6 +79,6 @@ and what else it touches.
 | The two further durations the optional extra actions need (*until its next activation*, *this round*) | spell effects → Duration |
 | Buildings as targets: terrain carrying stats and becoming event-driven state on the setup snapshot | game flow → Inside a container |
 | Conflicts between two abilities reading the same result: whether both apply or one wins | resolution → Deliberately not decided |
-| Whether effects ever need to nest more than one level; whether seventeen kinds survive 40k; whether `majority` needs a tie rule | effect grammar → Still open; identity and enumerations → Deliberately not decided |
+| Whether effects ever need to nest more than one level; whether eighteen kinds survive 40k; whether `majority` needs a tie rule | effect grammar → Still open; identity and enumerations → Deliberately not decided |
 | What a dice expression stat looks like beyond existing as a `StatKind` | content values → Deliberately not decided |
 | Deployment, phases, activation legality, the round boundary | the scheduler module |

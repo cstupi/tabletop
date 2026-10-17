@@ -1,6 +1,6 @@
 # The effect grammar
 
-What each of the seventeen effect kinds does in code, what each of the eleven predicates reads, which
+What each of the eighteen effect kinds does in code, what each of the eleven predicates reads, which
 pass a kind belongs to, and how a grant is written and consumed. [design.md](design.md) states
 the two-pass decision and its motivation. Everything here lives in `server/game/Effects/` and may
 not name an OPR rule.
@@ -75,7 +75,7 @@ because a single predicate still has to test a state's absence. `Impact` is *unl
 | `ActorState` | the named side's unit conditions, plus the source model's own conditions | yes | presence, negated under `neq`; false on a side the interaction lacks |
 | `PositionTerrain` | `Interaction.DefenderTerrain` | yes | membership over declaration names; applies to the defender, or to the lone party when there is no defender |
 | `RoundNumber` | `Interaction.Round` | **no** | `Compare(round)` |
-| `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads; with a first value `round` or `activation`, how many sequences the holder's unit started under this entry's name in that scope |
+| `UsageCount` | the effective log | **no** | how many `sequence_started` payloads name this weapon id, the usage record `Limited` reads; with a first value `round`, `activation` or `game`, how many sequences the holder's unit started under this entry's name in that scope |
 | `HoldsProperty` | `Lookup.UnitHas` on the named side | yes | the side holds the one named entry under its own aggregation, granted instances included; a suppression does not unhold, so a Boost still sees its base |
 | `MostModels` | the named side's living models | yes | more than half meet `Compare` on the one named value: a declared stat's target number (`Defense lte 3`), or a rule's parameter, which a model without the rule fails (`Tough gte 3`) |
 | `AtPoint` | `Interaction.Point` | **no** | membership over the named points (`activation-start`, `before-attacking`, `after-shooting`, `after-melee`, `attack-start`); always true on a granted row, since the grant is that use |
@@ -98,7 +98,7 @@ reads.
 **Aggregation is not a predicate.** `Stealth`'s *"units where all models have this rule"* is the
 `aggregation` field on the entry. Writing it as a condition too would state one fact twice.
 
-## The seventeen kinds and their passes
+## The eighteen kinds and their passes
 
 ```mermaid
 flowchart TD
@@ -167,6 +167,7 @@ marker on a `roll` effect's child, read by the step that selects the roll.
 | 15 | `SetCondition` | two | `spell-test`'s `consequence` sets `TargetCondition` on the target's unit | *Terrifying Fury* (`fatigued`) |
 | 16 | `Move` | two | `spell-test`'s `consequence` opens a `move` Ask to the caster's team over the target's alive models, `Amount` inches under that unit's own move rules, which may pass; at an `at_point`, `GfHooks.ReactionsAt` offers it and `reposition` moves the holder | *Deep Hypnosis*; `Hit & Run Fighter`, `Harassing`, `Guerrilla` |
 | 17 | `Place` | two | `GfHooks.ReactionsAt` offers it at its `at_point` and `reposition` places the holder, `Amount` inches or `AmountDice` (`d3`) | `Teleport`, `Rapid Blink`, `Wolfborn` |
+| 18 | `RemoveWounds` | two | a pick entry's use row: `pick-rule`'s `rule-effects` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model | `Mend` |
 
 `Roll` nests. *X dice at 2+, each success adds a hit* is a `Roll` whose `Amount` is the count or
 the entry's parameter, whose `Threshold` is the score, and whose `Children` hold the per-success
@@ -374,11 +375,16 @@ too, or a granted hook-name rule would never fire.
   carries one reference. A grant carries three, so it is not a condition either. The rule is not
   written into the unit's property list, because that list is the frozen army snapshot's copy.
 
-**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`) whose
-rows are all `once` rows with `at_point before-attacking` is an army-book Buff, Mark or Debuff. Carried, it exposes no
-rows; the `pick-rule` sequence writes one `GrantAdded` per row on the unit it picks, and the grant is read and consumed
-as a spell's is. A granted row's `at_point` holds wherever the grant is read: it said when the rule was used. Each
-carrying model has one use per activation, counted by `GfPick.Uses`.
+**A pick entry writes grants too.** A `model` entry with `targeting` (count one, an optional `lineOfSight: false`, an
+optional `requires`: the rule the picked unit or model must hold, *"with Caster"*) whose rows all carry `at_point
+before-attacking` is an army-book Buff, Mark, Debuff or before-attacking active. Carried, it exposes no rows. The
+`pick-rule` sequence (`rule-roll`, `rule-target`, `rule-effects`) rolls the entry's `roll` row when it has one (*"roll 3
+dice. For each 2+ one enemy unit …"*) and asks one target per success, or one without dice; it writes one `GrantAdded`
+per `once` row on each unit it picks, read and consumed as a spell's is; and it resolves the use rows on each target:
+`add_hit` hits (top-level, or the `roll` row's children) push `spell-hits`, `take_test` pushes `spell-test`, and
+`remove_wounds` takes `Amount` or `AmountDice` (`d3`) wounds off the picked model. A granted row's `at_point` holds
+wherever the grant is read: it said when the rule was used. Each carrying model has one use per activation, counted by
+`GfPick.Uses`; a row with `usage_count lt 1 [game]` makes it one per game (`GfPick.GameUses`).
 
 ## Name checks handled by `GameRules`
 
@@ -424,9 +430,9 @@ knows the count was settled before the first group fired.
 ## Not covered by the grammar
 
 - **Percentages.** `amount` is an integer, and Action Boosting is written as proportions. Boosted
-  `Rush` *"may move by up to +50%"*. An eighteenth kind, or a flavour on kind 1.
+  `Rush` *"may move by up to +50%"*. A nineteenth kind, or a flavour on kind 1.
 - **Two abilities reading the same result.** Whether both apply or one wins is deferred. Every
   example is specific to one ruleset.
-- **Whether seventeen kinds survive a different ruleset.** The grammar is derived from one, and Age
+- **Whether eighteen kinds survive a different ruleset.** The grammar is derived from one, and Age
   of Fantasy shares the engine. Warhammer is the test.
 - **Deeper nesting.** One level covers the book. Nothing forbids more and nothing tests it.

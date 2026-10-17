@@ -47,6 +47,14 @@ public class RuleTemplatesTests
     }
 
     [Fact]
+    public void Base_reads_x_in_running_text_whatever_its_case_and_the_template_exactly()
+    {
+        Assert.Equal("Bane in Melee", RuleTemplates.Base(RulePattern.Buff, "Bane in Melee Buff",
+            "Once per activation, before attacking, pick one friendly unit within 12\", which gets Bane in melee once (next time the effect would apply)."));
+        Assert.Null(RuleTemplates.Base(RulePattern.Aura, "Stealth Aura", "this model and its unit get Stealth."));
+    }
+
+    [Fact]
     public void The_wrappers_are_an_aura_entry_and_two_pick_entries()
     {
         var aura = RuleTemplates.Wrapper(RulePattern.Aura, "Stealth Aura", "Stealth", "This model and its unit get Stealth.");

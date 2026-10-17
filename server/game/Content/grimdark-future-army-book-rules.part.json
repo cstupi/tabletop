@@ -61,22 +61,38 @@
       "played": false
     },
     {
-      "name": "Bane Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Bane when attacking against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bane in Melee Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Bane in melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Bane in Melee",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Battleborn",
@@ -106,38 +122,11 @@
       "played": false
     },
     {
-      "name": "Breath Attack",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, roll one die. On a 2\u002B one enemy unit within 6\u0022 in line of sight takes 1 hit with Blast(3) and AP(1).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Caster Group",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Pick one model with this rule in this unit to have Caster(X), where X is the total number of models with this rule in this unit. If the model is killed, pick another to be the new caster, and transfer all spell tokens to it. The caster loses all unspent spell tokens at the end of the round.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Casting Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly model within 12\u0022 with Caster, which gets \u002B1 to casting rolls once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Casting Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight with Caster, which gets -1 to casting rolls once (next time the effect would apply).",
       "effects": [],
       "played": false
     },
@@ -208,29 +197,11 @@
       ]
     },
     {
-      "name": "Courage Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to morale test rolls once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Crossing Attack",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per activation, when this model moves through enemy units, pick one of them and roll X dice. For each 6\u002B the target takes one wound.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Dangerous Terrain Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which counts as being in Dangerous Terrain once (next time the effect would apply).",
       "effects": [],
       "played": false
     },
@@ -317,15 +288,6 @@
       ]
     },
     {
-      "name": "Difficult Terrain Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which counts as being in Difficult Terrain once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Entrenched Buff",
       "kind": "model",
       "takesParameter": false,
@@ -368,15 +330,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "After this model is deployed, it may be placed anywhere fully within 9\u201D of its position.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Fatigue Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which must take a morale test. If failed, it becomes fatigued.",
       "effects": [],
       "played": false
     },
@@ -793,24 +746,6 @@
       "played": false
     },
     {
-      "name": "Increased Shooting Range Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B6\u0022 range when shooting once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Increased Shooting Range Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units get \u002B6\u0022 range when shooting against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Indirect Mark",
       "kind": "model",
       "takesParameter": false,
@@ -1002,24 +937,6 @@
       ]
     },
     {
-      "name": "Mend",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly model within 3\u0022 with Tough, and remove D3 wounds from it.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Mind Control",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which must take a morale test. If failed you may move it by up to 6\u0022 in a straight line in any direction.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Mischievous Boost Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1044,15 +961,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "When this model uses a Hold action and shoots at enemies over 9\u0022 away, it gets \u002B1 to hit rolls. As long this model hasn\u0027t moved during the round, when enemy units shoot at it from over 9\u0022 away, they get -2 to hit rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Morale Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which gets -1 to morale test rolls once (next time the effect would apply).",
       "effects": [],
       "played": false
     },
@@ -1103,15 +1011,6 @@
       ]
     },
     {
-      "name": "Piercing Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which loses AP(\u002B1) when attacking once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Piercing Frenzy",
       "kind": "model",
       "takesParameter": false,
@@ -1147,15 +1046,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Piercing Shooting Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets AP(\u002B1) when shooting against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Piercing Spotter",
@@ -1223,42 +1113,6 @@
       ]
     },
     {
-      "name": "Precision Attacks Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to hit rolls when attacking once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which gets -1 to hit rolls when attacking once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Fighter Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to hit rolls in melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Fighting Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units get \u002B1 to hit rolls in melee against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Precision Frenzy",
       "kind": "model",
       "takesParameter": false,
@@ -1273,24 +1127,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Place one marker on this unit at the beginning of each round if it\u0027s on the table and isn\u0027t Shaken, up to a max. of four markers. For every two markers, models with this rule in this unit get \u002B1 to hit rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Shooter Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets \u002B1 to hit rolls when shooting once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Precision Shooting Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units get \u002B1 to hit rolls when shooting against once (next time the effect would apply).",
       "effects": [],
       "played": false
     },
@@ -1373,15 +1209,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Primeborn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When units where all models have this rule are shot or charged from over 9\u0022 away and take hits, those hits count as having AP(-1), to a min. of AP(0).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Protected Aura",
@@ -1977,15 +1804,6 @@
       ]
     },
     {
-      "name": "Shred Mark",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which friendly units gets Shred when attacking against once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Slayer Mark",
       "kind": "model",
       "takesParameter": false,
@@ -2024,24 +1842,6 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "Once per game, when this model is activated, you may place a new unit of X fully within 6\u0022 of it.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Speed Buff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which moves \u002B2\u0022 when using Advance actions and \u002B4\u0022 when using Rush/Charge actions once (next time the effect would apply).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Speed Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which moves -2\u0022 when using Advance actions and -4\u0022 when using Rush/Charge actions once (next time the effect would apply).",
       "effects": [],
       "played": false
     },
@@ -2151,42 +1951,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Storm of Change",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model is activated, before attacking, roll 3 dice. For each 2\u002B one enemy unit within 12\u0022 takes 3 hits with Shred.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Storm of Lust",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model is activated, before attacking, roll 3 dice. For each 2\u002B one enemy unit within 12\u0022 takes 3 hits with Surge (roll one die per hit to see if it triggers).",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Storm of Plague",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model is activated, before attacking, roll 3 dice. For each 2\u002B one enemy unit within 12\u0022 takes 3 hits with Bane.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "Storm of War",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per game, when this model is activated, before attacking, roll 3 dice. For each 2\u002B one enemy unit within 12\u0022 takes 3 hits with AP(1).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Strafing",
@@ -2488,15 +2252,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Unwieldy Debuff",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Once per activation, before attacking, pick one enemy unit within 18\u0022 in line of sight, which gets Unwieldy in melee once (next time the effect would apply).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Vanguard",

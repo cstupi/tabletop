@@ -55,9 +55,9 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
                     replacement, duration, effectConditions, children, targetTerrain, targetCondition, amountDice)));
             });
         IReadOnlyList<Effect> Children(Guid parent) => effectRows.Where(x => x.Parent == parent).Select(x => x.Build(Children(x.Row))).ToList();
-        var entries = await Rows(conn, "select name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range, played, target_line_of_sight from management.catalog_entry where properties_hash = $1 order by name", hash, ct,
+        var entries = await Rows(conn, "select name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range, played, target_line_of_sight, target_requires from management.catalog_entry where properties_hash = $1 order by name", hash, ct,
             r => new CatalogEntry(r.GetString(0), EnumFrom<CatalogKind>(r.GetString(1)), r.GetBoolean(2), r.IsDBNull(3) ? null : EnumFrom<Aggregation>(r.GetString(3)), r.IsDBNull(4) ? null : r.GetInt32(4), NullableString(r, 5), r.GetString(6),
-                r.IsDBNull(7) ? null : new SpellTargeting(EnumFrom<TargetSide>(r.GetString(7)), EnumFrom<TargetGrain>(r.GetString(8)), r.GetInt32(9), r.GetDouble(10), r.IsDBNull(12) ? null : r.GetBoolean(12)),
+                r.IsDBNull(7) ? null : new SpellTargeting(EnumFrom<TargetSide>(r.GetString(7)), EnumFrom<TargetGrain>(r.GetString(8)), r.GetInt32(9), r.GetDouble(10), r.IsDBNull(12) ? null : r.GetBoolean(12), NullableString(r, 13)),
                 effectRows.Where(x => x.Entry == r.GetString(0) && x.Parent is null).Select(x => x.Build(Children(x.Row))).ToList(), r.GetBoolean(11)));
         var bookSpells = (await Rows(conn, "select book_uid, entry_name from management.book_spell where properties_hash = $1 order by book_uid, ordinal", hash, ct,
             r => (Book: r.GetString(0), Entry: r.GetString(1)))).ToLookup(x => x.Book, x => x.Entry);
@@ -120,10 +120,10 @@ public sealed class PostgresPropertiesStore(NpgsqlDataSource db) : IPropertiesSt
         foreach (var (a, i) in set.Actions.Select((a, i) => (a, i))) await Run("insert into management.action (properties_hash, name, distance, position) values ($1, $2, $3, $4)", set.ContentHash, a.Name, a.Distance, i);
         foreach (var r in set.Rolls) await Run("insert into management.roll (properties_hash, name) values ($1, $2)", set.ContentHash, r.Name);
         foreach (var e in set.Entries)
-            await Run("insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range, played, target_line_of_sight) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+            await Run("insert into management.catalog_entry (properties_hash, name, kind, takes_parameter, aggregation, cost, faction, rule_text, target_side, target_grain, target_count, target_range, played, target_line_of_sight, target_requires) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
                 set.ContentHash, e.Name, EnumText(e.Kind), e.TakesParameter, e.Aggregation is { } ag ? EnumText(ag) : null, e.Cost, e.Faction, e.RuleText,
                 e.Targeting is { } t ? EnumText(t.Side) : null, e.Targeting is { } t2 ? EnumText(t2.Grain) : null, e.Targeting?.Count, e.Targeting is { } t3 ? (double?)t3.Range : null, e.Played,
-                e.Targeting?.LineOfSight);
+                e.Targeting?.LineOfSight, e.Targeting?.Requires);
         foreach (var e in set.Entries) foreach (var (f, i) in e.Effects.Select((f, i) => (f, i))) await Effect(e.Name, null, f, i);
         foreach (var b in set.Books.Values)
         {

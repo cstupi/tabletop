@@ -24,6 +24,7 @@ public class MigrationTests : IClassFixture<TestDatabase>
         Assert.Contains("target_terrain", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='effect'"));
         Assert.Contains("played", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='catalog_entry'"));
         Assert.Contains("target_line_of_sight", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='catalog_entry'"));
+        Assert.Contains("target_requires", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='catalog_entry'"));
         Assert.Contains("amount_dice", await c.QueryAsync<string>("select column_name from information_schema.columns where table_schema='management' and table_name='effect'"));
     }
 

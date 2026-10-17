@@ -88,10 +88,13 @@ public static class PropertiesJson
             {
                 if (e.Kind != CatalogKind.Model) problems.Add($"{e.Name}: targeting is set on a spell or a pick entry (kind model)");
                 if (pick.Count != 1) problems.Add($"{e.Name}: a pick entry picks one");
-                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration != EffectDuration.Once)) problems.Add($"{e.Name}: a pick entry's rows have duration once");
+                if (e.Effects.Count == 0 || e.Effects.Any(f => f.Duration != EffectDuration.Once && !IsUseRow(f)))
+                    problems.Add($"{e.Name}: a pick entry's rows have duration once or are take_test, roll, add_hit hits or remove_wounds");
                 if (e.Effects.Any(f => !f.Conditions.Any(c => c.Kind == ConditionKind.AtPoint && c.Values is [PickPoint])))
                     problems.Add($"{e.Name}: a pick entry's row has an at_point naming {PickPoint}");
             }
+            if (e.Targeting?.Requires is { } required && !names.Contains(required)) problems.Add($"{e.Name}: targeting requires no entry '{required}'");
+            if (e.Effects.Any(f => f.Kind == EffectKind.RemoveWounds) && e.Targeting is null) problems.Add($"{e.Name}: remove_wounds belongs to a pick entry");
             if (!spell && e.Targeting is null && e.Effects.Any(f => f.Duration == EffectDuration.Once)) problems.Add($"{e.Name}: a once row belongs to a spell or a pick entry");
             foreach (var f in e.Effects) ValidateEffect(d, names, e.Name, f, problems);
         }
@@ -111,6 +114,16 @@ public static class PropertiesJson
 
     /// <summary>The point a pick entry is used at (army-book rules spec: "Once per activation, before attacking, pick …").</summary>
     const string PickPoint = "before-attacking";
+
+    /// <summary>A pick entry's row the use itself resolves on the picked target rather than grants to it: a morale test ("must take a morale test"),
+    /// dice whose successes deal hits ("roll 3 dice. For each 2+ … takes 3 hits"), hits ("takes 1 hit") or a heal ("remove D3 wounds").</summary>
+    static bool IsUseRow(EffectDocument f) => f.Kind switch
+    {
+        EffectKind.TakeTest or EffectKind.RemoveWounds => true,
+        EffectKind.Roll => f.Children.Count > 0 && f.Children.All(c => c.Kind == EffectKind.AddHit && c.TargetQuantity is null or TargetQuantity.Hits),
+        EffectKind.AddHit => f.TargetQuantity is null or TargetQuantity.Hits && f.Conditions.All(c => c.Kind != ConditionKind.RollResult),
+        _ => false,
+    };
     static readonly string[] Points = ["activation-start", "before-attacking", "after-shooting", "after-melee", "attack-start"];
 
     static void ValidateEffect(PropertySetDocument d, HashSet<string> names, string entry, EffectDocument f, List<string> problems, string? ownRoll = null)
@@ -154,14 +167,14 @@ public static class PropertiesJson
             if (c.Values.Count != 1) problems.Add(At($"{c.Kind} names exactly one value"));
             else if (c.Kind == ConditionKind.HoldsProperty && !names.Contains(c.Values[0])) problems.Add(At($"holds_property names no entry '{c.Values[0]}'"));
         }
-        if (f.AmountDice is not null && f.Kind != EffectKind.Place) problems.Add(At("amount_dice is place only"));
+        if (f.AmountDice is not null && f.Kind is not (EffectKind.Place or EffectKind.RemoveWounds)) problems.Add(At("amount_dice is place or remove_wounds only"));
         if (f.AmountDice is not null and not "d3") problems.Add(At($"amount_dice is 'd3', not '{f.AmountDice}'"));
         if (f.Kind == EffectKind.AddHit && f.TargetQuantity == TargetQuantity.Attacks && !f.Conditions.Any(c => c.Kind == ConditionKind.RollResult))
             problems.Add(At("add_hit attacks is per die: it needs a roll_result condition"));
         foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.AtPoint))
             foreach (var v in c.Values.Where(v => !Points.Contains(v))) problems.Add(At($"no point '{v}'"));
         foreach (var c in f.Conditions.Where(c => c.Kind == ConditionKind.UsageCount && c.Values.Count > 0))
-            if (c.Values[0] is not "round" and not "activation") problems.Add(At($"usage_count scope is round or activation, not '{c.Values[0]}'"));
+            if (c.Values[0] is not "round" and not "activation" and not "game") problems.Add(At($"usage_count scope is round, activation or game, not '{c.Values[0]}'"));
         // A roll's children may read the roll they are children of: a property's own roll is a RollRecord named for the entry.
         foreach (var child in f.Children) ValidateEffect(d, names, entry, child, problems, f.Kind == EffectKind.Roll ? entry : null);
     }

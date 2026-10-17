@@ -118,11 +118,30 @@ public static class GfCasting
                 null => Lookup.LivingModels(state, unit).Where(m => Battlefield.Distance(state, casterModel, m) <= t.Range
                     && (m == casterModel || t.LineOfSight == false || sight.Value.CanSee(casterModel, m))).ToList(),
             };
+            // "with Caster", "with Tough": the unit holds the rule (one of its models or the unit itself), or the model does.
+            if (t.Requires is { } rule)
+                models = t.Grain == TargetGrain.Model ? models.Where(m => Holds(state, m, rule)).ToList()
+                    : state.Projection.Units[unit].Definition.Properties.Any(p => p.Name == rule) || Lookup.AliveModels(state, unit).Any(m => Holds(state, m, rule)) ? models : [];
             if (models.Count == 0) continue;
             if (t.Grain == TargetGrain.Unit) result.Add(unit); else result.AddRange(models);
         }
         return result;
     }
+
+    static bool Holds(GameState state, Guid model, string rule) => state.Projection.Models[model].Slot.Properties.Any(p => p.Name == rule);
+
+    /// <summary>
+    /// The entry a spell-hits or spell-test frame resolves, read off its parent: a casting frame's picked spell, or a pick-rule frame's entry
+    /// (army-book rules spec → the pick: a before-attacking active's hits and tests resolve as a spell's do).
+    /// </summary>
+    internal static CatalogEntry? SourceEntry(StepContext ctx, FrameView parent) =>
+        parent.Frame.Sequence == GfNames.PickRuleSeq ? (GfPick.Parse(parent.Context.Action) is var (name, _) ? ctx.Properties.Entry(name) : null)
+            : ctx.Properties.Entry(Picked(parent).Spell);
+
+    /// <summary>The rows that deal hits: a spell's add_hit rows, and the add_hit children of a pick entry's dice row ("for each 2+ … takes 3 hits").</summary>
+    internal static IReadOnlyList<Effect> HitRows(CatalogEntry entry) => HitRows(entry.Effects);
+    static IReadOnlyList<Effect> HitRows(IEnumerable<Effect> rows) =>
+        rows.SelectMany(e => e.Kind == EffectKind.Roll ? e.Children : [e]).Where(e => e.Kind == EffectKind.AddHit && e.Conditions.All(c => c.Kind != ConditionKind.RollResult)).ToList();
 
     /// <summary>pick-spell completes only on an offered option, which Pick always parses.</summary>
     static (string Spell, Guid Caster) Picked(FrameView casting) => Pick(((Chosen)casting.Frame.Steps[0].Answer!).OptionId) ?? throw new InvalidOperationException("pick-spell recorded an option it did not offer");
@@ -243,18 +262,18 @@ public static class GfCasting
         {
             if (effect.Conditions.Count == 0) return true;
             var ix = GfAttack.AttackInteraction(ctx, casterUnit, targetUnit, [], null, null);
-            return effect.Conditions.All(c => c.Kind == ConditionKind.RollResult || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
+            return effect.Conditions.All(c => c.Kind is ConditionKind.RollResult or ConditionKind.AtPoint or ConditionKind.UsageCount || Conditions.Holds(ix, Side.Attacker, c, new LiveProperty(Side.Attacker, spell, null, null, null, null), null));
         }
     }
 
     /// <summary>A spell's weapon rules for the hit interaction: the child rules of its add_hit rows that hold for this target, settled into the attacker's
-    /// instances before pass one. Empty outside a casting frame.</summary>
+    /// instances before pass one. Empty outside a casting or pick-rule frame.</summary>
     internal static IReadOnlyList<(string Entry, int? Parameter)> WeaponRules(StepContext ctx, Guid caster, Guid target)
     {
         for (var f = ctx.Frame; f is not null; f = f.Parent)
-            if (f.Frame.Sequence == GfNames.CastingSeq)
-                return ctx.Properties.Entry(Picked(f).Spell) is { } spell
-                    ? EffectsStep.Holding(ctx, caster, target, spell).Where(e => e.Kind == EffectKind.AddHit)
+            if (f.Frame.Sequence is GfNames.CastingSeq or GfNames.PickRuleSeq)
+                return SourceEntry(ctx, f) is { } spell
+                    ? HitRows(EffectsStep.Holding(ctx, caster, target, spell))
                         .SelectMany(e => e.Children.Where(c => c.Kind == EffectKind.GrantProperty).Select(c => (c.TargetEntry!, c.Amount))).ToList() : [];
         return [];
     }
@@ -266,7 +285,7 @@ public static class GfCasting
         public string Name => "hit";
         public StepOutcome Run(StepContext ctx)
         {
-            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var spell = SourceEntry(ctx, ctx.Frame.Parent!)!;
             var casterUnit = ctx.Frame.Context.ActorUnitId!.Value;
             var target = ctx.Frame.Context.TargetUnitIds[0];
             var modelTarget = GfAttack.TakedownModel(ctx.Frame) is { } m && Lookup.AliveModels(ctx.State, target).Contains(m);
@@ -276,7 +295,7 @@ public static class GfCasting
             var live = ctx.Settle(ix);
             var multiplier = 1; var rolled = false;
             ctx.Applied.Add(spell.Name);
-            foreach (var hit in EffectsStep.Holding(ctx, casterUnit, target, spell).Where(e => e.Kind == EffectKind.AddHit))
+            foreach (var hit in HitRows(EffectsStep.Holding(ctx, casterUnit, target, spell)))
             {
                 var n = hit.EffectiveAmount(null);
                 if (hit.TargetRoll is null) values["hits"] += n;
@@ -305,7 +324,7 @@ public static class GfCasting
         {
             var target = ctx.Frame.Context.TargetUnitIds[0];
             if (!Failed(ctx.State, ctx.Frame.Id)) return new Complete([]);
-            var spell = ctx.Properties.Entry(Picked(ctx.Frame.Parent!).Spell)!;
+            var spell = SourceEntry(ctx, ctx.Frame.Parent!)!;
             var children = spell.Effects.Where(e => e.Kind == EffectKind.TakeTest).SelectMany(e => e.Children).ToList();
             if (children.Count > 0) ctx.Applied.Add(spell.Name);
             var changes = children.Where(c => c.Kind == EffectKind.SetCondition)

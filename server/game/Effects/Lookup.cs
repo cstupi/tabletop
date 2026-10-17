@@ -72,13 +72,15 @@ public static class Lookup
     /// The rules carried Auras give the unit (army-book rules spec → Aura: "This model and its unit get X"): a played model entry with aggregation
     /// any and no targeting, on any of the unit's living carriers, whose unconditional subject-self grant_property row names X. The carriers are
     /// the models still in play (AliveModels) once any is, so a carrier removed as a casualty grants nothing; while every model is on the shelf
-    /// they are the definition's, because a deployment rule (Scout, Ambush) is read before the unit has a position.
+    /// they are the definition's, because a deployment rule (Scout, Ambush) is read before the unit has a position. An Aura held as the unit's
+    /// own property, as an army imported before the army-book rules were generated holds a rule every model carried, is carried by every model.
     /// </summary>
     static IEnumerable<string> AuraGrants(GameState state, PropertySet props, Guid unitId)
     {
         var alive = AliveModels(state, unitId);
         var carriers = alive.Count > 0 ? alive.Select(id => state.Projection.Models[id].Slot) : state.Projection.Units[unitId].Definition.Models;
-        return carriers.SelectMany(m => m.Properties)
+        var own = carriers.Any() ? state.Projection.Units[unitId].Definition.Properties : [];
+        return carriers.SelectMany(m => m.Properties).Concat(own)
             .Select(p => props.Entry(p.Name)).OfType<CatalogEntry>()
             .Where(e => e is { Kind: CatalogKind.Model, Aggregation: Aggregation.Any, Played: true, Targeting: null })
             .SelectMany(e => e.Effects.Where(f => f is { Kind: EffectKind.GrantProperty, Subject: EffectSubject.Self, TargetEntry: not null } && f.Conditions.Count == 0))

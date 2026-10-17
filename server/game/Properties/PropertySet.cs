@@ -16,8 +16,9 @@ public enum Aggregation { All, Any, Majority, None }
 public enum TargetSide { Friendly, Enemy }
 public enum TargetGrain { Unit, Model }
 /// <summary>Who a spell or a pick entry may target. LineOfSight null: the target must be in sight (p.13, and a Mark's or Debuff's "in line of
-/// sight"); false: range alone (a Buff's "pick one friendly unit within 12"").</summary>
-public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null);
+/// sight"); false: range alone (a Buff's "pick one friendly unit within 12""). Requires: an entry the target must hold, the unit (unit grain)
+/// or the model (model grain): a pick's "pick one friendly model … with X".</summary>
+public sealed record SpellTargeting(TargetSide Side, TargetGrain Grain, int Count, double Range, bool? LineOfSight = null, string? Requires = null);
 
 /// <summary>One named rule. Effects may be empty: then it is a name GameRules checks for at a hook it owns. Played is false only on a generated
 /// text-only entry (army-book rules spec → Played flag): the unit card shows its text, and LiveProperties.Gather skips it.</summary>
@@ -26,7 +27,7 @@ public sealed record CatalogEntry(string Name, CatalogKind Kind, bool TakesParam
 
 public enum EffectSubject { Self, Opponent }
 public enum EffectKind { ModifyRoll, ModifyStat, ReplaceStat, ForceReroll, Roll, AddHit, Multiply, OverrideResult, GrantProperty, SuppressProperty, ModifyParameter, SuppressModifiers,
-    CountAsTerrain, TakeTest, SetCondition, Move, Place }
+    CountAsTerrain, TakeTest, SetCondition, Move, Place, RemoveWounds }
 /// <summary>p.11's terrain types a holder can count as being in (count_as_terrain).</summary>
 public enum TargetTerrain { Difficult, Dangerous }
 public enum TargetQuantity { Hits, Wounds, Attacks }

@@ -14,7 +14,7 @@ namespace Tabletop.Sim.Suite;
 /// </summary>
 public static partial class SuiteCatalog
 {
-    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched];
+    private static partial IEnumerable<TestGame> Army() => [.. ArmyGames.All, .. ArmyGames.Patterns, .. ArmyGames.Grants, .. ArmyGames.HitAndAp, .. ArmyGames.Defense, .. ArmyGames.Movement, .. ArmyGames.GrantAuras, .. ArmyGames.NumberAuras, .. ArmyGames.Unbatched, .. ArmyGames.Batch2];
 
     private static partial class ArmyGames
     {
@@ -191,7 +191,7 @@ public static partial class SuiteCatalog
             IReadOnlyList<DiceFix> dice, IReadOnlyList<GameCheck> checks, IReadOnlyList<ScenarioRule>? weapon = null, int models = 3,
             IReadOnlyList<ScenarioRule>? enemy = null, Dictionary<string, string>? enemyStats = null, int enemyUnits = 2, int? enemyModels = null,
             int enemyAttacks = 2, IReadOnlyList<ScenarioRule>? enemyWeapon = null, int? rounds = null, Func<ScenarioBuilder, ScenarioBuilder>? board = null, int? units = null, ulong seed = 1,
-            IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null)
+            IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged, play is not Play.Charged);
@@ -206,7 +206,7 @@ public static partial class SuiteCatalog
                 .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits, more))
                 .Army(book.Army, count, models, modelRules: Still(rules, count, holds), armyBook: book.Uid,
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers)
-                .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats,
+                .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
                     weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? []), Blade(1)] : [Blade(1)]);
             return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);
         }

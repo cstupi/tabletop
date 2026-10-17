@@ -234,4 +234,23 @@ public class PropertiesStoreTests(PostgresFixture pg)
         }
         finally { await pg.DeletePropertiesAsync(hash); }
     }
+
+    [Fact]
+    public async Task Requires_and_remove_wounds_round_trip()
+    {
+        var name = "Mend " + Guid.CreateVersion7().ToString("N")[24..32];
+        var at = new ConditionDocument(ConditionKind.AtPoint, null, Comparison.Eq, null, ["before-attacking"]);
+        var row = new EffectDocument(EffectSubject.Self, 10, EffectKind.RemoveWounds, null, null, null, null, null, null, null, 1, false, null, null, null, EffectDuration.Interaction, [at], [], AmountDice: "d3");
+        var doc = new PropertySetDocument(name, "mend-" + name, [], [], ["hit"],
+            [new EntryDocument("Healer", CatalogKind.Model, false, Aggregation.None, null, null, "Heal.", new SpellTargeting(TargetSide.Friendly, TargetGrain.Model, 1, 3, false, "Healer"), [row])]);
+        var hash = PropertiesJson.Hash(doc);
+        try
+        {
+            Assert.True(await _store.SeedAsync(doc, CancellationToken.None));
+            var entry = (await _store.LoadAsync(hash, CancellationToken.None))!.Entry("Healer")!;
+            Assert.Equal("Healer", entry.Targeting!.Requires);
+            Assert.Equal((EffectKind.RemoveWounds, "d3"), (entry.Effects.Single().Kind, entry.Effects.Single().AmountDice));
+        }
+        finally { await pg.DeletePropertiesAsync(hash); }
+    }
 }

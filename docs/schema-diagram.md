@@ -308,6 +308,7 @@ erDiagram
         float8 target_range
         bool played
         bool target_line_of_sight
+        text target_requires
     }
     EFFECT {
         uuid id PK

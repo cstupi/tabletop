@@ -58,9 +58,10 @@ One mechanism, three targets:
 
 - **The entry.** A `model` entry with `targeting` (side, range, line of sight, an optional required property), an
   `at_point` of `before-attacking`, its use counted per carrying model and activation by the mechanism (`usage_count`
-  counts per unit), and its effect rows with duration `once`.
-  `PropertiesJson.Validate` (`server/game/Properties/PropertySetDocument.cs:73`, `:77`) admits `targeting` and `once` rows
-  on a `model` entry that has a `before-attacking` `at_point`; today only spells may carry them.
+  counts per unit), and its effect rows with duration `once`, or use rows an active resolves on its target (`take_test`,
+  `add_hit` hits, a `roll` of hits, `remove_wounds`).
+  `PropertiesJson.Validate` admits `targeting`, `once` rows and use rows on a `model` entry whose rows have a
+  `before-attacking` `at_point`.
 - **Where it is offered.** `GfHooks.ReactionsAt` (`server/game/Rules/GrimdarkFuture/GfHooks.cs:82-100`) offers at
   `before-attacking` the cast reaction and the live Move/Place rows. It also offers one `use` reaction per carrying model
   whose pick entry has not been used this activation (`GfPick.Uses`) and has a target (`GfPick.Offers`). A Shaken unit is
@@ -108,6 +109,23 @@ ordered so that each batch's mechanisms are in place before it:
    Ranged Shrouding, Darkborn (a floor on a modified distance), Grounded Precision (the attacker's terrain), Entrenched,
    Mobile Artillery (a move this round), Quick Readjustment (one row of a rule suppressed), No Retreat (wounds after a
    passed test).
+
+### Readings of the batches
+
+Where an Army Forge text leaves a reading open, the one most consistent with the core rulebook is played:
+
+- **Batch 2.** Written-out Buffs, Marks and Debuffs take the rows of the books' spells of the same wording: *"when
+  attacking"* is melee or shooting (Toxin Mist), *"loses AP(+1)"* lowers a weapon's AP and gives none to a weapon without
+  it (Corrode Weapons), a speed row's three actions are one grant spent together (Shock Speed). *"With Caster"*, *"with
+  Tough"* is `targeting.requires`. Before-attacking actives are pick entries with use rows: Mend's *"remove D3 wounds"* is
+  a `remove_wounds` row (p.4 D3); Fatigue Debuff and Mind Control are a `take_test` with Terrifying Fury's and Deep
+  Hypnosis's consequences, p.10's ordinary consequence included; Breath Attack and the Storms roll their dice under their
+  own name (*"roll one die. On a 2+"*, *"roll 3 dice. For each 2+"*), then ask one target per success, and a unit may be
+  picked for more than one success (*"for each 2+ one enemy unit … takes 3 hits"*). Their hits resolve as a spell's hits
+  (`spell-hits`): they are neither shooting nor melee, so no *when shooting* or *in melee* rule reaches them. A Buff
+  that raises the move of the unit using it, picked mid-move, applies to the rest of that move: the grant applies the
+  next time the move is read. Primeborn's text is Guardian's and so are its rows. Bane in Melee Buff is the Buff
+  template with X in running-text case (*"Bane in melee"*); the generator reads X ignoring case.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the
 same rule ids as the books' upgrade gains): Banner *"This model and its unit get +1 to morale test rolls."*, Musician
