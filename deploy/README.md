@@ -1,15 +1,19 @@
 # deploy
 
 The production path: the two servers behind Caddy, on Docker (`docker-compose.prod.yml`) or directly on a Linux host
-(`systemd/`). The repo-root `docker-compose.yml` is development only.
+(`systemd/`), or the home server's all-container stack behind its existing Caddy (`docker-compose.home.yml`). The
+repo-root `docker-compose.yml` is development only.
 
 | File | What |
 | --- | --- |
 | `docker-compose.prod.yml` | Postgres, MinIO (profile `minio`), the one-shot `migrate`, management, game |
+| `docker-compose.home.yml` | The home server: the above plus MinIO on the NAS, the web image and `pg-backup`, no published ports |
 | `systemd/` | `tabletop-migrate`, `tabletop-management`, `tabletop-game` units for a host run |
-| `prod.env.example` | Every production setting and secret |
+| `prod.env.example`, `home.env.example` | Every setting and secret for each stack |
 | `../server/*/Dockerfile` | The server images (`dotnet publish -c Release` on `aspnet:10.0`, user `app`) |
+| `../web/Dockerfile`, `../web/Caddyfile` | The web image: the static build served by Caddy on :8080, SPA fallback, `frame-ancestors` |
 | `../scripts/postgres/roles.sh` | The database roles |
+| `../scripts/postgres/backup.sh` | `pg-backup`'s nightly `pg_dump`, keeping the newest 14 |
 | `../scripts/minio/init.sh` | The bucket, its policy and the service user; the release publisher when `RELEASE_S3_ACCESS_KEY` is set |
 | `../scripts/release`, `../scripts/release-client` | Cut a release from a clone: test, publish the client, install the web app, deploy (below) |
 | `../.github/workflows/` | `ci.yml` (build and tests), `release.yml` (a `vX.Y.Z` tag publishes the client) |
@@ -94,6 +98,69 @@ management 5100, `/ws` → game 5200, and the blob endpoint (`TABLETOP_S3_PUBLIC
 names the blob origin it may connect to). Management reads client addresses from `X-Forwarded-For` only from
 `TABLETOP_TRUSTED_PROXIES`.
 
+## Home server (docker1)
+
+`docker-compose.home.yml` (project `tabletop-home`): everything in containers, so the host needs only Docker and Compose
+v2. The owner's Caddy (container `caddy`, network `gateway_default`) terminates TLS for two hosts and reaches the stack by
+container name; nothing here publishes a host port.
+
+| Container | Networks | What |
+| --- | --- | --- |
+| `tabletop-postgres` | backend | Postgres 17, named volume `tabletop-home_postgres-data` on local disk |
+| `tabletop-migrate` | backend | one-shot `--migrate` as `tabletop_owner`, on every `up` |
+| `tabletop-minio`, `tabletop-minio-init` | backend, gateway | MinIO on `/mnt/tabletop/minio`; init makes the bucket, service user and release publisher |
+| `tabletop-management` :5100, `tabletop-game` :5200 | backend, gateway | the servers |
+| `tabletop-web` :8080 | gateway | the web app's static build (built in `web/Dockerfile` with the FILES origin in its CSP) |
+| `tabletop-pg-backup` | backend | `pg_dump -Fc` daily at 03:30 UTC to `/mnt/tabletop/pg-backups`, newest 14 kept |
+
+`backend` is internal (no route out); `gateway` is the external `gateway_default`, which also gives the servers egress to
+Stytch and Army Forge. All containers keep the prod hardening (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`).
+
+**NAS.** `/mnt/tabletop` is the NFS share, mounted before Docker starts (e.g. an `fstab` entry with `_netdev`), with
+`minio/` and `pg-backups/` in it. The share squashes every user to 1025:100, so MinIO and `pg-backup` run as `1025:100`
+(`TABLETOP_NAS_UID`, `TABLETOP_NAS_GID`) and read back files owned by themselves. `scripts/release` refuses to deploy while
+either directory is missing, since Docker would otherwise create it on the local disk.
+
+**First deploy.**
+
+```bash
+sudo git clone <repo> /opt/docker/tabletop && cd /opt/docker/tabletop && sudo git checkout v1.0.0
+sudo install -m 0600 deploy/home.env.example home.env      # fill in every empty value: openssl rand -hex 32
+sudo -E scripts/release --deploy home --skip-client         # reads ./home.env, else /etc/tabletop/home.env (--env-file)
+```
+
+`--deploy home` runs the unit suite, the rules suite and the web checks in `mcr.microsoft.com/dotnet/sdk:10.0` and
+`node:24-alpine` containers over the clone (`--skip-tests` skips them), builds the images tagged with the version, runs
+`up -d`, then waits on the containers' own states: `migrate` and `minio-init` exited 0; postgres, minio, management,
+game and web healthy. `--skip-client` because the host has no Godot; client builds come from the GitHub release workflow
+or a dev machine. An update is the same command after `git fetch && git checkout vX.Y.Z`.
+
+**Trusted proxy.** Caddy's requests reach management from its address on `gateway_default`, so
+`TABLETOP_TRUSTED_PROXIES` is that network's subnet (`docker network inspect gateway_default -f '{{range
+.IPAM.Config}}{{.Subnet}} {{end}}'`). `scripts/release` reads it when `home.env` leaves it unset; a by-hand `docker
+compose` needs it in `home.env`. Every container on `gateway_default` can then set `X-Forwarded-For` for management.
+
+**Caddy upstreams** (the owner's config):
+
+| Host | Path | Upstream |
+| --- | --- | --- |
+| APP `tabletop.cstupi.com` | `/v1/*` | `tabletop-management:5100` |
+| APP | `/ws` | `tabletop-game:5200` (WebSocket; Caddy's `reverse_proxy` upgrades it) |
+| APP | everything else | `tabletop-web:8080` |
+| FILES `files.tabletop.cstupi.com` | everything | `tabletop-minio:9000` |
+
+- Keep the `Host` header (Caddy's default): presigned URLs are signed for the FILES host. No request body limit on FILES
+  (mesh uploads and client zips go straight to MinIO).
+- `/v1/dev/*` does not exist in Production; nothing to block. `/healthz` on management and game need not be public.
+- The web container sends `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff` and `Referrer-Policy`; HSTS is Caddy's.
+
+**Backups.** A dump now: `docker exec tabletop-pg-backup /scripts/backup.sh once`. Restore into the running stack:
+`docker exec -i tabletop-postgres pg_restore -U postgres -d tabletop --clean --if-exists --no-owner --role=tabletop_owner
+< /mnt/tabletop/pg-backups/tabletop-<stamp>.dump`. MinIO's data is on the NAS already.
+
+**Client releases.** GitHub's release workflow uploads through the FILES host: secret `RELEASE_S3_ENDPOINT` is
+`https://files.tabletop.cstupi.com`, `RELEASE_S3_ACCESS_KEY`/`SECRET_KEY` the publisher from `home.env`.
+
 ## Releases
 
 Spec: `docs/superpowers/specs/2026-10-17-client-releases-design.md`. A release is a `vX.Y.Z` tag. Its client builds
@@ -127,7 +194,7 @@ It does not deploy. Repository settings:
 **On the host** (`scripts/release`), from a clean clone checked out at the tag:
 
 ```bash
-sudo -E scripts/release --deploy docker                # or --deploy systemd, or --deploy none
+sudo -E scripts/release --deploy docker                # or --deploy home, systemd or none
 scripts/release --dry-run --deploy docker              # print every step, change nothing
 ```
 
@@ -140,6 +207,7 @@ app with `TABLETOP_S3_PUBLIC_ENDPOINT`'s origin and installs it to `TABLETOP_WEB
   tagged with the version; `migrate` runs first. Set `COMPOSE_PROFILES=minio` in `prod.env` with self-hosted MinIO.
 - `systemd`: `dotnet publish -c Release` of both servers, stops the units, syncs them into `TABLETOP_INSTALL_DIR`
   (`/opt/tabletop`), restarts `tabletop-migrate` (the migrations, as the owner role), starts management and game.
+- `home`: the home-server stack, every build and test in containers (Home server, above).
 
 Both wait for `/healthz` on 127.0.0.1:5100 and :5200 and print a summary. Export templates for a host run:
 `~/.local/share/godot/export_templates/4.7.2.stable.mono/` (Godot's *Manage Export Templates*, or the `.tpz` from the
@@ -161,3 +229,6 @@ which links the Download page.
 
 - `TABLETOP_STYTCH_BASE_URL=https://api.stytch.com` with the live project's id and secret.
 - Register `{TABLETOP_WEB_URL}/reset-password` as a `RESET_PASSWORD` redirect URL in the live project.
+- Home server: register `https://tabletop.cstupi.com/reset-password`. The live project's custom auth domain
+  `login.tabletop.cstupi.com` is a CNAME configured at Stytch, not served by this stack; the servers still call
+  `api.stytch.com`.
