@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { errorMessage, retryAdvice } from '../src/lib/api/errors';
 import { ApiError } from '../src/lib/api/http';
-import { formatBytes, MAX_BYTES, MIB, nameProblem, sizeProblem } from '../src/lib/validation';
+import { formatBytes, libraryUsage, MAX_BYTES, MIB, nameProblem, sizeProblem } from '../src/lib/validation';
 import { loginHref, safeNext } from '../src/lib/session/redirect';
 
 const problem = (status: number, detail?: string, title = 'T') => new ApiError(status, title, detail);
@@ -79,6 +79,14 @@ describe('sizeProblem', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2 KB');
     expect(formatBytes(1.5 * MIB)).toBe('1.5 MB');
+    expect(formatBytes(1024 * MIB)).toBe('1 GB');
+  });
+});
+
+describe('libraryUsage', () => {
+  it('counts every asset and each distinct file once', () => {
+    expect(libraryUsage([{ hash: 'a', byteSize: 10 }, { hash: 'a', byteSize: 10 }, { hash: 'b', byteSize: 5 }])).toEqual({ assets: 3, bytes: 15 });
+    expect(libraryUsage([])).toEqual({ assets: 0, bytes: 0 });
   });
 });
 

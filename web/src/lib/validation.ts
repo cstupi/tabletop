@@ -22,7 +22,19 @@ export function nameProblem(text: string, what = 'Name'): string | null {
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < MIB) return `${(n / 1024).toFixed(0)} KB`;
+  if (n >= 1024 * MIB) return `${+(n / (1024 * MIB)).toFixed(1)} GB`;
   return `${(n / MIB).toFixed(n < 10 * MIB ? 1 : 0)} MB`;
+}
+
+/** Management's per-account asset quota: rows, and bytes over the account's distinct files. */
+export const ASSET_QUOTA = { assets: 500, bytes: 1024 * MIB };
+
+/** What counts against the quota: every asset row, and each distinct file once (identical bytes are stored once). */
+export function libraryUsage(assets: { hash: string; byteSize: number }[]): { assets: number; bytes: number } {
+  const seen = new Map<string, number>();
+  for (const a of assets) seen.set(a.hash, a.byteSize);
+  let bytes = 0; for (const b of seen.values()) bytes += b;
+  return { assets: assets.length, bytes };
 }
 
 /** Null when a file of this kind fits management's size cap. */

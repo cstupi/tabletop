@@ -10,6 +10,6 @@
 .site-nav .push { margin-left: auto; }
 .scroll-x { overflow-x: auto; max-width: 100%; }
 .stack > label, .stack > fieldset, .stack > p { display: block; margin: .5rem 0; }
-.stack input:not([type='radio']):not([type='checkbox']) { display: block; width: 100%; max-width: 32rem; box-sizing: border-box; }
+.stack > label > input:not([type='radio']):not([type='checkbox']) { display: block; width: 100%; max-width: 32rem; box-sizing: border-box; }
 .actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
 img, canvas { max-width: 100%; }

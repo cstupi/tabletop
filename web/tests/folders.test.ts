@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTree, descendantIds, filterAssets } from '../src/lib/library/folders';
+import { buildTree, descendantIds, filterAssets, moveTargets } from '../src/lib/library/folders';
 import type { AssetDto, FolderDto } from '../src/lib/api/types';
 
 const folders: FolderDto[] = [
@@ -14,6 +14,10 @@ describe('folders', () => {
     expect(tree.map((n) => n.folder.name)).toEqual(['Orks', 'Winter']);
     expect(tree[0]!.children.map((n) => n.folder.name)).toEqual(['Boyz', 'Nobz']);
     expect(descendantIds(folders, 'orks')).toEqual(new Set(['orks', 'boyz', 'nobz']));
+  });
+  it('offers every folder outside the moving one’s subtree as a move target', () => {
+    expect(moveTargets(folders, 'orks').map((f) => f.id)).toEqual(['winter']);
+    expect(moveTargets(folders, 'boyz').map((f) => f.id)).toEqual(['nobz', 'orks', 'winter']);
   });
   it('filters by folder subtree, kind and modelled base', () => {
     const assets = [asset('a'), asset('b'), asset('c', 'terrain'), asset('d', 'miniature', 40 / 25.4)];
