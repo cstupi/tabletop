@@ -501,7 +501,9 @@ Two records, per the asset library spec. `blob` is the bytes, keyed `(owner_id, 
 profiles are per kind and one is empty: a texture carries nothing (identity and enumerations →
 *`ASSET` profiles are per kind*).
 
-Upload is three calls and no server-side bytes:
+Upload is three calls. The browser's bytes land in a staging key; the server reads them once at
+confirm, verifies them and copies them to the content key itself, so no URL a user holds ever writes a
+content key:
 
 ```mermaid
 sequenceDiagram
@@ -512,21 +514,20 @@ sequenceDiagram
 
     B->>B: convert STL to GLB, SHA-256 the bytes
     B->>M: POST /v1/assets {name, kind, hash, byteSize, contentType, scale, orientation, modelledBase}
-    M->>M: validate: 64-hex hash, content type per kind, modelledBase iff miniature
-    M->>DB: insert blob on conflict do nothing, then insert asset
+    M->>M: validate: name, 64-hex hash, content type per kind, size cap, modelledBase iff miniature, finite numbers
+    M->>DB: lock the account row, check the quota, insert blob, insert asset
     alt blob.uploaded already true (same bytes twice)
         M-->>B: 201 CreateAssetResponse{asset, uploadUrl = null}
     else new bytes
-        M->>S3: presign PUT {owner}/{hash}, 15 min
+        M->>S3: presign PUT staging/{owner}/{assetId}, 5 min
         M-->>B: 201 CreateAssetResponse{asset, uploadUrl}
         B->>S3: PUT the bytes with the declared Content-Type
     end
     B->>M: POST /v1/assets/{id}/confirm
-    M->>S3: HEAD: Size(key)
-    M->>S3: GET bytes 0-19
-    M->>S3: GET the JSON chunk
-    M->>M: CountTriangles: sum over primitives
-    M->>DB: update blob set uploaded = true
+    M->>S3: HEAD staging key, copy to staging/{owner}/{assetId}.held, delete staging key
+    M->>S3: stream the held copy: SHA-256, GLB or image checks
+    M->>S3: copy held to {owner}/{hash}, delete held
+    M->>DB: update blob set uploaded = true (0 rows: the sweep took it, delete the content object, 409)
     M-->>B: ConfirmResponse{asset, triangles, warning?}
     B->>M: PUT /v1/assets/{id}/volumes (terrain only)
 ```
@@ -534,33 +535,57 @@ sequenceDiagram
 *The three-call upload, including the dedup short-circuit.*
 
 The hash is computed client-side so the service can answer "already there" before any bytes move
-(management API, "Asset bytes never pass through the API"). Nothing recovers a `blob` row whose
-confirm never arrives. The presigned `PUT` carries no size constraint, so the declared `byteSize`
-is checked only after the bytes are in the bucket.
+(management API, "Asset bytes never pass through the API" — the server reads them only to verify).
+The presigned `PUT` carries no size constraint, so the declared `byteSize` is capped at create (a mesh
+64 MiB, a texture 16 MiB, `UploadLimits`) and checked against the object at confirm. The `.held` copy,
+which no URL names, is what is hashed, validated and kept, so a `PUT` racing the confirm cannot swap the
+bytes.
 
-`confirm` is where every check lives:
+**Quota.** At create, inside the insert's transaction (`select ... for update` on the account row), an
+account holds at most 500 assets and 1 GiB of blob bytes, pending blobs included and each hash counted
+once (`AssetQuota`, `AssetQuotaExceeded` → `422`). An account holds at most 200 folders.
+
+`confirm` is where every content check lives:
 
 | Condition | Answer |
 | --- | --- |
-| `Size(key)` is null | `409`, the bytes are not there yet |
-| size ≠ `asset.ByteSize` | `422` |
-| content type is `model/gltf-binary` and the magic is not `glTF`/version 2 | the object is **deleted** and `422`. An STL renamed `.glb` dies here |
-| triangles > `GlbHeader.WarnAbove` (100,000) | `200` with `Warning` set. **Never refused** |
+| the blob is already uploaded | `200`, any staging object deleted |
+| no staging object | `409`, the bytes are not there yet |
+| size ≠ `asset.ByteSize` or over the cap | staging deleted, `422` |
+| SHA-256 ≠ the declared hash | `422` |
+| a GLB or texture check fails | `422` with fixed text; the detail is logged |
+| triangles > 100,000 | `200` with `Warning` set |
+| the blob row was swept meanwhile | content object deleted, `409` |
 | otherwise | `200`, `blob.uploaded = true` |
 
 **GLB only**, narrowed from `architecture.md`'s "glTF/GLB": a `.gltf` with external `.bin` buffers
-is several files with relative references. That breaks single-object presigned upload and makes the
-header read pointless. `GlbHeader` is pure and headless:
+is several files with relative references. `GlbHeader.Check(length, RangeReader)` is the validator; every
+JSON read checks the value's kind, every range check is overflow-safe, and any parse fault is
+`GlbHeader.Malformed`:
 
-- `IsGlb(first12)`: magic `0x46546C67` and version 2.
-- `JsonChunkLength(first20)`: the chunk length at offset 12, with chunk type `JSON` at 16.
-- `CountTriangles(jsonChunk)`: for every primitive of every mesh, take
-  `accessors[indices ?? attributes.POSITION].count` and convert by `mode`: 4 → `count/3`, 5 and 6
-  (strip, fan) → `count - 2`, points and lines → 0. Meshes are counted **once each, not per node**,
-  because that is what a client loads into memory.
+- magic `glTF`, version 2, header length equal to the object's; JSON chunk ≤ 1 MiB; the BIN chunk inside
+  the file;
+- exactly one buffer, with no `uri`, inside the BIN chunk; every bufferView on it and inside it, byteStride
+  4–252 and a multiple of 4;
+- every accessor ≤ 3,000,000 elements, Σ count × element size ≤ 128 MiB, each inside its bufferView, sparse
+  indices and values bounded; every attribute and morph target of a primitive has POSITION's count;
+- vertices (Σ POSITION counts) ≤ 500,000 and triangles ≤ 1,000,000, refused; above 100,000 triangles
+  warns (mesh conversion → *The threshold*). Triangles convert by `mode`: 4 → `count/3`, 5 and 6 →
+  `count - 2`, points and lines → 0, meshes counted once each, not per node;
+- at most 8 images, each through a bufferView with no `uri`, `mimeType` png, jpeg or webp matching the
+  header bytes, each side 1–4096;
+- `extensionsRequired` within `KHR_mesh_quantization`, `KHR_texture_transform`, `KHR_materials_unlit`,
+  `KHR_materials_emissive_strength`, `EXT_texture_webp`. The web converter emits none; compressed-geometry
+  extensions are refused.
 
-The threshold warns and does not block (mesh conversion → *The threshold*). It is unrelated to
-`game.enforcement`, whose `strict` position refuses. Nothing about uploads refuses.
+A texture (`ImageHeader.CheckTexture`) must carry the magic of its declared type (PNG IHDR, JPEG SOFn
+within the first 1 MiB, WebP VP8/VP8L/VP8X) and sides 1–4096. Only headers are read.
+
+**Sweep.** `UploadSweeper` (a `BackgroundService`, every 10 minutes) runs `UploadSweep.Run(now)`: staging
+objects (`.held` copies included) older than 1 hour are deleted, then `DeleteAbandoned(now − 1 h)` deletes
+blob rows still not uploaded after an hour (`blob.created_at`, reset when a new asset reuses the pending
+blob) with their asset rows, and their objects. A MinIO lifecycle rule expiring `staging/` after a day is
+the operator's backstop.
 
 Download is `GET /v1/assets/{id}/download` → a presigned `GET` valid 60 minutes, `409` until
 confirmed. Delete removes the asset row. When that was the owner's **last** reference to the hash
@@ -573,7 +598,9 @@ rows rather than a cross-account count.
 `const string`s (`Columns`, `InsertColumns`, `InsertValues`) so the SQL is written once. The six
 terrain declarations are `bool` columns mapped to the `TerrainDeclarations` flags enum. `PUT
 /v1/assets/{id}/volumes` is delete-then-insert with fresh ids and answers `409` unless the kind is
-terrain.
+terrain; at most 16 volumes, each with a defined kind, known declarations, a valid footprint, finite numbers
+and notes ≤ 2000. Asset and folder names pass `Limits.Text`. Deleting an asset also deletes its staging
+key.
 
 **Starter miniatures.** `StarterMeshes` builds six GLBs in memory (five round figures, 25 to 60 mm, and the
 221 × 119 mm hull), sized from `ArmyForgeImport.HeightFromBase` and `DefaultBody`. `StarterAssets.SeedIfNeeded`
@@ -1161,12 +1188,14 @@ and a build whose environment is unset serves `404` for it.
 | `Identity.IAccountRepository`, `AccountRepository`, `AccountRow` | `Get(id)`, `Insert(id, name)`, `Rename(id, name)`, `BlobKeys(accountId)`, `HostedGameIds(accountId)`, `JoinedGameIds(accountId)`, `Delete(accountId)` |
 | `Identity.AccountDeleter` | `Delete(Guid accountId) : Task<bool>` |
 | `Content.VolumeRow` | `ToVolume()`, `static From(id, Volume)`, `Columns`, `InsertColumns`, `InsertValues` |
-| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `Put`, `Delete` |
+| `Content.Assets.IBlobStore`, `S3BlobStore` | `static Key(owner, hash)`, `StagingPrefix`, `StagingKey(owner, assetId)`, `HeldKey(owner, assetId)`, `PresignUpload`, `PresignDownload`, `Size`, `ReadRange`, `OpenRead`, `Copy`, `ListOlderThan`, `Put`, `Delete` |
 | `Content.Assets.StarterMeshes`, `StarterAssets` | `StarterMeshes` builds the six starter GLBs in memory, deterministically; `StarterAssets.SeedIfNeeded(account)` puts the bytes, then `IAssetRepository.AddStarter` writes the rows into the `Starter` folder and sets `starter_seeded_at` |
-| `Content.Assets.GlbHeader` | `IsGlb`, `JsonChunkLength`, `CountTriangles`, `HeaderBytes = 20`, `WarnAbove = 100_000` |
+| `Content.Assets.GlbHeader`, `ImageHeader`, `UploadLimits`, `ContentCheck`, `RangeReader` | `GlbHeader.Check(length, RangeReader)`, `GlbHeader.Malformed`, `ImageHeader.CheckTexture`; `UploadLimits` holds every upload limit and the extension allowlist |
+| `Content.Assets.UploadSweep`, `UploadSweeper` | `Run(now)`; the hosted service runs it every 10 minutes |
+| `Content.Assets.AssetReferences` | `Check(assets, owner, refs)`, `Miniature`, `Terrain`, `Texture`, `Mesh` |
 | `Content.Assets.AssetKind`, `AssetRules` | `{ Miniature, Terrain, Texture }`; `ContentTypes`, `IsSha256`, `Kind`, `Shape` |
-| `Content.Assets.IAssetRepository`, `AssetRepository` | `Create`, `Get`, `List`, `Patch`, `MarkUploaded`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
-| `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
+| `Content.Assets.IAssetRepository`, `AssetRepository` | `Create(owner, r, AssetQuota?)` (throws `AssetQuotaExceeded`), `Get`, `List`, `Patch`, `MarkUploaded` (false when the row is gone), `UploadedKinds`, `DeleteAbandoned(cutoff)`, `Delete`, `GetVolumes`, `PutVolumes`, `StarterSeeded`, `AddStarter` |
+| `Content.Assets.IFolderRepository`, `FolderRepository` | `List`, `Count`, `Create`, `Patch`, `Delete`, `AddAsset`, `RemoveAsset` |
 | `Content.Armies.ArmyForgeClient` | `static ListId(source)`, `static Parse(json)`, `Fetch(listId)`, `HttpClientName = "army-forge"`, `BaseUrl`; `ArmyForgeException(Status)` |
 | `Content.Armies.ArmyForgeImport` | `ToArmy(AfList, source, catalog, set = Round)`, `ParseBase(text, set)`, `HeightFromBase(base)`, `GameRules`, `DefaultBody`, `HeightScale`; `PropertyLevel { Unit, Model }`; `BaseSet { Round, Square }`; `UnsupportedGameSystemException` |
 | `Content.Armies.ICatalogKinds`, `CatalogKinds` | `For(string gameRules) : IReadOnlyDictionary<string, PropertyLevel>` |
@@ -1571,7 +1600,8 @@ on purpose. Normalised, a later migration could alter what a past game was playe
 
 | Hazard | Consequence | Disposition |
 | --- | --- | --- |
-| `POST /v1/assets` and then no `confirm` | a `blob` row with `uploaded = false` forever, and possibly an S3 object with no confirm | **left in place.** No reaper. The row is invisible to downloads and manifests, and delete removes it with the asset |
+| `POST /v1/assets` and then no `confirm` | a pending `blob` row and possibly a staging object | `UploadSweep` deletes both after an hour; the row is invisible to downloads and manifests meanwhile |
+| Account and layout/army/folder counts under concurrent creates | the 200-per-account counts are read before the insert, so a burst can overshoot by the number in flight | accepted; the asset quota is checked under a row lock |
 | Presigned `PUT` carries no size constraint | `IBlobStore.PresignUpload` takes `byteSize` and does not use it, so a client can `PUT` any number of bytes. The only size check is `confirm`, after the bytes are in the bucket | not addressed. A content-length-range condition would need a POST policy rather than a presigned `PUT` |
 | S3 delete after the transaction commits | if `blobs.Delete` throws after the rows are gone, the object leaks with nothing pointing at it | accepted. The alternative is deleting bytes before committing, which loses data on rollback |
 | Account deletion: Stytch fails with anything but `404` | content and hosted games are already gone, joined games already left. The caller gets `502`. The Stytch user survives, so logging in again recreates an **empty** account with the same id | ordering is database first, so a Stytch failure leaves no orphaned content |

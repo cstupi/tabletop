@@ -385,6 +385,12 @@ indistinguishable from a finished upload. These two columns arrive as management
 management's `001_schema.sql`; every table, column and constraint from `002` on reaches the database through management's
 migrations only.
 
+### `blob` records when it was created
+
+`created_at timestamptz not null default now()`, from management's `010_blob_created_at.sql`. A pending blob
+(`uploaded = false`) older than an hour is deleted with its assets by management's upload sweep; a new asset
+on a pending blob resets the time.
+
 ### `account` records whether its starter meshes were seeded
 
 `starter_seeded_at timestamptz null`, arriving as management's `003_account_starter.sql`. Null means the
