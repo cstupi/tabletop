@@ -1143,7 +1143,7 @@ Every table but `game_event` is management's. This server writes them only while
 `lobby` or `setup`. `deployment_zone.shape` holds a shape id namespaced by style
 (`frontline/1`), not a style name.
 
-`participant.game_id` and `participant.army_id` are `docs/schema.md` → PARTICIPANT columns
+`participant.game_id` and `participant.army_id` are `docs/schema-diagram.md` → PARTICIPANT columns
 (*`participant` links to its game, and holds the army it picked*). This module's SQL uses both.
 
 ### In memory
@@ -1370,7 +1370,6 @@ Deferred, with where it is recorded:
 | Server-side geometry in the move Ask: distance against `Allowance`, impassable containment, resting `Z` (`Battlefield.Settle(state, modelId, placement)`) | the interpreter's move step over `Tabletop.Geometry` |
 | Hosting: ECS, ALB idle timeouts, `stopTimeout`, more than one task | `architecture.md` → Deployment |
 | Terrain as event-driven state, which unlocks army terrain, buildings as targets and mid-game terrain edits | setup content → Still open |
-| How authored `Properties` content reaches the eight tables | `architecture.md` → Rules as data |
 | A replay viewer | build order step 11 |
 
 Two shapes are left as they are. `Legality.AlwaysAccepted` is never constructed on the dispatch

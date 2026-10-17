@@ -46,9 +46,9 @@ Asset bytes never pass through the process, and the service issues no token of i
   (mesh conversion → *Conversion runs in the browser*). The service reads a header.
 - **No multipart upload.** `IBlobStore` has no multipart member. The management API spec's open
   item stays open.
-- **No content import.** How authored `Properties` rows reach the eight tables is undesigned
-  (`architecture.md` → *Rules as data*), so `GET /v1/properties` can return an empty list and
-  `POST /v1/games` then answers `422`.
+- **No `Properties` seeding.** The game server writes the ten `Properties` tables from its embedded
+  documents at startup ([interpreter → The pinned `Properties` set](../interpreter/properties.md)); until it
+  has run, `GET /v1/properties` can return an empty list and `POST /v1/games` then answers `422`.
 - **No hosting.** Local only: Postgres and MinIO from `docker-compose.yml`, configuration from
   `TABLETOP_*` and `dotnet user-secrets`.
 
@@ -599,6 +599,7 @@ fetch established:
 | --- | --- |
 | `gameSystem` is `"gf"` on this list and is the list's own field | the only signal import uses. `gf` and `aof` are the two accepted values and both map to `grimdark-future`; a list carrying another book's content still reports its own system, and nothing here resolves the book |
 | `selectionId` is unique; `id` repeats across duplicated units | combining and joining key on `selectionId` |
+| `armyId`, the army book's `uid`, is on every unit entry (`prsajf5ot936qznk` on every entry of this list) | written to each slot built from that entry as `ModelSlot.ArmyBook` and `model_slot.army_book`, a joined entry's slots included: a caster casts the spells its own slot's book lists ([the spell library](../../superpowers/specs/2026-10-02-spell-library-design.md)) |
 | `quality` and `defense` are **plain integers** (`4`, not `"4+"`, never objects) | `TargetNumber` accepts a number or a string and emits `"4+"` |
 | `loadout` is the resolved post-upgrade list; `weapons` is the pre-upgrade profile | import reads `loadout` and ignores `weapons`. Unit 0's `weapons[0]` is a "Blood Sword" that its `loadout[0]` replaced |
 | a rule's `rating` is **absent**, not null, when it takes none | `AfRule.Rating` is `JsonElement?` and `Rating()` returns `int?` |
@@ -1634,7 +1635,6 @@ sends its version on every request.
 | Rate limiting | management API → *Deliberately not decided* |
 | Whether the manifest is re-issued on reconnect or re-requested | management API → *Deliberately not decided* |
 | The JWT lifetime and refresh interval as anything but working figures | management API → *Deliberately not decided*. Five minutes and one minute are used here |
-| How authored `Properties` content reaches the eight tables | `architecture.md` → *Rules as data*; whole-design review → *Left as first-pass assertions*. Until it exists, `GET /v1/properties` is empty and no game can be created |
 | Indexes beyond primary and foreign keys | `schema.md` → *Still open*; the game browser's listing query is the first candidate |
 | Whether the two schemas become two databases | contracts design → *Two Postgres schemas in one database*: one database for local development; hosting may revisit |
 | Hosting, and therefore how a migration is coordinated with a running game server | `architecture.md` → *Deployment* |
