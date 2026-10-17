@@ -19,6 +19,8 @@ public class DeployAroundTests
         var at = placed.Select(r => ((OnTable)r.To).Placement.Position.Horizontal).ToList();
         Assert.All(at, x => Assert.Equal(1 + 0.2 + 0.5, x.DistanceTo(anchor.Position.Horizontal), 6));   // one ring: the anchor's half, a gap, the model's half
         for (var i = 0; i < at.Count; i++) for (var j = i + 1; j < at.Count; j++) Assert.True(at[i].DistanceTo(at[j]) >= 1.2);
+        var clear = DeployView.Around(models, anchor, Base.Circle(2), new TableSize(72, 48), clearance: 1);     // the Ask's separation from the anchor's unit
+        Assert.All(clear, r => Assert.Equal(1 + 1 + 0.5, ((OnTable)r.To).Placement.Position.Horizontal.DistanceTo(anchor.Position.Horizontal), 6));
     }
 
     [Fact]

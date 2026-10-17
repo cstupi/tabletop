@@ -64,7 +64,7 @@ these names verbatim: the scheduler and interpreter plans' end-to-end runs, and 
 | `static class LogText` | `Describe(GameEvent, Names)`, `Answer(AskAnswer, Names)`, `Touched(GameEvent)` |
 | `enum AskMode { Choose, PickPieces, Allocate, Assign, Move, TokenSpend, Confirm }`, `sealed record AskView(Ask, AskMode, Highlights, AnsweredTeams, AutoPass)`, `static class AskViewModel` | `Mine(Projection, GameInfo, Guid? team, IReadOnlySet<string> muted)`, `WaitingFor`, `AnsweredBy`, `ModeOf(LegalSet)`, `SpendableBy(Projection, GameInfo, Guid team, TokenSpend)`, `ConfirmLabel(Ask)` |
 | `enum MenuInput { None, Integer, Text, PieceId, TablePoint }`, `sealed record MenuItem(string Label, MenuInput Input, Func<string?, Command?> Build)`, `static class MenuModel` | `ForUnit`, `ForModel`, `ForTeam`, `ForMarker`, `ForFrame`, `KnownActionNames` |
-| `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark`, `IsShelfPlacement`, `Gate` |
+| `sealed record RulerReadout(double Distance, double? Remaining, bool OverAllowance)`, `static class MoveRuler` | `Read`, `UsedInFrame`, `Region`, `ExitRegion`, `ExitYawAt`, `IsDisembark`, `IsShelfPlacement`, `TooClose`, `Gate` |
 | `sealed class AnimationQueue` | `Enqueue`, `Take(bool animate)`, `Count` |
 | `[Flags] enum RenderCause { None, Events, Game, Board, Facts }`, `sealed class RenderScheduler(IDispatcher)` | `Mark(RenderCause)`, `event Action<RenderCause> Render` (once per dispatcher turn) |
 | `sealed class CombatLogCache`, `sealed class CombatLogState` | `Of(log, pendingUndoTo, GameInfo, Projection?) : CombatLogState`; `Names`, `Entries`, `Latest`, `Undo` (each built once) |

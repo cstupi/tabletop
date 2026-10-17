@@ -47,12 +47,12 @@ public static class DeployView
     /// centre, the first just clear of its base, each as many models as fit a pitch apart, yaw 0, each centre held on the table. A row of
     /// <see cref="Layout"/> would reach past 6" for five wide bases; a ring keeps every model as close as it can go.
     /// </summary>
-    public static IReadOnlyList<ModelRelocation> Around(IReadOnlyList<ModelInPlay> models, Placement anchor, Base anchorBase, TableSize size)
+    public static IReadOnlyList<ModelRelocation> Around(IReadOnlyList<ModelInPlay> models, Placement anchor, Base anchorBase, TableSize size, double? clearance = null)
     {
         if (models.Count == 0) return [];
         var widest = models.Max(m => Math.Max(m.Slot.Base.A, m.Slot.Base.B));
         var pitch = widest + Gap;
-        var radius = Math.Max(anchorBase.A, anchorBase.B) / 2 + Gap + widest / 2;
+        var radius = Math.Max(anchorBase.A, anchorBase.B) / 2 + Math.Max(Gap, clearance ?? 0) + widest / 2;   // clear of the anchor by the Ask's separation
         var placed = new List<ModelRelocation>(models.Count);
         var next = 0;
         while (next < models.Count)

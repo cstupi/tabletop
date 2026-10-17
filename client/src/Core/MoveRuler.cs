@@ -42,16 +42,41 @@ public static class MoveRuler
 
     /// <summary>The commit against every held model's readout: any out of range is named, and under strict disables it; under warn and
     /// silent it goes and the server judges.</summary>
-    public static MoveGate Gate(IEnumerable<RulerReadout> readouts, Enforcement enforcement)
+    public static MoveGate Gate(IEnumerable<RulerReadout> readouts, Enforcement enforcement, int tooClose = 0, double? separation = null)
     {
         var all = readouts.ToList();
         int over = all.Count(r => r.OverAllowance), under = all.Count(r => r.UnderMinimum);
-        if (over + under == 0) return new MoveGate(true, null);
+        if (over + under + tooClose == 0) return new MoveGate(true, null);
         static string Models(int n, string what) => n == 1 ? $"1 model {what} its" : $"{n} models {what} their";
         var parts = new List<string>();
         if (over > 0) parts.Add($"{Models(over, "past")} allowance");
         if (under > 0) parts.Add($"{Models(under, "short of")} minimum");
+        if (tooClose > 0) parts.Add($"{(tooClose == 1 ? "1 model" : $"{tooClose} models")} within {separation ?? 0:0.#}\" of another unit");
         return new MoveGate(enforcement != Enforcement.Strict, string.Join(" · ", parts) + ".");
+    }
+
+    /// <summary>
+    /// The moved models (proposed away from where they stand) that would end within the Ask's Separation of a model of another unit, body to body,
+    /// against the models standing and the other proposals. A unit a mover already stood within the separation of is not counted: the ruleset may
+    /// exempt it, and the server judges it either way. Zero when the Ask sets no separation.
+    /// </summary>
+    public static int TooClose(Projection p, MoveRegion legal, IReadOnlyDictionary<Guid, Placement> proposed)
+    {
+        if (legal.Separation is not { } gap) return 0;
+        PlacedModel Body(ModelInPlay m, Placement at) => new(new ModelBody(m.Slot.Base, m.Slot.Height), at);
+        PlacedModel? Standing(ModelInPlay m) => m.Location is OnTable t ? Body(m, t.Placement) : null;
+        var landed = proposed.Where(kv => p.Models.ContainsKey(kv.Key)).ToDictionary(kv => kv.Key, kv => Body(p.Models[kv.Key], kv.Value));
+        var everyone = p.Models.Values.Where(m => !landed.ContainsKey(m.Id) && m.Location is OnTable).Select(m => (m.Id, m.UnitId, At: Standing(m)!.Value))
+            .Concat(landed.Select(kv => (Id: kv.Key, p.Models[kv.Key].UnitId, At: kv.Value))).ToList();
+        var count = 0;
+        foreach (var (id, at) in landed)
+        {
+            var m = p.Models[id]; var start = Standing(m);
+            if (start is { } s && s.Placement.Position.Horizontal.DistanceTo(at.Placement.Position.Horizontal) <= 1e-6) continue;   // answered where it stands: not moved
+            var near = p.Models.Values.Where(o => o.UnitId != m.UnitId && start is { } from && Standing(o) is { } there && Distance.BodyToBody(from, there) < gap - 1e-6).Select(o => o.UnitId).ToHashSet();
+            if (everyone.Any(o => o.UnitId != m.UnitId && !near.Contains(o.UnitId) && Distance.BodyToBody(at, o.At) < gap - 1e-6)) count++;
+        }
+        return count;
     }
 
     /// <summary>The least this model must move: the Ask's MinDistance, or as far as the table lets its whole base go when that is less

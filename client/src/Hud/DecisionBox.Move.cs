@@ -45,7 +45,7 @@ public partial class DecisionBox
             {
                 if (fromShelf)
                 {
-                    var layout = DeployView.Around(legal.ModelIds.Select(id => p.Models[id]).ToList(), at.Placement, p.Models[containerId].Slot.Base, _view.Size);
+                    var layout = DeployView.Around(legal.ModelIds.Select(id => p.Models[id]).ToList(), at.Placement, p.Models[containerId].Slot.Base, _view.Size, legal.Separation);
                     _view.ShowGhosts(layout);
                     _proposed = layout.ToDictionary(r => r.ModelId, r => ((OnTable)r.To).Placement.Position);
                     return;
@@ -98,9 +98,10 @@ public partial class DecisionBox
         _regate = () =>
         {
             if (_proposed is not { } proposed || !IsInstanceValid(commit)) return;
-            _gate = allowance is null ? new MoveGate(true, null) : MoveRuler.Gate(legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
-                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, allowance, _input.Minimum?.GetValueOrDefault(id))),
-                _s.Game?.Enforcement ?? Enforcement.Strict);
+            var readouts = allowance is null ? [] : legal.ModelIds.Where(id => p.Models[id].Location is OnTable && proposed.ContainsKey(id))
+                .Select(id => MoveRuler.Read(((OnTable)p.Models[id].Location).Placement.Position.Horizontal, proposed[id].Horizontal, allowance, _input.Minimum?.GetValueOrDefault(id))).ToList();
+            var placed = proposed.ToDictionary(kv => kv.Key, kv => new Placement(kv.Value, NodeYaw(kv.Key) ?? new Yaw(0)));
+            _gate = MoveRuler.Gate(readouts, _s.Game?.Enforcement ?? Enforcement.Strict, MoveRuler.TooClose(p, legal, placed), legal.Separation);
             commit.Disabled = !_gate.Allowed; if (stop is not null) stop.Disabled = !_gate.Allowed;
             reason.Text = _gate.Reason ?? ""; reason.Visible = _gate.Reason is not null;
         };
