@@ -26,8 +26,16 @@ public partial class LobbyPanel : VBoxContainer
     {
         var s = _session = Main.Instance.Session; var game = s.Game!;
         AddChild(new Label { Text = "Lobby" });
+        AddChild(Wrapping(LobbyView.Seat(game, s.ParticipantId)));
+        if (LobbyView.WaitingForCreator(game, s.IsCreator) is { } waiting) AddChild(Wrapping(waiting, Variation.Accent));
         var teams = new HFlowContainer(); AddChild(teams);
-        foreach (var t in game.Teams) teams.AddChild(Btn($"Join team {t.Ordinal}", () => Guarded.Send(s, new PickTeam(t.Id))));
+        // An empty team is joined; a held one names its holder and, for anyone but the creator, says to ask the creator.
+        foreach (var choice in LobbyView.Teams(game, s.ParticipantId, s.IsCreator))
+        {
+            var b = Btn(choice.Text, () => Guarded.Send(s, new PickTeam(choice.TeamId)));
+            b.Disabled = !choice.Enabled; b.TooltipText = choice.Why;
+            teams.AddChild(b);
+        }
         teams.AddChild(Btn("Watch", () => Guarded.Send(s, new PickTeam(null))));
         teams.AddChild(Btn("Create team", () => Guarded.Send(s, new CreateTeam())));
         AddChild(Seats(s, game));
@@ -43,14 +51,29 @@ public partial class LobbyPanel : VBoxContainer
             armies.ItemSelected += i => Guarded.Send(s, new PickArmy(i == 0 ? null : list[(int)i - 1].Id));
         }, e => { if (IsInstanceValid(this)) _error.Text = e; });
         var config = new VBoxContainer(); AddChild(config);
-        var name = new LineEdit { Text = game.Name }; config.AddChild(name);
+        if (!s.IsCreator) config.AddChild(Wrapping(LobbyView.CreatorOnly, Variation.Dim));
+        var name = new LineEdit { Text = game.Name, MaxLength = TextLimits.Name, PlaceholderText = "game name" }; config.AddChild(name);
         var shape = new OptionButton(); shape.AddItem("Alternating activation"); shape.AddItem("Player turn"); shape.Select(game.SchedulerShape == SchedulerShape.PlayerTurn ? 1 : 0); config.AddChild(shape);
         var enforcement = new OptionButton(); foreach (var e in Enum.GetNames<Enforcement>()) enforcement.AddItem(e); enforcement.Select((int)game.Enforcement); config.AddChild(enforcement);
         var chosen = s.Options.Options.ToDictionary(o => o.Key, o => RulesOptions.ValueOf(o, game.OptionalRules));
         OptionalRules(s.Options, chosen, enforcement, config);
-        config.AddChild(Btn("Apply configuration", () => Guarded.Send(s, new SetConfiguration(name.Text, game.PropertiesHash,
-            shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false,
-            RulesOptions.MapOf(s.Options, chosen)))));
+        var apply = Btn("Apply configuration", () =>
+        {
+            if (TextLimits.NameProblem(name.Text, "A game name") is { } problem) { _error.Text = problem; return; }
+            _error.Text = "";
+            Guarded.Send(s, new SetConfiguration(name.Text.Trim(), game.PropertiesHash,
+                shape.Selected == 0 ? SchedulerShape.AlternatingActivation : SchedulerShape.PlayerTurn, (Enforcement)enforcement.Selected, WaitsBetweenSteps: false,
+                RulesOptions.MapOf(s.Options, chosen)));
+        });
+        config.AddChild(apply);
+        // The server takes the configuration from the creator alone: everyone else sees it, read-only, with the reason.
+        if (!s.IsCreator)
+            foreach (var control in config.FindChildren("*", owned: false).OfType<Control>())
+            {
+                if (control is BaseButton b) b.Disabled = true;
+                if (control is LineEdit l) l.Editable = false;
+                if (control is BaseButton or LineEdit) control.TooltipText = LobbyView.CreatorOnly;
+            }
         if (s.IsCreator && game.Status == GameStatus.Lobby) AddChild(Btn("Start setup", () => Guarded.Send(s, new StartSetup())));
         if (s.IsCreator && game.Status == GameStatus.Setup)
         {
@@ -65,20 +88,21 @@ public partial class LobbyPanel : VBoxContainer
     {
         var list = new VBoxContainer();
         list.AddChild(new Label { Text = "Players" });
-        foreach (var seat in LobbySeats.Of(game))
+        foreach (var seat in LobbyView.Players(game))
         {
             var row = new HFlowContainer(); list.AddChild(row);
             row.AddChild(new Label { Text = seat.Name + (seat.HasArmy ? " ⚔" : ""), AutowrapMode = TextServer.AutowrapMode.WordSmart });
             if (!s.IsCreator) { row.AddChild(new Label { Text = seat.Seat }); continue; }
-            var picker = new OptionButton(); foreach (var c in LobbySeats.Choices(game)) picker.AddItem(c.Label);
+            var picker = new OptionButton(); foreach (var c in LobbyView.SeatChoices(game)) picker.AddItem(c.Label);
             picker.Select(seat.Selected);
-            picker.ItemSelected += i => Guarded.Send(s, LobbySeats.Pick(game, seat.ParticipantId, (int)i));
+            picker.ItemSelected += i => Guarded.Send(s, LobbyView.Place(game, seat.ParticipantId, (int)i));
             row.AddChild(picker);
         }
         return list;
     }
 
     static Button Btn(string text, Action a) { var b = new Button { Text = text }; b.Pressed += a; return b; }
+    static Label Wrapping(string text, string? variation = null) => new() { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, ThemeTypeVariation = variation ?? "" };
 
     /// <summary>
     /// The optional rules (optional-rules spec → Lobby): a preset button, then one button per catalog option labelled "Label (Page)". Picking a preset

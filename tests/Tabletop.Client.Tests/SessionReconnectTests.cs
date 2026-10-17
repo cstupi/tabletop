@@ -56,7 +56,7 @@ public class SessionReconnectTests : IDisposable
         await LoggedIn();
         await _s.ConnectAsync(Game.Id);
         _sockets.Last.Deliver(new Welcome(Samples.P1, Game));
-        _sockets.Last.Drop(1008, "session expired");
+        _sockets.Last.Drop(1001, "going away");
         var second = await _sockets.ConnectedAsync(2);
         Assert.Equal(SessionPhase.Reconnecting, _s.Phase);
         Assert.True(_s.Queueing);

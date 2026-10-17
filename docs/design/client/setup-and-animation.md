@@ -11,12 +11,18 @@ the whole draft, and every lobby edit with a `GameInfoMessage`. The client has n
 
 `LobbyPanel` covers the six lobby edits: `CreateTeam`, `PickTeam` (with `null` meaning watch),
 `PickArmy`, `SetConfiguration` pre-filled with the current values, and, for the creator only,
-`StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else. Its Players list
-(`LobbySeats`) shows every participant, teamless ones included, with their team or "No team"; for
-the creator each row is a team picker (No team, then the teams by ordinal) sending
-`PickTeam(teamId, participantId)`, the server's path for putting a second player on a held team. A forged edit is
-refused with `NotPermitted`, so the UI is a convenience over a server rule rather than the rule
-itself. The "End setup" button notes how many placements are still off the slab, because the
+`StartSetup` and `EndSetup`. The creator's two buttons are absent for anyone else, who reads what
+they wait for (`LobbyView.WaitingForCreator`). The configuration is shown to everyone and editable by
+the creator alone; for anyone else its controls are disabled with `LobbyView.CreatorOnly` as label and
+tooltip. A seat line (`LobbyView.Seat`) says which team I am on, or that I have none and will watch
+once play starts. `LobbyView.Teams` makes the team buttons: `Join team N` on an empty team, `On team N`
+(disabled) on mine, and a team another participant holds named `Team N: {holders}`, disabled with
+"ask the creator to place you on it", except for the creator, who may join it. The game name is held
+to 64 characters (`TextLimits`). The Players list (`LobbyView.Players`) shows every participant, teamless
+ones included, with their team or "No team"; for the creator each row is a team picker (No team, then
+the teams by ordinal) sending `PickTeam(teamId, participantId)` (`LobbyView.Place`), the server's path
+for putting a second player on a held team. A forged edit is refused with `NotPermitted`, so the UI is a
+convenience over a server rule rather than the rule itself. The "End setup" button notes how many placements are still off the slab, because the
 end-setup command deletes those rows before flipping.
 
 `SetupToolbar` covers the fourteen setup edits: table size and texture; add built-in terrain, add
@@ -26,6 +32,13 @@ zone style (sending `ZoneStyles.ShapesOf(style)` as `SetZoneStyle.Shapes`) and s
 zones; load a layout (`GET /v1/layouts/{id}` then `ReplaceDraft`) and save one
 (`POST /v1/layouts` from the client's own copy of the draft). Layouts stay management's. The game
 server never writes an owner-side row.
+
+The toolbar says the game server's `DraftLimits` before it refuses (`SetupLimits`): the Terrain and
+Markers headings count `n/64` and `n/32`; each add button is disabled at the cap with the reason as its
+tooltip; a planet generator's set is sent whole or, when it would pass 64, not at all with a toast; the
+Table section names the 12–144" range; a layout name (Enter saves) and a marker label or condition
+name in a menu dialog stop at 64 characters, a volume's notes at 500; an empty or invalid layout name
+is caught before the request.
 
 `BuiltinContent` ships with the client: 35 terrain names with their `Volume` and declarations, five
 textures, two marker visuals, and the zone style ids. A minimal art set ships with it, so that a

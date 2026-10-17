@@ -94,7 +94,7 @@ sequenceDiagram
     GS-->>S: Welcome, BoardMessage, EventsMessage x N
     S->>SC: GameChanged, BoardChanged, EventsApplied
   else at or under it
-    S->>S: LastCloseReason = the message, close, Reset()
+    S->>S: LastCloseReason = Feedback.Closed(…), close, Reset()
     S->>SC: PhaseChanged LoggedIn, ConnectionLost(willReconnect false)
     Note over SC: Main.Route swaps in Home, which prints LastCloseReason
   end

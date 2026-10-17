@@ -7,7 +7,7 @@ using Tabletop.Protocol;
 namespace Tabletop.Client.Hud;
 
 /// <summary>Top centre, three lines: round, turn and scores; the active unit, its action and the step strip; the waiting
-/// line. After the end the first line carries "Game over", which reopens the end message.</summary>
+/// line ("Your move: …" first; the watching line for a watcher). After the end the first line carries "Game over", which reopens the end message.</summary>
 public partial class HeaderBar : PanelContainer
 {
     Session _s = null!;
@@ -97,8 +97,10 @@ public partial class HeaderBar : PanelContainer
                 });
         }
 
-        _waiting.Text = m.Waiting ?? "";
-        _waiting.Visible = m.Waiting is not null;
+        // Whom the game waits on, my team's move first; a watcher is told they watch.
+        var waitingText = _s.IsWatching ? HeaderView.Watching : HeaderView.Waiting(p!, names, _s.MyTeamId);
+        _waiting.Text = waitingText ?? "";
+        _waiting.Visible = waitingText is not null;
     }
 
     static void Clear(Node box, params Node[] keep) { foreach (var c in box.GetChildren()) if (!keep.Contains(c)) { box.RemoveChild(c); c.QueueFree(); } }

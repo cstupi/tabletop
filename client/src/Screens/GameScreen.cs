@@ -49,10 +49,9 @@ public partial class GameScreen : Control
         if (_session.GameId is not null) { Table.Bind(_session); Input.Bind(Table, _session); overlay.Bind(Table, _session); }
         Input.SelectionChanged += ShowSelection;
         _onFrame = c => { if ((c & (RenderCause.Events | RenderCause.Board)) != 0) RefreshAll(); };
-        _onRefused = r => Toast($"{r.Reason}: {r.Detail}");
-        _onLost = (c, will) => Toast(c.Error is ProjectionDesyncException
-            ? will ? "The table fell out of step with the server; rebuilding it from the log…" : $"This game's log cannot be replayed: {c.Reason}"
-            : will ? $"Connection lost ({c.Reason}); reconnecting…" : $"Disconnected: {c.Reason}");
+        _onRefused = r => { if (Feedback.Refusal(r) is { } text) Toast(text); };
+        // The status line once the session has counted this attempt: the phase stays Reconnecting, so Rebuild does not run for it.
+        _onLost = (c, will) => { Toast(Feedback.Closed(c, will)); Callable.From(() => { if (IsInstanceValid(_status)) _status.Text = StatusLine(_session); }).CallDeferred(); };
         _session.GameChanged += Rebuild; _session.PhaseChanged += Rebuild; _session.Frame.Render += _onFrame;
         _session.RefusedReceived += _onRefused; _session.ConnectionLost += _onLost;
         _onTheme = OnTheme; Ui.Changed += _onTheme;
@@ -78,7 +77,7 @@ public partial class GameScreen : Control
     void Rebuild()
     {
         var game = _session.Game;
-        _status.Text = game is null ? (_session.Phase == SessionPhase.Reconnecting ? "Reconnecting…" : "Connecting…") : $"{game.Name} — {game.Status.ToString().ToLowerInvariant()}" + (_session.Phase == SessionPhase.Reconnecting ? " (reconnecting…)" : "");
+        _status.Text = StatusLine(_session);
         foreach (var t in _teams) t.QueueFree(); _teams.Clear();
         _lobby?.QueueFree(); _setup?.QueueFree(); _lobby = _setup = null;
         if (game is null) return;
@@ -89,6 +88,17 @@ public partial class GameScreen : Control
         if (game.Status is GameStatus.Lobby or GameStatus.Setup) _side.AddChild(_lobby = new LobbyPanel());
         if (game.Status == GameStatus.Setup) _side.AddChild(_setup = new SetupToolbar(this));
         ShowPlayPanels(playing);
+    }
+
+    /// <summary>The corner's line: connecting, reconnecting with the attempt (Home stops it), or the game, its status and whether I watch.</summary>
+    static string StatusLine(Session s)
+    {
+        var reconnecting = s.Phase == SessionPhase.Reconnecting
+            ? s.ReconnectAttempt > 1 ? $"reconnecting, attempt {s.ReconnectAttempt}; Home stops it…" : "reconnecting…"
+            : null;
+        if (s.Game is not { } game) return reconnecting is null ? "Connecting…" : char.ToUpperInvariant(reconnecting[0]) + reconnecting[1..];
+        var line = $"{game.Name} — {game.Status.ToString().ToLowerInvariant()}" + (s.IsWatching ? " — watching" : "");
+        return reconnecting is null ? line : $"{line} ({reconnecting})";
     }
 
     /// <summary>A theme switch: the team panels' and the table's team colours, and the undo button's theme, which its CanvasLayer does not

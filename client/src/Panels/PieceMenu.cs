@@ -45,17 +45,22 @@ public partial class PieceMenu : PopupMenu
         else if (item.Build(input) is { } command) Guarded.Command(_s, command, _report);
     }
 
+    /// <summary>The field has the focus, Enter confirms and Esc cancels.</summary>
     public static void AskInteger(Node host, string title, Action<int> then)
     {
         var d = new ConfirmationDialog { Title = title }; var spin = new SpinBox { MinValue = -99, MaxValue = 99 }; d.AddChild(spin);
-        d.Confirmed += () => then((int)spin.Value); d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
-        host.AddChild(d); d.PopupCentered();
+        d.RegisterTextEnter(spin.GetLineEdit());
+        d.Confirmed += () => { spin.Apply(); then((int)spin.Value); }; d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
+        host.AddChild(d); d.PopupCentered(); spin.GetLineEdit().CallDeferred(Control.MethodName.GrabFocus);
     }
 
+    /// <summary>A label or condition name, held to the servers' 64 characters (TextLimits.Label); the field has the focus, Enter
+    /// confirms, Esc cancels.</summary>
     public static void AskText(Node host, string title, Action<string> then)
     {
-        var d = new ConfirmationDialog { Title = title }; var line = new LineEdit(); d.AddChild(line);
+        var d = new ConfirmationDialog { Title = title }; var line = new LineEdit { MaxLength = TextLimits.Label, PlaceholderText = $"at most {TextLimits.Label} characters" }; d.AddChild(line);
+        d.RegisterTextEnter(line);
         d.Confirmed += () => then(line.Text); d.VisibilityChanged += () => { if (!d.Visible) d.QueueFree(); };
-        host.AddChild(d); d.PopupCentered();
+        host.AddChild(d); d.PopupCentered(new Vector2I(320, 0)); line.CallDeferred(Control.MethodName.GrabFocus);
     }
 }
