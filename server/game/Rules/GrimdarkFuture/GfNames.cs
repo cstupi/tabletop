@@ -7,6 +7,8 @@ public static class GfNames
     public const string Hold = "Hold", Advance = "Advance", Rush = "Rush", Charge = "Charge";
     public const string Hit = "hit", DefenseRoll = "defense", Morale = "morale", Casting = "casting", RollOff = "roll-off";
     public const string Shaken = "shaken", Fatigued = "fatigued", Moved = "moved";
+    /// <summary>A unit that moved since the round began (Entrenched, Mobile Artillery: "hasn't moved during the round"); cleared as a round starts.</summary>
+    public const string MovedThisRound = "moved this round";
     public const string BeforeAttacking = "before-attacking";
     /// <summary>Army-book rules spec → the pick: the sequence a Buff, Mark, Debuff or before-attacking active pushes, its Ask's question and its steps.</summary>
     public const string PickRuleSeq = "pick-rule", RuleTarget = "rule_target", RuleRollStep = "rule-roll", RuleTargetStep = "rule-target", RuleEffectsStep = "rule-effects";
@@ -20,6 +22,8 @@ public static class GfNames
     public const string RuleHitsSeq = "rule-hits", RuleWoundsSeq = "rule-wounds";
     /// <summary>Army-book rules spec, batch 6: the round-start roll that may end Shaken, and the rule read off a model's ignored wounds.</summary>
     public const string RallySeq = "rally", RegenerativeStrength = "Regenerative Strength";
+    /// <summary>Army-book rules spec, batch 8: the rules the grammar additions leave to the ruleset.</summary>
+    public const string HeavyImpact = "Heavy Impact", NoRetreat = "No Retreat";
     public const string Deathstrike = "Deathstrike", Retaliate = "Retaliate", SelfDestruct = "Self-Destruct", Ravage = "Ravage", CrossingAttack = "Crossing Attack", Strafing = "Strafing";
     public const string HoldSeq = "hold", AdvanceSeq = "advance", RushSeq = "rush", ChargeSeq = "charge", Shooting = "shooting", Melee = "melee";
     public const string AttackSequence = "attack-sequence", ResolveHits = "resolve-hits", DealWounds = "deal-wounds", MoraleTest = "morale-test";

@@ -40,7 +40,8 @@ public static class StatReader
         bool Acts(Effect e) => e.TargetStat is { Name: var n, Level: StatLevel.Unit or StatLevel.Model } && n == stat.Name;
         foreach (var (src, e) in live.Effects(side, EffectKind.ReplaceStat).Where(x => Acts(x.Effect)))
         {
-            value = StatValue.Read(StatKind.TargetNumber, e.Replacement!).TargetNumber;
+            // A replacement from the parameter: "Counts as having Defense X+".
+            value = e.Replacement is { } literal ? StatValue.Read(StatKind.TargetNumber, literal).TargetNumber : e.EffectiveAmount(src.Parameter);
             changes.Add(new ThresholdChange(src.Entry.Name, value, 0));
             if (account) live.Read(src);
         }
@@ -64,11 +65,14 @@ public static class StatReader
         {
             var amount = e.EffectiveAmount(src.Parameter);
             if (amount < 0 && live.SuppressedModifiers.Contains(TargetModifier.RangePenalties)) { live.ReadSuppressedModifier(TargetModifier.RangePenalties); continue; }
-            range += amount;
+            range = Floored(range, amount, e.Floor);
             live.Read(src);
         }
         return Math.Max(0, range);
     }
+
+    /// <summary>A change "to a min. of N": it takes the stat no lower than N, or than the stat itself when that is already lower.</summary>
+    static double Floored(double value, int amount, int? floor) => floor is { } f ? Math.Max(value + amount, Math.Min(value, f)) : value + amount;
 
     public static int Attacks(GameState state, Guid weaponId) =>
         StatValue.Read(StatKind.Count, state.Projection.Models.Values.SelectMany(m => m.Slot.Weapons).First(w => w.Id == weaponId).Stats["Attacks"]).Count;
@@ -76,7 +80,7 @@ public static class StatReader
     public static double ActionDistance(LiveSet live, Side side, string action)
     {
         var distance = live.Interaction.Properties.Action(action).Distance;
-        foreach (var (src, e) in live.Effects(side, EffectKind.ModifyStat).Where(x => x.Effect.TargetAction == action)) { distance += e.EffectiveAmount(src.Parameter); live.Read(src); }
+        foreach (var (src, e) in live.Effects(side, EffectKind.ModifyStat).Where(x => x.Effect.TargetAction == action)) { distance = Floored(distance, e.EffectiveAmount(src.Parameter), e.Floor); live.Read(src); }
         // A suppressed distance row (Swift's Slow) was read here: the suppressor acted on this distance (LiveSet.ReadRemoved, as RollEffects.Plan reads one).
         live.ReadRemoved(side, EffectKind.ModifyStat, e => e.TargetAction == action);
         return Math.Max(0, distance);

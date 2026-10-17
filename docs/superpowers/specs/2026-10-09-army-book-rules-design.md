@@ -179,6 +179,15 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement are not built: each places a unit the army
   snapshot does not hold (*"a new unit of X"*, *"a new copy of it"*); the build path is the import adding the units X
   names, from the book's units, as reserve units of the army, which the rule then places.
+- **Batch 8.** Armor is a `replace_stat` of Defense from the parameter. *"To a min. of 6""* is a `modify_stat` row's
+  `floor`: the stat goes no lower than 6, or than itself when already lower. A charge's distance is read at its target
+  (`GfMelee.ChargeDistance`, the charge move's allowance), so the target's Melee Shrouding and Darkborn take from it.
+  Grounded Precision reads the attacker's own terrain (`Interaction.AttackerTerrain`). Entrenched and Mobile Artillery
+  read *"hasn't moved during the round"* as the unit condition `moved this round`, set by its moves and cleared as a round
+  starts. Quick Readjustment is a `suppress_property` naming a roll: Indirect's modifiers of the hit roll go, Indirect
+  stays. Heavy Impact grants Impact with its own X (a `grant_property` from the parameter) and its Impact hits are
+  blocked under AP(1). No Retreat turns the failed test into a pass, rolls one die per wound left to the unit and deals
+  a wound on each 1-3 through deal-wounds with no roll to ignore it.
 - **Order.** Batch 3 is taken after batches 4–8: its Ambush rules sit in the Ambush placement code another branch changes.
 
 Banner and Musician have no description in the books; Army Forge's common rules give it (`GET /api/rules/common/2`, the

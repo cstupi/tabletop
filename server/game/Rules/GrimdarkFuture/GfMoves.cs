@@ -342,7 +342,8 @@ public static partial class GfMoves
         var capSkipped = crossedDifficult && allowance > GfNames.DifficultCap;
         if (flying && (capSkipped || exposed.Count > 0)) live.Record(Side.Attacker, GfNames.Flying);
         if (capSkipped) live.Record(Side.Attacker, GfNames.Strider);
-        if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true)); }
+        if (moves.Count > 0) { changes.Add(new ModelsMoved(moves)); changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.Moved, true));
+            if (!ctx.Projection.Units[unit].Conditions.Contains(GfNames.MovedThisRound)) changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, unit), GfNames.MovedThisRound, true)); }
         return (changes, (int)Math.Round(used * 10), rules.IgnoresDangerous ? 0 : DangerousDice(ctx.State, exposed), crossedDifficult && !strider);
     }
 

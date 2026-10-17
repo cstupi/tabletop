@@ -15,6 +15,8 @@ public static class GfHooks
         foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.Fatigued)))
             changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.Fatigued, false));
         // p.13 gives tokens "even if they are not on the table" and says nothing of casualties; a dead model's tokens are never spent because ReactionsAt only counts AliveModels.
+        foreach (var u in state.Projection.Units.Values.Where(u => u.Conditions.Contains(GfNames.MovedThisRound)))
+            changes.Add(new ConditionSet(new Subject(SubjectKind.Unit, u.Id), GfNames.MovedThisRound, false));
         // Caster Group's caster and Spell Accumulator's tokens with them (GfSpellSupport).
         changes.AddRange(GfSpellSupport.RoundStartTokens(state));
         // The Growths: "place one marker on it at the beginning of each round if it's on the table and isn't Shaken".

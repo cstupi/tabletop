@@ -24,7 +24,12 @@ public static partial class GfMoves
             var live = Lone(ctx, unit, action);
             var rules = TerrainFor(ctx, unit, live);
             var aircraft = rules.Aircraft;
-            var allowance = StatReader.ActionDistance(live, Side.Attacker, action) + (aircraft ? GfNames.AircraftMove : 0);
+            // A charge's distance at its target: the target's rules may take from it (Melee Shrouding).
+            var target = action == GfNames.Charge ? GfAnswers.Pieces(ctx.State, ctx.Frame, "charge-target", "charge_target").FirstOrDefault() : Guid.Empty;
+            var own = StatReader.ActionDistance(live, Side.Attacker, action);   // read on the unit's own set too, which spends what it read
+            var allowance = (target != Guid.Empty && ctx.Projection.Units.ContainsKey(target)
+                ? StatReader.ActionDistance(ctx.Settle(new Interaction(ctx.State, ctx.Properties, Party.Whole(ctx.State, unit), Party.Whole(ctx.State, target), AttackKind.Melee, GfNames.Charge, null, [])), Side.Attacker, action)
+                : own) + (aircraft ? GfNames.AircraftMove : 0);
             // p.11: "all models in the unit may not move more than 6" for that movement", for a unit that counts as being in difficult terrain.
             var strider = rules.IgnoresDifficult;
             if (!strider && CountsAsIn(live, TargetTerrain.Difficult)) allowance = Math.Min(allowance, GfNames.DifficultCap);

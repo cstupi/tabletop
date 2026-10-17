@@ -156,7 +156,8 @@ Four columns exist for one kind each, beside `target_terrain` and `target_condit
   rule — but written as text the engine could not read it. Grimdark Future has exactly one cap,
   `models_in_target_unit`; a second ruleset needing another adds a value, which is a code
   change like every other closed set here.
-- **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*.
+- **`replacement`** — `Replace a stat` only. `Reliable` is *attacks at Quality 2+*. A `Replace a stat` with no replacement takes the parameter (Armor: *"Counts as having Defense X+"*).
+- **`floor`** — `Modify a stat` only: *"to a min. of N"*, the stat no lower than N, or than itself when already lower (Ranged Shrouding, Melee Shrouding, Darkborn).
 - **`amount_dice`** — `Place` and `Remove wounds` only, checked to `d3` or `d3+1`: a placement whose distance is a die roll (*"within D3+1""*: a D3 plus one), a heal of *"D3 wounds"*.
 
 Per-kind `CHECK` constraints keep `threshold`, `cap_kind` and `replacement` honest: a `Multiply` row with a

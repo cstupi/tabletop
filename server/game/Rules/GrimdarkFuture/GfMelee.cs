@@ -110,10 +110,15 @@ public static class GfMelee
     /// target unit (including any additional movement from special rules)". Read by ActionsFor to offer Charge at all, and by charge-target.
     /// p.13: Aircraft "can't be charged", so an Aircraft unit is never a target.
     /// </summary>
+    /// <summary>The charge distance at a target: the charger's own, and what the target's rules take from it ("Enemies get -3\" movement to a min. of 6\" when trying
+    /// to charge units where all models have this rule").</summary>
+    public static double ChargeDistance(GameState state, PropertySet props, Guid unit, Guid target) =>
+        StatReader.ActionDistance(LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), Party.Whole(state, target), AttackKind.Melee, GfNames.Charge, null, [])),
+            Side.Attacker, GfNames.Charge);
+
     public static IReadOnlyList<Guid> ChargeTargets(GameState state, PropertySet props, Guid unit)
     {
         var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, AttackKind.Melee, GfNames.Charge, null, []));
-        var distance = StatReader.ActionDistance(live, Side.Attacker, GfNames.Charge);
         // p.13 Flying "may move through units and terrain": a Flying charger's reach is not blocked by impassable terrain.
         var impassable = live.Has(Side.Attacker, "Flying") ? [] : Battlefield.Terrain(state).Where(v => v.Volume.Declarations.HasFlag(TerrainDeclarations.Impassable)).ToList();
         var team = Teams.Of(state, unit);
@@ -124,6 +129,7 @@ public static class GfMelee
         return state.Projection.Units.Values.Where(u => Teams.Of(state, u.Id) != team && !Lookup.UnitHas(state, props, u.Id, GfNames.Aircraft)).Select(u => u.Id).Where(t =>
         {
             var enemies = Lookup.LivingModels(state, t);
+            var distance = ChargeDistance(state, props, unit, t);
             // The distance test is cheap and the path walk is not: walk only the pairs already within charge distance.
             return inside is { } container
                 ? enemies.Any(e => Battlefield.Distance(state, container, e) <= GfNames.ExitWithin)

@@ -46,7 +46,7 @@ public sealed record Effect(
     TargetQuantity? TargetQuantity, TargetResult? TargetResult, TargetModifier? TargetModifier,
     int? Amount, bool AmountFromParameter, int? Threshold, CapKind? CapKind, string? Replacement, EffectDuration Duration,
     IReadOnlyList<EffectCondition> Conditions, IReadOnlyList<Effect> Children,
-    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null)
+    TargetTerrain? TargetTerrain = null, string? TargetCondition = null, string? AmountDice = null, int? Floor = null)
 {
     /// <summary>The signed amount: when it comes from the parameter, Amount is the sign (schema.md → amount is signed).</summary>
     public int EffectiveAmount(int? parameter) => AmountFromParameter ? Math.Sign(Amount ?? 1) * (parameter ?? 0) : Amount ?? 1;

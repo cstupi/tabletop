@@ -172,8 +172,18 @@ public static class LiveProperties
                 switch (effect.Kind)
                 {
                     case EffectKind.GrantProperty when ix.Properties.Entry(effect.TargetEntry!) is { } grantedEntry && granted.Add((effect.Id, PassOneActs.Key(source))):
-                        var derived = WithFace(ix, new LiveProperty(side, grantedEntry, effect.Amount, source.ModelId, source.WeaponId, source.GrantId));
+                        // A grant of the holder's own X ("Counts as having Impact(X)") takes the parameter.
+                        var derived = WithFace(ix, new LiveProperty(side, grantedEntry, effect.AmountFromParameter ? effect.EffectiveAmount(source.Parameter) : effect.Amount, source.ModelId, source.WeaponId, source.GrantId));
                         live.Add(derived); acts.GrantedBy[derived] = source; break;
+                    // "Ignores penalties from …": a suppression naming a roll takes away only that rule's modifiers of the roll, and keeps the rule.
+                    case EffectKind.SuppressProperty when effect.TargetRoll is { } roll:
+                        for (var i = 0; i < live.Count; i++)
+                            if (live[i].Holder == side && live[i].Entry.Name == effect.TargetEntry && live[i].Effects.Any(e => e.Kind == EffectKind.ModifyRoll && e.TargetRoll == roll))
+                            {
+                                acts.Removed.Add((source, live[i]));
+                                live[i] = live[i] with { Chosen = live[i].Effects.Where(e => !(e.Kind == EffectKind.ModifyRoll && e.TargetRoll == roll)).ToList() };
+                            }
+                        break;
                     case EffectKind.SuppressProperty:
                         foreach (var gone in live.Where(p => p.Holder == side && p.Entry.Name == effect.TargetEntry).ToList()) acts.Removed.Add((source, gone));
                         live.RemoveAll(p => p.Holder == side && p.Entry.Name == effect.TargetEntry); break;

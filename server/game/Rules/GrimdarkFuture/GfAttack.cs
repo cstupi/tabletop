@@ -24,7 +24,7 @@ public static partial class GfAttack
         if (actor is not { } a) return new Interaction(state, properties, Party.Whole(state, target), null, kind, action, null, Battlefield.TerrainUnder(state, target));
         var models = weapons.Count > 0 ? state.Projection.Models.Values.Where(m => m.Slot.Weapons.Any(w => weapons.Contains(w.Id))).Select(m => m.Id).ToList() : Lookup.LivingModels(state, a);
         return new Interaction(state, properties, Party.Of(state, a, models, weapons), Party.Whole(state, target), kind, action, ChargeRange(frame) ?? Battlefield.UnitDistance(state, a, target), Battlefield.TerrainUnder(state, target),
-            Faces: FacesFor(frame, a, target), SpellRules: spellRules);
+            Faces: FacesFor(frame, a, target), SpellRules: spellRules, AttackerTerrain: Battlefield.TerrainUnder(state, a));
     }
 
     /// <summary>"Charges enemies over 9" away", "charged from over 9" away": in the melee of a Charge, the distance the charge-target step recorded
@@ -158,8 +158,10 @@ public static partial class GfAttack
             // without (X) do not stack, so one roll is taken however many are live, a granted instance included. Threshold is the row's.
             // A once-per-game roll (Protection Feat: "Once per game, when this unit takes wounds … roll one die per wound") is this unit's for every wound of
             // the first attack it is rolled against, and for no later one.
-            var regen = RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
-                (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
+            // No Retreat's wounds "can't be ignored": no roll is made for them.
+            var regen = ctx.Frame.Context.Action == GfNames.NoRetreat ? default
+                : RollEffects.OwnRolls(live, targetSide, c => c is { Kind: EffectKind.OverrideResult, TargetResult: TargetResult.Wound },
+                    (source, roll) => !OncePerGame(roll) || !RolledInAnotherFrame(ctx, source.Entry.Name, target)).FirstOrDefault();
 
             var carried = ctx.Frame.Value("wounds_carried");
             var changes = new List<StateChange>(); var landed = 0; var spilled = 0; var moves = new List<ModelRelocation>(); var dead = new HashSet<Guid>();
@@ -611,6 +613,12 @@ public static partial class GfAttack
             var parent = ctx.Frame.Parent!;
             var hits = HitsFrom(parent);
             if (hits <= 0) return new Finish([], new Dictionary<string, int> { ["wounds"] = 0 });
+            // Heavy Impact: "Counts as having Impact(X) with hits that have AP(1)": Impact's hits are the melee's weapon-less block.
+            if (parent.Frame.Sequence == GfNames.Melee && ctx.Frame.Context.WeaponIds.Count == 0 && Lookup.UnitHas(ctx.State, ctx.Properties, ix.Attacker.UnitId, GfNames.HeavyImpact))
+            {
+                live = live.WithGranted(Side.Attacker, "AP", 1);
+                ctx.Applied.Add(GfNames.HeavyImpact);
+            }
             // p.11's majority is frozen with the attack counts (p.8: all weapons fire simultaneously), so a group firing after casualties reads the
             // fact determine-attacks carried down. A parent that recorded none is a spell's hits or Impact's, where live is the answer.
             var defender = ix.Defender!.UnitId;

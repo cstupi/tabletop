@@ -18,7 +18,7 @@ public sealed record Party(Guid UnitId, IReadOnlyList<Guid> ModelIds, IReadOnlyL
 /// SpellRules are a spell's weapon rules (the child rules of its add_hit): they join the attacker's instances before pass one, as a weapon's rules do.</summary>
 public sealed record Interaction(GameState State, PropertySet Properties, Party Attacker, Party? Defender, AttackKind? Attack, string? ActionTaken, double? RangeInches, IReadOnlyList<string> DefenderTerrain,
     string? Point = null, IReadOnlyDictionary<Side, IReadOnlyDictionary<string, int>>? Faces = null,
-    IReadOnlyList<(string Entry, int? Parameter)>? SpellRules = null)
+    IReadOnlyList<(string Entry, int? Parameter)>? SpellRules = null, IReadOnlyList<string>? AttackerTerrain = null)
 {
     public Party Of(Side side) => side == Side.Attacker ? Attacker : Defender ?? throw new InvalidOperationException("no defender in this interaction");
     public static Side Other(Side side) => side == Side.Attacker ? Side.Defender : Side.Attacker;

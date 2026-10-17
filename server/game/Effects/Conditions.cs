@@ -36,6 +36,8 @@ public static class Conditions
                 return c.Comparison == Comparison.Neq ? !present : present;
             }
             // The terrain list describes the defender, or the lone party when there is no defender (a resolve check, a move, a hazard roll).
+            // The attacker's own terrain, where the interaction reads it (an attack: "has most of them within 1\" of terrain, they get +1 to hit").
+            case ConditionKind.PositionTerrain when side == Side.Attacker && ix.Defender is not null && ix.AttackerTerrain is { } own: return Membership(c, own, true);
             case ConditionKind.PositionTerrain: return Membership(c, ix.DefenderTerrain, ix.Defender is null || side == Side.Defender);
             case ConditionKind.RoundNumber: return c.Compare(ix.Round);
             case ConditionKind.UsageCount: return c.Compare(Usage(ix, source, c));

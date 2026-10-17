@@ -52,15 +52,6 @@
       "played": false
     },
     {
-      "name": "Armor",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Counts as having Defense X\u002B.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Bane in Melee Buff",
       "kind": "model",
       "takesParameter": false,
@@ -171,15 +162,6 @@
       ]
     },
     {
-      "name": "Darkborn",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Enemies get -4\u0022 range to a min. of 6\u0022 when trying to shoot at units where all models have this rule, and -2\u0022 movement to a min. of 6\u0022 when trying to charge units where all models have this rule.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Dash Aura",
       "kind": "model",
       "takesParameter": false,
@@ -240,10 +222,35 @@
       "name": "Entrenched Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets Entrenched once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Entrenched",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Evasive Aura",
@@ -422,8 +429,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Grounded Precision.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Grounded Precision",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Grounded Reinforcement Aura",
@@ -553,15 +570,6 @@
           "children": []
         }
       ]
-    },
-    {
-      "name": "Heavy Impact",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Counts as having Impact(X) with hits that have AP(1).",
-      "effects": [],
-      "played": false
     },
     {
       "name": "Highborn Boost Aura",
@@ -786,22 +794,23 @@
       ]
     },
     {
-      "name": "Melee Shrouding",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "Enemies get -3\u0022 movement to a min. of 6\u0022 when trying to charge units where all models have this rule.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Melee Shrouding Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Melee Shrouding.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Melee Shrouding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Melee Slayer Aura",
@@ -842,40 +851,57 @@
       ]
     },
     {
-      "name": "Mobile Artillery",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When this model uses a Hold action and shoots at enemies over 9\u0022 away, it gets \u002B1 to hit rolls. As long this model hasn\u0027t moved during the round, when enemy units shoot at it from over 9\u0022 away, they get -2 to hit rolls.",
-      "effects": [],
-      "played": false
-    },
-    {
-      "name": "No Retreat",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "When a unit where most models have this rule fails a morale test that causes it to be Shaken or Routed, the test counts as passed instead. Then, roll as many dice as the number of wounds it would take to fully destroy it, and for each result of 1-3 the unit takes one wound, which can\u0027t be ignored.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "No Retreat Aura",
       "kind": "model",
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get No Retreat.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "No Retreat",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "No Retreat Buff",
       "kind": "model",
       "takesParameter": false,
-      "aggregation": "any",
+      "aggregation": "none",
       "ruleText": "Once per activation, before attacking, pick one friendly unit within 12\u0022, which gets No Retreat once (next time the effect would apply).",
-      "effects": [],
-      "played": false
+      "targeting": {
+        "side": "friendly",
+        "grain": "unit",
+        "count": 1,
+        "range": 12,
+        "lineOfSight": false
+      },
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "No Retreat",
+          "amountFromParameter": false,
+          "duration": "once",
+          "conditions": [
+            {
+              "kind": "at_point",
+              "comparison": "eq",
+              "values": [
+                "before-attacking"
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Piercing Assault Aura",
@@ -1045,15 +1071,6 @@
       ]
     },
     {
-      "name": "Quick Readjustment",
-      "kind": "model",
-      "takesParameter": false,
-      "aggregation": "any",
-      "ruleText": "This model ignores penalties from shooting after moving when using Indirect weapons.",
-      "effects": [],
-      "played": false
-    },
-    {
       "name": "Quick Shot Aura",
       "kind": "model",
       "takesParameter": false,
@@ -1111,8 +1128,18 @@
       "takesParameter": false,
       "aggregation": "any",
       "ruleText": "This model and its unit get Ranged Shrouding.",
-      "effects": [],
-      "played": false
+      "effects": [
+        {
+          "subject": "self",
+          "ordinal": 5,
+          "kind": "grant_property",
+          "targetEntry": "Ranged Shrouding",
+          "amountFromParameter": false,
+          "duration": "interaction",
+          "conditions": [],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Ranged Slayer Aura",
