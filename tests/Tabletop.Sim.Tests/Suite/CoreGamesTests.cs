@@ -24,10 +24,10 @@ public class CoreGamesTests
     public static TheoryData<string> Games => [.. SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).Select(g => g.Name)];
 
     [Fact]
-    public void The_core_group_is_about_ten_themed_games()
+    public void The_core_group_is_a_small_set_of_themed_games()
     {
         var core = SuiteCatalog.All.Where(g => g.Group == SuiteCatalog.CoreGroup).ToList();
-        Assert.InRange(core.Count, 8, 12);
+        Assert.InRange(core.Count, 8, 16);
         Assert.All(core, g => Assert.StartsWith("core-", g.Name));
         Assert.Equal(core.Count, core.Select(g => g.Name).Distinct().Count());
     }

@@ -100,6 +100,11 @@ the defence roll read the picked model (p.14); AP reads `AP(1)`, a granted one `
 new face's triggers (`RollRecord.FaceTriggers`); a player's `AddModifier` applies to the frame's next roll of that kind and
 is consumed by it (D13, `docs/design/interpreter/resolution.md`). The combat log's "+1" still sends `AddModifier` after the
 roll it sits on, so it reaches the next roll of that kind instead.
+Model against model is 3D (`libs/Tabletop.Geometry`: `Collision.Crosses`, `Slide`, `Separate`, `Distance.BodyToBody`,
+`Movement.Region`): a model's volume is its base times 1.5 × the larger base dimension, so a model crossing above a lower
+one passes it, and the 1" separation is measured in 3D. An Aircraft's placement ignores units and terrain (p.13): no 1"
+separation, no impassable landing check; overlap still applies. Limit: `Collision.RestHeight` puts a model touching a
+Solid on top of it, so no model stands under a roof or floor.
 
 ### 2026-10-15
 
