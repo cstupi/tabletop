@@ -47,8 +47,8 @@ public class BuiltinContentTests
         Assert.Contains("objective-ring", BuiltinContent.MarkerVisuals); Assert.Contains("chip", BuiltinContent.MarkerVisuals);
         Assert.True(BuiltinContent.Terrain.ContainsKey("hill-small")); Assert.True(BuiltinContent.Terrain.ContainsKey("ruin"));
         Assert.Equal("res://content/builtin/textures/grass.png", BuiltinContent.TextureFile("grass"));
-        // Every piece names one of the eleven group meshes, so the art set is eleven files and not 35.
-        Assert.Equal(11, BuiltinContent.TerrainMeshGroups.Count);
+        // Every piece names one of the thirteen group meshes, so the art set is thirteen files and not 35.
+        Assert.Equal(13, BuiltinContent.TerrainMeshGroups.Count);
         Assert.All(BuiltinContent.Terrain.Values, t => Assert.Contains(t.MeshFile, BuiltinContent.TerrainMeshGroups.Select(g => $"res://content/builtin/terrain/{g}.glb")));
         Assert.Equal("res://content/builtin/terrain/hill.glb", BuiltinContent.TerrainMeshFile("steep-hill"));
         Assert.Equal("res://content/builtin/terrain/water.glb", BuiltinContent.TerrainMeshFile("sludge-stream"));

@@ -205,7 +205,7 @@ nothing to that path.
 **Built-in terrain ships with the client**, the way predefined textures and marker visuals
 already do: a set of meshes with their volumes and declarations, owned by nobody, in no
 library. A built-in ships as its volume and its declarations plus a **shared** mesh: the 35
-pieces group into ten meshes under `client/content/builtin/terrain/`, differing by footprint,
+pieces group into thirteen meshes under `client/content/builtin/terrain/`, differing by footprint,
 height, scale and yaw. A piece that finds no mesh file draws as its volumes, the same degrade
 path a missing asset uses. A placement therefore references **either a built-in name or a
 library asset, exactly one** — the pattern `texture_builtin | texture_asset_id` and

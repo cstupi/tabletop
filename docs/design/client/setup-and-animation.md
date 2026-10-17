@@ -44,19 +44,20 @@ is caught before the request.
 textures, two marker visuals, and the zone style ids. A minimal art set ships with it, so that a
 generated table looks like a table.
 
-The art is sixteen files, not fifty. The 35 pieces group into eleven meshes that differ only by
+The art is eighteen files, not fifty. The 35 pieces group into thirteen meshes that differ only by
 footprint, height, scale and yaw: `hill` (4 pieces, round), `hill-rect` (2, square), `woods` (5), `ruins` (4), `building` (3),
-`wall` (2), `rock` (2), `field` (2), `water` (5), `pad` (5, every flat ground hazard including the
-crater), `haze` (1, the toxic smog). Each of the eleven is glTF 2.0 binary, under 2000 triangles, one
-colour-only material, and authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5], the height on
+`wall` (2), `rock` (2), `field` (2), `water` (4, the rivers and streams), `lake` (1, round), `pad` (4, the flat ground
+hazards), `crater` (1, round), `haze` (1, the toxic smog). `scripts/terrain-meshes` generates all thirteen
+(`scripts/TerrainMeshes/AGENTS.md`): glTF 2.0 binary, at most 20 000 triangles and 2 MB each, vertex-coloured PBR materials
+(translucent ones, the smog and water surfaces, in a second node), authored glTF Y-up in a unit box: the footprint on x and z in [−0.5, 0.5] (within r = 0.5 for a round one), the height on
 y in [0, 1], base at y = 0. `BuiltinContent.MeshOrientation` (pitch 90) reads it into the table frame, z up, the value
 the web app writes for a Y-up asset, and `MeshLoader.LoadBuiltin` scales that box onto the placement's first
-volume, so `water` serves both a 4"-radius lake and a 3"×12" river. The five table textures are
+volume, so `water` serves a 3"×12" river and a 2"×12" stream. The five table textures are
 seamless 1024×1024 PNGs, authored as a 12"×12" tile because `SlabNode.Set` derives `Uv1Scale` from
 `width/12`. Markers and zones need no art: `MarkerNode` builds a disc and a `Label3D`, `ZoneNode`
 builds `ArrayMesh` fans from `ZoneStyles.Resolve`.
 
-These files are art and no code produces them. Every mesh file is still optional, and a missing one
+Every mesh file is still optional, and a missing one
 still draws the hitbox: `LoadBuiltin` returns null and `TerrainNode` keeps its per-volume proxy
 visible, the same degrade path as a missing asset, and a missing texture leaves the slab its flat
 colour. That path is the fallback rather than the plan, kept rather than deleted, so a build with
