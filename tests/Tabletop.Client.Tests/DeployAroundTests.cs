@@ -35,10 +35,28 @@ public class DeployAroundTests
         Assert.False(MoveRuler.IsShelfPlacement(new MoveRegion([reserve], 6, [], [], null), p));                    // no anchor
     }
 
-    [Fact]
-    public void A_ring_past_the_table_edge_is_held_on_the_table()
+    /// <summary>Near an edge or a corner a ring spot off the table is skipped, never pulled back onto the table toward the anchor: every
+    /// model lands on the table, clear of the anchor by the separation and of the others, whatever the anchor's base.</summary>
+    [Theory]
+    [InlineData(0.5, 0.5, false)]
+    [InlineData(2, 24, false)]
+    [InlineData(71, 47, true)]
+    [InlineData(36, 1.5, true)]
+    public void Near_the_edge_every_model_lands_on_the_table_and_clear_of_the_anchor(double x, double y, bool rect)
     {
-        var placed = DeployView.Around(Squad(), new Placement(new Point3(0.5, 0.5, 0), new Yaw(0)), Base.Circle(1), new TableSize(72, 48));
-        Assert.All(placed, r => Assert.True(((OnTable)r.To).Placement.Position is { X: >= 0.5, Y: >= 0.5 }));
+        var models = Squad(); var size = new TableSize(72, 48);
+        var anchorBase = rect ? Base.Rect(5, 3) : Base.Circle(1);
+        var anchor = new Placement(new Point3(x, y, 0), new Yaw(0));
+        var placed = DeployView.Around(models, anchor, anchorBase, size, clearance: 1);
+        Assert.Equal(models.Count, placed.Count);
+        var bodies = placed.Select(r => new PlacedModel(new ModelBody(models.First(m => m.Id == r.ModelId).Slot.Base, 1), ((OnTable)r.To).Placement)).ToList();
+        var at = new PlacedModel(new ModelBody(anchorBase, 1), anchor);
+        foreach (var b in bodies)
+        {
+            var half = Math.Max(b.Body.Base.A, b.Body.Base.B) / 2; var c = b.Placement.Position;
+            Assert.True(c.X >= half && c.X <= size.Width - half && c.Y >= half && c.Y <= size.Length - half, $"{c} off the table");
+            Assert.True(Distance.BodyToBody(b, at) >= 1 - 1e-6, $"{c} within 1\" of the anchor");
+        }
+        for (var i = 0; i < bodies.Count; i++) for (var j = i + 1; j < bodies.Count; j++) Assert.True(Distance.BodyToBody(bodies[i], bodies[j]) > 0, "two ghosts overlap");
     }
 }

@@ -39,6 +39,9 @@ public partial class OrbitCamera : Camera3D
         Pan(CameraFocus.Pan(WorldFrame.FromGodot(_target).Horizontal, new Point2(-Mathf.Sin(_yaw), Mathf.Cos(_yaw)), forward, right, _distance, delta, _size));
     }
 
+    /// <summary>The pointer is over a Hud part, not the table's own container: the root's hovered control is something else.</summary>
+    bool OverHud() => GetTree().Root.GuiGetHoveredControl() is { } c && c is not SubViewportContainer;
+
     /// <summary>A text field has focus in the root viewport (Hud, settings) or a dialog: the root's embedded subwindows, wherever
     /// they sit in the tree, and any Window directly under the root; a Window is its own viewport with its own focus. A SpinBox
     /// counts whether it or its inner LineEdit owns focus.</summary>
@@ -62,6 +65,7 @@ public partial class OrbitCamera : Camera3D
                 var right = GlobalTransform.Basis.X; var forward = new Vector3(-GlobalTransform.Basis.Z.X, 0, -GlobalTransform.Basis.Z.Z).Normalized();
                 var offset = (-right * m.Relative.X + forward * m.Relative.Y) * _distance * 0.001f;
                 Pan(CameraFocus.Clamp(WorldFrame.FromGodot(_target + offset).Horizontal, _size)); break;
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } when OverHud(): break;   // the wheel over a Hud part scrolls it, never the table
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp }: Moved(); _distance = Mathf.Max(4, _distance * 0.9f); Apply(); break;
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown }: Moved(); _distance = Mathf.Min(300, _distance * 1.1f); Apply(); break;
             case InputEventKey { Pressed: true, Keycode: Key.Home }: Moved(); _pitch = 1.55f; Apply(); break;
