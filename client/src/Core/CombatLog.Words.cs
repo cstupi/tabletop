@@ -116,6 +116,8 @@ public static partial class CombatLog
     sealed class Draft
     {
         readonly SequenceStarted s; readonly bool startDead, nested; readonly Names n; readonly int round; readonly string word;
+        /// <summary>The inner sequences whose targets are the action's: a placement's (Spawn, Split) is the unit it places, not a target.</summary>
+        static readonly HashSet<string> AttackSequences = ["shooting", "attack-sequence", "melee", "charge"];
         readonly List<Guid> _targets = [];
         readonly Dictionary<string, string> _labels = [];
         readonly Dictionary<Guid, double> _moved = [];
@@ -142,7 +144,7 @@ public static partial class CombatLog
             if (dead && !startDead) return;
             switch (e.Payload)
             {
-                case SequenceStarted inner when inner.FrameId != s.FrameId && (nested || inner.Context.ActorUnitId == Actor):
+                case SequenceStarted inner when inner.FrameId != s.FrameId && (nested || inner.Context.ActorUnitId == Actor && AttackSequences.Contains(inner.Sequence)):
                     Target(inner.Context.TargetUnitIds);
                     if (!nested && inner.Sequence == "shooting") _verb ??= "shoots";   // the server pushes `shooting` with no targets; its children carry them
                     break;

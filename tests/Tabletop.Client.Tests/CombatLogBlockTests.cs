@@ -27,6 +27,18 @@ public class CombatLogBlockTests
     static RollRecord One(string roll, int threshold, int face, bool success) => new(Guid.CreateVersion7(), roll, threshold, [], [new Die(face, face, success)]);
 
     [Fact]
+    public void A_spawn_placing_a_reserve_does_not_make_it_a_shooting_target()
+    {
+        Guid place = Guid.CreateVersion7(), shooting = Guid.CreateVersion7(), attack = Guid.CreateVersion7();
+        var (entries, _, _) = Build(Round1, Hold(Samples.Frame),
+            new SequenceStarted(place, "place-reserve", new SequenceContext(Samples.Unit, [Guid.NewGuid()], [], "Spawn")), new SequenceFinished(place),
+            Shooting(shooting), Attack(attack), new SequenceFinished(attack), new SequenceFinished(shooting), new SequenceFinished(Samples.Frame));
+        var block = Assert.Single(entries.OfType<ActivationBlock>());
+        Assert.Equal($"R1 · Team 1 · Battle Brothers · Hold → shoots {Foe}", block.Header);
+        Assert.Equal([Enemy], block.Targets);
+    }
+
+    [Fact]
     public void A_hold_that_shoots_names_its_target_with_the_verb()
     {
         Guid shooting = Guid.CreateVersion7(), attack = Guid.CreateVersion7();
