@@ -64,11 +64,10 @@ public class EventApplierTests
     {
         var a = Fresh(); var inner = Guid.CreateVersion7();
         a.ApplyAll([Ev(1, new SequenceStarted(Frame, "attack-sequence", new SequenceContext(Samples.Unit, [], [], null))),
-            Ev(2, new ModifierAdded(Frame, "hit", new RollModifier("Clay", 1))),
             Ev(3, new StepCompleted(Frame, "roll-to-hit", null, [Samples.Hit], [new WoundsSet(Samples.Model, 1)]) { Values = new Dictionary<string, int> { ["hits"] = 1 } }),
             Ev(4, new SequenceStarted(inner, "resolve-hits", new SequenceContext(Samples.Unit, [], [], null)))]);
         Assert.Equal(2, a.Projection.Stack.Count);
-        Assert.Single(a.Projection.Stack[0].Steps); Assert.Empty(a.Projection.Stack[0].PendingModifiers);
+        Assert.Single(a.Projection.Stack[0].Steps);
         Assert.Equal(1, a.Projection.Stack[0].Steps[0].Values!["hits"]);                       // copied, never derived
         Assert.Equal(1, a.Projection.Models[Samples.Model].Wounds);
         a.Apply(Ev(5, new DiceRerolled(Frame, Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))])));

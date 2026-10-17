@@ -110,12 +110,11 @@ describe('the ported applier', () => {
     expect(a.projection.openAsks.size).toBe(0);
   });
 
-  it('treats a reroll, an edit and a modifier as changing nothing a frame records', () => {
+  it('treats a reroll and an edit as changing nothing a frame records', () => {
     const a = new Applier(board, game);
     a.applyAll([
       ev(1, { kind: 'sequence_started', frameId: F1, sequence: 'attack-sequence', context: { actorUnitId: U1, targetUnitIds: [], weaponIds: [] } }),
       ev(2, { kind: 'step_completed', frameId: F1, step: 'roll-to-hit', rolls: [], changes: [{ kind: 'wounds_set', modelId: M1, wounds: 1 }] }),
-      ev(3, { kind: 'modifier_added', frameId: F1, roll: 'hit', modifier: { source: 'Clay', amount: 1 } }),
       ev(4, { kind: 'dice_rerolled', frameId: F1, rollId: R1, replaced: [] }),
       ev(5, { kind: 'dice_edited', frameId: F1, rollId: R1, replaced: [] }),
       ev(6, { kind: 'sequence_finished', frameId: F1 }),
@@ -180,8 +179,6 @@ describe('the ported log lines', () => {
     ], changes: [] }))).toBe('roll-to-hit: hit 3+ 4!; hit 5+ 6!,3');
     expect(line(ev(7, { kind: 'wounds_set', modelId: M1, wounds: 2 }))).toBe('Rifleman at 2 wound(s)');
     expect(line(ev(8, { kind: 'action_recorded', unitId: U1, action: 'Advance' }))).toBe('Rifles did Advance');
-    expect(line(ev(9, { kind: 'modifier_added', frameId: F1, roll: 'hit', modifier: { source: 'Clay', amount: -1 } })))
-      .toBe('Clay gives -1 to hit');
     expect(line(ev(10, { kind: 'score_set', teamId: T2, score: 3 }))).toBe('Team 2 scores 3');
     expect(line(ev(11, { kind: 'undone', toSeq: 3 }))).toBe('undone to 3');
   });

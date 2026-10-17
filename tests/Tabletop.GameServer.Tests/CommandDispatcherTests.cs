@@ -184,8 +184,8 @@ public class CommandDispatcherTests
     [Fact]
     public void Engine_commands_go_to_the_engine_and_the_inert_engine_refuses_them()
     {
-        Assert.Equal(CommandClass.Engine, CommandDispatcher.Classify(new RerollDice(Samples.Frame, Samples.Roll, [])));
-        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(State(Enforcement.Silent), new RerollDice(Samples.Frame, Samples.Roll, []), Clay)).Reason);
+        Assert.Equal(CommandClass.Engine, CommandDispatcher.Classify(new SetDice(Samples.Frame, Samples.Roll, [])));
+        Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(Dispatcher().Dispatch(State(Enforcement.Silent), new SetDice(Samples.Frame, Samples.Roll, []), Clay)).Reason);
     }
 
     [Fact]

@@ -48,6 +48,7 @@ public class GameServerFactory : WebApplicationFactory<Program>
                 MinimumClientVersion = Tabletop.Protocol.ProtocolVersion.Current,
                 PresenceRelayHz = 50,
                 HandshakeTimeout = TimeSpan.FromSeconds(2),
+                AcceptsSetDice = true,                                  // the suite's socket games fix dice, as on the Development server
             });
             services.RemoveAll<NpgsqlDataSource>();
             services.RemoveAll<IGameRows>();

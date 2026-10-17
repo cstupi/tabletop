@@ -14,8 +14,10 @@ public sealed class GameServerOptions
     public double DefaultTableWidth { get; init; } = 72;
     public double DefaultTableLength { get; init; } = 48;
     public string DefaultTextureBuiltin { get; init; } = "grass";
+    /// <summary>Whether the engine takes SetDice, the rules suite's way to fix a roll's faces. On only in the Development environment (the compose game server the suite's socket driver targets); players never set dice.</summary>
+    public bool AcceptsSetDice { get; init; }
 
-    public static GameServerOptions FromEnvironment(IConfiguration configuration)
+    public static GameServerOptions FromEnvironment(IConfiguration configuration, bool development)
     {
         string Require(string key) => configuration[key] ?? throw new InvalidOperationException($"{key} is not set (see .env.example).");
         var projectId = Require("TABLETOP_STYTCH_PROJECT_ID");
@@ -26,6 +28,7 @@ public sealed class GameServerOptions
             StytchJwksUrl = configuration["TABLETOP_STYTCH_JWKS_URL"]
                 ?? $"{(configuration["TABLETOP_STYTCH_BASE_URL"] ?? "https://test.stytch.com").TrimEnd('/')}/v1/sessions/jwks/{projectId}",
             MinimumClientVersion = int.TryParse(configuration["TABLETOP_MIN_CLIENT_VERSION"], out var v) ? v : Tabletop.Protocol.ProtocolVersion.Current,
+            AcceptsSetDice = development,
         };
     }
 }

@@ -15,7 +15,7 @@ part a control in `client/src/Hud/` with a `Bind` over the session (and, for mos
 | `DecisionBox` | right column, above the undo and log buttons | the first open Ask addressed to me (below) |
 | `DiceTray` | above the decision box | the latest roll's log line, its height only (a long line clips; the tooltip holds all of it); a click opens the log there, expanded |
 | `LogDrawer` | lower right | `CombatLogPanel`: action blocks (a cast nested in one), roll lines, change lines, one row per entry; filters All/Rolls/My units/This unit; 640 px; G opens it |
-| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is neither an `Undone` marker nor an `AskClosed`, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll once, as its combat log line, when the range holds a roll, reroll or dice edit; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
+| `UndoButton` | lower right, left of the log button | `UndoPlan`: always shown, disabled when nothing is undoable; undoes the last action in the game, whoever took it (the newest effective-log event with an actor that is neither an `Undone` marker nor an `AskClosed`, with the engine events after it), to the live seq before it or 0; tooltip `Undo: ` and `LogText.Describe` of the action; a "Undo dice rolls?" dialog listing each lost roll once, as its combat log line, when the range holds a roll or a `dice_rerolled`/`dice_edited`; Ctrl+Z presses it; re-plans from `Session.CombatLog.Undo` on the frame's render for events or a board, and while an undo travels as if its marker had landed; a failure is a toast |
 | `TurnBanner` | upper third, transient | `TurnBanners`: `Round n` 1.5 s; `Team k's turn` 1 s when the team differs from the previous `TurnStarted`'s; silent while `Session.CatchingUp`, on a batch with an undo, with Animate off or the setting off. Clicks pass through |
 | `EndMessage` | centre | the result, the reason and the scores once `game_ended` lands |
 | `KeyOverlay` | centre | every hotkey; F1 or ? |
@@ -261,7 +261,7 @@ record that broke the tie carries `Team k wins` (`CombatLog.Aftermath`, from `wi
 `{unit} gets {rule}` for a grant. Outside an action: `Round n`, `{Team} · {unit} deployed` for a player's placement from the shelf,
 a step's deployment or objective change and a round end's objective changes (`LogText.RoundChange`), a menu edit ending `· by hand`,
 `Undone to: {header}` (the first block the undo took back that no earlier undo had already taken, else the action it stepped into)
-and the game's end; an added modifier (`ModifierAdded`) is its `LogText` line. Words come from `Names` (participants, teams, units,
+and the game's end. Words come from `Names` (participants, teams, units,
 weapons, models, markers; an unknown id degrades to its first eight characters). Asks, answers, closes, sequence starts without an
 action, finishes, abandons, turns and steps with neither roll nor change draw nothing. A roll with neither `Threshold` nor
 `RequiredRaw` (a roll-off, a property's own roll) shows its faces and no result; the dice tray paints it neutral.
@@ -270,8 +270,8 @@ the log.
 
 A roll row wraps to the panel's width: its title, then its faces and outcome in a flow, each label at least 160 px wide; the wheel
 scrolls the panel over it. A click expands its `Details` (the weapons, the basis and each change, each modifier, the cover verdict's
-count, the target), each die, each amendment, the rule chips when the step applied any, then Undo to here, Reroll all, Set die 1… and
-+1. Every other row carries Undo to here beside it.
+count, the target), each die, each amendment, the rule chips when the step applied any, then Undo to here. Every other row
+carries Undo to here beside it.
 
 Filters are All, Rolls, My units and This unit; the last two keep blocks and roll entries whose actor or a target matches. The
 filter and the open state persist in `ClientSettings` (`LogFilter`, `LogOpen`). The panel lives in `LogDrawer`, 640 px wide, a
@@ -280,8 +280,7 @@ highlights `LogText.Touched(event)`. "Undo to here" on a row calls `UndoToAsync(
 until `PendingUndoTo` clears. The other undo affordance is the **Undo** button (*Undo*). There is no
 undo stack UI and no redo. Undo is replay to a sequence number rather than inverse events, so the log serves as the control.
 
-A roll entry also offers "Reroll all" (`RerollDice(frame, roll, [])`), "Set die 1…" (`SetDice`) and "+1" (`AddModifier`) for
-the roll it shows. Players roll their own dice and every roll result is editable.
+The rules roll every die and apply every modifier; a roll entry offers no way to reroll, set a face or add a modifier.
 
 ## The right-click menu
 

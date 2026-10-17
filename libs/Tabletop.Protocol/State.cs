@@ -30,8 +30,8 @@ public sealed record Die(int Raw, int Modified, bool Success, IReadOnlyList<stri
         && (Triggered ?? []).SequenceEqual(other.Triggered ?? []);
     public override int GetHashCode() => HashCode.Combine(Raw, Modified, Success, Triggered?.Count ?? 0);
 }
-/// <summary>A change to a roll's dice. Via: the rule that granted the property whose effect this is (Rending for its AP), or for a
-/// player's modifier (Source "player", AddModifier) the participant's name; null for a property held outright and in logs written before it.</summary>
+/// <summary>A change to a roll's dice. Via: the rule that granted the property whose effect this is (Rending for its AP); null for a
+/// property held outright and in logs written before it.</summary>
 public sealed record RollModifier(string Source, int Amount, string? Via = null);
 /// <summary>
 /// p.11's cover verdict for the whole target unit of a shooting attack, on each of its defense rolls. InCover: the majority test passed;
@@ -48,7 +48,7 @@ public sealed record ThresholdChange(string Source, int? SetTo, int Amount);   /
 /// A roll as it happened. Threshold is null for the roll-off. RequiredRaw is the raw face a roll judged on alone (null for a roll judged
 /// on its modified result), so a reroll or an edit judges the die the way the roll did. Cover is set on a shooting attack's defense rolls
 /// and null elsewhere and in logs written before it. FaceTriggers: what each raw face sets off on this roll (Die.Triggered), one entry per
-/// face that sets anything off, so a die rerolled or set by hand later carries its new face's; null when no face does and in logs written
+/// face that sets anything off, so a die a forced reroll or SetDice replaces carries its new face's; null when no face does and in logs written
 /// before it. Replay applies this; it never re-rolls.
 /// </summary>
 public sealed record RollRecord(Guid Id, string Roll, int? Threshold, IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw = null, ThresholdBasis? Basis = null,

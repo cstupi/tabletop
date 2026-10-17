@@ -102,19 +102,18 @@ public class CombatLogTests
     }
 
     [Fact]
-    public void Rerolls_and_edits_stay_on_the_rolls_line_and_a_players_modifier_is_its_own_line()
+    public void Rerolls_and_edits_stay_on_the_rolls_line()
     {
         var other = Samples.Hit with { Id = Guid.CreateVersion7() };
         var (entries, _, _) = Build(new SequenceStarted(Samples.Frame, "x", new SequenceContext(Samples.Unit, [], [], null)),
             new StepCompleted(Samples.Frame, "roll-to-hit", null, [Samples.Hit, other], []),
             new DiceEdited(Samples.Frame, Samples.Roll, [new DieReplacement(0, new Die(6, 6, true), new Die(1, 1, false))]),
-            new DiceRerolled(Samples.Frame, Samples.Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]),
-            new ModifierAdded(Samples.Frame, "hit", new RollModifier("Clay", 1)));
+            new DiceRerolled(Samples.Frame, Samples.Roll, [new DieReplacement(1, new Die(2, 2, false), new Die(5, 5, true))]));
         var rolls = entries.OfType<RollEntry>().ToList();
         Assert.Equal("Hit · 4+ (AP(1)) → needs 5 · 2 dice: ⚀ ⚄ · 1 hit · set by hand ⚅ → ⚀ · rerolled ⚁ → ⚄", rolls[0].Collapsed(CombatLog.Pip));
         Assert.Empty(rolls[1].Amendments);                                  // the other pool of the same step
         Assert.Equal([6, 2], rolls[1].Dice.Select(d => d.Raw));
-        Assert.Equal(["Clay added +1 to the hit roll"], entries.OfType<LineEntry>().Select(l => l.Text));
+        Assert.Empty(entries.OfType<LineEntry>());
     }
 
     [Fact]

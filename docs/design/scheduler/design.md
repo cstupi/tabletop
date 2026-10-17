@@ -587,9 +587,9 @@ Four states, all read from the log since the round anchor:
 `roll-off` then `order`, and the boundary between them is an unsealed `Confirm` Ask to every team,
 opened whatever `waits_between_steps` says, because the frame has no actor and no parent. Every
 team is the addressee because no acting unit has a better claim to release a result that fixes
-turn order for all of them, and the first answer closes it. So the dice are editable exactly where
-a player would want them — rolled, visible, and not yet ranked — and the `order` step ranks
-whatever stands when the gate is released. Nothing rewrites a logged `step_completed`, which is
+turn order for all of them, and the first answer closes it. So the rules suite's `SetDice` reaches
+the dice while they are rolled, visible and not yet ranked, and the `order` step ranks whatever
+stands when the gate is released. Nothing rewrites a logged `step_completed`, which is
 why the ranking is a second step rather than a recomputation.
 
 Three consequences for this reader. It spans dispatches: the start, the confirm, and the `Advance`
@@ -658,7 +658,7 @@ stateDiagram-v2
     [*] --> RollingOff : status flips to playing
     RollingOff : roll-off frame runs in the interpreter
     RollingOff --> Gated : one die per team, then the every-team confirm gate
-    Gated : the engine rests - the dice are editable here
+    Gated : the engine rests - the rules suite's SetDice lands here
     Gated --> RollingOff : first confirm - the order step ranks what stands
     RollingOff --> Deployment : round_started(0), phase_started(deployment)
     Deployment --> Scouts : every team skipped - phase_started(scouts)
@@ -771,7 +771,7 @@ behaviour in exactly one case: a legal set that offers an id its own ruleset can
 | Ambushers are the interactive boundary hook; a pass there stands for the boundary only, and no turn events are written | `turn_ended.Passed` is round-scoped and would skip the team's activations | reusing `turn_ended` at the boundary | scheduler → The round boundary |
 | Free-for-all is a first-team policy inside the ruleset hook, not a third shape | the engine's rotation is identical for two teams and six | a free-for-all scheduler | `architecture.md` → Turn scheduling; p.50 |
 | The roll-off is a ruleset sequence started with no actor, its order read from `step_completed.Values` | the roll-off must be logged and replayable; the scheduler rolls no dice | a roll primitive in the scheduler | scheduler → Deployment; interpreter plan Task 11 |
-| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the dice must be editable like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | scheduler → Deployment (*every roll result is editable*); the plan's ruling 7 |
+| The roll-off waits behind a confirm gate, and the reader keys on `sequence_finished` and on `place_1` | the rules suite's `SetDice` must reach these dice like any others, and an order must never be read from dice still in play | accepting that an actor-less frame is never gated, so its dice are fixed | the plan's ruling 7 |
 | Reaction ordering is one policy in `Windows.ReactionOrder`, consulting `OrderReactions` | ordering is the scheduler's question but the window and the hook are the interpreter's | an `IReactionOrdering` type in `Scheduler/` | scheduler → Windows; interpreter plan Task 9 |
 | Out-of-set answers proceed as if legal under `warn`/`silent`; `strict` refuses at the dispatcher | enumeration, not validation; the model must hold "a unit that has already moved moving again" | a boolean warn/silent dial with no refusing position | identity and enumerations → Enforcement; whole-design review → ruling 1 |
 | An unreadable turn answer follows the enforcement dial, decided in `CommandDispatcher.Answer` beside set membership | one rule for two cases; the dispatcher is the last point at which a refusal leaves the Ask open | a pass whatever the dial said; ending the turn without passing; refusing regardless of enforcement | scheduler → Enforcement; the plan's ruling 3 |
@@ -943,7 +943,7 @@ sequenceDiagram
     Sc->>I: Start('roll-off', no actor)
     Note over I: step 'roll-off': one die per team, ties rerolled among the tied
     I-->>S: step_completed('roll-off'), ask_opened(confirm to every team)
-    Note over S,B: the engine rests - SetDice and RerollDice land here
+    Note over S,B: the engine rests - the rules suite's SetDice lands here
     B->>S: AnswerAsk(Confirmed)
     Note over I: step 'order': ranks the dice that stand - Values place_1..n
     I-->>S: step_completed('order'), sequence_finished
@@ -1221,7 +1221,7 @@ unreadable case and the out-of-set case are one rule, one clause in `CommandDisp
 See *Menu overrides, stale Asks, and enforcement* for the clause and for why the dispatcher is the
 only place it fits.
 
-**2. The roll-off's dice are editable: it is gated like any other roll** (the plan's ruling 7).
+**2. The roll-off's dice are reachable by `SetDice`: it is gated like any other roll** (the plan's ruling 7).
 The interpreter gates its actor-less frame with an unsealed `Confirm` to every team between the
 `roll-off` and `order` steps, whatever the wait setting says, and ranks the dice that stand when a
 team releases it. The scheduler's side is the reader: `RollOff.Advance` waits across dispatches,

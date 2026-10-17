@@ -121,7 +121,7 @@ public static partial class SuiteCatalog
     /// <summary>
     /// Every casting die as rolled, judged by p.5 alone: an unmodified 1 a failure, an unmodified 6 a success. The cases are the dice whose
     /// modifiers would carry them the other way, and at least one must occur (this game spends every spare token on its rolls, so a raw 1
-    /// lifted to 4+ comes up). No die is edited: the check is about the judge, not about dice edits.
+    /// lifted to 4+ comes up). No die is set: the check is about the judge, not about SetDice.
     /// </summary>
     static string? NaturalCastingDice(LogQueries q) => LogQueries.Each(
         q.Rolls("casting").Where(r => !r.Edited).Select(r => r.Dice[0]).Where(d => d.Raw == 1 && d.Modified >= 4 || d.Raw == 6 && d.Modified < 4),

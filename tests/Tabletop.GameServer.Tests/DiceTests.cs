@@ -60,8 +60,6 @@ public class DiceTests
         Assert.Equal([(6, 1, true), (5, 0, false)], new Roller(new ScriptedDice(6, 5), 0, 0).Roll(Samples.Frame, penalised, 2).Record.Dice.Select(x => (x.Raw, x.Modified, x.Success)));
         var roller = new Roller(new ScriptedDice(1), 0, 0);
         Assert.False(roller.Judge(naturals, 1).Success);                                             // SetDice judges through the same call
-        var record = new RollRecord(Guid.CreateVersion7(), "hit", 4, naturals.Modifiers, [roller.Judge(naturals, 3)]);
-        Assert.False(RollOutcome.Reroll(naturals, record, [0], roller).Single().New.Success);         // and a reroll: the scripted 1 fails at modified 6
         Assert.True(new Roller(new ScriptedDice(1), 0, 0).Roll(Samples.Frame, Plan(4, new RollModifier("big", 5)), 1).Record.Dice[0].Success);   // a convention without them judges the modified result alone
         Assert.Equal([false, true], new Roller(new ScriptedDice(5, 6), 0, 0).Roll(Samples.Frame, Plan(2) with { RequiredRaw = 6, Convention = naturals.Convention }, 2).Record.Dice.Select(x => x.Success));   // a required raw face still rules
         Assert.False(new Roller(new ScriptedDice(6), 0, 0).Roll(Samples.Frame, Plan(null) with { Convention = naturals.Convention }, 1).Record.Dice[0].Success);   // no threshold, no success

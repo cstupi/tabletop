@@ -590,23 +590,23 @@ roll primitive admits that case (whole-design review → Gaps filled).
 
 The boundary between the two steps is a confirm gate, and it is the only gate in the module that
 does not depend on `game.waits_between_steps`. The frame therefore stays on the stack after the
-dice are recorded, which is what `RerollDice` and `SetDice` need, so the roll-off's dice are
-editable from the menu like every other roll (the plan's ruling 8).
+dice are recorded, which is what `SetDice` needs, so the rules suite fixes the roll-off's dice as it
+fixes any other roll's.
 The gate is **addressed to every team**: the roll-off has no acting unit, and its result fixes
 turn order for all of them, so there is no team with a better claim to release it. One unsealed
 `Confirm` Ask carries every team, and the dispatcher closes an unsealed Ask on the first answer,
 so any team may release it.
 
-`order` never rolls. A menu edit that leaves two teams on equal dice is therefore settled by team
+`order` never rolls. A `SetDice` that leaves two teams on equal dice is therefore settled by team
 ordinal rather than by a fresh die, which is the same tolerance `RollOff.Order` already has for a
 hand-edited log. The ranking is a step of its own for the reason every face decision is
 (→ Dice edits).
 
 ## Dice edits
 
-`SetDice` and `RerollDice` reach a `RollRecord` of a frame on the stack, and only there
+`SetDice` (the rules suite's; resolution → The engine seam) reaches a `RollRecord` of a frame on the stack, and only there
 (`RulesEngine.Find`): a popped frame's rolls are out of reach, and the client treats an edit to one
-as a desync. An edit appends `dice_edited` or `dice_rerolled` and nothing else. The applier folds
+as a desync. An edit appends `dice_edited` and nothing else. The applier folds
 it into the record, so `RollOutcome` and `record.Dice` read the dice as they now stand. Every
 `step_completed` already appended keeps its `Values` and `Changes`, and so does every event after
 it. An edit therefore changes exactly what the steps that run after it read off the record.

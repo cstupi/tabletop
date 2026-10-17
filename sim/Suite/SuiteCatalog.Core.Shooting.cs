@@ -50,38 +50,6 @@ internal static partial class CoreGames
         ], dice: [new DiceFix("hit", 0, [6, 1, 4, 3, 2, 2]), new DiceFix("defense", 0, [4, 3])]);
     }
 
-    // ---- core-player-modifier ----------------------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// A player's AddModifier: Red's first attack frame gets -1 to its hit roll as it starts, and hit #0 is fixed to 6, 5, 4, 1 at Quality 4+.
-    /// The record carries the player's modifier, each die's final result is its raw face minus 1, and the modifier is spent on that roll.
-    /// </summary>
-    public static TestGame PlayerModifierGame()
-    {
-        const string name = "core-player-modifier";
-        var scenario = new ScenarioBuilder(name, seed: 1)
-            .RoundCap(5).Table(48, 36)
-            .Army("Red", 1, 5, weapons: [Rifle(2), HandWeapon()])
-            .Army("Blue", 1, 5, weapons: [Rifle(2), HandWeapon()])
-            .Seeking(NearestEnemy)
-            .Build();
-        return Game(name, scenario,
-        [
-            ScoresAgainstThreshold(),
-            FixedRoll("p.4: \"If you score the model's Quality value or higher, then it counts as a success\"; p.5: \"the new value counts as the final result\", 6 always a success, 1 always a fail (hit #0 with a player's -1, fixed to 6, 5, 4, 1 at Quality 4+)",
-                "hit", 0, "6+,5+,4-,1-", (log, r) =>
-                {
-                    if (r.Roll.Threshold != 4) return $"hit #0 at {r.Roll.Threshold}+, expected 4+";
-                    if (r.Roll.Modifiers.SingleOrDefault(m => m.Source == "player") is not { Amount: -1, Via.Length: > 0 }) return $"hit #0 modifiers {string.Join(", ", r.Roll.Modifiers)}, expected one player -1 naming its player";
-                    var finals = log.Dice(r.Roll).Take(4).Select(d => d.Modified).ToList();
-                    return finals.SequenceEqual([5, 4, 3, 0]) ? null : $"hit #0 final results [{string.Join(",", finals)}], expected [5,4,3,0]";
-                }),
-            Check("AddModifier: a player's modifier is spent on the one roll it was added for", log =>
-                log.Rolls("hit").Skip(1).Concat(log.Rolls("defense")).FirstOrDefault(r => r.Roll.Modifiers.Any(m => m.Source == "player")) is { Roll: { } extra }
-                    ? $"{extra.Roll} roll {extra.Id} also carries the player's modifier" : null),
-        ], dice: [new DiceFix("hit", 0, [6, 5, 4, 1])]) with { Modifiers = [new PlayerModifier("attack-sequence", 0, "hit", -1)] };
-    }
-
     /// <summary>
     /// p.8 and p.9's Roll to Block and Remove Casualties: "For every hit ... the defending player must roll one die", "all failed rolls cause one
     /// wound each", "For each wound ... remove one model". Every model here has one wound, so casualties are the failures, capped by the models left.

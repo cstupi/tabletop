@@ -17,10 +17,10 @@ public sealed class Sim
     public CommandDispatcher Dispatcher { get; }
     public List<EventPayload> Emitted { get; } = new();
 
-    public Sim(GameState state, IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler? scheduler = null)
+    public Sim(GameState state, IGameRules rules, PropertySet properties, IDiceSource dice, IScheduler? scheduler = null, bool acceptsSetDice = true)
     {
         State = state;
-        Engine = new RulesEngine(rules, properties, dice, scheduler ?? new NoScheduler());
+        Engine = new RulesEngine(rules, properties, dice, scheduler ?? new NoScheduler(), acceptsSetDice);
         Dispatcher = new CommandDispatcher(Engine);
     }
 

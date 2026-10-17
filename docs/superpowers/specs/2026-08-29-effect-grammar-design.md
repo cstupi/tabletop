@@ -133,7 +133,7 @@ rulebook, and nothing forbids deeper.
 
 A property's own roll is recorded as a `RollRecord` named for the entry, so `Regeneration`,
 `Impact` and `Fearless`, carrying the effect row's threshold. It is not a `roll` row, because
-nothing targets it, and `AddModifier` therefore cannot name it.
+nothing targets it.
 
 ### Multiplication carries a cap
 

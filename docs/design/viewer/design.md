@@ -430,7 +430,7 @@ which is a silent divergence at the exact case the fault exists for: moving a ma
 the log holds. A setup marker's first `marker_moved` copies its board row into `markers`, as the C# does. Four sites fault on neither side, because the C# writes through an indexer or calls `Remove`
 there: `score_set`, `marker_placed`, `marker_removed` and `ask_closed`. The helpers cover twelve of
 the sixteen fallible lookups the C# has. The other four read the resolution frame stack, which is not
-ported, so `step_completed` and `modifier_added` can fault on an unknown frame id in C# and cannot
+ported, so `step_completed` and the dice kinds can fault on an unknown frame id in C# and cannot
 here. That is the unported stack showing again rather than a second divergence. A comment in
 `applyTo` names every stack-site fault the port leaves unported: `Pop` on `sequence_finished` and
 `sequence_abandoned`, `FrameOf`, and `ReplaceDice`'s roll and die-index lookups.
@@ -456,11 +456,11 @@ projection and replays `effectiveLog(this.#log)` into it. The log itself stays a
 undone markers in place. Cost is one full replay per undo event.
 
 **The resolution stack is not ported.** C#'s `Projection.Stack` holds `Frame`s. `sequence_started` pushes one,
-`sequence_finished` and `sequence_abandoned` pop one, and `dice_rerolled`, `dice_edited` and
-`modifier_added` amend a completed step's rolls. A `RecordedFrame` carries no stack, and its `rolls`
+`sequence_finished` and `sequence_abandoned` pop one, and `dice_rerolled` and `dice_edited` amend a
+completed step's rolls. A `RecordedFrame` carries no stack, and its `rolls`
 come from the `step_completed` payload rather than from the stack, so the C# recording does not
-show a reroll in `rolls` either. Those six event kinds are no-ops in `applyTo`. `apply.test.ts` pins
-the reroll, the edit and the modifier.
+show a reroll in `rolls` either. Those five event kinds are no-ops in `applyTo`. `apply.test.ts` pins
+the reroll and the edit.
 
 `FrameProjector` in TypeScript takes `(board: Board, game: GameInfo)`, while the C# original takes a
 `CompiledScenario`. The live feed has no scenario, and `recordedBoardOf` needs only the wire board

@@ -341,7 +341,7 @@ public static partial class SuiteCatalog
         /// unmodified 6, which "unmodified results of 6 to hit deal 1 extra hit" asks of the dice the game plays with.
         /// </summary>
         static GameCheck EditedExtraHits(string entry, string quote) =>
-            Exact(entry, $"{quote}, after a dice edit", (_, log) =>
+            Exact(entry, $"{quote}, after SetDice", (_, log) =>
                 from a in log.Attacks
                 where a.Hit is not null && a.Hit.Changes.OfType<DiceEdited>().Any()
                 let expected = a.HitDice.Count(d => d.Raw == 6 && d.Success)

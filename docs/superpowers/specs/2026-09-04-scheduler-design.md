@@ -166,7 +166,7 @@ with nothing left to deploy is skipped; the phase ends when every team is skippe
 
 **The order comes from a roll-off** at the start of the phase — a `GameRules` sequence on the
 roll primitive, logged. Its winner deploys first and, per page 7, takes the first turn of round
-one. Every roll result is editable from the menu, as any roll is.
+one.
 
 The roll-off is the roll primitive with no threshold — one die per team, raw results compared,
 ties rerolled among the tied — so the primitive admits a null threshold and records dice as

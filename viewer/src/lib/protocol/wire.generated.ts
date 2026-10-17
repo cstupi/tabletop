@@ -183,7 +183,7 @@ export interface DieReplacement {
 
 export type Enforcement = 'silent' | 'warn' | 'strict';
 
-export type EventPayload = RoundStarted | RoundEnded | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | ModifierAdded | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
+export type EventPayload = RoundStarted | RoundEnded | GameEnded | TurnStarted | TurnEnded | PhaseStarted | SequenceStarted | StepCompleted | SequenceFinished | SequenceAbandoned | AskOpened | AskAnswered | AskClosed | DiceRerolled | DiceEdited | Undone | ModelsMoved | WoundsSet | ConditionSet | ActionRecorded | ActionRecordCleared | GrantAdded | GrantRemoved | SpellTokensSet | WoundsThisActivationSet | ScoreSet | MarkerPlaced | MarkerMoved | MarkerRemoved | ObjectiveControlSet;
 
 export interface EventsMessage {
   readonly kind: 'events';
@@ -319,13 +319,6 @@ export interface ModelSlot {
 export interface ModelsMoved {
   readonly kind: 'models_moved';
   readonly moves: readonly ModelRelocation[];
-}
-
-export interface ModifierAdded {
-  readonly kind: 'modifier_added';
-  readonly frameId: string;
-  readonly roll: string;
-  readonly modifier: RollModifier;
 }
 
 export interface MoveContainment {

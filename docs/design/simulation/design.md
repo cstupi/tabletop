@@ -776,7 +776,8 @@ each game, computes coverage and prints a report; `serve` hosts the same runner 
   and quotes its rule; its expected value is a literal from the text. A check reports one failure line per reason. The army
   attack checks choose their occasions from the log and the army definitions (the holder's attacks, the attacks on it, the
   attacks with its weapon), never from `Applied`.
-- **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes, so a game that fixes
+- **Dice.** A `DiceFix` sets one roll's faces by `SetDice` once the step that rolled it completes (a game server takes `SetDice` only
+  with `GameServerOptions.AcceptsSetDice` on: Development and the in-process driver), so a game that fixes
   dice runs with the step gate on. A fix that never meets its roll fails the game.
 - **Scripting.** Ids are minted at compile time, so a game's script picks by name: `ScriptBuilder.Match` with `AskPicks`
   (activate a named unit's action, cast a named spell, target a named unit). Set-aside units and per-model entries are

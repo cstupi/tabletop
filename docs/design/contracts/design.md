@@ -464,7 +464,7 @@ tests read.
 | Scheduler | `round_started`, `turn_started`, `turn_ended`, `phase_started` | `RoundStarted(Round, Order, Changes)`; `TurnEnded(TeamId, Passed, Changes)` | scheduler → Events; `turn_ended.passed` from whole-design review → The scheduler's pass |
 | Resolution stack | `sequence_started`, `step_completed`, `sequence_finished`, `sequence_abandoned` | `StepCompleted(FrameId, Step, Answer, Rolls, Changes) { Values }`; `SequenceStarted(FrameId, Sequence, Context, Outline?)`, the outline the sequence's player-facing steps as `OutlineStep(Step, Label)`, null in logs written before it | action sequences → The resolution stack, Abandonment |
 | Asks | `ask_opened`, `ask_answered`, `ask_closed` | `AskAnswered(AskId, TeamId, Answer?, OutsideLegalSet, Breach?)`; `AskClosed(AskId, IRL<TeamAnswer>)` | action sequences → Asks, Windows; client shell → the projection holds the current Asks |
-| Dice | `dice_rerolled`, `dice_edited`, `modifier_added` | `DieReplacement(Index, Die Old, Die New)`; `ModifierAdded(FrameId, Roll, RollModifier)` | resolution → Players roll their own dice; scheduler → Deployment ("every roll result is editable from the menu") |
+| Dice | `dice_rerolled`, `dice_edited` | `DieReplacement(Index, Die Old, Die New)` | resolution → The roll primitive (a rule's forced reroll; the rules suite's `SetDice`) |
 | Undo | `undone` | `Undone(long ToSeq)` | `architecture.md` → Undo; client shell → undo is local first |
 | State change | `models_moved` | `ModelsMoved(IRL<ModelRelocation>)`, one kind for deployment, hand moves, casualties and embarking | table domain model → The one wire decision; game flow → The shelf, Inside a container |
 | State change | `wounds_set`, `condition_set`, `action_recorded`, `action_record_cleared` | `ConditionSet(Subject, Condition, Present)` | game flow → What a unit in play records, Nothing is an invariant |
@@ -502,7 +502,7 @@ redundant weight on the most frequent event on the wire.
 | Tokens in play | `place_marker`, `move_marker`, `remove_marker` | setup content → Markers |
 | The menu | `set_wounds`, `set_condition`, `record_action`, `clear_action_record`, `add_grant`, `remove_grant`, `set_spell_tokens`, `set_wounds_this_activation`, `set_score`, `set_active_team`, `set_round` | client shell → The log, undo and the menu; scheduler → Nothing is an invariant |
 | Undo and abandon | `undo`, `abandon_sequence` | `architecture.md` → Undo; action sequences → Abandonment |
-| Dice | `reroll_dice` (empty indices means every die), `set_dice`, `add_modifier` | resolution → Players roll their own dice; scheduler → Deployment |
+| Dice | `set_dice`, the rules suite's; a server takes it only where `GameServerOptions.AcceptsSetDice` is on | resolution → The engine seam |
 
 **There is no end-turn command and no pass command.** Both are `AnswerAsk`. The turn is an Ask, and
 passing is a real answer (`Passed`) that is logged.
@@ -830,7 +830,7 @@ geometry, because the server already settled the Z. `ConditionSet` adds or remov
 noticing a grant was used, as spell effects requires: *"Both are explicit in the payload, so the
 client's projection copies rather than derives."*
 
-Three branches look like exceptions and are not.
+Two branches look like exceptions and are not.
 
 1. **`RoundStarted` clears `Passed` and `ActiveTeamId`.** That is the definition of a new round's
    position rather than a rule. The round-boundary hooks' effects (record clears, spell tokens,
@@ -839,11 +839,6 @@ Three branches look like exceptions and are not.
    was this team's. A team's pass *"is logged and stands for the round"* (scheduler → Re-entering a
    round). The applier holds it because the event says so, not because it knows what finishing
    means.
-3. **`StepCompleted` clears the frame's pending modifiers for each roll it carries.** A hand-added
-   modifier is recorded as `ModifierAdded` before the roll happens, and the `RollRecord` that comes
-   back already folds it in (action sequences → One roll primitive). Keeping it pending would
-   double-count it in the UI. This is the only bookkeeping in the applier that is not a direct copy,
-   and the roll record being complete is what justifies it.
 
 **Undo is a rebuild, not an inverse.** `Undone(N)` is appended to the log like any event. `Apply`
 sees it and replaces the whole `Projection` with a rebuild of `EffectiveLog(log)` from
@@ -1188,7 +1183,7 @@ this table is the rest of the surface, with the exact member names later modules
 | `sealed class UnitInPlay` | `Id`, `ParticipantId`, `Unit Definition`, `IReadOnlySet<string> Actions`, `IReadOnlySet<string> Conditions`, `IRL<Grant> Grants`, `int WoundsThisActivation` |
 | `sealed class ModelInPlay` | `Id`, `UnitId`, `ModelSlot Slot`, `Location Location`, `int Wounds`, `IReadOnlySet<string> Conditions`, `int SpellTokens` |
 | `sealed class SchedulerPosition` | `int Round`, `IRL<Guid> Order`, `Guid? ActiveTeamId`, `string? Phase`, `IReadOnlySet<Guid> Passed` |
-| `sealed class Frame` | `Id`, `string Sequence`, `SequenceContext Context`, `IRL<CompletedStep> Steps`, `IRD<string, IRL<RollModifier>> PendingModifiers` |
+| `sealed class Frame` | `Id`, `string Sequence`, `SequenceContext Context`, `IRL<CompletedStep> Steps` |
 | `sealed class CompletedStep` | `string Step`, `AskAnswer? Answer`, `IRL<RollRecord> Rolls`, `IRL<StateChange> Changes`, `IRD<string,int>? Values` |
 | `sealed class OpenAsk` | `Ask Ask`, `IRD<Guid, AskAnswer?> Answers` (null while withheld) |
 | `sealed class EventApplier(Board, GameInfo)` | `Projection Projection`, `IRL<GameEvent> Log`, `Apply`, `ApplyAll`, `ProjectTo(long)`, `static EffectiveLog`, `static ApplyTo`, `static ApplyChange` |
@@ -1462,7 +1457,6 @@ question about terrain becoming event-driven state.
 stateDiagram-v2
     [*] --> Pushed : sequence_started(frameId, name, context)
     Pushed --> Pushed : step_completed(frameId, step, answer, rolls, changes)
-    Pushed --> Pushed : modifier_added - pending until a roll of that name lands
     Pushed --> Pushed : dice_rerolled or dice_edited - replaces dice in a recorded roll
     Pushed --> Nested : a child sequence_started
     Nested --> Pushed : the child finishes or is abandoned
@@ -1499,7 +1493,7 @@ them: `ModelsMut` for `models_moved`, `wounds_set`, `condition_set` on a model a
 `spell_tokens_set`; `UnitsMut` for
 `condition_set` on a unit, `action_recorded`, `action_record_cleared`, `grant_added`,
 `grant_removed` and `wounds_this_activation_set`; `MarkersMut` for `marker_moved`; `OpenAsksMut` for
-`ask_answered`; `FrameOf` for `step_completed`, `modifier_added` and both dice kinds; and the roll
+`ask_answered`; `FrameOf` for `step_completed` and both dice kinds; and the roll
 lookup inside `ReplaceDice`. The sites that cannot miss are the assignments (`score_set`,
 `marker_placed`), `Remove` (`marker_removed`, `ask_closed`) and `Pop`, whose `FindIndex` does
 nothing when the frame is already gone.
@@ -1508,11 +1502,10 @@ Strictness holds because the server is the only writer and it emits ids from the
 hydrated. One case falls on the wrong side of it, and it is a typed desync rather than a
 `KeyNotFoundException` or an `InvalidOperationException`.
 
-- **Editing a roll after its sequence has finished throws.** The scheduler says *"every roll result
-  is editable from the menu, as any roll is"*. `SetDice`/`DiceEdited` carry a `FrameId`, and
+- **Editing a roll after its sequence has finished throws.** `SetDice`/`DiceEdited` carry a `FrameId`, and
   `ReplaceDice` calls `FrameOf`, which throws once the frame has been popped. The roll lookup throws
-  in the same way when no step in a live frame holds that roll. So the menu affordance the scheduler
-  promises is unreachable for any roll in a completed sequence. The end-of-turn morale test is the
+  in the same way when no step in a live frame holds that roll. So `SetDice` cannot reach any roll in a
+  completed sequence. The end-of-turn morale test is the
   remaining example: a root frame with an actor and one step, which pops before any boundary can
   gate it. The deployment roll-off is not a case, because it is gated, so its frame is live while
   the gate is open.
@@ -1545,8 +1538,6 @@ anything, so an unguarded call loses events a user expected back.
   `unit.Conditions` while an event is applied gets an `InvalidOperationException` from the
   underlying `HashSet`. The game server avoids this by being an actor and the client by
   marshalling through `IDispatcher`. Nothing in `libs/` enforces either.
-- `Frame.PendingModifiers` allocates a fresh dictionary on every get. Harmless in a log panel,
-  wasteful if a renderer touches it per frame.
 - `EventApplier` retains the entire log for the life of the session, undone events included. There
   is no truncation and no compaction.
 - `Projection.Initial` requires a `Board`, so no applier can exist at `lobby`. Every consumer must

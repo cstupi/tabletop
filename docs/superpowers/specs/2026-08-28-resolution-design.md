@@ -77,34 +77,17 @@ The wider point stands as a caution rather than a conclusion: **this section's m
 effect — a numeric plus or minus applied before the roll — covers one of twelve kinds.** It was
 designed against a hypothetical, before any ruleset had been read.
 
-## Players roll their own dice, and can change them
+## Dice are the rules' alone
 
-The engine resolving an action does not make it the engine's action. Two affordances,
-both ordinary logged commands:
-
-**Reroll.** Per roll, not per die.
-
-**Add a modifier by hand.** The same shape as one a pack declares.
-
-Neither is an override mechanism bolted beside the automated path — **they are the
-operations abilities already use.** "Reroll 1s to hit" is a pack-declared reroll; a player
-clicking reroll is the same event with a different actor. This is the write-path rule from
-game flow applied to resolution: automation and the player write the same things the same
-way.
-
-A reroll records which dice it replaced. A manual reroll is that with the selection set to
-all, which is what keeps it one operation rather than two.
+The rules roll every die and apply every modifier. No player rerolls a die, sets a face or adds a
+modifier by hand. A reroll comes from a rule ("Reroll 1s to hit" is a pack-declared reroll), and it
+records which dice it replaced.
 
 ## Rerolling does not break undo
 
 `docs/architecture.md` keeps an undone roll's dice spent, so an undo draws fresh dice and cannot
-be used to see the coming dice or fish for a better roll. A freely available reroll button might
-look like it discards that.
-
-It does not. The protection was never that dice are unchangeable — it is that changing
-them is **visible**. A logged reroll carrying a player's name is a different act from
-silently redoing an action until it lands well. Making fishing visible was always the
-point; making it impossible never was.
+be used to see the coming dice or fish for a better roll. A rule's reroll draws from the same
+cursor, so it spends dice the same way.
 
 ## Deliberately not decided
 

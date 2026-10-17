@@ -44,25 +44,24 @@ why a die carries both raw and modified.
 
 Every roll is recorded per die: `RollRecord(Guid Id, string Roll, int? Threshold,
 IReadOnlyList<RollModifier> Modifiers, IReadOnlyList<Die> Dice, int? RequiredRaw, ThresholdBasis? Basis = null)` with `Die(int Raw, int Modified,
-bool Success)`. A reroll or `SetDice` re-judges a die under the record's own threshold, modifiers and `RequiredRaw`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
+bool Success)`. A forced reroll or `SetDice` re-judges a die under the record's own threshold, modifiers and `RequiredRaw`. **Replay applies these. It never re-derives them.** `GameRules` is unpinned C#,
 so a threshold recomputed after a deploy could disagree with what the players rolled (resolution →
 Rerolling does not break undo).
 
-Three ways a die changes after it is drawn, each a distinct event:
+Dice and modifiers are the rules' alone: no player command rerolls a die, sets a face or adds a
+modifier. Two ways a die changes after it is drawn, each a distinct event:
 
 | Origin | Payload | Draws a new die | Cursor grows |
 | --- | --- | --- | --- |
 | A property forcing a reroll (`Bane`) | `DiceRerolled` emitted by the step, after its `step_completed` | yes, once per matching die, never again | yes |
-| A player's reroll command | `DiceRerolled` from `RulesEngine.Execute(RerollDice)` | yes | yes |
-| A player's edit command | `DiceEdited` from `Execute(SetDice)` | no; the raw face is given and re-judged | no |
+| The rules suite fixing a roll's faces | `DiceEdited` from `RulesEngine.Execute(SetDice)`, only where the engine accepts `SetDice` (below) | no; the raw face is given and re-judged | no |
 
 `RollOutcome.Successes/Failures/CountRaw` read a record back **as it now stands**, because the
-applier folds replacements into the projection's copy. This is what rerolls-as-commands-between-steps
-buys. With the wait setting on, a reroll of a block die between `roll-to-block` and `assign`
-changes the number of wounds `assign` asks the defender to allocate, because `assign` reads the
-record rather than a stored count.
+applier folds replacements into the projection's copy. A `SetDice` of a block die between
+`roll-to-block` and `assign` changes the number of wounds `assign` asks the defender to allocate,
+because `assign` reads the record rather than a stored count.
 
-**The edit model.** An edit reaches a frame on the stack and nothing popped. It appends one event
+**The edit model.** An edit (`SetDice`) reaches a frame on the stack and nothing popped. It appends one event
 and rewrites none: every `step_completed` already appended keeps its `Values` and `Changes`, and an
 edit changes exactly what later steps read off the record. Where a sequence is split for it, the
 rolling step records and the next step reads the record as it now stands and decides, so the
@@ -269,7 +268,7 @@ an explicit `Values["phase"]` machine. `GfContainers.WreckTestStep` guards it wi
 `StepCompleted.Values` is a flat `IReadOnlyDictionary<string, int>`: attacks counted, a capped
 hit multiplier, extra hits, a distance in tenths of an inch, a token spend, who lost. There is no
 schema per step kind, one flat map (contracts → Event inventory). It buys two things. A later step or a nested frame reads a settled
-parameter without re-deriving it. A reroll between steps changes what the next step reads, which
+parameter without re-deriving it. A forced reroll or a `SetDice` between steps changes what the next step reads, which
 is the record, without changing what was settled, which is the value. A value a face decides is
 therefore settled by the step after the roll in the split sequences above. The cost is untyped string
 keys with no registry. `dangerous_dice`, `net_tokens`, `phase`, `hits`, `hit_multiplier`,
@@ -293,7 +292,7 @@ A frame with **no actor and no parent** is gated at every boundary past position
 `game.waits_between_steps` says, and its gate is addressed to **every team** in `Info.Teams`. The
 roll-off is the only such frame. Nothing else holds its log open: with no actor there is no team
 to address, and with no parent there is no enclosing frame left on the stack once it finishes, so
-its rolls would be out of reach of `RerollDice` and `SetDice` forever. Every team has the same
+its rolls would be out of reach of `SetDice` forever. Every team has the same
 claim on a roll that fixes turn order for all of them, so the Ask carries all of them. It is
 unsealed, and the dispatcher closes an unsealed Ask on the first answer, so any team releases the
 gate. Waiting for all of them would need a sealed Ask, which exists to withhold and reveal
@@ -375,26 +374,18 @@ an empty stack is the scheduler's.** The scheduler is still called while one of 
 Asks is open. It returns `[]` for one that is live. It closes, with an empty answer list, one
 that a menu edit superseded. That is the only `ask_closed` the engine ever writes.
 
-`Judge` and `Execute` handle exactly three commands and refuse everything else:
+`Judge` and `Execute` handle one command, `SetDice`, and refuse everything else:
 
 | Command | `Judge` | `Execute` |
 | --- | --- | --- |
-| `RerollDice(FrameId, RollId, DiceIndices)` | `Legal` when the frame is on the stack and the roll is in one of its completed steps | `DiceRerolled` with the named dice (all when empty) redrawn under the record's own threshold and modifiers |
-| `SetDice(FrameId, RollId, Dice)` | the same | `DiceEdited` with each die re-judged from its new raw |
-| `AddModifier(FrameId, Roll, Amount)` | `Legal` when the frame is on the stack and `properties.HasRoll(roll)` | `ModifierAdded(frame, roll, new RollModifier("player", amount, Via: the participant's name))` |
+| `SetDice(FrameId, RollId, Dice)`, engine accepts it | `Legal` when the frame is on the stack, the roll is in one of its completed steps, every index is a die of it and none repeats, and every face is on the roll's convention | `DiceEdited` with each die re-judged from its new raw |
+| `SetDice`, engine does not accept it | `Illegal` | `RefuseCommand(NotPermitted, ...)` |
 | anything else | `Illegal` | `RefuseCommand(Unknown, ...)` |
 
-**A player's modifier applies to the frame's next rolling step for that roll.** `ModifierAdded` puts it in the frame's
-`PendingModifiers` under the roll's name. `StepContext.Roll` appends the pending modifiers for the plan's roll to the plan,
-after the two passes, so no suppression (cover, to-hit penalties) removes them and the ruleset's cap still clamps the sum.
-Every record of that roll the step makes carries them, one per pool when the step splits the roll, and that step's
-`StepCompleted` consumes them (the applier's one bookkeeping branch). A roll in another frame, a child frame included,
-never reads them. A step that rolls nothing of that name leaves them pending, and they lapse unread when the frame
-leaves the stack. Only `roll` rows are nameable, so the roll-off and a property's own roll never carry one.
-
-These are the same operations abilities use, with a different actor. Resolution's rule is that
-automation and the menu write the same fields. Undo never made dice unchangeable. It makes
-changing them visible and logged with a name.
+`SetDice` is the rules suite's way to fix a roll's faces, not a player's. `RulesEngine` takes it only
+when constructed with `acceptsSetDice`: `GameServerOptions.AcceptsSetDice`, on in the Development
+environment alone, and the sim's in-process driver. A production game server refuses it under every
+enforcement setting, since `Execute` refuses it too when warn or silent let an illegal command through.
 
 `RulesEngineFactory` replaces the skeleton's `InertEngineFactory`. It loads the set by
 `game.PropertiesHash`, caches by hash behind a lock, and throws `PropertiesNotFoundException`

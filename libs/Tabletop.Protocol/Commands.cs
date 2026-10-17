@@ -25,9 +25,7 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(SetRound), "set_round")]
 [JsonDerivedType(typeof(Undo), "undo")]
 [JsonDerivedType(typeof(AbandonSequence), "abandon_sequence")]
-[JsonDerivedType(typeof(RerollDice), "reroll_dice")]
 [JsonDerivedType(typeof(SetDice), "set_dice")]
-[JsonDerivedType(typeof(AddModifier), "add_modifier")]
 public abstract record Command;
 
 /// <summary>The only way to act inside a turn or a sequence, and the only way to pass.</summary>
@@ -57,9 +55,6 @@ public sealed record SetRound(int Round) : Command;
 
 public sealed record Undo(long ToSeq) : Command;
 public sealed record AbandonSequence(Guid FrameId) : Command;
-/// <summary>Empty DiceIndices means every die. Per roll, not per die.</summary>
-public sealed record RerollDice(Guid FrameId, Guid RollId, IReadOnlyList<int> DiceIndices) : Command;
 public sealed record DieValue(int Index, int Raw);
+/// <summary>Fixes a logged roll's raw faces. The rules suite's tool: a server accepts it only where the suite runs (GameServerOptions.AcceptsSetDice).</summary>
 public sealed record SetDice(Guid FrameId, Guid RollId, IReadOnlyList<DieValue> Dice) : Command;
-/// <summary>The same shape as a pack's modify-roll effect, with the player as its source.</summary>
-public sealed record AddModifier(Guid FrameId, string Roll, int Amount) : Command;

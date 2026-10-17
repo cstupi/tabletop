@@ -20,7 +20,6 @@ namespace Tabletop.Protocol;
 [JsonDerivedType(typeof(AskClosed), "ask_closed")]
 [JsonDerivedType(typeof(DiceRerolled), "dice_rerolled")]
 [JsonDerivedType(typeof(DiceEdited), "dice_edited")]
-[JsonDerivedType(typeof(ModifierAdded), "modifier_added")]
 [JsonDerivedType(typeof(Undone), "undone")]
 [JsonDerivedType(typeof(ModelsMoved), "models_moved")]
 [JsonDerivedType(typeof(WoundsSet), "wounds_set")]
@@ -81,7 +80,6 @@ public sealed record AskClosed(Guid AskId, IReadOnlyList<TeamAnswer> Answers) : 
 public sealed record DieReplacement(int Index, Die Old, Die New);
 public sealed record DiceRerolled(Guid FrameId, Guid RollId, IReadOnlyList<DieReplacement> Replaced) : EventPayload;
 public sealed record DiceEdited(Guid FrameId, Guid RollId, IReadOnlyList<DieReplacement> Replaced) : EventPayload;
-public sealed record ModifierAdded(Guid FrameId, string Roll, RollModifier Modifier) : EventPayload;
 
 // Undo
 /// <summary>Replay to ToSeq from the initial state. The log stays append-only; the applier drops the undone range.</summary>

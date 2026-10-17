@@ -36,7 +36,7 @@ public class GfCombatLogTests
     }
 
     [Fact]
-    public void A_rerolled_or_hand_set_die_carries_what_its_new_face_sets_off()
+    public void A_die_set_by_set_dice_carries_what_its_new_face_sets_off()
     {
         var render = Unit("Render", "4+", "4+", [], 2, [], Gun("Saw", "12\"", 1, P("Rending")));
         var target = Unit("T", "4+", "2+", [], 3, []);
@@ -47,18 +47,15 @@ public class GfCombatLogTests
         var hit = sim.Steps("roll-to-hit").Single().Rolls.Single();
         var frame = sim.State.Projection.Stack.Single(f => f.Steps.Any(s => s.Rolls.Any(r => r.Id == hit.Id))).Id;
 
-        var four = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new RerollDice(frame, hit.Id, [1]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
-        var toSix = Assert.IsType<DiceRerolled>(four.Events.Single()).Replaced.Single();
+        var four = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new SetDice(frame, hit.Id, [new DieValue(1, 6)]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
+        var toSix = Assert.IsType<DiceEdited>(four.Events.Single()).Replaced.Single();
         Assert.Equal((4, 6), (toSix.Old.Raw, toSix.New.Raw));
         Assert.Equal(["Rending"], toSix.New.Triggered!);
 
-        var six = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new RerollDice(frame, hit.Id, [0]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
-        var toThree = Assert.IsType<DiceRerolled>(six.Events.Single()).Replaced.Single();
+        var six = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new SetDice(frame, hit.Id, [new DieValue(0, 3)]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
+        var toThree = Assert.IsType<DiceEdited>(six.Events.Single()).Replaced.Single();
         Assert.Equal((6, 3), (toThree.Old.Raw, toThree.New.Raw));
         Assert.Null(toThree.New.Triggered);
-
-        var set = Assert.IsType<Dispatch.Applied>(sim.Dispatch(new SetDice(frame, hit.Id, [new DieValue(0, 6)]), Tabletop.Protocol.Tests.Samples.P1, Tabletop.Protocol.Tests.Samples.Team1));
-        Assert.Equal(["Rending"], Assert.IsType<DiceEdited>(set.Events.Single()).Replaced.Single().New.Triggered!);
     }
 
     [Fact]

@@ -177,7 +177,7 @@ comment cites page 50.
 winner must start deploying their army first"*, and page 50 still reads *"All players roll-off
 to determine the order in which they will deploy... starting with the player that got the
 highest score, and then alternating in descending order"*. The ruling of 2026-09-06 that made
-`GfRolls.RollOffSequence()` two steps, `roll-off` then `order`, so that a dice edit rewrites the
+`GfRolls.RollOffSequence()` two steps, `roll-off` then `order`, so that a `SetDice` rewrites the
 roll record and the ranking is derived after the gate, survives intact, and so does its reason:
 the roll-off still has to yield the whole descending order rather than a winner. Only its
 consumer narrows, from every round to deployment.

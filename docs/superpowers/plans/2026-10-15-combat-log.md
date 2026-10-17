@@ -25,7 +25,7 @@ shooting block, and what the dice set off; it drops every line that is not a rol
 ## Review Focus
 
 - A Blast weapon fired at a unit in cover: the block line must say `cover ignored (Blast)`, not `no cover`.
-- A hit die rerolled or set by hand after the roll: its `Triggered` is gone with the old face; the line counts only dice still carrying one.
+- A hit die a forced reroll or `SetDice` replaces after the roll: its `Triggered` is gone with the old face; the line counts only dice still carrying one.
 - A Rending group and a plain group in one attack: both block lines carry the same cover clause; only the Rending one shows `Rending AP -4`.
 - An old log (no `Basis`, no `Cover`): the block line still reads `Block · 5+ (AP -1) → needs 6`.
 - A roll outside any action (a morale test from a menu-less frame): it still reads as a roll line, not a dropped event.
@@ -278,7 +278,7 @@ public void An_undo_reads_undone_to_the_header_it_reached() { /* "Undone to: R1 
 
 - Panel: a block is open by default (its lines indented beneath the header); clicking the header folds it to the header and its chain.
   A roll row is `RollEntry.Line`, the faces drawn bright or faded by success (`DiceFaces`) next to the text; clicking it expands
-  `Details`, the rule chips, Reroll, Set die, +1 and Undo to here. A change or outside line has Undo to here.
+  `Details`, the rule chips and Undo to here. A change or outside line has Undo to here.
 - Tray: the latest roll's `Line` pieces: label and target, the faces, the result.
 - [ ] **Step 1:** `dotnet build client/Tabletop.csproj` and `./scripts/check-client` — clean.
 
