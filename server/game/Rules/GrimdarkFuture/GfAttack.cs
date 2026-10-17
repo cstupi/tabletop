@@ -7,7 +7,7 @@ namespace Tabletop.GameServer.Rules.GrimdarkFuture;
 
 public static partial class GfAttack
 {
-    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
+    public static Sequence DealWounds() => new(GfNames.DealWounds, [new AssignStep(), new GfReserves.SplitStep(), new DisgorgeStep(), new GfSpellSupport.TransferStep(), new GfMarkers.DestroyedStep(), new GfRuleHits.RetaliationStep()]);
 
     public static Interaction AttackInteraction(StepContext ctx, Guid? actor, Guid target, IReadOnlyList<Guid> weapons, AttackKind? kind, string? action) =>
         AttackInteraction(ctx.State, ctx.Properties, ctx.Frame, actor, target, weapons, kind, action,
@@ -193,6 +193,9 @@ public static partial class GfAttack
                 dead.Add(modelId);
                 if (!(GfMoves.IsContainer(ctx.State, modelId) && Lookup.OccupantUnits(ctx.State, modelId).Count > 0)) moves.Add(new ModelRelocation(modelId, model.Location, new OnShelf()));
             }
+            // Split: "you may place a new unit of X fully within 6" of it before removing the last model": the last model stays for `split`, which removes it.
+            if (moves.Count > 0 && !Lookup.AliveModels(ctx.State, target).Any(m => !dead.Contains(m) && !AtCapacity(ctx.State, m)) && GfReserves.KeepsLastModel(ctx.State, target))
+                moves.RemoveAt(moves.Count - 1);
             if (moves.Count > 0) changes.Add(new ModelsMoved(moves));
             changes.AddRange(Consumed(live));   // whatever the step read is spent: a granted regeneration rolled, a granted wound multiplier applied
             var total = ctx.Frame.Value("wounds_dealt") + landed;

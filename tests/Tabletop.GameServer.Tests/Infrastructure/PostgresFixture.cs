@@ -97,7 +97,8 @@ public sealed class PostgresFixture : IAsyncLifetime, IRowSeeder
         await Run("insert into management.army (id, owner_id, name, game_system, source) values ($1, $2, $3, $4, $5)", army.Id, ownerId, army.Name, army.GameSystem, army.Source);
         foreach (var u in army.Units)
         {
-            await Run("insert into management.unit (id, army_id, ordinal, name) values ($1, $2, $3, $4)", u.Id, army.Id, u.Ordinal, u.Name);
+            await Run("insert into management.unit (id, army_id, ordinal, name, reserve_property, reserve_of) values ($1, $2, $3, $4, $5, $6)",
+                u.Id, army.Id, u.Ordinal, u.Name, u.Reserve?.Property, u.Reserve?.Of);
             foreach (var (k, v) in u.Stats) await Run("insert into management.unit_stat values ($1, $2, $3)", u.Id, k, v);
             foreach (var p in u.Properties) await Run("insert into management.unit_property values ($1, $2, $3)", u.Id, p.Name, p.Parameter);
             foreach (var s in u.Models)

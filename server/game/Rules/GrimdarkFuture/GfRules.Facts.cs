@@ -46,6 +46,7 @@ public sealed partial class GrimdarkFutureRules
         if (!p.Models.TryGetValue(containerModelId, out var c) || c.UnitId == unitId || !GfMoves.IsContainer(state, c.Id)) return false;
         if (!p.Units.TryGetValue(unitId, out var unit) || Teams.Of(state, c.UnitId) is not { } team || team != Teams.Of(state, unitId)) return false;
         var transport = p.Units[c.UnitId];
+        if (GfReserves.IsReserve(unit) || GfReserves.IsReserve(transport)) return false;   // a reserve unit is placed by its rule only
         if (!deploying.Contains(c.UnitId) && !(Scheduler.TeamUnits.AllShelved(state, transport) && transport.Definition.Models.All(m => !deployed.Contains(m.Id)))) return false;
         if (unit.Conditions.Contains(GfNames.SetAside) != transport.Conditions.Contains(GfNames.SetAside)) return false;
         return NeverDeployed(state, unit, c.UnitId, deployed) && Fits(state, unit, c.Id);

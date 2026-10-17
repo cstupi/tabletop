@@ -40,6 +40,7 @@ public sealed partial class GrimdarkFutureRules
         GfRuleHits.RuleWounds(),
         GfMarkers.Rally(),
         GfContainers.TransportDestroyed(),
+        GfReserves.PlaceReserve(),
     }.ToDictionary(s => s.Name));
 
     public Sequence Sequence(string name) => _sequences.Value.TryGetValue(name, out var s) ? s : throw new UnknownSequenceException(name);

@@ -120,7 +120,7 @@ public sealed class LogQueries
                     break;
                 case AskClosed c when asks.TryGetValue(c.AskId, out var asked):
                     _asks[asked.Index] = asked.Ask with { Answers = c.Answers };
-                    if (asked.Ask.Ask.Question is AskQuestions.Deploy or AskQuestions.DeployScouts or AskQuestions.DeployAmbusher)
+                    if (asked.Ask.Ask.Question is AskQuestions.Deploy or AskQuestions.DeployScouts or AskQuestions.DeployAmbusher or AskQuestions.DeployReinforcement)
                         foreach (var a in c.Answers)
                             if (a.Answer is SelectedPieces p)
                                 _deployments.AddRange(p.PieceIds.Select(u => new LoggedDeployment(e.Seq, asked.Ask.Ask.Question, u, a.TeamId)));

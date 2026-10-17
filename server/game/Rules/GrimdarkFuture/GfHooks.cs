@@ -111,6 +111,11 @@ public static class GfHooks
                 foreach (var (entry, model) in GfPick.Offers(state, props, unit))
                     reactions.Add(new Reaction(team, GfPick.Key(entry.Name, model), $"{entry.Name} ({state.Projection.Models[model].Slot.Name}): pick a target",
                         GfNames.PickRuleSeq, new SequenceContext(unit, [], [], GfPick.Key(entry.Name, model))));
+            // Spawn: "Once per game, when this model is activated, you may place a new unit of X" (GfReserves).
+            if (point == GfNames.ActivationStart)
+                foreach (var (model, reserve) in GfReserves.SpawnOffers(state, unit))
+                    reactions.Add(new Reaction(team, $"{GfReserves.Spawn}|{model:N}", $"{GfReserves.Spawn} ({state.Projection.Models[model].Slot.Name}): place {state.Projection.Units[reserve].Definition.Name}",
+                        GfReserves.PlaceReserveSeq, new SequenceContext(unit, [reserve], [], GfReserves.Spawn)));
             var live = LiveProperties.Settle(new Interaction(state, props, Party.Whole(state, unit), null, null, frame.Context.Action, null, Battlefield.TerrainUnder(state, unit), point));
             if (point == GfNames.ActivationEnd && GfAmbush.MayReDeploy(state, unit))
                 reactions.Add(new Reaction(team, $"{GfAmbush.AmbushReDeployment}|{unit:N}", $"{GfAmbush.AmbushReDeployment}: remove, and deploy as an Ambusher next round",

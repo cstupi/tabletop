@@ -92,6 +92,11 @@ public static class ScenarioCompiler
             units.Add(new Unit(Guid.CreateVersion7(), u, $"{a.Name} unit {u}", a.UnitStats,
                 a.UnitRules.Where(r => r.Unit == u).Select(r => new PropertyInstance(r.Name, r.Parameter)).ToList(), models));
         }
+        foreach (var r in a.Reserves)
+            units[r.Unit - 1] = units[r.Unit - 1] with
+            {
+                Reserve = new UnitReserve(r.Property, r.OfModel is { } m ? units[r.OfUnit - 1].Models[m - 1].Id : units[r.OfUnit - 1].Id),
+            };
         return new ArmySnapshot(Guid.CreateVersion7(), a.Name, "grimdark-future", units);
     }
 }

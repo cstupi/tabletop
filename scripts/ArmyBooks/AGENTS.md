@@ -19,6 +19,7 @@ Writes `server/game/Content/army-books/<uid>.book.json` and `server/game/Content
 - `generate` reads `index.json` and `books/*.json` from there, translates, checks, and rewrites the book files.
 - It fails and writes nothing on an unknown generation shape, a text mismatch, a rule named in neither the core document nor the part, an unresolvable name collision, or a composed document `PropertiesJson` refuses.
 - `generate` also writes the army-book rules part: every rule name on a unit, a weapon, an item or an upgrade that core and `grimdark-future-army-rules.part.json` do not define becomes a template wrapper (an Aura, Buff or Mark whose text is its template, X read ignoring case, and whose base the catalog holds) or a `played: false` text-only entry (`kind: weapon` when only weapons carry it). Two books describing one name differently fail the run. It prints the count per group and the names with no description.
+- `generate` also writes `server/management/Content/Armies/army-book-units.json` (`ReserveUnits`, `--units FILE`): every unit a book's Spawn or Split rating (*"Bot Swarms [3]"*) names, in the TTS export's shape, keyed by book uid and unit name, for the import's reserve units. A rating naming no unit of its book fails the run.
 - Output is deterministic: an unchanged dump writes identical bytes.
 - References `server/game` for `PropertiesJson` and `PropertySetDocument`.
 

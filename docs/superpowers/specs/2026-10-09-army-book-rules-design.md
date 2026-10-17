@@ -198,9 +198,23 @@ Where an Army Forge text leaves a reading open, the one most consistent with the
   unit, when that unit holds it too. Reanimation rolls as its activation starts, one die per killed model and per wound
   its models carry; each 5+ restores a killed model first (placed by the engine within 1" of a model in play, on no base),
   then a wound. Any X or count from an imported army is bounded where it becomes grants or dice: 20 markers of one rule
-  on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement are not built: each places a unit the army
-  snapshot does not hold (*"a new unit of X"*, *"a new copy of it"*); the build path is the import adding the units X
-  names, from the book's units, as reserve units of the army, which the rule then places.
+  on a unit, 60 hits or dice for one use. Spawn, Split and Reinforcement each place a unit the list does not
+  hold (*"a new unit of X"*, *"a new copy of it"*). Army Forge gives X as the rule's rating, *"Bot Swarms [3]"*: a unit
+  of the carrying entry's book and its size. The generator writes every unit a book's Spawn or Split names, in the TTS
+  export's shape, to `server/management/Content/Armies/army-book-units.json`; the import (`ArmyBookReserves`) appends
+  one reserve unit per Spawn carrier, per Split unit, and per unit all of whose models hold Reinforcement (a copy with
+  fresh ids and without the rule), each marked `Unit.Reserve` (the rule, and the model or unit holding it), an added
+  unit's own Spawn or Split included, within the army limits (100 units, 500 models). A reserve unit never deploys and
+  is placed by its rule once. Spawn is offered at the carrying model's activation-start window (not while Shaken,
+  p.10's *"active special rules"*); `place-reserve` asks for the reserve's models fully within 6" of the model, judged as
+  a disembark is (`move_exit`), and may be passed, which spends nothing. Split: `assign` leaves the unit's last model on
+  the table while its reserve waits; deal-wounds' `split` step asks for the reserve's models fully within 6" of it, then
+  removes it; only wounds destroy a unit fully (a Routed unit is removed, not destroyed). Reinforcement: at each round
+  boundary from round two, after the Ambushers, teams alternate as Ambushers do, each picking (`deploy_reinforcement`)
+  the copy of a unit that is Shaken on the table or destroyed, or passing; a Shaken original is removed, and the copy is
+  placed by hand, every base fully within 12" of one table edge (`reinforcement_edge`); it neither seizes nor contests
+  objectives that round. An army imported before the import added reserve units holds the rules and no reserve: the
+  rules offer nothing until the army is imported again.
 - **Batch 8.** Armor is a `replace_stat` of Defense from the parameter. *"To a min. of 6""* is a `modify_stat` row's
   `floor`: the stat goes no lower than 6, or than itself when already lower. A charge's distance is read at its target
   (`GfMelee.ChargeDistance`, the charge move's allowance), so the target's Melee Shrouding and Darkborn take from it.

@@ -195,7 +195,7 @@ public static partial class SuiteCatalog
             IReadOnlyList<ScenarioModel>? carriers = null, int gunRange = 60, double? length = null, Action<ScriptBuilder>? more = null, string? enemyBook = null,
             IReadOnlyList<(int Unit, string Condition)>? conditions = null, int enemyRange = 60, IReadOnlyList<int>? setAside = null,
             IReadOnlyList<int>? enemySetAside = null, IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? anchors = null,
-            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null)
+            IReadOnlyDictionary<int, Tabletop.Geometry.Point2>? enemyAnchors = null, IReadOnlyList<ScenarioReserve>? reserves = null, IReadOnlyDictionary<int, int>? sizes = null)
         {
             var count = units ?? (rules.Count == 0 ? 1 : rules.Max(r => r.Unit));
             var (holds, enemyHolds) = (play is Play.Shoots or Play.Shot or Play.Charged or Play.Exchange, play is not Play.Charged);
@@ -210,7 +210,7 @@ public static partial class SuiteCatalog
                 .Seeking(Closing).Scripted(Script(play, book.Army, count, enemyUnits, more))
                 .Army(book.Army, count, models, modelRules: Still(rules, count, holds), armyBook: book.Uid,
                     weapons: guns ? [Gun(volley ? 4 : 1, weapon ?? [], gunRange), Blade(1)] : [Blade(1, [.. weapon ?? []])], models: carriers, conditions: conditions,
-                    setAside: setAside, anchors: anchors)
+                    setAside: setAside, anchors: anchors, reserves: reserves, sizes: sizes)
                 .Army("Opponents", enemyUnits, enemyModels ?? (volley ? 5 : 3), modelRules: Still(enemy, enemyUnits, enemyHolds), unitStats: enemyStats, armyBook: enemyBook,
                     weapons: enemyGuns ? [Gun(enemyAttacks, enemyWeapon ?? [], enemyRange), Blade(1)] : [Blade(1)], setAside: enemySetAside, anchors: enemyAnchors);
             return new TestGame(name, ArmyPrefix + book.Uid, (board ?? (x => x))(builder).Build(), covers, [RollOff, .. dice], checks);

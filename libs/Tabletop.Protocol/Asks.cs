@@ -26,6 +26,8 @@ public static class AskQuestions
     public const string Deploy = "deploy";
     public const string DeployScouts = "deploy_scouts";
     public const string DeployAmbusher = "deploy_ambusher";
+    /// <summary>A round-boundary pick of a unit a rule brings in from the army's reserve units, placed by hand as an Ambusher is.</summary>
+    public const string DeployReinforcement = "deploy_reinforcement";
     /// <summary>The round boundary: an unframed Confirmation Ask to every team, whose first answer starts the next round.</summary>
     public const string EndRound = "end_round";
     public const string Confirm = "confirm";

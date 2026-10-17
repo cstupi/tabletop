@@ -28,5 +28,5 @@ public sealed partial class GrimdarkFutureRules
         return null;
     }
 
-    public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => GfMoves.OverlapBreach(state, moves) ?? ZoneBreach(state, moves) ?? AmbushBreach(state, moves);
+    public AnswerBreachFound? PlacementBreach(GameState state, IReadOnlyList<ModelRelocation> moves) => GfMoves.OverlapBreach(state, moves) ?? ZoneBreach(state, moves) ?? AmbushBreach(state, moves) ?? GfReserves.EdgeBreach(state, moves);
 }

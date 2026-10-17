@@ -189,6 +189,13 @@ public static partial class GfMoves
                     return new(GfNames.MoveExitRule, $"{name} must be placed fully within {region.Containment?.ExitWithin ?? GfNames.ExitWithin:0.#}\" of the transport, on the table and clear of impassable terrain (p.15, p.7, p.11)");
                 continue;
             }
+            // A placement from the shelf (GfReserves: "fully within 6" of it") is held to the region's anchor as a disembark is to its transport.
+            if (m.From is OnShelf && region.Containment is { ExitingId: { } anchor, ExitWithin: { } reach })
+            {
+                if (ExitPlacement(state, m.ModelId, anchor, to.Placement, reach) is null)
+                    return new(GfNames.MoveExitRule, $"{name} must be placed fully within {reach:0.#}\" of {state.Projection.Models[anchor].Slot.Name}, on the table and clear of impassable terrain (p.7, p.11)");
+                continue;
+            }
             if (Battlefield.Placed(state, m.ModelId) is not { } start) continue;
             var destination = to.Placement.Position.Horizontal;
             if (start.Placement.Position.Horizontal.DistanceTo(destination) <= 1e-6) continue;

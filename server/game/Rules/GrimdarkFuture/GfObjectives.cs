@@ -74,7 +74,8 @@ public static class GfObjectives
     static HashSet<Guid> ArrivedByAmbushThisRound(GameState state)
     {
         var since = SchedulerLog.Of(state).SinceRound.Select(e => e.Payload).ToList();
-        var asks = since.OfType<AskOpened>().Where(o => o.Ask.Question == AskQuestions.DeployAmbusher).Select(o => o.Ask.Id).ToHashSet();
+        // Reinforcement: "Units that deploy via Reinforcement can't seize or contest objectives on the round they deploy" (GfReserves).
+        var asks = since.OfType<AskOpened>().Where(o => o.Ask.Question is AskQuestions.DeployAmbusher or AskQuestions.DeployReinforcement).Select(o => o.Ask.Id).ToHashSet();
         return since.OfType<AskClosed>().Where(c => asks.Contains(c.AskId))
             .SelectMany(c => c.Answers).Select(a => a.Answer).OfType<SelectedPieces>().SelectMany(s => s.PieceIds).ToHashSet();
     }

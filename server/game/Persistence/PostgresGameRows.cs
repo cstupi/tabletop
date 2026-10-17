@@ -132,9 +132,11 @@ public sealed partial class PostgresGameRows(NpgsqlDataSource db) : IGameRows
                 (slots.TryGetValue(r.GetGuid(1), out var l) ? l : slots[r.GetGuid(1)] = new()).Add(new ModelSlot(r.GetGuid(0), r.GetInt32(2), r.GetString(3), S(r.GetGuid(0)), P(r.GetGuid(0)),
                     new Base(EnumFrom<BaseShape>(r.GetString(4)), r.GetDouble(5), r.GetDouble(6)), r.GetDouble(7), NullableGuid(r, 8), weapons.TryGetValue(r.GetGuid(0), out var ws) ? ws : [], NullableString(r, 9)));
         var units = new List<Unit>();
-        await using (var cmd = new NpgsqlCommand("select id, ordinal, name from management.unit where army_id = $1 order by ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
+        await using (var cmd = new NpgsqlCommand("select id, ordinal, name, reserve_property, reserve_of from management.unit where army_id = $1 order by ordinal", conn) { Parameters = { new NpgsqlParameter { Value = armyId } } })
         await using (var r = await cmd.ExecuteReaderAsync(ct))
-            while (await r.ReadAsync(ct)) units.Add(new Unit(r.GetGuid(0), r.GetInt32(1), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0)), slots.TryGetValue(r.GetGuid(0), out var ss) ? ss : []));
+            while (await r.ReadAsync(ct))
+                units.Add(new Unit(r.GetGuid(0), r.GetInt32(1), r.GetString(2), S(r.GetGuid(0)), P(r.GetGuid(0)), slots.TryGetValue(r.GetGuid(0), out var ss) ? ss : [],
+                    NullableString(r, 3) is { } reserve && NullableGuid(r, 4) is { } of ? new UnitReserve(reserve, of) : null));
         return new OwnedArmy(new Army(armyId, name, system, source, units), owner);
     }
 }

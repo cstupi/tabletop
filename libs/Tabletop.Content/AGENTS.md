@@ -15,6 +15,7 @@ The army snapshot and the table state: the records that describe what is brought
 - Everything is an immutable record, so `ArmySnapshot.Of` shares lists instead of cloning.
 - Unit and slot ids in a snapshot are the ids in play.
 - A melee weapon has no `Range` stat at all.
+- `Unit.Reserve` (`UnitReserve`: a property name and the slot or unit holding it) marks a unit the army holds off the table until that property places it; null for every other unit and omitted from the JSON.
 - Stat values stay text as written; `StatKind` (`TargetNumber`, `Distance`, `Count`, `DiceExpression`) says how to read them.
 
 ## Commands

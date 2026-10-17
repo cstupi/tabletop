@@ -341,6 +341,11 @@ management's `005_spell_library.sql`.
 slot with no book, or a book the set does not list, casts nothing. It is the slot's and not the unit's because every
 entry, a joined one included, carries its own `armyId`, and `Caster(X)` is a model rule.
 
+`unit.reserve_property text null` and `unit.reserve_of uuid null`, both set or both null, mark a unit the army holds off
+the table until a rule places it (`Unit.Reserve`): the rule (Spawn, Split, Reinforcement) and the model slot or unit of
+the same army that holds it. The import writes them (army-book rules spec → Readings, batch 7); management's
+`015_unit_reserve.sql`.
+
 ### The catalog's per-kind check
 
 `cost` is non-null only when `kind = spell`; `target_side`, `target_grain`, `target_count` and `target_range` are non-null

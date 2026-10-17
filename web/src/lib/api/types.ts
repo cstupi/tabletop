@@ -26,7 +26,8 @@ export interface ModelSlot {
   id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[];
   base: Base; height: number; assetId?: Guid; weapons: Weapon[]; armyBook?: string;
 }
-export interface Unit { id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[]; models: ModelSlot[] }
+export interface Unit { id: Guid; ordinal: number; name: string; stats: Record<string, string>; properties: PropertyInstance[]; models: ModelSlot[]; reserve?: UnitReserve }
+export interface UnitReserve { property: string; of: Guid }
 export interface Army { id: Guid; name: string; gameSystem: string; source: string; units: Unit[] }
 export interface TerrainVolume { id: Guid; volume: Volume }
 

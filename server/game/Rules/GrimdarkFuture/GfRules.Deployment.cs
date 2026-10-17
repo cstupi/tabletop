@@ -13,7 +13,7 @@ public sealed partial class GrimdarkFutureRules
     /// <summary>Deployment: the shelf minus set-aside units. Scouts: the set-aside Scouts, after every other unit (page 14). One unit per Ask; no pass.</summary>
     private static TurnAsk? DeployAsk(GameState state, PropertySet props, Guid teamId, string phase)
     {
-        var units = TeamUnits.Of(state, teamId).Where(u => TeamUnits.AllShelved(state, u));
+        var units = TeamUnits.Of(state, teamId).Where(u => TeamUnits.AllShelved(state, u) && !GfReserves.IsReserve(u));   // a reserve unit is placed by its rule only
         units = phase == Deployment
             ? units.Where(u => !u.Conditions.Contains(SetAside))
             : units.Where(u => u.Conditions.Contains(SetAside) && Lookup.UnitHas(state, props, u.Id, Scout));

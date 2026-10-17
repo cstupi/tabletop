@@ -35,7 +35,9 @@ public static class ArmyForgeImport
     public static Army ToArmy(AfList list, string source, IReadOnlyDictionary<string, PropertyLevel> catalog, BaseSet set = BaseSet.Round)
     {
         if (!GameRules.TryGetValue(list.GameSystem, out var gameRules)) throw new UnsupportedGameSystemException(list.GameSystem);
-        var units = Merge(list.Units).Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
+        var merged = Merge(list.Units);
+        var units = merged.Select((m, i) => Unit(m, i + 1, catalog, set)).ToList();
+        units = ArmyBookReserves.Add(units, merged.Select(m => (IReadOnlyList<AfUnit>)[m.Host, .. m.Joined]).ToList(), (entry, ordinal) => Unit(new Merged(entry, []), ordinal, catalog, set));
         return new Army(Guid.CreateVersion7(), list.Name, gameRules, source, units);
     }
 
