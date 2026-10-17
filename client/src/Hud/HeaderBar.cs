@@ -13,7 +13,7 @@ public partial class HeaderBar : PanelContainer
     Session _s = null!;
     readonly HBoxContainer _top = new();
     readonly HFlowContainer _teams = new(), _activation = new();   // both wrap inside the header's slot
-    readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning };
+    readonly Label _waiting = new() { ThemeTypeVariation = Variation.Warning, AutowrapMode = TextServer.AutowrapMode.WordSmart };   // wraps inside the slot
     readonly Button _gameOver = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, Visible = false };
     readonly Button _settings = new() { Flat = true, ThemeTypeVariation = Variation.FlatButton, TooltipText = "Settings", FocusMode = FocusModeEnum.None };
     // Session and Ui outlive the header: the subscriptions are fields and come off in _ExitTree.
