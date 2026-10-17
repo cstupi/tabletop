@@ -64,7 +64,7 @@ release_notes() {   # <version> <out>: <out>/notes.txt from the tag's annotation
       found { print }' "$root/CHANGELOG.md")
   fi
   [[ "${DRY_RUN:-}" == 1 ]] && { echo "+ write $out/notes.txt"; return; }
-  printf '%s\n' "$notes" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$out/notes.txt"
+  printf '%s\n' "$notes" | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$out/notes.txt"
 }
 
 package_builds() {   # <version> <out>

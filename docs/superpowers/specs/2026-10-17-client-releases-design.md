@@ -58,7 +58,7 @@ writes under it. `UploadSweep` lists only `staging/`.
 
 - `scripts/release-client` holds every client step: `export` (Godot import, the three presets, a check that each
   export holds its .NET assemblies, since Godot exits 0 when the C# step fails), `package` (zips, sizes, hashes,
-  manifest) and `upload` (`aws s3 cp --endpoint-url`, from `RELEASE_S3_ENDPOINT`, `RELEASE_S3_BUCKET`,
+  manifest; notes from `notes`: the tag annotation, else the `CHANGELOG.md` section) and `upload` (`aws s3 cp --endpoint-url`, from `RELEASE_S3_ENDPOINT`, `RELEASE_S3_BUCKET`,
   `RELEASE_S3_ACCESS_KEY`, `RELEASE_S3_SECRET_KEY`).
 - `.github/workflows/release.yml` runs on a pushed `v*.*.*` tag: build and tests, the sim's in-process rules suite,
   the web checks, then `scripts/release-client` with Godot 4.7.2 .NET and its export templates (cached).
@@ -86,5 +86,5 @@ Every version stays under `releases/X.Y.Z/` until an operator deletes it (`aws s
 
 - Management's service user reads `releases/*` through its existing object policy (Get on the bucket's objects).
 - The publisher's credentials need Put on `releases/*` only. Self-hosted MinIO: `scripts/minio/init.sh` creates a
-  `<bucket>-releases` policy and a user for it when `S3_RELEASE_ACCESS_KEY` is set. S3 or R2: a token scoped to the
+  `<bucket>-releases` policy and a user for it when `RELEASE_S3_ACCESS_KEY` is set in `prod.env`. S3 or R2: a token scoped to the
   bucket with object write.
