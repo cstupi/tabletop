@@ -62,6 +62,16 @@ public class RateLimitTests
     }
 
     [Fact]
+    public async Task A_trusted_proxy_may_be_named_by_network_as_a_docker_gateway_is()
+    {
+        var (f, host) = Host(("RATE_LIMIT_AUTH_PER_IP", "1"), ("TRUSTED_PROXIES", "172.31.250.0/24"));
+        using var _ = f; using var c = host.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await c.SendAsync(Otp("a@example.com", "203.0.113.5", "172.31.250.1"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.SendAsync(Otp("b@example.com", "203.0.113.6", "172.31.250.1"))).StatusCode);   // another client behind it
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await c.SendAsync(Otp("c@example.com", "203.0.113.5", "172.31.250.1"))).StatusCode);
+    }
+
+    [Fact]
     public async Task Credential_endpoints_are_limited_per_email_across_addresses()
     {
         var (f, host) = Host(("RATE_LIMIT_AUTH_PER_EMAIL", "2"));

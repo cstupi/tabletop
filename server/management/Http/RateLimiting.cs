@@ -27,7 +27,7 @@ public static class RateLimiting
 {
     public const string AuthPolicy = "auth";
 
-    /// <summary>The proxies whose X-Forwarded-For/-Proto are believed: TABLETOP_TRUSTED_PROXIES, comma-separated addresses,
+    /// <summary>The proxies whose X-Forwarded-For/-Proto are believed: TABLETOP_TRUSTED_PROXIES, comma-separated addresses or CIDR networks,
     /// default loopback only (Caddy on the same host). A request from any other peer is partitioned by the peer itself.</summary>
     /// <remarks>Everything reads configuration lazily, through options and factories, so WebApplicationFactory overrides (applied
     /// during Build) reach it.</remarks>
@@ -42,7 +42,8 @@ public static class RateLimiting
             o.KnownIPNetworks.Clear();
             o.KnownProxies.Clear();
             foreach (var p in (config["TRUSTED_PROXIES"] ?? "127.0.0.1,::1").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                o.KnownProxies.Add(IPAddress.Parse(p));
+                if (p.Contains('/')) o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(p));
+                else o.KnownProxies.Add(IPAddress.Parse(p));
         });
         services.AddRateLimiter(_ => { });
         services.AddOptions<RateLimiterOptions>().Configure<RateLimits>((o, limits) =>
