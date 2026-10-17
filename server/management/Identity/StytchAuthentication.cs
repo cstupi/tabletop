@@ -17,8 +17,9 @@ public static class StytchAuthentication
 
     public static IServiceCollection AddStytchJwt(this IServiceCollection services)
     {
-        services.AddHttpClient(JwksClient);
-        services.AddSingleton(sp => new StytchJwks(sp.GetRequiredService<IHttpClientFactory>().CreateClient(JwksClient), sp.GetRequiredService<ManagementOptions>()));
+        services.AddHttpClient(JwksClient, c => c.Timeout = StytchJwks.DefaultFetchTimeout);
+        services.AddSingleton(sp => new StytchJwks(sp.GetRequiredService<IHttpClientFactory>().CreateClient(JwksClient), sp.GetRequiredService<ManagementOptions>(),
+            log: sp.GetRequiredService<ILogger<StytchJwks>>()));
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
         {
             o.MapInboundClaims = false;
@@ -34,7 +35,20 @@ public static class StytchAuthentication
         {
             o.TokenValidationParameters.ValidIssuer = Issuer(mo.StytchProjectId);
             o.TokenValidationParameters.ValidAudience = mo.StytchProjectId;
-            o.TokenValidationParameters.IssuerSigningKeyResolver = (_, _, kid, _) => jwks.Resolve(kid).GetAwaiter().GetResult();
+            // The resolver is synchronous, so it reads the cache only; OnMessageReceived awaits the fetch (if any) before validation.
+            o.TokenValidationParameters.IssuerSigningKeyResolver = (_, _, kid, _) => jwks.Cached(kid);
+            o.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = async ctx =>
+                {
+                    var header = ctx.Request.Headers.Authorization.ToString();
+                    if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return;
+                    string? kid;
+                    try { kid = new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(header["Bearer ".Length..].Trim()).Kid; }
+                    catch (Exception) { return; }                                // malformed: validation rejects it
+                    await jwks.Ensure(kid);
+                },
+            };
         });
         services.AddAuthorization();
         return services;
