@@ -171,7 +171,8 @@ in `AskQuestions`. A disembark is the same `RenderMove` with three things swappe
 
 | | ordinary move | disembark (`Containment.ExitingId` set) |
 | --- | --- | --- |
-| region | `MoveRuler.Region` from the start placement | `MoveRuler.ExitRegion` about the container's base |
+| region | `MoveRegions`: `MoveRuler.Region` from each model's own start, the lead's at first, then the held models' on each pickup (`TableInput.PickedUp`) | `MoveRuler.ExitRegion` about the container's base, the lead's |
+| clamp (no Alt) | each held model to its `MoveRuler.Reach`: the allowance, and the difficult cap on a line through difficult terrain | none |
 | draggable node | the model's own `PieceNode` | `TableView.ShowExitGhosts` on the container's node |
 | `TableInput.Allowance` | `Allowance − UsedInFrame` | `null` |
 | ruler | start to current, with remaining allowance | container to current, distance only |

@@ -14,6 +14,8 @@ public partial class DecisionBox
     Dictionary<Guid, Point3>? _proposed, _deployAt; Guid? _deployUnit;
     // What YawOf needs from the disembark render: the exit distance, the board's volumes and its size.
     double _exitWithin; IReadOnlyList<WorldVolume> _volumes = []; TableSize _size = new(72, 48);
+    /// <summary>The open move's per-model regions and the team colour they draw in; null outside a move and for a disembark.</summary>
+    MoveRegions? _regions; Color _regionColour;
     /// <summary>The move's commit against where its ghosts stand, read again on every drag and reset.</summary>
     Action? _regate; MoveGate _gate = new(true, null);
 
@@ -41,20 +43,20 @@ public partial class DecisionBox
         }
         else
         {
-            if (lead.Location is not OnTable on) { Unhook(); return; }
+            if (lead.Location is not OnTable) { Unhook(); return; }
             var frame = ask.FrameId is { } f ? p.Stack.FirstOrDefault(x => x.Id == f) : null;
             var used = frame is null ? 0 : MoveRuler.UsedInFrame(frame, lead.Id);
             // The Ask's Allowance is already what this segment has left (GfMoves reduces it by the distance a cast-split move used): never subtract `used` again.
             var remaining = Math.Max(0, legal.Allowance); allowance = remaining;
-            var start = new PlacedModel(body, on.Placement);
-            var boundary = MoveRuler.Region(start, legal with { Allowance = remaining }, _view.Volumes, _view.Size, DragBodies.Stationary(p, legal.ModelIds));
+            // Each model's own region from where it stands: the lead's shows first, then each pickup's held models'.
+            var regions = MoveRegions.Of(p, legal with { Allowance = remaining }, _view.Volumes, _view.Size);
+            _regions = regions; _regionColour = Palette.Team(ordinal);
+            ShowRegions([lead.Id]);
             // An Aircraft must move at least its minimum (p.13): the region is the ring beyond it, and a model short of it shows red.
-            var minimum = MoveRuler.Minimum(start, legal, _view.Size);
-            _region!.Show(boundary, Palette.Team(ordinal), minimum is { } least ? MoveRuler.Inner(on.Placement.Position.Horizontal, boundary, least) : null);
+            var minimum = regions.Minimum(lead.Id);
             _note.Text = minimum is { } must ? $"Move {must:0.0}\" to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely." : $"Move up to {remaining:0.0}\" (used {used:0.0}\") · Alt: place freely.";
-            _input.Allowance = remaining; _input.Region = legal;
-            _input.Minimum = legal.MinDistance is null ? null : legal.ModelIds.Where(id => p.Models[id].Location is OnTable)
-                .ToDictionary(id => id, id => MoveRuler.Minimum(new PlacedModel(BodyOf(p, id), ((OnTable)p.Models[id].Location).Placement), legal, _view.Size)!.Value);
+            _input.Allowance = remaining; _input.Region = legal; _input.Reach = regions;
+            _input.Minimum = legal.MinDistance is null ? null : legal.ModelIds.Where(regions.Has).ToDictionary(id => id, id => regions.Minimum(id)!.Value);
             // Drawn and committed agree: a rebuilt Ask (a refusal) or an Esc starts from the server's positions.
             void StartMove() { _proposed = legal.ModelIds.ToDictionary(id => id, id => ((OnTable)p.Models[id].Location).Placement.Position); _view.Snap(legal.ModelIds); }
             StartMove();
@@ -119,6 +121,14 @@ public partial class DecisionBox
     };
 
     Yaw? NodeYaw(Guid modelId) => _view.PieceAt(modelId) is { } n && IsInstanceValid(n) ? WorldFrame.YawFrom(n.Rotation.Y) : null;
+
+    /// <summary>Each of these models' own region, those the move holds; the outline stays on the last held models after the drop.</summary>
+    void ShowRegions(IReadOnlyList<Guid> modelIds)
+    {
+        if (_regions is not { } regions || _region is null || !IsInstanceValid(_region)) return;
+        var shown = modelIds.Where(regions.Has).Select(id => (regions.Outline(id), regions.Inner(id))).ToList();
+        if (shown.Count > 0) _region.Show(shown, _regionColour);
+    }
 
     static ModelBody BodyOf(Projection p, Guid modelId) { var m = p.Models[modelId]; return new ModelBody(m.Slot.Base, m.Slot.Height); }
 

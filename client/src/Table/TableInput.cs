@@ -26,6 +26,8 @@ public partial class TableInput : Node
     public double? Allowance { get; set; }
     /// <summary>The open move Ask's region: its walls and whether it passes models. Null outside one.</summary>
     public MoveRegion? Region { get; set; }
+    /// <summary>The open move Ask's per-model regions: each Proposing model's drag is clamped to its reach. Null outside one, and for a disembark.</summary>
+    public MoveRegions? Reach { get; set; }
     /// <summary>The least each of the move step's models must move (MoveRegion.MinDistance, an Aircraft's 30"), each held to the table from where it
     /// stands (MoveRuler.Minimum): shorter shows red. Null when the Ask sets no minimum.</summary>
     public IReadOnlyDictionary<Guid, double>? Minimum { get; set; }
@@ -54,6 +56,8 @@ public partial class TableInput : Node
     public event Action<IReadOnlyList<Guid>>? HandMoved;
     public event Action<Intent>? IntentPressed;
     public event Action? EligibleChanged, SightHeldChanged;
+    /// <summary>A drag has armed: the models now in hand.</summary>
+    public event Action<IReadOnlyList<Guid>>? PickedUp;
 
     /// <summary>
     /// A drag in hand. Armed once the cursor has travelled <see cref="DragThreshold"/> pixels. Grabs are where each piece stood when
@@ -182,7 +186,8 @@ public partial class TableInput : Node
         if (Measuring && _measureFrom is not null) { Stretch(AnchorAt(point, piece)); return; }   // the line follows the cursor until the second click or the release
         if (_drag is null) return;
         if (!_drag.Armed && screen.DistanceTo(_drag.Screen) < DragThreshold) return;
-        _drag.Armed = true; _drag.Cursor = point;
+        if (!_drag.Armed) { _drag.Armed = true; PickedUp?.Invoke(_drag.ModelIds); }
+        _drag.Cursor = point;
         var dx = point.X - _drag.Start.X; var dy = point.Y - _drag.Start.Y;
         Place(_drag.Rows > 0 ? Arranged(point) : _drag.Grabs.ToDictionary(kv => kv.Key, kv => kv.Value.Position with { X = kv.Value.Position.X + dx, Y = kv.Value.Position.Y + dy }));
     }
