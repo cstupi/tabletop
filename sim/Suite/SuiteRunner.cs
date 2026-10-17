@@ -82,8 +82,9 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
     private static async Task<(SuiteGameResult, SuiteGameRun)> PlayAsync(
         TestGame game, SuiteOptions options, Guid runId, SuiteSocket? sock, CancellationToken ct)
     {
-        // The step gate keeps a completed step's rolls on the stack, which is where SetDice reaches them.
-        var scenario = game.Dice.Count > 0 ? game.Scenario with { WaitsBetweenSteps = true } : game.Scenario;
+        // The step gate keeps a completed step's rolls on the stack, which is where SetDice reaches them, and holds a started frame
+        // before its rolling step, which is where AddModifier reaches it.
+        var scenario = game.Dice.Count > 0 || game.Modifiers.Count > 0 ? game.Scenario with { WaitsBetweenSteps = true } : game.Scenario;
         var compiled = ScenarioCompiler.Compile(scenario);
         if (sock is not null)
             compiled = compiled with { Info = compiled.Info with { Name = SuiteRows.GameName(runId, game.Name, options.Keep) } };
@@ -103,7 +104,7 @@ public sealed class SuiteRunner(IReadOnlyList<TestGame>? games = null, SuiteSock
             }
             else inner = await InProcessDriver.StartAsync(compiled, ct);
 
-            await using var driver = new DiceFixingDriver(inner, game.Dice);
+            await using var driver = new DiceFixingDriver(inner, game.Dice, game.Modifiers);
             // The invariants are checked here rather than in the loop, so a game's Invariants check reads them apart from its expectations.
             var loop = new RunLoop(driver, compiled, new ComposedAnswers(scenario.Script, scenario.Policy()),
                 HandPlacement.ChooserFor(scenario.Seed), new RunSettings(CheckInvariants: false));

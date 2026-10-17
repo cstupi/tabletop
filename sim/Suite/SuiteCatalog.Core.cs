@@ -10,7 +10,7 @@ public static partial class SuiteCatalog
 {
     private static partial IEnumerable<TestGame> Core() => [CoreGames.FourActions(), CoreGames.FiringLine(), CoreGames.ChargeAndStrikeBack(), CoreGames.MoraleBreak(), CoreGames.RoughGround(),
         CoreGames.CoverAndSight(), CoreGames.TransportRun(), CoreGames.TransportDeploy(),
-        CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment()];
+        CoreGames.Overkill(), CoreGames.HoldTheMarkers(), CoreGames.Deployment(), CoreGames.PlayerModifierGame()];
 }
 
 /// <summary>

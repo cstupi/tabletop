@@ -88,8 +88,51 @@ public class RulesEngineTests
         Assert.Equal(4, DiceCursor.DrawnSoFar(sim.State));                                  // an edit draws nothing
 
         var mod = Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "hit", 2), Samples.P1, Samples.Team1));
-        Assert.Equal(new RollModifier("player", 2), Assert.IsType<ModifierAdded>(mod.Events.Single()).Modifier);
+        Assert.Equal(new RollModifier("player", 2, "Clay"), Assert.IsType<ModifierAdded>(mod.Events.Single()).Modifier);
         Assert.Equal(RefusalReason.Unknown, Assert.IsType<Refused>(sim.Dispatch(new RerollDice(frame, Guid.CreateVersion7(), []), Samples.P1, Samples.Team1)).Reason);
+    }
+
+    static RollPlan Hit() => new("hit", 4, [new RollModifier("x", 1)], new RollConvention(6, null), null, new HashSet<int>());
+
+    /// <summary>An Ask, then a step with two hit pools, then a step with one more hit roll.</summary>
+    static Sequence AskThenRoll() => new("ask-then-roll", [
+        new LambdaStep("wait", ctx => ctx.History.LastClosed() is null ? new OpenAsks([ctx.Ask("go", "Go", ctx.ActorTeam!.Value, new Options([new AskOption("go", "Go", [])]))]) : new Complete([])),
+        new LambdaStep("roll", ctx => { ctx.Roll(Hit(), 2); ctx.Roll(Hit(), 1); return new Complete([]); }),
+        new LambdaStep("again", ctx => { ctx.Roll(Hit(), 1); return new Complete([]); })]);
+
+    [Fact]
+    public void A_players_modifier_folds_into_every_record_of_that_roll_in_the_frames_next_rolling_step_and_is_consumed()
+    {
+        var sim = new Sim(State([A], [B]), new StubRules(AskThenRoll()), TestProperties.Core, new ScriptedDice(2, 5, 6, 1, 3));
+        sim.Start("ask-then-roll", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "hit", -2), Samples.P1, Samples.Team1));
+        Assert.IsType<Applied>(sim.Dispatch(new AddModifier(frame, "defense", 1), Samples.P1, Samples.Team1));
+        sim.Answer(Samples.Team1, new Chosen("go"));
+
+        var player = new RollModifier("player", -2, "Clay");
+        var pools = sim.Steps("roll").Single().Rolls;
+        Assert.All(pools, r => Assert.Equal([new RollModifier("x", 1), player], r.Modifiers));
+        Assert.Equal([1, 4, 5], pools.SelectMany(r => r.Dice).Select(d => d.Modified));            // 2, 5, 6 at net -1
+        Assert.Equal([false, true, true], pools.SelectMany(r => r.Dice).Select(d => d.Success));  // threshold 4
+
+        var later = sim.Steps("again").Single().Rolls.Single();                                     // consumed by the step that rolled it
+        Assert.Equal([new RollModifier("x", 1)], later.Modifiers);
+        Assert.Equal(2, later.Dice.Single().Modified);
+    }
+
+    [Fact]
+    public void A_players_modifier_for_another_roll_stays_pending()
+    {
+        var sim = new Sim(State([A], [B]), new StubRules(AskThenRoll()), TestProperties.Core, new ScriptedDice(2, 5, 6, 1, 3));
+        sim.Start("ask-then-roll", new SequenceContext(A.Id, [], [], null));
+        var frame = sim.State.Projection.Stack.Single().Id;
+        sim.Dispatch(new AddModifier(frame, "defense", 1), Samples.P1, Samples.Team1);
+        sim.Dispatch(new AnswerAsk(sim.AskFor(Samples.Team1).Id, new Chosen("go")), Samples.P1, Samples.Team1);
+        for (var i = 0; i < 10 && sim.Steps("roll").Count == 0; i++) sim.Append(sim.Engine.Advance(sim.State).Events);   // up to the roll step, before "again"
+
+        Assert.Equal([new RollModifier("x", 1)], sim.Steps("roll").Single().Rolls[0].Modifiers);
+        Assert.Equal([new RollModifier("player", 1, "Clay")], sim.State.Projection.Stack.Single().PendingModifiers["defense"]);
     }
 
     [Fact]

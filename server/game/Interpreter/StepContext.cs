@@ -53,9 +53,11 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
 
     /// <summary>A forced reroll acted when the roller redrew a die showing its face: its source is recorded then, and only then.</summary>
     /// <summary>`triggers`, when given, names what each die set off (Die.Triggered), on the record's dice and on a forced reroll's.</summary>
+    /// <summary>The players' modifiers (AddModifier) pending on this frame for the roll are folded in here, after the two passes, so no
+    /// suppression removes them; every record of that roll this step makes carries them, and the step's StepCompleted consumes them.</summary>
     public RollRecord Roll(RollPlan plan, int count, Func<Die, IReadOnlyList<string>?>? triggers = null)
     {
-        var result = roller.Roll(Frame.Id, plan, count);
+        var result = roller.Roll(Frame.Id, WithPending(plan), count);
         if (triggers is not null)
         {
             Die Stamp(Die d) => triggers(d) is { } t ? d with { Triggered = t } : d;
@@ -74,6 +76,11 @@ public sealed class StepContext(GameState state, PropertySet properties, IGameRu
         }
         return result.Record;
     }
+
+    RollPlan WithPending(RollPlan plan) =>
+        Projection.Stack.FirstOrDefault(f => f.Id == Frame.Id)?.PendingModifiers.GetValueOrDefault(plan.Roll) is { Count: > 0 } pending
+            ? plan with { Modifiers = [.. plan.Modifiers, .. pending] }
+            : plan;
 
     public Ask Ask(string question, string prompt, Guid team, LegalSet legal, bool allowPass = false, string? windowKind = null) =>
         new(Guid.CreateVersion7(), question, prompt, [team], legal, allowPass, false, windowKind, Frame.Id);
