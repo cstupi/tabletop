@@ -92,7 +92,7 @@ public class ArmyTests : IClassFixture<ManagementFactory>
         Assert.Equal($"Slot {slot.Id}: height 25 is outside 0.1–24 inches.", await Problem(await c.PatchJson(url, new PatchArmyRequest(null, null, [new SlotPatch(slot.Id, null, false, null, 25)])), HttpStatusCode.UnprocessableEntity));
         Assert.Equal($"Slot {slot.Id}: height 0 is outside 0.1–24 inches.", await Problem(await c.PatchJson(url, new PatchArmyRequest(null, null, [new SlotPatch(slot.Id, null, false, null, 0)])), HttpStatusCode.UnprocessableEntity));
         var shape = await c.PatchAsJsonAsync(url, new { slots = new[] { new { slotId = slot.Id, clearAsset = false, @base = new { shape = 7, a = 1, b = 1 } } } });
-        Assert.Equal($"Slot {slot.Id}: base shape 7 is not a shape.", await Problem(shape, HttpStatusCode.UnprocessableEntity));
+        Assert.Equal(HttpStatusCode.BadRequest, shape.StatusCode);                                   // enums bind by name only
         Assert.Equal(ContentJson.Serialize(army), ContentJson.Serialize(await c.GetJson<Army>(url)));
         var edge = await c.PatchJson<Army>(url, new PatchArmyRequest(new string('n', 64), null, [new SlotPatch(slot.Id, null, false, Base.Rect(0.4, 12), 24)]));
         Assert.Equal((Base.Rect(0.4, 12), 24.0), (edge.Units[0].Models[0].Base, edge.Units[0].Models[0].Height));
