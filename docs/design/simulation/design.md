@@ -445,7 +445,7 @@ participant's `army_snapshot` and flips to `playing`. The scenario's own ids the
 `CreateTeamAsync` would mint its own, and the driver's projection, its recording and its answers
 are all keyed on the `CompiledScenario`'s ids.
 
-The properties row is not part of the seeding. `sim/` never writes a `properties` row. `GameServerFactory` runs in the `Test` environment, where the game server seeds no embedded documents, so a socket-backed test seeds the core properties document into Postgres itself, through the game server's own `PostgresPropertiesStore`, before `SeedAsync`. `SeedAsync` throws `PropertiesMissingException` when the row is absent.
+The properties row is not part of the seeding. `sim/` never writes a `properties` row. `GameServerFactory` runs in the `Test` environment, where the game server seeds no embedded documents, so a socket-backed test puts the core set into the factory's properties store itself before `SeedAsync`: the in-memory store in the unit suite, Postgres through `PostgresPropertiesStore` in the E2E suite. `SeedAsync` throws `PropertiesMissingException` when the row is absent.
 
 **One session per participant.** A session JWT names one account,
 `FindParticipantAsync(gameId, accountId)` maps an account to one participant, and a newer socket
@@ -753,7 +753,7 @@ those spells have no authored properties document the game server can load, so t
 error with exit code 2. There is no token variable, because the tokens are minted per run.
 
 A socket run leaves its rows and its log in Postgres. The game is then in the database to look
-at, and `sim/` is a developer tool. `SocketRowSeeder.DeleteAsync` exists for the tests, which
+at, and `sim/` is a developer tool. `ISocketRows.DeleteAsync` serves the suite and the tests, which
 must not accumulate games. Repeating a `--driver socket` run with the same seed makes a second
 game rather than colliding on the primary key, because the game id is random and only `rng_seed`
 repeats. A seed range therefore leaves one row per run. That is the price of the seed being
@@ -889,7 +889,7 @@ Every type and member below is `public`. Nothing is `internal` and nothing needs
 | `sealed class InProcessDriver : IGameDriver` | `static Task<InProcessDriver> StartAsync(CompiledScenario, CancellationToken)`, `GameSession Session`, `Task<Projection> ServerProjectionAsync(CancellationToken)`, `IRL<GameEvent> Log` |
 | `interface IWebSocketConnector`; `sealed class ClientWebSocketConnector(Uri)` | `Task<WebSocket> ConnectAsync(CancellationToken)` |
 | `sealed record MintedSession(string Jwt, Guid AccountId)`; `sealed record SocketCredentials(IRL<MintedSession> Sessions)` | `const ManagementUrlVariable = "TABLETOP_SIM_MANAGEMENT"`, `const MintPath = "/v1/dev/sessions"`, `const PoolSize = 4`, `static Pool`, `static NameFor(int)`, `static MintAsync(CompiledScenario, HttpClient, CancellationToken)`, `static MintOneAsync(HttpClient, string, CancellationToken)`, `string For(int)`, `Guid AccountOf(int)` |
-| `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows)`; `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)` |
+| `interface ISocketRows`; `sealed class SocketRowSeeder(NpgsqlDataSource, IGameRows) : ISocketRows` (the Postgres one); `sealed class PropertiesMissingException` | `Task SeedAsync(CompiledScenario, SocketCredentials, CancellationToken)`, `Task DeleteAsync(Guid, CancellationToken)`, `Task SeedSpectatorAsync(Guid, Guid, string, CancellationToken)`, `Task<IAsyncDisposable> HoldAsync(Guid, CancellationToken)`, `Task<IReadOnlyList<Guid>> SweepAsync(Guid, CancellationToken)` |
 | `sealed class SocketDriver : IGameDriver` | `static Task<SocketDriver> StartAsync(CompiledScenario, IWebSocketConnector, SocketCredentials, CancellationToken)`, `TimeSpan RestTimeout { get; init; }`, `Task<WebSocketCloseStatus?> ReconnectRecorderAsync(CancellationToken)` |
 
 ### Produced: `Tabletop.Sim.Run`

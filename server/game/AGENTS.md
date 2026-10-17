@@ -79,7 +79,7 @@ It reads management's rows, owns each game's append-only event log, and hosts th
 ```bash
 docker compose up -d                                        # Postgres, MinIO, management :5100, game :5200
 dotnet run --project server/game/Tabletop.GameServer.csproj # host run; stop the container first: docker compose stop game
-dotnet test tests/Tabletop.GameServer.Tests                 # needs Postgres up
+dotnet test tests/Tabletop.GameServer.Tests                 # unit; nothing running
 dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttack"
 ./scripts/army-books fetch                                  # downloads books from Army Forge (the only network call)
 ./scripts/army-books generate                               # rewrites Content/army-books/ and the army-book rules part from the fetched copy
@@ -109,10 +109,11 @@ dotnet test tests/Tabletop.GameServer.Tests --filter "FullyQualifiedName~GfAttac
 
 ## Tests
 
-- `tests/Tabletop.GameServer.Tests`, xUnit. Classes that touch the database carry `[Collection("Postgres")]` (`Infrastructure/PostgresFixture.cs`); they read `TABLETOP_DB_CONNECTION` and need the Docker Postgres with management's schema.
-- `Infrastructure/` holds the fixtures: `GameServerFactory`, `SchedulerHarness`, `ScriptedStarter`, `FixedAskEngine`, `TestProperties`, `FakeRules`/`StubRules`, `RecordingClient`.
+- `tests/Tabletop.GameServer.Tests`, xUnit. The unit suite runs over `InMemorySeeder` (`InMemoryGameRows`, `InMemoryEventLog`, `InMemoryPropertiesStore`); `GameServerFactory` serves a seeder's stores and `TestKeys`' JWKS, so nothing reaches Postgres or Stytch.
+- E2E (`--settings tests/e2e.runsettings`): `PostgresGameRowsTests`, `PostgresEventLogTests`, `PropertiesStoreTests`, over `PostgresFixture` (`[Collection("Postgres")]`, `TABLETOP_DB_CONNECTION`, the Docker Postgres with management's schema).
+- `Infrastructure/` holds the fixtures: `GameServerFactory`, `InMemorySeeder`, `InMemoryGameRows`, `PostgresFixture`, `SchedulerHarness`, `ScriptedStarter`, `FixedAskEngine`, `TestProperties`, `FakeRules`/`StubRules`, `RecordingClient`.
 - `ScriptedDice` fixes faces. Rules tests are named `Gf*Tests.cs`.
-- `EventLogContract.cs` is run against both `InMemoryEventLog` and `PostgresEventLog`.
+- `EventLogContract.cs` and `GameRowsContract.cs` run against both the in-memory fake and the Postgres adapter.
 
 ## Docs
 
